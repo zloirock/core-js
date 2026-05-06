@@ -134,7 +134,7 @@ export function bindingSymbolKey(binding) {
 // to find the enum. babel's scope tracker does anchor at StaticBlock so the legacy `scope.path`
 // fallback works for it; estree-toolkit needs the explicit path
 function resolveBindingToGlobal(name, scope, adapter, seen, path) {
-  if (!seen) seen = new Set();
+  seen ??= new Set();
   if (seen.has(name)) return null;
   seen.add(name);
   // single binding lookup - reused by polyfillHint, type gate, and VariableDeclarator init walk
@@ -229,7 +229,7 @@ function resolveProxyGlobalRoot(receiver, scope, adapter, seen, path) {
 // initialize at entry so the cycle guard accumulates across recursion regardless of whether
 // the caller passed one - matches resolveBindingToGlobal's convention
 export function resolveObjectName(objectNode, scope, adapter, seen, path) {
-  if (!seen) seen = new Set();
+  seen ??= new Set();
   objectNode = unwrapParens(objectNode);
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name, path)) return resolveBindingToGlobal(objectNode.name, scope, adapter, seen, path);
