@@ -367,22 +367,41 @@ export function createDestructureEmitter({
   function planDeclarator(declarator, scope) {
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
-    if (declarator.id?.type === 'ObjectPattern' && declarator.id.properties.length) {
+    // single-element ArrayPattern wrapping ObjectPattern (`const [{...}] = [globalThis]`):
+    // peel the array layer and pick init at index 0 so the inner ObjectPattern resolves
+    // through the same proxy-global / static-object chain as the bare form
+    let pattern = declarator.id;
+    let initSource = declarator.init;
+    if (pattern?.type === 'ArrayPattern' && pattern.elements.length === 1
+      && pattern.elements[0]?.type === 'ObjectPattern'
+      && initSource?.type === 'ArrayExpression') {
+      [pattern] = pattern.elements;
+      [initSource] = initSource.elements;
+    }
+    if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
       // `(se(), globalThis)` - unwrap to the semantic init value so nested receivers
       // resolve through SequenceExpression prefixes + preserved parens. parity with
       // non-nested destructure which goes through `buildDestructuringInitMeta`
-      const init = unwrapInitValue(declarator.init);
+      const init = unwrapInitValue(initSource);
       const receiver = init ? sharedResolveObjectName(init, scope, estreeAdapter) : null;
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
-        const outerProps = declarator.id.properties.map(planOuterProp);
-        if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps };
+        const outerProps = pattern.properties.map(planOuterProp);
+        if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern };
       } else if (init) {
-        const outerProps = declarator.id.properties.map(p => planOuterPropStatic(p, init, [], scope));
-        if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps };
+        const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, [], scope));
+        if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps, pattern };
       }
     }
     planCache.set(declarator, plan);
     return plan;
+  }
+
+  // peel AssignmentPattern wrapping the inner pattern (`{ Foo: { x } = {} } = R`).
+  // proxy-global / static-object receivers always defined, so default never fires;
+  // transparent under "polyfill always wins". returns the bare value for non-wrapper
+  // shapes unchanged
+  function peelInnerDefault(value) {
+    return value?.type === 'AssignmentPattern' ? value.left : value;
   }
 
   // static-object descent. given an outer prop `key: ObjectPattern` at depth N (path =
@@ -396,16 +415,17 @@ export function createDestructureEmitter({
   // local binding outside the static path, so static-object descent doesn't apply
   function planOuterPropStatic(outerProp, hostInit, path, scope) {
     if (outerProp.type !== 'Property' || outerProp.computed
-      || outerProp.key?.type !== 'Identifier'
-      || outerProp.value?.type !== 'ObjectPattern') {
+      || outerProp.key?.type !== 'Identifier') {
       return { preservedSrc: nodeSrc(outerProp) };
     }
+    const value = peelInnerDefault(outerProp.value);
+    if (value?.type !== 'ObjectPattern') return { preservedSrc: nodeSrc(outerProp) };
     const newPath = [...path, outerProp.key.name];
     const constructor = walkStaticReceiverChain(hostInit, newPath, scope, estreeAdapter);
     if (constructor) {
-      return foldNestedPattern(outerProp, innerProp => planInnerProp(innerProp, constructor));
+      return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
     }
-    return foldNestedPattern(outerProp, innerProp => planOuterPropStatic(innerProp, hostInit, newPath, scope));
+    return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath, scope));
   }
 
   // proxy-global outer prop: four shapes
@@ -420,17 +440,18 @@ export function createDestructureEmitter({
       return { preservedSrc: nodeSrc(outerProp) };
     }
     const { name } = outerProp.key;
-    if (outerProp.value?.type === 'ObjectPattern') {
+    const value = peelInnerDefault(outerProp.value);
+    if (value?.type === 'ObjectPattern') {
       const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
         ? planOuterProp
         : innerProp => planInnerProp(innerProp, name);
-      return foldNestedPattern(outerProp, planChild);
+      return foldNestedPattern(outerProp, value, planChild);
     }
-    if (outerProp.value?.type === 'Identifier') {
+    if (value?.type === 'Identifier') {
       const pure = resolveGlobalPolyfill(name);
       if (!pure) return { preservedSrc: nodeSrc(outerProp) };
       return {
-        extractions: [{ entry: pure.entry, hint: pure.hintName, localName: outerProp.value.name }],
+        extractions: [{ entry: pure.entry, hint: pure.hintName, localName: value.name }],
         preservedSrc: null,
       };
     }
@@ -444,11 +465,14 @@ export function createDestructureEmitter({
   // gathers all OTHER own keys, so a fully-consumed key without placeholder would change
   // runtime semantics (`rest.from` becomes defined, originally excluded). mirrors the
   // outer-level treatment in `rewriteDeclarator`
-  function foldNestedPattern(outerProp, planChild) {
+  function foldNestedPattern(outerProp, innerPattern, planChild) {
+    // innerPattern defaults to outerProp.value when not provided - back-compat for callers
+    // that don't peel AssignmentPattern themselves
+    const pattern = innerPattern ?? outerProp.value;
     const extractions = [];
     const preservedInner = [];
-    const innerHasRest = outerProp.value.properties.some(p => p.type === 'RestElement');
-    for (const child of outerProp.value.properties) {
+    const innerHasRest = pattern.properties.some(p => p.type === 'RestElement');
+    for (const child of pattern.properties) {
       const e = planChild(child);
       if (e.extractions?.length) {
         extractions.push(...e.extractions);
@@ -501,7 +525,9 @@ export function createDestructureEmitter({
     // fully-consumed key from `{Array: {from}, ...rest} = globalThis` would change
     // runtime semantics (`rest.Array` becomes defined, original excluded it). keep
     // a `Foo: _unused` sentinel for each consumed key when rest is present
-    const hasRest = declarator.id.properties.some(p => p.type === 'RestElement');
+    // plan.pattern is the effective ObjectPattern (peeled past ArrayPattern wrapper for
+    // `[{...}] = [globalThis]`); declarator.id may be the ArrayPattern wrapper itself
+    const hasRest = plan.pattern.properties.some(p => p.type === 'RestElement');
     for (let i = 0; i < plan.outerProps.length; i++) {
       const outer = plan.outerProps[i];
       for (const e of outer.extractions ?? []) {
@@ -516,7 +542,7 @@ export function createDestructureEmitter({
       if (outer.preservedSrc !== null) {
         preservedOuter.push(outer.preservedSrc);
       } else if (hasRest) {
-        const sourceProp = declarator.id.properties[i];
+        const sourceProp = plan.pattern.properties[i];
         const keyName = sourceProp?.key?.name;
         if (keyName) preservedOuter.push(`${ keyName }: ${ injector.generateUnusedName() }`);
       }
@@ -876,7 +902,14 @@ export function createDestructureEmitter({
     if (isFunctionParamDestructureParent(metaPath.parentPath)) {
       return handleParameterDestructurePure(meta, metaPath, propNode);
     }
-    if (metaPath.parentPath?.parentPath?.node?.type === 'Property') {
+    // peel inner-default AssignmentPattern (`{ Foo: { x } = {} } = R`) so the nested-flatten
+    // path fires for the same shape as the bare `{ Foo: { x } } = R` form
+    let outerHost = metaPath.parentPath?.parentPath;
+    if (outerHost?.node?.type === 'AssignmentPattern'
+        && outerHost.node.left === metaPath.parentPath?.node) {
+      outerHost = outerHost.parentPath;
+    }
+    if (outerHost?.node?.type === 'Property') {
       if (tryFlattenNestedProxy(metaPath)) return;
       if (tryFlattenAssignmentExpression(metaPath)) return;
       return handleParameterDestructurePure(meta, metaPath, propNode);
