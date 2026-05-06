@@ -87,6 +87,24 @@ QUnit.test('syntax: arrow with default param polyfill', assert => {
   assert.deepEqual(fn(), [2, 3]);
 });
 
+// --- per-branch synth-swap: function-param ObjectPattern with conditional default ---
+
+QUnit.test('syntax: per-branch synth - param default ternary { from } = cond ? Array : globalThis.Array', assert => {
+  // both branches resolve to Array.from polyfill; tryRegisterPerBranchSynth rewrites the
+  // default to a synthetic literal so the destructure binds to the polyfill regardless of
+  // runtime cond. plain `const { from } = cond ? ... : ...` does NOT trigger this synth -
+  // the param-default-with-ObjectPattern shape is the gate
+  const cond = Math.random() > -1;
+  function f({ from } = cond ? Array : globalThis.Array) {
+    return from([1, 2, 3]);
+  }
+  function g({ of } = cond ? Array : globalThis.Array) {
+    return of(10, 20);
+  }
+  assert.deepEqual(f(), [1, 2, 3]);
+  assert.deepEqual(g(), [10, 20]);
+});
+
 QUnit.test('syntax: arrow body with chained polyfills', assert => {
   const fn = arr => arr.filter(x => x > 0).map(x => x * 2).at(-1);
   assert.same(fn([1, -2, 3]), 6);
@@ -275,6 +293,31 @@ QUnit.test('syntax: for-of with break after polyfill', assert => {
 QUnit.test('syntax: spread polyfilled array in call', assert => {
   const items = Array.from([1, 2, 3]);
   assert.same(Math.max(...items), 3);
+});
+
+QUnit.test('syntax: spread of bound array into mutating Object.assign', assert => {
+  // spread sources -> Object.assign mutates first iterated value (target). exercises
+  // the SpreadElement classifier branch with a known mutating callee
+  const sources = [{ a: 1 }, { b: 2 }, { c: 3 }];
+  Object.assign(...sources);
+  assert.deepEqual(sources[0], { a: 1, b: 2, c: 3 });
+  assert.deepEqual(sources[1], { b: 2 }, 'subsequent sources unchanged');
+});
+
+QUnit.test('syntax: spread of bound array into non-mutating Math.max', assert => {
+  // spread arity unknown statically; Math.max has no mutatesArgument so spread is read-only
+  const nums = [3, 1, 4, 1, 5];
+  assert.same(Math.max(...nums), 5);
+  assert.deepEqual(nums, [3, 1, 4, 1, 5], 'source unchanged');
+});
+
+QUnit.test('syntax: object spread {...o} reads enumerable own props', assert => {
+  // ObjectExpression SpreadElement is a value-source container; o is read, never a target
+  const o = { arr: [1, 2, 3], tag: 't' };
+  const copy = { ...o, tag: 'copy' };
+  assert.same(o.tag, 't');
+  assert.same(copy.tag, 'copy');
+  assert.same(copy.arr, o.arr, 'shallow: array ref shared');
 });
 
 // --- optional chaining: computed member ---
