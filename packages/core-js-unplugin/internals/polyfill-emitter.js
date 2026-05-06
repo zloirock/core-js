@@ -11,7 +11,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
-import { findProxyGlobal } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { findProxyGlobal, prependChainAssignmentEffect } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint } from './transform-queue.js';
@@ -557,7 +557,14 @@ export function createPolyfillEmitter({
       start = parent.object.start;
       end = afterOptional(parent.object.end, !parent.computed);
     }
-    transforms.add(start, end, asiGuardLeadingParen(wrapSideEffects(binding, sideEffects), metaPath, start));
+    // chain-assignment receiver `(a = Array).from(args)` / `(a = b = Array).from(args)`:
+    // outermost assignment would be lost when receiver is dropped. unwrap parens / TS /
+    // ChainExpression via `unwrapNode`, then shared `prependChainAssignmentEffect` peels
+    // `=` chain and prepends the outermost assignment to side effects so emit becomes
+    // `(a = Array, _Array$from)(args)`. instance dispatch never reaches here (routes
+    // through replaceInstance), so no risk of duplicating with memoize-captured form
+    const allEffects = prependChainAssignmentEffect(unwrapNode(node.object), sideEffects);
+    transforms.add(start, end, asiGuardLeadingParen(wrapSideEffects(binding, allEffects), metaPath, start));
   }
 
   // `key in obj` rewrite: Symbol-sourced LHS (`Symbol.X in obj`) takes the symbol-in
