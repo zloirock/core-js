@@ -126,7 +126,7 @@ export function createPolyfillEmitter({
     const {
       isCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
       optionalCall, args, objectStart, preAllocatedGuardRef, sideEffects,
-      substituted, rootIsReceiver,
+      substituted, rootIsReceiver, parenLookupOnly,
     } = opts;
     const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
     let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
@@ -163,6 +163,16 @@ export function createPolyfillEmitter({
       guard = '';
     } else if (!isCall) {
       body = `${ binding }(${ bodyObj })`;
+    } else if (parenLookupOnly) {
+      // `(arr?.method)(args)`: parens preserve Reference Type so native binds `this=arr` on
+      // success; on nullish the outer non-optional call throws (chain ends at `?.`). emit
+      // `(arr == null ? void 0 : binding(arr)).call(arr, args)` - `(undefined).call(...)`
+      // throws on nullish, success path preserves `this`. wrap the whole guard+lookup in
+      // parens so `.call` binds outside the ternary. bodyObj is already memoized when
+      // the receiver is non-bare (guard pre-assigns it to a ref)
+      const argsPart = args ? `, ${ args }` : '';
+      body = `(${ guard }${ binding }(${ bodyObj })).call(${ bodyObj }${ argsPart })`;
+      guard = '';
     } else {
       const ref = isNonIdent && bodyObj !== guardRef ? scopeTracker.genRef() : null;
       const obj = ref || bodyObj;
@@ -235,7 +245,8 @@ export function createPolyfillEmitter({
   }
 
   // build replacement, wrap guard if needed, add to transform queue
-  function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall, sideEffects = null) {
+  function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
+    sideEffects = null, parenLookupOnly = false) {
     const recv = resolveReceiverSource(node.object, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
     const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
@@ -281,6 +292,7 @@ export function createPolyfillEmitter({
       // returns rootNode === node.object); guard text must come from the substituted bodyObj
       // in that case (see buildReplacement comment)
       rootIsReceiver,
+      parenLookupOnly,
     });
     let { replacement } = built;
     const { split } = built;
@@ -480,20 +492,19 @@ export function createPolyfillEmitter({
   }
 
   // parenthesized optional member followed by NON-optional outer call: `(arr?.includes)(1)`.
-  // semantics differ from `arr?.includes(1)` - on nullish receiver native throws TypeError
-  // because the chain ends at the inner `?.` and the outer `()` is non-optional. emit
-  // lookup-only (no `.call(arr, args)` injection) to preserve the throw shape; injecting
-  // would silently swap throw-on-nullish for "no-op on nullish". `this`-binding is
-  // technically also lost on the success path, but throw-preservation dominates the design
-  // tradeoff. optional outer call `(arr?.at)?.(0)` is semantically equivalent to
-  // `arr?.at?.(0)` (Reference Type preserved through parens, both short-circuit on nullish),
-  // so it falls through to the standard path with proper `.call(arr, 0)` receiver-binding
+  // native semantics: chain ends at `?.`, outer `()` is non-optional - on nullish throws
+  // TypeError; on success Reference Type preserves `this=arr` through parens (verified
+  // empirically: `([1,2]?.at)(0) === 1`). emit `(arr == null ? void 0 : binding(arr)).call
+  // (arr, args)`: nullish path throws via `.call` access on undefined; success path
+  // preserves `this`. parenLookupOnly flag routes through buildReplacement's special form.
+  // optional outer call `(arr?.at)?.(0)` falls through to standard path - Reference Type
+  // preserves through parens and short-circuits properly on nullish
   function replaceInstance(binding, node, parent, metaPath, sideEffects) {
     const isParenLookupOnly = isCallee(node, parent) && parent.callee !== node
       && parent.callee?.type === 'ParenthesizedExpression'
       && node.optional && !parent.optional;
     if (isParenLookupOnly) {
-      addInstanceTransform(binding, node, parent, metaPath, false, false, sideEffects);
+      addInstanceTransform(binding, node, parent, metaPath, true, true, sideEffects, true);
       return;
     }
     const chain = findInnerPolyChain(node, parent, metaPath);
