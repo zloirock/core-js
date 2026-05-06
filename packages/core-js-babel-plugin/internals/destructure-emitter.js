@@ -269,7 +269,7 @@ export default function createDestructureEmitter({
     // above, bare receiver has no observable effect. remove the host. only the visitor that
     // empties the outermost pattern reaches this point - earlier siblings break out of the
     // cascade with non-empty outer
-    const outerPattern = chain[chain.length - 1].pattern;
+    const outerPattern = chain.at(-1).pattern;
     if (outerPattern.node?.properties?.length === 0) exprStmt.remove();
     return true;
   }
@@ -335,7 +335,7 @@ export default function createDestructureEmitter({
     }
     // outermost pattern's parent may sit under wrapper layers (`{...} = {}` default,
     // `[{...}]` single-element array) - peel them to reach the host VariableDeclarator
-    const { parent: declarator } = peelTransparentWrappers(chain[chain.length - 1].pattern);
+    const { parent: declarator } = peelTransparentWrappers(chain.at(-1).pattern);
     const declaration = declarator.parentPath;
     // for-init with SequenceExpression init - external statement-lift unavailable (the loop
     // header forbids non-declarator statements). split the SE off as a dedicated sink
@@ -667,7 +667,7 @@ export default function createDestructureEmitter({
   function trimSideEffectTail(node) {
     if (!t.isSequenceExpression(node)) return node;
     const flat = flattenSequence(node.expressions);
-    while (flat.length > 1 && !mayHaveSideEffects(flat[flat.length - 1])) flat.pop();
+    while (flat.length > 1 && !mayHaveSideEffects(flat.at(-1))) flat.pop();
     if (flat.length === 1) return flat[0];
     const sameShape = flat.length === node.expressions.length
       && flat.every((e, i) => e === node.expressions[i]);
