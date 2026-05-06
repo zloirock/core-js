@@ -70,7 +70,7 @@ function processLines(lines) {
         if (!options.noPrefix && iName !== '') {
           prefixed.push(iName);
         }
-        const genericsForExtends = iExtend.replace(/\sextends\s[^,>]+/g, '').replace(/\s?=\s?\w+/g, '');
+        const genericsForExtends = iExtend.replaceAll(/\sextends\s[^,>]+/g, '').replaceAll(/\s?=\s?\w+/g, '');
         const entityName = `${ !options.noPrefix ? NAMESPACE : '' }${ iName }`;
         const isConstructor = iName.includes('Constructor');
         let constructorDeclaration;
