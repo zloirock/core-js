@@ -169,3 +169,27 @@ QUnit.test('chain: 5-deep optional `.at(0)` - outermost polyfilled, M4 stays raw
   // the intermediate M4 (inner chain member) stays raw; matches babel's re-visit reach
   assert.throws(() => arr.at(0)?.at(0).at(0).at(0).at(0), TypeError);
 });
+
+// aliased static -> instance method: receiver-type narrowing must propagate through the
+// alias chain (resolveAliasedStaticReturn -> staticPairFromPolyfillEntry/FromDestructure)
+// for the inner instance method to dispatch to the type-specific polyfill variant. covers
+// both single-word (from -> Array) and multi-word (fromAsync -> Array.fromAsync) entries
+
+QUnit.test('chain: const { from } = Array; from(...).filter(...).findLast(...)', assert => {
+  const { from } = Array;
+  assert.same(from(new Set([1, 2, 3, 4])).filter(x => x > 2).findLast(x => x < 4), 3);
+});
+
+QUnit.test('chain: const { fromAsync } = Array; fromAsync(...).then(arr => arr.at(-1))', assert => {
+  const { fromAsync } = Array;
+  const async = assert.async();
+  fromAsync([10, 20, 30]).then(arr => {
+    assert.same(arr.at(-1), 30);
+    async();
+  });
+});
+
+QUnit.test('chain: const { entries } = Object; entries(...).at(0).at(0)', assert => {
+  const { entries } = Object;
+  assert.same(entries({ a: 1, b: 2 }).at(0).at(0), 'a');
+});
