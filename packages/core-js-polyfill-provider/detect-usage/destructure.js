@@ -9,6 +9,7 @@ import {
   flattenableHostSlot,
   getFallbackBranchSlots,
   isChainAssignment,
+  isTransparentDestructureWrapper,
   peelFallbackReceiver,
   peelFallbackWrappers,
   unwrapInitValue,
@@ -258,6 +259,21 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
 // outer-prop type names. AssignmentPattern host (function param default) is intentionally
 // excluded - inline-default would pick native first when present, contradicting
 // usage-pure's "polyfill always wins" contract
+// peel transparent destructure wrappers via shared `isTransparentDestructureWrapper`
+// predicate. tracks `arrayIndex` separately because classifier needs to recover the
+// matching init element from a host's ArrayExpression (walker just drops everything)
+function peelDestructureWrappers(pattern) {
+  let prev = pattern.node;
+  let parent = pattern.parentPath;
+  let arrayIndex = -1;
+  while (parent && isTransparentDestructureWrapper(parent.node, prev)) {
+    if (parent.node.type === 'ArrayPattern') arrayIndex = 0;
+    prev = parent.node;
+    parent = parent.parentPath;
+  }
+  return { parent, arrayIndex };
+}
+
 export function resolveNestedDestructureReceiver(outerProp, adapter) {
   const keys = [];
   let cur = outerProp;
@@ -267,11 +283,15 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
     const key = sharedResolveKey(cur.node.key, cur.node.computed, pattern.scope, adapter);
     if (!key) return null;
     keys.unshift(key);
-    const parent = pattern.parentPath;
+    const { parent, arrayIndex } = peelDestructureWrappers(pattern);
     // shared `flattenableHostSlot` returns 'init' for VariableDeclarator,
     // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise
     const slot = flattenableHostSlot(parent?.node, parent);
-    const receiverNode = slot ? parent.node[slot] : null;
+    let receiverNode = slot ? parent.node[slot] : null;
+    // ArrayPattern traversed: host's init must be ArrayExpression; pick the matched index
+    if (receiverNode !== null && arrayIndex >= 0) {
+      receiverNode = receiverNode.type === 'ArrayExpression' ? receiverNode.elements[arrayIndex] : null;
+    }
     if (receiverNode !== null) {
       // `(se(), globalThis)` - peel to the semantic init value so nested chains resolve
       // through SequenceExpression prefixes. parity with non-nested destructure
