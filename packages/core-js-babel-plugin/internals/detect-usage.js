@@ -250,6 +250,15 @@ export function createUsageVisitors({
       const meta = buildDestructuringInitMeta(receiverNode, key, parent.scope, adapter);
       onUsage(meta, path);
       return;
+    } else if (parent.isAssignmentPattern() && parent.parentPath?.isObjectProperty()
+      && parent.node.left === objectPattern.node) {
+      // nested destructure with inner-default: `{ Array: { from } = {} } = X` - AssignmentPattern
+      // wraps inner ObjectPattern and provides default `{}` if `X.Array` is undefined. for
+      // proxy-global receivers `X.Array` is always defined, so default is dead code; treat
+      // AssignmentPattern as transparent and resolve via the same nested chain as the bare
+      // `{ Array: { from } } = X` shape
+      emitNestedDestructureMeta(path, parent.parentPath);
+      return;
     } else if (parent.isObjectProperty()) {
       emitNestedDestructureMeta(path, parent);
       return;
