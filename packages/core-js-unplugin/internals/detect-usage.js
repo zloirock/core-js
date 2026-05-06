@@ -368,7 +368,7 @@ function collectFunctionLocals(fnNode) {
   if (cached) return cached;
   const locals = new Map();
   // params marked constant so resolve-node-type follows typeAnnotation
-  for (const param of fnNode.params || []) {
+  for (const param of fnNode.params ?? []) {
     walkPatternIdentifiers(param, id => locals.set(id.name, { constant: true, node: param }));
   }
   if (fnNode.id?.name) locals.set(fnNode.id.name, { constant: true, node: fnNode });
