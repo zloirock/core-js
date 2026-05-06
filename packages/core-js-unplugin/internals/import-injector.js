@@ -209,7 +209,7 @@ export default class ImportInjector extends ImportInjectorState {
   // when the caller tracks usage
   #collectImportLines() {
     const lines = [];
-    const newGlobals = sortByPolyfillOrder([...this.globalImports].filter(m => !this.existingGlobalImports.has(m)));
+    const newGlobals = sortByPolyfillOrder([...this.globalImports.difference(this.existingGlobalImports)]);
     const activePure = this.referencedInSource
       ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
       : [...this.pureImports];
@@ -233,8 +233,7 @@ export default class ImportInjector extends ImportInjectorState {
   // to `transforms.add(...)`. `preAllocatedGuardRef` is allocated only under conditions that
   // guarantee consumption
   #collectRefLines() {
-    const newRefs = [];
-    for (const r of this.#refs) if (!this.#flushedRefs.has(r)) newRefs.push(r);
+    const newRefs = [...this.#refs.difference(this.#flushedRefs)];
     if (!newRefs.length) return [];
     for (const r of newRefs) this.#flushedRefs.add(r);
     return [`var ${ newRefs.join(', ') };`];
