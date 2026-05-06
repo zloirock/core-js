@@ -67,8 +67,10 @@ export default async function ({
 
         code = await readFile(tempFile, 'utf8');
       } finally {
-        await rm(templateFile, { force: true });
-        await rm(tempFile, { force: true });
+        await Promise.all([
+          rm(templateFile, { force: true }),
+          rm(tempFile, { force: true }),
+        ]);
       }
 
       const SWCOptions = {};
