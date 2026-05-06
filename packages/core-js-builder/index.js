@@ -1,7 +1,6 @@
 /* eslint-disable no-console -- output */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { styleText } from 'node:util';
 import { build } from 'rolldown';
 import { transform } from '@swc/core';
@@ -56,7 +55,7 @@ export default async function ({
 
   if (list.length) {
     if (format === 'bundle') {
-      const tempDir = join(dirname(fileURLToPath(import.meta.url)), '__tmp__');
+      const tempDir = join(import.meta.dirname, '__tmp__');
       const tempFile = join(tempDir, `core-js-${ Math.random().toString(36).slice(2) }.js`);
       const templateFile = `${ tempFile }-template.js`;
 
