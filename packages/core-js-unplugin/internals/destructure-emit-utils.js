@@ -11,8 +11,18 @@ import {
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 
 // intermediate slots permitted on the walk from an inner Property up to the enclosing
-// VariableDeclaration. any other shape -> foreign wrapper, bail safely
-const NESTED_DESTRUCTURE_WALK_TYPES = new Set(['ObjectPattern', 'Property', 'VariableDeclarator']);
+// VariableDeclaration. any other shape -> foreign wrapper, bail safely.
+// AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) — proxy-global
+// receivers are always defined so the default never fires; ArrayPattern allowed for
+// single-element wrappers (`[{...}] = [globalThis]`) — walker drops the whole declaration
+// and the wrapper / its array literal init together
+const NESTED_DESTRUCTURE_WALK_TYPES = new Set([
+  'ObjectPattern',
+  'Property',
+  'VariableDeclarator',
+  'AssignmentPattern',
+  'ArrayPattern',
+]);
 
 // walk Property/ObjectPattern pairs up to the enclosing VariableDeclaration. 2-level
 // nest is 5 hops, every additional alias-hop adds 2. returns the declaration's path
