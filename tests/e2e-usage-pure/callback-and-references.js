@@ -87,3 +87,25 @@ QUnit.test('callback: Array.from mapFn using polyfilled method per element', ass
   const r = Array.from({ length: 3 }, (_, i) => [i, i * 2]).flat();
   assert.deepEqual(r, [0, 0, 1, 2, 2, 4]);
 });
+
+// member-binding for multi-word static names. mirrors the destructure form's kebab->camel
+// path through staticPairFromPolyfillEntry's segment.at(-1) lookup. without conversion the
+// non-destructure alias chain would miss multi-word polyfill entries entirely
+
+QUnit.test('stored: Object.setPrototypeOf in variable', assert => {
+  const setProto = Object.setPrototypeOf;
+  const obj = {};
+  setProto(obj, { tag: 'stored' });
+  assert.same(obj.tag, 'stored');
+});
+
+QUnit.test('stored: Number.isInteger in variable', assert => {
+  const isInt = Number.isInteger;
+  assert.true(isInt(42));
+  assert.false(isInt(1.5));
+});
+
+QUnit.test('stored: String.fromCodePoint as map callback', assert => {
+  const fromCp = String.fromCodePoint;
+  assert.deepEqual([65, 66, 67].map(cp => fromCp(cp)), ['A', 'B', 'C']);
+});
