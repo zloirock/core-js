@@ -305,3 +305,79 @@ QUnit.test('comma operator: polyfill in sequence', assert => {
   const result = (0, Array.from)([1, 2, 3]);
   assert.deepEqual(result, [1, 2, 3]);
 });
+
+// --- object-literal property type tracking through arg-pass channels ---
+// the plugin's defaultAliasRefClassifier decides whether passing `o` to a static call
+// constitutes an escape that invalidates property-type narrows. these tests verify that
+// runtime behaviour holds across the various classifier branches: known-non-mutating call
+// (Object.keys/JSON.stringify), known-mutating slot (Object.assign target), spread sites
+// (read-only by construction), and through MemberExpression chains
+
+QUnit.test('flow: o passed to non-mutating static, this.X read still works', assert => {
+  const o = {
+    arr: [10, 20, 30],
+    test() {
+      Object.keys(o);
+      JSON.stringify(o);
+      return this.arr.at(-1);
+    },
+  };
+  assert.same(o.test(), 30);
+});
+
+QUnit.test('flow: o passed as Object.assign target, mutation visible at next read', assert => {
+  const o = {
+    arr: [1, 2, 3],
+    extend(src) {
+      Object.assign(o, src);
+      return { added: this.added, first: this.arr.at(0) };
+    },
+  };
+  const r = o.extend({ added: 'yes' });
+  assert.same(r.added, 'yes');
+  assert.same(r.first, 1);
+});
+
+QUnit.test('flow: o spread into mutating call mutates first source slot', assert => {
+  // Object.assign(...sources): sources[0] receives the merge; this is the ONLY way
+  // a spread can land at a mutating slot (target=index 0) at runtime
+  const sources = [{ tag: 'first' }, { extra: true }];
+  Object.assign(...sources);
+  assert.true(sources[0].extra);
+  assert.same(sources[0].tag, 'first');
+  assert.deepEqual(sources[1], { extra: true }, 'subsequent sources unchanged');
+});
+
+QUnit.test('flow: o passed to user fn (escape), polyfill still runs at runtime', assert => {
+  // user fn can mutate o.arr to a different type; classifier must conservatively leak the
+  // closure so a generic polyfill is selected. runtime test verifies the generic dispatch
+  // still works on whatever type o.arr ends up as
+  function leak(p) { p.arr = 'stringified'; }
+  const o = {
+    arr: [1, 2, 3],
+    test() {
+      leak(o);
+      return this.arr.at(0);
+    },
+  };
+  assert.same(o.test(), 's');
+});
+
+QUnit.test('flow: anonymous object literal in array, this.X access', assert => {
+  const items = [
+    { arr: [1, 2], first() { return this.arr.at(0); } },
+    { arr: [3, 4], first() { return this.arr.at(0); } },
+  ];
+  assert.deepEqual(items.map(item => item.first()), [1, 3]);
+});
+
+QUnit.test('flow: this.X through getter resolves at runtime', assert => {
+  /* eslint-disable es/no-accessor-properties, no-underscore-dangle -- getter access pattern */
+  const o = {
+    _arr: [10, 20, 30],
+    get arr() { return this._arr; },
+    first() { return this.arr.at(0); },
+  };
+  /* eslint-enable es/no-accessor-properties, no-underscore-dangle -- end */
+  assert.same(o.first(), 10);
+});
