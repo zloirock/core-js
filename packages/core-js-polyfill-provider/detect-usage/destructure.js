@@ -229,7 +229,19 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
     current = unwrapParens(initNode);
     currentScope = binding.scope ?? currentScope;
   }
-  if (walkPath.length === 0) return current?.type === 'Identifier' ? current.name : null;
+  // leaf return: walkPath consumed - extract the leaf global name.
+  // bare Identifier returns its name directly; proxy-global member access
+  // (`globalThis.Array` / `_globalThis.Array` after polyfill-injected rewrite) routes
+  // through `resolveObjectName` which handles both raw proxy globals and plugin-injected
+  // `_globalThis` bindings via `polyfillHint`. covers
+  // `const Array = globalThis.Array; const wrapper = { Array }; ...`
+  if (walkPath.length === 0) {
+    if (current?.type === 'Identifier') return current.name;
+    if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
+      return resolveObjectName(current, currentScope, adapter);
+    }
+    return null;
+  }
   if (current?.type !== 'ObjectExpression') return null;
   for (const prop of current.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
