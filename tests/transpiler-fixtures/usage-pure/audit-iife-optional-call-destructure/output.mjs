@@ -1,8 +1,8 @@
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$try from "@core-js/pure/actual/promise/try";
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 // optional IIFE form `(arrow)?.(arg)`: when the IIFE arg is a known constructor (`Array`,
 // `Map`, `Promise`), the destructured method should still resolve to its static polyfill
 // (parity with the non-optional `(arrow)(arg)` form).

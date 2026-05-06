@@ -1,5 +1,5 @@
-import _Set from "@core-js/pure/actual/set/constructor";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Set from "@core-js/pure/actual/set/constructor";
 // IIFE caller-arg is a ConditionalExpression: `(({from}) => ...)(cond ? Array : Set)`.
 // each viable branch should be rewritten to its own `{key: _Branch$key}` literal so
 // the destructure picks up the polyfill regardless of which branch fires; non-viable
