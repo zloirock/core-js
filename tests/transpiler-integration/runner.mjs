@@ -79,7 +79,7 @@ async function verifyInBun(code, label, method) {
     try {
       await $({ quiet: true })`bun ${ script }`;
     } catch (error) {
-      throw new Error(`${ label }: ${ error.stderr || error.message }`);
+      throw new Error(`${ label }: ${ error.stderr ?? error.message }`, { cause: error });
     }
   });
 }
