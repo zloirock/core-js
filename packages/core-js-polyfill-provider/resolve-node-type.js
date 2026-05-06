@@ -5179,6 +5179,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // to the `{ kind:'a'; data: T }` branch. works for any serialisable LHS path
     // (Identifier / `this.x` / `obj.a.b`); computed / call-expression paths bail
     annotation = narrowDiscriminatedUnion(objectPath, annotation, scope) ?? annotation;
+    // peel type-alias chain ONLY when it ends in TSTypeQuery so `type Q = typeof X;
+    // declare const m: Q` reaches the TSTypeQuery branch below. peeling unconditionally
+    // would break generic alias resolution: `type Box<T> = {val: T}; declare const b:
+    // Box<string[]>` peels to `{val: T}` with subst `{T -> string[]}` and dropping subst
+    // loses the substitution. typeof-aliases are non-generic by construction so subst is
+    // always null - safe to swap annotation directly
+    const aliased = followTypeAliasChain(annotation, scope);
+    if (aliased?.node?.type === 'TSTypeQuery' && aliased.node !== annotation) {
+      annotation = aliased.node;
+    }
     // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there
     if (annotation.type === 'TSTypeQuery') {
       const resolved = resolveTypeQueryBinding(annotation, scope);
