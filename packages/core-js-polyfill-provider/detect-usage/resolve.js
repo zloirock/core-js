@@ -54,6 +54,29 @@ export function unwrapParensCollectingEffects(node, effects) {
   return node;
 }
 
+// peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
+// outermost assignment (evaluating it covers every nested `=` step in source). used by
+// static-method dispatch to recover the actual constructor identifier from a receiver like
+// `(a = Array)` / `(a = b = Array)` and to re-emit the assignment as a side effect
+// (instance dispatch captures it via the `_ref = (a = Array)` memoize shape, so it doesn't
+// need this). returns null `outer` when the input isn't a chain-assignment shape
+export function peelChainAssignment(node) {
+  if (node?.type !== 'AssignmentExpression' || node.operator !== '=') return { value: node, outer: null };
+  let cur = node.right;
+  while (cur?.type === 'AssignmentExpression' && cur.operator === '=') cur = cur.right;
+  return { value: cur, outer: node };
+}
+
+// prepend chain-assignment receiver as a side effect for static-method dispatch:
+// `(a = Array).from(x)` -> emit `(a = Array, _Array$from)(x)`. callers pass an already-
+// unwrapped receiver node (parens / TS / ChainExpression peeled). returns `baseEffects`
+// unchanged when receiver isn't a chain-assignment shape
+export function prependChainAssignmentEffect(receiverNode, baseEffects) {
+  const { outer } = peelChainAssignment(receiverNode);
+  if (!outer) return baseEffects;
+  return baseEffects?.length ? [outer, ...baseEffects] : [outer];
+}
+
 export function isStaticPlacement(name) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return 'static';
   if (name[0] >= 'A' && name[0] <= 'Z') return 'static';
