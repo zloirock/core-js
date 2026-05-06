@@ -1034,8 +1034,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     for (const member of members) {
       const memberKind = resolveEnumMemberKind(member.initializer);
       if (!memberKind) return null;
-      if (!kind) kind = memberKind;
-      else if (kind !== memberKind) return null;
+      kind ??= memberKind;
+      if (kind !== memberKind) return null;
     }
     return kind ? new $Primitive(kind) : null;
   }
@@ -1236,7 +1236,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         ? substituteTypeParams(arg, map, scope, 0)
         : resolveTypeAnnotation(arg, scope);
       if (resolved) {
-        if (!map) map = new Map();
+        map ??= new Map();
         map.set(typeParamName(declParams[i]), resolved);
       }
     }
@@ -3321,7 +3321,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         return false;
       case 'TSTupleType':
       case 'TupleTypeAnnotation':
-        for (const element of tupleElements(node) || []) {
+        for (const element of tupleElements(node) ?? []) {
           const actual = element.type === 'TSNamedTupleMember' ? element.elementType : element;
           if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
         }
@@ -6102,7 +6102,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // resolve array destructuring from any annotation source: pattern, init, or for-of iterable
   function resolveArrayBinding(arrayPattern, varName, bindingPath) {
     // array rest: const [a, ...rest] = items -> rest is always Array
-    if (isRestBinding(arrayPattern.elements || [], varName)) return new $Object('Array');
+    if (isRestBinding(arrayPattern.elements ?? [], varName)) return new $Object('Array');
     // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
     if (arrayPattern.typeAnnotation) {
       const result = resolveArrayPatternBinding(arrayPattern, varName, arrayPattern.typeAnnotation, bindingPath.scope);
