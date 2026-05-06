@@ -180,3 +180,36 @@ QUnit.test('optional: factory returning maybe-null array + .at / .includes chain
   assert.same(make(0)?.at(-1), undefined);
   assert.same(make(1)?.includes?.(2), true);
 });
+
+// --- parenthesized lookup variations: (callee)(args) shapes ---
+
+QUnit.test('paren lookup: (arr.at)(0) preserves this binding', assert => {
+  // (arr.at)(0) - paren-wrapped MemberExpression callee. plugin must emit a form that
+  // preserves the receiver binding so the polyfill receives `arr` as `this` (raw
+  // `_at(arr).call(arr, 0)` - the `.call` is essential, bare `_at(arr)(0)` would lose it)
+  const arr = [10, 20, 30];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- testing parenthesized callee
+  assert.same((arr.at)(-1), 30);
+  // eslint-disable-next-line @stylistic/no-extra-parens -- testing parenthesized callee
+  assert.true((arr.includes)(20));
+});
+
+QUnit.test('paren lookup: (arr?.at)(0) optional inside paren', assert => {
+  // optional inside paren - the optional chain breaks at the paren, so calling on a nullish
+  // receiver throws TypeError rather than short-circuiting to undefined
+  const arr = [10, 20, 30];
+  // eslint-disable-next-line no-unsafe-optional-chaining -- testing exact paren-optional pattern
+  assert.same((arr?.at)(-1), 30);
+  const nil = null;
+  assert.throws(() => {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- testing exact paren-optional pattern
+    (nil?.at)(0);
+  }, TypeError);
+});
+
+QUnit.test('paren lookup: array literal + (arr?.at)(args)', assert => {
+  // direct array literal as receiver inside paren-optional: outer non-optional call must
+  // still preserve `this`-binding so polyfill `at` receives the array as `this`
+  // eslint-disable-next-line no-unsafe-optional-chaining -- testing exact paren-optional pattern
+  assert.same(([1, 2, 3]?.at)(0), 1);
+});
