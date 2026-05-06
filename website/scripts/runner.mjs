@@ -12,7 +12,6 @@ import {
   isExists,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
-// eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
 import { cp, readdir, readlink, rename, rm, symlink, unlink } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { dirname, relative, resolve, join } from 'node:path';
