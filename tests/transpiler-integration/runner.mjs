@@ -43,8 +43,8 @@ async function verifyInNode(code, label, ext = '.mjs') {
     await writeFile(file, code);
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepStrictEqual(Array.from(results.filterReject), expected.filterReject, `${ label }: filterReject`);
-    deepStrictEqual(Array.from(results.uniqueBy), expected.uniqueBy, `${ label }: uniqueBy`);
+    deepStrictEqual([...results.filterReject], expected.filterReject, `${ label }: filterReject`);
+    deepStrictEqual([...results.uniqueBy], expected.uniqueBy, `${ label }: uniqueBy`);
     deepStrictEqual(results.setFrom, expected.setFrom, `${ label }: setFrom`);
     deepStrictEqual(results.cooked, expected.cooked, `${ label }: cooked`);
   });
@@ -61,8 +61,8 @@ async function verifyInBun(code, label, method) {
     const exp = JSON.stringify(expected);
     const body = method === 'usage-pure' ? `
       const mod = await import(${ url });
-      deepStrictEqual(Array.from(mod.filterReject), exp.filterReject);
-      deepStrictEqual(Array.from(mod.uniqueBy), exp.uniqueBy);
+      deepStrictEqual([...mod.filterReject], exp.filterReject);
+      deepStrictEqual([...mod.uniqueBy], exp.uniqueBy);
       strictEqual(mod.setFrom, exp.setFrom);
       strictEqual(mod.cooked, exp.cooked);
     ` : `
