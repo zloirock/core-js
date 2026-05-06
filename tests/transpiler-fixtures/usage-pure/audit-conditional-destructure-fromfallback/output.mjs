@@ -1,5 +1,5 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _Set from "@core-js/pure/actual/set/constructor";
+import _Array$from from "@core-js/pure/actual/array/from";
 // destructure with a conditional fallback init: the polyfill rewrite still threads
 // through both branches consistently.
 const cond = Math.random() > 0.5;
