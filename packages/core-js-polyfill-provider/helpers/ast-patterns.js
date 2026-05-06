@@ -314,6 +314,22 @@ export function getFallbackBranchSlots(node) {
   return null;
 }
 
+// transparent destructure wrappers that sit between an inner pattern and its host
+// without changing the proxy-global / static-object resolution semantics:
+//   - AssignmentPattern (`{...} = default`): default never fires for proxy-global
+//     receivers since `globalThis.X` is always defined; safe under "polyfill always wins"
+//   - single-element ArrayPattern (`[{...}]`): wraps a single proxy-global at array
+//     index 0; flatten walker drops the whole declarator anyway, including the wrapper
+// returns true when `parentNode` wraps `childNode` in one of these passthrough shapes
+export function isTransparentDestructureWrapper(parentNode, childNode) {
+  if (!parentNode) return false;
+  if (parentNode.type === 'AssignmentPattern') return parentNode.left === childNode;
+  if (parentNode.type === 'ArrayPattern') {
+    return parentNode.elements.length === 1 && parentNode.elements[0] === childNode;
+  }
+  return false;
+}
+
 // chain assignment `foo = X` evaluates to `X` at runtime - peel through these to find the
 // destructure receiver. peel only when LHS is a simple Identifier:
 //  - compound `+=` / `||=` produce arithmetic / logical results, not constructor candidates
