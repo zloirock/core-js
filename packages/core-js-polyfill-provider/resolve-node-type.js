@@ -5284,27 +5284,45 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return resolveArrayLiteralElement(objectPath, index);
   }
 
+  // collect runtime member-expression segments: bare `E` -> ['E'], non-computed dotted chain
+  // `N.E` -> ['N', 'E'], deeper `N.M.E` -> ['N', 'M', 'E']. computed / non-Identifier links
+  // bail to null. parallel to type-level `collectQualifiedSegments` (which walks
+  // TSQualifiedName) - this one walks runtime MemberExpression chains
+  function collectMemberSegments(node) {
+    if (node?.type === 'Identifier') return [node.name];
+    if (node?.type !== 'MemberExpression' || node.computed) return null;
+    const left = collectMemberSegments(node.object);
+    if (!left || node.property?.type !== 'Identifier') return null;
+    left.push(node.property.name);
+    return left;
+  }
+
   // numeric enum reverse mapping: TS auto-generates `E[<number>]` -> name (string) for
   // numeric enums. `enum E { A, B }; E[E.A]` is 'A' at runtime even though TS types `E.A`
   // as a numeric literal. without this, receiver-narrowing on `v = E[E.A]` falls back to
   // the value-kind primitive (number) - method dispatch on `v.includes('A')` then misses
   // the string narrowing. only fires when:
   //   - access is computed `E[<key>]`
-  //   - receiver is an Identifier resolving to TSEnumDeclaration
+  //   - receiver is an Identifier OR namespace-qualified chain resolving to TSEnumDeclaration
   //   - enum is uniformly numeric (resolveEnumType returns Number primitive)
   //   - key expression resolves to number type (forward `E['A']` -> string key stays
   //     number-typed at runtime, leave it to the caller's other resolvers)
   // member access on a TSEnumDeclaration receiver. covers two shapes:
-  //   - non-computed `E.A` -> enum value-kind primitive (the member's resolved kind via
-  //     `resolveEnumMemberKind`, defaulting to number for implicit auto-numbered members)
-  //   - computed `E[<number-key>]` -> string (numeric enum reverse mapping). TS auto-
-  //     generates `E[E.A] === 'A'` at runtime for numeric enums; without this branch `v` in
-  //     `const v = E[E.A]; v.includes('A')` falls back to a generic `_includes` instead of
-  //     the string-narrowed variant. computed access with non-numeric key (forward
-  //     `E['A']` / index by user expr) bails - those resolve through other paths
+  //   - non-computed `E.A` / `N.E.A` -> enum value-kind primitive (the member's resolved
+  //     kind via `resolveEnumMemberKind`, defaulting to number for implicit auto-numbered)
+  //   - computed `E[<number-key>]` / `N.E[N.E.A]` -> string (numeric enum reverse mapping).
+  //     TS auto-generates `E[E.A] === 'A'` at runtime for numeric enums; without this branch
+  //     `v` in `const v = E[E.A]; v.includes('A')` falls back to a generic `_includes`
+  //     instead of the string-narrowed variant. computed access with non-numeric key
+  //     (forward `E['A']` / index by user expr) bails - those resolve through other paths.
+  // namespace-qualified receiver: `findEnumDeclaration` accepts segment-array form to walk
+  // through TSModuleDeclaration anchors so `namespace N { export enum E {...} }` resolves
   function resolveEnumMemberAccess(path) {
-    if (path.node.object?.type !== 'Identifier') return null;
-    const enumDecl = findEnumDeclaration(path.node.object.name, path.scope);
+    const segments = collectMemberSegments(path.node.object);
+    if (!segments) return null;
+    // findEnumDeclaration accepts both string and segment array - single-segment arrays
+    // cache through the same key as their joined-string form (`['E'].join('.') === 'E'`)
+    const enumDecl = findEnumDeclaration(segments, path.scope);
     if (!enumDecl) return null;
     if (!path.node.computed) {
       const memberName = path.node.property?.type === 'Identifier' ? path.node.property.name : null;
