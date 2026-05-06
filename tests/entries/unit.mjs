@@ -1254,7 +1254,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('stage/1');
   load('stage/0');
 
-  for (const key in entries) {
+  for (const key of Object.keys(entries)) {
     if (key.startsWith('modules/')) {
       load('modules', key.slice(8));
     }
