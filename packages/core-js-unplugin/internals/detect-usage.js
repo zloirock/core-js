@@ -226,6 +226,19 @@ function buildDestructuringMeta(propNode, parentPath) {
       if (isFunctionParamDestructureParent(objectPattern)) {
         const argNode = findIifeArgForParam(parent.parentPath, parent.node);
         initNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
+        break;
+      }
+      // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
+      // AssignmentPattern wrapper and resolve via the same nested-chain classifier as the
+      // bare `{ Array: { from } } = X` shape (proxy-global init guarantees default never
+      // fires, so it's transparent under "polyfill always wins")
+      if (parent.parentPath?.node?.type === 'Property' && parent.node.left === objectPattern.node) {
+        const innerKey = extractPropertyKey(propNode, scope);
+        const constructor = innerKey
+          ? sharedResolveNestedDestructureReceiver(parent.parentPath, estreeAdapter) : null;
+        if (constructor) {
+          return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
+        }
       }
       break;
     case 'Property': {

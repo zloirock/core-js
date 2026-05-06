@@ -15,6 +15,7 @@ import {
   isIdentifierPropValue,
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
+  isTransparentDestructureWrapper,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
   peelNestedSequenceExpressions,
@@ -273,6 +274,23 @@ export default function createDestructureEmitter({
     return true;
   }
 
+  // peel single-element ArrayPattern (`[{...}]`) and inner AssignmentPattern (`{...} = {}`)
+  // wrappers between an ObjectPattern and its host. shared predicate
+  // `isTransparentDestructureWrapper` documents the safety contract under "polyfill always
+  // wins". returns `{parent, leftmost}` where:
+  //   - `parent`: the next-up parent path past the wrappers (host detection, chain walk)
+  //   - `leftmost`: the outermost wrapper node (used for AssignmentExpression LHS match
+  //     since `parent.node.left` may be the wrapper rather than the bare pattern)
+  function peelTransparentWrappers(pattern) {
+    let prev = pattern.node;
+    let parent = pattern.parentPath;
+    while (parent && isTransparentDestructureWrapper(parent.node, prev)) {
+      prev = parent.node;
+      parent = parent.parentPath;
+    }
+    return { parent, leftmost: prev };
+  }
+
   // `const { Array: { from } } = globalThis` -> `const from = _Array$from`.
   // supports N-deep nesting (`const { NS: { Sub: { x } } } = globalThis`): walks up
   // pattern/property pairs until we hit the declarator, then unwinds the cascade from
@@ -294,7 +312,7 @@ export default function createDestructureEmitter({
       const pattern = currentProp.parentPath;
       if (!t.isObjectPattern(pattern?.node)) return false;
       chain.push({ prop: currentProp, pattern });
-      const parent = pattern.parentPath;
+      const { parent, leftmost } = peelTransparentWrappers(pattern);
       if (parent?.isVariableDeclarator()) break;
       // AssignmentExpression in ExpressionStatement context: cascade-rewrite for ALL chain
       // shapes. previously a simple-flatten short-cut full-replaced the statement when no
@@ -305,15 +323,19 @@ export default function createDestructureEmitter({
       // to `_unused` sentinel emission when any rest sibling is present (rest exclusion
       // preserved) or plain remove otherwise; emits `name = _polyfill;` after the host;
       // when the cascade fully empties the outermost pattern, the empty `({} = receiver)`
-      // host is removed (last visitor in declaration order does this)
-      if (parent?.isAssignmentExpression() && parent.node.left === pattern.node
+      // host is removed (last visitor in declaration order does this).
+      // `leftmost` matches against AssignmentExpression's LHS - if peel walked past wrappers
+      // the LHS may be the outermost wrapper rather than the bare pattern
+      if (parent?.isAssignmentExpression() && parent.node.left === leftmost
           && parent.parentPath?.isExpressionStatement()) {
         return cascadeAssignmentExpressionDestructure(parent, valueNode, prop, chain, entry, hintName);
       }
       if (!t.isObjectProperty(parent?.node)) return false;
       currentProp = parent;
     }
-    const declarator = chain[chain.length - 1].pattern.parentPath;
+    // outermost pattern's parent may sit under wrapper layers (`{...} = {}` default,
+    // `[{...}]` single-element array) - peel them to reach the host VariableDeclarator
+    const { parent: declarator } = peelTransparentWrappers(chain[chain.length - 1].pattern);
     const declaration = declarator.parentPath;
     // for-init with SequenceExpression init - external statement-lift unavailable (the loop
     // header forbids non-declarator statements). split the SE off as a dedicated sink
@@ -421,7 +443,9 @@ export default function createDestructureEmitter({
       return;
     }
     const objectPattern = prop.parentPath;
-    const patternParent = objectPattern?.parentPath;
+    // patternParent walks past transparent destructure wrappers (AssignmentPattern default,
+    // single-element ArrayPattern) - both are passthrough for proxy-global resolution
+    const { parent: patternParent } = peelTransparentWrappers(objectPattern);
     if (isFunctionParamDestructureParent(objectPattern)) {
       handleParameterDestructure(prop, kind, entry, hintName);
       return;
