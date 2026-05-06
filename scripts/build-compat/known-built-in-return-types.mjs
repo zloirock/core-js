@@ -25,15 +25,11 @@ function normalizeHint(hint) {
 }
 
 function normalizeFlat(table) {
-  const result = {};
-  for (const [key, hint] of Object.entries(table)) result[key] = normalizeHint(hint);
-  return result;
+  return Object.fromEntries(Object.entries(table).map(([key, hint]) => [key, normalizeHint(hint)]));
 }
 
 function normalizeNested(table) {
-  const result = {};
-  for (const [key, members] of Object.entries(table)) result[key] = normalizeFlat(members);
-  return result;
+  return Object.fromEntries(Object.entries(table).map(([key, members]) => [key, normalizeFlat(members)]));
 }
 
 function normalizeConstructorHint(type, element) {
@@ -44,22 +40,19 @@ function normalizeConstructorHint(type, element) {
 }
 
 function normalizeConstructors(table) {
-  const result = {};
-  for (const [name, entry] of Object.entries(table)) {
+  return Object.fromEntries(Object.entries(table).map(([name, entry]) => {
     if (typeof entry === 'string') {
       const hint = { type: entry };
-      result[name] = { new: hint, call: hint };
-    } else {
-      const { element } = entry;
-      const newType = entry.new ?? null;
-      const callType = 'call' in entry ? entry.call : newType;
-      result[name] = {
-        new: normalizeConstructorHint(newType, element),
-        call: normalizeConstructorHint(callType, element),
-      };
+      return [name, { new: hint, call: hint }];
     }
-  }
-  return result;
+    const { element } = entry;
+    const newType = entry.new ?? null;
+    const callType = 'call' in entry ? entry.call : newType;
+    return [name, {
+      new: normalizeConstructorHint(newType, element),
+      call: normalizeConstructorHint(callType, element),
+    }];
+  }));
 }
 
 await fs.writeJson('packages/core-js-compat/known-built-in-return-types.json', {

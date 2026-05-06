@@ -97,7 +97,7 @@ function intersection(list, order) {
 }
 
 function sortObjectByKey(object, fn) {
-  return Object.fromEntries(Object.keys(object).sort(fn).map(key => [key, object[key]]));
+  return Object.fromEntries(Object.keys(object).toSorted(fn).map(key => [key, object[key]]));
 }
 
 export {

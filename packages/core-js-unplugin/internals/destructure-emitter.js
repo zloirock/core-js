@@ -261,7 +261,7 @@ export function createDestructureEmitter({
   // earlier substitutions don't shift later relative offsets. zero-length splices (insert
   // shape: start === end) and span-replacing splices share the same loop body
   function spliceInRange(src, baseOffset, splices) {
-    const sorted = splices.slice().sort((a, b) => b.start - a.start);
+    const sorted = splices.toSorted((a, b) => b.start - a.start);
     for (const { start, end, content } of sorted) {
       src = src.slice(0, start - baseOffset) + content + src.slice(end - baseOffset);
     }

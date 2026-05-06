@@ -136,10 +136,7 @@ function unfoldKind(data, kind) {
 
 const $globals = unfoldKind(globals, 'global');
 
-const $statics = Object.entries(statics).reduce((memo, [key, value]) => {
-  memo[key] = unfoldKind(value, 'static');
-  return memo;
-}, dict());
+const $statics = Object.fromEntries(Object.entries(statics).map(([key, value]) => [key, unfoldKind(value, 'static')]));
 
 const $instance = unfoldKind(instance, 'instance');
 

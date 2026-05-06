@@ -256,7 +256,7 @@ async function buildTypesForTSVersion(tsVersion) {
 }
 
 async function buildPackageJson(breakpoints, namespaces) {
-  breakpoints = breakpoints.sort().reverse();
+  breakpoints = breakpoints.toSorted().toReversed();
   const defaultBreakpoint = Math.max(...breakpoints).toString().replace('.', '-');
 
   const packageJson = await readJson(PACKAGE_TEMPLATE);
