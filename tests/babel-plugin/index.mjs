@@ -113,7 +113,7 @@ async function runFixture(directory) {
       return echo(red(`${ cyan(label(directory)) } failed: ${ cyan(file) } is missing`));
     }
     try {
-      strictEqual(content, String(await readFile(file, UTF8)));
+      strictEqual(content, await readFile(file, UTF8));
     } catch (equalError) {
       failed++;
       echo(red(`${ cyan(label(directory)) } failed:`));
