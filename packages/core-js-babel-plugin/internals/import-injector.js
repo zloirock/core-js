@@ -232,7 +232,7 @@ export default class ImportInjector extends ImportInjectorState {
 
   #buildNodes() {
     const t = this.#t;
-    let newGlobals = [...this.globalImports].filter(s => !this.#flushedGlobals.has(s));
+    let newGlobals = [...this.globalImports.difference(this.#flushedGlobals)];
     const newPure = [...this.pureImports].filter(([s]) => !this.#flushedPure.has(s));
     if (!newGlobals.length && !newPure.length) return null;
     newGlobals = sortByPolyfillOrder(newGlobals);
