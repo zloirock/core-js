@@ -1,11 +1,11 @@
 import { deepStrictEqual } from 'node:assert';
 import { promisify } from 'node:util';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
 const { mkdtemp, readFile, rm, writeFile } = fs;
 const { dirname, join, resolve } = path;
 
-const testDir = dirname(fileURLToPath(import.meta.url));
+const testDir = import.meta.dirname;
 const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
 const methods = ['entry-global', 'usage-global', 'usage-pure'];
 const inputOf = method => resolve(testDir, `input-${ method }.js`);
