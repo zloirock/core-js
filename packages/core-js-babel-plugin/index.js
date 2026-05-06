@@ -608,6 +608,12 @@ export default function plugin(api, options) {
         if (skipFile) return;
         path.traverse(visitors);
         processDeferredSideEffects(path);
+        // emit visitor-collected imports BEFORE synth-swap apply: each flush unshift's
+        // at program top, so imports added between flushes land ABOVE the previous batch.
+        // matches the historical two-phase emission shape (synth-swap imports on top
+        // because they were emitted from programExit, after pre's flush) which existing
+        // fixtures encode
+        injector?.flush();
         // drain registered synth-swap receivers BEFORE other plugins run their visitors:
         // sibling transforms (transform-parameters extracting param defaults to body var
         // declarations, transform-destructuring rewriting ObjectPatterns) typically clone

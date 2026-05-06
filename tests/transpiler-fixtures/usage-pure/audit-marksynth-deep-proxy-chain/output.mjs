@@ -1,6 +1,6 @@
-import _Set from "@core-js/pure/actual/set/constructor";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
+import _Set from "@core-js/pure/actual/set/constructor";
 // deep proxy-global chain `globalThis.window.self.Array` as receiver of a parameter
 // destructure default. `markSynthReceiverSkipped` walks down each MemberExpression's
 // `.object` and adds every link to skippedNodes; the final leaf Identifier `globalThis`
