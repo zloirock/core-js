@@ -20,7 +20,7 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { prependChainAssignmentEffect, resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { resolveSymbolIteratorEntry, resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -444,8 +444,14 @@ export default function plugin(api, options) {
             const replacePath = unwrapTSExpressionParent(path);
             // `Symbol[(fn(), 'iterator')]` / `(fn(), Array).from(x)` - preserve fn() via
             // SequenceExpression wrap since the MemberExpression replacement discards its
-            // receiver/computed-key subtree
-            replacePath.replaceWith(withSideEffects(id, meta.sideEffects));
+            // receiver/computed-key subtree.
+            // chain-assignment receiver `(a = Array).from(x)` / `(a = b = Array).from(x)` -
+            // the outermost assignment is an observable side effect lost when receiver is
+            // dropped. emit becomes `(a = Array, _Array$from)(x)`. instance dispatch wouldn't
+            // reach here (routes through replaceInstanceLike above), so no risk of duplicating
+            // with memoize-captured assignment
+            const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects);
+            replacePath.replaceWith(withSideEffects(id, allEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional && replacePath.parentPath?.node?.optional) {
               deoptionalizeNode(replacePath.parentPath);
