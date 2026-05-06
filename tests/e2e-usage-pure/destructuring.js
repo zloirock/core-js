@@ -40,6 +40,52 @@ QUnit.test('destructuring: const { ownKeys } = Reflect', assert => {
   assert.deepEqual(ownKeys({ a: 1 }), ['a']);
 });
 
+// multi-word method names exercise the kebab->camel conversion in the polyfill-entry
+// resolver: canonical entry path uses kebab segments (`reflect/set-prototype-of`,
+// `array/from-async`, `promise/with-resolvers`) but lookup-table keys are camelCase.
+// without the conversion these destructures would not be recognised as polyfill aliases
+
+QUnit.test('destructuring: const { setPrototypeOf } = Object', assert => {
+  const { setPrototypeOf } = Object;
+  const obj = {};
+  setPrototypeOf(obj, { tag: 'custom' });
+  assert.same(obj.tag, 'custom');
+});
+
+QUnit.test('destructuring: const { setPrototypeOf } = Reflect', assert => {
+  const { setPrototypeOf } = Reflect;
+  const obj = {};
+  assert.true(setPrototypeOf(obj, { tag: 'reflect' }));
+  assert.same(obj.tag, 'reflect');
+});
+
+QUnit.test('destructuring: const { fromAsync } = Array', assert => {
+  const { fromAsync } = Array;
+  const async = assert.async();
+  fromAsync([1, 2, 3], x => x * 10).then(arr => {
+    assert.deepEqual(arr, [10, 20, 30]);
+    async();
+  });
+});
+
+QUnit.test('destructuring: const { fromEntries, getOwnPropertyDescriptor } = Object', assert => {
+  const { fromEntries, getOwnPropertyDescriptor } = Object;
+  assert.deepEqual(fromEntries([['a', 1], ['b', 2]]), { a: 1, b: 2 });
+  assert.same(getOwnPropertyDescriptor({ x: 42 }, 'x').value, 42);
+});
+
+QUnit.test('destructuring: const { canParse, parse } = URL', assert => {
+  const { canParse, parse } = URL;
+  assert.true(canParse('https://example.com'));
+  assert.same(parse('https://example.com').hostname, 'example.com');
+});
+
+QUnit.test('destructuring: const { groupBy } = Map (multi-word renamed)', assert => {
+  const { groupBy: mapGroupBy } = Map;
+  const result = mapGroupBy([1, 2, 3, 4], x => x % 2 ? 'odd' : 'even');
+  assert.deepEqual(result.get('odd'), [1, 3]);
+});
+
 // rest element - polyfill extracted, rest semantics preserved (from excluded from rest)
 QUnit.test('destructuring: rest element with polyfilled property', assert => {
   const { from, ...rest } = Array;
