@@ -110,7 +110,7 @@ function firstDiff(actual, expected) {
 }
 
 function extractPluginOptions(babelOptions) {
-  for (const plugin of babelOptions.plugins || []) {
+  for (const plugin of babelOptions.plugins ?? []) {
     if (Array.isArray(plugin) && plugin[0] === '@core-js') {
       const opts = { ...plugin[1] };
       if (!opts.targets && babelOptions.targets) opts.targets = babelOptions.targets;
@@ -138,7 +138,7 @@ async function loadBabelOptions(directory) {
 // (!jsx, !ts) → '.ts' (default — typescript-friendly is the safe default)
 function inferTestId(babelOptions) {
   if (babelOptions.filename) return babelOptions.filename;
-  const parserPlugins = babelOptions.parserOpts?.plugins || [];
+  const parserPlugins = babelOptions.parserOpts?.plugins ?? [];
   const hasJsx = parserPlugins.includes('jsx');
   const hasTs = parserPlugins.includes('typescript');
   if (hasJsx) return hasTs ? 'input.tsx' : 'input.jsx';

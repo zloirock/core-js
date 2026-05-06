@@ -55,8 +55,8 @@ async function checkPackage(path) {
   const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
   if (!dependencies && !devDependencies) return;
 
-  const exclude = [...ignore[name] || []];
-  for (const dep of [...Object.keys(dependencies || {}), ...Object.keys(devDependencies || {})]) {
+  const exclude = [...ignore[name] ?? []];
+  for (const dep of [...Object.keys(dependencies ?? {}), ...Object.keys(devDependencies ?? {})]) {
     if (dep.startsWith('@core-js/')) exclude.push(dep);
   }
 
