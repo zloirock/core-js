@@ -381,3 +381,119 @@ QUnit.test('flow: this.X through getter resolves at runtime', assert => {
   /* eslint-enable es/no-accessor-properties, no-underscore-dangle -- end */
   assert.same(o.first(), 10);
 });
+
+// --- computed key access: string-literal vs dynamic ---
+
+QUnit.test('computed: string-literal key resolves to polyfill', assert => {
+  // arr['at'](0) is syntactically computed but the key is a static string literal -
+  // the plugin treats it the same as arr.at(0) and emits a polyfill call
+  const arr = [10, 20, 30];
+  // eslint-disable-next-line dot-notation -- testing computed string-literal key
+  assert.same(arr['at'](-1), 30);
+  // eslint-disable-next-line dot-notation -- testing computed string-literal key
+  assert.true(arr['includes'](20));
+});
+
+QUnit.test('computed: dynamic key (variable) does NOT trigger polyfill emit', assert => {
+  // const-bound key name - plugin can't statically resolve which method, leaves raw access.
+  // resolution falls back to runtime: native String.prototype.at on the receiver
+  const arr = [10, 20, 30];
+  const method = 'at';
+  assert.same(typeof arr[method], 'function');
+  assert.same(arr[method](-1), 30);
+});
+
+// --- side-effect preservation: SE-prefix in computed key ---
+
+QUnit.test('SE-prefix: computed key with side-effect tail', assert => {
+  // (sideEffect(), 'at') - SequenceExpression. plugin's hasSideEffectfulSequencePrefix
+  // detects SE-bearing prefix and bails to the native form (computed-key polyfill rewrite
+  // would silently drop the prefix). SE side-effect must run; tail is the real key
+  let counter = 0;
+  const arr = [10, 20, 30];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- testing SE-prefix in computed
+  const value = arr[(counter++, 'at')](-1);
+  assert.same(value, 30);
+  assert.same(counter, 1, 'SE prefix executed exactly once');
+});
+
+QUnit.test('SE-prefix: SequenceExpression in callee position', assert => {
+  // (sideEffect(), Array).from(x) - SE-bearing prefix before the polyfill receiver.
+  // emission wraps the polyfill id in a source-level sequence to preserve the SE
+  let counter = 0;
+  const result = (counter++, Array).from('abc');
+  assert.deepEqual(result, ['a', 'b', 'c']);
+  assert.same(counter, 1);
+});
+
+// --- recursive call with polyfill ---
+
+QUnit.test('recursive: polyfill in recursive function body', assert => {
+  // exercises plugin's traversal when the same function references polyfilled methods
+  // multiple times across recursive call boundaries
+  function flatten(items) {
+    if (items.length === 0) return [];
+    const head = items.at(0);
+    const tail = items.slice(1);
+    return Array.isArray(head) ? flatten(head).concat(flatten(tail)) : [head].concat(flatten(tail));
+  }
+  assert.deepEqual(flatten([[1, [2, 3]], 4, [5, [6, [7]]]]), [1, 2, 3, 4, 5, 6, 7]);
+});
+
+// --- polyfill in switch case ---
+
+QUnit.test('switch: polyfill in switch discriminant + case', assert => {
+  function classify(arr) {
+    switch (arr.at(0)) {
+      case 'admin': return 'priviliged';
+      case 'guest': return 'limited';
+      default: return arr.includes('admin') ? 'mixed' : 'standard';
+    }
+  }
+  assert.same(classify(['admin', 'user']), 'priviliged');
+  assert.same(classify(['guest']), 'limited');
+  assert.same(classify(['user', 'admin']), 'mixed');
+  assert.same(classify(['user']), 'standard');
+});
+
+// --- destructured catch parameter + polyfilled access ---
+
+QUnit.test('catch destructure: { message } binding then polyfill on it', assert => {
+  // catch param ObjectPattern + .message property access + .includes polyfill
+  try {
+    throw new Error('connection refused');
+  } catch ({ message }) {
+    assert.true(message.includes('refused'));
+    assert.same(message.at(0), 'c');
+  }
+});
+
+QUnit.test('catch destructure: { message: msg, name } renamed', assert => {
+  try {
+    throw new TypeError('bad arg');
+  } catch ({ message: msg, name }) {
+    assert.same(name, 'TypeError');
+    assert.true(msg.startsWith('bad'));
+  }
+});
+
+// --- nested destructure flatten ---
+
+QUnit.test('nested destructure: { a: { from } } = { a: Array }', assert => {
+  // plugin's flatten path resolves nested ObjectPattern through the init's nested literal
+  // to find Array.from polyfill anchor
+  const { a: { from } } = { a: Array };
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+});
+
+QUnit.test('nested destructure: through proxy global', assert => {
+  // const { Array: { from } } = globalThis - proxy-global step + nested destructure
+  const { Array: { from } } = globalThis;
+  assert.deepEqual(from('abc'), ['a', 'b', 'c']);
+});
+
+QUnit.test('nested destructure: triple-nested with default', assert => {
+  // resolveNestedDestructureReceiver walks N-deep ObjectPattern (babel)
+  const { a: { b: { from } = {} } = {} } = { a: { b: Array } };
+  assert.deepEqual(from([10, 20]), [10, 20]);
+});
