@@ -5,6 +5,7 @@ import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from './helpers/class-
 import {
   getSuperTypeArgs,
   getTypeArgs,
+  kebabToCamel,
   peelFallbackWrappers,
   singleQuasiString,
   TS_EXPR_WRAPPERS,
@@ -4314,6 +4315,57 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       && parent.object === refNode;
   }
 
+  // resolve a CallExpression callee node to a known-static method entry. handles two shapes:
+  //   1. pre-rewrite member access `Object.assign` / `JSON.stringify` - bare-global receiver
+  //      with no local shadow. computed callees and non-Identifier receivers bail.
+  //   2. post-rewrite polyfill alias `_Object$assign` / `_JSON$stringify` - usage-pure mode
+  //      replaces the original member access before the closure walk reaches the arg refs;
+  //      `staticPairFromPolyfillEntry` recovers the original constructor + method via the
+  //      injector's binding hint
+  // returns the entry from `KNOWN_STATIC_METHOD_RETURN_TYPES` or null when unknown
+  function resolveKnownStaticEntry(callee, refPath) {
+    if (!callee) return null;
+    if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
+      if (callee.computed) return null;
+      if (callee.object?.type !== 'Identifier' || callee.property?.type !== 'Identifier') return null;
+      if (refPath?.scope?.getBinding(callee.object.name)) return null;
+      return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, callee.object.name, callee.property.name);
+    }
+    if (callee.type === 'Identifier' && refPath?.scope) {
+      const pair = staticPairFromPolyfillEntry(refPath.scope, callee.name);
+      return pair ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
+    }
+    return null;
+  }
+
+  // does the entry's mutation profile mark `argIndex` as written? absent annotation means
+  // the method doesn't mutate any arg; non-array `mutatesArgument` is malformed data we
+  // ignore (treated as no annotation - safe over-allow rather than runtime failure)
+  function entryMutatesArgAt(entry, argIndex) {
+    return Array.isArray(entry.mutatesArgument) && entry.mutatesArgument.includes(argIndex);
+  }
+
+  // is `refNode` at a non-mutating slot of a known call? SpreadElement is unwrapped first:
+  // `f(...o)` re-targets argIndex computation to the spread node within `f`'s arg list,
+  // `[...o]` / `{...o}` shortcut to true since the value-source containers have no callee
+  // that could mutate `o`. leading SpreadElement before the slot perturbs the runtime index
+  // (`f(...rest, o)` - o lands at unknown position), so we bail. resolveKnownStaticEntry
+  // handles both pre-rewrite member (`Object.assign`) and post-rewrite alias (`_Object$assign`)
+  function isKnownNonMutatingCallSite(parent, refNode, refPath) {
+    if (parent?.type === 'SpreadElement') {
+      const container = refPath?.parentPath?.parent;
+      if (container?.type === 'ArrayExpression' || container?.type === 'ObjectExpression') return true;
+      refNode = parent;
+      parent = container;
+    }
+    if (parent?.type !== 'CallExpression' && parent?.type !== 'OptionalCallExpression') return false;
+    const argIndex = parent.arguments?.indexOf(refNode) ?? -1;
+    if (argIndex === -1) return false;
+    for (let i = 0; i < argIndex; i++) if (parent.arguments[i]?.type === 'SpreadElement') return false;
+    const entry = resolveKnownStaticEntry(parent.callee, refPath);
+    return entry !== null && !entryMutatesArgAt(entry, argIndex);
+  }
+
   // collect every reference path of `binding` (excluding the declarator id slot). babel
   // exposes the canonical `binding.referencePaths`; estree-toolkit doesn't - fall back to
   // program walk gated on scope-identity equality (rejects same-name shadows in inner
@@ -4343,7 +4395,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // object-shape value). class-binding closure swaps in `classBindingRefClassifier` which also
   // accepts `new ClassName()`, `class Sub extends ClassName`, `x instanceof ClassName` -
   // those uses don't escape the binding's value (the class) for static-state mutation purposes
-  function defaultAliasRefClassifier(parent, refNode) {
+  function defaultAliasRefClassifier(parent, refNode, refPath) {
     if (isMemberRefReceiver(parent, refNode)) return 'trivial';
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode && parent.id?.type === 'Identifier') {
       return 'alias';
@@ -4355,11 +4407,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // after rebinding apply to the new value (over-counted in original anchor's narrow but
     // sound - wider union collapses to generic at worst, no unsound polyfill emitted)
     if (parent?.type === 'AssignmentExpression' && parent.left === refNode && parent.operator === '=') return 'trivial';
+    // pass-through to a known-built-in static at a non-mutating arg slot doesn't escape:
+    // `JSON.stringify(obj)`, `Object.keys(obj)`, `Object.assign(target, obj)`, `f(...obj)`,
+    // `[...obj]`, `{...obj}` - all routed through the helper which unwraps SpreadElement
+    // and consults the callee's mutatesArgument profile
+    if (isKnownNonMutatingCallSite(parent, refNode, refPath)) return 'trivial';
     return 'leak';
   }
 
-  function classBindingRefClassifier(parent, refNode) {
-    const base = defaultAliasRefClassifier(parent, refNode);
+  function classBindingRefClassifier(parent, refNode, refPath) {
+    const base = defaultAliasRefClassifier(parent, refNode, refPath);
     if (base !== 'leak') return base;
     if (parent?.type === 'NewExpression' && parent.callee === refNode) return 'trivial';
     if ((parent?.type === 'ClassDeclaration' || parent?.type === 'ClassExpression')
@@ -4393,7 +4450,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (!refs) return null;
       for (const ref of refs) {
         const { parent } = ref;
-        const kind = classifier(parent, ref.node);
+        const kind = classifier(parent, ref.node, ref);
         if (kind === 'trivial') continue;
         if (kind === 'alias') {
           const aliasName = parent.id.name;
@@ -5613,14 +5670,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // post-rewrite alias `const from = _Array$from`: injector exposes the canonical entry
   // path (`array/from`) - leading segment maps to the constructor name via the same
-  // resolver injector itself uses (`entryToGlobalHint`), trailing segment is the method
+  // resolver injector itself uses (`entryToGlobalHint`), trailing segment is the method.
+  // entry paths are kebab-case (`reflect/set-prototype-of`, `array/from-async`); table
+  // keys are camelCase (`Reflect.setPrototypeOf`, `Array.fromAsync`) - convert via
+  // `kebabToCamel`. single-segment names (`from`, `assign`) pass through unchanged
   function staticPairFromPolyfillEntry(scope, name) {
     const entry = getPolyfillBindingEntry(scope, name);
     if (!entry) return null;
     const segments = entry.split('/');
     if (segments.length < 2) return null;
     const constructor = entryToGlobalHint(segments[0]);
-    return constructor ? { constructor, method: segments.at(-1) } : null;
+    return constructor ? { constructor, method: kebabToCamel(segments.at(-1)) } : null;
   }
 
   // unrewriten destructure alias resolution: walks the destructure pattern through nested

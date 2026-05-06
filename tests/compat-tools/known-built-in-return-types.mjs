@@ -53,11 +53,19 @@ const VALID_TYPES = new Set([
 function isValidHint(hint) {
   // resolution directives (only valid in instance method hints)
   if (hint === 'element' || hint === 'inherit') return true;
-  // normalized hint: always { type, element?, resolved? }
+  // normalized hint: always { type, element?, resolved?, mutatesArgument? }
   if (typeof hint !== 'object' || hint === null) return false;
   if (!VALID_TYPES.has(hint.type)) return false;
-  const validKeys = new Set(['type', 'element', 'resolved']);
+  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument']);
   for (const key of Object.keys(hint)) if (!validKeys.has(key)) return false;
+  // mutatesArgument: list of zero-based arg indices a method mutates in place
+  // (e.g. Object.assign -> [0] target). only meaningful for staticMethods entries
+  if ('mutatesArgument' in hint) {
+    if (!Array.isArray(hint.mutatesArgument) || hint.mutatesArgument.length === 0) return false;
+    for (const i of hint.mutatesArgument) {
+      if (!Number.isInteger(i) || i < 0) return false;
+    }
+  }
   const innerHint = hint.element ?? hint.resolved ?? null;
   return innerHint === null || isValidHint(innerHint);
 }
@@ -108,6 +116,9 @@ deepEqual(knownBuiltInReturnTypes.instanceProperties.URL.searchParams, { type: '
 // type guard
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Array.isArray, { type: 'Array' });
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number' });
+// mutatesArgument annotation
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.assign, { type: 'Object', mutatesArgument: [0] });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.set, { type: 'boolean', mutatesArgument: [0, 3] });
 
 // globalProxies
 ok(Array.isArray(knownBuiltInReturnTypes.globalProxies), 'globalProxies is array');
