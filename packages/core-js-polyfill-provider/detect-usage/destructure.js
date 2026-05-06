@@ -245,11 +245,11 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
   if (current?.type !== 'ObjectExpression') return null;
   for (const prop of current.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-    if (prop.computed) continue;
-    const keyName = prop.key?.type === 'Identifier' ? prop.key.name
-      : prop.key?.type === 'Literal' ? typeof prop.key.value === 'string' ? prop.key.value : null
-        : prop.key?.type === 'StringLiteral' ? prop.key.value
-          : null;
+    // shared `resolveKey` covers Identifier / StringLiteral / Literal directly AND walks
+    // computed-key bindings (`const k = 'a'; { [k]: Array }`) + StringLiteral / `+`-concat
+    // folds to a static string. unresolvable computed keys (dynamic expressions) return null
+    // and the prop is correctly skipped
+    const keyName = sharedResolveKey(prop.key, prop.computed, currentScope, adapter);
     if (keyName !== walkPath[0]) continue;
     return walkStaticReceiverStep(prop.value, walkPath.slice(1), currentScope, adapter, depth + 1);
   }
