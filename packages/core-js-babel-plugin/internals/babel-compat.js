@@ -225,16 +225,22 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       : result;
   }
 
-  // parenthesized optional member followed by a NON-optional outer call: `(arr?.includes)(1)`
-  // semantics differ from `arr?.includes(1)` - on nullish receiver native `(arr?.includes)(1)`
-  // throws TypeError ("not a function") because the chain ENDS at the inner `?.` and the outer
-  // `()` is a non-optional call on void 0. emit lookup-only `(arr == null ? void 0 :
-  // _includes(arr))(1)` so the throw shape survives; injecting `.call(arr, 1)` would silently
-  // swap throw-on-nullish for "no-op on nullish". `this`-binding is technically also lost on
-  // the success path, but throw-preservation dominates the design tradeoff.
-  // optional outer call `(arr?.at)?.(0)` is semantically equivalent to `arr?.at?.(0)` (Reference
-  // Type preserved through parens, both short-circuit on nullish), so it goes through the
-  // standard buildMethodCall path with proper `.call(arr, args)` receiver-binding
+  // parenthesized optional member followed by a NON-optional outer call: `(arr?.includes)(1)`.
+  // native semantics:
+  //   - arr nullish: `(undefined)(1)` -> TypeError ("not a function") - chain ENDS at `?.`,
+  //     outer `()` is non-optional call on void 0
+  //   - arr non-nullish: Reference Type preserves `this=arr` through parens (per ECMAScript
+  //     spec on GroupingOperator, verified empirically: `([1,2]?.at)(0) === 1`)
+  // emit `(arr == null ? void 0 : _includes(arr)).call(arr, 1)`:
+  //   - nullish path: `(undefined).call(...)` accesses `.call` on undefined -> TypeError
+  //     (matches native throw shape; "Cannot read properties of undefined" rather than "not
+  //     a function" - both are TypeError, error message differs)
+  //   - success path: `_includes(arr).call(arr, 1)` preserves `this=arr` (matches native)
+  // args eval order: nullish path skips arg evaluation where native evaluates them. minor
+  // divergence acceptable - the throw still fires; literal args (the common case) are
+  // semantically identical
+  // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
+  // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike(path, id, skipOptional, sideEffects) {
     const callerPath = unwrapTSExpressionParent(path);
     const { parent } = callerPath;
@@ -244,8 +250,13 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       && isWrappedInParens(path) && path.isOptionalMemberExpression();
     const [check, object, embed] = extractCheck(path, skipOptional);
     if (isParenLookupOnly) {
+      // build `(check == null ? void 0 : _id(arr)).call(arr, ...args)` so both throw-on-nullish
+      // and `this`-binding-on-success are preserved (matches native semantics)
       const lookup = t.callExpression(id, [t.cloneNode(object)]);
-      replaceAndWrap(path, withSideEffects(lookup, sideEffects), check, embed);
+      const wrappedCallee = wrapConditional(check, lookup);
+      const callArgs = [t.cloneNode(object), ...parent.arguments.map(a => t.cloneNode(a))];
+      const result = t.callExpression(t.memberExpression(wrappedCallee, t.identifier('call')), callArgs);
+      callerPath.parentPath.replaceWith(withSideEffects(result, sideEffects));
       return;
     }
     const result = isCall
