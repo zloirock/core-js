@@ -65,7 +65,7 @@ export default async function ({
 
         await build(getRolldownOptions(templateFile, tempFile));
 
-        code = String(await readFile(tempFile, 'utf8'));
+        code = await readFile(tempFile, 'utf8');
       } finally {
         await rm(templateFile, { force: true });
         await rm(tempFile, { force: true });
