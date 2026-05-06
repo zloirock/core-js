@@ -4,10 +4,13 @@
 // receivers are accumulated as the visitor walks (`registerPolyfill` /
 // `tryRegisterPerBranchSynth`) and drained at programExit (`apply`) once the polyfill
 // set per receiver is final - swapping mid-traverse would route later sibling props to
-// the partial synth and miss their polyfill. keyed on receiver AST node identity:
-// sibling plugins that clone nodes via `t.cloneNode` produce fresh identities and
-// fragment the swap. under standard babel plugin ordering this is safe; coexistence
-// with plugins that clone a common ancestor is not supported
+// the partial synth and miss their polyfill. metadata is keyed on receiver AST node
+// identity (WeakMap), so sibling plugins that move nodes (`transform-parameters`
+// extracts param defaults to body var declarations) keep them resolvable: `apply` walks
+// the program and looks up nodes by identity, finding receivers wherever they currently
+// live - independent of whether ancestor paths got orphaned. clones (`t.cloneNode`)
+// produce fresh identity and fragment the swap; coexistence with plugins that clone a
+// common ancestor remains unsupported
 import {
   findIifeCallSite,
   getFallbackBranchSlots,
@@ -24,13 +27,11 @@ import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/de
 export default function createSynthSwapEmitter({
   adapter,
   injectPureImport,
-  isOrphaned,
   resolvePure,
   skippedNodes,
   t,
 }) {
   const synthSwapByReceiver = new WeakMap();
-  const pendingSwaps = [];
 
   // peel runtime-transparent expression wrappers (TS `as` / `satisfies` / `!` / ... and
   // `ParenthesizedExpression` for `createParenthesizedExpressions: true`) so synth-target
@@ -129,7 +130,9 @@ export default function createSynthSwapEmitter({
 
   // register a polyfill for a single key on a synth target. ensures the pending entry
   // exists, marks the receiver in `skippedNodes` (identifier visitor would race on the
-  // same node and emit a parallel `_Receiver` import that gets dropped post-swap)
+  // same node and emit a parallel `_Receiver` import that gets dropped post-swap).
+  // metadata is keyed on the receiver NODE (not path) so apply() locates the receiver
+  // by walking the program - survives sibling-plugin moves that orphan the original path
   function registerPolyfill(targetPath, objectPatternPath, key, entry, hintName) {
     const receiver = targetPath.node;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
@@ -138,18 +141,14 @@ export default function createSynthSwapEmitter({
     markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
-      // keep the ObjectPattern's PATH (not just node) so apply() can verify it's still
-      // live in the AST: a sibling plugin may `replaceWith` the pattern between enqueue
-      // and emission, leaving our captured node stale. path identity + orphan check is
-      // the only safe way to detect "pattern still installed at the same slot"
+      // capture the ObjectPattern NODE (not path) for the same node-identity reason -
+      // we don't need the live path; the captured key set is final at registration
+      // time and apply() emits synth properties from the captured properties array
       pending = {
-        targetPath,
-        objectPatternPath,
         objectPatternNode: objectPatternPath.node,
         polyfills: new Map(),
       };
       synthSwapByReceiver.set(receiver, pending);
-      pendingSwaps.push(pending);
     }
     pending.polyfills.set(key, { entry, hintName });
   }
@@ -192,58 +191,59 @@ export default function createSynthSwapEmitter({
     return registered;
   }
 
-  // drain: swap deferred destructure receivers with synthesized polyfill-backed objects.
-  // all sibling props have now been visited against the original receiver, so the key set
-  // is final. synth covers every destructured key: polyfilled -> polyfill id; native ->
-  // `R.key` ref. skip if the shape was mutated by another plugin (orphaned / non-Identifier
-  // receiver / non-ObjectPattern) - losing the polyfill is preferable to emitting against
-  // an unexpected shape
-  function apply() {
-    for (const { targetPath, objectPatternPath, objectPatternNode, polyfills } of pendingSwaps) {
-      const receiver = targetPath.node;
-      // accept Identifier (`Array`) and MemberExpression (`window.Array`) receivers. for
-      // MemberExpression, unpolyfilled keys still re-read through the chain (`window.Array
-      // .other`) - each clone re-evaluates the receiver expression. trade-off: lifting the
-      // chain to a temp would change AST shape (require IIFE wrap or explicit binding) and
-      // for usage-pure mode the typical pattern is all-polyfilled keys, single re-evaluation
-      if (!t.isIdentifier(receiver) && !t.isMemberExpression(receiver)) continue;
-      if (objectPatternNode?.type !== 'ObjectPattern') continue;
-      // a sibling plugin may have detached the receiver between queue-time and now
-      // (`.remove()` on an ancestor leaves `targetPath.node` stale). replaceWith on an
-      // orphaned path throws; skip here so the swap is simply lost rather than crashing
-      if (isOrphaned(targetPath)) continue;
-      // pattern-shape check: bail when the pattern was REPLACED with anything other than
-      // an `_ref` Identifier (the only legitimate sibling-plugin rewrite is
-      // `transform-destructuring`, which replaces ObjectPattern with `_ref` Identifier and
-      // lifts `var from = _ref.from` into the body - synth-swap on the RECEIVER stays
-      // semantically correct since `_ref.from` reads from the synthesized object).
-      // a fresh ObjectPattern (different identity) might have different keys than the
-      // original we cached - emitting synth with original keys would orphan the new bindings;
-      // safer to bail
-      if (isOrphaned(objectPatternPath)) continue;
-      const currentPattern = objectPatternPath.node;
-      if (currentPattern !== objectPatternNode && currentPattern?.type !== 'Identifier') continue;
-      // lazy: only inject the receiver's pure import if a sibling prop needs the raw
-      // receiver read (`_Promise.custom`). all-polyfilled destructures never call through,
-      // keeping the import set clean; fallback is the original identifier when no pure
-      // polyfill exists for the receiver
-      const receiverPure = resolvePure({ kind: 'global', name: receiver.name });
-      const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
-      let receiverRef = null;
-      const getReceiverRef = () => receiverRef ??= isPolyfillableGlobal
-        ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
-      const synthProperties = [];
-      for (const property of objectPatternNode.properties) {
-        if (!t.isObjectProperty(property) || property.computed || !t.isIdentifier(property.key)) continue;
-        const pending = polyfills.get(property.key.name);
-        // injectPureImport already returns a fresh clone; another cloneNode here would be a no-op copy
-        const value = pending
-          ? injectPureImport(pending.entry, pending.hintName)
-          : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(property.key.name));
-        synthProperties.push(t.objectProperty(t.identifier(property.key.name), value));
-      }
-      targetPath.replaceWith(t.objectExpression(synthProperties));
+  // accept Identifier (`Array`) and MemberExpression (`window.Array`) receivers. for
+  // MemberExpression, unpolyfilled keys still re-read through the chain (`window.Array
+  // .other`) - each clone re-evaluates the receiver expression. trade-off: lifting the
+  // chain to a temp would change AST shape (require IIFE wrap or explicit binding) and
+  // for usage-pure mode the typical pattern is all-polyfilled keys, single re-evaluation
+  function isReplaceableReceiver(node) {
+    return t.isIdentifier(node) || t.isMemberExpression(node);
+  }
+
+  // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the
+  // receiver. polyfilled keys come from `pending.polyfills` (lazy import via
+  // `injectPureImport`); unpolyfilled keys fall back to a member access through the
+  // receiver - injected as `_Receiver` polyfill alias when the receiver is itself a
+  // polyfillable global, raw Identifier otherwise. all-polyfilled cases never call
+  // `getReceiverRef`, keeping the import set clean
+  function buildSynthLiteral(receiver, { objectPatternNode, polyfills }) {
+    const receiverPure = resolvePure({ kind: 'global', name: receiver.name });
+    const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
+    let receiverRef = null;
+    const getReceiverRef = () => receiverRef ??= isPolyfillableGlobal
+      ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
+    const properties = [];
+    for (const property of objectPatternNode.properties) {
+      if (!t.isObjectProperty(property) || property.computed || !t.isIdentifier(property.key)) continue;
+      const queued = polyfills.get(property.key.name);
+      // injectPureImport already returns a fresh clone; another cloneNode here would be a no-op copy
+      const value = queued
+        ? injectPureImport(queued.entry, queued.hintName)
+        : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(property.key.name));
+      properties.push(t.objectProperty(t.identifier(property.key.name), value));
     }
+    return t.objectExpression(properties);
+  }
+
+  // walk the program and swap each registered receiver with its synth literal. lookup
+  // is by node identity (WeakMap), so sibling plugins that MOVE the receiver
+  // (`transform-parameters` extracts `function f({from} = R)` defaults to
+  // `var _ref = ... : R; var {from} = _ref` - same R node, new path) keep it findable.
+  // receivers removed from the tree are simply not encountered. `applied` flag makes
+  // re-entry safe (called once at end of pre-traverse to outrun sibling-plugin clones,
+  // again at programExit to catch helper-injected registrations from `reTraverseHelperBodies`)
+  function apply(programPath) {
+    if (!programPath?.node) return;
+    programPath.traverse({
+      enter(path) {
+        const pending = synthSwapByReceiver.get(path.node);
+        if (!pending || pending.applied) return;
+        if (!isReplaceableReceiver(path.node) || pending.objectPatternNode?.type !== 'ObjectPattern') return;
+        pending.applied = true;
+        path.replaceWith(buildSynthLiteral(path.node, pending));
+        path.skip();
+      },
+    });
   }
 
   return { apply, findTargetPath, registerPolyfill, tryRegisterPerBranchSynth };
