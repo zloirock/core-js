@@ -497,3 +497,53 @@ QUnit.test('nested destructure: triple-nested with default', assert => {
   const { a: { b: { from } = {} } = {} } = { a: { b: Array } };
   assert.deepEqual(from([10, 20]), [10, 20]);
 });
+
+// --- side-effect prefix in non-callee positions ---
+
+QUnit.test('SE-prefix: in array element position', assert => {
+  // SE-bearing SequenceExpression as array element - polyfill emit must keep the prefix
+  // alive (no silent SE drop). element evaluation order: SE prefix runs, then polyfill
+  let counter = 0;
+  const result = [(counter++, [1, 2, 3].at(-1))];
+  assert.same(counter, 1);
+  assert.same(result[0], 3);
+});
+
+QUnit.test('SE-prefix: in function call argument', assert => {
+  // SE prefix in arg position - same constraint, prefix must run before polyfill emit
+  let counter = 0;
+  function id(x) { return x; }
+  const result = id((counter++, [10, 20, 30].at(0)));
+  assert.same(counter, 1);
+  assert.same(result, 10);
+});
+
+QUnit.test('SE-prefix: in object property value', assert => {
+  let counter = 0;
+  const obj = { first: (counter++, [1, 2, 3].at(0)) };
+  assert.same(counter, 1);
+  assert.same(obj.first, 1);
+});
+
+// --- export with polyfill ---
+
+// these patterns appear in user libraries that re-export polyfilled built-ins. plugin
+// must inject polyfills into the producing module regardless of the value flowing
+// through export bindings
+
+QUnit.test('export: arrow re-exporting polyfilled value', assert => {
+  // simulated re-export pattern: function returning polyfilled call
+  const exportedFn = () => Array.from(new Set([1, 1, 2, 3]));
+  assert.deepEqual(exportedFn(), [1, 2, 3]);
+});
+
+QUnit.test('export: object literal field is polyfilled call', assert => {
+  // simulated module shape: object containing polyfilled-built data
+  const moduleShape = {
+    items: Array.from([10, 20, 30]),
+    first() { return this.items.at(0); },
+    last() { return this.items.at(-1); },
+  };
+  assert.same(moduleShape.first(), 10);
+  assert.same(moduleShape.last(), 30);
+});
