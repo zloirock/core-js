@@ -410,7 +410,7 @@ export default function createPlugin(options) {
       resolveStaticInheritedMember,
       isInheritedStaticLookup,
       isShadowedByClassOwnMember,
-    } = createClassHelpers(types, estreeAdapter, sharedResolveKey);
+    } = createClassHelpers(types, estreeAdapter, sharedResolveKey, () => injector);
 
     // usage-global mode
     if (method === 'usage-global') {
