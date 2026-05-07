@@ -105,6 +105,79 @@ QUnit.test('syntax: per-branch synth - param default ternary { from } = cond ? A
   assert.deepEqual(g(), [10, 20]);
 });
 
+// --- method on conditional / logical-result receiver ---
+
+QUnit.test('syntax: method on conditional result `(cond ? a : b).at(0)`', assert => {
+  // ConditionalExpression as receiver: type-resolver folds branches and dispatches narrow
+  // when both resolve to the same type
+  const arr = [10, 20];
+  const fallback = [30, 40];
+  const cond = arr.length > 0;
+  assert.same((cond ? arr : fallback).at(-1), 20);
+});
+
+QUnit.test('syntax: method on logical-OR fallback `(arr || []).at(-1)`', assert => {
+  // LogicalExpression `||` short-circuit with empty-array default; both branches Array,
+  // narrow polyfill dispatches
+  function getLast(maybeArr) {
+    return (maybeArr || []).at(-1);
+  }
+  assert.same(getLast([1, 2, 3]), 3);
+  assert.same(getLast(null), undefined);
+});
+
+QUnit.test('syntax: method on nullish-coalescing fallback `(arr ?? []).includes(...)`', assert => {
+  function check(maybeArr, value) {
+    return (maybeArr ?? []).includes(value);
+  }
+  assert.true(check([1, 2, 3], 2));
+  assert.false(check(null, 1));
+});
+
+// --- control-flow positions: try/finally + throw + labeled-break + early-return ---
+
+QUnit.test('syntax: try / finally with polyfill in finally arm', assert => {
+  let cleaned;
+  try {
+    [1, 2, 3].at(0);
+  } finally {
+    cleaned = [10, 20, 30].at(-1);
+  }
+  assert.same(cleaned, 30);
+});
+
+QUnit.test('syntax: throw `new Error(polyfilled)`', assert => {
+  // polyfill in throw expression subexpression - plugin must inject regardless of position
+  function fail() { throw new Error(`bad-${ [1, 2, 3].at(-1) }`); }
+  assert.throws(fail, /bad-3/);
+});
+
+QUnit.test('syntax: labeled for + break with polyfill in body', assert => {
+  // labeled-break interaction with polyfill: `row.includes` in test, `row.at(i)` in body
+  const data = [['a', 'b'], ['c', 'd'], ['e', 'f']];
+  let found;
+  // eslint-disable-next-line no-labels -- testing labeled-break + polyfill interaction
+  outer: for (const row of data) {
+    for (let i = 0; i < row.length; i++) {
+      if (row.includes('c')) {
+        found = row.at(i);
+        // eslint-disable-next-line no-labels -- testing labeled-break + polyfill interaction
+        break outer;
+      }
+    }
+  }
+  assert.same(found, 'c');
+});
+
+QUnit.test('syntax: early return with polyfill in branches', assert => {
+  function pickFirst(items) {
+    if (items.length === 0) return null;
+    return items.at(0);
+  }
+  assert.same(pickFirst([10, 20, 30]), 10);
+  assert.same(pickFirst([]), null);
+});
+
 QUnit.test('syntax: arrow body with chained polyfills', assert => {
   const fn = arr => arr.filter(x => x > 0).map(x => x * 2).at(-1);
   assert.same(fn([1, -2, 3]), 6);
