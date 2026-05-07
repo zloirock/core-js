@@ -382,19 +382,70 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
   return desc.callPath.get('arguments')[desc.paramIndex];
 }
 
+// transparent expression wrappers that don't affect the value of their inner expression:
+// oxc-preserved parens, optional-chain wrap, TS-only casts (compile-time, runtime no-op).
+// SequenceExpression is also transparent but ONLY when the inner expression is its tail -
+// mid-SE peel would change observable value (SE returns the last expression's value)
+const TRANSPARENT_EXPR_WRAPPERS = new Set([
+  'ParenthesizedExpression',
+  'ChainExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+]);
+
+// peel transparent expression wrappers up from `startPath` toward statement context.
+// `onSequencePrefix(exprs)` (optional) is invoked with each SequenceExpression's leading
+// expressions (in walk order) so callers that need to re-emit them as side-effect siblings
+// can collect them via the callback. returns the first non-transparent ancestor path
+// (the path where peeling stopped), or null when the walk runs off the top of the tree
+export function peelTransparentExprWrappers(startPath, onSequencePrefix) {
+  let path = startPath?.parentPath ?? null;
+  let prev = startPath?.node;
+  while (path) {
+    const type = path.node?.type;
+    if (TRANSPARENT_EXPR_WRAPPERS.has(type)) {
+      prev = path.node;
+      path = path.parentPath;
+      continue;
+    }
+    if (type === 'SequenceExpression') {
+      const exprs = path.node.expressions;
+      if (exprs.at(-1) !== prev) return path;
+      onSequencePrefix?.(exprs.slice(0, -1));
+      prev = path.node;
+      path = path.parentPath;
+      continue;
+    }
+    return path;
+  }
+  return null;
+}
+
 // destructure-host slot specifically for nested-proxy flatten (`{Array:{from}} = G` ->
 // `from = _Array$from`). narrower than `destructureReceiverSlot`: AssignmentExpression
 // is accepted ONLY when the surrounding context is an ExpressionStatement (value is
 // discarded - safe to replace whole statement with direct assignment). AssignmentPattern
 // excluded - inline-default would pick native first on modern engines, contradicting
-// usage-pure's polyfill-always contract. peels ParenthesizedExpression around the
-// AssignmentExpression (oxc preserves `({...} = G);` as ExprStmt -> Paren -> Assign)
+// usage-pure's polyfill-always contract. transparent wrappers (parens / TS casts /
+// chain / SE-tail) between AE and ExpressionStatement walked via the shared peeler
 export function flattenableHostSlot(parent, parentPath) {
   if (parent?.type === 'VariableDeclarator') return 'init';
   if (parent?.type !== 'AssignmentExpression') return null;
-  let ctx = parentPath?.parentPath;
-  while (ctx?.node?.type === 'ParenthesizedExpression') ctx = ctx.parentPath;
+  const ctx = peelTransparentExprWrappers(parentPath);
   return ctx?.node?.type === 'ExpressionStatement' ? 'right' : null;
+}
+
+// like `flattenableHostSlot('right')` but returns the {ExpressionStatement path,
+// SE-prefix exprs} pair the cascade emitter needs: SE-tail peel collects leading
+// expressions so they can be re-emitted as side-effect siblings, and the resolved
+// ExpressionStatement path is the host whose slot the cascade rewrites
+export function peelToExpressionStatement(startPath) {
+  const sequencePrefix = [];
+  const ctx = peelTransparentExprWrappers(startPath, exprs => {
+    for (const e of exprs) sequencePrefix.push(e);
+  });
+  return ctx?.node?.type === 'ExpressionStatement' ? { exprStmt: ctx, sequencePrefix } : null;
 }
 
 // MemberExpression in a position where the prototype-method polyfill can be skipped because
