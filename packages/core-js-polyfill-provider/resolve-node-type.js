@@ -4338,19 +4338,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return null;
   }
 
-  // does the entry's mutation profile mark `argIndex` as written? absent annotation means
-  // the method doesn't mutate any arg; non-array `mutatesArgument` is malformed data we
-  // ignore (treated as no annotation - safe over-allow rather than runtime failure)
-  function entryMutatesArgAt(entry, argIndex) {
-    return Array.isArray(entry.mutatesArgument) && entry.mutatesArgument.includes(argIndex);
-  }
-
   // is `refNode` at a non-mutating slot of a known call? SpreadElement is unwrapped first:
   // `f(...o)` re-targets argIndex computation to the spread node within `f`'s arg list,
   // `[...o]` / `{...o}` shortcut to true since the value-source containers have no callee
   // that could mutate `o`. leading SpreadElement before the slot perturbs the runtime index
-  // (`f(...rest, o)` - o lands at unknown position), so we bail. resolveKnownStaticEntry
-  // handles both pre-rewrite member (`Object.assign`) and post-rewrite alias (`_Object$assign`)
+  // (`f(...rest, o)` - o lands at unknown position), so we bail. for spread refs we widen
+  // the mutation check to "any annotated index >= argIndex" since spread expands into
+  // runtime positions [argIndex, argIndex+1, ...] (covers Reflect.set's [0,3] receiver-slot
+  // mutation reachable via `Reflect.set(t, k, ...o)`). resolveKnownStaticEntry handles both
+  // pre-rewrite member (`Object.assign`) and post-rewrite alias (`_Object$assign`)
   function isKnownNonMutatingCallSite(parent, refNode, refPath) {
     if (parent?.type === 'SpreadElement') {
       const container = refPath?.parentPath?.parent;
@@ -4363,7 +4359,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (argIndex === -1) return false;
     for (let i = 0; i < argIndex; i++) if (parent.arguments[i]?.type === 'SpreadElement') return false;
     const entry = resolveKnownStaticEntry(parent.callee, refPath);
-    return entry !== null && !entryMutatesArgAt(entry, argIndex);
+    if (entry === null) return false;
+    const mutates = entry.mutatesArgument;
+    if (!Array.isArray(mutates)) return true;
+    return refNode.type === 'SpreadElement'
+      ? !mutates.some(idx => idx >= argIndex)
+      : !mutates.includes(argIndex);
   }
 
   // collect every reference path of `binding` (excluding the declarator id slot). babel
