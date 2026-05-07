@@ -716,24 +716,27 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // substitute type-param references through `followTypeAliasChain`'s subst map.
   // recurses into refs/args/arrays/tuples/unions so interface-extends args reach
-  // inherited members after getTypeMembers flattens them
-  function substSlot(node, slot, subst, depth) {
-    const next = applyAliasSubstDeep(node[slot], subst, depth + 1);
+  // inherited members after getTypeMembers flattens them. `visited` is the cycle-guard
+  // Set built by TSTypeReference's self-ref protection (line ~782) - threading it through
+  // every nested call short-circuits F-bounded shapes (`type A<T> = ContainerOf<T>` with
+  // subst `{T: ContainerOf<T>}`) before depth exhaustion (~64 frames -> O(1))
+  function substSlot(node, slot, subst, depth, visited) {
+    const next = applyAliasSubstDeep(node[slot], subst, depth + 1, visited);
     return next === node[slot] ? node : { ...node, [slot]: next };
   }
-  function substList(node, slot, subst, depth) {
+  function substList(node, slot, subst, depth, visited) {
     const list = node[slot];
     if (!list?.length) return node;
-    const next = list.map(el => applyAliasSubstDeep(el, subst, depth + 1));
+    const next = list.map(el => applyAliasSubstDeep(el, subst, depth + 1, visited));
     return next.every((el, i) => el === list[i]) ? node : { ...node, [slot]: next };
   }
   // rebuild a reference-shape node with substituted typeArguments. `base` is the spread base;
   // when `base === node` (no substitute swap happened), preserves identity if all args
   // resolve to themselves so caller sees `===` against the input
-  function withSubstitutedTypeArgs(node, base, subst, depth) {
+  function withSubstitutedTypeArgs(node, base, subst, depth, visited) {
     const args = getTypeArgs(node);
     if (!args?.params?.length) return base;
-    const next = args.params.map(p => applyAliasSubstDeep(p, subst, depth + 1));
+    const next = args.params.map(p => applyAliasSubstDeep(p, subst, depth + 1, visited));
     if (base === node && next.every((p, i) => p === args.params[i])) return node;
     const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
     return { ...base, [argsKey]: { ...args, params: next } };
@@ -786,28 +789,28 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           // corrupt the shape
           if (replaced?.type !== 'TSTypeReference' && replaced?.type !== 'GenericTypeAnnotation') return replaced;
           if (getTypeArgs(replaced)?.params?.length) return replaced;
-          return withSubstitutedTypeArgs(node, replaced, subst, depth);
+          return withSubstitutedTypeArgs(node, replaced, subst, depth, seen);
         }
-        return withSubstitutedTypeArgs(node, node, subst, depth);
+        return withSubstitutedTypeArgs(node, node, subst, depth, visited);
       }
       case 'TSTypeAnnotation':
       case 'TypeAnnotation':
       case 'TSParenthesizedType':
       case 'TSOptionalType':
-      case 'NullableTypeAnnotation': return substSlot(node, 'typeAnnotation', subst, depth);
+      case 'NullableTypeAnnotation': return substSlot(node, 'typeAnnotation', subst, depth, visited);
       case 'TSArrayType':
-      case 'ArrayTypeAnnotation': return substSlot(node, 'elementType', subst, depth);
-      case 'TSTupleType': return substList(node, 'elementTypes', subst, depth);
+      case 'ArrayTypeAnnotation': return substSlot(node, 'elementType', subst, depth, visited);
+      case 'TSTupleType': return substList(node, 'elementTypes', subst, depth, visited);
       case 'TupleTypeAnnotation':
       case 'TSUnionType':
       case 'UnionTypeAnnotation':
       case 'TSIntersectionType':
-      case 'IntersectionTypeAnnotation': return substList(node, 'types', subst, depth);
+      case 'IntersectionTypeAnnotation': return substList(node, 'types', subst, depth, visited);
       case 'TSTypeLiteral': {
         let changed = false;
         const members = node.members?.map(m => {
-          const ta = m.typeAnnotation ? applyAliasSubstDeep(m.typeAnnotation, subst, depth + 1) : m.typeAnnotation;
-          const rt = m.returnType ? applyAliasSubstDeep(m.returnType, subst, depth + 1) : m.returnType;
+          const ta = m.typeAnnotation ? applyAliasSubstDeep(m.typeAnnotation, subst, depth + 1, visited) : m.typeAnnotation;
+          const rt = m.returnType ? applyAliasSubstDeep(m.returnType, subst, depth + 1, visited) : m.returnType;
           if (ta === m.typeAnnotation && rt === m.returnType) return m;
           changed = true;
           return { ...m, typeAnnotation: ta, returnType: rt };
@@ -815,10 +818,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         return changed ? { ...node, members } : node;
       }
       case 'TSConditionalType': {
-        const ck = applyAliasSubstDeep(node.checkType, subst, depth + 1);
-        const ex = applyAliasSubstDeep(node.extendsType, subst, depth + 1);
-        const tr = applyAliasSubstDeep(node.trueType, subst, depth + 1);
-        const fl = applyAliasSubstDeep(node.falseType, subst, depth + 1);
+        const ck = applyAliasSubstDeep(node.checkType, subst, depth + 1, visited);
+        const ex = applyAliasSubstDeep(node.extendsType, subst, depth + 1, visited);
+        const tr = applyAliasSubstDeep(node.trueType, subst, depth + 1, visited);
+        const fl = applyAliasSubstDeep(node.falseType, subst, depth + 1, visited);
         return ck === node.checkType && ex === node.extendsType && tr === node.trueType && fl === node.falseType
           ? node : { ...node, checkType: ck, extendsType: ex, trueType: tr, falseType: fl };
       }
@@ -826,12 +829,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'TSConstructorType':
       case 'FunctionTypeAnnotation': {
         const returnSlot = node.returnType ? 'returnType' : 'typeAnnotation';
-        const rt = node[returnSlot] ? applyAliasSubstDeep(node[returnSlot], subst, depth + 1) : node[returnSlot];
+        const rt = node[returnSlot] ? applyAliasSubstDeep(node[returnSlot], subst, depth + 1, visited) : node[returnSlot];
         // subst params too: `type F<T> = (x: T) => void; F<number[]>.params[0].type` needs
         // T -> number[]. rare (params type inference doesn't drive polyfill dispatch for most
         // callsites), but preserves invariant that subst walks the full type shape
         const params = node.params?.map(p => {
-          const pTA = p.typeAnnotation ? applyAliasSubstDeep(p.typeAnnotation, subst, depth + 1) : p.typeAnnotation;
+          const pTA = p.typeAnnotation ? applyAliasSubstDeep(p.typeAnnotation, subst, depth + 1, visited) : p.typeAnnotation;
           return pTA === p.typeAnnotation ? p : { ...p, typeAnnotation: pTA };
         });
         const paramsChanged = params && params.some((p, i) => p !== node.params[i]);
@@ -839,13 +842,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         return { ...node, [returnSlot]: rt, ...paramsChanged && { params } };
       }
       case 'TSIndexedAccessType': {
-        const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1);
-        const idx = applyAliasSubstDeep(node.indexType, subst, depth + 1);
+        const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1, visited);
+        const idx = applyAliasSubstDeep(node.indexType, subst, depth + 1, visited);
         return obj === node.objectType && idx === node.indexType
           ? node : { ...node, objectType: obj, indexType: idx };
       }
       case 'TSTypeOperator':
-        return substSlot(node, 'typeAnnotation', subst, depth);
+        return substSlot(node, 'typeAnnotation', subst, depth, visited);
       // mapped type: `{ [K in T]: T[K] }` - substitute the constraint, `typeAnnotation`,
       // and `nameType` (TS `as` remapping). without this, `type Box<T> = { [K in keyof T]: T[K] }`
       // passed `Box<{a: string[]}>` wouldn't substitute T in the mapped body. babel nests
@@ -862,10 +865,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         const innerSubst = innerName && subst.has(innerName)
           ? new Map([...subst].filter(([k]) => k !== innerName))
           : subst;
-        const tpConstraint = tp?.constraint ? applyAliasSubstDeep(tp.constraint, subst, depth + 1) : tp?.constraint;
-        const flatConstraint = node.constraint ? applyAliasSubstDeep(node.constraint, subst, depth + 1) : node.constraint;
-        const ann = node.typeAnnotation ? applyAliasSubstDeep(node.typeAnnotation, innerSubst, depth + 1) : node.typeAnnotation;
-        const nameType = node.nameType ? applyAliasSubstDeep(node.nameType, innerSubst, depth + 1) : node.nameType;
+        const tpConstraint = tp?.constraint ? applyAliasSubstDeep(tp.constraint, subst, depth + 1, visited) : tp?.constraint;
+        const flatConstraint = node.constraint ? applyAliasSubstDeep(node.constraint, subst, depth + 1, visited) : node.constraint;
+        const ann = node.typeAnnotation ? applyAliasSubstDeep(node.typeAnnotation, innerSubst, depth + 1, visited) : node.typeAnnotation;
+        const nameType = node.nameType ? applyAliasSubstDeep(node.nameType, innerSubst, depth + 1, visited) : node.nameType;
         if (tpConstraint === tp?.constraint && flatConstraint === node.constraint
           && ann === node.typeAnnotation && nameType === node.nameType) return node;
         return {
@@ -877,9 +880,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         };
       }
       // rest type inside tuples: `[...T[]]` / `[first, ...Rest]` - substitute inner
-      case 'TSRestType': return substSlot(node, 'typeAnnotation', subst, depth);
+      case 'TSRestType': return substSlot(node, 'typeAnnotation', subst, depth, visited);
       // named tuple member: `[x: string, ...rest: number[]]` - inner elementType
-      case 'TSNamedTupleMember': return substSlot(node, 'elementType', subst, depth);
+      case 'TSNamedTupleMember': return substSlot(node, 'elementType', subst, depth, visited);
       // `typeof X` - exprName is a VALUE-space binding ref; subst keys live in TYPE space,
       // so matching by name conflates namespaces (TS itself rejects `typeof T` where T is a
       // type-param: "refers only to a type"). do NOT substitute exprName - the only way
@@ -889,16 +892,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // DO carry type-space refs and must be recursed - withSubstitutedTypeArgs preserves
       // the TSTypeQuery shape on `node` and substitutes through the args list
       case 'TSTypeQuery':
-        return withSubstitutedTypeArgs(node, node, subst, depth);
+        return withSubstitutedTypeArgs(node, node, subst, depth, visited);
       // template literal type `\`${A}_${B}\``: substitute each interpolated expression so
       // mapped-type rename templates (`as \`${InnerKey}_${K}\``) reach evalRenameTemplate
       // with type-param refs replaced. oxc emits `TSTemplateLiteralType { types: [...] }`,
       // babel emits `TSLiteralType { literal: TemplateLiteral { expressions: [...] } }`.
       // quasis are pure text and don't carry substitutable refs
-      case 'TSTemplateLiteralType': return substList(node, 'types', subst, depth);
+      case 'TSTemplateLiteralType': return substList(node, 'types', subst, depth, visited);
       case 'TSLiteralType': {
         if (node.literal?.type !== 'TemplateLiteral') return node;
-        const inner = substList(node.literal, 'expressions', subst, depth);
+        const inner = substList(node.literal, 'expressions', subst, depth, visited);
         return inner === node.literal ? node : { ...node, literal: inner };
       }
       default: return node;

@@ -19,6 +19,7 @@ import {
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
   peelNestedSequenceExpressions,
+  peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiverPath,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -251,8 +252,18 @@ export default function createDestructureEmitter({
   // "polyfill always wins" - destructure discards the receiver's `Array.from` value into
   // `_unused`, then `from = _polyfill` overrides whatever native (potentially buggy) value
   // would have leaked through inline-default fallback
-  function cascadeAssignmentExpressionDestructure(assignPath, valueNode, prop, chain, entry, hintName) {
-    const exprStmt = assignPath.parentPath;
+  function cascadeAssignmentExpressionDestructure(assignPath, valueNode, prop, chain, entry, hintName, peeled = null) {
+    const exprStmt = peeled?.exprStmt ?? assignPath.parentPath;
+    // strip transparent wrappers between the AssignmentExpression and ExpressionStatement
+    // (oxc parens / TS casts / chain / SequenceExpression-with-AE-as-tail). SE prefix
+    // expressions become side-effect ExpressionStatement siblings before the cascade
+    // output. flatten only on the FIRST visit per host so sibling per-prop re-entries
+    // don't double-strip the wrappers
+    if (peeled && exprStmt.node.expression !== assignPath.node) {
+      const prefixStmts = peeled.sequencePrefix.map(e => t.expressionStatement(e));
+      exprStmt.node.expression = assignPath.node;
+      if (prefixStmts.length) exprStmt.insertBefore(prefixStmts);
+    }
     const id = injectPureImport(entry, hintName);
     // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
     injector.registerBodyExtractAlias(valueNode.name, entry);
@@ -325,10 +336,18 @@ export default function createDestructureEmitter({
       // when the cascade fully empties the outermost pattern, the empty `({} = receiver)`
       // host is removed (last visitor in declaration order does this).
       // `leftmost` matches against AssignmentExpression's LHS - if peel walked past wrappers
-      // the LHS may be the outermost wrapper rather than the bare pattern
-      if (parent?.isAssignmentExpression() && parent.node.left === leftmost
-          && parent.parentPath?.isExpressionStatement()) {
-        return cascadeAssignmentExpressionDestructure(parent, valueNode, prop, chain, entry, hintName);
+      // the LHS may be the outermost wrapper rather than the bare pattern. transparent
+      // statement wrappers (ParenthesizedExpression / ChainExpression / TS casts /
+      // SequenceExpression with the AE as tail) sitting between AssignmentExpression and
+      // ExpressionStatement are flattened in-place: SE prefix exprs land as side-effect
+      // ExpressionStatement siblings before the cascade output, the ExpressionStatement's
+      // expression slot is replaced with the bare AE so the cascade's bookkeeping (which
+      // assumes `assignPath.parentPath === ExpressionStatement`) operates on a clean shape
+      if (parent?.isAssignmentExpression() && parent.node.left === leftmost) {
+        const peeled = peelToExpressionStatement(parent);
+        if (peeled) {
+          return cascadeAssignmentExpressionDestructure(parent, valueNode, prop, chain, entry, hintName, peeled);
+        }
       }
       if (!t.isObjectProperty(parent?.node)) return false;
       currentProp = parent;
@@ -389,7 +408,21 @@ export default function createDestructureEmitter({
       return true;
     }
     if (isForInit) declarator.insertBefore(extractedDeclarator);
-    else declaration.insertBefore(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
+    else {
+      const newDecl = t.variableDeclaration(declaration.node.kind, [extractedDeclarator]);
+      // lift leading comments from the host onto the FIRST inserted cascade decl. without
+      // this, sibling cascades land split around the original host's comments: the first
+      // visitor's `insertBefore` keeps comments on the host, then the LAST visitor's
+      // `replaceWith` (when its level becomes the willRemoveDeclarator branch) inherits
+      // them - cosmetically the comments appear BETWEEN the cascade emits. lifting on
+      // first emit is idempotent: subsequent inserts find empty leadingComments
+      const lead = declaration.node.leadingComments;
+      if (lead?.length) {
+        newDecl.leadingComments = lead;
+        declaration.node.leadingComments = null;
+      }
+      declaration.insertBefore(newDecl);
+    }
     if (willRemoveDeclarator && declCount > 1) {
       // splice out the emptied declarator in-place; `.remove()` mid-traversal nulls
       // path.parent and crashes babel's virtual-type filter on queued inner Identifiers

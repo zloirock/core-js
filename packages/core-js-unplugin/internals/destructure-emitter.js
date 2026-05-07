@@ -21,6 +21,7 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   peelFallbackWrappers,
   peelNestedSequenceExpressions,
+  peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiver,
   TS_EXPR_WRAPPERS,
@@ -139,14 +140,17 @@ export function createDestructureEmitter({
     const assignPath = walkUpNestedDestructureToAssignment(metaPath.parentPath);
     const assignNode = assignPath?.node;
     if (!assignNode || assignNode.operator !== '=') return false;
-    // peel oxc's preserved `({...} = G)` parens to reach the ExpressionStatement above
-    let stmtPath = assignPath.parentPath;
-    while (stmtPath?.node?.type === 'ParenthesizedExpression') stmtPath = stmtPath.parentPath;
-    if (stmtPath?.node?.type !== 'ExpressionStatement') return false;
+    // peel transparent wrappers between AssignmentExpression and ExpressionStatement so
+    // `({...} = G)` (oxc parens), `({...} = G) as any` (TS cast), `({...} = G)?.x` (chain)
+    // and minifier output `(0, ({...} = G))` (SequenceExpression with the AE as TAIL)
+    // all reach the cascade. shared helper handles the SE-tail check and accumulates the
+    // SE's leading expressions so the cascade can re-emit them as side-effect siblings
+    const peeled = peelToExpressionStatement(assignPath);
+    if (!peeled) return false;
     // already-flattened statement: per-prop visitor re-entry for sibling polyfills is a
     // no-op (the upfront `rewriteDeclarator` walk on first call already covered all of them)
     if (flattenedAssignments.has(assignNode)) return true;
-    return cascadeAssignmentExpression(assignNode, stmtPath, metaPath.scope);
+    return cascadeAssignmentExpression(assignNode, peeled.exprStmt, metaPath.scope, peeled.sequencePrefix);
   }
 
   // run `fn` with `injector.generateUnusedName` wrapped so every name it emits is also
@@ -176,7 +180,7 @@ export function createDestructureEmitter({
   // bodyless control parent (`if (cond) ({...} = G);`) requires `{...}` wrap when more
   // than one statement is emitted - otherwise siblings to the gated first statement
   // run unconditionally, breaking the guard's runtime semantics
-  function cascadeAssignmentExpression(assignNode, stmtPath, scope) {
+  function cascadeAssignmentExpression(assignNode, stmtPath, scope, outerSequencePrefix = []) {
     const stmtNode = stmtPath.node;
     let cached = trackedUnusedNamesByAssign.get(assignNode);
     if (!cached) {
@@ -195,12 +199,14 @@ export function createDestructureEmitter({
     // skip both halves of the assignment from the normal visitor pass: LHS pattern's
     // identifiers are now superseded by the rebuilt destructure text, RHS receiver tail
     // is already substituted to the polyfilled binding inside `result.preservedSrc`.
-    // SE prefix expressions stay visitable so their inner Identifiers (`Promise.resolve`)
-    // emit their own polyfill imports during traversal
+    // SE prefix expressions (RHS-internal AND outer SequenceExpression wrappers) stay
+    // visitable so their inner Identifiers (`Promise.resolve`) emit their own polyfill
+    // imports during traversal
     walkAstNodes(assignNode.left, node => skippedNodes.add(node));
     const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
     if (receiverTail) walkAstNodes(receiverTail, node => skippedNodes.add(node));
     const segments = [];
+    for (const expr of outerSequencePrefix) segments.push(`${ nodeSrc(expr) };`);
     for (const expr of seExprs) segments.push(`${ nodeSrc(expr) };`);
     if (unusedIds.length) segments.push(`var ${ unusedIds.join(', ') };`);
     if (result.preservedSrc !== null) segments.push(`(${ result.preservedSrc });`);
