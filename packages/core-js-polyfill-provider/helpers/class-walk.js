@@ -135,9 +135,17 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
 // `estree-compat.types`; `adapter` enables scope-aware proxy-global resolution through
 // polyfillHint for plugin-managed imports. `resolveKey` is the provider's key resolver
 // (from `detect-usage.js`) - injected rather than imported to avoid circular deps
-// (detect-usage already imports class-walk via the helpers barrel). caches live on the
-// closure - call once per file
-export function createClassHelpers(t, adapter, resolveKey) {
+// (detect-usage already imports class-walk via the helpers barrel). `getInjector` is
+// a lazy accessor for the per-file ImportInjector instance; resolveSuperClassName uses
+// `getInjector().getPureImport(name)` to distinguish user-managed core-js imports
+// (registered via scanExistingCoreJSImports -> registerUserPureImport, hint remapped
+// downstream by resolveSuperImportName) from arbitrary user imports whose local name
+// happens to shadow a known global - the latter must NOT pass through, or
+// `import {fn as Promise} from './local'` would dispatch `super.try` as `Promise.try`.
+// passed lazily because the factory runs before `pre()` allocates the per-file injector
+// (capturing the variable directly would freeze the undefined slot). caches live on
+// the closure - call once per file
+export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
   const isClassMember = node => t.isClassMethod(node) || t.isClassPrivateMethod(node)
     || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
 
@@ -228,7 +236,19 @@ export function createClassHelpers(t, adapter, resolveKey) {
       if (binding.constantViolations?.length) return null;
       const decl = binding.path?.node;
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
-        || decl?.type === 'ImportNamespaceSpecifier') return name;
+        || decl?.type === 'ImportNamespaceSpecifier') {
+        // pass through ONLY when the injector recognises `name` as a user-side core-js
+        // import (registered via `registerUserPureImport`). otherwise the local name is
+        // either a renamed builtin shadow (`import {fn as Promise} from './local'`),
+        // a namespace alias, or a default import from a non-core-js module - none of
+        // which carry the global's semantics, so dispatching `super.X` as the global's
+        // polyfill would override user-shim semantics. without an injector accessor we
+        // fall back to the legacy pass-through (preserves contract for callers that
+        // haven't plumbed `getInjector`)
+        const injector = getInjector?.();
+        if (!injector) return name;
+        return injector.getPureImport?.(name) ? name : null;
+      }
       if (decl?.type !== 'VariableDeclarator') return null;
       // strip parens + TS casts (`const A = Promise as typeof Promise`); without TS-strip
       // the alias chain bails and `super.X` doesn't resolve to the wrapped Promise

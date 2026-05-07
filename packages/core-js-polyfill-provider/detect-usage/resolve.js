@@ -186,19 +186,35 @@ function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen, pat
 
 // `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
 // returns the property key or null when init isn't a proxy-global or `name` isn't matched.
-// nested patterns (`const { A: { B } }`) are not followed - conservative single-level alias only.
-// only known-global-shaped keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned -
-// `const { foo } = globalThis` should not push `'foo'` into downstream global lookups
+// nested patterns (`const { window: { Array } }`) follow the chain when every intermediate
+// key is itself a proxy-global name (`window`/`self`/...) - matches the runtime where the
+// chain re-enters the same global-object identity (`globalThis.window === globalThis` on
+// browsers). conservative: only descends through proxy-global keys, so user-shape
+// `const { foo: { Array } } = globalThis` (foo is non-global) bails. only known-global-
+// shaped leaf keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned - `const { foo } =
+// globalThis` should not push `'foo'` into downstream global lookups
 function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen, path) {
   const receiver = resolveObjectName(init, scope, adapter, seen, path);
   if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
+  return walkProxyDestructurePattern(pattern, name, scope, adapter, seen, path);
+}
+
+function walkProxyDestructurePattern(pattern, name, scope, adapter, seen, path) {
   for (const p of pattern.properties) {
     if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
-    if (patternBindingName(p.value) !== name) continue;
     // propagate `seen` so computed keys backed by chained aliases (`const k = A; const A = k;`
     // -> { [k]: x }) reuse the outer cycle guard instead of starting a fresh walk
     const key = resolveKey(p.key, p.computed, scope, adapter, seen, path);
-    return key && isStaticPlacement(key) ? key : null;
+    if (!key || !isStaticPlacement(key)) continue;
+    if (patternBindingName(p.value) === name) return key;
+    // nested ObjectPattern through a proxy-global intermediate key (`window`, `self`, ...)
+    // re-enters the same global-object surface at runtime - recurse so `const {window:
+    // {Array}} = globalThis` resolves Array as a global just like the flat form
+    const nested = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
+    if (nested?.type === 'ObjectPattern' && POSSIBLE_GLOBAL_OBJECTS.has(key)) {
+      const inner = walkProxyDestructurePattern(nested, name, scope, adapter, seen, path);
+      if (inner) return inner;
+    }
   }
   return null;
 }
