@@ -170,7 +170,7 @@ export default function plugin(api, options) {
         isInheritedStaticLookup,
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
-      } = createClassHelpers(t, adapter, sharedResolveKey);
+      } = createClassHelpers(t, adapter, sharedResolveKey, () => injector);
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
@@ -639,8 +639,13 @@ export default function plugin(api, options) {
       // against a pre-scan state that misses helper-injected globals.
       // include CatchClause extractor so sibling-injected `catch ({at}) {...}` inside
       // helper bodies still gets extracted for polyfill dispatch. extractor is idempotent
-      // so even if helperVisitors === usageVisitors already re-visited a catch, no harm
+      // so even if helperVisitors === usageVisitors already re-visited a catch, no harm.
+      // skip when `originalBodyNodes` is null - that's a `core-js-disable-file` path
+      // where preTraverse early-returned before the snapshot was taken (multi-file batch:
+      // the previous file's postHook nullified `originalBodyNodes`); without the guard
+      // `null.has(...)` throws TypeError on every body child here
       function reTraverseHelperBodies(path) {
+        if (!originalBodyNodes) return;
         const helperWithCatch = { ...helperVisitors, CatchClause: catchPath => destructureEmit.extractCatchClause(catchPath) };
         for (const childPath of path.get('body')) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperWithCatch);
