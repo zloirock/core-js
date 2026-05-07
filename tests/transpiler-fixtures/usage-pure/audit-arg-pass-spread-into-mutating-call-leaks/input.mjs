@@ -1,9 +1,8 @@
 // spread `o` into a CallExpression whose callee has `mutatesArgument` annotated:
-// `Object.assign(...o)`. spread arity is unknown at static time - o's spread elements
-// could land at any position, including the mutating slot (target at index 0). helper
-// returns false from the SpreadElement branch when ANY mutating slot exists; classifier
-// falls through to 'leak'. negative-by-design lock: ensures sound over-bail when spread
-// ambiguity intersects with a per-slot mutation profile
+// `Object.assign(...o)`. spread sits at AST index 0; mutating slot is also 0; the
+// SpreadElement branch widens the check to "any annotated index >= spread position",
+// so target slot 0 is reachable -> classifier falls through to 'leak'. negative-by-design
+// lock: ensures sound over-bail when spread expansion intersects a per-slot mutation profile
 const o = {
   arr: [1, 2, 3],
   test() {
