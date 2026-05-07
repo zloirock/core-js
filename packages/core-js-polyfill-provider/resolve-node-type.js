@@ -880,10 +880,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'TSRestType': return substSlot(node, 'typeAnnotation', subst, depth);
       // named tuple member: `[x: string, ...rest: number[]]` - inner elementType
       case 'TSNamedTupleMember': return substSlot(node, 'elementType', subst, depth);
-      // `typeof X` - substitute if X maps through the alias (rare but keeps invariant)
+      // `typeof X` - exprName is a VALUE-space binding ref; subst keys live in TYPE space,
+      // so matching by name conflates namespaces (TS itself rejects `typeof T` where T is a
+      // type-param: "refers only to a type"). do NOT substitute exprName - the only way
+      // names could collide is value-binding shadowing of an outer type-param, where the
+      // existing TSTypeQuery semantics already correctly point at the runtime binding.
+      // typeParameters / typeArguments (`typeof fn<T>` instantiation expression, TS 4.7+)
+      // DO carry type-space refs and must be recursed - withSubstitutedTypeArgs preserves
+      // the TSTypeQuery shape on `node` and substitutes through the args list
       case 'TSTypeQuery':
-        return node.exprName?.type === 'Identifier' && subst.has(node.exprName.name)
-          ? subst.get(node.exprName.name) : node;
+        return withSubstitutedTypeArgs(node, node, subst, depth);
       // template literal type `\`${A}_${B}\``: substitute each interpolated expression so
       // mapped-type rename templates (`as \`${InnerKey}_${K}\``) reach evalRenameTemplate
       // with type-param refs replaced. oxc emits `TSTemplateLiteralType { types: [...] }`,
