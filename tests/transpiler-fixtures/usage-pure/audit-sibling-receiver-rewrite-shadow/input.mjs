@@ -1,6 +1,5 @@
-// polyfillSiblingReceiverRefs rewrites every Identifier matching the flattened-receiver
-// name without scope check. function param shadowing globalThis must NOT be rewritten -
-// it's a local binding, not the global. needs multi-declarator const where the
-// destructure decl extracts the receiver and the sibling decl shadows it
+// destructure receiver `globalThis` shares its name with a function parameter in the
+// sibling declarator. only the destructure-source identifier should be rewritten when
+// the receiver is folded; the inner-function parameter is a distinct local binding
 const { Array: { from } } = globalThis, y = (function (globalThis) { return globalThis; })(1);
 export { from, y };

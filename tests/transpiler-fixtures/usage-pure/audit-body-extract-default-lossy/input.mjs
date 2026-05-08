@@ -1,10 +1,6 @@
-// computed-key sibling makes the ObjectPattern fail isSynthSimpleObjectPattern,
-// forcing body-extract for the polyfillable bindings. each binding shape variant
-// (shorthand / aliased / shorthand+default / aliased+default) goes through the
-// uniform body-extract path. user-written defaults are intentionally dropped under
-// the polyfill-always-wins contract: the polyfill binding is always defined so the
-// `= []` default would never fire. distinct method names per declaration make per-
-// import dispatch visible
+// computed-key sibling forces body-extract instead of pattern reshape. all four binding
+// shapes (shorthand / aliased, with and without default) extract uniformly. user-written
+// defaults are intentionally dropped: the polyfill binding is always defined
 function f({ from = [], [Symbol.iterator]: it } = Array) {
   return [from([1]), it];
 }

@@ -3,12 +3,9 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 const from = _Array$from;
-// RestElement coexists with regular static destructure: `const { from, ...rest } = Array`.
-// destructure-emitter emits body-extract `const from = _Array$from;` + AST-mutates the
-// destructure value to `_unused` (preserves rest semantics). receiver narrowing through
-// `arr = from('hi')` finds the polyfill entry via injector's body-extract alias map -
-// `staticPairFromPolyfillEntry(scope, 'from')` returns 'array/from' regardless of AST
-// shape, so `arr.at` narrows to `_atMaybeArray`. babel and unplugin emit identical output
+// rest element coexists with a static destructure: `const { from, ...rest } = Array`.
+// the rest binding must not block alias registration of `from`, so subsequent calls
+// still narrow the receiver to Array and instance methods dispatch array-specific
 const {
   from: _unused,
   ...rest
