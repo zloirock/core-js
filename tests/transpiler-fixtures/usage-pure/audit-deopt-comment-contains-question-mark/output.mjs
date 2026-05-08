@@ -1,6 +1,6 @@
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _endsWithMaybeString from "@core-js/pure/actual/string/instance/ends-with";
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 // the deoptionalize-needle comment-skip must consume the comment by structural boundary
 // (`*/` for block comments) rather than by token scan - a comment whose body happens to
 // contain `?.` would otherwise confuse a naive `?.`-counter and emit `.(` mid-comment.

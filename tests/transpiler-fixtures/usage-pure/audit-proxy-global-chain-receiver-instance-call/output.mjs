@@ -1,8 +1,8 @@
-import _includes from "@core-js/pure/actual/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _includes from "@core-js/pure/actual/instance/includes";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 var _ref, _ref2, _ref3, _ref4;
 // optional chain over a polyfillable global followed by instance polyfill: receiver memoized
 // in `_ref` and reused in the polyfill call. inner `?.` deopts apply only to the optional hop

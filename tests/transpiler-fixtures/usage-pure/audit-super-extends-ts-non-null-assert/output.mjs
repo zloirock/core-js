@@ -1,6 +1,6 @@
+import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-import _globalThis from "@core-js/pure/actual/global-this";
 // non-null assertion (`!`) on the super-class alias - alias chain resolves to
 // Promise and `super.resolve` gets polyfilled
 const A = _Promise;

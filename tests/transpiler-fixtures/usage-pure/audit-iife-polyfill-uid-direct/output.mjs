@@ -1,5 +1,5 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _keys from "@core-js/pure/actual/instance/keys";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // after pure rewrite, a polyfill UID is a direct Identifier reference: `_Promise`
 // from a previous import. it's not a CallExpression - inlineCallHasObservableEffects
 // is gated behind `obj.type === CallExpression`, so this path doesn't fire and no

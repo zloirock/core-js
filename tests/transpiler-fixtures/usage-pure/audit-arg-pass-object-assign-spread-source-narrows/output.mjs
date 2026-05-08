@@ -1,6 +1,6 @@
-import _Object$assign from "@core-js/pure/actual/object/assign";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _Object$assign from "@core-js/pure/actual/object/assign";
 // Spread `...o` at arg index 1 of `Object.assign` cannot reach the mutating slot 0 at runtime.
 // Spread widening must be forward-only, otherwise every spread call would falsely leak.
 const target = {};

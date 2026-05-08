@@ -1,6 +1,6 @@
-import _Object$assign from "@core-js/pure/actual/object/assign";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Object$assign from "@core-js/pure/actual/object/assign";
 // `Object.assign(o, ...)` mutates the target slot, so the alias narrow on `o.arr` must be abandoned.
 // Generic instance polyfills are required because runtime shape may diverge from the property init.
 const o = {

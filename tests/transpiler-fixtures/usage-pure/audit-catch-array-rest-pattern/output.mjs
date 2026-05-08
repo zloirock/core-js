@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 // Catch's array destructure with nested default and rest - no extraction: positional bindings
 // can't benefit from property-rewrite, so babel mirrors unplugin and leaves the pattern
 // inline. `.at` / `.flat` polyfill against the named locals unchanged

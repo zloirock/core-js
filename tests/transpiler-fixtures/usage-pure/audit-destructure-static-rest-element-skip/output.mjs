@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 const from = _Array$from;
 // RestElement coexists with regular static destructure: `const { from, ...rest } = Array`.
 // destructure-emitter emits body-extract `const from = _Array$from;` + AST-mutates the

@@ -1,5 +1,5 @@
-import _at2 from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at2 from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 // when a polyfill binding name (e.g. `_at`) appears as substring of a longer user
 // identifier (e.g. `_at`, `at_value`), nth-occurrence counting must stay correct.

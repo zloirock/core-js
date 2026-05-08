@@ -1,6 +1,6 @@
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Set from "@core-js/pure/actual/set/constructor";
 // 3 forms of type-only ESM imports: isTypeOnlyImportBinding must filter all from shadow
 // detection. references to Map / Set / Promise resolve to globals despite same-named
 // type imports

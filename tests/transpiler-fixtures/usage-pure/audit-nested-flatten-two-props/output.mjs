@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
+import _Array$of from "@core-js/pure/actual/array/of";
 var _ref;
 // Nested proxy-global destructure with two polyfillable keys on the inner pattern.
 // Each prop gets an independent extracted declaration; the outer declaration's inner

@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Array$of from "@core-js/pure/actual/array/of";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // computed-key sibling makes the ObjectPattern fail isSynthSimpleObjectPattern,
 // forcing body-extract for the polyfillable bindings. each binding shape variant
 // (shorthand / aliased / shorthand+default / aliased+default) goes through the
