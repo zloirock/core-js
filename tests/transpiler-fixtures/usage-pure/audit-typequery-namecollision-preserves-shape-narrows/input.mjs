@@ -1,11 +1,5 @@
-// shape-preservation lock: name collision between value-binding `T` and
-// interface type-param `T`. interface member substitution applies applyAliasSubstDeep
-// over `val`'s typeAnnotation `typeof T`. before the fix, the TSTypeQuery branch hit
-// subst.has(exprName) and returned subst.get(name) - a TSStringKeyword where downstream
-// expected TSTypeQuery payload, scrambling member resolution (val resolved as string,
-// not as the value-binding T's array type). after the fix, exprName substitution is
-// skipped (value-space ref vs type-space subst keys are different namespaces), so
-// `typeof T` correctly resolves to the value-binding T (the runtime array)
+// Value-binding `T` and interface type-param `T` share a name; `typeof T` must address the value space.
+// Substitution must skip value-space refs in `typeof` queries so `b.val` keeps its runtime array shape.
 const T = [1, 2, 3];
 interface Box<T> {
   val: typeof T;
