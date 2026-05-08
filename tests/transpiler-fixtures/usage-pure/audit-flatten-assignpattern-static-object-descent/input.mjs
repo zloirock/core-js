@@ -1,8 +1,5 @@
-// AssignmentPattern wrapper combined with static-object descent (not proxy-global). const
-// wrapper holds an ObjectExpression whose `.ns` resolves to Object via `walkStaticReceiverChain`.
-// `peelInnerDefault` peels AssignmentPattern in `planOuterPropStatic` so the inner pattern
-// reaches its leaf identifier resolution. Classifier `peelDestructureWrappers` also peels
-// AssignmentPattern in static-object descent paths
+// Const-bound `wrapper = { ns: Object }` plus `AssignmentPattern` default exercises static-object descent.
+// Default never fires for known constructors, so flatten must peel it and emit a polyfill alias.
 const wrapper = { ns: Object };
 const { ns: { entries } = {} } = wrapper;
 const arr = entries({ k: 1 });

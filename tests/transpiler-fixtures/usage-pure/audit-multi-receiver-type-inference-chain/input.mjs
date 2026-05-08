@@ -1,11 +1,5 @@
-// three mechanics, three intermediates - each receiver's type comes from exactly
-// one source. in usage-pure mode the module registry has no iterator/instance
-// override for `.filter` / `.map` / `.flatMap` (iterator helpers flow through a
-// separate entry), so every receiver resolves to `array/instance/*`; the chain
-// still exercises all three mechanics for TS / guard / built-in inference:
-//   (1) TS annotation `typed: number[]`   -> .filter receiver is Array
-//   (2) guard `Array.isArray(maybe)`      -> .map    receiver is Array
-//   (3) built-in return of `Array.from`   -> .flatMap receiver is Array
+// Three Array narrowing mechanics combine in one chain: TS annotation, runtime guard, built-in return.
+// Each receiver must resolve via its own source so per-call array-instance polyfills emit precisely.
 function aggregate(typed: number[], maybe: unknown, raw: Iterable<number>): number[] {
   if (!Array.isArray(maybe)) return [];
   const fromTyped = typed.filter(x => x > 0);
