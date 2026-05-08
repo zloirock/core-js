@@ -3755,6 +3755,18 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const classPath = resolveRuntimeExpression(objectPath.get('callee'));
       if (t.isClass(classPath.node)) return { classPath, isStatic: false };
     }
+    // `Reflect.construct(C, args)` is structurally equivalent to `new C(...args)` -
+    // returns an instance of C. callee shape: bare `Reflect.construct` (no local shadow)
+    // or post-rewrite alias. recognising it lets `inst.X` on the result reach the same
+    // class-context resolution as the new-expression path
+    if ((t.isCallExpression(objectPath.node) || t.isOptionalCallExpression(objectPath.node))
+      && isReflectConstructCallee(objectPath.node.callee, objectPath.scope)
+      && objectPath.node.arguments?.[0]) {
+      // dotted child-key (`'arguments.0'`) works in babel but not estree-toolkit; the
+      // array-form `get('arguments')[0]` is universal across both adapters
+      const classPath = resolveRuntimeExpression(objectPath.get('arguments')[0]);
+      if (t.isClass(classPath.node)) return { classPath, isStatic: false };
+    }
     // this.prop inside a class member
     if (t.isThisExpression(objectPath.node)) return resolveThisClass(objectPath);
     // super.prop inside a class member - resolve to parent class; isStatic inherits the
@@ -4314,6 +4326,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           // default declarations (`export default {...}`) carry no in-module name, so caller
           // already had no enumerable name to track
           names.add(stmt.declaration.id.name);
+        } else if (stmt.type === 'TSExportAssignment' && stmt.expression?.type === 'Identifier') {
+          // TS CJS interop: `export = X` makes X module.exports. just like named export,
+          // X is reachable externally - any importer can mutate its public fields, so
+          // closure-narrow must bail (otherwise unsound polyfill emit on a binding the
+          // outside world can rewrite). non-Identifier expressions (`export = { ... }`)
+          // expose the literal but not any enumerable in-module name to track
+          names.add(stmt.expression.name);
         }
       }
       return names;
@@ -4373,44 +4392,54 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       && parent.object === refNode;
   }
 
-  // resolve a CallExpression callee node to a known-static method entry. handles two shapes:
-  //   1. pre-rewrite member access `Object.assign` / `JSON.stringify` - bare-global receiver
-  //      with no local shadow. computed callees and non-Identifier receivers bail.
-  //   2. post-rewrite polyfill alias `_Object$assign` / `_JSON$stringify` - usage-pure mode
-  //      replaces the original member access before the closure walk reaches the arg refs;
-  //      `staticPairFromPolyfillEntry` recovers the original constructor + method via the
-  //      injector's binding hint
-  // returns the entry from `KNOWN_STATIC_METHOD_RETURN_TYPES` or null when unknown
-  function resolveKnownStaticEntry(callee, refPath) {
+  // resolve a callee node to its (constructor, method) pair if it's a known-static call.
+  // covers four shapes:
+  //   1. bare member access `Object.assign(...)` - object is a no-local-shadow Identifier
+  //   2. proxy-global wrap `globalThis.Object.assign(...)` / `self.Object.assign(...)` -
+  //      outer is a proxy-global, peel it and treat inner property as the constructor name
+  //   3. post-rewrite polyfill alias `_Object$assign` - identifier resolves through the
+  //      injector's binding hint via `staticPairFromPolyfillEntry`
+  //   4. Reflect.construct etc - handled identically by the same shapes
+  // returns `{ constructor, method }` or null. computed callees and non-Identifier slots
+  // bail uniformly. callers add their own table lookup (`KNOWN_STATIC_METHOD_RETURN_TYPES`)
+  // or pair match (Reflect.construct) on top of the resolved pair
+  function resolveStaticCalleePair(callee, scope) {
     if (!callee) return null;
     if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
       if (callee.computed) return null;
       if (callee.property?.type !== 'Identifier') return null;
-      // direct bare-global receiver: `Object.assign(...)` - no local shadow, name is the
-      // constructor key in the registry
       if (callee.object?.type === 'Identifier') {
-        if (refPath?.scope?.getBinding(callee.object.name)) return null;
-        return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, callee.object.name, callee.property.name);
+        if (scope?.getBinding?.(callee.object.name)) return null;
+        return { constructor: callee.object.name, method: callee.property.name };
       }
-      // proxy-global receiver: `globalThis.Object.assign(...)` / `self.Object.assign(...)`.
-      // outer object is a proxy-global (`globalThis` / `self` / `window` / ...) and the
-      // tail member name corresponds to a known constructor. peel the outer proxy and
-      // route through the same lookup so non-mutating-slot dispatch survives the wrap
       if ((callee.object?.type === 'MemberExpression' || callee.object?.type === 'OptionalMemberExpression')
         && !callee.object.computed
         && callee.object.object?.type === 'Identifier'
         && callee.object.property?.type === 'Identifier'
         && POSSIBLE_GLOBAL_OBJECTS.has(callee.object.object.name)
-        && !refPath?.scope?.getBinding(callee.object.object.name)) {
-        return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, callee.object.property.name, callee.property.name);
+        && !scope?.getBinding?.(callee.object.object.name)) {
+        return { constructor: callee.object.property.name, method: callee.property.name };
       }
       return null;
     }
-    if (callee.type === 'Identifier' && refPath?.scope) {
-      const pair = staticPairFromPolyfillEntry(refPath.scope, callee.name);
-      return pair ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
-    }
+    if (callee.type === 'Identifier' && scope) return staticPairFromPolyfillEntry(scope, callee.name);
     return null;
+  }
+
+  // resolve callee to the entry from `KNOWN_STATIC_METHOD_RETURN_TYPES` (mutation profile,
+  // return-type hint, ...). null when callee is not a known static or the (constructor,
+  // method) pair has no registered entry
+  function resolveKnownStaticEntry(callee, refPath) {
+    const pair = resolveStaticCalleePair(callee, refPath?.scope);
+    return pair ? lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method) : null;
+  }
+
+  // is `callee` a (non-shadowed) reference to `Reflect.construct`? same shape coverage as
+  // `resolveKnownStaticEntry` (member / proxy-global / post-rewrite alias) - the pair just
+  // gates on a fixed `(Reflect, construct)` match instead of a registry lookup
+  function isReflectConstructCallee(callee, scope) {
+    const pair = resolveStaticCalleePair(callee, scope);
+    return pair?.constructor === 'Reflect' && pair?.method === 'construct';
   }
 
   // is `refNode` at a non-mutating slot of a known call? SpreadElement is unwrapped first:
@@ -4468,6 +4497,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return refs;
   }
 
+  // assignment operators that REBIND the LHS rather than mutate its value: `=` is the
+  // obvious case; `||=` / `??=` / `&&=` are conditional rebinds (the assignment fires
+  // only on a truthiness/nullish check) - the captured anchor identity is unchanged in
+  // both fired and skipped paths. compound arithmetic (`+=`, `**=`) and bitwise (`|=`,
+  // `&=`, `^=`, `<<=`, `>>=`, `>>>=`) are NOT rebinds: they read the LHS value, mutate,
+  // and re-assign - external observers see the mutated value through the same binding.
+  // shape predicate kept as a Set so the classifier stays a single membership check
+  const REBIND_ASSIGNMENT_OPERATORS = new Set(['=', '||=', '??=', '&&=']);
+
   // ref classifier used during alias-closure construction. categories:
   //   'trivial' - reference is a member-access receiver (`<name>.X` / `<name>?.X` / `<name>[expr]`)
   //               or any other shape that doesn't escape the binding's value
@@ -4492,13 +4530,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // mutates `o` through any standard channel
     if ((parent?.type === 'ForOfStatement' || parent?.type === 'ForInStatement')
       && parent.right === refNode) return 'trivial';
-    // direct assignment to the binding (`o = newValue`) is rebinding the binding, not
-    // mutating the anchored value via it. for root closure binding: anchor literal/instance
-    // is unchanged regardless of where `o` later points. for alias binding: alias now points
-    // elsewhere but the already-captured binding identity stays. writes through the binding
-    // after rebinding apply to the new value (over-counted in original anchor's narrow but
-    // sound - wider union collapses to generic at worst, no unsound polyfill emitted)
-    if (parent?.type === 'AssignmentExpression' && parent.left === refNode && parent.operator === '=') return 'trivial';
+    // direct (`o = v`) and logical (`o ||= v` / `o ??= v` / `o &&= v`) rebindings
+    // change which value the binding points at, not the captured anchor's identity.
+    // see `REBIND_ASSIGNMENT_OPERATORS` for the full operator set + soundness rationale
+    if (parent?.type === 'AssignmentExpression' && parent.left === refNode
+      && REBIND_ASSIGNMENT_OPERATORS.has(parent.operator)) return 'trivial';
     // pass-through to a known-built-in static at a non-mutating arg slot doesn't escape:
     // `JSON.stringify(obj)`, `Object.keys(obj)`, `Object.assign(target, obj)`, `f(...obj)`,
     // `[...obj]`, `{...obj}` - all routed through the helper which unwraps SpreadElement
