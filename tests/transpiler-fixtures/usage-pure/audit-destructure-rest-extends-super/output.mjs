@@ -1,5 +1,5 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 const MyP = _Promise;
 // `const { Promise: MyP, ...rest } = globalThis` - aliased destructure with a rest

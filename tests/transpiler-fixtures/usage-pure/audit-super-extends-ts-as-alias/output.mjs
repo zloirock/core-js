@@ -1,6 +1,6 @@
+import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-import _globalThis from "@core-js/pure/actual/global-this";
 // `const A = Promise as typeof Promise` - alias init wrapped in TS as-cast.
 const A = _Promise;
 class C extends A {

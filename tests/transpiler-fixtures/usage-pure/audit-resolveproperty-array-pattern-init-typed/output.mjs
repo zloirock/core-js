@@ -1,6 +1,6 @@
-import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 // resolveBindingType handles ArrayPattern destructure with the annotation living on the
 // init expression rather than the pattern. resolveArrayBinding walks the init's
 // findExpressionAnnotation path. Each binding then resolves to a string-typed entry

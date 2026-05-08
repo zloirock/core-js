@@ -1,5 +1,5 @@
-import _includes from "@core-js/pure/actual/instance/includes";
 import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 var _ref;
 // two polyfillable instance calls in one optional chain `x?.a().b()`: each call site
 // is rewritten and the chain guard is shared correctly.
