@@ -163,7 +163,14 @@ export function varScopeAnchor(node, code) {
     return { statements: body, insertPos: skipGap(code, node.start + 'static'.length) + 1 };
   }
   if (type === 'BlockStatement') return { statements: node.body, insertPos: node.start + 1 };
-  if (type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock') {
+  // wrappers whose `body` is itself the brace-delimited block:
+  // - TSModuleDeclaration: `namespace N { ... }` body is TSModuleBlock
+  // - CatchClause: catch-param subtree refs (`catch ({a = arr.at(-1)}) {}`) don't have
+  //   body as ancestor, so the walk would skip past CatchClause to the enclosing
+  //   function without this branch. var-hoisting still allocates at the function;
+  //   anchoring to body keeps the syntactic association with the catch
+  if ((type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock')
+    || (type === 'CatchClause' && body?.type === 'BlockStatement')) {
     return { statements: body.body, insertPos: body.start + 1 };
   }
   return null;
