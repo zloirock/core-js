@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // 3-level static descent through `wrapper.a.b.c.Array` lifts the constructor leaf.
 // Each instance call must narrow precisely so the body-extract alias registers per call site.
 const wrapper = {

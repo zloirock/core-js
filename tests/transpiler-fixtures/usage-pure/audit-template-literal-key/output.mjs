@@ -1,5 +1,5 @@
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _isIterable from "@core-js/pure/actual/is-iterable";
+import _Symbol from "@core-js/pure/actual/symbol/constructor";
 // computed key is a template literal that folds to `'iteriter'` - not a known well-known
 // Symbol name; no symbol-keyed polyfill fires. `Symbol` receiver still gets the constructor
 // polyfill on legacy targets

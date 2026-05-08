@@ -1,5 +1,5 @@
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // NoInfer<T> is a transparent wrapper around T. Confirm the inner type passes
 // through to receiver-type narrowing without losing precision.
 type Wrap<T> = NoInfer<T[]>;

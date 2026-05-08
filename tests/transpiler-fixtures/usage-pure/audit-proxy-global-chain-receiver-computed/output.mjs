@@ -1,5 +1,5 @@
-import _includes from "@core-js/pure/actual/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _includes from "@core-js/pure/actual/instance/includes";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 var _ref, _ref2;
 // computed-key chain hop on a polyfillable global root: `?.['foo']` is semantically

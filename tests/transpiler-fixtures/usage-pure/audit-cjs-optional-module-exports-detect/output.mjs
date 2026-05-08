@@ -1,5 +1,5 @@
-var _flatMaybeArray = require("@core-js/pure/actual/array/instance/flat");
 var _atMaybeArray = require("@core-js/pure/actual/array/instance/at");
+var _flatMaybeArray = require("@core-js/pure/actual/array/instance/flat");
 var _ref, _ref2;
 // guarded `module?.exports` read with subsequent CJS write - the optional-chain
 // covers tooling that emits `module?.exports` for environments without a guaranteed

@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 // nested proxy-global destructure lock: `const {window: {Array}} = globalThis` exits to
 // the same Array global as the flat form via `globalThis.window === globalThis` on

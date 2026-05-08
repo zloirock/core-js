@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 // User has `_ref` at module scope. Plugin-owned scope.push later allocates `_ref2`, `_ref3`.
 // After prune+rename, plugin-owned refs should not collide with the user's `_ref` binding,
