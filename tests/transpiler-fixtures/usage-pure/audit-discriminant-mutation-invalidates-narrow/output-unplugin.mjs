@@ -13,7 +13,7 @@ type Foo = FooA | FooB;
 declare const init: Foo;
 let f: Foo = init;
 if (f.kind === 'a') {
-var _ref;
+  var _ref;
   f = { kind: 'b', data: 'mutated' };
   _atMaybeString(_ref = f.data).call(_ref, 0);
 }
