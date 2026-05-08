@@ -1,6 +1,6 @@
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// NonNullable<T['k']> applied to a renamed-mapped member. expandMappedTypeMembers
-// must surface a member whose annotation is then peeled by NonNullable.
+// `NonNullable<Renamed<Source>['_items']>` peels null off a mapped-and-renamed member's value.
+// Mapped expansion must surface the member so NonNullable can drop the null arm cleanly.
 type Source = {
   items: number[] | null;
 };

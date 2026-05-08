@@ -1,8 +1,5 @@
-// `keyof T` mapped expansion lock with NON-passthrough body so dispatch reaches
-// expandMappedTypeMembers (passthrough mapped types short-circuit via unwrapMappedTypePassthrough,
-// bypassing the expansion walker entirely). before the fix, encountering `#internal`
-// returned null - bailing the whole expansion. after the fix, `#priv` keys are skipped
-// per TS spec (`keyof T` excludes private) and public keys still expand
+// `keyof T` excludes `#private` members per TS spec; mapped expansion must skip them, not bail.
+// Public members still produce concrete entries so the array narrow on `b.items.value` survives.
 class Box {
   items: number[] = [1, 2, 3];
   #internal: string = 'hidden';

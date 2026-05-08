@@ -1,11 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 var _ref, _ref2;
-// expandMappedTypeMembers source-side intersection: `keyof (A & B)` enumerates
-// keys from both. Helper must descend through getTypeMembers on the intersection
-// node and produce a member set that mixes A and B keys. Capitalize rename should
-// apply uniformly. Stresses interaction between intersection-aware getTypeMembers
-// and the rename-template intrinsic transformer.
+// `keyof (A & B)` source-side intersection mixes keys from both branches under one rename.
+// `Capitalize` rename must apply uniformly so per-field narrows survive across the intersection.
 type A = {
   items: number[];
 };
