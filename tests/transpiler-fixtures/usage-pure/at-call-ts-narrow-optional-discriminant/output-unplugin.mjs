@@ -5,6 +5,6 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 type Shape = { kind: 'a'; data: number[] } | { kind: 'b'; data: string };
 declare const s: Shape;
 if (s?.kind === 'a') {
-var _ref;
+  var _ref;
   _atMaybeArray(_ref = s.data).call(_ref, 0);
 }
