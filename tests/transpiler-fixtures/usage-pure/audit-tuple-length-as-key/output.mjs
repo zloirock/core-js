@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// findTypeMember tuple branch line 1254: tuple['length'] returns TSNumberKeyword (the static arity).
-// But tuple[0] etc resolves through findTupleElement. Edge: accessing 'length' on a tuple via member.
+// `tuple.length` is a number; positional indices keep their concrete element types.
+// Verifies that the synthetic `length` member doesn't collide with positional element resolution.
 type Pair = [string, number[]];
 declare const t: Pair;
 const len = t.length;

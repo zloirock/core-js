@@ -1,6 +1,5 @@
-// flatten + TWO sibling block-body IIFEs, each with its own instance method requiring
-// `_ref` injection. consumeRefBindingsInRange must scope binding consumption to each
-// sibling's range independently - cross-pollution would inject _ref into wrong sibling
+// Two sibling block-body IIFEs each need their own `_ref` ; binding consumption must stay scoped per range.
+// Cross-pollution would inject `_ref` into the wrong sibling and break both call sites.
 const { Array: { from } } = globalThis,
   kls1 = (() => { return [].values(); })(),
   kls2 = (() => { return [].keys(); })();

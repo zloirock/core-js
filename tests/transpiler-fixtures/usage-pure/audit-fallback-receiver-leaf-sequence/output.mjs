@@ -1,11 +1,5 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// fallback path receiver leaf reached through SequenceExpression: `(0, Promise)?.foo`.
-// receiver is a SequenceExpression whose tail is the polyfillable Identifier. Pass 18's
-// unwrapReceiverLeaf peels parens / SE / chain / TS / IIFE so the leaf Identifier gets
-// added to skippedNodes - otherwise the parallel `Promise -> _Promise` substitution
-// composed by the inner Identifier visitor would compose into the outer fallback's
-// emit (substring `Promise` inside `_Promise` -> `__Promise` corruption).
-// minimal repro: lock the receiver-leaf-via-SE skip behavior alongside the existing
-// IIFE / paren-wrapped variants
+// `(0, Promise)?.foo` puts a polyfillable identifier as the SE tail of a fallback receiver.
+// The leaf must be marked skipped so the inner `Promise -> _Promise` rewrite doesn't double-apply.
 const probe = _Promise?.foo;
 probe;

@@ -1,13 +1,6 @@
-// non-trivial block-body shapes around the single ReturnStatement. resolveInlineCalleeFunction
-// only inlines when singleReturnBodyExpression finds exactly one top-level ReturnStatement
-// (LOCAL_BINDING_DECL_TYPES bail aside). these probes lock that:
-//   - if/else with returns nested inside branches: top-level return absent, no inline
-//   - try/catch around the return: top-level is TryStatement, no inline
-//   - for-loop with body return: top-level is ForStatement, no inline
-//   - switch with case-returns: top-level is SwitchStatement, no inline
-// in every shape the receiver call must remain at the call site (no polyfill rewrite of the
-// receiver), and instance methods on the resulting unknown receiver fall through to the
-// maybe-instance path unchanged
+// Inline-call resolution only fires for bodies whose top level is exactly one ReturnStatement.
+// if/else, try/catch, for, switch all hide the return one level deeper, so the receiver call must stay intact.
+// A prefix-then-return shape lifts cleanly because the prefix sits at top level alongside the single return.
 const ifElseBody = () => { if (Math.random() > 0) return Promise; else return Promise; };
 const out1 = ifElseBody().resolve(1);
 const tryBody = () => { try { return Promise; } catch (e) { return Promise; } };

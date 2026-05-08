@@ -1,7 +1,5 @@
-// `export const inst = new C()` decl-as-exports the instance binding. like the object-
-// alias case, the declarator id is excluded from referencePaths so the in-closure leak
-// classifier never sees the export. post-build `getExportedNames` check on every closure
-// binding catches this. importer can mutate `inst.box` from outside, narrow becomes unsound
+// `export const inst = new C()` exposes the instance to importers who may mutate `inst.box`.
+// The closure narrow on `this.box` must be abandoned because the export channel is an alias-leak path.
 class C {
   box = [1, 2, 3];
   first() {
