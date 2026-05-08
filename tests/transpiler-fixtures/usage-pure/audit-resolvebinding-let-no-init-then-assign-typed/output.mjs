@@ -1,5 +1,5 @@
-import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // resolveBindingType for `let` declared with annotation but no init then assigned and
 // used in straight-line flow. findBindingAnnotation returns the declared annotation;

@@ -1,5 +1,5 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Promise$reject from "@core-js/pure/actual/promise/reject";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // Destructuring where every key has a polyfill: the receiver `Promise` gets
 // rewritten to an object literal with only polyfill ids, so no `_Promise` import
 // is injected (leaking an unused `_Promise` would bloat the bundle).

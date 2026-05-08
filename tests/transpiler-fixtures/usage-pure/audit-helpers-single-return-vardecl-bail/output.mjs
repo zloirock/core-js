@@ -1,8 +1,8 @@
+import _entries from "@core-js/pure/actual/instance/entries";
+import _keys from "@core-js/pure/actual/instance/keys";
 import _values from "@core-js/pure/actual/instance/values";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-import _keys from "@core-js/pure/actual/instance/keys";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
-import _entries from "@core-js/pure/actual/instance/entries";
 // singleReturnBodyExpression bails on local-binding declarations: a `const` in the IIFE
 // body shadows the caller-scope free identifier the caller would resolve against. inline
 // resolution must NOT propagate `Map` here as a global polyfill candidate. distinct method

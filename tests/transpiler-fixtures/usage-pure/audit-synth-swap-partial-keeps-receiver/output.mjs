@@ -1,5 +1,5 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // destructured IIFE with one polyfillable key (`resolve`) and one non-polyfillable
 // (`custom` - user extension on Promise with no pure variant). the rewritten shape must
 // still reference the receiver's native property (`R.custom`) for the non-polyfillable

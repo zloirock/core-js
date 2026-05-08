@@ -1,8 +1,8 @@
-import _includes from "@core-js/pure/actual/instance/includes";
-import _at from "@core-js/pure/actual/instance/at";
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
 // stress test for substring poisoning of `_ref` UIDs. chain enough polyfills to push
 // numbering past `_ref9` to `_ref10` - the `_ref` substring lives inside `_ref10`, so

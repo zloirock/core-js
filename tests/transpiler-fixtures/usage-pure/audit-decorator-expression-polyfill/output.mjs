@@ -1,5 +1,5 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // decorator expression itself uses a polyfilled built-in: the call inside the
 // decorator parens is scanned and rewritten.
 @_Promise$resolve(decorator)

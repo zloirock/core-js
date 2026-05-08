@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _globalThis from "@core-js/pure/actual/global-this";
 var _ref2;
 // `_ref` is read as an undeclared global (set on globalThis). plugin's ref allocator
 // must account for such sloppy globals so its generated ref names don't collide - the
