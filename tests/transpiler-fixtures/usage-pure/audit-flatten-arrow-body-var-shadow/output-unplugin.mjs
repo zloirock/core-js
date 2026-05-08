@@ -1,9 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
-// multi-decl flatten + sibling arrow EXPRESSION body that needs block conversion (instance
-// method dispatch generates `var _ref;`). inside the arrow's IIFE-wrapped scope a `var
-// globalThis` shadows the outer global. the wrap by consumeRefBindingsInRange uses the
-// raw original source, then polyfillSiblingReceiverRefs must NOT rewrite the inner ref
+// Sibling IIFE shadows the global with a local `var globalThis`; flatten must respect that scope.
+// Receiver-ref rewrite must skip identifiers shadowed by inner bindings, otherwise the IIFE breaks.
 const from = _Array$from;
 const val = (function () {
   var _ref;

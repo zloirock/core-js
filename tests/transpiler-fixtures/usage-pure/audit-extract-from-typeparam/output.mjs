@@ -1,9 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// Extract<T, string[]> with T being a generic type-param resolved through call site.
-// resolveExtractExclude line 1452: followTypeAliasChain(unwrapped) — when first is T (a type-param),
-// followTypeAliasChain returns null (T is not in scope as alias). The function continues with the original
-// unwrapped which is just T, then types becomes [T] (single member).
-// The substitute path uses the typeParamMap, so resolveAnnotationInContext should resolve T to its bound type.
+// `Extract<T, string[]>` over a type-param `T` bound at call site to `string[]`.
+// Substitution must thread `T` through Extract before classification picks an array-aware polyfill.
 type Extracted<T> = Extract<T, string[]>;
 declare function probe<T>(arg: T): Extracted<T>;
 const r = probe<string[]>(null!);

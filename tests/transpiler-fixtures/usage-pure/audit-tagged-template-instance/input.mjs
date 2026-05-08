@@ -1,7 +1,5 @@
-// Tagged template on a typed receiver: callPath threading via TaggedTemplateExpression.
-// resolveCallReturnType(path.get('tag')) hands callPath = TaggedTemplateExpression
-// to resolveMemberCallType -> resolveTypedMember -> resolveClassMember -> resolveReturnType
-// -> buildTypeParamMap which then probes callPath.get('arguments') (no such field on TTE).
+// Tagged template `arr.concat\`x\`` is a call site without an `arguments` array.
+// Call-return resolution must handle the tagged-template shape and still narrow the result to Array.
 const arr: string[] = ['a', 'b'];
 const r = arr.concat`x`;
 r.at(0);
