@@ -1,6 +1,5 @@
-// reverse-ordered control for `audit-returntype-overloaded-fn`: array overload FIRST, scalar
-// overload LAST. TS picks the last -> `number`. Number has no `.at` instance method, no narrow,
-// no polyfill emitted. confirms resolveReturnTypeFromTypeQuery selects last (not first) ambient
+// Reverse-ordered control: array overload first, scalar last; TS picks the last (`number`).
+// `number.at` doesn't exist, so no polyfill emits and the resolver must NOT pick the first overload.
 declare function fn(): string[];
 declare function fn(): number;
 type R = ReturnType<typeof fn>;

@@ -1,9 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// flatten sibling has globalThis reference inside a deeply nested IIFE chain. each IIFE
-// pushes a function scope. polyfillSiblingReceiverRefs walks recursively, so the
-// inner `globalThis` reference must reach the polyfilled binding through all wrapper
-// layers (no shadowing exists)
+// Sibling expression nests `globalThis` deep inside an IIFE chain with no shadowing.
+// Receiver-ref rewrite must recurse through all wrapper layers so the inner reference resolves correctly.
 const from = _Array$from;
 const info = (() => {
   return function outer() {

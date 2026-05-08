@@ -2,11 +2,8 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-// parameter destructure with RestElement: `function f({ from, ...rest } = Array) { ... }`.
-// `tryBodyExtractFromParamDestructure` emits `let from = _Array$from;` at function body
-// top + AST-mutates the destructure value to `_unused` (preserves rest semantics).
-// receiver narrowing through `arr = from('hi')` inside the body finds the polyfill entry
-// via the body-extract alias even though scope binding is now ambiguous post-mutation
+// Parameter destructure `function f({ from, ...rest } = Array)` mixes static dispatch with rest semantics.
+// `from` must be lifted to a body-local polyfill alias while preserving the rest behaviour at runtime.
 function build({
   from: _unused,
   ...rest

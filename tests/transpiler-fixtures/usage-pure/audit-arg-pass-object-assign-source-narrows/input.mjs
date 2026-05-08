@@ -1,8 +1,5 @@
-// `Object.assign(target, o)` reads `o` as a source - target is mutated, sources are not.
-// `mutatesArgument: [0]` excludes index 1, so `o` at the source slot classifies as 'trivial'
-// and narrowing survives. complement of audit-arg-pass-object-assign-target-leaks: same call
-// shape, different arg slot, opposite outcome. confirms the per-index granularity of the
-// annotation rather than a coarse "any arg of a mutating method bails"
+// `Object.assign(target, o)` mutates only the target slot, so `o` as a source preserves the alias narrow.
+// Verifies per-index granularity: a mutating callee doesn't bail every arg, only the annotated ones.
 const target = {};
 const o = {
   arr: [1, 2, 3],

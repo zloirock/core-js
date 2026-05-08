@@ -1,6 +1,5 @@
-// Interface extends Base<U[]> — receiver passes its own typearg through, parent extends carries
-// the substituted form. appendInterfaceExtendsMembers (line 1172) applies ifaceSubst to parentRef args first,
-// then descends. Tests deep substitution through extends with array-wrapped type-param.
+// Interface extends `Base<T[]>` and inherits `inner: T[]` after deep substitution through the array wrapper.
+// Verifies typearg substitution composes across extends rather than dropping at the parent boundary.
 interface Base<X> {
   inner: X;
 }
