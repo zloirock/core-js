@@ -134,6 +134,17 @@ export default function createDestructureEmitter({
   // `_unused` sentinel so the destructure still consumes the key and rest exclusion
   // survives; otherwise remove the prop entirely. preserves "polyfill always wins"
   // guarantee at the cost of caller-passed `{from: customFrom}` being ignored
+  // count leading ExpressionStatements with a `.directive` flag at the start of a function
+  // body. these mirror the directive prologue (`'use strict'`, `'use asm'`) for inline-
+  // injected forms that the parser didn't lift into `node.directives[]`. inserts that
+  // intend to land at the very top of body must skip past these or they demote directives
+  // into regular statements (silent strict-mode loss)
+  function countLeadingDirectives(body) {
+    let count = 0;
+    while (count < body.length && body[count]?.type === 'ExpressionStatement' && body[count]?.directive) count++;
+    return count;
+  }
+
   function tryBodyExtractFromParamDestructure(prop, entry, hintName) {
     const valueNode = propBindingIdentifier(prop.node.value);
     if (!valueNode) return false;
@@ -148,10 +159,19 @@ export default function createDestructureEmitter({
     injector.registerBodyExtractAlias(valueNode.name, entry);
     // `let` (not `const`): the original was a function parameter binding, which is
     // reassignable. swapping in `const` would silently reject downstream `from = newValue`
-    // assignments in the body that were valid pre-rewrite
-    fnPath.get('body').unshiftContainer('body', t.variableDeclaration('let', [
+    // assignments in the body that were valid pre-rewrite.
+    // skip past the directive prologue (`'use strict'` ExpressionStatements with
+    // `.directive` set): unshifting at body[0] would land the var BEFORE the directive,
+    // demoting the directive into a no-op statement and silently flipping the function
+    // out of strict mode. babel parser typically lifts directives to `node.directives[]`
+    // (separate slot), but inline-injected ExpressionStatements with `.directive` survive
+    const newDecl = t.variableDeclaration('let', [
       t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id)),
-    ]));
+    ]);
+    const bodyPath = fnPath.get('body');
+    const directiveCount = countLeadingDirectives(bodyPath.node.body);
+    if (directiveCount === 0) bodyPath.unshiftContainer('body', newDecl);
+    else bodyPath.get('body')[directiveCount - 1].insertAfter(newDecl);
     skippedNodes.add(prop.node);
     if (prop.node.value) skippedNodes.add(prop.node.value);
     if (hasRestSiblingExcept(prop.parent.properties, prop.node)) {

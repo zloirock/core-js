@@ -106,7 +106,11 @@ function resolveOrNullishDestructureMeta(node, key, scope, adapter) {
 
 // `cond ? Array : Set`: try both branches; flag fromFallback so destructure replacement
 // bails (the runtime value depends on `cond`). without this branching, the conditional
-// would fall through to the positional case and miss polyfill resolution entirely
+// would fall through to the positional case and miss polyfill resolution entirely.
+// fromFallback flag is preserved even when consequent/alternate resolve to the same
+// constructor name - the runtime values come from different AST paths (`Array` bare vs
+// `globalThis.Array` member access; user shim vs core-js import) and per-branch synth
+// rewrites each side independently to preserve original receiver semantics
 function resolveConditionalDestructureMeta(node, key, scope, adapter) {
   const consequent = buildDestructuringInitMeta(node.consequent, key, scope, adapter);
   const alternate = buildDestructuringInitMeta(node.alternate, key, scope, adapter);
@@ -312,7 +316,12 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
       const receiver = resolveObjectName(init, parent.scope, adapter);
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
           && keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))) {
-        return keys.at(-1);
+        // leaf must be a recognised constructor name (`isStaticPlacement` whitelists the
+        // capitalised globals dispatch consults). without this gate, `const {window: {foo}}
+        // = globalThis` would return `'foo'` to downstream `resolveBuiltIn` which then
+        // bails on the unknown name - cleaner to bail here than push noise downstream
+        const leaf = keys.at(-1);
+        return isStaticPlacement(leaf) ? leaf : null;
       }
       return walkStaticReceiverChain(init, keys, parent.scope, adapter);
     }
