@@ -1,6 +1,6 @@
-// Destructure with rename: `const { from: customFrom } = Array` then call must still
-// narrow the result through the `staticPairFromDestructure` extractor's renamed-property
-// branch. Distinct methods (at, findLast) confirm narrowing applies at each call site.
+// destructure with rename `const { from: customFrom } = Array` must still narrow the
+// call's return through the renamed local. distinct methods (at, findLast) confirm the
+// narrowing applies at each call site, not just the first
 const { from: customFrom } = Array;
 const arr = customFrom('xy');
 arr.at(0);

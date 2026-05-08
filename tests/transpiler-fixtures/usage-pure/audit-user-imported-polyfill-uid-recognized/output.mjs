@@ -1,12 +1,9 @@
 import _Promise$all from "@core-js/pure/actual/promise/all";
 import _Promise$reject from "@core-js/pure/actual/promise/reject";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-// user explicitly imports a polyfill UID and accesses static methods on it. core-js-pure
-// constructor modules typically don't re-export statics (Promise.resolve lives in a
-// separate module), so direct `_Promise.resolve(1)` would crash at runtime. plugin must
-// recognise `_Promise` as a proxy-global for the Promise constructor and rewrite static
-// access to the dedicated module's UID. babel adapter exposes polyfillHint via injector
-// closure; unplugin's estreeAdapter exposes the same via the per-transform lookup setter
+// user-imported polyfill UID for Promise constructor: static methods (resolve / reject /
+// all) live in separate modules, so direct member access would crash at runtime. the
+// plugin must recognize `_Promise` as the polyfill alias and rewrite to dedicated UIDs
 import _Promise from '@core-js/pure/actual/promise/constructor';
 const r = _Promise$resolve(1);
 const j = _Promise$reject(2);
