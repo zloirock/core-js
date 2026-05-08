@@ -1,9 +1,8 @@
 import _Reflect$defineProperty from "@core-js/pure/actual/reflect/define-property";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
-// `Reflect.defineProperty(o, key, desc)` mutates target (index 0). Reflect API mirror of
-// Object.defineProperty - same `mutatesArgument: [0]` annotation drives the same 'leak'
-// classification path
+// `Reflect.defineProperty(o, ...)` mutates the target slot, so the alias narrow on `o.arr` must drop.
+// The Reflect mirror must carry the same mutating-slot annotation as `Object.defineProperty`.
 const o = {
   arr: [1, 2, 3],
   test() {
