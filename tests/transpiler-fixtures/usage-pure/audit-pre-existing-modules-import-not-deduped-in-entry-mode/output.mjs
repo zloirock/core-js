@@ -1,6 +1,6 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 // Source already contains an entry-style core-js import (`actual/array/at`).
 // In usage-pure, `scanExistingCoreJSImports` runs on `initFile` and processes
 // `core-js/modules/*` (global) plus `@core-js/pure/...` (pure-import bindings).

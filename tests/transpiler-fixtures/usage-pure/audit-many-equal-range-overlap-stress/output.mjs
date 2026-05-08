@@ -1,8 +1,8 @@
-import _includes from "@core-js/pure/actual/instance/includes";
-import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
-import _at from "@core-js/pure/actual/instance/at";
+import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 // 5 chained instance polyfills in a single arrow body - stress test for
 // sortInnersInnermostLast + nth-occurrence accounting + dups handling
 const f = x => {

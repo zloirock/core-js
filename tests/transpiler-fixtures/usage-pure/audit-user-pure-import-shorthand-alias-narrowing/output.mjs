@@ -1,6 +1,6 @@
 import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 // user imports under exactly the shorthand the plugin would itself emit (`_Array$from`).
 // `registerUserPureImport` must store {source, hint, entry} keyed by that name; later
 // `getBindingInfo(_Array$from).entry` must return `array/from` so the call's return type

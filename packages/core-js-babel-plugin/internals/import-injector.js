@@ -1,6 +1,6 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import ImportInjectorState from '@core-js/polyfill-provider/injector-base';
-import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
+import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 
 export default class ImportInjector extends ImportInjectorState {
   #t;
@@ -11,6 +11,11 @@ export default class ImportInjector extends ImportInjectorState {
   // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted
   #flushedGlobals = new Set();
   #flushedPure = new Set();
+  // emit history for canonical reorder at programExit. each `flush()` only sorts WITHIN
+  // its own batch; with two flushes per file (pre / post-synth-swap) the cross-batch
+  // relative order can invert vs canonical. node -> canonical key map per emit so
+  // `reorderImportRegion()` can lift surviving emissions and re-sort the union in one go
+  #emittedKeyByNode = new Map();
   // `_ref` names - iterated by pruneUnusedRefs at programExit
   #refs = new Set();
 
@@ -240,21 +245,59 @@ export default class ImportInjector extends ImportInjectorState {
     for (const mod of newGlobals) {
       this.#flushedGlobals.add(mod);
       const resolved = this.#resolvePath(`modules/${ mod }`);
-      nodes.push(this.importStyle === 'require'
+      const node = this.importStyle === 'require'
         ? t.expressionStatement(t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)]))
-        : t.importDeclaration([], t.stringLiteral(resolved)));
+        : t.importDeclaration([], t.stringLiteral(resolved));
+      nodes.push(node);
+      // canonicalKey = bare module name (`es.array.at`) for compat-data lookup; pure-import
+      // sources fall through to the comparator's lex tail and stay deterministic
+      this.#emittedKeyByNode.set(node, mod);
     }
     for (const [source, name] of newPure) {
       this.#flushedPure.add(source);
       const resolved = this.#resolvePath(source);
       const id = t.cloneNode(this.#idByName.get(name));
-      nodes.push(this.importStyle === 'require'
+      const node = this.importStyle === 'require'
         ? t.variableDeclaration('var', [
           t.variableDeclarator(id, t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)])),
         ])
-        : t.importDeclaration([t.importDefaultSpecifier(id)], t.stringLiteral(resolved)));
+        : t.importDeclaration([t.importDefaultSpecifier(id)], t.stringLiteral(resolved));
+      nodes.push(node);
+      this.#emittedKeyByNode.set(node, source);
     }
     return nodes;
+  }
+
+  // canonical-sort the union of all flushed plugin imports across all `flush()` calls.
+  // each individual flush only sorts within its own batch; with two flushes per file
+  // (visitor pre-pass / post-synth-swap), the cross-batch relative order can invert vs
+  // canonical compat-data order. called from programExit AFTER all flushes - finds the
+  // emitted nodes still in body, removes them, sorts as a single batch, re-prepends.
+  // node-identity match (== check on `body[i] === entry.node`) avoids touching user-side
+  // imports or sibling-plugin emissions interleaved in the same region
+  reorderImportRegion() {
+    if (this.#emittedKeyByNode.size < 2) return;
+    const { body } = this.#programPath.node;
+    if (!body?.length) return;
+    // walk body, lift surviving emitted nodes (some may have been pruned by the rest of
+    // pipeline - pruneUnusedRefs etc); preserves the relative position of non-emitted
+    // statements that interleave with our region (rare but happens with sibling-plugin
+    // injections during traversal)
+    const lifted = [];
+    const remaining = [];
+    for (const stmt of body) {
+      const key = this.#emittedKeyByNode.get(stmt);
+      if (key !== undefined) lifted.push({ key, node: stmt });
+      else remaining.push(stmt);
+    }
+    if (lifted.length < 2) return;
+    // sort by the canonical comparator: compat-data order with lex-fallback for unknown
+    // keys (pure-import sources land in the lex tail). emitted nodes have unique node
+    // identity so unique-by-node holds even if two pure imports share a source string
+    lifted.sort((a, b) => polyfillOrderComparator(a.key, b.key));
+    body.length = 0;
+    for (const l of lifted) body.push(l.node);
+    for (const s of remaining) body.push(s);
   }
 
   flush() {

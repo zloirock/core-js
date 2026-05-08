@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _globalThis from "@core-js/pure/actual/global-this";
 var _ref2;
 // user code writes to `_ref` via compound assignment: that name is reserved for the
 // user, plugin-generated temporaries must pick a different identifier so the user's

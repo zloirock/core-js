@@ -1,6 +1,6 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // Three-hop generic alias chain wrapping `Promise<X[] | string[]>` - both union branches
 // are Array (different inner types) so foldUnionTypes drops the inner but keeps Array
 // constructor. resolveAwaitedAnnotation must distribute through followTypeAliasChain's

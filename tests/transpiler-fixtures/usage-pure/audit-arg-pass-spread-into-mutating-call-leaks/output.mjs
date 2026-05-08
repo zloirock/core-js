@@ -1,6 +1,6 @@
-import _Object$assign from "@core-js/pure/actual/object/assign";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Object$assign from "@core-js/pure/actual/object/assign";
 // `Object.assign(...o)` puts the spread at index 0, where the mutating slot lives.
 // Spread expansion must intersect the per-slot mutation profile, so the alias narrow on `o.arr` drops.
 const o = {
