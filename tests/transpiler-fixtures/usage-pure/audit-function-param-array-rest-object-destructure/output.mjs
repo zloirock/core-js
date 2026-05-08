@@ -1,10 +1,6 @@
-// `function f([a, ...{at}])` - array destructure with rest property wrapping an object
-// destructure. the function-param-destructure check walks the rest property transparently
-// (same as default-value-param LHS + array destructure siblings), so the inner object
-// destructure is classified as function-param-destructure. without the walk, dispatch
-// was skipped and the helper returned false for any object destructure reached through a
-// rest wrapper. regression smoke test: ensure the construct doesn't crash + classification
-// path runs
+// `function f([a, ...{at}])` - array destructure with rest wrapping an inner object
+// destructure. the function-param classification must walk through the rest, so the
+// inner object destructure is still recognized as a function-param destructure
 export function f([first, ...{
   at
 }]) {
