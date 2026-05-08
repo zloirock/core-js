@@ -6,7 +6,7 @@ enum Kind { A = 'a', B = 'b' }
 type Box = { kind: 'a'; data: string[] } | { kind: 'b'; data: number };
 function pickFirst(box: Box) {
   if (box.kind === Kind['A']) {
-var _ref;
+    var _ref;
     return _atMaybeArray(_ref = box.data).call(_ref, 0);
   }
   return box.data;
