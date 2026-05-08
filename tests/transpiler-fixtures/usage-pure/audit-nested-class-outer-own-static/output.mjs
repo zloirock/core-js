@@ -1,5 +1,5 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 // outer class has its own static `from` (shadowing Promise.from); inner class is declared
 // inside outer's static method and extends Array. inner's `super.from(x)` resolves to
 // Array.from - outer's own shadow is scoped to outer's body and doesn't leak into inner.

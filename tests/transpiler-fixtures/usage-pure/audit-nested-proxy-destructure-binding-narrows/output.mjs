@@ -1,6 +1,6 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _globalThis from "@core-js/pure/actual/global-this";
 // nested proxy-global destructure lock: `const {window: {Array}} = globalThis` exits to
 // the same Array global as the flat form via `globalThis.window === globalThis` on
 // browsers. before the fix, resolveProxyGlobalDestructureAlias only iterated top-level

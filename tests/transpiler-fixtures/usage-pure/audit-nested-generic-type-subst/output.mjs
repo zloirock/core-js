@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _globalThis from "@core-js/pure/actual/global-this";
 // generic alias whose body wraps the type-param inside `T[]` - inner Array type
 // resolves through to the array polyfill for `.at`
 type G<T> = Generator<T[]>;

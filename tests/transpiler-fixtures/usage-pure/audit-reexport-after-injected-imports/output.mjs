@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 // re-export `export { name } from 'mod'` and bare `export * from 'mod'` are top-level
 // import-region for reorderRefsAfterImports. when the file mixes user re-exports and
 // uses polyfilled instance methods + chained inner-poly chain (which generates `_ref`

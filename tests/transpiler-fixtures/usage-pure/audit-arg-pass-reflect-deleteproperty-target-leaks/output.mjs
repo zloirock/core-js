@@ -1,6 +1,6 @@
-import _Reflect$deleteProperty from "@core-js/pure/actual/reflect/delete-property";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Reflect$deleteProperty from "@core-js/pure/actual/reflect/delete-property";
 // `Reflect.deleteProperty(o, ...)` removes an own property, which counts as a target mutation.
 // Property removal can drop other tracked narrows, so the alias narrow on `o.arr` must drop too.
 const o = {

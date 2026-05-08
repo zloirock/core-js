@@ -1,5 +1,5 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _at from "@core-js/pure/actual/instance/at";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // arrow functions inherit `this` from the enclosing class method, so `this.#v = xs`
 // inside the `.then(xs => ...)` arrow widens `#v` to Array. a regular function
 // expression (`function () { this.#v = "str" }`) rebinds `this` to its call-site

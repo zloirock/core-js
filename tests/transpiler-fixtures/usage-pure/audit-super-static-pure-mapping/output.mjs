@@ -1,5 +1,5 @@
-import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
+import _Promise$try from "@core-js/pure/actual/promise/try";
 // User pure-imported class extended with super-static call. injector-base
 // `getPureImport(name)` consumed by class-walk maps `_Promise` -> hint 'Promise'
 // so resolveStaticInheritedMember locates `statics.Promise.try` polyfill

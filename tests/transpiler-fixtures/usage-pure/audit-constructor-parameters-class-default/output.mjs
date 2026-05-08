@@ -1,5 +1,5 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref;
 // `ConstructorParameters<typeof Foo>` on a class with a default-valued constructor param.
 // unlike functions, class constructor params live on the `constructor` method inside the
