@@ -8,6 +8,6 @@ type Foo = FooA | FooB;
 
 declare const f: Foo;
 if (!(f.kind === 'b')) {
-var _ref;
+  var _ref;
   _atMaybeArray(_ref = f.data).call(_ref, 0);
 }

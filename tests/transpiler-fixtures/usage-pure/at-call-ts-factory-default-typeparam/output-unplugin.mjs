@@ -4,6 +4,6 @@ function makeBox<T = string>(): Box<T> {
   return { v: [] };
 }
 function run() {
-var _ref;
+  var _ref;
   _atMaybeArray(_ref = makeBox().v).call(_ref, 0);
 }
