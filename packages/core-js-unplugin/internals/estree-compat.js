@@ -17,6 +17,10 @@ export function nodeType(node) {
   if (type === 'MethodDefinition') return 'ClassMethod';
   // ESTree PropertyDefinition -> Babel ClassProperty
   if (type === 'PropertyDefinition') return 'ClassProperty';
+  // ESTree AccessorProperty (TC39 auto-accessor) -> Babel ClassAccessorProperty.
+  // resolve-node-type's class-member switch keys on the babel name; without the
+  // translation `accessor x = ...` slots fall through to the default branch
+  if (type === 'AccessorProperty') return 'ClassAccessorProperty';
   // ESTree optional member/call -> Babel OptionalMemberExpression/OptionalCallExpression
   if (type === 'MemberExpression' && node.optional) return 'OptionalMemberExpression';
   if (type === 'CallExpression' && node.optional) return 'OptionalCallExpression';

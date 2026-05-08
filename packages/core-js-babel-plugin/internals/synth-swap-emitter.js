@@ -239,8 +239,14 @@ export default function createSynthSwapEmitter({
         const pending = synthSwapByReceiver.get(path.node);
         if (!pending || pending.applied) return;
         if (!isReplaceableReceiver(path.node) || pending.objectPatternNode?.type !== 'ObjectPattern') return;
-        pending.applied = true;
+        // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
+        // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation
+        // failure inside buildSynthLiteral) leaves the swap permanently locked but with
+        // the imports for its polyfill keys already injected by `buildSynthLiteral` -
+        // dead imports + missing rewrite. ordering after the call leaves `applied: false`
+        // on failure so a subsequent `apply` pass can retry
         path.replaceWith(buildSynthLiteral(path.node, pending));
+        pending.applied = true;
         path.skip();
       },
     });
