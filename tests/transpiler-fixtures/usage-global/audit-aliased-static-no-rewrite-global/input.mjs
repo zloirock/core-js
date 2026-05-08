@@ -1,9 +1,6 @@
-// usage-global mode does NOT rewrite `Array.from` to `_Array$from`, so the alias-chain
-// narrowing path through injector entry is irrelevant here. but the receiver narrowing
-// MUST still happen via destructure path (`staticPairFromDestructure`) for unrewritten
-// aliases. `const { from } = Array` keeps Array binding visible; arr.at must still pick
-// the array-specific module side-effect import. lock that usage-global emission stays
-// proper side-effect imports (no SE-wrap) for the downstream methods
+// usage-global mode keeps `Array.from` unrewritten, but receiver narrowing through the
+// destructure (`const { from } = Array`) still has to fire so subsequent instance calls
+// emit array-specific side-effect imports rather than generic instance ones
 const { from } = Array;
 const arr = from('hi');
 arr.at(-1);
