@@ -427,12 +427,14 @@ export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
   // super / this-in-static" check that ALSO forces the instance-fallback bail below (pure
   // instance super.X is out of scope of the resolver). `this.X` needs the static-context
   // check - non-static `this.X` is a regular instance read and shouldn't route here.
-  // peel parens on object: oxc preserves `(this).X` / `(super).X`, babel strips - without
-  // peel the parser-specific shape falls through to instance-method path. direct type-string
-  // checks because estree-compat's `types` doesn't export `isSuper`
+  // peel parens AND TS expression wrappers on object: oxc preserves `(this).X` / `(super).X`,
+  // babel strips; users sometimes write `(this as any).X` / `(this!).X` to escape TS type
+  // narrowing - the cast is compile-time only, the receiver remains `this`/`super` at
+  // runtime, so static-inheritance dispatch should fire. without the TS peel the parser-
+  // specific shape falls through to instance-method path. direct type-string checks because
+  // estree-compat's `types` doesn't export `isSuper`
   function isInheritedStaticLookup(path) {
-    let obj = path.node.object;
-    while (obj?.type === 'ParenthesizedExpression') obj = obj.expression;
+    const obj = unwrapRuntimeExpr(path.node.object);
     const objType = obj?.type;
     if (objType === 'Super') return true;
     return objType === 'ThisExpression' && isInStaticContext(path);
