@@ -4,7 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // + RHS key-path walk. ESTree preserves ParenthesizedExpression wrapper around the
 // AssignmentExpression - findPrecedingBlockAssignment unwraps it
 function take(init: { data: string[] | number }) {
-var _ref;
+  var _ref;
   let f = init;
   ({ x: f } = { x: { data: ['y'] } });
   return _atMaybeArray(_ref = f.data).call(_ref, 0);
