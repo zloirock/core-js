@@ -1,8 +1,5 @@
-// `export const alias = o` declares-and-exports the alias in one statement. babel's
-// scope tracker excludes declarator id slots from `binding.referencePaths`, so the leak
-// detection in the closure walker (which only sees REFS) misses this. post-build check
-// against `getExportedNames` catches any closure binding (root or alias) that is exported,
-// bailing to no-narrow. importer can `import { alias } from './mod'; alias.arr = "..."`
+// `export const alias = o` exposes the closure binding through an alias importers can mutate.
+// Closure narrow on `this.arr` must be abandoned because the export channel is an alias-leak path.
 const o = {
   arr: [1, 2, 3],
   test() {

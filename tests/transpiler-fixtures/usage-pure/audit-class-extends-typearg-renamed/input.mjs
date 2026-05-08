@@ -1,7 +1,5 @@
-// Class extends Parent<RenamedTypeArg> — child uses different parameter name than parent.
-// collectClassLikeMembers per §6 has accepted limit "parent classes with their own params remain a known precision-edge"
-// — but the comment in line 1147 says "root-class type-params apply through inheritance chain".
-// Edge: child's typeParam different name than parent's. Let's see if it works.
+// `Child<Y> extends Parent<Y[]>` renames the type-param across the boundary.
+// Inheritance must rebind by position, not by name, so the parent's `data: X` resolves to `Y[]` -> `string[]`.
 class Parent<X> {
   data: X = null!;
 }

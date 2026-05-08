@@ -1,9 +1,8 @@
 import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
-// `Object.defineProperties(o, descMap)` redefines multiple properties at once on the target
-// (index 0). mutates argument 0; classifier returns 'leak'. confirms the
-// `mutatesArgument: [0]` annotation also applies to the plural variant
+// `Object.defineProperties(o, ...)` mutates the target slot, so the alias narrow on `o.arr` must drop.
+// Confirms the plural variant carries the same mutating-slot annotation as the singular one.
 const o = {
   arr: [1, 2, 3],
   test() {
