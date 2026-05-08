@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _Array$of from "@core-js/pure/actual/array/of";
 // Proxy-global member used as destructure receiver: the inner `globalThis` Identifier
 // must be skipped by both pipelines after synth-swap rewrites the outer chain to a
 // literal. Multiple receivers in the same file lock the markSynthReceiverSkipped

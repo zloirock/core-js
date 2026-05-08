@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _at from "@core-js/pure/actual/instance/at";
 async function consume(sources) {
   for await (using resource of sources) {
     var _ref;

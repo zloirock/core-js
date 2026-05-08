@@ -1,6 +1,6 @@
-import _Reflect$setPrototypeOf from "@core-js/pure/actual/reflect/set-prototype-of";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _Reflect$setPrototypeOf from "@core-js/pure/actual/reflect/set-prototype-of";
 // `Reflect.setPrototypeOf(o, ...)` only rewires `[[Prototype]]`, leaving own properties intact.
 // The alias narrow on `o.arr` must persist; Reflect mirror behaves like the Object companion.
 const o = {

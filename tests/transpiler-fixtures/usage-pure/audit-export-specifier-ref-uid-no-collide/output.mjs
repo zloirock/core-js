@@ -1,5 +1,5 @@
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 var _ref2;
 // `export { _ref as foo }` - user already binds `_ref`. The fresh-name allocator for
 // memoized receivers must avoid colliding with the existing user binding, otherwise

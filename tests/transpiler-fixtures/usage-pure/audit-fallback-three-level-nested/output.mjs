@@ -1,6 +1,6 @@
+import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
 // three-level deeply nested conditional fallback receiver: each branch reaches its own
 // constructor. flattenFallbackBranches recurses through nested ConditionalExpression both
 // in consequent and alternate, collecting metas from all four leaves: Array, Map, Set,

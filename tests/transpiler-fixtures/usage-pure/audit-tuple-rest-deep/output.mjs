@@ -1,5 +1,5 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref, _ref2;
 // deep tuple `[string, ...number[][]]` inside a generic alias still yields the element type
 // for `.at(...)` lookup.

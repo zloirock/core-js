@@ -1,5 +1,5 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 interface TreeNode {
   children: TreeNode[];
   name: string;

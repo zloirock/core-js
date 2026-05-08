@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 // Catch inside bodyless `if` - single-statement body is a block `{}`, so there is no
 // scope escape. Confirm destructuring extraction still works.
 if (cond) try {} catch (_ref) {
