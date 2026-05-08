@@ -703,6 +703,11 @@ export default function plugin(api, options) {
         // extracting param defaults to body var declarations) moved them
         synthSwap.apply(path);
         injector?.flush();
+        // canonical-sort the polyfill import region across all flushes (pre + post-synth)
+        // so the union order matches compat-data canonical order regardless of which
+        // batch each module was registered in. cosmetic but keeps cross-file output
+        // deterministic when timing of sibling registrations differs
+        injector?.reorderImportRegion();
         // ordering: normalize THEN prune. normalize converts arrow-expression-body to block
         // and lifts trailing-`_ref` params into `var _ref;`. prune then walks scope bindings -
         // which now reflect the normalized layout - to drop unused ones. swapping order would

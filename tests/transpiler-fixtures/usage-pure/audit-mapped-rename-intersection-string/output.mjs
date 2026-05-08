@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 var _ref, _ref2;
 // evalRenameTemplate handles `string & K` intersection (drops the string-keyword
 // half, evaluates the rest). Verify that with a real source where K is the type

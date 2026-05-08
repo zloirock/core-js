@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
+import _at from "@core-js/pure/actual/instance/at";
 // Template-literal interpolation - arr.at would be inside the literal but its
 // substring nearly matches needle. AST visit isolates emission to the actual call expr
 const log = `result ${_at(arr).call(arr, 0)}`;

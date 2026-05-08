@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3;
 // 5-deep chain on 3-deep array: levels 4 and 5 bottom out at `number` via element-tracking.
 // only the outermost (M5) gets the generic-fallback retry - matches babel's AST-mutation

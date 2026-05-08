@@ -9,17 +9,22 @@ const { keys } = Object;
 // canonical polyfill ordering based on compat data registry
 const polyfillOrder = new Map(keys(compatData).map((k, i) => [k, i]));
 
-// sort module names by canonical compat data order. unknown entries (Infinity order) fall
-// through to lexicographic secondary sort so the output order stays deterministic even when
-// the registry hasn't been updated with every future proposal - `Infinity - Infinity = NaN`
-// otherwise poisoned the comparator and left relative order undefined
+// canonical compat-data comparator. unknown names (Infinity order) fall through to
+// lexicographic secondary sort so the output order stays deterministic even when the
+// registry hasn't been updated with every future proposal - `Infinity - Infinity = NaN`
+// otherwise poisoned the comparator and left relative order undefined. exposed as a
+// raw comparator so callers that already hold their own array can `.sort` directly
+// without round-tripping through `sortByPolyfillOrder`'s array materialisation
+export function polyfillOrderComparator(a, b) {
+  const oa = polyfillOrder.get(a) ?? Infinity;
+  const ob = polyfillOrder.get(b) ?? Infinity;
+  if (oa !== ob && Number.isFinite(oa - ob)) return oa - ob;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+// sort module names by canonical compat data order; thin wrapper over the comparator
 export function sortByPolyfillOrder(modules) {
-  return [...modules].sort((a, b) => {
-    const oa = polyfillOrder.get(a) ?? Infinity;
-    const ob = polyfillOrder.get(b) ?? Infinity;
-    if (oa !== ob && Number.isFinite(oa - ob)) return oa - ob;
-    return a < b ? -1 : a > b ? 1 : 0;
-  });
+  return [...modules].sort(polyfillOrderComparator);
 }
 
 // create injection helper functions shared by both plugins

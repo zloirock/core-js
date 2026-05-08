@@ -1,5 +1,5 @@
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // synthetic argument-receiver substitution can't shape-rebuild when the key is computed
 // and non-literal. body-extract fallback inserts `let from = _polyfill;` at function body
 // top (let, not const - parameter binding was reassignable; downstream `from = newValue`
