@@ -1,10 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// AssignmentExpression host (not VariableDeclarator) with AssignmentPattern wrapper.
-// Walker's `cascadeAssignmentExpressionDestructure` path fires because parent matches
-// AssignmentExpression+ExpressionStatement. The peeled `leftmost` value (outermost
-// wrapper) matches `parent.node.left` after peel - without the leftmost tracking, LHS
-// match would compare against the bare ObjectPattern and skip cascade
+// `({ Array: { from } = {} } = globalThis)` is a wrapped destructure-assignment, not a declarator.
+// Cascade flatten must track the outermost wrapper as LHS so the polyfill alias survives the wrapper layer.
 let from;
 let of;
 from = _Array$from;

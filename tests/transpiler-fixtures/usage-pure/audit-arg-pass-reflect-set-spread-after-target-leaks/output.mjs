@@ -1,12 +1,8 @@
 import _Reflect$set from "@core-js/pure/actual/reflect/set";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
-// `Reflect.set(target, key, ...o)` - SpreadElement at AST index 2; mutatesArgument [0, 3]
-// includes the receiver slot (index 3). naive `includes(2)` check would miss this since
-// the spread itself sits at index 2, but at runtime spread expands to positions 2, 3, 4...
-// and index 3 is the mutating receiver slot. SpreadElement branch widens to "any annotated
-// index >= AST position", correctly classifying as 'leak'. negative-by-design lock on
-// the spread-expansion soundness invariant
+// Spread `...o` at arg index 2 of `Reflect.set` can land on the mutating receiver slot 3 at runtime.
+// Spread widening must reach any annotated index >= position, otherwise this case would falsely narrow.
 const target = {};
 const o = {
   arr: [1, 2, 3],

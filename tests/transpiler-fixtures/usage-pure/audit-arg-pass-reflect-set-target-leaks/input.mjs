@@ -1,6 +1,5 @@
-// `Reflect.set(o, key, value)` mutates target arg (index 0). known-built-in-return-types.json
-// flags Reflect.set with `mutatesArgument: [0]`. mirror of object-assign-target-leaks for the
-// Reflect API surface - same closure-leak outcome, exercises the Reflect lookup path
+// `Reflect.set(o, ...)` 3-arg form mutates the target slot, so the alias narrow on `o.arr` must drop.
+// Mirrors `Object.assign` target-leak via the Reflect lookup path.
 const o = {
   arr: [1, 2, 3],
   test() {

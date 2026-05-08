@@ -1,6 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// Interface default type-param: `interface I<T = string[]>` referenced as bare `I` — does the default propagate so `obj.x.at(0)` resolves to Array via findTypeMember?
+// `interface I<T = string[]>` referenced as bare `I` must apply the default to its members.
+// Without default propagation, `obj.x` would stay as raw `T` and the array narrow would be lost.
 interface I<T = string[]> {
   x: T;
 }

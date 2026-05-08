@@ -1,6 +1,5 @@
-// `Object.defineProperty(o, key, desc)` adds / redefines a property on the target (index 0).
-// mutates argument 0; classifier returns 'leak' for `o` at that slot. narrowing on `arr` is
-// abandoned. covers the Object.defineProperty entry that ships `mutatesArgument: [0]`
+// `Object.defineProperty(o, ...)` mutates the target slot, so the alias narrow on `o.arr` must drop.
+// Confirms the singular-variant entry mirrors the same mutating-slot annotation as `Object.assign`.
 const o = {
   arr: [1, 2, 3],
   test() {

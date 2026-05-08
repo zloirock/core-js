@@ -1,8 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// `type Q<T> = typeof identity<T>` (TS 4.7+ instantiation expression in alias body).
-// resolveCallReturnTypeFromAnnotation now follows alias chain to TSTypeQuery and
-// resolveReturnTypeFromTypeQuery honors instantiation typeParameters via buildSubstMap,
-// so `f([...])` returns the substituted concrete shape (number[]) instead of raw U
+// `type Q<T> = typeof identity<T>` is a TS 4.7 instantiation expression in an alias body.
+// Call-return resolution must thread `T` into the typeof's instantiation so the result narrows to `number[]`.
 declare function identity<U>(x: U): U;
 type Q<T> = typeof identity<T>;
 declare const f: Q<number[]>;
