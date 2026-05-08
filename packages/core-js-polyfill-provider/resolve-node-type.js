@@ -610,7 +610,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     for (const m of sourceMembers) {
       if (m.computed) return null;
       const keyName = getKeyName(m.key);
-      if (keyName === null || keyName.startsWith('#')) return null;
+      // null key signals "not statically evaluable" - bail entire expansion (a member we
+      // can't name leaves the mapped result indeterminate). private (`#priv`) members are
+      // EXCLUDED from `keyof T` per TS spec, so skip-but-continue: they don't leak through
+      // mapped expansion and shouldn't sink the rest of the result with them
+      if (keyName === null) return null;
+      if (keyName.startsWith('#')) continue;
       const member = buildMappedMember(node, shape.paramName, keyName, literalTypeFromKeyName(keyName), body);
       if (member) out.push(member);
     }
@@ -712,6 +717,19 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       else if (subst) node = applyAliasSubstDeep(node, subst);
     }
     return { node, subst };
+  }
+
+  // generic alias chain ending in TSTypeQuery (`type Q<T> = typeof fn<T>`, `type Q = typeof X`).
+  // returns the post-swap annotation with alias subst applied to the TSTypeQuery, or the
+  // input unchanged when the chain doesn't terminate in TSTypeQuery. shared by
+  // `resolveTypedMember` (member-access dispatch) and `resolveCallReturnTypeFromAnnotation`
+  // (call-return dispatch) - both need the post-alias TSTypeQuery to enter the typeof
+  // branch with concrete instantiation typeParameters
+  function swapAliasToTSTypeQueryWithSubst(annotation, scope) {
+    if (!annotation) return annotation;
+    const aliased = followTypeAliasChain(annotation, scope);
+    if (aliased?.node?.type !== 'TSTypeQuery' || aliased.node === annotation) return annotation;
+    return aliased.subst ? applyAliasSubstDeep(aliased.node, aliased.subst) : aliased.node;
   }
 
   // substitute type-param references through `followTypeAliasChain`'s subst map.
@@ -860,8 +878,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         // for the same key MUST NOT propagate into body / nameType (variable capture).
         // constraint references outer types (`keyof T`) and uses the unmodified subst.
         // body / nameType see the inner K as a fresh variable - drop the outer shadowing
-        // entry from the subst clone passed in
-        const innerName = tp?.name?.name;
+        // entry from the subst clone passed in. `typeParamName` handles both shapes
+        // (babel nests `tp.name.name`; oxc flattens to `tp.name` as a string)
+        const innerName = typeParamName(tp);
         const innerSubst = innerName && subst.has(innerName)
           ? new Map([...subst].filter(([k]) => k !== innerName))
           : subst;
@@ -1182,6 +1201,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // ESTree (oxc-parser): TSTypeParameter.name is Identifier node; Babel: it's a string
   function typeParamName(param) {
+    if (!param) return undefined;
     return typeof param.name === 'string' ? param.name : param.name?.name;
   }
 
@@ -2108,7 +2128,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   function resolveReturnTypeFromTypeQuery(param, scope) {
     const resolved = pickLastAmbientOverload(resolveTypeQueryBinding(param, scope), param, scope);
-    if (isFunctionLike(resolved?.node)) return resolveReturnType(resolved);
+    if (isFunctionLike(resolved?.node)) {
+      // TS 4.7+ instantiation expression `typeof fn<Args>` carries explicit type-args on
+      // the TSTypeQuery itself. when present, fold them into the function's return-type
+      // substitution so `Q<number[]>` -> `(): number[]` instead of bare `U`. shared
+      // `buildCallSiteSubst` zips fn.typeParameters with param.typeParameters - returns null
+      // when either side is empty / missing, in which case we fall back to body inference
+      const ret = resolved.node.returnType ?? resolved.node.typeAnnotation;
+      const subst = ret && buildCallSiteSubst(resolved.node, param);
+      if (subst) return resolveTypeAnnotation(applyAliasSubstDeep(unwrapTypeAnnotation(ret), subst), scope);
+      return resolveReturnType(resolved);
+    }
     if (param?.type !== 'TSTypeQuery') return null;
     // `resolveTypeQueryBinding` returns null for no-init `declare const` shapes; fall back to
     // the annotation-only path which also handles qualified names (`typeof NS.fn`)
@@ -2689,13 +2719,29 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!check || !extend) return null;
     check = peelTSParenthesized(check);
     extend = peelTSParenthesized(extend);
-    // both literal types: compare values (the precision case `'narrow' extends 'narrow'`)
+    // both literal types: compare values (the precision case `'narrow' extends 'narrow'`).
+    // negative numeric literals (`-1`, `-0`) are parsed as UnaryExpression { operator: '-',
+    // argument: NumericLiteral { value: 1 }} - `literal.value` is undefined, so the naive
+    // comparison would skip every conditional involving negative numbers
     if (check?.type === 'TSLiteralType' && extend?.type === 'TSLiteralType') {
-      const cv = check.literal?.value;
-      const ev = extend.literal?.value;
+      const cv = literalNodeValue(check.literal);
+      const ev = literalNodeValue(extend.literal);
       if (cv !== undefined && ev !== undefined) return cv === ev;
     }
     return null;
+  }
+
+  // extract the runtime value of a TS-literal-type's inner literal node. handles both bare
+  // literals (`5`, `'s'`, `true`) and `-N`-style numeric negations (parsed as UnaryExpression
+  // with a positive NumericLiteral child). returns undefined when the shape isn't a
+  // statically-known literal value (template strings, expressions, ...)
+  function literalNodeValue(literal) {
+    if (!literal) return undefined;
+    if (literal.value !== undefined) return literal.value;
+    if (literal.type === 'UnaryExpression' && literal.operator === '-' && literal.argument?.value !== undefined) {
+      return -literal.argument.value;
+    }
+    return undefined;
   }
 
   function pickConditionalBranch(check, extend, extendNode) {
@@ -3747,7 +3793,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const members = classPath.get('body').get('body');
     for (let i = members.length - 1; i >= 0; i--) {
       const member = members[i];
-      if (member.node.computed) continue;
+      // computed-key members with statically-known names (`['from']` / `[`a-${"b"}`]`) are
+      // resolvable - keyMatchesName drives literalKeyValue / single-quasi extraction. only
+      // truly dynamic computed keys (no static value) are unresolvable; those naturally
+      // fail keyMatchesName below
       if (!keyMatchesName(member.node.key, name)) continue;
       if (!!member.node.static !== isStatic) continue;
       if (member.node.kind === 'set') continue;
@@ -4336,9 +4385,26 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!callee) return null;
     if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
       if (callee.computed) return null;
-      if (callee.object?.type !== 'Identifier' || callee.property?.type !== 'Identifier') return null;
-      if (refPath?.scope?.getBinding(callee.object.name)) return null;
-      return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, callee.object.name, callee.property.name);
+      if (callee.property?.type !== 'Identifier') return null;
+      // direct bare-global receiver: `Object.assign(...)` - no local shadow, name is the
+      // constructor key in the registry
+      if (callee.object?.type === 'Identifier') {
+        if (refPath?.scope?.getBinding(callee.object.name)) return null;
+        return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, callee.object.name, callee.property.name);
+      }
+      // proxy-global receiver: `globalThis.Object.assign(...)` / `self.Object.assign(...)`.
+      // outer object is a proxy-global (`globalThis` / `self` / `window` / ...) and the
+      // tail member name corresponds to a known constructor. peel the outer proxy and
+      // route through the same lookup so non-mutating-slot dispatch survives the wrap
+      if ((callee.object?.type === 'MemberExpression' || callee.object?.type === 'OptionalMemberExpression')
+        && !callee.object.computed
+        && callee.object.object?.type === 'Identifier'
+        && callee.object.property?.type === 'Identifier'
+        && POSSIBLE_GLOBAL_OBJECTS.has(callee.object.object.name)
+        && !refPath?.scope?.getBinding(callee.object.object.name)) {
+        return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, callee.object.property.name, callee.property.name);
+      }
+      return null;
     }
     if (callee.type === 'Identifier' && refPath?.scope) {
       const pair = staticPairFromPolyfillEntry(refPath.scope, callee.name);
@@ -4363,7 +4429,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       refNode = parent;
       parent = container;
     }
-    if (parent?.type !== 'CallExpression' && parent?.type !== 'OptionalCallExpression') return false;
+    // NewExpression with a known-static MemberExpression callee (`new Reflect.X(o)`,
+    // `new Object.create(o)`-style) routes through the same resolveKnownStaticEntry as
+    // a regular call - the entry's `mutatesArgument` profile applies identically. bare
+    // constructor callees (`new Set(o)`) need their entries in the registry to benefit;
+    // without them the resolver returns null and the call falls through to leak as before
+    if (parent?.type !== 'CallExpression' && parent?.type !== 'OptionalCallExpression'
+      && parent?.type !== 'NewExpression') return false;
     const argIndex = parent.arguments?.indexOf(refNode) ?? -1;
     if (argIndex === -1) return false;
     for (let i = 0; i < argIndex; i++) if (parent.arguments[i]?.type === 'SpreadElement') return false;
@@ -4410,6 +4482,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode && parent.id?.type === 'Identifier') {
       return 'alias';
     }
+    // VariableDeclarator destructure init `const {x} = o` / `const [x] = o` - destructure
+    // only reads named/indexed properties off `o`, no mutation channel. equivalent to a
+    // bag of `o.x` / `o[N]` member-receiver reads
+    if (parent?.type === 'VariableDeclarator' && parent.init === refNode
+      && (parent.id?.type === 'ObjectPattern' || parent.id?.type === 'ArrayPattern')) return 'trivial';
+    // for-of / for-in iteration source: `for (const x of o) {}` invokes
+    // `o[Symbol.iterator]()`; `for (const k in o) {}` reads enumerable keys. neither
+    // mutates `o` through any standard channel
+    if ((parent?.type === 'ForOfStatement' || parent?.type === 'ForInStatement')
+      && parent.right === refNode) return 'trivial';
     // direct assignment to the binding (`o = newValue`) is rebinding the binding, not
     // mutating the anchored value via it. for root closure binding: anchor literal/instance
     // is unchanged regardless of where `o` later points. for alias binding: alias now points
@@ -5246,16 +5328,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // to the `{ kind:'a'; data: T }` branch. works for any serialisable LHS path
     // (Identifier / `this.x` / `obj.a.b`); computed / call-expression paths bail
     annotation = narrowDiscriminatedUnion(objectPath, annotation, scope) ?? annotation;
-    // peel type-alias chain ONLY when it ends in TSTypeQuery so `type Q = typeof X;
-    // declare const m: Q` reaches the TSTypeQuery branch below. peeling unconditionally
-    // would break generic alias resolution: `type Box<T> = {val: T}; declare const b:
-    // Box<string[]>` peels to `{val: T}` with subst `{T -> string[]}` and dropping subst
-    // loses the substitution. typeof-aliases are non-generic by construction so subst is
-    // always null - safe to swap annotation directly
-    const aliased = followTypeAliasChain(annotation, scope);
-    if (aliased?.node?.type === 'TSTypeQuery' && aliased.node !== annotation) {
-      annotation = aliased.node;
-    }
+    // peel type-alias chain ONLY when it ends in TSTypeQuery (`type Q = typeof X;
+    // declare const m: Q`) so the typeof branch below dispatches. peeling unconditionally
+    // would break generic alias resolution (`Box<string[]>` -> `{val: T}` loses subst)
+    annotation = swapAliasToTSTypeQueryWithSubst(annotation, scope);
     // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there
     if (annotation.type === 'TSTypeQuery') {
       const resolved = resolveTypeQueryBinding(annotation, scope);
@@ -5732,7 +5808,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function resolveCallReturnTypeFromAnnotation(callee) {
     const info = findExpressionAnnotation(callee);
     if (!info) return null;
-    const annotation = unwrapTypeAnnotation(info.annotation);
+    let annotation = unwrapTypeAnnotation(info.annotation);
+    if (!annotation) return null;
+    // follow alias chain to TSTypeQuery: `type Q<T> = typeof fn<T>` (TS 4.7+ instantiation
+    // wrapped in generic alias). without the swap, downstream `functionTypeReturnAnnotation`
+    // treats Q<...> as a TSTypeReference and returns null
+    annotation = swapAliasToTSTypeQueryWithSubst(annotation, info.scope);
     if (annotation?.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(annotation, info.scope);
     const ret = functionTypeReturnAnnotation(annotation);
     return ret ? resolveTypeAnnotation(ret, info.scope) : null;

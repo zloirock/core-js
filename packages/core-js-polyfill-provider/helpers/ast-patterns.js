@@ -382,19 +382,10 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
   return desc.callPath.get('arguments')[desc.paramIndex];
 }
 
-// transparent expression wrappers that don't affect the value of their inner expression:
-// oxc-preserved parens, optional-chain wrap, TS-only casts (compile-time, runtime no-op).
-// SequenceExpression is also transparent but ONLY when the inner expression is its tail -
-// mid-SE peel would change observable value (SE returns the last expression's value)
-const TRANSPARENT_EXPR_WRAPPERS = new Set([
-  'ParenthesizedExpression',
-  'ChainExpression',
-  'TSAsExpression',
-  'TSSatisfiesExpression',
-  'TSNonNullExpression',
-]);
-
 // peel transparent expression wrappers up from `startPath` toward statement context.
+// uses the public `TRANSPARENT_EXPR_WRAPPER_TYPES` constant (TS expr wrappers + oxc parens)
+// plus SequenceExpression-tail (transparent only when the inner is the SE's last expr -
+// mid-SE peel would change observable value, since SE returns the tail's value).
 // `onSequencePrefix(exprs)` (optional) is invoked with each SequenceExpression's leading
 // expressions (in walk order) so callers that need to re-emit them as side-effect siblings
 // can collect them via the callback. returns the first non-transparent ancestor path
@@ -404,7 +395,7 @@ export function peelTransparentExprWrappers(startPath, onSequencePrefix) {
   let prev = startPath?.node;
   while (path) {
     const type = path.node?.type;
-    if (TRANSPARENT_EXPR_WRAPPERS.has(type)) {
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) {
       prev = path.node;
       path = path.parentPath;
       continue;

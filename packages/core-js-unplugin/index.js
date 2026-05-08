@@ -29,7 +29,7 @@ const SFC_NON_JS_TYPE_RE = /[&?]type=(?:style|template)(?:[#&]|$)/;
 // Vite, already processed by Vite's own pipeline), `?css` (CSS-as-JS modules with no
 // runtime polyfill surface), `?used` (Vite tree-shaking marker), `?direct` (Vite
 // post-processing escape hatch), `?import` (Vite import-wrapping bypass)
-const VITE_ASSET_QUERY_RE = /[&?](?:css|direct|html-proxy|import|inline|raw|url|used|worker(?:[-_][a-z]+)?|worklet)(?:=|$|&)/;
+const VITE_ASSET_QUERY_RE = /[&?](?:css|direct|html-proxy|import|inline|raw|url|used|worker(?:[-_][a-z]+)?|worklet)(?:=|$|[#&])/;
 
 // `\0` marks virtual modules (some bundlers embed it mid-id in the query component, not
 // just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
