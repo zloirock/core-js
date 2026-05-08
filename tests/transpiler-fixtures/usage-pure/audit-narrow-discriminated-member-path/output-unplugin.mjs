@@ -5,6 +5,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 type U = { kind: 'a', data: string[] } | { kind: 'b', data: number };
 declare const obj: { d: U };
 if (obj.d.kind === 'a') {
-var _ref;
+  var _ref;
   _globalThis.__r = _atMaybeArray(_ref = obj.d.data).call(_ref, 0);
 }

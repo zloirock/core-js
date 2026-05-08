@@ -10,7 +10,7 @@ type Foo = FooA | FooB;
 
 declare const f: Foo;
 if (f.kind === 'a') {
-var _ref;
+  var _ref;
   const f: FooB = { kind: 'b', data: 'hello' };
   _atMaybeString(_ref = f.data).call(_ref, 0);
 }
