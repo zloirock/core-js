@@ -1,9 +1,5 @@
-// `Object.keys(o)` reads enumerable own keys, no mutation. classifier consults
-// known-built-in-return-types.json: Object.keys has no `mutatesArgument` annotation,
-// so the call is 'trivial' and the alias closure for `o` survives. property-init
-// narrow `arr: [1,2,3]` is preserved on both `.at(0)` (Array narrow polyfill) and
-// `.includes(0)` (Array narrow polyfill). without this gate, the call would leak
-// the closure and force generic `_at` / `_includes`
+// `Object.keys(o)` is a pure read, so the alias narrow on `o.arr` survives across the call.
+// Both `.at` and `.includes` must pick the array-narrow polyfill, not the generic instance fallback.
 const o = {
   arr: [1, 2, 3],
   test() {
