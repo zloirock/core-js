@@ -4,7 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // 'a' branch's `string[]` type and emit the Array-specific instance.at polyfill
 type X = { kind: 'a'; val: string[] } | { kind: 'b'; val: number };
 function f(x: X) {
-var _ref;
+  var _ref;
   if (x.kind !== 'a') return;
   _atMaybeArray(_ref = x.val).call(_ref, 0);
 }

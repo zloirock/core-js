@@ -6,7 +6,7 @@ type Box =
 
 function readFirst(box: Box) {
   if (box.kind === 'a' && box.sub === 'A1') {
-var _ref;
+    var _ref;
     return _atMaybeArray(_ref = box.data).call(_ref, 0);
   }
   return null;

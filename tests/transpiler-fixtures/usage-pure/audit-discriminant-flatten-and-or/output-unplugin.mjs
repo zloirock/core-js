@@ -10,6 +10,6 @@ type Foo = FooA | FooB;
 declare const f: Foo;
 declare const ready: boolean;
 if (ready && f.kind === 'a') {
-var _ref;
+  var _ref;
   _atMaybeArray(_ref = f.data).call(_ref, 0);
 }

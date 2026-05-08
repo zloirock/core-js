@@ -6,7 +6,7 @@ type Box = { kind: 'a'; data: string[] } | { kind: 'b'; data: number };
 function pickFirst(box: Box) {
   const A = 'a';
   if (box.kind === A) {
-var _ref;
+    var _ref;
     return _atMaybeArray(_ref = box.data).call(_ref, 0);
   }
   return box.data;

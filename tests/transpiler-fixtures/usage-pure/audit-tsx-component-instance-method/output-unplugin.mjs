@@ -5,7 +5,7 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 // `items.flat()` in the body. `Foo` here is a JSX tag, not a polyfill candidate
 type Item = { id: number };
 function List({ items }: { items: Item[] }) {
-var _ref;
+  var _ref;
   const flat = _flatMaybeArray(_ref = _mapMaybeArray(items).call(items, i => i.id)).call(_ref);
   return <ul>{_mapMaybeArray(flat).call(flat, id => <li key={id}>{id}</li>)}</ul>;
 }
