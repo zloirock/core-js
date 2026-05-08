@@ -1,8 +1,6 @@
-// multiple distinct aliased statics, each producing a distinct constructor narrow.
-// `const of = Array.of` -> arr1 narrow, `const from = Array.from` -> arr2 narrow.
-// each call of the aliased static MUST narrow to its specific Array via
-// staticPairFromPolyfillEntry reading injector entry. distinct downstream methods on
-// each receiver lock that entry-path read isn't conflated across two registered aliases
+// two distinct aliased statics (`const of = Array.of`, `const from = Array.from`) each
+// must narrow their call's return to Array independently. distinct instance methods per
+// receiver lock that the two alias registrations don't conflate across receivers
 const of = Array.of;
 const from = Array.from;
 const arr1 = of(1, 2, 3);

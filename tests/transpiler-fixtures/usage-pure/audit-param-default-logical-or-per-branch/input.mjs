@@ -1,7 +1,6 @@
-// AssignmentPattern default with LogicalExpression `Array || Iterator`:
-// per design comment in destructure-emitter `handleObjectPropertyResult`, fromFallback
-// triggers `tryRegisterPerBranchSynth`. Verify both branches become per-branch synth
-// literals (Array.from polyfill on truthy left, Iterator.from polyfill on falsy left)
+// param destructure default with logical `Array || Iterator`: each branch must emit
+// its own polyfill alias (Array.from when left is truthy, Iterator.from when left is
+// nullish), so the call dispatches correctly regardless of which branch wins at runtime
 function f({ from } = Array || Iterator) {
   return from([1]);
 }

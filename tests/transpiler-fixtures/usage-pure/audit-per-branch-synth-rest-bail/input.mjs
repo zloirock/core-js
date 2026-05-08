@@ -1,8 +1,6 @@
-// per-branch synth-swap with a rest sibling: `function f({a, ...rest} = cond ? A : B)`.
-// pattern carries RestElement, so synth-swap can't reshape it without losing rest's
-// runtime exclusion semantics. tryRegisterPerBranchSynth must reject via
-// isSynthSimpleObjectPattern; bare constructor identifiers in the conditional may still
-// be polyfilled by the global identifier visitor independent of the per-branch path
+// per-branch synth-swap with a rest sibling: `{from, ...rest} = cond ? A : B`. the rest
+// element prevents reshaping the pattern (would lose runtime exclusion semantics), so
+// per-branch synth bails. plain identifiers in branches still polyfill independently
 function f({ from, ...rest } = cond ? Array : Iterator) {
   return [from, rest];
 }
