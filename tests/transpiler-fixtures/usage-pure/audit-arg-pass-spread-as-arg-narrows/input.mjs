@@ -1,9 +1,5 @@
-// `{...o}` puts `o` inside a SpreadElement that the ObjectExpression consumes by
-// enumerating own enumerable properties of `o`. `o` is read, not passed as a target slot;
-// the resulting object is a SHALLOW COPY of o's own props, never an alias. classifier sees
-// SpreadElement parent and returns 'trivial' directly - same applies to `[...o]` / `f(...o)`
-// / `new C(...o)` (iteration sites). without this rule, every spread site would leak the
-// closure even though the spread is purely a read
+// `{...o}` and similar spread sites read `o` and produce a shallow copy; no aliasing happens.
+// Spread used as a value-source must stay non-mutating, otherwise every spread site would falsely leak.
 const o = {
   arr: [1, 2, 3],
   test() {

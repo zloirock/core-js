@@ -1,7 +1,5 @@
-// identity-rename mapped type with non-passthrough body union (`T[K] | null`).
-// `expandMappedTypeMembers` should still narrow `at` / `findLast` for the array members
-// because the mapped type produces members keyed identically to T's keys, and the
-// instance methods called on `target.items` / `target.tags` remain Array methods.
+// `{ [K in keyof Source]: Source[K] | null }` keeps array shape; the optional chain peels the null branch.
+// Per-key narrowing must still pick array polyfills despite the union body.
 type Source = {
   items: number[];
   tags: string[];

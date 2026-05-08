@@ -1,8 +1,5 @@
-// parameter destructure with RestElement: `function f({ from, ...rest } = Array) { ... }`.
-// `tryBodyExtractFromParamDestructure` emits `let from = _Array$from;` at function body
-// top + AST-mutates the destructure value to `_unused` (preserves rest semantics).
-// receiver narrowing through `arr = from('hi')` inside the body finds the polyfill entry
-// via the body-extract alias even though scope binding is now ambiguous post-mutation
+// Parameter destructure `function f({ from, ...rest } = Array)` mixes static dispatch with rest semantics.
+// `from` must be lifted to a body-local polyfill alias while preserving the rest behaviour at runtime.
 function build({ from, ...rest } = Array) {
   const xs = from('xy');
   return xs.at(0) + xs.findLast(p => p) + xs.flat().length;
