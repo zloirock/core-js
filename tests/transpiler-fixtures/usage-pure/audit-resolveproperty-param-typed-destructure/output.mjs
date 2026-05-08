@@ -1,5 +1,5 @@
-import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 // resolvePropertyObjectType for parameter destructure with annotation on the
 // ObjectPattern itself (function param). The pattern.typeAnnotation branch resolves the
 // destructured `items` directly as `number[]`, then `arr.findLast` and `arr.at` should

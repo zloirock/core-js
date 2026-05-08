@@ -1,6 +1,6 @@
 import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Set from "@core-js/pure/actual/set/constructor";
 // `let` callee with reassignment - `inlineCallReturnExpression` must bail via
 // `binding.constantViolations?.length` because reassignment makes the inline result
 // indeterminate. here `f` initially returns Map, then is mutated to return Set; the call

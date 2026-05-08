@@ -1,5 +1,5 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref;
 // `...xs: T[]` stores `T[]` on the rest-property type annotation; tuple element is T, so
 // inner must be unwrapped one level to propagate the element type to chained ops

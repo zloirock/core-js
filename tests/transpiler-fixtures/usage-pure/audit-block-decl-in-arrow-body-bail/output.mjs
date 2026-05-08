@@ -1,5 +1,5 @@
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 // arrow IIFE with VariableDeclaration / FunctionDeclaration / ClassDeclaration in body:
 // `singleReturnBodyExpression` bails because LOCAL_BINDING_DECL_TYPES would shadow free
 // identifiers in the return at body scope. caller resolves the return at CALLER's scope,

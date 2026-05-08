@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 sideEffect();
 // unwrapInitValue alternates ParenthesizedExpression peel and SequenceExpression tail
