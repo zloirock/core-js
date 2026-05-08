@@ -686,6 +686,12 @@ export default function plugin(api, options) {
 
       function programExit(path) {
         if (!helperVisitors) return;
+        // skipFile (`core-js-disable-file` directive or internal core-js source) means
+        // pre() early-returned without a snapshot; running the postHook walk would
+        // re-traverse helper bodies that the primary pass intentionally skipped, queue
+        // synth-swap entries against an unflushed receiver map, and flush imports the
+        // user explicitly suppressed. exit clean so no polyfill leaks into a disabled file
+        if (skipFile) return;
         reTraverseHelperBodies(path);
         // helper-visitor re-traversal may itself queue SEs (nested destructuring inside a
         // helper body). drain before synth-swap so the lifted SE statements participate in
