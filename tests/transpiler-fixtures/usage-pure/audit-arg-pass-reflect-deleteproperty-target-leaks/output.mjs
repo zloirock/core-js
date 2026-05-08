@@ -1,9 +1,8 @@
 import _Reflect$deleteProperty from "@core-js/pure/actual/reflect/delete-property";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
-// `Reflect.deleteProperty(o, key)` removes own property from target (index 0). delete is a
-// mutation just like add - the property may have held a value that other narrows depended
-// on. flagged with `mutatesArgument: [0]`; classifier returns 'leak'
+// `Reflect.deleteProperty(o, ...)` removes an own property, which counts as a target mutation.
+// Property removal can drop other tracked narrows, so the alias narrow on `o.arr` must drop too.
 const o = {
   arr: [1, 2, 3],
   test() {
