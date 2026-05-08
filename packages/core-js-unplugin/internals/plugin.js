@@ -143,7 +143,11 @@ export default function createPlugin(options) {
     const msg = error?.message;
     if (typeof id !== 'string' || !msg) return;
     if (msg.startsWith('[core-js]') || msg.includes(`[${ id }]`)) return;
-    error.message = `[core-js] [${ id }] ${ msg }`;
+    // in-place mutate preserves stack traces, but sibling-plugin frozen Error instances
+    // (`Object.freeze(err)` after construction) throw TypeError in strict mode and would
+    // shadow the original error with a confusing assignment failure. swallow assign failure
+    // so the original error still propagates with its un-tagged message
+    try { error.message = `[core-js] [${ id }] ${ msg }`; } catch { /* frozen error */ }
   }
 
   function runTransform(code, id, pass = 'single') {
@@ -380,7 +384,10 @@ export default function createPlugin(options) {
       // dirname for every file. devtools / `combineSourcemaps` then can't distinguish
       // files with the same basename in different dirs. patch `file` to basename so
       // `sources[0] === id` survives in the emitted map
-      const fileName = id.split(/[/\\]/).pop() || id;
+      // strip Vite SFC virtual-id query (`App.vue?vue&type=script&lang=ts` -> `App.vue`)
+      // before basename extraction; otherwise devtools show the filename with the full
+      // query string attached, which is noise rather than signal for the user
+      const fileName = stripQueryHash(id).split(/[/\\]/).pop() || id;
       const map = ms.generateMap({ source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary' });
       // restore BOM in sourcesContent so devtools show the file with its on-disk byte
       // count. MagicString's `prepend` updates the output but the original source it

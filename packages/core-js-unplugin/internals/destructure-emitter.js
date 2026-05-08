@@ -696,12 +696,15 @@ export function createDestructureEmitter({
       if (!parent.computed) {
         return property?.type === 'Identifier' && !!resolveGlobalPolyfill(property.name);
       }
-      // computed-string `obj['Map']`: parser shape varies (babel StringLiteral / oxc Literal
-      // with string .value). both must apply the same skip - the outer rewrite's range
-      // covers the whole `obj['Map']` MemberExpression
+      // computed-string `obj['Map']` / `` obj[`Map`] ``: parser shape varies. babel emits
+      // StringLiteral; oxc emits Literal with string .value; single-quasi TemplateLiteral
+      // (no interpolations) is also a static-string key. both must apply the same skip -
+      // the outer rewrite's range covers the whole `obj[<literal>]` MemberExpression
       const literalValue = property?.type === 'StringLiteral' ? property.value
         : property?.type === 'Literal' && typeof property.value === 'string' ? property.value
-          : null;
+          : property?.type === 'TemplateLiteral' && !property.expressions?.length && property.quasis?.length === 1
+            ? property.quasis[0].value?.cooked ?? null
+            : null;
       return literalValue !== null && !!resolveGlobalPolyfill(literalValue);
     }
 
