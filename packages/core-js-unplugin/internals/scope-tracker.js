@@ -97,11 +97,16 @@ export default class ScopeTracker {
   // splice matches surrounding block indent. without this, the inserted `var X;` would
   // start at column 0 (immediately after the block-opening `{`'s newline), visually
   // misaligned with sibling statements. cap scan to LF / EOF so pathological inputs
-  // (no-newline file) don't burn through the source
+  // (no-newline file) don't burn through the source. ALSO bail on enclosing `}` before
+  // `\n`: minified single-line bodies (`function f(){body}\n  nextLine`) would otherwise
+  // pick up `nextLine`'s indent which belongs to a sibling scope, not the body
   #detectIndentAt(pos) {
     const code = this.#code;
     let i = pos;
-    while (i < code.length && code[i] !== '\n') i++;
+    while (i < code.length && code[i] !== '\n') {
+      if (code[i] === '}') return '';
+      i++;
+    }
     if (i >= code.length) return '';
     i++;
     let indent = '';
@@ -110,6 +115,19 @@ export default class ScopeTracker {
       i++;
     }
     return indent;
+  }
+
+  // text for a scoped `var _ref, ...;` line at `insertPos`, indented to match siblings.
+  // single source of truth for both the queue-applied path (`applyTransforms`) and the
+  // inline-bake path (`consumeRefBindingsInRange`) so visual layout stays symmetric
+  #scopedVarText(insertPos, names) {
+    return `\n${ this.#detectIndentAt(insertPos) }var ${ names.join(', ') };`;
+  }
+
+  // text replacing an arrow's expression body with `{ var _ref...; return expr; }`. the
+  // wrapping `{}` makes the body a BlockStatement so `var _ref` has a place to live
+  #arrowBodyWrap(body, names) {
+    return `{ var ${ names.join(', ') }; return ${ this.#code.slice(body.start, body.end) }; }`;
   }
 
   // claim ref-binding emissions whose anchor lies within [start, end] - both `#scopedVars`
@@ -124,18 +142,13 @@ export default class ScopeTracker {
     const splices = [];
     for (const [insertPos, names] of this.#scopedVars) {
       if (insertPos >= start && insertPos <= end) {
-        const indent = this.#detectIndentAt(insertPos);
-        splices.push({ start: insertPos, end: insertPos, content: `\n${ indent }var ${ names.join(', ') };` });
+        splices.push({ start: insertPos, end: insertPos, content: this.#scopedVarText(insertPos, names) });
         this.#scopedVars.delete(insertPos);
       }
     }
     for (const [body, names] of this.#arrowVars) {
       if (body.start >= start && body.end <= end) {
-        splices.push({
-          start: body.start,
-          end: body.end,
-          content: `{ var ${ names.join(', ') }; return ${ this.#code.slice(body.start, body.end) }; }`,
-        });
+        splices.push({ start: body.start, end: body.end, content: this.#arrowBodyWrap(body, names) });
         this.#arrowVars.delete(body);
       }
     }
@@ -145,14 +158,13 @@ export default class ScopeTracker {
   applyTransforms(queue) {
     // wrap arrow expression bodies: () => expr -> () => { var _ref; return expr; }
     for (const [body, names] of this.#arrowVars) {
-      queue.add(body.start, body.end,
-        `{ var ${ names.join(', ') }; return ${ this.#code.slice(body.start, body.end) }; }`);
+      queue.add(body.start, body.end, this.#arrowBodyWrap(body, names));
     }
     // queue scoped var declarations at each computed insertion point (after `{` + any
     // directive prologue - see skipDirectives). use `queue.insert` so the apply phase
     // remains the single drain (overwrites + inserts both flushed by `queue.apply()`)
     for (const [insertPos, names] of this.#scopedVars) {
-      queue.insert(insertPos, `\nvar ${ names.join(', ') };`);
+      queue.insert(insertPos, this.#scopedVarText(insertPos, names));
     }
     queue.apply();
   }
