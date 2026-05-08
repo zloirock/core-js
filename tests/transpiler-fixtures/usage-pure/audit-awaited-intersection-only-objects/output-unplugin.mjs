@@ -1,11 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// Intersection without Promise inside Awaited: `Awaited<{items: T[]} & {tags: U[]}>` per
-// TS spec returns the intersection itself (Awaited<T> = T when T is not Promise). Member
-// lookup through the intersection finds `items` / `tags` and narrows their array element
-// types. resolveAwaitedAnnotation distribute over intersection per-branch returns each
-// plain object; findTypeMember's intersection branch picks first matching key. Distinct
-// methods per line so each access traces to its branch
+// `Awaited<A & B>` over plain objects must return the intersection unchanged (no Promise to peel).
+// Member lookup through the intersection must find each branch's array field for per-key narrowing.
 async function objs() {
 var _ref, _ref2;
   type T = { items: number[] } & { tags: string[] };
