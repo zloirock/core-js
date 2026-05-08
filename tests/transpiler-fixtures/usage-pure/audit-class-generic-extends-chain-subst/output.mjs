@@ -1,5 +1,5 @@
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 var _ref, _ref2;
 // chain of generic classes with extends-substitution: `A<T> extends B<T>`,
 // `B<U> extends C<U[]>`, `C<V>.firstC(): V[]`. for `const x: A<string>`, type parameters

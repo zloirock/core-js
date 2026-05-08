@@ -1,6 +1,6 @@
-import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Object$defineProperties from "@core-js/pure/actual/object/define-properties";
 // `Object.defineProperties(o, ...)` mutates the target slot, so the alias narrow on `o.arr` must drop.
 // Confirms the plural variant carries the same mutating-slot annotation as the singular one.
 const o = {

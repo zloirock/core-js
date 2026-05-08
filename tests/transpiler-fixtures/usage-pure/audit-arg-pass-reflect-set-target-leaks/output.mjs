@@ -1,6 +1,6 @@
-import _Reflect$set from "@core-js/pure/actual/reflect/set";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Reflect$set from "@core-js/pure/actual/reflect/set";
 // `Reflect.set(o, ...)` 3-arg form mutates the target slot, so the alias narrow on `o.arr` must drop.
 // Mirrors `Object.assign` target-leak via the Reflect lookup path.
 const o = {

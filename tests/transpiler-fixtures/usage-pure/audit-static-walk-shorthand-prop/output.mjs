@@ -1,6 +1,6 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _globalThis from "@core-js/pure/actual/global-this";
 var _ref;
 // shorthand property in static-wrapper ObjectExpression: `{ Array }` is shorthand for
 // `{ Array: Array }`. walker reads prop.key (Identifier name 'Array') and prop.value

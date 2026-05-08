@@ -1,5 +1,5 @@
-import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 var _ref, _ref2;
 // regex-literal closer `/` must be treated as a fuse-with-`(` boundary by the ASI
 // guard. without `;` injection the parser reads `/foo/\n(...)` as a CallExpression

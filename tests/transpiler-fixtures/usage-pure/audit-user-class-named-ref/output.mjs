@@ -1,5 +1,5 @@
-import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 // User-declared `class _ref` reserves the bare slot. Plugin must shift
 // to `_ref2` when allocating its own ref. Distinct from var/let path
