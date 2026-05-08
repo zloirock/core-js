@@ -1,12 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// shadow-check asymmetry: bare Identifier `Array` is shadowed by the param,
-// MemberExpression `globalThis.Array` is NOT (proxy-global chain bottoms out on the
-// global). isViableBranchForKey applies the shadow check ONLY to Identifier shape;
-// MemberExpression's binding hop is delegated to resolveObjectName which walks the
-// chain and validates `globalThis` against POSSIBLE_GLOBAL_OBJECTS without hitting
-// the local Array binding. expected: `Array` branch declines (shadowed), member
-// branch resolves -> fromFallback fires with mixed-shape outcome
+// shadow asymmetry: bare `Array` shadowed by a function param, but `globalThis.Array`
+// reaches the real global through the proxy chain. only the member branch should
+// resolve. companion `g` covers the unshadowed case where both branches are viable
 function f(Array, {
   from
 } = cond ? Array : {

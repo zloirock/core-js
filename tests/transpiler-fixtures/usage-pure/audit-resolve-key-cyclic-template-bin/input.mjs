@@ -1,10 +1,10 @@
-// resolveKey: TemplateLiteral and BinaryExpression `+` interpolation use forked `seen` Set
-// per branch so cyclic alias `const k = k` doesn't trip the cycle guard incorrectly.
-// Symbol[`itera${suffix}r`] - template-literal computed key with const-aliased suffix
+// computed Symbol keys built from a template literal AND a binary `+` concatenation must
+// fold to the static string `'iterator'` so the `in` check routes to the iterator
+// polyfill. each fold path uses an independent cycle guard
 const suffix = 'to';
-// `iter` + suffix + 'r' -> 'iterator'; resolveKey resolves the template via forked seen
+// template-literal `itera${suffix}r` -> 'iterator'
 const a = Symbol[`itera${suffix}r`] in [];
-// BinaryExpression `+`: 'has' + 'OwnProperty'-like usage but with Symbol.iterator shape
+// binary `+`: 'iter' + 'ator' -> 'iterator'
 const k = 'iter' + 'ator';
 const b = Symbol[k] in new Set();
 export { a, b };

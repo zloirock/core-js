@@ -1,9 +1,5 @@
-// resolveComputedSymbolKey on a MemberExpression with nested Symbol[Symbol.X] property:
-// receiver `obj[Symbol[Symbol.iterator]]`. Inner property `Symbol[Symbol.iterator]`
-// resolveKey resolves to `Symbol.iterator`, and resolveComputedSymbolKey concatenates
-// `Symbol.` prefix yielding malformed key `Symbol.Symbol.iterator`. The malformed key
-// fails downstream entry lookup so no outer property polyfill emits, but inner
-// `Symbol[Symbol.iterator]` (the nested computed-symbol-key MemberExpression) should
-// still itself emit the get-iterator-method polyfill via its own visitor pass.
+// `obj[Symbol[Symbol.iterator]]`: the OUTER property would resolve to a malformed
+// `Symbol.Symbol.iterator`, so no outer polyfill emits. the INNER `Symbol[Symbol.iterator]`
+// is a regular computed Symbol key and must still emit get-iterator-method on its own
 const v = obj[Symbol[Symbol.iterator]];
 export { v };

@@ -1,8 +1,6 @@
-// User imports a Symbol entry from core-js/pure directly; both pipelines must
-// recognise the well-known Symbol via `bindingSymbolKey` (importSource match) for
-// the `in` check, and emit no separate Symbol polyfill. Babel goes through
-// polyfillHint AND importSource; unplugin only via importSource. The detection
-// must remain symmetric in spite of the polyfillHint asymmetry on the adapter.
+// user imports well-known Symbols from core-js/pure directly. the `in` check must
+// recognise the imported binding as a well-known Symbol and skip emitting a separate
+// Symbol polyfill, on both pipelines, regardless of how each detects the source
 import iter from "@core-js/pure/actual/symbol/iterator";
 import async from "@core-js/pure/actual/symbol/async-iterator";
 const isIter = iter in target;
