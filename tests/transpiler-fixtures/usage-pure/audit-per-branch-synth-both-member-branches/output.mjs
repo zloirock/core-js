@@ -1,11 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// both fallback branches are MemberExpression chains rooted in different proxy
-// globals. each branch resolves separately through resolveObjectName, and the
-// per-branch synth-swap rewrites both to the same polyfill literal symmetrically.
-// the inner globalThis / self / window Identifier visits must be suppressed so they
-// don't queue parallel polyfill transforms that compose-conflict with the synth-swap
-// receiver-span overwrite. distinct keys per declaration verify per-key dispatch
+// both conditional fallback branches are proxy-global member chains rooted in different
+// globals (`globalThis.Array`, `self.Array`). both must resolve symmetrically and rewrite
+// to the same polyfill literal; intermediate identifier visits must not race with that
 function f({
   from
 } = cond ? {

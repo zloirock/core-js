@@ -1,10 +1,6 @@
-// `let f` reassigned between the discriminant guard and the use site: outer narrowing
-// from `if (f.kind === 'a')` is dropped (the discriminant-guard collection sees the
-// mutation and treats the stale branch as no longer reflecting the binding's value),
-// AND the new RHS shape narrows the union forward by matching the literal-typed
-// `kind: 'b'` against FooB. Result: `f.data` resolves to string (from FooB's `data`),
-// emitting `_atMaybeString` instead of either the wrong array polyfill (without the
-// mutation check) or the generic `_at` (with the mutation check but no forward-narrow)
+// `let f` reassigned between a discriminant guard and the use site: the original
+// guard's narrow must be dropped, AND the new RHS shape must forward-narrow the
+// union. `f.data` ends up as string (from the post-reassignment branch)
 type FooA = { kind: 'a'; data: number[] };
 type FooB = { kind: 'b'; data: string };
 type Foo = FooA | FooB;
