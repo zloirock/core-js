@@ -1,7 +1,6 @@
-// `Symbol[Symbol.foo] in obj` - inner Symbol-ref is genuine but the well-known name `foo`
-// is not in symbolKeyToEntry. handleBinaryIn's resolveSymbolInEntry would return null and
-// the seeding bails, leaving the inner Symbol Identifier free to receive its own polyfill
-// (unrelated chain). known-good case `Symbol.iterator` follows for distinct-method parity
+// `Symbol[Symbol.foo]` references an unknown well-known name; the `in` check must NOT
+// polyfill-dispatch since `foo` isn't a recognized Symbol. the inner `Symbol` identifier
+// still polyfills on its own. paired with a known-good `Symbol.iterator in obj`
 const a = Symbol[Symbol.foo] in obj;
 const b = Symbol.iterator in obj;
 [a, b].at(0);

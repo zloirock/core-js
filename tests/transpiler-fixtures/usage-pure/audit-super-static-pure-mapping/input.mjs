@@ -1,6 +1,6 @@
-// User pure-imported class extended with super-static call. injector-base
-// `getPureImport(name)` consumed by class-walk maps `_Promise` -> hint 'Promise'
-// so resolveStaticInheritedMember locates `statics.Promise.try` polyfill
+// user-imported pure Promise polyfill used as `extends _Promise` superclass. super-
+// static calls (`super.try`, `super.allSettled`) must map back to the Promise statics
+// polyfill so the inherited dispatch resolves correctly
 import _Promise from "@core-js/pure/actual/promise";
 class MyPromise extends _Promise {
   static safeTry(fn) {

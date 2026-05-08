@@ -1,10 +1,8 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// multi-quasi template literal as computed member key: `arr[`pre${'fix'}`]` should fold
-// to 'prefix' when every interpolation resolves to a literal. dynamic-only interpolation
-// (no statically-resolvable expression) bails the resolveKey walk and leaves the access
-// untouched, with no spurious polyfill emission. distinct prototype methods per line lock
-// the per-call dispatch
+// multi-quasi template literals as computed keys: must fold when every interpolation is
+// a literal (`fla${'t'}` -> 'flat'), bail when any interpolation is dynamic. plain
+// instance call confirms unrelated polyfill dispatch is unaffected
 const arr = [1, 2, 3];
 const literalKey = _flatMaybeArray(arr);
 literalKey;
