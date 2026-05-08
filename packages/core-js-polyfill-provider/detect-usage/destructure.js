@@ -12,7 +12,7 @@ import {
   isTransparentDestructureWrapper,
   peelFallbackReceiver,
   peelFallbackWrappers,
-  unwrapInitValue,
+  unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
@@ -220,7 +220,15 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
   // `a -> b -> c -> ...` blowups
   while (current?.type === 'Identifier' && adapter.hasBinding(currentScope, current.name)) {
     if (++hops > STATIC_WALK_DEPTH) return null;
-    if (adapter.getBindingNodeType(currentScope, current.name) !== 'VariableDeclarator') return null;
+    const bindingType = adapter.getBindingNodeType(currentScope, current.name);
+    // class-bound leaf at empty walkPath: classes are stable bindings (no reassignment
+    // legal), so the identifier name reliably identifies the declaration. accept as the
+    // leaf without further dereferencing - matches the empty-walkPath / unbound-Identifier
+    // path below for the canonical-name return contract. enables `class Foo {}; const NS =
+    // {Foo}; walkStaticReceiverChain(NS, ['Foo'])` to return 'Foo' (otherwise would bail
+    // here since ClassDeclaration isn't VariableDeclarator)
+    if (walkPath.length === 0 && bindingType === 'ClassDeclaration') return current.name;
+    if (bindingType !== 'VariableDeclarator') return null;
     const binding = adapter.getBinding(currentScope, current.name);
     // `binding.constant` may be undefined depending on adapter (babel computes it lazily,
     // estree-toolkit doesn't expose it). use the underlying `constantViolations` list which
@@ -309,9 +317,11 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
       receiverNode = receiverNode.type === 'ArrayExpression' ? receiverNode.elements[arrayIndex] : null;
     }
     if (receiverNode !== null) {
-      // `(se(), globalThis)` - peel to the semantic init value so nested chains resolve
-      // through SequenceExpression prefixes. parity with non-nested destructure
-      const init = unwrapInitValue(receiverNode);
+      // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
+      // (and nested combinations like `(se(), (R as any))`) all reach the receiver. without
+      // this, TS-wrapped nested destructures bail the flatten path entirely even though the
+      // runtime value is identical to the unwrapped form
+      const init = unwrapExpressionChain(receiverNode);
       if (!init) return null;
       const receiver = resolveObjectName(init, parent.scope, adapter);
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)

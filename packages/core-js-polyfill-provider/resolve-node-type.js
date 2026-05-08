@@ -1335,16 +1335,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // receivers. mirrors the interface-branch cycle handling above
     if (isClassLikeDeclaration(declaration)) {
       const superClass = declaration.superClass ?? declaration.extends?.[0]?.id;
-      if (superClass?.type !== 'Identifier') return new $Object('Object');
+      const superName = extendsClauseName(superClass, scope);
+      if (!superName) return new $Object('Object');
       const parentRef = {
         type: 'TSTypeReference',
-        typeName: superClass,
+        typeName: { type: 'Identifier', name: superName },
         typeParameters: getSuperTypeArgs(declaration),
       };
-      const ctor = resolveKnownConstructor(superClass.name);
-      if (ctor) return resolveKnownContainerType(superClass.name, ctor, parentRef, resolve) || ctor;
+      const ctor = resolveKnownConstructor(superName);
+      if (ctor) return resolveKnownContainerType(superName, ctor, parentRef, resolve) || ctor;
       const cycleFlipped = cycleFlipDetector(visited);
-      const result = resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap, visited);
+      const result = resolveUserDefinedType(superName, parentRef, scope, depth + 1, typeParamMap, visited);
       if (result) return result;
       if (cycleFlipped()) return null;
       return new $Object('Object');
@@ -1409,11 +1410,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   const PROMISE_SYNONYMS = new Set(['PromiseLike', 'Thenable']);
 
   // follow superClass for declared parent members. `Identifier` covers both real and ambient
-  // (`declare class P {}` + `class C extends P {}`), which behave the same in type position
+  // (`declare class P {}` + `class C extends P {}`), which behave the same in type position.
+  // member-expression super (`extends NS.Base`) resolves through proxy-global walk OR static-
+  // receiver walk to the canonical class name, so non-Identifier super still finds its parent
   function findParentClassDecl(classDecl, scope) {
-    const parentId = classDecl.superClass ?? classDecl.extends?.[0]?.id;
-    if (parentId?.type !== 'Identifier') return null;
-    const parent = findTypeDeclaration(parentId.name, scope);
+    const parentName = extendsClauseName(classDecl.superClass ?? classDecl.extends?.[0]?.id, scope);
+    if (!parentName) return null;
+    const parent = findTypeDeclaration(parentName, scope);
     return isClassLikeDeclaration(parent) ? parent : null;
   }
 
@@ -1762,15 +1765,20 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // substituted check / extends shapes, then recurse into the chosen branch's members.
     // without this, member-lookup на `ShadowedRenameProbe<'narrow'>` (where body is
     // `K extends 'narrow' ? {...} : never`) bottoms out на null because getTypeMembers
-    // doesn't have a TSConditionalType branch
+    // doesn't have a TSConditionalType branch. AST equality can't pick `T extends (infer U)[] ? U
+    // : never` shapes; route through evaluateConditionalType so the infer-pattern path resolves
+    // the conditional to its element type before member lookup
     if (aliased?.type === 'TSConditionalType') {
-      const checkSubst = withSubst(aliased.checkType);
-      const extendSubst = withSubst(aliased.extendsType);
-      const branch = pickConditionalBranchByAST(checkSubst, extendSubst);
-      if (branch !== null) {
-        return findTypeMember(withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth + 1);
-      }
-      return null;
+      const branch = pickConditionalBranchByAST(withSubst(aliased.checkType), withSubst(aliased.extendsType));
+      // AST equality picks pure-shape conditionals (`K extends 'narrow' ? {...} : never`).
+      // when AST-pick fails, route through evaluateConditionalType with the alias's subst
+      // applied to the WHOLE conditional first so infer patterns (`(infer U)[]`, `[infer H,
+      // ...any[]]`) see the substituted checkType. without applySubst, `Element<string[][]>`
+      // would evaluate the body with raw `T` checkType and the infer match fails
+      const target = branch !== null
+        ? withSubst(branch ? aliased.trueType : aliased.falseType)
+        : evaluateConditionalType(applySubst(aliased, subst), null, scope, depth + 1, null);
+      return target ? findTypeMember(target, key, scope, depth + 1) : null;
     }
     const resolveBranch = member => findTypeMember(withSubst(unwrapTypeAnnotation(member)), key, scope, depth + 1);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
@@ -2797,9 +2805,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // narrow infer pattern: `T extends (infer U)[] ? U : X` / `T extends Array<infer U> ? U : X`.
-  // when the pattern matches AND checkType's substituted type is an array-like, returns the
-  // element type. any other shape (nested infers, non-array containers, trueType != U) -> null,
-  // caller falls back to plain branch resolution
+  // when the pattern matches AND checkType's substituted type is array-like, return the
+  // element type. tuple head-infer (`[infer H, ...any[]]`) is not handled - typeParamMap
+  // values are post-resolveTypeArgs, where tuple AST is already collapsed via
+  // `tupleAsArrayType` to `$Object('Array', commonInner)`, losing positional info needed
+  // to extract the head. any other shape -> null, caller falls back to plain branch
   function resolveInferElementPattern(node, typeParamMap, scope, depth, seen) {
     const inferName = matchArrayInferPattern(node.extendsType);
     if (!inferName) return null;
@@ -4802,6 +4812,30 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     });
   }
 
+  // canonical name for an `extends` clause node. Identifier returns its name; non-computed
+  // MemberExpression resolves through proxy-global walk (`globalThis.X.Foo` chains) OR
+  // walkStaticReceiverChain (const-bound `NS.Inner.Foo` chains, with class-leaf accept).
+  // walks the member chain into root + walkPath, so multi-hop user namespaces work the
+  // same as single-hop. returns null for any unsupported shape - registering under a wrong
+  // name would WIDEN the base's field-type fold with non-subclass writes, so safe miss
+  // preferred over false-positive
+  function extendsClauseName(superClass, scope) {
+    if (superClass?.type === 'Identifier') return superClass.name;
+    if (superClass?.type !== 'MemberExpression' || superClass.computed) return null;
+    const proxy = globalProxyMemberName(superClass, scope, BABEL_BINDING_ADAPTER, null);
+    if (proxy) return proxy;
+    const path = [];
+    let cur = superClass;
+    while (cur?.type === 'MemberExpression' && !cur.computed) {
+      const k = getKeyName(cur.property);
+      if (!k) return null;
+      path.unshift(k);
+      cur = cur.object;
+    }
+    if (cur?.type !== 'Identifier') return null;
+    return walkStaticReceiverChain(cur, path, scope, BABEL_BINDING_ADAPTER);
+  }
+
   // generic write-folder: `writePath` is a pre-filtered `<expr>.<fieldName> = Y` from the
   // module index (operator / member / field-name already satisfied). caller supplies a
   // `predicate(objPath)` that decides whether this write's receiver belongs to the field's
@@ -4832,8 +4866,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       };
       programPath.traverse({
         'ClassDeclaration|ClassExpression'(p) {
-          const sup = p.node.superClass;
-          if (t.isIdentifier(sup)) pushMultimap(subclassesBySuper, sup.name, p);
+          // canonical name handles Identifier (`extends Base`) AND MemberExpression
+          // (`extends NS.Base` / `extends globalThis.Base`); registering under a wrong
+          // name would WIDEN the base's field-type fold with non-subclass writes, so
+          // bail when no name resolves (safe miss preferred over false-positive)
+          const name = extendsClauseName(p.node.superClass, p.scope);
+          if (name) pushMultimap(subclassesBySuper, name, p);
         },
         AssignmentExpression(p) {
           // only pure `=` is type-precise here: RHS value becomes the new field type.
