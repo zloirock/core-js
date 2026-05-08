@@ -1,7 +1,7 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$reject from "@core-js/pure/actual/promise/reject";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // Multi-hop alias chains through inline-callee bodies must resolve recursively to the deepest constructor.
 // Side-effecting prefix statements anywhere in the chain force a SE-wrapped emit instead of clean lift.
 // Three shapes cover depth-2 clean, depth-3 clean (different constructor), and clean-outer/SE-inner.

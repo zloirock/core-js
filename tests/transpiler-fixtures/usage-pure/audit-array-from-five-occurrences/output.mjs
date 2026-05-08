@@ -1,7 +1,7 @@
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-import _filterMaybeArray from "@core-js/pure/actual/array/instance/filter";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _filterMaybeArray from "@core-js/pure/actual/array/instance/filter";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 var _ref, _ref2, _ref3;
 // five Array.from references: one as receiver, four as args. only the receiver gets consumed
 // by the filter/flat/flatMap substitutions, so the remaining four must each find their own slot

@@ -1,5 +1,5 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // Promise.resolve(arg) inner-type inference: resolveKnownStaticReturnType detects the
 // `Promise.resolve` static call and infers Promise<typeof arg> from arg type instead of
 // the bare Promise<null> from typeFromHint. unwrapPromise then peels precisely so

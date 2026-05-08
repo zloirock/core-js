@@ -1,5 +1,5 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 // `super.X` / `this.X` inside a static-field initializer - at runtime, `this` binds to the
 // class constructor and `super` refs the parent's static surface, the same as inside a
 // static method / static block. plugin treats static fields uniformly and polyfills

@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 // chained optionals around a polyfilled method: `obj?.at?.(0)?.next?.(1)`. polyfill
 // rewrites the inner `.at` and `normalizeOptionalChain` with `stripFirstOptional=true` is
 // expected to deoptionalise only the FIRST user-written `?.` adjacent to the replaced node;

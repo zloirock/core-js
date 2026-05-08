@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 var _ref, _ref2, _ref3;
 // Optional access through paren-wrapped TS expressions (`(...) as any`, `arr!`) must allocate `_ref`.

@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
 // `globalThis?.Array` (optional access) as a superclass: the extends clause resolves to
 // the global `Array`, so `super.from(...)` rewrites to the polyfilled static call.
 class X extends _globalThis.Array {

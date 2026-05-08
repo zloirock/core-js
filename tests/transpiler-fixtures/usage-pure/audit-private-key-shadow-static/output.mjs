@@ -1,6 +1,6 @@
-import _Set from "@core-js/pure/actual/set/constructor";
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _Set from "@core-js/pure/actual/set/constructor";
 // PrivateIdentifier (modern) for private keys. Both parsers emit `PrivateIdentifier` -
 // legacy `PrivateName` is dead at parse-time. Shadow checks on `#Set` private member
 // must NOT confuse the bare global Set in `new Set(...)` initializer

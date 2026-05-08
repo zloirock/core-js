@@ -1,6 +1,6 @@
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-import _Promise$reject from "@core-js/pure/actual/promise/reject";
 import _Promise$all from "@core-js/pure/actual/promise/all";
+import _Promise$reject from "@core-js/pure/actual/promise/reject";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // User imports a polyfill UID and then re-aliases it through a `const` chain before any
 // static access. polyfillBindingHintLookup recognises the imported binding `_Promise` as
 // a proxy-global for the Promise constructor; the alias-chain resolution path through the
