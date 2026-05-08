@@ -683,13 +683,15 @@ export function hasSideEffectfulSequencePrefix(node) {
 // yields preceding-effect list `[se1(), se2()]` and tail `G`. used by destructure-flatten
 // emitters (babel `liftSEPrefix`, unplugin `tryFlattenAssignmentExpressionDestructure`,
 // unplugin main flatten) so every SE layer's preceding expressions lift instead of only
-// the outermost. without recursion, inner se2() silently elides under the rewrite.
-// returns `{ prefix: Node[], tail: Node }` - prefix is empty when init isn't SE-shaped
+// the outermost. without recursion, inner se2() silently elides under the rewrite. peel
+// parens + TS expression wrappers (`as` / `satisfies` / `!` / chain) so SE through casts
+// (`(logCall(), R) as any`) lifts the same as bare SE - otherwise the prefix gets dropped
+// when the declarator is flattened. returns `{ prefix: Node[], tail: Node }`
 export function peelNestedSequenceExpressions(node) {
   const prefix = [];
   let cursor = node;
   while (cursor) {
-    while (cursor?.type === 'ParenthesizedExpression') cursor = cursor.expression;
+    cursor = unwrapRuntimeExpr(cursor);
     if (cursor?.type !== 'SequenceExpression' || cursor.expressions.length < 2) break;
     for (const e of cursor.expressions.slice(0, -1)) prefix.push(e);
     cursor = cursor.expressions.at(-1);

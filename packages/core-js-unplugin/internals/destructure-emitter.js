@@ -25,8 +25,9 @@ import {
   propBindingIdentifier,
   resolveFallbackReceiver,
   TS_EXPR_WRAPPERS,
-  unwrapInitValue,
+  unwrapExpressionChain,
   unwrapParens,
+  unwrapRuntimeExpr,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -226,7 +227,9 @@ export function createDestructureEmitter({
   function injectForInitSESinks(declaration, perDecl) {
     for (let i = 0; i < declaration.declarations.length; i++) {
       const { init } = declaration.declarations[i];
-      const peeled = init?.type === 'ParenthesizedExpression' ? init.expression : init;
+      // peel parens AND TS expression wrappers (`as` / `satisfies` / `!` / chain): SE prefix
+      // through TS casts (`(se(), R) as any`) must reach the SE check the same as bare SE
+      const peeled = unwrapRuntimeExpr(init);
       if (peeled?.type !== 'SequenceExpression' || perDecl[i].preservedSrc !== null) continue;
       const receiverPure = perDecl[i].receiver ? resolveGlobalPolyfill(perDecl[i].receiver) : null;
       const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(init);
@@ -324,8 +327,11 @@ export function createDestructureEmitter({
       if (!perDecl[i].extractions.length) continue;
       const decl = declaration.declarations[i];
       walkAstNodes(decl.id, n => skippedNodes.add(n));
-      let initInner = decl.init;
-      while (initInner?.type === 'ParenthesizedExpression') initInner = initInner.expression;
+      // peel parens AND TS wrappers (`as` / `satisfies` / `!` / chain): SE prefixes
+      // through TS casts (`(logCall(), globalThis) as any`) must lift the same as bare
+      // SE. without TS unwrap, the SE prefix sits inside a TSAsExpression that doesn't
+      // get scanned, and the call gets silently dropped when the declarator is flattened
+      const initInner = unwrapRuntimeExpr(decl.init);
       const consumedTail = initInner?.type === 'SequenceExpression' ? initInner.expressions.at(-1) : initInner;
       if (consumedTail) walkAstNodes(consumedTail, n => skippedNodes.add(n));
       if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
@@ -385,10 +391,10 @@ export function createDestructureEmitter({
       [initSource] = initSource.elements;
     }
     if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
-      // `(se(), globalThis)` - unwrap to the semantic init value so nested receivers
-      // resolve through SequenceExpression prefixes + preserved parens. parity with
-      // non-nested destructure which goes through `buildDestructuringInitMeta`
-      const init = unwrapInitValue(initSource);
+      // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
+      // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
+      // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
+      const init = unwrapExpressionChain(initSource);
       const receiver = init ? sharedResolveObjectName(init, scope, estreeAdapter) : null;
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
         const outerProps = pattern.properties.map(planOuterProp);
