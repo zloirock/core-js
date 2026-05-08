@@ -1,7 +1,8 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.string.iterator";
-// Real U+2029 (paragraph separator) follows the entry import; removeTopLevelStatement
-// must consume it via isLineTerminator instead of leaving it dangling.
+// real U+2029 (paragraph separator) terminates the entry import; ES treats it as a
+// line terminator, so the import must be removed cleanly without leaving the separator
+// dangling before the next statement
 
 const result = [].includes(1);

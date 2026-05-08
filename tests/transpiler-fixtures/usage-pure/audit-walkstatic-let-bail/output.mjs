@@ -2,11 +2,9 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// walkStaticReceiverChain bail: intermediate alias declared with `let` (mutable). The
-// shared walker checks adapter.getBindingNodeType returns 'VariableDeclarator' AND that
-// constantViolations is empty; reassignable bindings break the static-shape contract.
-// Without proper static narrow, `arr.findLast` / `arr.at` / `arr.includes` should still
-// emit polyfills but via generic instance-method shapes, not array-narrowed
+// alias of `Array` declared with `let` is reassignable, so `from`'s receiver shape can't
+// be statically narrowed to Array. instance methods on the result (`findLast` / `at` /
+// `includes`) must fall back to generic instance polyfills, not array-narrowed variants
 let A = Array;
 const from = _Array$from;
 const arr = from('hi');
