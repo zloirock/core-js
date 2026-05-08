@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 // adjacent block comments between `?.` and the call/bracket: the helper must consume
 // each comment in turn and look at the structural next token. each line uses a

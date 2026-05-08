@@ -1,5 +1,5 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // a class extends a polyfillable base and uses rest-pattern spread that downstream
 // transforms lower into a helper call. globals referenced by the injected helper code

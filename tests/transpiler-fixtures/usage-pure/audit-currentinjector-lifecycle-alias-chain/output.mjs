@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 // post-rewrite alias `const from = _Array$from` lookup goes through the per-instance
 // closure that reads currentInjector lazily. typeResolvers calls staticPairFromPolyfillEntry
 // which decomposes `array/from` -> (Array, from) and narrows the call return to Array.

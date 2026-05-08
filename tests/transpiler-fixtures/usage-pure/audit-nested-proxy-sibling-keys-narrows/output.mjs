@@ -1,5 +1,5 @@
-import _Set from "@core-js/pure/actual/set/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Set from "@core-js/pure/actual/set/constructor";
 // `{ window: { Set, Map } } = globalThis` extracts two sibling polyfill keys from one nested chain.
 // Walker must keep iterating siblings after the first match so both Set and Map resolve.
 const Set = _Set;

@@ -1,9 +1,9 @@
-import _includes from "@core-js/pure/actual/instance/includes";
-import _Set from "@core-js/pure/actual/set/constructor";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
+import _includes from "@core-js/pure/actual/instance/includes";
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Set from "@core-js/pure/actual/set/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 // singleReturnBodyExpression bails on control flow: branches inside the IIFE body cannot
 // be statically picked, so the receiver is unresolved and the call site does not dispatch
 // a static polyfill on the inline-call result. distinct prototype methods (.includes /

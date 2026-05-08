@@ -1,6 +1,6 @@
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
-import _codePointAtMaybeString from "@core-js/pure/actual/string/instance/code-point-at";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _codePointAtMaybeString from "@core-js/pure/actual/string/instance/code-point-at";
 // Vue SFC virtual id with `lang=ts` followed by a `#L<line>` hash terminator. Sourcemap
 // pipelines append `#L<n>` for line annotations. The SFC_LANG_RE pattern's `(?:[#&]|$)`
 // boundary must accept the hash so the lang hint is lifted onto the synthesised `.ts`

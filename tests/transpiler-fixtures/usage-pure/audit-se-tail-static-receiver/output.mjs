@@ -1,7 +1,7 @@
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // comma-tail receiver: `Symbol` / `Map` / `Promise` in the tail of a comma expression with
 // side-effect-bearing preceding element. plugin's polyfill-emit subsumes the receiver
 // identifier; without a skipped-nodes seed the identifier visitor queues a parallel

@@ -1,5 +1,5 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // Equal-range merge sanity: arrow body wrapper + inner polyfill share [start, end]
 // Compose layer must merge wrapper text containing needle exactly once into inner content
