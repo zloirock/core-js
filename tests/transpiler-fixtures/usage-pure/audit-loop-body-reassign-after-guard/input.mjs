@@ -1,3 +1,6 @@
+// guard `isStr(cur)` narrows inside the loop body, but `cur` may be reassigned each
+// iteration. the narrow must apply at the use site within the same iteration despite
+// loop-induced reassignability
 declare function isStr(x: unknown): x is string;
 
 function loopOver(items: unknown[]) {
