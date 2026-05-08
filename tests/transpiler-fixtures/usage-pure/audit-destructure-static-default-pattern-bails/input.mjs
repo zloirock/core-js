@@ -1,10 +1,6 @@
-// AssignmentPattern in static destructure: `const { from = () => [] } = Array`. `Array`
-// is non-nullable - default never fires - and `staticPairFromDestructure` peels
-// AssignmentPattern.left so the binding shape resolves to (Array, from). receiver
-// narrowing fires through the body-extract alias map even after babel rewrites the
-// destructure to `const from = _Array$from === void 0 ? () => [] : _Array$from;`.
-// distinct methods per line - `at` (multi-receiver, registry has generic variant),
-// `findLast` / `copyWithin` (Array-only). all three narrow to array entries
+// destructure default in static destructure: `const { from = () => [] } = Array`. the
+// default is unreachable (Array is non-nullable), but the binding must still register
+// as an Array.from alias so subsequent instance methods narrow to array-specific entries
 const { from = () => [] } = Array;
 const arr = from('hi');
 arr.at(-1);

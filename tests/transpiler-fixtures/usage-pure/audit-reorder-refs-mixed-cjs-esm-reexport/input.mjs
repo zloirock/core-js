@@ -1,10 +1,6 @@
-// mixed import region: ESM `import`, ESM `export ... from`, ESM `export *`, and a
-// CJS-style `var X = require(...)` declarator must ALL count as the leading import
-// region for `var _ref;` placement. without re-export accept in the import-region
-// predicate, the scan would bail on the first `export ... from` and `_ref` would land
-// between import and re-export - lint `import/first` would warn. the `getArr()` call
-// forces a `_ref` allocation so the placement is observable in output. distinct methods
-// per polyfill site (`.at(0)` and `.flat()`) so per-line dispatch is visible
+// `var _ref;` placement must come AFTER all leading import-like statements: ESM
+// imports, re-exports (`export ... from`, `export *`), AND CJS `var X = require(...)`.
+// otherwise the ref lands between the imports and the re-export, breaking ordering
 import { foo } from './lib-foo.mjs';
 export { bar } from './lib-bar.mjs';
 export * from './lib-all.mjs';

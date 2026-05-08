@@ -1,6 +1,5 @@
-// Svelte SFC `?svelte&type=script` without `lang=` defaults to JS via SFC_DEFAULT_JS_RE.
-// liftSfcLangSuffix returns bare baseId, oxc treats `.svelte` extension as default JS.
-// Each line uses a distinct prototype method to bind one polyfill per source line
+// Svelte SFC virtual id without an explicit `lang=` (`?svelte&type=script`) defaults to
+// JS parsing. distinct instance methods per line lock per-import dispatch
 arr.findLast(x => x);
 str.padEnd(4);
 buf.includes(7);
