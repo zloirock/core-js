@@ -200,7 +200,7 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, isEntryAvai
         // rewrite subsumes the entire chain, so the leaf `globalThis` identifier must not
         // trigger its own polyfill. without this, unplugin's transform-queue fails to compose
         // the inner `globalThis`-replacement into the outer's eliminated-needle content
-        markSubsumedProxyChain(ref.unwrapped, handledObjects);
+        markSubsumedProxyChain(ref.unwrapped, handledObjects, scope);
       }
       return { kind: 'in', key, object: null, placement: null, symbolSourced: true };
     }
@@ -257,14 +257,17 @@ function peelMarkedWrappers(node, handledObjects) {
 
 // record the full proxy-global chain (including any wrappers at every level) so the outer
 // rewrite that subsumes it doesn't re-fire on the leaves. handles `(globalThis as any).Symbol.iterator`
-// and deeper nests like `(self as any)[(...)]` uniformly through `peelMarkedWrappers`
-function markSubsumedProxyChain(node, handledObjects) {
+// and deeper nests like `(self as any)[(...)]` uniformly through `peelMarkedWrappers`.
+// scope-aware leaf check: a user binding that shadows a known global (`function f(globalThis)
+// { globalThis.Symbol.iterator in arr }`) must NOT be marked as handled - the local binding
+// has its own value, and suppressing the polyfill here would silently drop a legitimate emit
+function markSubsumedProxyChain(node, handledObjects, scope) {
   let current = peelMarkedWrappers(node, handledObjects);
   while (current && (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')) {
     handledObjects.add(current);
     current = peelMarkedWrappers(current.object, handledObjects);
   }
-  if (current?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name)) {
+  if (current?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name) && !scope?.getBinding?.(current.name)) {
     handledObjects.add(current);
   }
 }
