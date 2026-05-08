@@ -1,6 +1,6 @@
-import _Object$assign from "@core-js/pure/actual/object/assign";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Object$assign from "@core-js/pure/actual/object/assign";
 // A leading spread in `Object.assign(...sources, o)` makes `o`'s runtime index unknown.
 // Empty `sources` would shift `o` into the mutating target slot, so the call must conservatively leak.
 const sources = [];

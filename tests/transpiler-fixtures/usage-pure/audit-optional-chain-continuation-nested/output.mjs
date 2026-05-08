@@ -1,5 +1,5 @@
-import _includes from "@core-js/pure/actual/instance/includes";
 import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 var _ref;
 // nested optional chain with two polyfilled instance methods: `obj?.at(0)?.includes(42)`.
 // plugin must polyfill `.at` and `.includes` simultaneously and emit a single combined
