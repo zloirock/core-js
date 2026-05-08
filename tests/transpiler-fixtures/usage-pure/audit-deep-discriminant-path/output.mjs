@@ -1,4 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+// nested discriminant path `w.meta.kind === 'a'` must narrow through the nested
+// object, so `w.meta.data.at(0)` dispatches against the matching union arm
 type Wrap = {
   meta: {
     kind: 'a';
