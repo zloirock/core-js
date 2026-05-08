@@ -1,9 +1,9 @@
-import _filterMaybeArray from "@core-js/pure/actual/array/instance/filter";
-import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _Array$from from "@core-js/pure/actual/array/from";
-import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
+import _filterMaybeArray from "@core-js/pure/actual/array/instance/filter";
+import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
+import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
+import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 // Three Array narrowing mechanics combine in one chain: TS annotation, runtime guard, built-in return.
 // Each receiver must resolve via its own source so per-call array-instance polyfills emit precisely.
 function aggregate(typed: number[], maybe: unknown, raw: Iterable<number>): number[] {

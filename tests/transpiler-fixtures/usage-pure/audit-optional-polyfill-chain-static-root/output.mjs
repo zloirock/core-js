@@ -1,6 +1,6 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3;
 // optional chain whose root is a polyfillable static call: the chain guard must wrap
 // the rewrite of the static call correctly.

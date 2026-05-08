@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 // `normalizeOptionalChain` walking past multiple non-optional `.X(...).Y(...)` after the
 // polyfilled inner. for `arr?.at(-1).valueOf().toString()` the polyfill replaces inner

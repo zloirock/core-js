@@ -1,6 +1,6 @@
-import _at from "@core-js/pure/actual/instance/at";
-import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
+import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2;
 type DB = { query(): { rows: { name: string }[] } };
 declare const db: DB;

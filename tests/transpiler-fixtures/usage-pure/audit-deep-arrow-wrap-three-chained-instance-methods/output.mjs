@@ -1,8 +1,8 @@
-import _includes from "@core-js/pure/actual/instance/includes";
-import _at from "@core-js/pure/actual/instance/at";
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-last-index";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 // Deeply nested arrow body with chained instance methods stresses the compose loop:
 // outer arrow wrap + 3 inner polyfills, all sharing the same root receiver.
 // Phase 1 sortInnersInnermostLast + nth-occurrence accounting must keep emission stable

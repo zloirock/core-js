@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _at from "@core-js/pure/actual/instance/at";
 // `((arr?.at) as any)(0)` - paren-wrapped optional member then TS as-wrap, then NON-optional
 // outer call. Native: nullish throws TypeError; success preserves `this=arr` through paren
 // (Reference Type per ECMA spec). Polyfill emits `(arr == null ? void 0 : _at(arr)).call(arr, 0)`

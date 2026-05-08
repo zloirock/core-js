@@ -1,6 +1,6 @@
+import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-import _globalThis from "@core-js/pure/actual/global-this";
 // TS satisfies-cast wrapper on the super-class alias - alias chain resolves
 // through to Promise and `super.try` gets polyfilled
 const A = _Promise;
