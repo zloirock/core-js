@@ -1,11 +1,5 @@
-// matchTemplatePattern multi-placeholder with mixed types: `${string}_${number}` requires
-// some prefix string, then literal '_', then a number-shaped suffix. lazy-from-left
-// segmentation finds the FIRST '_' so 'a_42' is split as ('a', '42'). 'a_b_42' splits as
-// ('a', 'b_42') which fails number validation - precision-limited (TS would accept it
-// because the string-placeholder allows underscores).
-//   K = 'foo_42' - first '_' at index 3, segment '42' valid number -> match
-//   K = 'a_b_42' - first '_' at index 1, segment 'b_42' invalid number -> drop
-//   K = 'no_match' - segment 'match' invalid number -> drop
+// Template `${string}_${number}` is segmented lazy-from-left, so multi-underscore keys hit a precision edge.
+// `foo_42` matches and narrows; `a_b_42` segments as `(a, b_42)` and fails number validation, so it drops.
 type Pick<T> = { [K in keyof T as K extends `${ string }_${ number }` ? K : never]: T[K] };
 declare const r: Pick<{ foo_42: number[]; a_b_42: string[]; no_match: boolean }>;
 r.foo_42.at(0);

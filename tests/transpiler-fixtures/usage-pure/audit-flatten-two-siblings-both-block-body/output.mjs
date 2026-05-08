@@ -1,9 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
-// flatten + TWO sibling block-body IIFEs, each with its own instance method requiring
-// `_ref` injection. consumeRefBindingsInRange must scope binding consumption to each
-// sibling's range independently - cross-pollution would inject _ref into wrong sibling
+// Two sibling block-body IIFEs each need their own `_ref` ; binding consumption must stay scoped per range.
+// Cross-pollution would inject `_ref` into the wrong sibling and break both call sites.
 const from = _Array$from;
 const kls1 = (() => {
     var _ref;

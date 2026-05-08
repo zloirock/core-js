@@ -1,7 +1,5 @@
-// flatten sibling has globalThis reference inside a deeply nested IIFE chain. each IIFE
-// pushes a function scope. polyfillSiblingReceiverRefs walks recursively, so the
-// inner `globalThis` reference must reach the polyfilled binding through all wrapper
-// layers (no shadowing exists)
+// Sibling expression nests `globalThis` deep inside an IIFE chain with no shadowing.
+// Receiver-ref rewrite must recurse through all wrapper layers so the inner reference resolves correctly.
 const { Array: { from } } = globalThis, info = (() => {
   return (function outer() {
     return (() => {

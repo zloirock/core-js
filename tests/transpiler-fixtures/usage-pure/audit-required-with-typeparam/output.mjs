@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// Required<T> wraps T — Required<{data: number[]}>.data should resolve through to number[].
+// Required<T> wraps T  -  Required<{data: number[]}>.data should resolve through to number[].
 type Inner = {
   data?: number[];
 };
