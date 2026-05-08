@@ -1,8 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// Direct mapped type passthrough WITHOUT alias: `{ [K in keyof T]: T[K] }` directly in annotation position,
-// not via `type Copy<T> = ...`. resolveTypeAnnotation TSMappedType branch (line 1828) calls
-// unwrapMappedTypePassthrough then resolveTypeAnnotation on the passthrough.
+// Identity mapped type `{ [K in keyof T]: T[K] }` written inline in annotation, not via an alias.
+// Passthrough must unwrap to the source type so `data: number[]` keeps its array shape.
 declare const x: { [K in keyof {
   data: number[];
 }]: {
