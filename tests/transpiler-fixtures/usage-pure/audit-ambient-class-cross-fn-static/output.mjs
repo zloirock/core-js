@@ -1,5 +1,5 @@
-import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 // findAmbientClassPath cross-scope: `declare class Holder` lives at module scope, then
 // inside an enclosing function we reference `Holder.make()` whose static return is

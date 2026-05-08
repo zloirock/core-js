@@ -1,5 +1,5 @@
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$all from "@core-js/pure/actual/promise/all";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 // nested receiver call: outer arrow returns the inner arrow which returns Promise.
 // double-IIFE `(() => () => Promise)()` - the OUTER call's callee is itself an
 // arrow whose return body is another ArrowFunctionExpression, NOT a resolvable

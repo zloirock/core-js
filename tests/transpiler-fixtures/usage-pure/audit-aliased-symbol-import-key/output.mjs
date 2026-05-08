@@ -1,5 +1,5 @@
-import _isIterable from "@core-js/pure/actual/is-iterable";
 import _findMaybeArray from "@core-js/pure/actual/array/instance/find";
+import _isIterable from "@core-js/pure/actual/is-iterable";
 // User imports a Symbol entry from core-js/pure directly; both pipelines must
 // recognise the well-known Symbol via `bindingSymbolKey` (importSource match) for
 // the `in` check, and emit no separate Symbol polyfill. Babel goes through

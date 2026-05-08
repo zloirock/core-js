@@ -1,6 +1,6 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _Promise$reject from "@core-js/pure/actual/promise/reject";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // OptionalCallExpression receiver with a side-effecting block body: same SE-wrap
 // path as CallExpression. buildMemberMeta accepts both `obj.type === CallExpression`
 // AND `OptionalCallExpression`. expected: `k?.()` re-emits at call site, polyfill

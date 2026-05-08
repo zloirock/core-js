@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _copyWithinMaybeArray from "@core-js/pure/actual/array/instance/copy-within";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 // Double alias chain through polyfilled static method must still narrow receiver type.
 // `const a = Array.from; const b = a;` then `b('x').at(-1)` -> resolver must walk both
 // alias hops to recognise the call returns Array, picking `_atMaybeArray` not generic `_at`.

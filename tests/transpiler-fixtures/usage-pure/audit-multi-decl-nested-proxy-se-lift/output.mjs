@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
 // multi-declarator nested-proxy destructure with comma-expression init in the first
 // declarator. flatten lifts the side-effect prefix as a standalone statement (the comma-tail
 // `globalThis` becomes the dropped receiver), then emits `const from = _Array$from` for

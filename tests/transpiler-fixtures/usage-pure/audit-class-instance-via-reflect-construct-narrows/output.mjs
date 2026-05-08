@@ -1,5 +1,5 @@
-import _Reflect$construct from "@core-js/pure/actual/reflect/construct";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _Reflect$construct from "@core-js/pure/actual/reflect/construct";
 // `Reflect.construct(C, args)` is structurally equivalent to `new C(...args)` and yields a `C` instance.
 // Class-context resolution must recognise it so member access narrows through the class body.
 class Box {

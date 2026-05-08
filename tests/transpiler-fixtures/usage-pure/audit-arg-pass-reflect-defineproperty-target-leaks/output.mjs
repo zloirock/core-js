@@ -1,6 +1,6 @@
-import _Reflect$defineProperty from "@core-js/pure/actual/reflect/define-property";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
+import _Reflect$defineProperty from "@core-js/pure/actual/reflect/define-property";
 // `Reflect.defineProperty(o, ...)` mutates the target slot, so the alias narrow on `o.arr` must drop.
 // The Reflect mirror must carry the same mutating-slot annotation as `Object.defineProperty`.
 const o = {

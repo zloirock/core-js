@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 var _ref;
 // Same method name across different static dispatchers tests nth-occurrence ordering:
 // `Array.from`, `Object.fromEntries`, both share `from` substring but distinct callees

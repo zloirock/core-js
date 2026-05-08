@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
+import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 // Two sibling block-body IIFEs each need their own `_ref` ; binding consumption must stay scoped per range.
 // Cross-pollution would inject `_ref` into the wrong sibling and break both call sites.
 const from = _Array$from;

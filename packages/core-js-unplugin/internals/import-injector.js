@@ -213,6 +213,10 @@ export default class ImportInjector extends ImportInjectorState {
     const activePure = this.referencedInSource
       ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
       : [...this.pureImports];
+    // canonical-sort pure imports by source path (lex). insertion order alone produces
+    // batch-dependent layout that diverges across plugins / files with different timing
+    // of registrations; babel-plugin canonicalises the union of all flushed imports too
+    activePure.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
     const isRequire = this.importStyle === 'require';
     for (const mod of newGlobals) {
       const path = this.#resolvePath(`modules/${ mod }`);

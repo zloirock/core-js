@@ -1,5 +1,5 @@
-import _includes from "@core-js/pure/actual/instance/includes";
 import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 // deeply nested scope chain where temporary `_ref` allocation could leak: each scope
 // level keeps its own temporary bindings.
 function f(x) {
