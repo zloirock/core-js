@@ -1,7 +1,6 @@
-// `import X from 'my-lib/symbol/iterator'` is NOT a core-js Symbol re-export -
-// `bindingSymbolKey` filters via CORE_JS_SOURCE_PREFIX regex. user binding `it` keeps its
-// non-Symbol semantics; `it in obj` should fall back to plain string-key path, NOT
-// is-iterable polyfill. parallel concern for ImportSpecifier non-default
+// imports from non-core-js sources (`my-lib/...`, `unrelated/...`) must NOT be treated
+// as Symbol re-exports even when the source path mentions `symbol/iterator`. the `in`
+// check stays plain string-key, not promoted to is-iterable
 import _it from 'my-lib/symbol/iterator';
 import { default as _other } from 'unrelated/symbol/asyncIterator';
 const a = _it in [];

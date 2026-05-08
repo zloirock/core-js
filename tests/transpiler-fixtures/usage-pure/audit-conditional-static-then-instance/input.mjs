@@ -1,9 +1,6 @@
-// destructure-from-Array `const { from } = Array` post-rewrite (or unrewritten on
-// unplugin), then call `from('hi')` and chain `.at(-1)` on the result. Pass 19+
-// staticPairFromDestructure / staticPairFromPolyfillEntry feeds resolver to narrow
-// `arr` -> string|Array (Array.from return type). `.at(-1)` should dispatch the
-// Array-narrowed instance entry. distinct second declaration uses `.findLast` to
-// show alias-chain narrowing applies per-method, not just `.at`
+// destructure `const { from } = Array` followed by a call must narrow the call's return
+// to Array so the chained `.at(-1)` picks the array-specific instance polyfill. second
+// destructure uses `.findLast` to confirm narrowing applies per-method, not just `.at`
 const { from } = Array;
 const arr = from('hello');
 const last = arr.at(-1);
