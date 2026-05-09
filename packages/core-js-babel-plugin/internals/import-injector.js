@@ -122,6 +122,55 @@ export default class ImportInjector extends ImportInjectorState {
     });
   }
 
+  // walk every scope (program + descendants) feeding each binding pair to `visit`.
+  // shared between plugin-shape collection and free-name collection — both need an O(N)
+  // pass over the full scope graph after `scope.crawl()`. caller decides what to do with
+  // each [name, binding] pair (filter to a multimap / accumulate names into a Set / etc.)
+  #forEachScopeBinding(visit) {
+    const apply = scope => {
+      for (const entry of Object.entries(scope.bindings)) visit(entry);
+    };
+    apply(this.#programPath.scope);
+    this.#programPath.traverse({ Scopable({ scope }) { apply(scope); } });
+  }
+
+  // plugin-emitted shape: `scope.push({ id })` produces a `var _refN;` declarator. user
+  // collisions (`let`/`const`) differ in `kind`. arrow-fn-param shape is normalized to var
+  // by `normalizeArrowRefParams` BEFORE prune runs. CatchClause / Function params host
+  // bindings without VariableDeclaration parent — filtered out here too
+  static #isPluginShapeBinding(binding) {
+    const parent = binding?.path?.parentPath?.node;
+    return parent?.type === 'VariableDeclaration' && parent.kind === 'var';
+  }
+
+  // collect every plugin-shape binding across all scopes, grouped by name. first-write-wins
+  // shadow with user's `let _refN` would otherwise mistake the user's binding for the
+  // plugin's, renaming user code. dedupe by identity — re-crawl after replaceWith can
+  // produce duplicate entries reachable through multiple traversal paths
+  #collectPluginShapeBindings() {
+    const byName = new Map();
+    this.#forEachScopeBinding(([name, binding]) => {
+      if (!ImportInjector.#isPluginShapeBinding(binding)) return;
+      let list = byName.get(name);
+      if (!list) byName.set(name, list = []);
+      if (!list.includes(binding)) list.push(binding);
+    });
+    return byName;
+  }
+
+  // every name occupied in the program: scope bindings PLUS program.globals/references/uids
+  // (mirrors `isNameTaken` allocation policy). without these extras, renumbering would
+  // collapse a safely-allocated `_ref2` back onto `_ref`, re-introducing the collision
+  #collectTakenNames() {
+    const taken = new Set();
+    this.#forEachScopeBinding(([name]) => taken.add(name));
+    const program = this.#programPath.scope.getProgramParent();
+    for (const n of Object.keys(program.globals ?? {})) taken.add(n);
+    for (const n of Object.keys(program.references ?? {})) taken.add(n);
+    for (const n of Object.keys(program.uids ?? {})) taken.add(n);
+    return taken;
+  }
+
   // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
   // emission but kept the scope.push), then renumber survivors so the output matches unplugin.
   // `scope.crawl()` is O(program size) but runs once per file at programExit - amortized
@@ -131,29 +180,9 @@ export default class ImportInjector extends ImportInjectorState {
   pruneUnusedRefs() {
     if (!this.#refs.size) return;
     this.#programPath.scope.crawl();
-    // plugin-shape only: `scope.push({ id })` emits a `var _refN;` declarator. user-written
-    // collisions (`let _ref5 = ...` / `const _ref5 = ...`) differ in `kind`. arrow-fn-param
-    // shape is normalized to var by `normalizeArrowRefParams` BEFORE this runs. CatchClause /
-    // Function params host bindings without VariableDeclaration parent and are filtered
-    // separately by the prune loop's `declPath.isVariableDeclaration()` check
-    const isPluginShape = binding => binding?.path?.parentPath?.node?.type === 'VariableDeclaration'
-      && binding.path.parentPath.node.kind === 'var';
-    // collect every plugin-shape binding across all scopes, grouped by name. first-write-wins
-    // would shadow plugin's nested allocation when user has same-named outer let/const,
-    // mistaking USER's binding for plugin's and renaming user code
-    const byName = new Map();
-    const absorb = scope => {
-      for (const [name, binding] of Object.entries(scope.bindings)) {
-        if (!isPluginShape(binding)) continue;
-        let list = byName.get(name);
-        if (!list) byName.set(name, list = []);
-        // dedupe by identity - re-crawl after replaceWith can produce duplicate entries
-        if (!list.includes(binding)) list.push(binding);
-      }
-    };
-    absorb(this.#programPath.scope);
-    this.#programPath.traverse({ Scopable({ scope }) { absorb(scope); } });
+    const byName = this.#collectPluginShapeBindings();
 
+    // step 1: drop unused / dead var declarators
     for (const name of this.#refs) {
       const [binding] = byName.get(name) ?? [];
       if (!binding || binding.references || binding.constantViolations.length) continue;
@@ -166,39 +195,15 @@ export default class ImportInjector extends ImportInjectorState {
     }
     if (!this.#refs.size) return;
 
-    // mirror `isNameTaken`: allocation consults scope bindings PLUS program.globals/references/uids
-    // to catch undeclared sloppy-mode assignments (`_ref = foo()` as implicit global) and unbound
-    // reads. renumbering only scope-bindings would otherwise collapse a safely-allocated `_ref2`
-    // back onto `_ref`, re-introducing the collision allocation originally avoided.
-    // start with all bindings (any name in any scope counts as taken)
-    const taken = new Set();
-    const collectAllNames = scope => Object.keys(scope.bindings).forEach(n => taken.add(n));
-    collectAllNames(this.#programPath.scope);
-    this.#programPath.traverse({ Scopable({ scope }) { collectAllNames(scope); } });
-    const program = this.#programPath.scope.getProgramParent();
-    for (const n of Object.keys(program.globals ?? {})) taken.add(n);
-    for (const n of Object.keys(program.references ?? {})) taken.add(n);
-    for (const n of Object.keys(program.uids ?? {})) taken.add(n);
+    // step 2: build rename map. `taken` = every occupied name minus the ones the plugin
+    // owns (releasable). `ownedBindings` = identity set guarding the rename traversal
+    // against user's nested `let _ref3` shadow (Identifier visitor checks scope.getBinding
+    // matches a plugin-owned binding)
+    const taken = this.#collectTakenNames();
     for (const name of this.#refs) taken.delete(name);
-
-    // identity set of plugin-owned binding objects guards rename against user's nested
-    // shadow-binding of the same name (e.g. user's `const _ref3` inside a function body
-    // while plugin's outer allocation shifts `_ref5` -> `_ref3`). every plugin-shape
-    // binding for each ref name; renames target the union, missing user bindings (filtered
-    // by isPluginShape during collect)
     const ownedBindings = new Set();
     for (const name of this.#refs) for (const b of byName.get(name) ?? []) ownedBindings.add(b);
-
-    // matches generateRefName: slot 1 is bare `_ref`, slot 2+ is `_ref2, _ref3, ...`
-    // (skip `_ref1` per babel convention)
-    const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
-    const renameMap = new Map();
-    let i = 1;
-    for (const name of this.#refs) {
-      while (taken.has(slot(i))) i++;
-      const target = slot(i++);
-      if (name !== target) renameMap.set(name, target);
-    }
+    const renameMap = this.#buildRenameMap(taken);
     if (!renameMap.size) return;
 
     // sync `#refs` with post-rename names so subsequent consumers (reorderRefsAfterImports)
@@ -215,6 +220,22 @@ export default class ImportInjector extends ImportInjectorState {
         p.node.name = to;
       },
     });
+  }
+
+  // walk #refs in iteration order, assigning each to the lowest free slot. matches
+  // `generateRefName`: slot 1 is bare `_ref`, slot 2+ is `_ref2, _ref3, ...` (skip `_ref1`
+  // per babel convention). returns Map<oldName, newName> with no-op identity entries
+  // omitted - empty map signals "no rename needed", short-circuit at caller
+  #buildRenameMap(taken) {
+    const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
+    const renameMap = new Map();
+    let i = 1;
+    for (const name of this.#refs) {
+      while (taken.has(slot(i))) i++;
+      const target = slot(i++);
+      if (name !== target) renameMap.set(name, target);
+    }
+    return renameMap;
   }
 
   // base returns a string; babel consumers need an Identifier - cache one per name so
