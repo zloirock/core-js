@@ -5,6 +5,7 @@ import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from './helpers/class-
 import {
   getSuperTypeArgs,
   getTypeArgs,
+  isBindingPosition,
   kebabToCamel,
   peelFallbackWrappers,
   singleQuasiString,
@@ -4500,7 +4501,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       Identifier(p) {
         if (p.node.name !== name) return;
         if (p.scope?.getBinding(name) !== binding) return;
-        if (p.parent?.type === 'VariableDeclarator' && p.parent.id === p.node) return;
+        // declaration-id slots (`const X = ...`, `class X`, `function X`, `catch (X)`) are
+        // NOT references. babel's `referencePaths` excludes them natively; manual estree-
+        // toolkit traversal must mirror via the shared `isBindingPosition` predicate or the
+        // alias-closure walker misclassifies the binding's own declaration as a 'leak' ref
+        if (isBindingPosition(p.parent, p.node)) return;
         refs.push(p);
       },
     });
@@ -4560,13 +4565,31 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if ((parent?.type === 'ClassDeclaration' || parent?.type === 'ClassExpression')
       && parent.superClass === refNode) return 'trivial';
     if (parent?.type === 'BinaryExpression' && parent.operator === 'instanceof' && parent.right === refNode) return 'trivial';
-    // TS type-position references (`Config<T>`, `typeof Config.items`, `Config | string`, ...)
-    // are erased at runtime - they don't mutate static state. parser node types prefixed with
-    // "TS" cover type-only contexts (TSTypeReference, TSQualifiedName, TSTypeQuery, etc.);
-    // exclude the runtime expression wrappers (TS_EXPR_WRAPPERS: TSAsExpression, etc.) which
-    // wrap a runtime expression and could lead to a write
-    if (parent?.type?.startsWith('TS') && !TS_EXPR_WRAPPERS.has(parent.type)) return 'trivial';
+    // type-position references are erased at runtime - they don't mutate static state.
+    // covers TS (`Config<T>`, `typeof Config.items`, `Config | string`, ...) and Flow
+    // (`Config<T>` GenericTypeAnnotation, `NS.Config` QualifiedTypeIdentifier, `typeof Config`
+    // TypeofTypeAnnotation, `class implements Config`, `Declare*` id slots, etc.).
+    // TS_EXPR_WRAPPERS (TSAsExpression / Flow's TypeCastExpression / etc.) wrap RUNTIME
+    // expressions and ARE write channels - excluded from the type-position set
+    if (isTypePositionParent(parent?.type)) return 'trivial';
     return 'leak';
+  }
+
+  // recognise type-position parent node types where an Identifier child is a TYPE reference
+  // (TS or Flow). TS shares a common `TS`-prefix; Flow uses suffix-based naming
+  // (`*TypeAnnotation` / `*TypeIdentifier`) plus a small explicit set of declaration sites
+  function isTypePositionParent(parentType) {
+    if (!parentType || TS_EXPR_WRAPPERS.has(parentType)) return false;
+    if (parentType.startsWith('TS')) return true;
+    if (parentType.endsWith('TypeAnnotation') || parentType.endsWith('TypeIdentifier')) return true;
+    if (parentType.startsWith('Declare')) return true;
+    return parentType === 'ClassImplements'
+      || parentType === 'InterfaceExtends'
+      || parentType === 'TypeAlias'
+      || parentType === 'OpaqueType'
+      || parentType === 'InterfaceDeclaration'
+      || parentType === 'TypeParameterDeclaration'
+      || parentType === 'TypeParameterInstantiation';
   }
 
   // build the alias closure starting from `(rootBinding, rootName)`: every name reachable
@@ -4795,20 +4818,19 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // class binding closure: the class identifier itself (`C`) and all `const A = C` aliases.
   // `C.x = Y` and `A.x = Y` writes match this closure for static-field external writes.
   // built via `computeAliasClosureFromBinding` with the relaxed `classBindingRefClassifier`
-  // so `new C()` / `extends C` / `instanceof C` references don't trigger leak. cached per
-  // class node identity. unlike instance closure (where any leak bails the entire scan),
-  // static closure falls back to the minimal `{className: binding}` set on alias-walk leak -
-  // direct `<className>.<field> = Y` writes are still captured even if alias enumeration
-  // hit a shape we couldn't classify. preserves narrow on TS-heavy classes where the babel
-  // scope tracker may include type-position refs we can't categorize precisely
+  // so `new C()` / `extends C` / `instanceof C` / TS type-positions don't trigger leak.
+  // cached per class node identity. on alias-walk leak (e.g. `f(C)` passes the binding to
+  // a user function that may mutate static fields opaquely), bail to null so the caller
+  // skips narrow emission - mirrors instance closure semantics. previously fell back to
+  // the minimal `{className: binding}` set, which silently retained narrow even when an
+  // unenumerable channel could have mutated the field at runtime
   let classBindingClosureCache = new WeakMap();
   function getClassBindingClosure(classPath, anchorPath) {
     return memoize(classBindingClosureCache, classPath.node, () => {
       const className = classBindingName(classPath);
       const binding = className ? classPath.scope?.getBinding(className) : null;
       if (!binding) return null;
-      const expanded = computeAliasClosureFromBinding(binding, className, anchorPath, classBindingRefClassifier);
-      return expanded ?? new Map([[className, binding]]);
+      return computeAliasClosureFromBinding(binding, className, anchorPath, classBindingRefClassifier);
     });
   }
 
