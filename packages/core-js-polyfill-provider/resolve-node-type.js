@@ -835,6 +835,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // GC-clears with the AST; inner WeakMap on subst Map identity scopes per-walk. visited-aware
   // calls bypass cache (the visited Set restricts result vs unvisited)
   let applySubstCache = new WeakMap();
+  // expects an AST-subst map: `Map<string, ASTNode>` built by `buildSubstMap` /
+  // `buildParentSubst`. values are AST nodes that get spliced into the cloned tree.
+  // do NOT pass a Type-object-valued binding map (built by `resolveTypeArgs`) - the
+  // recursion would treat resolved Type Objects as AST nodes and produce nonsense.
+  // for Type-object-valued maps use `substituteTypeParams` instead
   function applyAliasSubstDeep(node, subst, depth = 0, visited = null) {
     if (depth > MAX_DEPTH || !subst || !node || typeof node !== 'object') return node;
     // cache miss: compute via inner switch, store result keyed by (node, subst). visited
@@ -950,7 +955,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         // see inner K as a fresh variable. `typeParamName` handles both parser shapes
         // (babel nests `tp.name.name`; oxc flattens to `tp.name` as string)
         const innerName = typeParamName(tp);
-        const innerSubst = innerName ? dropFromSubst(subst, new Set([innerName])) : subst;
+        const innerSubst = innerName ? dropMapKeys(subst, new Set([innerName])) : subst;
         const recurseSlot = (parent, slot, map) => parent?.[slot]
           ? applyAliasSubstDeep(parent[slot], map, depth + 1, visited) : parent?.[slot];
         const tpConstraint = recurseSlot(tp, 'constraint', subst);
@@ -1295,7 +1300,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // --- Type annotation resolver ---
-  // build the typeParamMap for entering a nested type decl. two-phase rebuild:
+  // build the typeParamMap for entering a nested type decl. produces a Type-object-valued
+  // binding map: `Map<string, ResolvedType>` for `substituteTypeParams` consumption
+  // (distinct from AST-valued `buildSubstMap` -> `applyAliasSubstDeep`).
+  // two-phase rebuild:
   //   1. resolve callArgs through OUTER `typeParamMap` - args live in caller-scope, may
   //      reference type-params whose names collide with this decl's params (`B<T>` calling
   //      `A<T>` where each T is a different scope). substituting under the outer map
@@ -1327,7 +1335,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // phase 2: drop colliding outer entries via shared alpha-rename helper. when neither
     // subst happened nor a collision exists, return typeParamMap as-is so caller's
     // identity preserves for downstream memoize keys
-    const trimmedBase = dropFromSubst(base, declParamNames);
+    const trimmedBase = dropMapKeys(base, declParamNames);
     if (!didSubst && trimmedBase === base) return typeParamMap;
     const localMap = new Map(trimmedBase);
     declParams.forEach((p, i) => {
@@ -1442,6 +1450,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // build {paramName -> argNode} from explicit usage args, falling back to decl param defaults
+  // builds an AST-valued substitution map: `Map<string, ASTNode>` keyed by declParam
+  // name. values are RAW AST nodes (TSTypeReference / TSArrayType / etc.) ready to be
+  // spliced into a deep-cloned tree by `applyAliasSubstDeep`. distinct from
+  // `resolveTypeArgs` which builds Type-object-valued binding maps for `substituteTypeParams`
   function buildSubstMap(declParams, usageArgs) {
     if (!declParams?.length) return null;
     const subst = new Map();
@@ -1486,8 +1498,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return members && subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
   }
 
-  // TS utility types whose member set is the same as their first type parameter's
+  // TS utility types whose member set is the same as their first type parameter's.
+  // adding new entries requires verifying member-set semantics at every callsite
+  // (`resolveTypeAnnotation` alias-chain entry, `peelStructurePreservingWrapper` tuple
+  // walk, `resolveNamedType` inner-type resolve). `ThisType<T>` excluded - only meaningful
+  // inside object-literal context, requires special handling
   const STRUCTURE_PRESERVING_WRAPPERS = new Set([
+    'NoInfer',
     'Omit',
     'Partial',
     'Pick',
@@ -2943,25 +2960,29 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       recurse(node.falseType, typeParamMap));
   }
 
-  // drop entries whose names appear in `shadowingNames` from `subst`. used by alpha-rename
-  // guards (TSConditionalType infer scope, TSMappedType inner K binding) to prevent outer
-  // entries from being captured by inner bindings of the same name. returns the original
-  // map identity when no collision, preserving downstream memoize keys
-  function dropFromSubst(subst, shadowingNames) {
-    if (!subst || !subst.size || !shadowingNames?.size) return subst;
+  // drop entries whose names appear in `shadowingNames` from a substitution Map. agnostic
+  // to value-type: works on both AST-valued substitution maps (built by `buildSubstMap`,
+  // consumed by `applyAliasSubstDeep`) AND Type-object-valued binding maps (built by
+  // `resolveTypeArgs`, consumed by `substituteTypeParams`). used by alpha-rename guards
+  // (TSConditionalType infer scope, TSMappedType inner K binding) to prevent outer entries
+  // from being captured by inner bindings of the same name. returns the original map
+  // identity when no collision so downstream memoize keys remain stable
+  function dropMapKeys(map, shadowingNames) {
+    if (!map || !map.size || !shadowingNames?.size) return map;
     let clone = null;
     for (const name of shadowingNames) {
-      if (!subst.has(name)) continue;
-      clone ??= new Map(subst);
+      if (!map.has(name)) continue;
+      clone ??= new Map(map);
       clone.delete(name);
     }
-    return clone ?? subst;
+    return clone ?? map;
   }
 
   // alpha-rename clone for TSConditionalType trueType: extendsType's `infer X` declarations
-  // scope to trueType per TS spec, so colliding outer entries must not propagate
-  function trueBranchSubst(extendsType, typeParamMap) {
-    return dropFromSubst(typeParamMap, collectInferredNames(extendsType));
+  // scope to trueType per TS spec, so colliding outer entries must not propagate. value-
+  // type-agnostic — caller passes either AST-subst or Type-bindings depending on path
+  function trueBranchSubst(extendsType, substOrBindings) {
+    return dropMapKeys(substOrBindings, collectInferredNames(extendsType));
   }
 
   // narrow infer pattern: `T extends (infer U)[] ? U : X` / `T extends Array<infer U> ? U : X`.
@@ -3702,7 +3723,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `typeParamMap` defensive null-guard: callers pass Map, but some recursive entry
   // points (`resolveInferElementPattern` with null ctx) would crash on `.has()` otherwise
   // `typeParamMap` null degrades to plain type-annotation resolution (some recursive
-  // entry points like `resolveInferElementPattern` with null ctx would crash on `.has()`)
+  // entry points like `resolveInferElementPattern` with null ctx would crash on `.has()`).
+  // expects a Type-object-valued binding map: `Map<string, ResolvedType>` built by
+  // `resolveTypeArgs`. values are resolved Type objects ($Primitive / $Object instances).
+  // do NOT pass an AST-valued substitution map (built by `buildSubstMap`) - lookups
+  // return AST nodes where Type objects are expected. for AST-valued maps use
+  // `applyAliasSubstDeep` instead
   function substituteTypeParams(node, typeParamMap, scope, depth, seen) {
     if (depth > MAX_DEPTH) return null;
     if (!typeParamMap) return resolveTypeAnnotation(node, scope, depth);
@@ -4118,12 +4144,21 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // shared resolve-fold-cache shape for class-field and object-field flow scans. caches
   // by prop-node identity, seeds a `null` sentinel before invoking `candidatesFn` so
   // cross-referencing writes (`this.a = this.b; this.b = this.a`) bail to unknown instead
-  // of recursing forever, then folds the candidate list to a single union type
+  // of recursing forever, then folds the candidate list to a single union type.
+  // delete-on-throw mirrors `resolveNodeType`'s `resolveCache` convention: if
+  // `candidatesFn()` throws (e.g. transient cycle in walker), drop the sentinel so a
+  // future query may retry instead of seeing stale `null`
   function resolveFieldFlow(propNode, cache, candidatesFn) {
     if (cache.has(propNode)) return cache.get(propNode);
     cache.set(propNode, null);
-    const candidates = candidatesFn();
-    const result = candidates ? foldNonNullableCommon(candidates) : null;
+    let result;
+    try {
+      const candidates = candidatesFn();
+      result = candidates ? foldNonNullableCommon(candidates) : null;
+    } catch (error) {
+      cache.delete(propNode);
+      throw error;
+    }
     cache.set(propNode, result);
     return result;
   }
