@@ -3,7 +3,7 @@
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
 import { declaresRequireBinding, mayHaveSideEffects, singleQuasiString } from '../helpers/ast-patterns.js';
-import { stripQueryHash } from '../helpers/path-normalize.js';
+import { normalizeImportSource } from '../helpers/path-normalize.js';
 import { bindsModuleDefault, unwrapParens } from './resolve.js';
 
 // extract a static string from a node that's either a StringLiteral or a no-interpolation
@@ -72,12 +72,12 @@ const canonicalizeEntrySubpath = s => s.replace(/\.js$/, '').replace(/\/index$/,
 
 // `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path.
 // match `source` against `<pkg>/<subPrefix><rest>` where `pkg` is one of `pkgs`;
-// returns canonicalized `<rest>` or null when no prefix matches or `<rest>` is empty
+// returns canonicalized `<rest>` or null when no prefix matches or `<rest>` is empty.
+// `normalizeImportSource` (shared with `getCoreJSEntry`) handles case / backslash / slash-
+// collapse uniformly so pre-pass dedup catches Vite-rewritten Windows imports and Farm's
+// doubled-slash artifact equally
 function matchEntrySubpath(source, pkgs, subPrefix) {
-  // `pkgs` are lowercased by the caller; apply the same normalisation to the source so user
-  // imports with case-mismatched package segments (`'@CORE-JS/PURE/...'`) dedupe against the
-  // config's `@core-js/pure/...` entry instead of emitting duplicate default-imports
-  const clean = stripQueryHash(source).toLowerCase();
+  const clean = normalizeImportSource(source);
   for (const pkg of pkgs) {
     const pkgPrefix = `${ pkg }/`;
     if (!clean.startsWith(pkgPrefix)) continue;
