@@ -6,7 +6,7 @@ import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for
 import { kebabToPascal } from './helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
-import { lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
+import { lookupEntryModules, normalizeImportSource } from './helpers/path-normalize.js';
 
 const { hasOwn } = Object;
 
@@ -60,21 +60,14 @@ const stripLeadingPrefix = p => {
 
 // normalize the import source to a canonical entry path so we can look it up in the `entries`
 // map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`.
-// strip query/hash BEFORE slash replacement - UNC prefixes (`\\?\`, `\\.\`) embed `?`/`.` at
-// index 2 and stripQueryHash uses the backslash form to skip them. replacing backslashes
-// first would collapse `\\?\` to `//?/` and truncate the path at the bogus `?` marker
+// `normalizeImportSource` does all the cross-cutting work (stripQueryHash + backslash-replace
+// + UNC strip + slash-collapse + lowercase); only the protocol / extension / `/index` cleanup
+// is plugin-specific and stays here
 function normalizeImportPath(path) {
   if (typeof path != 'string') return null;
-  const withoutQuery = stripQueryHash(path);
-  // collapse internal `//` runs to single `/` so bundler-emitted ids like Farm's
-  // `core-js//actual/array/at` (artifact of path-join when one segment ends with `/`)
-  // canonicalise to `core-js/actual/array/at` and dedupe against plugin entry detection.
-  // mirrors `isCoreJSFile` (path-normalize.js:51) which already collapses for prefix match;
-  // asymmetry caused entry-detection misses on otherwise-valid sources
-  const withForwardSlashes = withoutQuery.replaceAll('\\', '/').replaceAll(/\/{2,}/g, '/');
-  const withoutPrefix = stripLeadingPrefix(withForwardSlashes);
+  const withoutPrefix = stripLeadingPrefix(normalizeImportSource(path));
   // accept `.js`, `.mjs`, `.cjs` - `import 'core-js/actual/array/at.mjs'` should resolve like `.js`
-  return withoutPrefix.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '').toLowerCase();
+  return withoutPrefix.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '');
 }
 
 function patternMatches(pattern, modules) {

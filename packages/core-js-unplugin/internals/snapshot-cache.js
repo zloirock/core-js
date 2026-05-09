@@ -1,4 +1,7 @@
-import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
+import {
+  stripQueryHash,
+  WINDOWS_UNC_PREFIX_RE,
+} from '@core-js/polyfill-provider/helpers/path-normalize';
 
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
 // output emits `_ref = ...` free assignments; post lands the matching `var _ref;` via
@@ -28,11 +31,13 @@ const REPEATED_SLASHES_RE = /\/{2,}/g;
 // slightly different queries in an unrelated transform pipeline
 const SFC_QUERY_MARKER_RE = /[&?](?:astro|svelte|vue)(?:[&=?]|$)/;
 const QUERY_OR_HASH_RE = /[#?]/;
-// Windows verbatim long-path prefix `\\?\C:\...` (and Vite's normalized `//?/C:/...`).
-// strip to canonical `C:/...` so SnapshotCache lookups match across path-mangling stages.
-// without strip, `\\?\C:\src\App.vue` and `C:/src/App.vue` (same logical file) had
-// different keys -> snapshot miss between pre and post passes
-const WINDOWS_UNC_PREFIX_RE = /^\/\/\?\//;
+// `WINDOWS_UNC_PREFIX_RE` (shared) matches `//?/` long-path AND `//./` device-path forms.
+// strip to canonical `C:/...` so SnapshotCache lookups align across path-mangling stages
+// (`\\?\C:\src\App.vue` vs `C:/src/App.vue` — same logical file produces same key).
+// Windows drive letter case asymmetry: some bundler stages lowercase (`c:/src/...`), others
+// preserve source case (`C:/src/...`). same logical file produces different keys without
+// canonicalisation - lowercase the drive letter so pre / post align under any pipeline mix
+const WINDOWS_DRIVE_LETTER_RE = /^(?<letter>[A-Z]):\//;
 function normalizePath(path) {
   let p = path.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
   // composite chains like `/@id/file:///abs/foo` carry two schemes back-to-back. one-pass
@@ -43,7 +48,8 @@ function normalizePath(path) {
     prev = p;
     p = p.replace(VITE_SCHEME_PREFIX_RE, '');
   } while (p !== prev);
-  return p.replaceAll(REPEATED_SLASHES_RE, '/');
+  p = p.replaceAll(REPEATED_SLASHES_RE, '/');
+  return p.replace(WINDOWS_DRIVE_LETTER_RE, (_, letter) => `${ letter.toLowerCase() }:/`);
 }
 // Vite HMR appends `&t=<timestamp>` (or `?t=` if no other query) to invalidate module
 // cache. each HMR re-fire produces a different timestamp, breaking pre->post snapshot
