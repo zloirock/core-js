@@ -26,6 +26,9 @@ export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, 
   }
 }
 
+// filter precedence convention: `exclude` wins over `include` over targets-default. mirrors
+// `isEntryNeeded` in `polyfill-provider/index.js` for entry-level filtering. flipping one
+// without the other would desync — change both sites in lockstep
 export function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback }) {
   const matchers = patterns => {
     if (!patterns) return null;
