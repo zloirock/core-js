@@ -66,7 +66,12 @@ const stripLeadingPrefix = p => {
 function normalizeImportPath(path) {
   if (typeof path != 'string') return null;
   const withoutQuery = stripQueryHash(path);
-  const withForwardSlashes = withoutQuery.replaceAll('\\', '/');
+  // collapse internal `//` runs to single `/` so bundler-emitted ids like Farm's
+  // `core-js//actual/array/at` (artifact of path-join when one segment ends with `/`)
+  // canonicalise to `core-js/actual/array/at` and dedupe against plugin entry detection.
+  // mirrors `isCoreJSFile` (path-normalize.js:51) which already collapses for prefix match;
+  // asymmetry caused entry-detection misses on otherwise-valid sources
+  const withForwardSlashes = withoutQuery.replaceAll('\\', '/').replaceAll(/\/{2,}/g, '/');
   const withoutPrefix = stripLeadingPrefix(withForwardSlashes);
   // accept `.js`, `.mjs`, `.cjs` - `import 'core-js/actual/array/at.mjs'` should resolve like `.js`
   return withoutPrefix.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '').toLowerCase();

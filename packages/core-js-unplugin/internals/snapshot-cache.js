@@ -55,21 +55,33 @@ function normalizePath(path) {
 // `(?=[&#]|$)` boundary anchors the match so `?t=1.5/foo` doesn't truncate path text -
 // without it `\d+` alone would consume only `1`, leaving `.5` as garbage in the key
 const HMR_TIMESTAMP_RE = /[&?]t=\d+(?:\.\d+)?(?=[#&]|$)/g;
-// when the FIRST `?t=` was stripped a leading `&` may now sit where `?` belonged - swap
+// when the FIRST `?t=` was stripped a leading `&` may now sit where `?` belonged - swap.
+// gate on actual HMR-strip (`HMR_TIMESTAMP_RE.test(id)` BEFORE replaceAll) - if no timestamp
+// was present, leading `&` belongs to the source path verbatim and rewriting it to `?` would
+// corrupt the key for non-HMR ids that happen to contain `&` (e.g. `/dir&with/file.js`)
 const LEADING_AMP_FIX_RE = /(?<head>^[^?]*)&/;
-const stripHMRTimestamp = id => id
-  .replaceAll(HMR_TIMESTAMP_RE, '')
-  .replace(LEADING_AMP_FIX_RE, '$<head>?')
-  .replace(/\?&/, '?')
-  .replace(/[&?]$/, '');
+function stripHMRTimestamp(id) {
+  if (!HMR_TIMESTAMP_RE.test(id)) return id;
+  HMR_TIMESTAMP_RE.lastIndex = 0;
+  return id
+    .replaceAll(HMR_TIMESTAMP_RE, '')
+    .replace(LEADING_AMP_FIX_RE, '$<head>?')
+    .replace(/\?&/, '?')
+    .replace(/[&?]$/, '');
+}
 
 function normalizeKey(id) {
   const cleanId = stripHMRTimestamp(id);
   if (SFC_QUERY_MARKER_RE.test(cleanId)) {
+    // strip Windows UNC verbatim prefix (`\\?\C:\...` / `//?/C:/...`) BEFORE the SFC split,
+    // otherwise `cleanId.search(/[#?]/)` matches the embedded `?` of the UNC prefix at index
+    // 2 instead of the SFC `?vue&type=...` boundary. without this, pre-on-Windows-UNC and
+    // post-on-canonical-form keys diverge, snapshot miss for the same logical SFC sub-block
+    const uncStripped = cleanId.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
     // preserve the query since it identifies the sub-block; still normalize the path prefix
-    const queryStart = cleanId.search(QUERY_OR_HASH_RE);
-    const pathPart = queryStart === -1 ? cleanId : cleanId.slice(0, queryStart);
-    const tail = queryStart === -1 ? '' : cleanId.slice(queryStart);
+    const queryStart = uncStripped.search(QUERY_OR_HASH_RE);
+    const pathPart = queryStart === -1 ? uncStripped : uncStripped.slice(0, queryStart);
+    const tail = queryStart === -1 ? '' : uncStripped.slice(queryStart);
     return normalizePath(pathPart) + tail;
   }
   return normalizePath(stripQueryHash(cleanId));
