@@ -131,41 +131,50 @@ export default class ImportInjector extends ImportInjectorState {
   pruneUnusedRefs() {
     if (!this.#refs.size) return;
     this.#programPath.scope.crawl();
-
-    // refs pushed into function/arrow bodies live in inner scopes - program-level
-    // getBinding misses them. collect from every scope, including program itself
-    // (`path.traverse({ Scopable })` visits descendants only, not the path itself)
-    const bindings = new Map();
+    // plugin-shape only: `scope.push({ id })` emits a `var _refN;` declarator. user-written
+    // collisions (`let _ref5 = ...` / `const _ref5 = ...`) differ in `kind`. arrow-fn-param
+    // shape is normalized to var by `normalizeArrowRefParams` BEFORE this runs. CatchClause /
+    // Function params host bindings without VariableDeclaration parent and are filtered
+    // separately by the prune loop's `declPath.isVariableDeclaration()` check
+    const isPluginShape = binding => binding?.path?.parentPath?.node?.type === 'VariableDeclaration'
+      && binding.path.parentPath.node.kind === 'var';
+    // collect every plugin-shape binding across all scopes, grouped by name. first-write-wins
+    // would shadow plugin's nested allocation when user has same-named outer let/const,
+    // mistaking USER's binding for plugin's and renaming user code
+    const byName = new Map();
     const absorb = scope => {
       for (const [name, binding] of Object.entries(scope.bindings)) {
-        if (!bindings.has(name)) bindings.set(name, binding);
+        if (!isPluginShape(binding)) continue;
+        let list = byName.get(name);
+        if (!list) byName.set(name, list = []);
+        // dedupe by identity - re-crawl after replaceWith can produce duplicate entries
+        if (!list.includes(binding)) list.push(binding);
       }
     };
     absorb(this.#programPath.scope);
     this.#programPath.traverse({ Scopable({ scope }) { absorb(scope); } });
 
     for (const name of this.#refs) {
-      const binding = bindings.get(name);
+      const [binding] = byName.get(name) ?? [];
       if (!binding || binding.references || binding.constantViolations.length) continue;
       // `var _ref = (se(), Array)` - side-effectful init must stay even if the var is unused
       if (binding.path.node?.init) continue;
       const declPath = binding.path.parentPath;
-      // CatchClause / FunctionDeclaration params host our binding without a `.declarations` array -
-      // removing them would mutate function signatures / try shapes. skip prune for those hosts:
-      // the param is already effectively "dead" at runtime, and keeping the shape is safer than
-      // fabricating a removal through an incompatible parent
-      if (!declPath?.isVariableDeclaration()) continue;
       if (declPath.node.declarations.length === 1) declPath.remove();
       else binding.path.remove();
       this.#refs.delete(name);
     }
     if (!this.#refs.size) return;
 
-    const taken = new Set(bindings.keys());
     // mirror `isNameTaken`: allocation consults scope bindings PLUS program.globals/references/uids
     // to catch undeclared sloppy-mode assignments (`_ref = foo()` as implicit global) and unbound
     // reads. renumbering only scope-bindings would otherwise collapse a safely-allocated `_ref2`
-    // back onto `_ref`, re-introducing the collision allocation originally avoided
+    // back onto `_ref`, re-introducing the collision allocation originally avoided.
+    // start with all bindings (any name in any scope counts as taken)
+    const taken = new Set();
+    const collectAllNames = scope => Object.keys(scope.bindings).forEach(n => taken.add(n));
+    collectAllNames(this.#programPath.scope);
+    this.#programPath.traverse({ Scopable({ scope }) { collectAllNames(scope); } });
     const program = this.#programPath.scope.getProgramParent();
     for (const n of Object.keys(program.globals ?? {})) taken.add(n);
     for (const n of Object.keys(program.references ?? {})) taken.add(n);
@@ -174,9 +183,11 @@ export default class ImportInjector extends ImportInjectorState {
 
     // identity set of plugin-owned binding objects guards rename against user's nested
     // shadow-binding of the same name (e.g. user's `const _ref3` inside a function body
-    // while plugin's outer allocation shifts `_ref5` -> `_ref3`)
+    // while plugin's outer allocation shifts `_ref5` -> `_ref3`). every plugin-shape
+    // binding for each ref name; renames target the union, missing user bindings (filtered
+    // by isPluginShape during collect)
     const ownedBindings = new Set();
-    for (const name of this.#refs) if (bindings.has(name)) ownedBindings.add(bindings.get(name));
+    for (const name of this.#refs) for (const b of byName.get(name) ?? []) ownedBindings.add(b);
 
     // matches generateRefName: slot 1 is bare `_ref`, slot 2+ is `_ref2, _ref3, ...`
     // (skip `_ref1` per babel convention)
@@ -271,33 +282,33 @@ export default class ImportInjector extends ImportInjectorState {
   // canonical-sort the union of all flushed plugin imports across all `flush()` calls.
   // each individual flush only sorts within its own batch; with two flushes per file
   // (visitor pre-pass / post-synth-swap), the cross-batch relative order can invert vs
-  // canonical compat-data order. called from programExit AFTER all flushes - finds the
-  // emitted nodes still in body, removes them, sorts as a single batch, re-prepends.
+  // canonical compat-data order. called from programExit AFTER all flushes - sorts only
+  // emitted nodes among themselves while keeping non-emitted statements (sibling-plugin
+  // helper var declarations etc.) in their ORIGINAL positions. without slot-preserving
+  // permutation, `import X; const _hot = ...; import Y;` would relocate `_hot` past every
+  // sorted import - silent evaluation-order change for sibling-injected helper code.
   // node-identity match (== check on `body[i] === entry.node`) avoids touching user-side
   // imports or sibling-plugin emissions interleaved in the same region
   reorderImportRegion() {
     if (this.#emittedKeyByNode.size < 2) return;
     const { body } = this.#programPath.node;
     if (!body?.length) return;
-    // walk body, lift surviving emitted nodes (some may have been pruned by the rest of
-    // pipeline - pruneUnusedRefs etc); preserves the relative position of non-emitted
-    // statements that interleave with our region (rare but happens with sibling-plugin
-    // injections during traversal)
-    const lifted = [];
-    const remaining = [];
-    for (const stmt of body) {
-      const key = this.#emittedKeyByNode.get(stmt);
-      if (key !== undefined) lifted.push({ key, node: stmt });
-      else remaining.push(stmt);
+    // collect indices + sort keys of emitted slots IN-ORDER. non-emitted statements
+    // (sibling helper vars, comments-as-statements, ...) keep their original positions,
+    // so the sort only permutes emitted entries among the slots they already occupy
+    const slots = [];
+    for (let i = 0; i < body.length; i++) {
+      const key = this.#emittedKeyByNode.get(body[i]);
+      if (key !== undefined) slots.push({ index: i, key, node: body[i] });
     }
-    if (lifted.length < 2) return;
+    if (slots.length < 2) return;
     // sort by the canonical comparator: compat-data order with lex-fallback for unknown
     // keys (pure-import sources land in the lex tail). emitted nodes have unique node
     // identity so unique-by-node holds even if two pure imports share a source string
-    lifted.sort((a, b) => polyfillOrderComparator(a.key, b.key));
-    body.length = 0;
-    for (const l of lifted) body.push(l.node);
-    for (const s of remaining) body.push(s);
+    const sorted = [...slots].sort((a, b) => polyfillOrderComparator(a.key, b.key));
+    for (let i = 0; i < slots.length; i++) {
+      body[slots[i].index] = sorted[i].node;
+    }
   }
 
   flush() {
