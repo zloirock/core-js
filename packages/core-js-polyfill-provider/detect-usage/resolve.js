@@ -54,6 +54,22 @@ export function unwrapParensCollectingEffects(node, effects) {
   return node;
 }
 
+// instance-dispatch receiver peel: when the polyfill emit memoizes `path.node.object`
+// into `_ref = X` AND prepends sideEffects (collected upstream by `unwrapParensCollectingEffects`),
+// the SE preceding-elements would otherwise run TWICE - once in the assign, once in the
+// prepended SE. peeling the AST receiver to the SE tail aligns it with what `obj` was at
+// meta-build time so memoize captures only the unwrapped tail. shared between babel-compat's
+// `replaceInstanceLike` (mutates path.node.object before extractCheck) and unplugin emitter's
+// `addInstanceTransform` (passes peeled node to resolveReceiverSource). idempotent for non-
+// SE / non-wrapped receivers
+export function peelReceiverSequenceTail(node) {
+  while (node && (isTransparentWrapper(node)
+    || (node.type === 'SequenceExpression' && node.expressions?.length))) {
+    node = node.type === 'SequenceExpression' ? node.expressions.at(-1) : node.expression;
+  }
+  return node;
+}
+
 // peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
 // outermost assignment (evaluating it covers every nested `=` step in source). used by
 // static-method dispatch to recover the actual constructor identifier from a receiver like
