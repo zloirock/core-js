@@ -12,6 +12,7 @@ import {
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
+  classifyReceiverSE,
   findProxyGlobal,
   peelReceiverSequenceTail,
   prependChainAssignmentEffect,
@@ -251,12 +252,14 @@ export function createPolyfillEmitter({
   // build replacement, wrap guard if needed, add to transform queue
   function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
     sideEffects = null, parenLookupOnly = false) {
-    // SequenceExpression-receiver double-emit guard: `(fn(), arr).at(0)` arrives with
-    // `sideEffects = [fn()]` (collected upstream in members.js). without peeling the AST
-    // receiver to the SE tail, memoize would capture `_ref = (fn(), arr)` AND wrapSideEffects
-    // would prepend fn() again, running fn() twice. peel ONLY when sideEffects has content
-    // (non-meta callers don't carry the prepend contract; their SE receivers stay verbatim)
-    const receiverObj = sideEffects?.length ? peelReceiverSequenceTail(node.object) : node.object;
+    // SequenceExpression-receiver double-emit guard - `classifyReceiverSE` (shared with
+    // babel-compat) decides between peel + prepend (non-optional) and SE-in-memoize +
+    // suppress prepend (optional). detects SE through transparent wrappers so oxc's
+    // ParenthesizedExpression(SE) shape resolves identically to babel's bare SE
+    const isOptional = node.optional || parent?.optional || node.object?.type === 'ChainExpression';
+    const seMode = classifyReceiverSE(node.object, isOptional, sideEffects);
+    const receiverObj = seMode === 'peel' ? peelReceiverSequenceTail(node.object) : node.object;
+    if (seMode === 'suppress') sideEffects = null;
     const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
     const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
