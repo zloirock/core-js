@@ -16,6 +16,27 @@ export function stripQueryHash(id) {
   return at === -1 ? id : id.slice(0, offset + at);
 }
 
+// Windows long-path / device-path prefixes in their canonical (post-`\\`->`/`) form.
+// `import.meta.resolve` under Windows can return such absolute paths; strip so the
+// canonical `core-js/...` slice lines up against the entry map. Combined char-class
+// `[.?]` covers both verbatim long-path (`//?/`) and device-path (`//./`) shapes
+export const WINDOWS_UNC_PREFIX_RE = /^\/\/[.?]\//;
+
+// canonical lowercase forward-slash form of a module-id string. shared by every entry-
+// detection callsite so backslash form (Windows / Vite-rewritten `\core-js\...`), Farm's
+// path-join doubled-slash artifact (`core-js//actual/...`), Windows UNC long-path /
+// device-path absolute (`\\?\C:\...`, `//?/C:/...`), and case mismatches all resolve
+// identically. UNC strip must run BEFORE slash-collapse: `//?/` would collapse to `/?/`
+// before the strip pattern (`//[.?]/`) could match, leaking the prefix into the canonical
+// path
+export function normalizeImportSource(source) {
+  return stripQueryHash(source)
+    .replaceAll('\\', '/')
+    .replace(WINDOWS_UNC_PREFIX_RE, '')
+    .replaceAll(/\/{2,}/g, '/')
+    .toLowerCase();
+}
+
 // `array/at` -> `full/array/at` modules; top-level `actual`/`index`/... -> their root entry.
 // `Object.hasOwn` guards against prototype-chain hits: JSON-imported object carries regular
 // Object.prototype, so bare `entriesMap['constructor']` / `['toString']` / `['__proto__']`
