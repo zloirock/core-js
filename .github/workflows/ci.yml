@@ -42,7 +42,13 @@ jobs:
         with:
           node-version: 26
           cache: npm
-      - uses: actions/cache@v6
+      - name: disable defender real-time monitoring
+        shell: pwsh
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          Get-MpPreference | Select-Object DisableRealtimeMonitoring
+      - name: cache playwright browsers
+        uses: actions/cache@v6
         with:
           path: D:\ms-playwright
           key: playwright-windows-2022-${{ hashFiles('tests/unit-karma/package-lock.json') }}
