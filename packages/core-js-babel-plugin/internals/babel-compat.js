@@ -2,7 +2,7 @@
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { classifyReceiverSE, peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   createTypeAnnotationChecker,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -243,15 +243,17 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike(path, id, skipOptional, sideEffects) {
-    // SequenceExpression-receiver double-emit guard: `(fn(), arr).at(0)` arrives with
-    // `meta.sideEffects = [fn()]` (from members.js's collect-mode unwrap). without peeling,
-    // memoize captures `_ref = (fn(), arr)` AND `withSideEffects` prepends `fn()` again,
-    // running `fn()` twice. peel `path.node.object` to the SE tail so memoize sees only
-    // the unwrapped receiver - sideEffects supplies the preceding-effects exactly once
-    if (sideEffects?.length && path.node.object) {
+    // SequenceExpression-receiver double-emit guard - `classifyReceiverSE` decides
+    // between two strategies (see helper docs). composite receiver-SE + key-SE on
+    // optional chain is a rare edge case where suppress would lose key-SE; accepted
+    // trade-off vs the more common bug class
+    const seMode = classifyReceiverSE(path.node.object,
+      path.node.optional || path.isOptionalMemberExpression(), sideEffects);
+    if (seMode === 'peel') {
       const peeled = peelReceiverSequenceTail(path.node.object);
       if (peeled !== path.node.object) path.node.object = peeled;
     }
+    const effectiveSE = seMode === 'suppress' ? null : sideEffects;
     const callerPath = unwrapTSExpressionParent(path);
     const { parent } = callerPath;
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
@@ -266,13 +268,13 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       const wrappedCallee = wrapConditional(check, lookup);
       const callArgs = [t.cloneNode(object), ...parent.arguments.map(a => t.cloneNode(a))];
       const result = t.callExpression(t.memberExpression(wrappedCallee, t.identifier('call')), callArgs);
-      callerPath.parentPath.replaceWith(withSideEffects(result, sideEffects));
+      callerPath.parentPath.replaceWith(withSideEffects(result, effectiveSE));
       return;
     }
     const result = isCall
       ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
       : t.callExpression(id, [t.cloneNode(object)]);
-    replaceAndWrap(isCall ? callerPath.parentPath : path, withSideEffects(result, sideEffects), check, embed);
+    replaceAndWrap(isCall ? callerPath.parentPath : path, withSideEffects(result, effectiveSE), check, embed);
   }
 
   function replaceCallWithSimple(path, id, skipOptional) {
