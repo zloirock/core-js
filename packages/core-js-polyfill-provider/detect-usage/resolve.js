@@ -70,6 +70,23 @@ export function peelReceiverSequenceTail(node) {
   return node;
 }
 
+// classify how an instance-call rewrite must handle a SequenceExpression receiver:
+//   `'peel'`     - non-optional case: peel receiver to SE tail so memoize captures only
+//                  the unwrapped value; sideEffects (prepend) supplies preceding-effects
+//   `'suppress'` - optional case: leave SE intact, the optional-guard memoize already
+//                  captures it (`null == (_ref = (fn(), arr)) ? void 0 : ...`); suppress
+//                  prepend to avoid double-emit on non-nullish branch
+//   `null`       - no SE receiver / no sideEffects to prepend - no special handling
+// detects SE through transparent wrappers (Paren / Chain / TS) so oxc + babel parser
+// shapes work uniformly. shared between babel-compat and unplugin instance dispatch
+export function classifyReceiverSE(receiver, isOptional, sideEffects) {
+  if (!sideEffects?.length || !receiver) return null;
+  let cur = receiver;
+  while (cur && isTransparentWrapper(cur)) cur = cur.expression;
+  if (cur?.type !== 'SequenceExpression') return null;
+  return isOptional ? 'suppress' : 'peel';
+}
+
 // peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
 // outermost assignment (evaluating it covers every nested `=` step in source). used by
 // static-method dispatch to recover the actual constructor identifier from a receiver like
