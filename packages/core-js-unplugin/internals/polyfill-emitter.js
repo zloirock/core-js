@@ -11,7 +11,11 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
-import { findProxyGlobal, prependChainAssignmentEffect } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  findProxyGlobal,
+  peelReceiverSequenceTail,
+  prependChainAssignmentEffect,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint } from './transform-queue.js';
@@ -247,7 +251,13 @@ export function createPolyfillEmitter({
   // build replacement, wrap guard if needed, add to transform queue
   function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
     sideEffects = null, parenLookupOnly = false) {
-    const recv = resolveReceiverSource(node.object, metaPath);
+    // SequenceExpression-receiver double-emit guard: `(fn(), arr).at(0)` arrives with
+    // `sideEffects = [fn()]` (collected upstream in members.js). without peeling the AST
+    // receiver to the SE tail, memoize would capture `_ref = (fn(), arr)` AND wrapSideEffects
+    // would prepend fn() again, running fn() twice. peel ONLY when sideEffects has content
+    // (non-meta callers don't carry the prepend contract; their SE receivers stay verbatim)
+    const receiverObj = sideEffects?.length ? peelReceiverSequenceTail(node.object) : node.object;
+    const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
     const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
     const rootIsReceiver = rootNode === node.object;

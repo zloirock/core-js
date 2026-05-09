@@ -2,6 +2,7 @@
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   createTypeAnnotationChecker,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -242,6 +243,15 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike(path, id, skipOptional, sideEffects) {
+    // SequenceExpression-receiver double-emit guard: `(fn(), arr).at(0)` arrives with
+    // `meta.sideEffects = [fn()]` (from members.js's collect-mode unwrap). without peeling,
+    // memoize captures `_ref = (fn(), arr)` AND `withSideEffects` prepends `fn()` again,
+    // running `fn()` twice. peel `path.node.object` to the SE tail so memoize sees only
+    // the unwrapped receiver - sideEffects supplies the preceding-effects exactly once
+    if (sideEffects?.length && path.node.object) {
+      const peeled = peelReceiverSequenceTail(path.node.object);
+      if (peeled !== path.node.object) path.node.object = peeled;
+    }
     const callerPath = unwrapTSExpressionParent(path);
     const { parent } = callerPath;
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
