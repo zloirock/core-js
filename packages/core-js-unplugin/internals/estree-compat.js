@@ -40,6 +40,10 @@ export const types = {
   isObjectPattern: n => n?.type === 'ObjectPattern',
   isArrayExpression: n => n?.type === 'ArrayExpression',
   isClassMethod: n => n?.type === 'MethodDefinition',
+  // FE-valued object props (`{m: function(){}}`) hit `t.isFunctionExpression(n.value)` in
+  // `ownerMethodFns` for class-flow scanning; without this shim the optional chain returns
+  // undefined on unplugin and FE-prop method-internal `this.X = ...` writes are skipped
+  isFunctionExpression: n => n?.type === 'FunctionExpression',
   isClassProperty: n => n?.type === 'PropertyDefinition',
   isClassAccessorProperty: n => n?.type === 'AccessorProperty',
   isClassBody: n => n?.type === 'ClassBody',
