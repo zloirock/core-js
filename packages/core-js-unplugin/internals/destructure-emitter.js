@@ -290,18 +290,31 @@ export function createDestructureEmitter({
     return sequencePrefixes;
   }
 
-  // post-traverse render: consume any scope-tracker ref bindings that landed inside each
-  // preserved declarator's range, splice them into preservedSrc, then build replacement
-  // and queue the overwrite. without consume-and-bake, scope-tracker would queue insert
-  // at a position INSIDE this overwrite range and MagicString would split-an-edited-chunk
+  // bake all per-decl splices into preservedSrc using the original-source coordinate
+  // system. two independent splice sources, both at original positions:
+  //   - `siblingSubstSplices` (`globalThis -> _globalThis` from `polyfillSiblingReceiverRefs`,
+  //     populated during traverse)
+  //   - scope-tracker ref-binding splices (`var _ref;` inserts at nested-function body
+  //     anchors, populated post-traverse via sibling-subtree visits)
+  // both flow through `spliceInRange`'s descending-order traversal so neither set's
+  // mutations invalidate the other's anchor positions
+  function bakePendingSplicesIntoPreserved(declaration, perDecl) {
+    for (let i = 0; i < perDecl.length; i++) {
+      if (perDecl[i].preservedSrc === null) continue;
+      const decl = declaration.declarations[i];
+      const substSplices = perDecl[i].siblingSubstSplices ?? [];
+      const refSplices = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
+      const splices = [...substSplices, ...refSplices];
+      if (splices.length) perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
+    }
+  }
+
+  // post-traverse render: bake pending splices, build replacement, queue the overwrite.
+  // without consume-and-bake, scope-tracker would queue insert at a position INSIDE this
+  // overwrite range and MagicString would split-an-edited-chunk
   function flushPendingFlatten() {
     for (const { declaration, declPath, perDecl, isForInit } of pendingFlatten) {
-      for (let i = 0; i < perDecl.length; i++) {
-        if (perDecl[i].preservedSrc === null) continue;
-        const decl = declaration.declarations[i];
-        const splices = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
-        if (splices.length) perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
-      }
+      bakePendingSplicesIntoPreserved(declaration, perDecl);
       let replacement = renderFlattened(perDecl, declaration.kind, isForInit);
       if (!isForInit) {
         const prefixes = liftExtractedSEPrefixes(declaration, perDecl);
@@ -339,7 +352,7 @@ export function createDestructureEmitter({
     if (flattenedReceivers.size) {
       for (let i = 0; i < perDecl.length; i++) {
         if (!perDecl[i].extractions.length) {
-          perDecl[i].preservedSrc = polyfillSiblingReceiverRefs(declaration.declarations[i], flattenedReceivers);
+          perDecl[i].siblingSubstSplices = polyfillSiblingReceiverRefs(declaration.declarations[i], flattenedReceivers);
         }
       }
     }
@@ -732,22 +745,26 @@ export function createDestructureEmitter({
     }
 
     walk(declarator, null);
-    if (!matches.length) return nodeSrc(declarator);
-    // descending source order so prior substitutions don't shift later relative indices.
-    // scope-tracker ref-binding bake happens later in `flushPendingFlatten` post-traverse
-    // (scope-tracker only fully populated AFTER sibling subtree visited)
-    matches.sort((leftMatch, rightMatch) => rightMatch.start - leftMatch.start);
-    const declStart = declarator.start;
-    let src = nodeSrc(declarator);
+    if (!matches.length) return [];
+    // collect splices at ORIGINAL source positions; defer apply to `flushPendingFlatten`
+    // so post-traverse scope-tracker ref-binding splices (`var _ref;` insertions inside
+    // the sibling decl's nested function bodies) can be merged into a single spliceInRange
+    // pass. applying substitutions inline here would shift positions in `preservedSrc`,
+    // and subsequent ref-binding splices computed from original positions would land at
+    // the wrong offset (V2-UPLDE-1 corruption: `var _ref;` sliced into the middle of an
+    // identifier when nested-function body anchor sits AFTER a substitution site)
+    const splices = [];
     for (const match of matches) {
       const pure = resolveGlobalPolyfill(match.name);
       if (!pure) continue;
       skippedNodes.add(match);
-      src = src.slice(0, match.start - declStart)
-        + injectPureImport(pure.entry, pure.hintName)
-        + src.slice(match.end - declStart);
+      splices.push({
+        start: match.start,
+        end: match.end,
+        content: injectPureImport(pure.entry, pure.hintName),
+      });
     }
-    return src;
+    return splices;
   }
 
   // ---------- destructure rewrite pipeline ----------
