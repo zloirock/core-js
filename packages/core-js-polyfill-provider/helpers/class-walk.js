@@ -253,18 +253,23 @@ export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
       // strip parens + TS casts (`const A = Promise as typeof Promise`); without TS-strip
       // the alias chain bails and `super.X` doesn't resolve to the wrapped Promise
       const init = unwrapInitForResolution(decl.init);
-      // `const { Promise: MyP } = globalThis; class C extends MyP { super.try() }` - ObjectPattern
-      // destructure from a proxy-global is equivalent to `const MyP = globalThis.Promise` (alias
-      // chain via member). babel-plugin mutates AST before this runs so binding.path points at
-      // the rewritten simple form - but unplugin keeps raw destructure, so resolve it here.
-      // `const { Promise: MyP } = globalThis.self` is the same shape through a proxy chain
-      // (`self`/`window`/... are themselves known globals) - accept MemberExpression inits
-      // whose tail ends at a proxy-global. user destructure like `const { x } = getObj()` bails
-      if (decl.id?.type === 'ObjectPattern'
-        && (isProxyGlobalIdentifierNode(init, scope, adapter)
-          || globalProxyMemberName(init, scope, adapter) !== null)) {
+      // ObjectPattern destructure (`const { Promise: MyP } = R`): treat as the equivalent
+      // `const MyP = R.<key>` member access. babel-plugin mutates AST before this runs so
+      // binding.path points at the rewritten simple form, but unplugin keeps raw destructure
+      // and needs the resolution here. proxy-global init (`globalThis` / `self.window` etc.)
+      // short-circuits to the destructured key. user-namespace init (`const NS = {Promise}`)
+      // routes through resolveBindingToGlobalName which walks namespace-object literals
+      if (decl.id?.type === 'ObjectPattern') {
         const keyName = findDestructureKeyForBinding(decl.id, name);
-        return keyName ?? null;
+        if (!keyName) return null;
+        if (isProxyGlobalIdentifierNode(init, scope, adapter)
+            || globalProxyMemberName(init, scope, adapter) !== null) return keyName;
+        return resolveBindingToGlobalName({
+          type: 'MemberExpression',
+          object: init,
+          property: { type: 'Identifier', name: keyName },
+          computed: false,
+        }, scope, seen);
       }
       if (init?.type === 'Identifier') {
         name = init.name;
