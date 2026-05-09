@@ -1739,6 +1739,39 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return isNumericKey ? (numberSig ?? stringSig) : (stringSig ?? numberSig ?? symbolSig);
   }
 
+  // pick the firing branch of a TSConditionalType for member lookup, recursing with the
+  // ORIGINAL AST trueType/falseType (not the resolved Type Object). branch-pick strategy:
+  //   1) AST equality (literal-vs-literal pairs only)
+  //   2) structural eval - resolve substituted check + extends to Type Objects, ask
+  //      `pickConditionalBranch` for the branch INDEX (true/false/null)
+  //   3) infer-pattern fallback (`T extends (infer U)[] ? U : never`) - evaluator returns
+  //      a Type Object that findTypeMember can sometimes look up via known-constructor stubs
+  //   4) undecidable - fold both branches into a synthetic union for findTypeMember's
+  //      union path
+  // keeping the BRANCH INDEX (steps 1-2) and recursing with the AST trueType/falseType is
+  // crucial: AST-driven member lookup works for TSTypeLiteral / TSArrayType / etc. shapes
+  // where Type Object inputs would silently null
+  function findConditionalTypeMember(aliased, subst, key, scope, depth, withSubst) {
+    const checkSubst = withSubst(aliased.checkType);
+    const extendSubst = withSubst(aliased.extendsType);
+    let branch = pickConditionalBranchByAST(checkSubst, extendSubst);
+    if (branch === null) {
+      const checkResolved = resolveTypeAnnotation(checkSubst, scope, depth + 1);
+      const extendsResolved = resolveTypeAnnotation(extendSubst, scope, depth + 1);
+      branch = pickConditionalBranch(checkResolved, extendsResolved, aliased.extendsType);
+    }
+    if (branch !== null) {
+      return findTypeMember(withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth + 1);
+    }
+    const resolved = evaluateConditionalType(applySubst(aliased, subst), null, scope, depth + 1, null);
+    if (resolved) return findTypeMember(resolved, key, scope, depth + 1);
+    const trueResult = findTypeMember(withSubst(aliased.trueType), key, scope, depth + 1);
+    const falseResult = findTypeMember(withSubst(aliased.falseType), key, scope, depth + 1);
+    if (!trueResult) return falseResult;
+    if (!falseResult) return trueResult;
+    return { type: 'TSUnionType', types: [trueResult, falseResult] };
+  }
+
   function findTypeMember(objectType, key, scope, depth = 0) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
@@ -1762,24 +1795,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const unwrapped = unwrapTypeAnnotation(node);
       return applySubst(unwrapped, subst);
     };
-    // conditional `T extends U ? trueType : falseType`: pick branch via AST equality on
-    // substituted check / extends shapes, then recurse into the chosen branch's members.
-    // without this, member-lookup на `ShadowedRenameProbe<'narrow'>` (where body is
-    // `K extends 'narrow' ? {...} : never`) bottoms out на null because getTypeMembers
-    // doesn't have a TSConditionalType branch. AST equality can't pick `T extends (infer U)[] ? U
-    // : never` shapes; route through evaluateConditionalType so the infer-pattern path resolves
-    // the conditional to its element type before member lookup
+    // conditional types route through dedicated helper: extracts the branch-pick logic
+    // (AST equality > structural Type Object eval > infer-pattern fallback > undecidable
+    // union fold) into one place. without the extraction, findTypeMember exceeds the
+    // max-statements lint threshold and the member-lookup-on-conditional path becomes
+    // hard to reason about
     if (aliased?.type === 'TSConditionalType') {
-      const branch = pickConditionalBranchByAST(withSubst(aliased.checkType), withSubst(aliased.extendsType));
-      // AST equality picks pure-shape conditionals (`K extends 'narrow' ? {...} : never`).
-      // when AST-pick fails, route through evaluateConditionalType with the alias's subst
-      // applied to the WHOLE conditional first so infer patterns (`(infer U)[]`, `[infer H,
-      // ...any[]]`) see the substituted checkType. without applySubst, `Element<string[][]>`
-      // would evaluate the body with raw `T` checkType and the infer match fails
-      const target = branch !== null
-        ? withSubst(branch ? aliased.trueType : aliased.falseType)
-        : evaluateConditionalType(applySubst(aliased, subst), null, scope, depth + 1, null);
-      return target ? findTypeMember(target, key, scope, depth + 1) : null;
+      return findConditionalTypeMember(aliased, subst, key, scope, depth, withSubst);
     }
     const resolveBranch = member => findTypeMember(withSubst(unwrapTypeAnnotation(member)), key, scope, depth + 1);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
@@ -4164,29 +4186,46 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return result;
   }
 
+  // shared shape predicates for `<expr>.<field> = ...` / `<expr>.<field>++` writes.
+  // AssignmentExpression target lives on `.left`, UpdateExpression on `.argument`. unify
+  // both at the path level so callers can ask "is this a member-target write, what's the
+  // field name, what's the RHS type?" without re-implementing the AST shape switch
+  function memberWriteTargetPath(writePath) {
+    return writePath.node.type === 'UpdateExpression' ? writePath.get('argument') : writePath.get('left');
+  }
+  function memberWriteFieldName(targetNode) {
+    if (!t.isMemberExpression(targetNode) || targetNode.computed) return null;
+    return getKeyName(targetNode.property);
+  }
+  // resolved-type contribution of an AssignmentExpression / UpdateExpression. pure `=`
+  // with resolvable RHS contributes the RHS type; compound assignment (`+=` / `||=` / etc.)
+  // and `++` / `--` are operator-coerced - the resulting type depends on BOTH operands and
+  // the operator's coercion rules, can't be type-precise. push `unknown` so the candidate
+  // union widens to generic dispatch instead of preserving an unsound init-derived narrow
+  function writePathContributedType(writePath) {
+    if (writePath.node.type === 'AssignmentExpression' && writePath.node.operator === '=') {
+      return resolveNodeType(writePath.get('right'));
+    }
+    return new $Primitive('unknown');
+  }
+
   // walk method bodies once and build a Map<fieldName, types[]> of every `this.<X> = Y`
   // / `++this.<X>` write contained within. lets per-field candidate scans become O(1)
   // lookups instead of O(N field) full method walks. caller passes the BODY container
   // path (not the method path) so the traversal root is the body and adapters that visit
   // roots don't fire the FunctionExpression / ClassMethod skip rule on the entry point.
-  // StaticBlock has `body: Statement[]` directly on the node and is traversed in-place.
-  // compound assignments and update expressions can change type beyond what RHS alone
-  // reflects, so they push an `unknown` sentinel that collapses the fold to generic
+  // StaticBlock has `body: Statement[]` directly on the node and is traversed in-place
   function buildThisWritesIndex(methodPaths) {
     const index = new Map();
     const handle = p => {
-      const targetPath = t.isAssignmentExpression(p.node) ? p.get('left') : p.get('argument');
-      const target = targetPath.node;
-      if (!t.isMemberExpression(target) || target.computed) return;
-      if (!t.isThisExpression(target.object)) return;
-      const fieldName = getKeyName(target.property);
+      const target = memberWriteTargetPath(p).node;
+      if (!t.isThisExpression(target?.object)) return;
+      const fieldName = memberWriteFieldName(target);
       if (!fieldName) return;
       let types = index.get(fieldName);
       if (!types) index.set(fieldName, types = []);
-      if (t.isAssignmentExpression(p.node) && p.node.operator === '=') {
-        const rhsType = resolveNodeType(p.get('right'));
-        if (rhsType) types.push(rhsType);
-      } else types.push(new $Primitive('unknown'));
+      const contributed = writePathContributedType(p);
+      if (contributed) types.push(contributed);
     };
     const visitors = {
       'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
@@ -4354,8 +4393,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return !!name && (getExportedNames(programPath)?.has(name) ?? false);
   }
 
+  // canonical name for the OUTER binding through which the class is reachable from peer
+  // module code. for `const C = class XYZ {}` the inner `XYZ` is a class-body-only binding;
+  // every external reference (`new C()`, `extends C`, `C.staticField = ...`) uses `C`. so
+  // declarator name wins over class id; class id is only the fallback for declaration-form
+  // (`class XYZ {}`) or unbound class expressions where no outer binding exists
   function classBindingName(classPath) {
-    return classPath.node.id?.name ?? getDeclaratorBindingName(classPath);
+    return getDeclaratorBindingName(classPath) ?? classPath.node.id?.name ?? null;
   }
 
   // is this class reachable from outside the module? exported classes lose external-write
@@ -4865,11 +4909,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // this-writes index (`getInstanceMethodThisWrites` / `getStaticMethodThisWrites`), so
   // they're skipped here to avoid double-counting
   function pushIfWriteMatches(writePath, predicate, out) {
-    const objPath = writePath.get('left').get('object');
+    const objPath = memberWriteTargetPath(writePath).get('object');
     if (t.isThisExpression(objPath.node)) return;
     if (!predicate(objPath)) return;
-    const rhsType = resolveNodeType(writePath.get('right'));
-    if (rhsType) out.push(rhsType);
+    const contributed = writePathContributedType(writePath);
+    if (contributed) out.push(contributed);
   }
 
   // precomputed per-module index for the module-wide flow scan. naive approach does two full
@@ -4895,16 +4939,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           const name = extendsClauseName(p.node.superClass, p.scope);
           if (name) pushMultimap(subclassesBySuper, name, p);
         },
+        // index ALL `<expr>.<fieldName> <op>= ...` and `<expr>.<fieldName>++` / `--` writes
+        // regardless of operator. `pushIfWriteMatches` distinguishes pure `=` (push RHS Type)
+        // from compound / Update (push `unknown`) at consume time via `writePathContributedType`
         AssignmentExpression(p) {
-          // only pure `=` is type-precise here: RHS value becomes the new field type.
-          // compound (`+=` / `||=` / `??=` / `*=` ...) is operator-coerced - the resulting
-          // type depends on BOTH operands and the operator's coercion rules, which the
-          // candidate-union model can't represent (pushing RHS as a candidate is wrong:
-          // for `+= 'x'` the field becomes `string` regardless of init, not `init | string`)
-          if (p.node.operator !== '=') return;
-          const { left } = p.node;
-          if (!t.isMemberExpression(left) || left.computed) return;
-          const name = getKeyName(left.property);
+          const name = memberWriteFieldName(p.node.left);
+          if (name) pushMultimap(writesByField, name, p);
+        },
+        UpdateExpression(p) {
+          const name = memberWriteFieldName(p.node.argument);
           if (name) pushMultimap(writesByField, name, p);
         },
       });
