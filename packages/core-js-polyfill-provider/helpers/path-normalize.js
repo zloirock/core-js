@@ -62,13 +62,14 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
 }
 
 // skip core-js internals, root entry re-exports, and bundles - polyfilling them creates
-// circular dependencies. `(?:^|[/\\])` covers Farm/Bun/esbuild-plugin bare ids too
-const CORE_JS_INTERNAL_FILE = /(?:^|[/\\])(?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:(?:actual|es|features|full|internals|modules|proposals|stable|stage)[/\\]|index\.js$)/;
-const CORE_JS_BUNDLE = /(?:^|[/\\])(?:core-js-bundle|@core-js[/\\]bundle)(?:[/\\]|$)/;
+// circular dependencies. `(?:^|\/)` boundary covers Farm/Bun/esbuild-plugin bare ids too.
+// patterns operate on canonical (normalizeImportSource-output) form: forward slashes only,
+// lowercase, no query/hash, no UNC prefix - back-slash alternation no longer needed
+const CORE_JS_INTERNAL_FILE = /(?:^|\/)(?:core-js|core-js-pure|@core-js\/pure)\/(?:(?:actual|es|features|full|internals|modules|proposals|stable|stage)\/|index\.js$)/;
+const CORE_JS_BUNDLE = /(?:^|\/)(?:core-js-bundle|@core-js\/bundle)(?:\/|$)/;
 
 export function isCoreJSFile(filename) {
-  // normalize doubled slashes/backslashes - some bundlers (farm) pass ids like `core-js-pure//full/...`
-  // and strip Vite/Rolldown query/hash suffix upfront so callers don't have to
-  const normalized = stripQueryHash(filename).replaceAll(/[/\\]{2,}/g, '/');
+  if (typeof filename !== 'string') return false;
+  const normalized = normalizeImportSource(filename);
   return CORE_JS_INTERNAL_FILE.test(normalized) || CORE_JS_BUNDLE.test(normalized);
 }
