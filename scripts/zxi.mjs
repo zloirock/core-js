@@ -26,7 +26,6 @@ if (await pathExists(`${ DIR }/package.json`)) {
     --no-fund \
     --lockfile-version=3 \
     --loglevel=error \
-    --foreground-scripts \
     --force \
   `;
 
