@@ -222,6 +222,9 @@ export function createPolyfillContext({
 
   const isEntryNeededCache = new Map();
 
+  // filter precedence convention: `exclude` wins over `include` over targets-default.
+  // mirrors `buildShouldInjectPolyfill` in `plugin-options/targets.js` for module-level
+  // filtering. flipping one without the other would desync - change both sites in lockstep
   function isEntryNeeded(entry) {
     if (entry === '') entry = 'index';
     if (isEntryNeededCache.has(entry)) return isEntryNeededCache.get(entry);
