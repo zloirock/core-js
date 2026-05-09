@@ -602,7 +602,17 @@ export default function plugin(api, options) {
       // --- pre(): main traverse before other plugins (TS types alive, destructuring intact) ---
 
       function preTraverse(path, visitors) {
-        // defensive - sibling plugin may have destroyed Program before our pre fires
+        // defensive - sibling plugin may have destroyed Program before our pre fires.
+        // when this guard hits we'd skip initFile and `skipFile` / `disabledLines` /
+        // `importStyle` would retain values from the PREVIOUS file (postHook only nulls
+        // the receiver-typed allocations); the next `programExit` reads stale skipFile
+        // and may bail to the disabled-file branch on a perfectly valid input. reset the
+        // primitive state HERE before any early-return so a missing initFile leaves the
+        // plugin in a known-clean shape rather than carrying state across files
+        skipFile = false;
+        disabledLines = null;
+        importStyle = null;
+        originalBodyNodes = null;
         if (!path?.node) return;
         initFile(path);
         if (skipFile) return;
