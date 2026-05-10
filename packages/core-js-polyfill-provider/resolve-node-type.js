@@ -980,15 +980,22 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         if (name && subst.has(name)) {
           const seen = visited ?? new Set();
           if (seen.has(name)) return node;
+          // restore on return: caller's Set is shared across siblings, leaking `name`
+          // would make the second occurrence of the same param self-bail (cycle-guard
+          // misfire). try/finally keeps the cycle-detection path-local
           seen.add(name);
-          const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1, seen);
-          // higher-kinded `Wrap<F, U> = F<U>` with F->Box: travel ownArgs onto the replacement
-          // when it's a parameterisable shape without its own args. otherwise (primitive
-          // keyword, array, already-parameterised) ownArgs stay dropped - attaching would
-          // corrupt the shape
-          if (replaced?.type !== 'TSTypeReference' && replaced?.type !== 'GenericTypeAnnotation') return replaced;
-          if (getTypeArgs(replaced)?.params?.length) return replaced;
-          return withSubstitutedTypeArgs(node, replaced, subst, depth, seen);
+          try {
+            const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1, seen);
+            // higher-kinded `Wrap<F, U> = F<U>` with F->Box: travel ownArgs onto the replacement
+            // when it's a parameterisable shape without its own args. otherwise (primitive
+            // keyword, array, already-parameterised) ownArgs stay dropped - attaching would
+            // corrupt the shape
+            if (replaced?.type !== 'TSTypeReference' && replaced?.type !== 'GenericTypeAnnotation') return replaced;
+            if (getTypeArgs(replaced)?.params?.length) return replaced;
+            return withSubstitutedTypeArgs(node, replaced, subst, depth, seen);
+          } finally {
+            seen.delete(name);
+          }
         }
         return withSubstitutedTypeArgs(node, node, subst, depth, visited);
       }
@@ -1847,11 +1854,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // sees the substituted slot
   function appendInterfaceExtendsMembers(iface, scope, depth, out, ifaceSubst) {
     for (const parent of iface.extends ?? []) {
-      const expr = extendsId(parent);
-      if (!expr) continue;
-      const parentRef = expr.type === 'Identifier'
-        ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
-        : expr;
+      // synthInterfaceExtendsRef builds a TSTypeReference wrapping parent's id + args
+      // for both bare Identifier and qualified-name shapes; raw `expr` lacks args
+      // (those live on `parent`), so qualified extends previously dropped the typeArgs slot
+      const parentRef = synthInterfaceExtendsRef(parent);
+      if (!parentRef) continue;
       const expanded = ifaceSubst ? applySubstToTypeRefArgs(parentRef, ifaceSubst) : parentRef;
       const parentMembers = getTypeMembers(expanded, scope, depth + 1);
       if (!parentMembers) continue;
@@ -1912,6 +1919,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // peel before Promise check so the wrapper doesn't shadow the awaited inner shape
     const passthrough = peelStructurePreservingWrapper(peeled);
     if (passthrough) return recurse(passthrough);
+    // nested `Awaited<Awaited<X>>` - inner Awaited reaches here as a TSTypeReference whose
+    // name fails Promise / wrapper / alias-chain checks. peel once so recursion sees the
+    // inner X and continues with Promise / union / tuple distribution
+    const awaitedInner = getSingleTypeRefArg(peeled, n => n === 'Awaited');
+    if (awaitedInner) return recurse(awaitedInner);
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return recurse(promiseInner);
     // conditional reached via post-subst alias body: pick firing branch (AST-level for
@@ -5250,7 +5262,21 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // name would WIDEN the base's field-type fold with non-subclass writes, so safe miss
   // preferred over false-positive
   function extendsClauseName(superClass, scope) {
-    if (superClass?.type === 'Identifier') return superClass.name;
+    if (superClass?.type === 'Identifier') {
+      // walk const-alias chain: `class Sub extends Alias` with `const Alias = Base` must
+      // register under canonical 'Base' name so subclass writes reach Base's flow tracker.
+      // single-hop Identifier inits only (TS cast peeled); member-shape inits fall through
+      // to the existing globalProxyMemberName / walkStaticReceiverChain paths above
+      let { name } = superClass;
+      const seen = new Set();
+      while (!seen.has(name)) {
+        seen.add(name);
+        const init = unwrapRuntimeExpr(scope?.getBinding?.(name)?.path?.node?.init);
+        if (init?.type !== 'Identifier') break;
+        name = init.name;
+      }
+      return name;
+    }
     if (superClass?.type !== 'MemberExpression' || superClass.computed) return null;
     const proxy = globalProxyMemberName(superClass, scope, BABEL_BINDING_ADAPTER, null);
     if (proxy) return proxy;
@@ -5373,13 +5399,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // compose an outer subst into a `Base<T>` ref before passing to `buildParentSubst` -
   // otherwise the parent's decl-param map binds raw `T` instead of the substituted concrete
   function applySubstToTypeRefArgs(typeRef, subst) {
-    if (!subst || !typeRef?.typeParameters?.params?.length) return typeRef;
+    if (!subst) return typeRef;
+    // mirror getTypeArgs: babel uses `typeParameters`, oxc/ESTree uses `typeArguments`.
+    // reading only `typeParameters` would silently no-op subst on oxc-built parentRefs
+    const argsKey = typeRef?.typeParameters ? 'typeParameters' : 'typeArguments';
+    const args = typeRef?.[argsKey];
+    if (!args?.params?.length) return typeRef;
     return {
       ...typeRef,
-      typeParameters: {
-        ...typeRef.typeParameters,
-        params: typeRef.typeParameters.params.map(a => applyAliasSubstDeep(a, subst)),
-      },
+      [argsKey]: { ...args, params: args.params.map(a => applyAliasSubstDeep(a, subst)) },
     };
   }
 
@@ -5404,11 +5432,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const ownHit = resolveSubstitutedMember(ownBody, ifaceSubst, name, scope, callPath);
       if (ownHit) return ownHit;
       for (const parent of iface.extends ?? []) {
-        const expr = extendsId(parent);
-        if (!expr) continue;
-        const parentRef = expr.type === 'Identifier'
-          ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
-          : expr;
+        const parentRef = synthInterfaceExtendsRef(parent);
+        if (!parentRef) continue;
         const parentMembers = getTypeMembers(parentRef, scope);
         if (!parentMembers) continue;
         // compose ifaceSubst -> parentSubst: interface's `extends Base<U>` carries the
