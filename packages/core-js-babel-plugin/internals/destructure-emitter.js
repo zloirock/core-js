@@ -11,6 +11,7 @@
 import {
   findEnclosingFunctionLikePath,
   hasRestSiblingExcept,
+  isBindingPosition,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isNonReferencePosition,
@@ -579,13 +580,17 @@ export default function createDestructureEmitter({
       // filters Identifiers in non-reference slots (method/property keys, member-access
       // tails, labels, import/export specifier names) - else `Math.includes` body would
       // false-positive against a `{ includes }` catch binding and force a useless
-      // catch-receiver extraction. matches unplugin's same-named filter for shape parity
+      // catch-receiver extraction. matches unplugin's same-named filter for shape parity.
+      // `isBindingPosition` ALSO filters declaration-id slots (function/class id, declarator
+      // id, catch param) - shadow re-declarations like `function from(){}` inside the catch
+      // body are bindings, not references; without skip we'd over-extract on every shadow
       let referenced = false;
       path.get('body').traverse({
         Identifier(idPath) {
           if (referenced) return idPath.skip();
           if (!destructuredNames.has(idPath.node.name)) return;
           if (isNonReferencePosition(idPath.parent, idPath.node)) return;
+          if (isBindingPosition(idPath.parent, idPath.node)) return;
           referenced = true;
           idPath.stop();
         },
