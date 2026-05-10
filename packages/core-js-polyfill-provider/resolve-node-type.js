@@ -453,10 +453,30 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // TSTypeParameter { name, constraint }`; oxc/TS-ESTree flattens to `key: Identifier` +
   // `constraint` on the mapped type itself. key name is a bare string in babel-parser
   // ASTs and an Identifier in oxc/ESTree. returns null for non-`keyof T` shapes
+  // numeric-shape detection: actual numbers OR strings matching JS numeric literal grammar
+  // (integer / float / scientific). used by `K extends number` predicate against numeric-keyed
+  // sources after stringification through the expand-mapped pipeline
+  const NUMERIC_KEY_SHAPE_RE = /^-?(?:\d+|\d*\.\d+)(?:e[+-]?\d+)?$/i;
+  function isNumericKeyShape(keyValue) {
+    if (typeof keyValue === 'number') return true;
+    return typeof keyValue === 'string' && NUMERIC_KEY_SHAPE_RE.test(keyValue);
+  }
+
+  // shared cross-parser key resolution для TSMappedType. babel: `node.typeParameter.name`
+  // is an Identifier (`name.name` carries the string). oxc/TS-ESTree: `node.key` is the
+  // Identifier directly OR a string. callers без constraint check use this helper raw
+  function mappedTypeKeyName(node) {
+    const keyNameNode = node?.typeParameter?.name ?? node?.key;
+    if (!keyNameNode) return null;
+    return typeof keyNameNode === 'string' ? keyNameNode : keyNameNode.name ?? null;
+  }
+  // similar для constraint slot — both parser shapes
+  function mappedTypeConstraint(node) {
+    return node?.typeParameter?.constraint ?? node?.constraint;
+  }
   function parseMappedTypeShape(node) {
-    const constraint = node.typeParameter?.constraint ?? node.constraint;
-    const keyNameNode = node.typeParameter?.name ?? node.key;
-    const paramName = typeof keyNameNode === 'string' ? keyNameNode : keyNameNode?.name;
+    const constraint = mappedTypeConstraint(node);
+    const paramName = mappedTypeKeyName(node);
     if (!paramName || !constraint) return null;
     // `[K in keyof T]` - source is T, iterated via getTypeMembers
     if (constraint.type === 'TSTypeOperator' && constraint.operator === 'keyof') {
@@ -602,7 +622,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (checkType?.type !== 'TSTypeReference' || checkType.typeName?.name !== paramName) return null;
     if (extendsType?.type === 'TSAnyKeyword' || extendsType?.type === 'TSUnknownKeyword') return true;
     if (extendsType?.type === 'TSStringKeyword') return typeof keyValue === 'string';
-    if (extendsType?.type === 'TSNumberKeyword') return typeof keyValue === 'number';
+    // expand-mapped pipeline coerces numeric-literal sources to string keys before reaching
+    // here; `isNumericKeyShape` matches numeric-string keys так же as actual numbers,
+    // preserving `K extends number` precision. edge `'0' | 1` conflated к number — over-emit
+    // direction safe для polyfill detection
+    if (extendsType?.type === 'TSNumberKeyword') return isNumericKeyShape(keyValue);
     if (templateLiteralTypeParts(extendsType)) return matchTemplatePattern(extendsType, keyValue);
     if (extendsType?.type === 'TSLiteralType') {
       const expected = literalKeyValue(extendsType.literal);
@@ -729,7 +753,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const sourceMembers = getTypeMembers(sourceType, scope, depth + 1, visited);
     if (!sourceMembers) return null;
     for (const m of sourceMembers) {
-      if (m.computed) return null;
+      // computed (Symbol-keyed / dynamic-key) members are EXCLUDED from `keyof T` per TS
+      // spec - skip-but-continue so they don't sink the rest of the expansion. only null
+      // statically-named keys (`getKeyName` returned null) signal indeterminate, bail
+      if (m.computed) continue;
       const keyName = getKeyName(m.key);
       // null key signals "not statically evaluable" - bail entire expansion (a member we
       // can't name leaves the mapped result indeterminate). private (`#priv`) members are
@@ -1067,9 +1094,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         // alpha-rename guard: mapped type binds its own K, so outer subst entries for the
         // same key MUST NOT propagate into body / nameType (variable capture). constraint
         // references outer types (`keyof T`) and uses the unmodified subst; body / nameType
-        // see inner K as a fresh variable. `typeParamName` handles both parser shapes
-        // (babel nests `tp.name.name`; oxc flattens to `tp.name` as string)
-        const innerName = typeParamName(tp);
+        // see inner K as a fresh variable. `mappedTypeKeyName` covers both parser shapes:
+        // babel nests under `node.typeParameter.name`; oxc flattens to `node.key`
+        const innerName = mappedTypeKeyName(node);
         const innerSubst = innerName ? dropMapKeys(subst, new Set([innerName])) : subst;
         const recurseSlot = (parent, slot, map) => parent?.[slot]
           ? applyAliasSubstDeep(parent[slot], map, depth + 1, visited) : parent?.[slot];
@@ -1499,9 +1526,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap, visited);
     }
     const segments = collectQualifiedSegments(base);
-    const parentDecl = segments && findTypeDeclaration(segments, scope);
+    if (!segments) return null;
+    // pass full segments array (not last segment only) - findTypeDeclaration's namespace walk
+    // honours nested module paths. previously segments.at(-1) could match an unrelated
+    // sibling-scope declaration с тем же коротким именем
+    const parentDecl = findTypeDeclaration(segments, scope);
     if (!parentDecl || !isInterfaceDeclaration(parentDecl)) return null;
-    return resolveUserDefinedType(segments.at(-1), parent, parentDecl.scope ?? scope,
+    return resolveUserDefinedType(segments, parent, parentDecl.scope ?? scope,
       depth + 1, typeParamMap, visited);
   }
 
@@ -1936,9 +1967,25 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return peeled;
     }
+    // `Awaited<T['p']>` - resolve indexed-access to member annotation AST, recurse Awaited
+    const indexedAST = resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth);
+    if (indexedAST) return recurse(indexedAST);
     const aliased = followTypeAliasChain(peeled, scope);
     if (aliased?.node && aliased.node !== peeled) return recurse(applySubst(aliased.node, aliased.subst));
     return peeled;
+  }
+
+  // shared helper: when `peeled` is TSIndexedAccessType, resolve its member's annotation
+  // AST (returns null otherwise). enables Awaited / structure-preserving wrappers that
+  // wrap an indexed access to peel down to the member's underlying shape без bouncing
+  // через Type Object intermediate
+  function resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth) {
+    if (peeled?.type !== 'TSIndexedAccessType') return null;
+    const key = indexedAccessKey(peeled.indexType);
+    if (key === null) return null;
+    const member = findTypeMember(peeled.objectType, key, scope, depth + 1);
+    const annotation = unwrapTypeAnnotation(member?.typeAnnotation ?? member?.returnType ?? member);
+    return annotation && annotation !== peeled ? annotation : null;
   }
 
   // peel Awaited inside a tuple element preserving TSNamedTupleMember / TSRestType
@@ -2029,9 +2076,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (resolved) return findTypeMember(resolved, key, scope, depth + 1);
     const trueResult = findTypeMember(withSubst(aliased.trueType), key, scope, depth + 1);
     const falseResult = findTypeMember(withSubst(aliased.falseType), key, scope, depth + 1);
-    if (!trueResult) return falseResult;
-    if (!falseResult) return trueResult;
-    return { type: 'TSUnionType', types: [trueResult, falseResult] };
+    // strip nullable/never branches symmetric с `resolveConditionalBranches` — иначе
+    // `K extends string ? Foo : never` post-subst может вернуть synth union с never-branch
+    // member которая мешает downstream member dispatch
+    const trueViable = trueResult && !isNullableOrNeverAnnotation(trueResult) ? trueResult : null;
+    const falseViable = falseResult && !isNullableOrNeverAnnotation(falseResult) ? falseResult : null;
+    if (!trueViable) return falseViable;
+    if (!falseViable) return trueViable;
+    return { type: 'TSUnionType', types: [trueViable, falseViable] };
   }
 
   function findTypeMember(objectType, key, scope, depth = 0) {
@@ -3174,9 +3226,18 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function resolveInferElementPattern(node, typeParamMap, scope, depth, seen) {
     const inferName = matchArrayInferPattern(node.extendsType);
     if (!inferName) return null;
-    if (typeRefName(node.trueType) !== inferName) return null;
     const checkType = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
-    return checkType ? resolveInnerType(checkType) : null;
+    if (!checkType) return null;
+    const inner = resolveInnerType(checkType);
+    if (!inner) return null;
+    // bare-name short-circuit: `T extends (infer U)[] ? U : never`
+    if (typeRefName(node.trueType) === inferName) return inner;
+    // wider trueType referencing inferName (`U[]`, `Promise<U>`, `{x: U}`, ...) - bind
+    // inferred element into typeParamMap clone и recurse on trueType. substituteTypeParams
+    // returns null for shapes it can't resolve - caller falls back to plain branch
+    const inferMap = typeParamMap ? new Map(typeParamMap) : new Map();
+    inferMap.set(inferName, inner);
+    return substituteTypeParams(node.trueType, inferMap, scope, depth + 1, seen);
   }
 
   // `Container<infer U>` is a recognised narrow pattern when the container's `.inner`
@@ -3383,6 +3444,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     'Generator', 'AsyncGenerator',
     'Iterator', 'AsyncIterator',
     'IterableIterator', 'AsyncIterableIterator',
+    // TS 5.6+ stdlib bases с тем же `<TYield, TReturn, TNext>` slot order
+    'IteratorObject', 'AsyncIteratorObject',
   ]);
 
   // if annotation resolves to one of GENERATOR_LIKE_NAMES, return its type params; otherwise null
@@ -3793,7 +3856,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // reference type params. without this branch an outer function returning a raw
       // mapped type (not wrapped in TSTypeReference) skips substitution and loses inner
       case 'TSMappedType':
-        return (node.typeParameter && hasTypeParamReference(node.typeParameter.constraint, typeParamNames, depth + 1))
+        // `mappedTypeConstraint` covers both parser shapes (babel nests; oxc flattens) so
+        // a mapped type returned from oxc parser doesn't skip subst on its constraint slot
+        return hasTypeParamReference(mappedTypeConstraint(node), typeParamNames, depth + 1)
           || hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
       // `typeof x` references the type of a value binding; when x itself is typed by
       // a type param (rare: `declare const x: T; typeof x`), substitution is needed
@@ -6204,6 +6269,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return foldUnionTypes([peeled.trueType, peeled.falseType], recurse);
     }
+    // `Awaited<T['p']>` - resolve indexed-access to member annotation AST, recurse Awaited
+    const indexedAST = resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth);
+    if (indexedAST) return recurse(indexedAST);
     // type alias hop: `type Inner = Promise<...>; Awaited<Inner>` - chase to the underlying
     // shape so the outer Promise / union dispatch fires on the aliased form
     const aliased = followTypeAliasChain(peeled, scope);
