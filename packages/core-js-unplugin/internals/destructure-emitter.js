@@ -300,10 +300,14 @@ export function createDestructureEmitter({
   // mutations invalidate the other's anchor positions
   function bakePendingSplicesIntoPreserved(declaration, perDecl) {
     for (let i = 0; i < perDecl.length; i++) {
-      if (perDecl[i].preservedSrc === null) continue;
       const decl = declaration.declarations[i];
-      const substSplices = perDecl[i].siblingSubstSplices ?? [];
+      // even fully-extracted declarators must drain scope-tracker ref-bindings whose
+      // anchor positions fall in [decl.start, decl.end). without this consume, applyTransforms
+      // would later queue `var _ref;` insert inside the parent overwrite range и
+      // MagicString throws "Cannot split a chunk that has already been edited"
       const refSplices = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
+      if (perDecl[i].preservedSrc === null) continue;
+      const substSplices = perDecl[i].siblingSubstSplices ?? [];
       const splices = [...substSplices, ...refSplices];
       if (splices.length) perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
     }
