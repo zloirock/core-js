@@ -119,6 +119,17 @@ export function resolveSuperImportName(injector, superMeta) {
   return imp ? { ...superMeta, object: imp.hint } : superMeta;
 }
 
+// remap inherited-static meta through `resolveSuperImportName` while preserving the
+// caller's computed-key sideEffects channel. without the carry, `super[(fn(),'X')]`
+// would lose `fn()` evaluation when the static dispatch retargets to the parent class's
+// global hint. shared between babel-plugin and unplugin emitters
+export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) {
+  if (!inheritedMeta) return null;
+  const remapped = resolveSuperImportName(injector, inheritedMeta);
+  return remapped && originalMeta?.sideEffects?.length
+    ? { ...remapped, sideEffects: originalMeta.sideEffects } : remapped;
+}
+
 // `super.X` in a static method -> static meta on the parent class. `resolveSuperType`
 // dispatches on AST shape (Identifier alias chains / MemberExpression proxy-global chains).
 // oxc-parser preserves `ParenthesizedExpression` wrappers that babel strips - peel first

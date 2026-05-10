@@ -12,7 +12,7 @@ import {
   mayHaveSideEffects,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { createClassHelpers, resolveSuperImportName } from '@core-js/polyfill-provider/helpers/class-walk';
+import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -256,17 +256,18 @@ export default function plugin(api, options) {
       }
 
       // super.method(args) / super.method!(args) / super.method?.(args) -> id.call(this, args)
-      function replaceSuperStatic(path, id) {
+      // sideEffects channel covers computed-key SE: `super[(fn(),'X')](args)` collected fn()
+      // into meta.sideEffects via members.js; emit wraps the call in SequenceExpression
+      function replaceSuperStatic(path, id, sideEffects) {
         const callerPath = unwrapTSExpressionParent(path);
         const callParent = callerPath.parentPath;
         if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           && callParent.node.callee === callerPath.node) {
-          callParent.replaceWith(
-            t.callExpression(t.memberExpression(id, t.identifier('call')),
-              [t.thisExpression(), ...callParent.node.arguments.map(a => t.cloneNode(a))]),
-          );
+          const callExpr = t.callExpression(t.memberExpression(id, t.identifier('call')),
+            [t.thisExpression(), ...callParent.node.arguments.map(a => t.cloneNode(a))]);
+          callParent.replaceWith(withSideEffects(callExpr, sideEffects));
         } else {
-          unwrapTSExpressionParent(path).replaceWith(id);
+          unwrapTSExpressionParent(path).replaceWith(withSideEffects(id, sideEffects));
         }
       }
 
@@ -291,14 +292,20 @@ export default function plugin(api, options) {
           // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
           const resolved = resolvePureOrGlobalFallback(meta, path);
           if (!resolved.result) return;
-          // RHS-side preserves SE: `'k' in (fn(), Array)` evaluates `fn()` even when LHS is
-          // a known constant. drop without rescue would silently elide observable side-effects.
-          // wrap via SequenceExpression so `(fn(), true)` keeps semantics intact
+          // RHS-side preserves SE: `'k' in (fn(), Array)` / `'k' in (a = Array)` evaluates
+          // the SE even when LHS is a known constant. drop without rescue would silently
+          // elide observable side-effects. SequenceExpression: keep SE-bearing prefix and
+          // drop the receiver tail; AssignmentExpression: wrap whole rhs as a sequence prefix.
+          // CallExpression rhs is intentionally NOT rescued here - inline-call analysis
+          // upstream filters out SE-bearing IIFEs separately, and conservative wrapping for
+          // pure IIFE receivers would emit `((() => X)(), true)` for the explicit-classify path
           const rhs = path.node.right;
           if (rhs?.type === 'SequenceExpression' && rhs.expressions.length > 1
             && rhs.expressions.slice(0, -1).some(e => mayHaveSideEffects(e))) {
             const prefix = rhs.expressions.slice(0, -1);
             path.replaceWith(t.sequenceExpression([...prefix, t.booleanLiteral(true)]));
+          } else if (rhs?.type === 'AssignmentExpression') {
+            path.replaceWith(t.sequenceExpression([t.cloneNode(rhs), t.booleanLiteral(true)]));
           } else {
             path.replaceWith(t.booleanLiteral(true));
           }
@@ -314,16 +321,6 @@ export default function plugin(api, options) {
           || callerPath.parent.callee !== callerPath.node) return;
         const type = resolveNodeType(callParent);
         if (type) resolvedType.set(callParent.node, type);
-      }
-
-      // preserves sideEffects (SE from computed-key / SequenceExpression receiver) through
-      // the super-class-alias -> static-lookup remap - dropping them would fire the SE at
-      // wrong evaluation points
-      function remapInheritedStaticMeta(originalMeta, inheritedMeta) {
-        const originalSideEffects = originalMeta.sideEffects;
-        const remapped = inheritedMeta ? resolveSuperImportName(injector, inheritedMeta) : null;
-        return remapped && originalSideEffects?.length
-          ? { ...remapped, sideEffects: originalSideEffects } : remapped;
       }
 
       function usagePureCallback(meta, path) {
@@ -371,7 +368,7 @@ export default function plugin(api, options) {
             // carry through `meta.sideEffects` from the original resolution: SE from
             // computed-key `super[(fn(), 'X')]()` or SequenceExpression receiver must be
             // preserved through the super-to-static remap, not dropped
-            if (inheritedStatic) meta = remapInheritedStaticMeta(meta, inheritedMeta);
+            if (inheritedStatic) meta = remapInheritedStaticMeta(injector, meta, inheritedMeta);
             if (inheritedStatic && !meta) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
@@ -438,7 +435,7 @@ export default function plugin(api, options) {
             replaceInstanceLike(path, id, skipPolyfillableOptional, meta.sideEffects);
             if (callType && callParent.node) resolvedType.set(callParent.node, callType);
           } else if (t.isSuper(path.node.object)) {
-            replaceSuperStatic(path, id);
+            replaceSuperStatic(path, id, meta.sideEffects);
           } else {
             const wasOptional = (annotateCallReturnType(path), path.node.optional);
             const replacePath = unwrapTSExpressionParent(path);
