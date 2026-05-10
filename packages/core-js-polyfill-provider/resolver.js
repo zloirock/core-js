@@ -264,7 +264,7 @@ export function createPolyfillResolver(options, {
     if (!hasOwn(desc, 'common')) return null;
     // bail when the receiver type is statically known and incompatible with desc's variants.
     // enhanceMeta returns null when the hint isn't in TYPE_HINTS but desc requires hints;
-    // returns a meta with `object` ∈ TYPE_HINTS when the type folded into a primitive /
+    // returns a meta with `object` in TYPE_HINTS when the type folded into a primitive /
     // collection slot. either way the upstream resolvePure already concluded "no polyfill
     // applies" - emitting common here over-injects relative to babel's natural-bail (babel
     // only deopts to common AFTER an inner polyfill mutation, never for a typed receiver)
