@@ -153,8 +153,15 @@ export function createPolyfillContext({
   // returns `''`, and downstream `getCoreJSEntry` would treat absolute paths as core-js entries
   // (`'/foo/bar'.startsWith('/' === pkg + '/')` false-positive). validateOptions enforces this
   // shape but only when called - direct createPolyfillContext callers need their own check
-  if (typeof pkg !== 'string' || pkg === '' || /^\/+$/.test(pkg)) {
+  // shape guard for direct callers bypassing validateOptions. applies to `pkg` AND each
+  // `additionalPackages` member - empty / slash-only entries cascade through `packages`
+  // and false-positive every absolute path в `getCoreJSEntry`'s `startsWith('/')` check
+  const isInvalidPkgShape = p => typeof p !== 'string' || p === '' || /^\/+$/.test(p);
+  if (isInvalidPkgShape(pkg)) {
     throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ JSON.stringify(pkg) }`);
+  }
+  if (additionalPackages?.some(isInvalidPkgShape)) {
+    throw new TypeError(`[core-js] \`additionalPackages\` entries must be non-empty, non-slash-only strings; received ${ JSON.stringify(additionalPackages) }`);
   }
 
   version = normalizeCoreJSVersion(version);
