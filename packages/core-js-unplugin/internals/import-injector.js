@@ -177,11 +177,12 @@ export default class ImportInjector extends ImportInjectorState {
     if (!imports.length && !refs.length) return;
     const importPos = this.#prologueEnd();
     const refPos = this.#userImportEnd ?? importPos;
+    const lead = needsLeadingNewlineAt(this.#ms.original, importPos) ? '\n' : '';
     // when imports and refs share the same anchor, combine into one block so MagicString
     // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
     // position can re-order vs prepend semantics
-    if (importPos === refPos) return this.#emit(blockify([...imports, ...refs]), importPos);
-    if (imports.length) this.#emit(blockify(imports), importPos);
+    if (importPos === refPos) return this.#emit(lead + blockify([...imports, ...refs]), importPos);
+    if (imports.length) this.#emit(lead + blockify(imports), importPos);
     if (refs.length) this.#emit(blockify(refs), refPos);
   }
 
@@ -262,6 +263,15 @@ function skipShebang(src, pos) {
     if (isLineTerminator(src[i])) return i + 1;
   }
   return src.length;
+}
+
+// shebang-only / EOF-anchor insertion needs explicit `\n` prefix - blockify-emit appends
+// to `pos`, so without a separator the inserted block concatenates onto the prior token
+// (`#!/usr/bin/env nodeimport "core-js/...";` syntax error). detection: insert position
+// is at end-of-source AND prev char is not a line terminator. callers prepend `\n` to
+// the emitted block when this returns true
+function needsLeadingNewlineAt(src, pos) {
+  return pos > 0 && pos === src.length && !isLineTerminator(src[pos - 1]);
 }
 
 // land insertion on the next line: skip trailing whitespace and any chain of inline

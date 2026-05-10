@@ -48,6 +48,26 @@ import {
 } from './destructure-emit-utils.js';
 import { walkAstNodes } from './plugin-helpers.js';
 
+// scope-walker constants for `polyfillSiblingReceiverRefs`. hoisted module-level so each
+// call doesn't re-allocate the Sets. SwitchStatement creates one shared block scope per
+// ES spec; `using` / `await using` are TC39 stage-4 lexical kinds (block-scoped, treated
+// like let/const for shadow detection)
+const SIBLING_BLOCK_SCOPE_TYPES = new Set([
+  'BlockStatement',
+  'CatchClause',
+  'ForStatement',
+  'ForOfStatement',
+  'ForInStatement',
+  'SwitchStatement',
+]);
+
+const SIBLING_LEXICAL_DECL_KINDS = new Set([
+  'let',
+  'const',
+  'using',
+  'await using',
+]);
+
 // pure helper: text-range covering `propNode` in `props` PLUS its adjacent comma so the
 // resulting source stays a valid ObjectPattern after splicing the range out. shapes:
 //   - first prop with siblings: [propStart, nextSiblingStart)  -> drops trailing `, `
@@ -639,24 +659,16 @@ export function createDestructureEmitter({
     const matches = [];
     const scopeStack = [];
 
-    // own lexical-scope owners. let/const/class/function-decl bindings stay inside.
+    // own lexical-scope owners are SIBLING_BLOCK_SCOPE_TYPES (hoisted module-level).
     // StaticBlock is BOTH a var-scope (per ES2022) AND a lexical-scope owner; treated
     // jointly via `isVarScopeBoundary` (collectFunctionVars bails) + explicit `pushScope`
     // branch (collects both bands of bindings)
-    const BLOCK_SCOPE_TYPES = new Set([
-      'BlockStatement',
-      'CatchClause',
-      'ForStatement',
-      'ForOfStatement',
-      'ForInStatement',
-    ]);
-
     function isVarScopeBoundary(type) {
       return FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'StaticBlock';
     }
 
     function isScopeOwner(type) {
-      return isVarScopeBoundary(type) || BLOCK_SCOPE_TYPES.has(type);
+      return isVarScopeBoundary(type) || SIBLING_BLOCK_SCOPE_TYPES.has(type);
     }
 
     // walk body for `var` declarations, stopping at nested own-var-scope owners (their
@@ -677,12 +689,14 @@ export function createDestructureEmitter({
       }
     }
 
-    // record `let`/`const` declarators + Class/Function-Declaration ids on `decl`
-    // into `locals`. `var` intentionally excluded - it's collected by `collectFunctionVars`
-    // at the enclosing function-scope owner (or here in pushScope's StaticBlock branch)
+    // record `let` / `const` / `using` / `await using` declarators + Class/Function-Declaration
+    // ids on `decl` into `locals`. `var` intentionally excluded - collected by
+    // `collectFunctionVars` at the enclosing function-scope owner (or here in pushScope's
+    // StaticBlock branch). TC39 explicit-resource-management `using` kinds are block-scoped
+    // per spec; missing them lets `using globalThis = res();` slip past shadow detection
     function collectLexicalBinding(decl, locals) {
       if (!decl) return;
-      if (decl.type === 'VariableDeclaration' && (decl.kind === 'let' || decl.kind === 'const')) {
+      if (decl.type === 'VariableDeclaration' && SIBLING_LEXICAL_DECL_KINDS.has(decl.kind)) {
         for (const d of decl.declarations) walkPatternIdentifiers(d.id, id => locals.add(id.name));
       } else if (decl.type === 'ClassDeclaration' && decl.id?.name) locals.add(decl.id.name);
       else if (decl.type === 'FunctionDeclaration' && decl.id?.name) locals.add(decl.id.name);
@@ -719,6 +733,15 @@ export function createDestructureEmitter({
         case 'ForOfStatement':
         case 'ForInStatement':
           collectLexicalBinding(node.left, locals);
+          break;
+        case 'SwitchStatement':
+          // ES spec: switch creates one block scope shared across all cases. lexical
+          // decls in any case body land here, not at the enclosing block. without this,
+          // `switch (x) { case 1: let globalThis = res(); break; case 2: foo(globalThis); }`
+          // wouldn't see the shadow when checking case 2's globalThis ref
+          for (const c of node.cases ?? []) {
+            for (const stmt of c.consequent ?? []) collectLexicalBinding(stmt, locals);
+          }
           break;
       }
       scopeStack.push(locals);
