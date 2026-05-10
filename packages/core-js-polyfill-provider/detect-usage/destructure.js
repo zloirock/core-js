@@ -284,18 +284,33 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
 // excluded - inline-default would pick native first when present, contradicting
 // usage-pure's "polyfill always wins" contract
 // peel transparent destructure wrappers via shared `isTransparentDestructureWrapper`
-// predicate. tracks `arrayIndex` separately because classifier needs to recover the
-// matching init element from a host's ArrayExpression (walker just drops everything)
+// predicate. tracks `arrayDepth` so multi-level ArrayPattern wrappers
+// (`[[{a}]] = [[receiver]]`) can step through nested ArrayExpression init
+// element-by-element. each ArrayPattern wrapper has exactly one inner element
+// (otherwise destructuring would re-bind to a different slot per pattern position),
+// so a depth counter is sufficient - no per-level index needed
 function peelDestructureWrappers(pattern) {
   let prev = pattern.node;
   let parent = pattern.parentPath;
-  let arrayIndex = -1;
+  let arrayDepth = 0;
   while (parent && isTransparentDestructureWrapper(parent.node, prev)) {
-    if (parent.node.type === 'ArrayPattern') arrayIndex = 0;
+    if (parent.node.type === 'ArrayPattern') arrayDepth++;
     prev = parent.node;
     parent = parent.parentPath;
   }
-  return { parent, arrayIndex };
+  return { parent, arrayDepth };
+}
+
+// descend `depth` ArrayExpression layers via `.elements[0]` to mirror the
+// ArrayPattern wrapper stack on the destructure side. bail (return null) if any
+// intermediate level isn't an ArrayExpression - mismatched lhs/rhs depth means
+// the runtime structure won't unwrap the wrappers and static resolution would lie
+function descendArrayWrapperInit(receiverNode, depth) {
+  for (let i = 0; i < depth; i++) {
+    if (receiverNode?.type !== 'ArrayExpression') return null;
+    [receiverNode] = receiverNode.elements;
+  }
+  return receiverNode;
 }
 
 export function resolveNestedDestructureReceiver(outerProp, adapter) {
@@ -307,15 +322,12 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
     const key = sharedResolveKey(cur.node.key, cur.node.computed, pattern.scope, adapter);
     if (!key) return null;
     keys.unshift(key);
-    const { parent, arrayIndex } = peelDestructureWrappers(pattern);
+    const { parent, arrayDepth } = peelDestructureWrappers(pattern);
     // shared `flattenableHostSlot` returns 'init' for VariableDeclarator,
     // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise
     const slot = flattenableHostSlot(parent?.node, parent);
-    let receiverNode = slot ? parent.node[slot] : null;
-    // ArrayPattern traversed: host's init must be ArrayExpression; pick the matched index
-    if (receiverNode !== null && arrayIndex >= 0) {
-      receiverNode = receiverNode.type === 'ArrayExpression' ? receiverNode.elements[arrayIndex] : null;
-    }
+    const slotNode = slot ? parent.node[slot] : null;
+    const receiverNode = arrayDepth ? descendArrayWrapperInit(slotNode, arrayDepth) : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested combinations like `(se(), (R as any))`) all reach the receiver. without
