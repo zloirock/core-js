@@ -96,11 +96,29 @@ export function createPolyfillEmitter({
     return result + src.slice(prev);
   }
 
+  // single descent step through chain shapes: MemberExpression.object / CallExpression.callee /
+  // TS expression wrapper unwrap. used by all chain-walking helpers (findChainRoot,
+  // hasOptionalChainSegment) so the descent contract stays in one place
+  function chainChild(n) {
+    return n.object || n.callee || (TS_EXPR_WRAPPERS.has(n.type) ? n.expression : null);
+  }
+
+  // detect any optional segment inside a chain. complementary к `findChainRoot` (which
+  // also finds non-polyfillable roots); this is a bare predicate for "is this node a
+  // continuation of an optional chain". necessary because ESTree continuation members
+  // carry `optional=false` even inside an optional chain (only the optional-introducing
+  // segment itself flags `optional=true`)
+  function hasOptionalChainSegment(node) {
+    let cur = chainChild(node);
+    while (cur && typeof cur === 'object') {
+      if (cur.optional) return true;
+      cur = chainChild(cur);
+    }
+    return false;
+  }
+
   // walk the chain to find the first non-polyfillable optional, skipping TS wrappers
   function findChainRoot(node, scope) {
-    function chainChild(n) {
-      return n.object || n.callee || (TS_EXPR_WRAPPERS.has(n.type) ? n.expression : null);
-    }
     function makeResult(optionalNode) {
       const rootNode = optionalNode.object || optionalNode.callee;
       const deoptPositions = [];
@@ -124,6 +142,20 @@ export function createPolyfillEmitter({
       current = chainChild(current);
     }
     return { root: null };
+  }
+
+  // allocate a `_ref` memoization slot for the call's receiver when bodyObj is non-trivial
+  // and not already a guard-allocated ref. returns the receiver text for both the
+  // memoize-and-pass site (`firstArg`) and the reuse site (`obj`). bare Identifiers and
+  // pre-allocated guardRef bypass allocation - text is reused verbatim. shared between
+  // standard and parenLookupOnly emit paths so `_ref` policy stays in one place
+  function allocCallObj(bodyObj, isNonIdent, guardRef) {
+    const needsRef = isNonIdent && bodyObj !== guardRef;
+    const ref = needsRef ? scopeTracker.genRef() : null;
+    return {
+      obj: ref || bodyObj,
+      firstArg: ref ? `${ ref } = ${ bodyObj }` : bodyObj,
+    };
   }
 
   // build the replacement text for an instance method or Symbol.iterator transform
@@ -171,17 +203,17 @@ export function createPolyfillEmitter({
     } else if (parenLookupOnly) {
       // `(arr?.method)(args)`: parens preserve Reference Type so native binds `this=arr` on
       // success; on nullish the outer non-optional call throws (chain ends at `?.`). emit
-      // `(arr == null ? void 0 : binding(arr)).call(arr, args)` - `(undefined).call(...)`
-      // throws on nullish, success path preserves `this`. wrap the whole guard+lookup in
-      // parens so `.call` binds outside the ternary. bodyObj is already memoized when
-      // the receiver is non-bare (guard pre-assigns it to a ref)
+      // `(arr == null ? void 0 : binding(_ref = arr.b)).call(_ref, args)`:
+      //   - `(undefined).call(...)` throws on nullish (matches native throw semantics)
+      //   - success path preserves `this` via memoized ref
+      //   - bodyObj evaluated ONCE (deep-chain `arr.b` would re-eval in outer .call otherwise)
+      // bare receiver `arr` and pre-allocated guardRef cases skip memoize - already trivially safe
       const argsPart = args ? `, ${ args }` : '';
-      body = `(${ guard }${ binding }(${ bodyObj })).call(${ bodyObj }${ argsPart })`;
+      const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
+      body = `(${ guard }${ binding }(${ firstArg })).call(${ obj }${ argsPart })`;
       guard = '';
     } else {
-      const ref = isNonIdent && bodyObj !== guardRef ? scopeTracker.genRef() : null;
-      const obj = ref || bodyObj;
-      const firstArg = ref ? `${ ref } = ${ bodyObj }` : bodyObj;
+      const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
       const dot = optionalCall ? '?.' : '.';
       const argsPart = args ? `, ${ args }` : '';
       const prefix = `${ binding }(${ firstArg })`;
@@ -504,18 +536,20 @@ export function createPolyfillEmitter({
     skipProxyGlobal(node);
   }
 
-  // parenthesized optional member followed by NON-optional outer call: `(arr?.includes)(1)`.
-  // native semantics: chain ends at `?.`, outer `()` is non-optional - on nullish throws
-  // TypeError; on success Reference Type preserves `this=arr` through parens (verified
-  // empirically: `([1,2]?.at)(0) === 1`). emit `(arr == null ? void 0 : binding(arr)).call
-  // (arr, args)`: nullish path throws via `.call` access on undefined; success path
-  // preserves `this`. parenLookupOnly flag routes through buildReplacement's special form.
-  // optional outer call `(arr?.at)?.(0)` falls through to standard path - Reference Type
-  // preserves through parens and short-circuits properly on nullish
+  // parenthesized optional member followed by NON-optional outer call: `(arr?.includes)(1)`,
+  // or deep-chain continuation `(arr?.b.includes)(1)` where `.includes` itself is non-optional
+  // but an inner `?.` exists. native semantics: chain ends at the optional, outer `()` is
+  // non-optional - on nullish throws TypeError; on success Reference Type preserves
+  // `this=arr` through parens (verified empirically: `([1,2]?.at)(0) === 1`). emit
+  // `(arr == null ? void 0 : binding(_ref = arr.b)).call(_ref, args)`: nullish path throws
+  // via `.call` access on undefined; success path preserves `this`. parity с babel-side
+  // requires walking the chain (not just `node.optional` flag) since ESTree continuation
+  // members carry optional=false even within an optional chain
   function replaceInstance(binding, node, parent, metaPath, sideEffects) {
-    const isParenLookupOnly = isCallee(node, parent) && parent.callee !== node
-      && parent.callee?.type === 'ParenthesizedExpression'
-      && node.optional && !parent.optional;
+    const wrappedInParen = parent.callee !== node && parent.callee?.type === 'ParenthesizedExpression';
+    const optionalInsideChain = node.optional || hasOptionalChainSegment(node);
+    const isParenLookupOnly = isCallee(node, parent) && wrappedInParen
+      && optionalInsideChain && !parent.optional;
     if (isParenLookupOnly) {
       addInstanceTransform(binding, node, parent, metaPath, true, true, sideEffects, true);
       return;
