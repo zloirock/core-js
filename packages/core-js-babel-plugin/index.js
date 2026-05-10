@@ -761,6 +761,15 @@ export default function plugin(api, options) {
         const entryVisitors = createEntryVisitors(entryGlobalCallback);
         return {
           pre() {
+            // mirror `preTraverse`'s defensive primitive reset: without this, a sibling
+            // plugin destroying Program before our pre fires would leave `skipFile` /
+            // `disabledLines` / `importStyle` from the PREVIOUS file in a multi-file batch.
+            // `initFile` only sets these when path.node is non-null; bare reset here
+            // guarantees a known-clean shape regardless of init's outcome
+            skipFile = false;
+            disabledLines = null;
+            importStyle = null;
+            originalBodyNodes = null;
             initFile(this.file.path);
             if (!skipFile) {
               // Program is a one-shot setup hook called with the FILE path (not Program path);
@@ -773,7 +782,15 @@ export default function plugin(api, options) {
             injector?.flush();
           },
           visitor: {},
-          post() { injector?.flush(); outputDebug(); },
+          post() {
+            injector?.flush();
+            outputDebug();
+            // mirror `postHook`'s closure-captured state cleanup so multi-file batch GC
+            // bound is deterministic - without nulling, FILE A's injector + AST refs survive
+            // until next `initFile` reassigns. entry-global doesn't use synthSwap /
+            // destructureEmit / skippedNodes, so only `injector` + `debugOutput` apply
+            injector = debugOutput = null;
+          },
         };
       }
 
