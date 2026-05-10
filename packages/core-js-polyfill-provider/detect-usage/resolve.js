@@ -115,14 +115,36 @@ export function peelChainAssignmentDeep(node) {
   }
 }
 
+// walk a receiver MemberExpression chain peeling chain-assigns at each `.object` hop.
+// returns array of outermost AssignmentExpression nodes encountered, in source order.
+// shared between top-level (`(a = Array).from(x)`) and mid-chain (`((a = globalThis)
+// .Array).from(x)`) cases - top-level walks one iteration; mid-chain walks down through
+// the .object levels until a non-member root surfaces
+function collectChainAssignsThroughMemberChain(receiverNode) {
+  const collected = [];
+  let cur = unwrapParens(receiverNode);
+  while (cur) {
+    const { outer } = peelChainAssignment(cur);
+    if (outer) {
+      collected.push(outer);
+      cur = peelChainAssignmentDeep(cur);
+    }
+    cur = unwrapParens(cur);
+    if (cur?.type !== 'MemberExpression' && cur?.type !== 'OptionalMemberExpression') break;
+    cur = unwrapParens(cur.object);
+  }
+  return collected;
+}
+
 // prepend chain-assignment receiver as a side effect for static-method dispatch:
-// `(a = Array).from(x)` -> emit `(a = Array, _Array$from)(x)`. callers pass an already-
-// unwrapped receiver node (parens / TS / ChainExpression peeled). returns `baseEffects`
-// unchanged when receiver isn't a chain-assignment shape
+// `(a = Array).from(x)` -> emit `(a = Array, _Array$from)(x)`. mid-chain shapes like
+// `((a = globalThis).Array).from(x)` also surface their assignments to the SE channel.
+// callers pass an already-unwrapped receiver node (parens / TS / ChainExpression peeled).
+// returns `baseEffects` unchanged when no chain-assign found
 export function prependChainAssignmentEffect(receiverNode, baseEffects) {
-  const { outer } = peelChainAssignment(receiverNode);
-  if (!outer) return baseEffects;
-  return baseEffects?.length ? [outer, ...baseEffects] : [outer];
+  const collected = collectChainAssignsThroughMemberChain(receiverNode);
+  if (!collected.length) return baseEffects;
+  return baseEffects?.length ? [...collected, ...baseEffects] : collected;
 }
 
 export function isStaticPlacement(name) {
@@ -277,13 +299,16 @@ export function patternBindingName(node) {
 // walks a chain of proxy-global links (`globalThis.self.window.X`) to its root identifier;
 // returns true when the root is a proxy global and every intermediate link is also one
 function resolveProxyGlobalRoot(receiver, scope, adapter, seen, path) {
-  let obj = unwrapParens(receiver);
+  // peel chain-assign at every step: `((a = globalThis).Array).from(x)` buries the
+  // assignment inside .object's .object, so a flat unwrapParens loses the proxy-global
+  // root. fixpoint peel covers nested-paren and multi-level `=` shapes
+  let obj = peelChainAssignmentDeep(unwrapParens(receiver));
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
     // carry `seen` into computed-key resolution so a shared alias chain across the
     // proxy-global walk and its intermediate member keys can't exceed the cycle guard
     const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter, seen, path) : obj.property?.name;
     if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
-    obj = unwrapParens(obj.object);
+    obj = peelChainAssignmentDeep(unwrapParens(obj.object));
   }
   return obj.type === 'Identifier' && isProxyGlobalIdentifier(obj, scope, adapter, seen, path);
 }
@@ -407,8 +432,15 @@ export function resolveKey(node, computed, scope, adapter, seen, path, depth = 0
   if (depth > MAX_KEY_DEPTH) return null;
   // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
   // binding inits; Babel strips them. unwrap up front so the identifier-alias and
-  // Symbol-member branches below work uniformly across parsers
-  if (computed) node = unwrapParens(node);
+  // Symbol-member branches below work uniformly across parsers.
+  // SequenceExpression tail: only the last element's value drives key identity. SE
+  // prefix is captured by unwrapParensCollectingEffects at meta-build sites (members.js);
+  // direct callers without an effects channel (resolveStaticInheritedMember) get the
+  // peeled tail so super[(fn(),'X')] still classifies as super.X
+  if (computed) {
+    node = unwrapParens(node);
+    while (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
+  }
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
   // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
