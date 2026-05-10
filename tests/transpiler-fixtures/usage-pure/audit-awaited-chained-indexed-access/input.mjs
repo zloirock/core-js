@@ -1,5 +1,5 @@
 // chained indexed access inside Awaited: `Awaited<T['outer']['inner']>`; member resolution
-// walks through both index hops к Promise inner
+// walks through both index hops down to Promise inner
 interface Box {
   items: Promise<number[]>;
 }

@@ -384,8 +384,8 @@ export default class TransformQueue {
       throw new TypeError(`[core-js] transform-queue: start/end must be integers (received ${ String(start) }, ${ String(end) })`);
     }
     // split diagnostics so the caller sees which class of misuse fired:
-    //   start === end → caller meant insert (use `insert(pos, content)` or `addInsert`);
-    //   start > end   → inverted range (caller's offset arithmetic is reversed)
+    //   start === end -> caller meant insert (use `insert(pos, content)` or `addInsert`);
+    //   start > end   -> inverted range (caller's offset arithmetic is reversed)
     if (start === end) {
       throw new RangeError(`[core-js] transform-queue: zero-length range [${ start },${ end }) - use insert() for insertions`);
     }
@@ -449,7 +449,7 @@ export default class TransformQueue {
       throw new RangeError(`[core-js] transform-queue: addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`);
     }
     // validate BOTH content args upfront - throwing inside the second `add` call after
-    // the first succeeded would leave an orphan prefix entry в the queue. typeof check
+    // the first succeeded would leave an orphan prefix entry in the queue. typeof check
     // mirrors `add`'s implicit string requirement (RawTransformContent template);
     // catches future call sites passing undefined / non-string suffix
     if (typeof prefixContent !== 'string' || typeof suffixContent !== 'string') {

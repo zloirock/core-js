@@ -155,7 +155,7 @@ export function createPolyfillContext({
   // shape but only when called - direct createPolyfillContext callers need their own check
   // shape guard for direct callers bypassing validateOptions. applies to `pkg` AND each
   // `additionalPackages` member - empty / slash-only entries cascade through `packages`
-  // and false-positive every absolute path в `getCoreJSEntry`'s `startsWith('/')` check
+  // and false-positive every absolute path in `getCoreJSEntry`'s `startsWith('/')` check
   const isInvalidPkgShape = p => typeof p !== 'string' || p === '' || /^\/+$/.test(p);
   if (isInvalidPkgShape(pkg)) {
     throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ JSON.stringify(pkg) }`);
@@ -267,7 +267,7 @@ export const resolve = createMetaResolver(builtInDefinitions);
 // `Regexp`, `parse-int` -> `ParseInt`).
 // data-driven: one scan over `globals` + `statics`. for `statics`-only owners (Array,
 // JSON, Math, Number, Object, Reflect, RegExp, String, Error) the `head === lower(name)`
-// guard rejects shared heads — Error subclasses all have `error/is-error` deps, but only
+// guard rejects shared heads - Error subclasses all have `error/is-error` deps, but only
 // `Error` itself owns head `error`. Non-matching subclasses fall back to
 // `deriveHintFromKebab` (`eval-error` -> `EvalError`). globals don't need the guard
 // because each pure-bearing global has its own kebab namespace
