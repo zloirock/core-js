@@ -105,7 +105,7 @@ export function createPolyfillEmitter({
     return n.object || n.callee || (TS_EXPR_WRAPPERS.has(n.type) ? n.expression : null);
   }
 
-  // detect any optional segment inside a chain. complementary к `findChainRoot` (which
+  // detect any optional segment inside a chain. complementary to `findChainRoot` (which
   // also finds non-polyfillable roots); this is a bare predicate for "is this node a
   // continuation of an optional chain". necessary because ESTree continuation members
   // carry `optional=false` even inside an optional chain (only the optional-introducing
@@ -544,7 +544,7 @@ export function createPolyfillEmitter({
   // non-optional - on nullish throws TypeError; on success Reference Type preserves
   // `this=arr` through parens (verified empirically: `([1,2]?.at)(0) === 1`). emit
   // `(arr == null ? void 0 : binding(_ref = arr.b)).call(_ref, args)`: nullish path throws
-  // via `.call` access on undefined; success path preserves `this`. parity с babel-side
+  // via `.call` access on undefined; success path preserves `this`. parity with babel-side
   // requires walking the chain (not just `node.optional` flag) since ESTree continuation
   // members carry optional=false even within an optional chain
   function replaceInstance(binding, node, parent, metaPath, sideEffects) {

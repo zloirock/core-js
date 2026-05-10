@@ -303,7 +303,7 @@ export function createDestructureEmitter({
       const decl = declaration.declarations[i];
       // even fully-extracted declarators must drain scope-tracker ref-bindings whose
       // anchor positions fall in [decl.start, decl.end). without this consume, applyTransforms
-      // would later queue `var _ref;` insert inside the parent overwrite range и
+      // would later queue `var _ref;` insert inside the parent overwrite range and
       // MagicString throws "Cannot split a chunk that has already been edited"
       const refSplices = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
       if (perDecl[i].preservedSrc === null) continue;
