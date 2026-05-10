@@ -443,8 +443,8 @@ export default class TransformQueue {
   // [start, end] needle (not two halves)
   addSplit(start, mid, end, prefixContent, suffixContent, guardedRoot, rewriteHint) {
     // up-front invariant: zero-length halves throw with cryptic [X,X) error inside
-    // the second `add` call without indicating which side is bad. callers already gate
-    // on this (e.g. polyfill-emitter:300), the diagnostic exists for future call sites
+    // the second `add` call without indicating which side is bad. callers (polyfill-emitter
+    // split-eligible branch) already gate on this; diagnostic exists for future call sites
     if (!(start < mid && mid < end)) {
       throw new RangeError(`[core-js] transform-queue: addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`);
     }
