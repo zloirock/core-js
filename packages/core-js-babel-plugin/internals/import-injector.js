@@ -182,16 +182,27 @@ export default class ImportInjector extends ImportInjectorState {
     this.#programPath.scope.crawl();
     const byName = this.#collectPluginShapeBindings();
 
-    // step 1: drop unused / dead var declarators
+    // step 1: drop unused / dead var declarators. iterate ALL bindings under each name
+    // (multi-bindings happen when plugin emits same `_ref` in distinct nested scopes).
+    // `#refs.delete(name)` only when ALL bindings dead; otherwise survivor keeps slot live
     for (const name of this.#refs) {
-      const [binding] = byName.get(name) ?? [];
-      if (!binding || binding.references || binding.constantViolations.length) continue;
-      // `var _ref = (se(), Array)` - side-effectful init must stay even if the var is unused
-      if (binding.path.node?.init) continue;
-      const declPath = binding.path.parentPath;
-      if (declPath.node.declarations.length === 1) declPath.remove();
-      else binding.path.remove();
-      this.#refs.delete(name);
+      const bindings = byName.get(name) ?? [];
+      let survivor = false;
+      for (const binding of bindings) {
+        if (binding.references || binding.constantViolations.length) {
+          survivor = true;
+          continue;
+        }
+        // `var _ref = (se(), Array)` - side-effectful init must stay even if var unused
+        if (binding.path.node?.init) {
+          survivor = true;
+          continue;
+        }
+        const declPath = binding.path.parentPath;
+        if (declPath.node.declarations.length === 1) declPath.remove();
+        else binding.path.remove();
+      }
+      if (!survivor) this.#refs.delete(name);
     }
     if (!this.#refs.size) return;
 
