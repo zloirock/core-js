@@ -679,7 +679,11 @@ export default function createPlugin(options) {
           walkAnnotations: false,
           isEntryAvailable: isEntryNeeded,
         }),
-      }, pass === 'post' && inherit ? {
+      }, pass === 'post' ? {
+        // mount tracker for every post pass (parity with `injector.enableReferenceTracking()`
+        // gate above): standalone `phase: 'post'` without a pre-pass snapshot also needs
+        // `referencedInSource` populated, otherwise `pruneUnusedRefs`'s dead-import filter
+        // strips ALL pure imports because no Identifier ever calls `trackReferencedName`
         Identifier(path) { injector.trackReferencedName(path.node.name); },
       } : {}));
       applySynthSwaps();
