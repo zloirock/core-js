@@ -132,7 +132,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // length-1 = direct `T[k]` / `T[number]`, length-N = chained `T[k1]...[kN]`. order
   // of resolution: T[number] inner, argPath descend, single-step constraint fallback,
   // generic resolveTypeAnnotation. extracted из substituteTypeParams для max-statements
-  // lint compliance. fixes V3-IDX-3 (chained loses typeParamMap)
+  // lint compliance. without this thread, chained generic indexed access loses the map
   function resolveIndexedAccessSubst(node, typeParamMap, scope, depth) {
     const indexNodes = [];
     let cur = node;
@@ -2989,12 +2989,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // `extendIsUnconstrained` is a boolean flag derived from the POST-SUBST AST shape of
-  // the extends side. caller computes it via `isUnconstrainedTypeReference(substAST)` for
-  // findConditionalTypeMember, or `isUnconstrainedAfterTypeParamSubst(rawAST, typeParamMap)`
-  // for the Type-object subst paths (evaluateConditionalType / pickAwaitedConditionalBranch)
-  // where AST-level subst isn't materialised. passing the raw AST directly was the V3-COND-1
-  // bug: a typeparam ref `U` (without typeArguments in the alias body) reads as unconstrained
-  // even when subst maps U to a concrete shape (`[]` / `Array<number>`), firing the wrong branch
+  // the extends side. caller computes via `isUnconstrainedTypeReference(node, typeParamMap?)`
+  // (typeParamMap omitted when AST is already substituted; passed when reasoning from raw
+  // AST + Type-Object map for evaluateConditionalType / pickAwaitedConditionalBranch).
+  // passing the raw AST directly without subst awareness mis-classifies a typeparam ref `U`
+  // (no typeArguments in alias body) as unconstrained even when subst maps U к concrete
+  // shape (`[]` / `Array<number>`), firing the wrong branch
   function pickConditionalBranch(check, extend, extendIsUnconstrained) {
     if (!check || !extend) return null;
     if (typesEqual(check, extend)) {
@@ -5874,9 +5874,36 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return binding && t.isClassDeclaration(binding.path.node) ? binding.path : null;
   }
 
+  // computed dynamic-key member access via TSIndexSignature: `obj[k]` where
+  // `obj: { [key: string]: V }` resolves to V. unions are peeled (skip null/undefined),
+  // first remaining branch's index signature wins. returns Type Object or null
+  function resolveIndexSignatureMember(path) {
+    const objInfo = findExpressionAnnotation(path.get('object'));
+    if (!objInfo) return null;
+    const unwrapped = unwrapTypeAnnotation(objInfo.annotation);
+    if (!unwrapped) return null;
+    const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
+    const target = aliased ?? unwrapped;
+    const lookup = typeNode => resolveIndexSignatureValue(typeNode, objInfo.scope, subst);
+    const info = (target.type === 'TSUnionType' || target.type === 'UnionTypeAnnotation')
+      ? target.types
+        .map(b => applySubst(unwrapTypeAnnotation(b), subst))
+        .filter(b => !isNullableOrNeverAnnotation(b))
+        .map(lookup)
+        .find(Boolean)
+      : lookup(target);
+    return info ? resolveTypeAnnotation(info.annotation, info.scope) : null;
+  }
+
   function resolveFromMemberExpression(path, callPath) {
     const name = resolveMemberPropertyName(path);
-    if (!name) return null;
+    if (!name) {
+      // computed access without a statically-resolvable key (`obj[k]` where k is a
+      // dynamic Identifier): if obj has a TSIndexSignature, resolve to its value type.
+      // routed via the same annotation-based path as named member access for symmetry
+      if (path.node.computed) return resolveIndexSignatureMember(path);
+      return null;
+    }
     const originalObjectPath = path.get('object');
     const objectPath = resolveRuntimeExpression(originalObjectPath);
     // `this.X` inside an object-method (possibly through arrow nesting): resolve `this`
@@ -6092,7 +6119,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (astPick !== null) return astPick;
     const checkResolved = resolveAnnotationInContext(node.checkType, scope, depth + 1, typeParamMap, seen);
     const extendsResolved = resolveAnnotationInContext(node.extendsType, scope, depth + 1, typeParamMap, seen);
-    // post-subst flag - same V3-COND-1 reasoning as evaluateConditionalType
+    // post-subst flag - same reasoning as evaluateConditionalType: typeparam refs in
+    // typeParamMap are NOT unconstrained even though raw AST has no typeArguments
     return pickConditionalBranch(checkResolved, extendsResolved,
       isUnconstrainedTypeReference(node.extendsType, typeParamMap));
   }
@@ -6541,16 +6569,39 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // resolve obj.prop annotation by chaining through the object's type, applying generic subst.
-  // `obj['x']` / `obj[expr]` / non-Member nodes return null - dotted-static access only
+  // unions like `Foo | null` peel null/undefined/never branches and resolve member in the
+  // first remaining branch (mirrors `resolveMemberCallReturn` union handling); without this
+  // peel, deep optional chains `arr?.b.c.includes(1)` lose receiver type narrowing past
+  // the second hop because `arr` annotation `{b:...}|null` makes `getTypeMembers` bail.
+  // computed access without statically-known name (`obj[k]` где k не literal) falls back
+  // to TSIndexSignature lookup via `resolveIndexSignatureValue`
   function resolveMemberAnnotation(path, depth) {
     const propName = getMemberProperty(path.node);
-    if (propName === null) return null;
     const objInfo = findExpressionAnnotation(path.get('object'), depth + 1);
     if (!objInfo) return null;
     const unwrapped = unwrapTypeAnnotation(objInfo.annotation);
     if (!unwrapped) return null;
     const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
-    const members = aliased ? getTypeMembers(aliased, objInfo.scope) : null;
+    const target = aliased ?? unwrapped;
+    const lookup = typeNode => propName === null
+      ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst)
+      : resolveMemberInTypeMembers(typeNode, propName, objInfo.scope, subst);
+    if (target.type === 'TSUnionType' || target.type === 'UnionTypeAnnotation') {
+      for (const branch of target.types) {
+        const peeled = applySubst(unwrapTypeAnnotation(branch), subst);
+        if (isNullableOrNeverAnnotation(peeled)) continue;
+        const result = lookup(peeled);
+        if (result) return result;
+      }
+      return null;
+    }
+    return lookup(target);
+  }
+
+  // shared member-by-name lookup against a single (non-union) type's structural members.
+  // returns annotation + scope on hit, null on miss (no members / no matching key)
+  function resolveMemberInTypeMembers(typeNode, propName, scope, subst) {
+    const members = typeNode ? getTypeMembers(typeNode, scope) : null;
     if (!members) return null;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
@@ -6560,7 +6611,19 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const isMethodProper = m.type === 'TSMethodSignature' && m.kind !== 'get';
       const raw = m.typeAnnotation ?? m.returnType ?? (isMethodProper ? m : null);
       if (!raw) continue;
-      return { annotation: applySubst(raw, subst), scope: objInfo.scope };
+      return { annotation: applySubst(raw, subst), scope };
+    }
+    return null;
+  }
+
+  // `obj[k]` where `obj: { [key: string]: V }` - resolve to V via TSIndexSignature member.
+  // null on miss (no signature, or signature key type unsupported)
+  function resolveIndexSignatureValue(typeNode, scope, subst) {
+    const members = typeNode ? getTypeMembers(typeNode, scope) : null;
+    if (!members) return null;
+    for (const m of members) {
+      if (m.type !== 'TSIndexSignature' || !m.typeAnnotation) continue;
+      return { annotation: applySubst(m.typeAnnotation, subst), scope };
     }
     return null;
   }
@@ -6568,6 +6631,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // find the raw type annotation of an expression (follows bindings and const chains)
   function findExpressionAnnotation(path, depth = 0) {
     if (depth > MAX_DEPTH) return null;
+    // path.node may be null on orphaned paths or stub slots - bail safely instead of
+    // crashing on `.type` access. matches the defensive shape used elsewhere
+    if (!path?.node) return null;
     // ESTree preserves ParenthesizedExpression - unwrap
     if (path.node.type === 'ParenthesizedExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
     // ESTree wraps optional chains in ChainExpression (babel inlines); peel so the
@@ -6638,6 +6704,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           const ret = functionTypeReturnAnnotation(unwrappedMember) ?? unwrappedMember;
           if (ret) return { annotation: ret, scope: memberInfo.scope };
         }
+      }
+      // function-typed const callee: `declare const f: () => T; f().X` - extract returnType
+      // from the binding's annotation. without this, `getObj()?.a.includes(...)` loses
+      // receiver narrowing past the call hop because findExpressionAnnotation falls through
+      if (callee.node.type === 'Identifier') {
+        const calleeInfo = findExpressionAnnotation(callee, depth + 1);
+        const calleeAnnot = calleeInfo?.annotation && unwrapTypeAnnotation(calleeInfo.annotation);
+        const ret = functionTypeReturnAnnotation(calleeAnnot);
+        if (ret) return { annotation: ret, scope: calleeInfo.scope };
       }
     }
     return null;
