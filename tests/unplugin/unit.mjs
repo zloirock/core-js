@@ -606,6 +606,18 @@ function checkSnapshotKeyNormalization() {
   // strip collapses both, single-pass `replace` would leave residual `file:///abs/foo`
   cache.store('/@id/file:///abs/composite.js', { tag: 'composite' });
   check('SnapshotCache/composite /@id/+file://', cache.take('/abs/composite.js')?.tag, 'composite');
+  // HMR `?t=N` strip MUST NOT corrupt path-portion `&` chars. positional gate ensures
+  // leading-amp -> `?` swap fires only when the original first `?` was a `?t=` token.
+  // regression for greedy-amp-fix that previously rewrote any leading path `&` to `?`
+  cache.store('/dir&with/file.js', { tag: 'amp-path' });
+  check('SnapshotCache/HMR strip preserves path &', cache.take('/dir&with/file.js?t=1')?.tag, 'amp-path');
+  cache.store('/src&dir/App.vue?vue&type=script', { tag: 'amp-sfc' });
+  check('SnapshotCache/HMR + SFC preserves path &',
+    cache.take('/src&dir/App.vue?vue&type=script&t=1')?.tag, 'amp-sfc');
+  // legitimate HMR + extra query: `?t=1&Y=2` -> swap to `?Y=2`
+  cache.store('/foo.js?Y=2', { tag: 'hmr-tail' });
+  check('SnapshotCache/HMR strip first-token + & tail',
+    cache.take('/foo.js?t=1&Y=2')?.tag, 'hmr-tail');
 }
 checkSnapshotKeyNormalization();
 
@@ -913,6 +925,21 @@ function checkPhasePipelinePassThrough() {
   check('phase/pre+post imports match single', twoPassImports, singleImports);
 }
 checkPhasePipelinePassThrough();
+
+// --- single-post without pre-snapshot still emits pure imports ---
+// `enableReferenceTracking` fires for every post pass to filter dead imports (e.g.
+// destructure-transform dropping all uses mid-pass). without parity Identifier visitor
+// mounted in the SAME post-pass case, no `trackReferencedName` ever fires and
+// pruneUnusedRefs strips ALL pure imports as unreferenced - emit becomes empty
+function checkSinglePostPassEmitsPureImports() {
+  const code = 'export var x = "test".at(-1);\nexport var m = new Map();';
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  // direct `pass: 'post'` without prior pre - simulates `phase: 'post'`-only build setup
+  const out = createPlugin(opts).transform(code, '/single-post.mjs', 'post');
+  const importLines = (out?.code ?? '').split('\n').filter(l => l.startsWith('import '));
+  check('single-post/emits pure imports', importLines.length > 0, true);
+}
+checkSinglePostPassEmitsPureImports();
 
 // --- entry-global phase gate ---
 // `entry-global` always runs at pre, but the d.ts contract advertises `phase?: 'pre'`

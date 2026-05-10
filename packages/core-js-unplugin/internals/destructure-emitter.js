@@ -767,7 +767,7 @@ export function createDestructureEmitter({
     // the sibling decl's nested function bodies) can be merged into a single spliceInRange
     // pass. applying substitutions inline here would shift positions in `preservedSrc`,
     // and subsequent ref-binding splices computed from original positions would land at
-    // the wrong offset (V2-UPLDE-1 corruption: `var _ref;` sliced into the middle of an
+    // the wrong offset (corruption shape: `var _ref;` sliced into the middle of an
     // identifier when nested-function body anchor sits AFTER a substitution site)
     const splices = [];
     for (const match of matches) {
