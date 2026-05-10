@@ -92,7 +92,7 @@ export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 // `[cm]?` prefix accepts `mts` / `cts` / `mjs` / `cjs` (Vue 3 + Astro support these natively),
 // and `(?:[#&]|$)` accepts `#hash` terminators (sourcemap pipelines append `#L<line>`).
 // without the sync, shouldTransform admits `App.vue?lang=mts` but liftSfcLangSuffix returns
-// the bare baseId — oxc-parser then rejects the TS body on `.vue` extension
+// the bare baseId - oxc-parser then rejects the TS body on `.vue` extension
 const SFC_LANG_RE = /[&?]lang=(?<ext>[cm]?[jt]sx?)(?:[#&]|$)/;
 export function liftSfcLangSuffix(id, baseId) {
   const m = SFC_LANG_RE.exec(id);
