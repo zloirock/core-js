@@ -100,6 +100,21 @@ export function peelChainAssignment(node) {
   return { value: cur, outer: node };
 }
 
+// alternating peel `(paren)` + `=` chain до фикспоинта. covers nested-with-parens shapes
+// like `(a = (b = Array))` (oxc preserves ParenthesizedExpression around the inner `=`,
+// so flat `peelChainAssignment` exits after one hop) and `((a = Array))` (multiple paren
+// layers around a single chain-assign). single-layer shapes (`(a = Array)`,
+// `(a = b = Array)`) work via a single iteration each
+export function peelChainAssignmentDeep(node) {
+  let cur = node;
+  for (;;) {
+    const peeledParens = unwrapParens(cur);
+    const { value } = peelChainAssignment(peeledParens);
+    if (value === cur) return cur;
+    cur = value;
+  }
+}
+
 // prepend chain-assignment receiver as a side effect for static-method dispatch:
 // `(a = Array).from(x)` -> emit `(a = Array, _Array$from)(x)`. callers pass an already-
 // unwrapped receiver node (parens / TS / ChainExpression peeled). returns `baseEffects`
@@ -279,7 +294,12 @@ function resolveProxyGlobalRoot(receiver, scope, adapter, seen, path) {
 // the caller passed one - matches resolveBindingToGlobal's convention
 export function resolveObjectName(objectNode, scope, adapter, seen, path) {
   seen ??= new Set();
-  objectNode = unwrapParens(objectNode);
+  // peel chain-assign rhs + parens to a fixpoint (`(a = Array)`, `(a = b = Array)`,
+  // `(a = (b = Array))`, `((a = Array))` all resolve to Array). closes binding-init walks
+  // (`const X = (a = Array); X.from(...)`) and IIFE-return walks
+  // (`(() => (a = Array))().from(...)`) symmetrically. SE preservation is downstream's
+  // problem - resolveObjectName only classifies receiver shape
+  objectNode = peelChainAssignmentDeep(objectNode);
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name, path)) return resolveBindingToGlobal(objectNode.name, scope, adapter, seen, path);
     // no binding - global only if starts with uppercase or is a known global proxy
