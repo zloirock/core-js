@@ -208,6 +208,32 @@ function checkPartialOverlapThrows() {
 }
 checkPartialOverlapThrows();
 
+// addSplit type-checks both content args upfront. without the upfront guard, the prefix
+// `add` succeeds and changes #transforms / #byRange / #sorted state before suffix's `add`
+// throws on bad content - leaving an orphan half in the queue
+function checkAddSplitContentTypeGuard() {
+  const code = '0123456789abcdef';
+  const q = new TransformQueue(code, new MagicString(code));
+  try {
+    q.addSplit(2, 5, 8, 'PREFIX', undefined);
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit suffix type guard') } :: expected throw`;
+  } catch (error) {
+    /content args must be strings/.test(error.message) ? counts.passed++ : counts.failed++;
+  }
+  try {
+    q.addSplit(2, 5, 8, 42, 'SUFFIX');
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit prefix type guard') } :: expected throw`;
+  } catch (error) {
+    /content args must be strings/.test(error.message) ? counts.passed++ : counts.failed++;
+  }
+  // valid call should still work after rejected ones - no orphan state from earlier throws
+  q.addSplit(2, 5, 8, 'PREFIX', 'SUFFIX');
+  counts.passed++;
+}
+checkAddSplitContentTypeGuard();
+
 // out-of-bounds ranges are caller bugs - range check catches offset arithmetic slipping
 // past source bounds with a specific error instead of letting MagicString produce opaque output
 function checkOutOfBoundsThrows() {
@@ -925,6 +951,34 @@ function checkPhasePipelinePassThrough() {
   check('phase/pre+post imports match single', twoPassImports, singleImports);
 }
 checkPhasePipelinePassThrough();
+
+// `additionalPackages` items must be non-empty non-slash-only strings. validateOptions
+// catches this for plugin-options-layer users; direct createPolyfillContext callers also
+// get a defensive throw. without it, `''` / `'/'` cascades through `packages` and would
+// false-positive every absolute path в `getCoreJSEntry`'s `startsWith('/')` check
+function checkAdditionalPackagesShapeGuard() {
+  const cases = [
+    { additionalPackages: [''], label: 'empty string' },
+    { additionalPackages: ['/'], label: 'single slash' },
+    { additionalPackages: ['/'.repeat(5)], label: 'multi slash' },
+    { additionalPackages: [42], label: 'non-string' },
+  ];
+  for (const { additionalPackages, label } of cases) {
+    try {
+      createPolyfillContext({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, additionalPackages });
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(`additionalPackages/${ label }`) } :: expected throw`;
+    } catch (error) {
+      /additionalPackages.*entries.*non-empty.*non-slash/.test(error.message)
+        ? counts.passed++
+        : counts.failed++;
+    }
+  }
+  // valid additionalPackages still works
+  createPolyfillContext({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, additionalPackages: ['my-core-js'] });
+  counts.passed++;
+}
+checkAdditionalPackagesShapeGuard();
 
 // --- single-post without pre-snapshot still emits pure imports ---
 // `enableReferenceTracking` fires for every post pass to filter dead imports (e.g.
