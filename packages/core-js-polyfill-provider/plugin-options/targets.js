@@ -19,20 +19,22 @@ export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, 
       if (babelTargets && keys(babelTargets).length) return targetsParser(babelTargets);
     }
     // use project browserslist config by default (like @babel/preset-env, autoprefixer, etc.)
-    // browserslist-config-only branch collapses empty Map к null so the "no project config"
-    // fallback (parsedTargets=null) routes к defaultShouldInject's polyfill-everything
+    // browserslist-config-only branch collapses empty Map to null so the "no project config"
+    // fallback (parsedTargets=null) routes to defaultShouldInject's polyfill-everything
     // branch. explicit `targets`/`getBabelTargets` empty Map intentionally stays truthy:
-    // user explicitly said "no engines" → polyfill nothing (`for`-loop 0-iter → return false)
+    // user explicitly said "no engines" -> polyfill nothing (`for`-loop 0-iter -> return false)
     const parsed = targetsParser({ configPath, ignoreBrowserslistConfig, browserslistEnv });
     return parsed.size ? parsed : null;
   } catch (error) {
-    throw new Error(`[core-js] failed to resolve targets: ${ error.message }`, { cause: error });
+    // non-Error throw (`throw 'str'` / `throw 42`): `.message` undefined renders as
+    // "undefined". consistency with `buildShouldInjectPolyfill` below which uses same pattern
+    throw new Error(`[core-js] failed to resolve targets: ${ error?.message ?? String(error) }`, { cause: error });
   }
 }
 
 // filter precedence convention: `exclude` wins over `include` over targets-default. mirrors
 // `isEntryNeeded` in `polyfill-provider/index.js` for entry-level filtering. flipping one
-// without the other would desync — change both sites in lockstep
+// without the other would desync - change both sites in lockstep
 export function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback }) {
   const matchers = patterns => {
     if (!patterns) return null;
