@@ -127,6 +127,86 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return literalKeyValue(literal) ?? singleQuasiString(literal);
   }
 
+  // unified TSIndexedAccessType dispatcher under generic substitution. walks down the
+  // chain to the root TSTypeReference, collecting raw indexType nodes outer-first;
+  // length-1 = direct `T[k]` / `T[number]`, length-N = chained `T[k1]...[kN]`. order
+  // of resolution: T[number] inner, argPath descend, single-step constraint fallback,
+  // generic resolveTypeAnnotation. extracted из substituteTypeParams для max-statements
+  // lint compliance. fixes V3-IDX-3 (chained loses typeParamMap)
+  function resolveIndexedAccessSubst(node, typeParamMap, scope, depth) {
+    const indexNodes = [];
+    let cur = node;
+    while (cur?.type === 'TSIndexedAccessType') {
+      indexNodes.unshift(cur.indexType);
+      cur = cur.objectType;
+    }
+    const rootName = cur && typeRefName(cur);
+    const mapped = rootName && typeParamMap.has(rootName);
+    if (mapped) {
+      const direct = resolveIndexAccessHit(rootName, indexNodes, typeParamMap, scope, depth);
+      if (direct !== null) return direct;
+    }
+    return resolveTypeAnnotation(node, scope, depth);
+  }
+
+  // single resolution attempt against a known-mapped typeparam: T[number] inner,
+  // argPath descent через literal keys, single-step constraint fallback. returns null
+  // на miss so caller can fall through to plain resolveTypeAnnotation
+  function resolveIndexAccessHit(rootName, indexNodes, typeParamMap, scope, depth) {
+    if (indexNodes.length === 1 && indexNodes[0]?.type === 'TSNumberKeyword') {
+      const inner = resolveInnerType(typeParamMap.get(rootName));
+      if (inner) return inner;
+    }
+    const literalKeys = indexNodes.map(indexedAccessKey);
+    if (literalKeys.every(k => k !== null)) {
+      let argPath = typeParamArgPaths.get(typeParamMap)?.get(rootName);
+      for (let i = 0; i < literalKeys.length - 1; i++) {
+        if (!argPath) break;
+        argPath = walkObjectLiteralPropertyPath(argPath, literalKeys[i]);
+      }
+      const propType = argPath && resolveObjectLiteralProperty(argPath, literalKeys.at(-1));
+      if (propType) return propType;
+    }
+    // single-step constraint fallback: `<T extends {k: number[]}>(o: T): T['k']` with no
+    // arg-Path match still resolves through constraint. multi-step constraint walking
+    // requires alias-chain follow + per-hop subst - deferred until concrete repro
+    if (indexNodes.length === 1) {
+      const paramInfo = findTypeParameter(rootName, scope);
+      if (paramInfo?.constraint) {
+        const syntheticNode = { type: 'TSIndexedAccessType', objectType: paramInfo.constraint, indexType: indexNodes[0] };
+        return resolveTypeAnnotation(syntheticNode, paramInfo.scope, depth);
+      }
+    }
+    return null;
+  }
+
+  // walk into an ObjectExpression / ArrayExpression argPath one key deep, returning the
+  // INNER Path (suitable for chaining further hops). complementary к
+  // `resolveObjectLiteralProperty` which returns a leaf Type Object - this returns the
+  // intermediate path so chained indexed access (`T[k1][k2]`) can step through nested
+  // literal shapes. method shorthand and SpreadElement bail (no walkable path)
+  function walkObjectLiteralPropertyPath(argPath, key) {
+    if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
+    if (argPath?.node?.type === 'ArrayExpression') {
+      const index = typeof key === 'number' ? key : Number(key);
+      if (!Number.isInteger(index) || index < 0) return null;
+      const elements = argPath.get('elements');
+      const elementPath = elements[index];
+      if (!elementPath?.node || elementPath.node.type === 'SpreadElement') return null;
+      return elementPath;
+    }
+    if (argPath?.node?.type !== 'ObjectExpression') return null;
+    for (const prop of argPath.get('properties')) {
+      const { node } = prop;
+      if (node.type === 'SpreadElement') return null;
+      if (node.computed || getKeyName(node.key) !== key) continue;
+      // ObjectMethod is a leaf (Function value with no walkable inner shape)
+      if (babelNodeType(node) === 'ObjectMethod') return null;
+      return prop.get('value');
+    }
+    return null;
+  }
+
   // ObjectExpression { key: value, ... } -> value's type for the literal key.
   // Spread bails (unknown key coverage); method shorthand resolves to Function
   function resolveObjectLiteralProperty(argPath, key) {
@@ -1877,7 +1957,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (branch === null) {
       const checkResolved = resolveTypeAnnotation(checkSubst, scope, depth + 1);
       const extendsResolved = resolveTypeAnnotation(extendSubst, scope, depth + 1);
-      branch = pickConditionalBranch(checkResolved, extendsResolved, aliased.extendsType);
+      // pass POST-SUBST AST flag - aliased.extendsType is the raw alias-body AST, may be
+      // a typeparam ref (`U`) that reads as unconstrained pre-subst but subst-maps to a
+      // concrete shape (`[]` / `Array<X>`). extendSubst already has the substitution applied
+      branch = pickConditionalBranch(checkResolved, extendsResolved, isUnconstrainedTypeReference(extendSubst));
     }
     if (branch !== null) {
       return findTypeMember(withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth + 1);
@@ -2905,15 +2988,22 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return undefined;
   }
 
-  function pickConditionalBranch(check, extend, extendNode) {
+  // `extendIsUnconstrained` is a boolean flag derived from the POST-SUBST AST shape of
+  // the extends side. caller computes it via `isUnconstrainedTypeReference(substAST)` for
+  // findConditionalTypeMember, or `isUnconstrainedAfterTypeParamSubst(rawAST, typeParamMap)`
+  // for the Type-object subst paths (evaluateConditionalType / pickAwaitedConditionalBranch)
+  // where AST-level subst isn't materialised. passing the raw AST directly was the V3-COND-1
+  // bug: a typeparam ref `U` (without typeArguments in the alias body) reads as unconstrained
+  // even when subst maps U to a concrete shape (`[]` / `Array<number>`), firing the wrong branch
+  function pickConditionalBranch(check, extend, extendIsUnconstrained) {
     if (!check || !extend) return null;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
-      // extends has no inner constraint: matches anything ONLY when the raw shape is
+      // extends has no inner constraint: matches anything ONLY when the SUBSTITUTED shape is
       // an unparameterised type reference (`Array` -> `Array<any>`). concrete-shape
       // extends (`[]` empty tuple, etc) post-subst as inner-less but do NOT match
       // arbitrary inners
-      if (!extend.inner) return isUnconstrainedTypeReference(extendNode) ? true : null;
+      if (!extend.inner) return extendIsUnconstrained ? true : null;
       // check side unconstrained against a concrete extend - can't statically decide
       if (!check.inner) return null;
       // both concrete, differing inners (Array<number> vs Array<string>): disjoint
@@ -2928,12 +3018,18 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // raw AST shape predicate: `Array` / `Promise` / `Set` ... without `<...>` typeArguments
   // is TS shorthand for `Array<any>` / `Promise<any>` / etc, which structurally match any
   // concrete inner. concrete-shape sites (`[]` empty tuple, `{}` object literal type, etc)
-  // resolve to the same inner-less Type object but should NOT match arbitrary inners
-  function isUnconstrainedTypeReference(node) {
+  // resolve to the same inner-less Type object but should NOT match arbitrary inners.
+  // optional `typeParamMap` predicates "unconstrained AFTER subst" - typeparam refs whose
+  // name is in the map substitute to a concrete shape and are NOT unconstrained even
+  // though their raw AST has no typeArguments. omit map for already-substituted AST
+  function isUnconstrainedTypeReference(node, typeParamMap = null) {
     if (!node) return false;
     const target = peelTSParenthesized(node);
     if (target?.type !== 'TSTypeReference' && target?.type !== 'GenericTypeAnnotation') return false;
-    return !getTypeArgs(target)?.params?.length;
+    if (getTypeArgs(target)?.params?.length) return false;
+    if (!typeParamMap) return true;
+    const name = typeRefName(target);
+    return !name || !typeParamMap.has(name);
   }
 
   // resolve `T extends U ? trueType : falseType` post-subst:
@@ -2953,7 +3049,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const recurse = (branchNode, map) => substituteTypeParams(branchNode, map, scope, depth + 1, seen);
     const checkResolved = recurse(node.checkType, typeParamMap);
     const extendsResolved = recurse(node.extendsType, typeParamMap);
-    const branch = pickConditionalBranch(checkResolved, extendsResolved, node.extendsType);
+    // post-subst flag - typeparam refs that map to concrete shapes via typeParamMap are
+    // NOT unconstrained even though their raw AST has no typeArguments
+    const branch = pickConditionalBranch(checkResolved, extendsResolved,
+      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
     if (branch !== null) return recurse(branch ? node.trueType : node.falseType, branch ? trueMap : typeParamMap);
     return resolveConditionalBranches(
       recurse(node.trueType, trueMap),
@@ -3785,28 +3884,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     // T["key"] or T[number] - resolve indexed access, substituting type params in the object type
     if (node.type === 'TSIndexedAccessType') {
-      const objParamName = typeRefName(node.objectType);
-      if (objParamName && typeParamMap.has(objParamName)) {
-        // T[number] - element type from the substituted container
-        if (node.indexType?.type === 'TSNumberKeyword') {
-          const inner = resolveInnerType(typeParamMap.get(objParamName));
-          if (inner) return inner;
-        }
-        // T["key"] - try the concrete call arg before falling back to the declared constraint
-        // (e.g. <T extends object>(o: T): T['k'] with arg `{ k: [1] }` narrows `k` to Array)
-        const key = indexedAccessKey(node.indexType);
-        if (key !== null) {
-          const argPath = typeParamArgPaths.get(typeParamMap)?.get(objParamName);
-          const propType = argPath && resolveObjectLiteralProperty(argPath, key);
-          if (propType) return propType;
-        }
-        const paramInfo = findTypeParameter(objParamName, scope);
-        if (paramInfo?.constraint) {
-          const syntheticNode = { type: 'TSIndexedAccessType', objectType: paramInfo.constraint, indexType: node.indexType };
-          return resolveTypeAnnotation(syntheticNode, paramInfo.scope, depth);
-        }
-      }
-      return resolveTypeAnnotation(node, scope, depth);
+      return resolveIndexedAccessSubst(node, typeParamMap, scope, depth);
     }
     // function type: (x: T) => R / new () => T - always Function regardless of type parameters
     if (node.type === 'TSFunctionType' || node.type === 'TSConstructorType'
@@ -6014,7 +6092,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (astPick !== null) return astPick;
     const checkResolved = resolveAnnotationInContext(node.checkType, scope, depth + 1, typeParamMap, seen);
     const extendsResolved = resolveAnnotationInContext(node.extendsType, scope, depth + 1, typeParamMap, seen);
-    return pickConditionalBranch(checkResolved, extendsResolved, node.extendsType);
+    // post-subst flag - same V3-COND-1 reasoning as evaluateConditionalType
+    return pickConditionalBranch(checkResolved, extendsResolved,
+      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
   }
 
   // two-level table lookup: table[key1][key2]
@@ -6140,10 +6220,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     // identifier callees that didn't resolve to a function-like via the binding chain may still
     // be reachable through an ambient `declare function` not registered in scope.bindings,
-    // or a binding whose annotation is a function-type (`declare const f: () => T`)
-    if (!t.isIdentifier(callee.node)) return null;
-    const ambient = findAmbientFunctionPath(callee.node.name, callee.scope);
-    if (ambient) return resolveReturnType(ambient, callee.parentPath);
+    // or a binding whose annotation is a function-type (`declare const f: () => T`).
+    // ambient lookup keyed by Identifier name; cast-on-callee shapes (`(fn as () => T)()`,
+    // `(fn satisfies F)()`, `fn!()`) carry no Identifier here but still have an annotation
+    // reachable via `findExpressionAnnotation` inside `resolveCallReturnTypeFromAnnotation`
+    if (t.isIdentifier(callee.node)) {
+      const ambient = findAmbientFunctionPath(callee.node.name, callee.scope);
+      if (ambient) return resolveReturnType(ambient, callee.parentPath);
+    }
     return resolveCallReturnTypeFromAnnotation(callee);
   }
 
