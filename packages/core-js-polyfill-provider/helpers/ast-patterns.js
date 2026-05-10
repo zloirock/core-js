@@ -162,7 +162,7 @@ export function findEnclosingFunctionLikePath(path) {
 
 // var-scope boundaries: own scope owners that catch hoisted `var`. `var` declarations
 // hoist to the nearest one regardless of nested BlockStatement / IfStatement / loop /
-// try-catch wrapping. estree-toolkit's `scope.hasBinding` doesn't reflect this — `var`
+// try-catch wrapping. estree-toolkit's `scope.hasBinding` doesn't reflect this - `var`
 // inside a nested block reports false at sibling lookup even though the binding is alive
 // at runtime. babel's tracker hoists correctly. closes the parser asymmetry
 const VAR_SCOPE_OWNER_TYPES = new Set([
@@ -1000,7 +1000,7 @@ export function unwrapInitValue(node) {
 // alternates `unwrapRuntimeExpr` (parens / chain / TS) and `unwrapInitValue` (parens /
 // SE tail) until the node is stable. used for callee-identity lookups that don't care
 // about preceding side effects: `(0, isStr)(x)`, `((isStr) as any)(x)`, `(0, (isStr as
-// any))(x)`, `isStr?.()` — every wrapper combination reaches the same effective callee.
+// any))(x)`, `isStr?.()` - every wrapper combination reaches the same effective callee.
 // SE prefix side-effects are dropped from the peeled view (consumer is doing predicate
 // resolution, not codegen, so prefix elision is semantics-preserving).
 // depth-capped at `MAX_DEPTH` alternations as a safety net against pathologically-nested
@@ -1017,7 +1017,7 @@ export function unwrapExpressionChain(node) {
 
 // extract the single return expression of a function-like body. arrow expression-body
 // returns directly; block bodies must contain EXACTLY one ReturnStatement and any other
-// statement type bails — the inlined replacement at the caller swaps the entire call site
+// statement type bails - the inlined replacement at the caller swaps the entire call site
 // for the extracted return expression, so anything besides a side-effect-only prefix would
 // be silently lost. allowlist:
 //   - ReturnStatement (must appear exactly once)
@@ -1027,7 +1027,7 @@ export function unwrapExpressionChain(node) {
 // free identifiers; control-flow (IfStatement / TryStatement / ForStatement / SwitchStatement
 // / ThrowStatement / WhileStatement / DoWhileStatement / etc.) carries branches the scan
 // can't statically pick. without the strict gate, a body like `if (cond) return X; return Y;`
-// would resolve to Y, ignoring the conditional branch — silent semantic mismatch
+// would resolve to Y, ignoring the conditional branch - silent semantic mismatch
 export function singleReturnBodyExpression(body) {
   if (!body) return null;
   if (body.type !== 'BlockStatement') return body;

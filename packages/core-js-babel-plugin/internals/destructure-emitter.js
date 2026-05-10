@@ -563,7 +563,7 @@ export default function createDestructureEmitter({
     if (!param.properties?.length) return;
     // shallow check: only outer-level props are inspected. nested patterns
     // (`{ a: { b: { Array: { from } } } }`) without rest/default/computed at the outer
-    // level don't need extraction — the destructure works as-is in catch params, and
+    // level don't need extraction - the destructure works as-is in catch params, and
     // leaf bindings (`from`) are local catch bindings, not polyfill candidates. recursive
     // descent here would trigger extraction noise without observable runtime gain
     if (!param.properties.some(objectPatternPropNeedsReceiverRewrite)) {
