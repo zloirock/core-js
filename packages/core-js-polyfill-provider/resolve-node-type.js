@@ -157,6 +157,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const inner = resolveInnerType(typeParamMap.get(rootName));
       if (inner) return inner;
     }
+    // T[keyof T] under subst: substitute objectType with the AST stored in typeParamMap,
+    // then fold via standard resolveIndexedAccessType. without this, keyof T's segments
+    // never resolve because T's structural members aren't reachable through the bare ref.
+    // gate on single-step и keyof referencing the SAME root - chained / cross-typeparam
+    // forms fall through к the alias-chain / constraint branches below
     const literalKeys = indexNodes.map(indexedAccessKey);
     if (literalKeys.every(k => k !== null)) {
       let argPath = typeParamArgPaths.get(typeParamMap)?.get(rootName);
@@ -748,13 +753,26 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return collectQualifiedSegments(head);
   }
 
+  // is this node a qualified name link with non-identifier slots peeled? accepts:
+  //   - babel: TSQualifiedName (TS) / QualifiedTypeIdentifier (Flow)
+  //   - oxc:   non-computed MemberExpression в type position (interface heritage, etc)
+  function isQualifiedNameNode(node) {
+    return node?.type === 'TSQualifiedName' || node?.type === 'QualifiedTypeIdentifier'
+      || (node?.type === 'MemberExpression' && !node.computed);
+  }
+
+  // qualified-name accessors: the "left" / "right" slots differ across parsers but the
+  // semantic role is identical (left=parent path, right=segment-name Identifier)
+  function qualifiedNameLeft(node) { return node.left ?? node.qualification ?? node.object; }
+  function qualifiedNameRight(node) { return node.right ?? node.id ?? node.property; }
+
   // walk a possibly-qualified name node into a [first, ..., last] segment list
   // returns null on any non-identifier link in the chain
   function collectQualifiedSegments(node) {
     if (node?.type === 'Identifier') return [node.name];
-    if (node?.type !== 'TSQualifiedName' && node?.type !== 'QualifiedTypeIdentifier') return null;
-    const left = collectQualifiedSegments(node.left ?? node.qualification);
-    const right = node.right ?? node.id;
+    if (!isQualifiedNameNode(node)) return null;
+    const left = collectQualifiedSegments(qualifiedNameLeft(node));
+    const right = qualifiedNameRight(node);
     if (!left || right?.type !== 'Identifier') return null;
     left.push(right.name);
     return left;
@@ -782,6 +800,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // TS extends: TSExpressionWithTypeArguments has .expression; Flow extends: InterfaceExtends has .id
   function extendsId(parent) {
     return parent.expression ?? parent.id ?? parent;
+  }
+
+  // synthesize a TSTypeReference wrapping the parent's id + its type-args. accepts both
+  // bare Identifier (`interface I extends Base`) and qualified-name shapes
+  // (`interface I extends NS.Base` - TSQualifiedName в babel, MemberExpression в oxc).
+  // returns null для unhandled shapes (TSTypeLiteral / call / etc) so callers can skip
+  function synthInterfaceExtendsRef(parent) {
+    const expr = extendsId(parent);
+    if (expr.type !== 'Identifier' && !isQualifiedNameNode(expr)) return null;
+    return { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) };
   }
 
   // --- Alias chain & substitution ---
@@ -1449,6 +1477,27 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return map;
   }
 
+  // resolve a single interface extends clause:
+  //   - bare `interface I extends Base` (Identifier) → existing direct lookup
+  //   - namespaced `interface I extends NS.Base` (TSQualifiedName in babel,
+  //     MemberExpression in oxc) → decompose to segments, walk findTypeDeclaration's
+  //     array-form path to locate the parent interface, recurse with its declaration scope
+  // without the qualified branch, namespace extends bails to Object hint and member
+  // dispatch loses the parent's structural members
+  function resolveInterfaceExtendsParent(parent, scope, resolve, depth, typeParamMap, visited) {
+    const base = extendsId(parent);
+    if (base.type === 'Identifier') {
+      const constructor = resolveKnownConstructor(base.name);
+      return resolveKnownContainerType(base.name, constructor, parent, resolve)
+        || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap, visited);
+    }
+    const segments = collectQualifiedSegments(base);
+    const parentDecl = segments && findTypeDeclaration(segments, scope);
+    if (!parentDecl || !isInterfaceDeclaration(parentDecl)) return null;
+    return resolveUserDefinedType(segments.at(-1), parent, parentDecl.scope ?? scope,
+      depth + 1, typeParamMap, visited);
+  }
+
   function resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen) {
     if (depth > MAX_DEPTH) return null;
     // type parameters shadow type declarations with the same name.
@@ -1494,11 +1543,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (parents?.length) {
         const cycleFlipped = cycleFlipDetector(visited);
         for (const parent of parents) {
-          const base = extendsId(parent);
-          if (base.type !== 'Identifier') continue;
-          const constructor = resolveKnownConstructor(base.name);
-          const result = resolveKnownContainerType(base.name, constructor, parent, resolve)
-            || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap, visited);
+          const result = resolveInterfaceExtendsParent(parent, scope, resolve, depth, typeParamMap, visited);
           if (result) return result;
         }
         if (cycleFlipped()) return null;
@@ -1645,10 +1690,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const own = decl.body?.body ?? decl.body?.properties;
       if (own) for (const m of own) all.push(m);
       for (const parent of decl.extends ?? []) {
-        const expr = extendsId(parent);
-        const parentRef = expr.type === 'Identifier'
-          ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
-          : expr;
+        // synth wraps both bare-Identifier и qualified-name extends; non-name shapes
+        // fall back to raw expr so getTypeMembers's defensive null-on-unknown bails
+        const parentRef = synthInterfaceExtendsRef(parent) ?? extendsId(parent);
         const parentMembers = getTypeMembers(parentRef, scope, depth + 1, seen);
         if (!parentMembers) continue;
         all.push(...substMembers(parentMembers, buildParentSubst(parentRef, scope)));
@@ -1864,6 +1908,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
       return rebuildTupleElements(peeled, el => peelAwaitedTupleElement(el, scope, depth, typeParamMap, seen));
     }
+    // structure-preserving wrapper (`Required<Promise<X>>`, `NoInfer<Promise<X>>`, etc) -
+    // peel before Promise check so the wrapper doesn't shadow the awaited inner shape
+    const passthrough = peelStructurePreservingWrapper(peeled);
+    if (passthrough) return recurse(passthrough);
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return recurse(promiseInner);
     // conditional reached via post-subst alias body: pick firing branch (AST-level for
@@ -2542,6 +2590,23 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // TS indexed access type: Config["items"], [string, number[]][1], Items[number], or Dict[string]
+  // `T[keyof T]` shape: index references its own object. fold each property's value
+  // annotation into a union (mirrors TS evaluation). returns:
+  //   - resolved Type / null on hit (handled by foldUnionTypes)
+  //   - undefined when shape doesn't match (caller falls through to other dispatch)
+  function resolveKeyofSelfValueUnion(node, scope, depth) {
+    const idx = node.indexType;
+    if (idx?.type !== 'TSTypeOperator' || idx.operator !== 'keyof'
+      || typeRefSignature(idx.typeAnnotation) !== typeRefSignature(node.objectType)) return undefined;
+    const members = getTypeMembers(node.objectType, scope);
+    if (!members) return null;
+    const valueAnnotations = members
+      .map(m => m.typeAnnotation ?? m.returnType)
+      .filter(Boolean);
+    if (!valueAnnotations.length) return null;
+    return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, scope, depth + 1));
+  }
+
   function resolveIndexedAccessType(node, scope, depth) {
     // T[number] - element type of array/tuple
     if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
@@ -2556,6 +2621,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       }
       return null;
     }
+    // `T[keyof T]` self-indexed access folds к value-union of T's properties.
+    // delegated to helper to keep dispatcher under max-statements lint
+    const keyofSelf = resolveKeyofSelfValueUnion(node, scope, depth);
+    if (keyofSelf !== undefined) return keyofSelf;
     // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
     // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to the
     // widest common type, handing us precise inference when all branches agree
@@ -5489,6 +5558,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       }
       return null;
     }
+    // generic alias body landing на `T[keyof T]` (или похожий computed shape) - getTypeMembers
+    // doesn't handle the shape directly. expand manually: get T's structural members, build
+    // a synthetic TSUnionType of их value annotations, then recurse self so union dispatch
+    // fires per branch. covers `Pick<T> = T[keyof T]` style aliases
     return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth, subst);
   }
 
@@ -6089,6 +6162,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
       return tupleAsArrayType(peeled, recurse);
     }
+    // structure-preserving wrapper around the Awaited arg (`Awaited<Required<Promise<X>>>`,
+    // `Awaited<NoInfer<Promise<X>>>`, `Awaited<Readonly<Promise<X>>>` etc) - peel to the
+    // wrapped type so the Promise unwrap downstream fires on the underlying shape.
+    // without this peel, Awaited returns `Promise` raw and the await result loses type narrowing
+    const passthrough = peelStructurePreservingWrapper(peeled);
+    if (passthrough) return recurse(passthrough);
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return recurse(promiseInner);
     // post-subst alias body landing on a conditional must be evaluated BEFORE the alias-chain
