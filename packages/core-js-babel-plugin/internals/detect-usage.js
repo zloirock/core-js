@@ -140,14 +140,9 @@ export function createUsageVisitors({
     // orphaned node (parent removed by a sibling transform): `isReferencedIdentifier`
     // reads `parent.type` unconditionally and would crash. check BEFORE everything else
     if (!path.parent) return;
-    // babel classifies logical-assignment LHS as non-reference (write-context); diagnose
-    // the `Map ||= X` pattern before the early return so users see why nothing polyfilled
-    if (onWarning) {
-      const warning = checkLogicalAssignLhsGlobal(path.node, path.parent,
-        !!path.scope.getBindingIdentifier(path.node.name));
-      if (warning) onWarning(warning);
-    }
     if (!path.isReferencedIdentifier()) return;
+    // logical-assign LHS warning lives on a dedicated `Identifier` visitor (babel
+    // classifies `Map ||= X` LHS as non-reference, so it doesn't reach this path)
     // ReferencedIdentifier matches JSXIdentifier in too many positions. accept:
     //   `<Foo />` - direct opening-element name
     //   `<Foo.Bar.Baz />` - root of N-deep JSXMemberExpression chain at opening-element
@@ -348,7 +343,21 @@ export function createUsageVisitors({
         }
       },
     } : {},
-    'ReferencedIdentifier|Identifier': handleIdentifier,
+    // ReferencedIdentifier covers all read positions for polyfill detection. previous
+    // shape `'ReferencedIdentifier|Identifier'` registered the handler twice via
+    // `visitors.explode`, so every referenced Identifier fired handleIdentifier two
+    // times (second pass guarded by `handledObjects` WeakSet, but parent / warning /
+    // isReferenced checks ran twice). split into two visitors: ReferencedIdentifier
+    // handles polyfill detection; bare Identifier handles the logical-assign LHS warning
+    // (babel classifies `Map ||= X` LHS as non-reference, so ReferencedIdentifier
+    // never fires for it - need a separate visitor to surface the diagnostic)
+    ReferencedIdentifier: handleIdentifier,
+    Identifier(path) {
+      if (onWarning === undefined || !path.parent) return;
+      const warning = checkLogicalAssignLhsGlobal(path.node, path.parent,
+        !!path.scope.getBindingIdentifier(path.node.name));
+      if (warning) onWarning(warning);
+    },
     'MemberExpression|OptionalMemberExpression': handleMemberExpression,
     ObjectProperty(path) {
       if (path.node.method) return;

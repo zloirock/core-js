@@ -448,6 +448,13 @@ export default class TransformQueue {
     if (!(start < mid && mid < end)) {
       throw new RangeError(`[core-js] transform-queue: addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`);
     }
+    // validate BOTH content args upfront - throwing inside the second `add` call after
+    // the first succeeded would leave an orphan prefix entry в the queue. typeof check
+    // mirrors `add`'s implicit string requirement (RawTransformContent template);
+    // catches future call sites passing undefined / non-string suffix
+    if (typeof prefixContent !== 'string' || typeof suffixContent !== 'string') {
+      throw new TypeError(`[core-js] transform-queue: addSplit content args must be strings; received prefix=${ typeof prefixContent }, suffix=${ typeof suffixContent }`);
+    }
     const groupId = Symbol('split');
     const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
       { groupId, role: 'prefix', logicalEnd: end });
