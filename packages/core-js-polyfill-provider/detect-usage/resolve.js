@@ -100,7 +100,7 @@ export function peelChainAssignment(node) {
   return { value: cur, outer: node };
 }
 
-// alternating peel `(paren)` + `=` chain до фикспоинта. covers nested-with-parens shapes
+// alternating peel `(paren)` + `=` chain to fixpoint. covers nested-with-parens shapes
 // like `(a = (b = Array))` (oxc preserves ParenthesizedExpression around the inner `=`,
 // so flat `peelChainAssignment` exits after one hop) and `((a = Array))` (multiple paren
 // layers around a single chain-assign). single-layer shapes (`(a = Array)`,
