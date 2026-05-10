@@ -13,7 +13,7 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { createClassHelpers, resolveSuperImportName } from '@core-js/polyfill-provider/helpers/class-walk';
+import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { buildOffsetToLine, mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -572,10 +572,8 @@ export default function createPlugin(options) {
           // cache the predicate so the instance-fallback bail below doesn't re-walk
           inheritedStatic = isInheritedStaticLookup(metaPath);
           if (inheritedStatic) {
-            const inheritedMeta = resolveStaticInheritedMember(metaPath);
-            if (!inheritedMeta) return;
-            // `extends MyPromise` (user-aliased pure import) - map binding to global hint
-            meta = resolveSuperImportName(injector, inheritedMeta);
+            meta = remapInheritedStaticMeta(injector, meta, resolveStaticInheritedMember(metaPath));
+            if (!meta) return;
           }
           if (isTaggedTemplateTag(parent, node, meta.placement)) return;
           if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
