@@ -2100,7 +2100,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // pass POST-SUBST AST flag - aliased.extendsType is the raw alias-body AST, may be
       // a typeparam ref (`U`) that reads as unconstrained pre-subst but subst-maps to a
       // concrete shape (`[]` / `Array<X>`). extendSubst already has the substitution applied
-      branch = pickConditionalBranch(checkResolved, extendsResolved, isUnconstrainedTypeReference(extendSubst));
+      branch = pickConditionalBranch(checkResolved, extendsResolved, isUnconstrainedTypeReference(extendSubst), extendSubst);
     }
     if (branch !== null) {
       return findTypeMember(withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth + 1);
@@ -3161,15 +3161,36 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // passing the raw AST directly without subst awareness mis-classifies a typeparam ref `U`
   // (no typeArguments in alias body) as unconstrained even when subst maps U to a concrete
   // shape (`[]` / `Array<number>`), firing the wrong branch
-  function pickConditionalBranch(check, extend, extendIsUnconstrained) {
+  // optional fourth arg `extendsTypeAST`: raw AST of the extends side. used by the
+  // inner-less branch to distinguish concrete-empty shapes (`[]`, `{}`) from post-resolve
+  // inner-less artefacts (`[infer X, X]` where infer doesn't resolve). when AST is concrete
+  // empty, non-null check inner is structurally disjoint → falseBranch deterministic
+  function isConcreteEmptyShape(node) {
+    if (!node) return false;
+    const peeled = peelTSParenthesized(node);
+    if (peeled?.type === 'TSTupleType' || peeled?.type === 'TupleTypeAnnotation') {
+      return !(peeled.elementTypes ?? peeled.types ?? []).length;
+    }
+    if (peeled?.type === 'TSTypeLiteral') return !(peeled.members ?? []).length;
+    return false;
+  }
+
+  function pickConditionalBranch(check, extend, extendIsUnconstrained, extendsTypeAST) {
     if (!check || !extend) return null;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
-      // extends has no inner constraint: matches anything ONLY when the SUBSTITUTED shape is
-      // an unparameterised type reference (`Array` -> `Array<any>`). concrete-shape
-      // extends (`[]` empty tuple, etc) post-subst as inner-less but do NOT match
-      // arbitrary inners
-      if (!extend.inner) return extendIsUnconstrained ? true : null;
+      // extends has no inner constraint. three sub-cases distinguished by extendsTypeAST:
+      //   - unparameterised TSTypeReference (`Array` -> `Array<any>`): matches any inner
+      //   - concrete-empty AST (`[]` empty tuple): structurally distinct from non-empty
+      //     check, picks falseBranch per TS spec
+      //   - post-resolve inner-less (e.g., `[infer X, X]` where infer doesn't resolve to
+      //     a concrete inner): undecidable - infer pattern may still match, fall back to
+      //     fold-both-branches via null return
+      if (!extend.inner) {
+        if (extendIsUnconstrained) return true;
+        if (check.inner && isConcreteEmptyShape(extendsTypeAST)) return false;
+        return null;
+      }
       // check side unconstrained against a concrete extend - can't statically decide
       if (!check.inner) return null;
       // both concrete, differing inners (Array<number> vs Array<string>): disjoint
@@ -3227,7 +3248,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // post-subst flag - typeparam refs that map to concrete shapes via typeParamMap are
     // NOT unconstrained even though their raw AST has no typeArguments
     const branch = pickConditionalBranch(checkResolved, extendsResolved,
-      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
+      isUnconstrainedTypeReference(node.extendsType, typeParamMap), node.extendsType);
     if (branch !== null) return recurse(branch ? node.trueType : node.falseType, branch ? trueMap : typeParamMap);
     return resolveConditionalBranches(
       recurse(node.trueType, trueMap),
@@ -6347,7 +6368,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // post-subst flag - same reasoning as evaluateConditionalType: typeparam refs in
     // typeParamMap are NOT unconstrained even though raw AST has no typeArguments
     return pickConditionalBranch(checkResolved, extendsResolved,
-      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
+      isUnconstrainedTypeReference(node.extendsType, typeParamMap), node.extendsType);
   }
 
   // two-level table lookup: table[key1][key2]
