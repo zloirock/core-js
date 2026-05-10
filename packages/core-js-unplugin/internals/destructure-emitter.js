@@ -382,6 +382,32 @@ export function createDestructureEmitter({
   //   { receiver, outerProps: [{ extractions?, preservedSrc }] }
   // preservedSrc === null -> outer prop was fully consumed (drop).
   // null when the init isn't a recognisable host shape or nothing matches.
+  // peel parallel transparent destructure wrappers:
+  //   - single-element ArrayPattern + matching ArrayExpression layer (`[{...}] = [globalThis]`,
+  //     `[[{...}]] = [[globalThis]]`, etc.)
+  //   - inner AssignmentPattern default (`[{...} = {}] = [globalThis]`) - default never fires
+  //     for proxy-global receivers since runtime value is always defined under polyfill-wins
+  // mirrors provider-side `peelDestructureWrappers` + `descendArrayWrapperInit`. bail
+  // (stop iterating) on depth divergence or non-array intermediate - downstream shape
+  // check will reject ambiguous shapes
+  function peelArrayWrapperPair(pattern, initSource) {
+    for (;;) {
+      // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
+      // equivalent (defaults sit on the LHS slot), so we only peel pattern here
+      if (pattern?.type === 'AssignmentPattern') {
+        pattern = pattern.left;
+        continue;
+      }
+      if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1
+        || initSource?.type !== 'ArrayExpression') return { pattern, initSource };
+      const [innerPattern] = pattern.elements;
+      const [innerInit] = initSource.elements;
+      if (!innerPattern || !innerInit) return { pattern, initSource };
+      pattern = innerPattern;
+      initSource = innerInit;
+    }
+  }
+
   // dispatches across two complementary host shapes:
   //   - proxy-global: `{Array: {from}} = globalThis` - outer key IS the constructor name
   //   - static-object: `{a: {from}} = wrapper` where `wrapper = {a: Array}` - constructor
@@ -392,17 +418,7 @@ export function createDestructureEmitter({
   function planDeclarator(declarator, scope) {
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
-    // single-element ArrayPattern wrapping ObjectPattern (`const [{...}] = [globalThis]`):
-    // peel the array layer and pick init at index 0 so the inner ObjectPattern resolves
-    // through the same proxy-global / static-object chain as the bare form
-    let pattern = declarator.id;
-    let initSource = declarator.init;
-    if (pattern?.type === 'ArrayPattern' && pattern.elements.length === 1
-      && pattern.elements[0]?.type === 'ObjectPattern'
-      && initSource?.type === 'ArrayExpression') {
-      [pattern] = pattern.elements;
-      [initSource] = initSource.elements;
-    }
+    const { pattern, initSource } = peelArrayWrapperPair(declarator.id, declarator.init);
     if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
