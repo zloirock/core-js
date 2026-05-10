@@ -12,9 +12,9 @@ import { canTransformDestructuring as sharedCanTransformDestructuring } from '@c
 
 // intermediate slots permitted on the walk from an inner Property up to the enclosing
 // VariableDeclaration. any other shape -> foreign wrapper, bail safely.
-// AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) — proxy-global
+// AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) - proxy-global
 // receivers are always defined so the default never fires; ArrayPattern allowed for
-// single-element wrappers (`[{...}] = [globalThis]`) — walker drops the whole declaration
+// single-element wrappers (`[{...}] = [globalThis]`) - walker drops the whole declaration
 // and the wrapper / its array literal init together
 const NESTED_DESTRUCTURE_WALK_TYPES = new Set([
   'ObjectPattern',
