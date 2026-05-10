@@ -3175,11 +3175,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // both concrete, differing inners (Array<number> vs Array<string>): disjoint
       return false;
     }
-    // `T extends never ? A : B` - never is the bottom type, no shape extends it (except
-    // never itself, handled by the typesEqual branch above). pick falseBranch deterministically
-    // for any non-never check side. without this, fold-path collapses heterogeneous true/false
-    // branches to commonType (Object), losing narrow Array hint that falseBranch=T preserves
-    if (extend.type === 'never' && check.type !== 'never') return false;
+    // non-primitive check (Array / Map / Promise / ...) vs primitive extend (string / number /
+    // never / null / ...): disjoint per TS structural subtyping. object types can't extend
+    // primitives. subsumes the `extends never` case (never is primitive) - generic rule with
+    // narrower never special-case both yield falseBranch for non-never object check
+    if (!check.primitive && extend.primitive) return false;
+    // primitive check (string / number / ...) vs concrete-Object extend (Array<X> / Map / ...):
+    // disjoint. EXCEPT wide-Object extend (`Object` keyword resolves to $Object(null)) where
+    // boxing makes `string extends Object` TRUE per TS spec - guarded by extend.constructor
+    if (check.primitive && !extend.primitive && extend.constructor !== null) return false;
     // different primitive types (number vs string): truly disjoint
     if (check.primitive && extend.primitive) return false;
     // anything else (Array vs Iterable etc) - subtype relations exist, can't decide
