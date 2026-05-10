@@ -33,7 +33,7 @@ const SFC_QUERY_MARKER_RE = /[&?](?:astro|svelte|vue)(?:[&=?]|$)/;
 const QUERY_OR_HASH_RE = /[#?]/;
 // `WINDOWS_UNC_PREFIX_RE` (shared) matches `//?/` long-path AND `//./` device-path forms.
 // strip to canonical `C:/...` so SnapshotCache lookups align across path-mangling stages
-// (`\\?\C:\src\App.vue` vs `C:/src/App.vue` — same logical file produces same key).
+// (`\\?\C:\src\App.vue` vs `C:/src/App.vue` - same logical file produces same key).
 // Windows drive letter case asymmetry: some bundler stages lowercase (`c:/src/...`), others
 // preserve source case (`C:/src/...`). same logical file produces different keys without
 // canonicalisation - lowercase the drive letter so pre / post align under any pipeline mix

@@ -85,7 +85,7 @@ export default class ImportInjector extends ImportInjectorState {
   //   - ArrowFunctionExpression with expression body: no block to host `var _ref;`
   //   - FunctionExpression in IIFE position: Babel pushes to params for callable scopes
   // both shapes need post-pass normalization to `var _ref;` in body so output stays
-  // symmetric across the babel ↔ unplugin pipelines (unplugin's text-rewrite path always
+  // symmetric across the babel <-> unplugin pipelines (unplugin's text-rewrite path always
   // emits `var _ref;` via scope-tracker `#scopedVars`).
   // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
   // container pointers still point at the pre-convert arrow.body slot - they clobber the
@@ -123,7 +123,7 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // walk every scope (program + descendants) feeding each binding pair to `visit`.
-  // shared between plugin-shape collection and free-name collection — both need an O(N)
+  // shared between plugin-shape collection and free-name collection - both need an O(N)
   // pass over the full scope graph after `scope.crawl()`. caller decides what to do with
   // each [name, binding] pair (filter to a multimap / accumulate names into a Set / etc.)
   #forEachScopeBinding(visit) {
@@ -137,7 +137,7 @@ export default class ImportInjector extends ImportInjectorState {
   // plugin-emitted shape: `scope.push({ id })` produces a `var _refN;` declarator. user
   // collisions (`let`/`const`) differ in `kind`. arrow-fn-param shape is normalized to var
   // by `normalizeArrowRefParams` BEFORE prune runs. CatchClause / Function params host
-  // bindings without VariableDeclaration parent — filtered out here too
+  // bindings without VariableDeclaration parent - filtered out here too
   static #isPluginShapeBinding(binding) {
     const parent = binding?.path?.parentPath?.node;
     return parent?.type === 'VariableDeclaration' && parent.kind === 'var';
@@ -145,7 +145,7 @@ export default class ImportInjector extends ImportInjectorState {
 
   // collect every plugin-shape binding across all scopes, grouped by name. first-write-wins
   // shadow with user's `let _refN` would otherwise mistake the user's binding for the
-  // plugin's, renaming user code. dedupe by identity — re-crawl after replaceWith can
+  // plugin's, renaming user code. dedupe by identity - re-crawl after replaceWith can
   // produce duplicate entries reachable through multiple traversal paths
   #collectPluginShapeBindings() {
     const byName = new Map();
@@ -373,13 +373,20 @@ export default class ImportInjector extends ImportInjectorState {
     //     before them, violating the `imports -> requires -> var _ref -> user code` layout
     //   - leading `'use strict'` synthesized as ExpressionStatement(StringLiteral) by sibling
     //     plugins (instead of `program.directives`); `Literal` covers the ESTree shape
+    // string-literal ExpressionStatement counts only as a directive (babel marks directives
+    // with `stmt.directive` field; sibling-emitted `'use strict'` synth shapes preserve the
+    // marker). bare `'foo';` non-directive statements should NOT qualify - otherwise they
+    // would extend the import-region and `var _ref;` would merge past them
+    const isStringDirective = stmt => stmt.type === 'ExpressionStatement'
+      && (stmt.expression?.type === 'StringLiteral' || stmt.expression?.type === 'Literal')
+      && (stmt.directive !== null && stmt.directive !== undefined
+        || stmt.expression?.directive !== null && stmt.expression?.directive !== undefined);
     const isImportRegion = stmt => stmt.type === 'ImportDeclaration'
       || (stmt.type === 'ExportNamedDeclaration' && stmt.source)
       || stmt.type === 'ExportAllDeclaration'
-      || (stmt.type === 'ExpressionStatement' && (
-        (stmt.expression?.type === 'CallExpression' && stmt.expression.callee?.name === 'require')
-        || stmt.expression?.type === 'StringLiteral'
-        || stmt.expression?.type === 'Literal'))
+      || (stmt.type === 'ExpressionStatement'
+        && stmt.expression?.type === 'CallExpression' && stmt.expression.callee?.name === 'require')
+      || isStringDirective(stmt)
       || (stmt.type === 'VariableDeclaration'
         && stmt.declarations.some(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
     const refs = [];
