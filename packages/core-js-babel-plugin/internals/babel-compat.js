@@ -262,11 +262,16 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       && isWrappedInParens(path) && path.isOptionalMemberExpression();
     const [check, object, embed] = extractCheck(path, skipOptional);
     if (isParenLookupOnly) {
-      // build `(check == null ? void 0 : _id(arr)).call(arr, ...args)` so both throw-on-nullish
-      // and `this`-binding-on-success are preserved (matches native semantics)
-      const lookup = t.callExpression(id, [t.cloneNode(object)]);
+      // build `(check == null ? void 0 : _id(_ref = obj)).call(_ref, ...args)` so:
+      //   - throw-on-nullish preserved: ternary -> void 0, `.call` access on undefined throws
+      //   - `this`-binding-on-success preserved: `_ref` captures obj, `.call(_ref, ...)` binds it
+      //   - obj evaluated ONCE: deep chains `(arr?.b.includes)(1)` would otherwise re-eval
+      //     `arr.b` in callArgs (single-eval matters for receivers with side effects)
+      // memoize unconditionally - bare Identifier hits `isSafeToReuse` and inlines without _ref
+      const [objAssign, objRef] = memoize(object, path.scope);
+      const lookup = t.callExpression(id, [objAssign]);
       const wrappedCallee = wrapConditional(check, lookup);
-      const callArgs = [t.cloneNode(object), ...parent.arguments.map(a => t.cloneNode(a))];
+      const callArgs = [t.cloneNode(objRef), ...parent.arguments.map(a => t.cloneNode(a))];
       const result = t.callExpression(t.memberExpression(wrappedCallee, t.identifier('call')), callArgs);
       callerPath.parentPath.replaceWith(withSideEffects(result, effectiveSE));
       return;

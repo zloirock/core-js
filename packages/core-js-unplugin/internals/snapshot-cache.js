@@ -62,16 +62,22 @@ function normalizePath(path) {
 // without it `\d+` alone would consume only `1`, leaving `.5` as garbage in the key
 const HMR_TIMESTAMP_RE = /[&?]t=\d+(?:\.\d+)?(?=[#&]|$)/g;
 // when the FIRST `?t=` was stripped a leading `&` may now sit where `?` belonged - swap.
-// gate on actual HMR-strip (`HMR_TIMESTAMP_RE.test(id)` BEFORE replaceAll) - if no timestamp
-// was present, leading `&` belongs to the source path verbatim and rewriting it to `?` would
-// corrupt the key for non-HMR ids that happen to contain `&` (e.g. `/dir&with/file.js`)
-const LEADING_AMP_FIX_RE = /(?<head>^[^?]*)&/;
+// gate on positional check: only apply when ORIGINAL id had `?t=` at the first `?`/`#`
+// boundary AND the post-strip char at the same offset is `&`. without the position gate,
+// paths containing literal `&` (e.g. `/dir&with/file.js?t=1` -> `/dir&with/file.js`) get
+// their first `&` mistakenly rewritten to `?`, producing wrong-key snapshot lookups
 function stripHMRTimestamp(id) {
   if (!HMR_TIMESTAMP_RE.test(id)) return id;
   HMR_TIMESTAMP_RE.lastIndex = 0;
-  return id
-    .replaceAll(HMR_TIMESTAMP_RE, '')
-    .replace(LEADING_AMP_FIX_RE, '$<head>?')
+  let stripped = id.replaceAll(HMR_TIMESTAMP_RE, '');
+  // restore `?` only when HMR token was the FIRST query separator and another `&`-prefixed
+  // token follows. positional check via `id.indexOf('?t=')` matches the `?t=` form
+  // exclusively (not `&t=` mid-query) - the latter strip leaves earlier `?` intact, no swap needed
+  const firstQuery = id.search(/[#?]/);
+  if (firstQuery !== -1 && id.startsWith('?t=', firstQuery) && stripped[firstQuery] === '&') {
+    stripped = `${ stripped.slice(0, firstQuery) }?${ stripped.slice(firstQuery + 1) }`;
+  }
+  return stripped
     .replace(/\?&/, '?')
     .replace(/[&?]$/, '');
 }
