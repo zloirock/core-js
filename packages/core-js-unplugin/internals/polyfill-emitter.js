@@ -7,6 +7,7 @@
 // resolver hooks).
 import {
   hasSideEffectfulSequencePrefix,
+  mayHaveSideEffects,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
@@ -22,6 +23,7 @@ import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/me
 import { createRewriteHint } from './transform-queue.js';
 import {
   isCallee,
+  isCalleeWrappedInParens,
   unwrapNode,
   unwrapNodeForMemoize,
 } from './emit-utils.js';
@@ -546,7 +548,7 @@ export function createPolyfillEmitter({
   // requires walking the chain (not just `node.optional` flag) since ESTree continuation
   // members carry optional=false even within an optional chain
   function replaceInstance(binding, node, parent, metaPath, sideEffects) {
-    const wrappedInParen = parent.callee !== node && parent.callee?.type === 'ParenthesizedExpression';
+    const wrappedInParen = isCalleeWrappedInParens(parent, node);
     const optionalInsideChain = node.optional || hasOptionalChainSegment(node);
     const isParenLookupOnly = isCallee(node, parent) && wrappedInParen
       && optionalInsideChain && !parent.optional;
@@ -582,11 +584,14 @@ export function createPolyfillEmitter({
     // super.method(args) -> binding.call(this, args) to preserve this-binding.
     // `sliceBetweenParens` keeps every byte between `(` and `)` (comments, whitespace,
     // trailing commas); `sep` branches on AST arity so `super.foo(/* c */)` (no real args,
-    // comment still round-trips inside argsSrc) doesn't get a dangling leading comma
+    // comment still round-trips inside argsSrc) doesn't get a dangling leading comma.
+    // sideEffects covers computed-key SE: `super[(fn(),'X')](args)` collected fn() into
+    // sideEffects via members.js; wrapSideEffects emits `(fn(), binding.call(this, args))`
     if (node.object?.type === 'Super' && parent?.type === 'CallExpression' && isCallee(node, parent)) {
       const argsSrc = sliceBetweenParens(parent) ?? '';
       const sep = parent.arguments.length ? ', ' : '';
-      return transforms.add(parent.start, parent.end, `${ binding }.call(this${ sep }${ argsSrc })`);
+      const callExpr = `${ binding }.call(this${ sep }${ argsSrc })`;
+      return transforms.add(parent.start, parent.end, wrapSideEffects(callExpr, sideEffects));
     }
     // strip TS wrappers (satisfies, as, !) - meaningless after polyfill replacement
     let { start, end } = node;
@@ -630,10 +635,25 @@ export function createPolyfillEmitter({
         transforms.add(node.left.start, node.left.end, binding);
       }
     } else if (meta.object) {
-      // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
+      // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable.
+      // RHS-side preserves SE: `'k' in (a = Array)` / `'k' in (fn(), Array)` evaluates
+      // the SE even when LHS is a known constant. SequenceExpression: keep SE-bearing
+      // prefix and drop the receiver tail; AssignmentExpression: wrap whole rhs as a
+      // sequence prefix. CallExpression rhs intentionally NOT rescued - inline-call
+      // analysis upstream filters out SE-bearing IIFEs separately
       const resolved = resolvePureOrGlobalFallback(meta, metaPath);
       if (resolved.result) {
-        transforms.add(node.start, node.end, 'true');
+        // oxc preserves ParenthesizedExpression around the rhs; peel via unwrapNode so
+        // SE-shape detection works the same as on babel-stripped form
+        const rhs = unwrapNode(node.right);
+        const seqPrefix = rhs?.type === 'SequenceExpression'
+          && rhs.expressions.length > 1
+          && rhs.expressions.slice(0, -1).some(e => mayHaveSideEffects(e))
+            ? rhs.expressions.slice(0, -1) : null;
+        let replacement = 'true';
+        if (seqPrefix) replacement = `(${ seqPrefix.map(e => nodeSrc(e)).join(', ') }, true)`;
+        else if (rhs?.type === 'AssignmentExpression') replacement = `(${ nodeSrc(rhs) }, true)`;
+        transforms.add(node.start, node.end, replacement);
         // marking only `node.right` leaves nested identifiers (`foo.bar.baz` -> `foo`)
         // visible to child visitors, which would emit spurious polyfill imports for
         // code the `'true'` replacement has already discarded

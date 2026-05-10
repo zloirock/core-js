@@ -24,6 +24,24 @@ export function isCallee(node, parent) {
   return unwrapNode(parent.callee) === node;
 }
 
+// `(arr?.includes)(1)` / `((arr?.includes) as any)(1)` - parenLookupOnly emit form gates
+// on a ParenthesizedExpression somewhere between `parent.callee` and `node`. walks down
+// through ChainExpression / TS wrappers (`as`/`satisfies`/`!`) so a TS cast wrapping the
+// inner paren still triggers throw-on-nullish parenLookupOnly emit. mirrors babel-side
+// `isWrappedInParens` parent-walk
+export function isCalleeWrappedInParens(parent, node) {
+  let cur = parent?.callee;
+  while (cur && cur !== node) {
+    if (cur.type === 'ParenthesizedExpression') return true;
+    if (cur.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(cur.type)) {
+      cur = cur.expression;
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
+
 // outermost optional-chain member: useful for the deep-chain generic-fallback heuristic.
 // matching that scope keeps unplugin's output shape aligned with babel: e.g. 5-deep chain
 // polyfills M5 via generic fallback, leaves M4 raw the same way babel does
