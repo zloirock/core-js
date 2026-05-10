@@ -3175,6 +3175,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // both concrete, differing inners (Array<number> vs Array<string>): disjoint
       return false;
     }
+    // `T extends never ? A : B` - never is the bottom type, no shape extends it (except
+    // never itself, handled by the typesEqual branch above). pick falseBranch deterministically
+    // for any non-never check side. without this, fold-path collapses heterogeneous true/false
+    // branches to commonType (Object), losing narrow Array hint that falseBranch=T preserves
+    if (extend.type === 'never' && check.type !== 'never') return false;
     // different primitive types (number vs string): truly disjoint
     if (check.primitive && extend.primitive) return false;
     // anything else (Array vs Iterable etc) - subtype relations exist, can't decide
