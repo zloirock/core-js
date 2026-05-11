@@ -208,6 +208,18 @@ export function walkStaticReceiverChain(receiverNode, walkPath, scope, adapter) 
   return walkStaticReceiverStep(receiverNode, walkPath, scope, adapter, 0);
 }
 
+// proxy-global recognition for `walkStaticReceiverStep`: returns the source proxy-global
+// name when `node` is an Identifier that's either bare (`globalThis`/`self`/...) or a
+// plugin-rewritten alias whose binding's `polyfillHint` carries the source global. shared
+// between the in-loop early-exit (substitute and break out of dereference chain) and the
+// post-loop mid-chain lift (decide whether remaining walkPath describes constructor access)
+function proxyGlobalNameOf(node, binding) {
+  if (node?.type !== 'Identifier') return null;
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return node.name;
+  const hint = binding?.polyfillHint;
+  return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
+}
+
 function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
   if (depth > STATIC_WALK_DEPTH) return null;
   let current = unwrapParens(node);
@@ -220,6 +232,16 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
   // `a -> b -> c -> ...` blowups
   while (current?.type === 'Identifier' && adapter.hasBinding(currentScope, current.name)) {
     if (++hops > STATIC_WALK_DEPTH) return null;
+    const binding = adapter.getBinding(currentScope, current.name);
+    // plugin-rewritten proxy-global alias (`_globalThis` after first-pass globalThis rewrite):
+    // substitute current to the SOURCE proxy-global name so the post-loop mid-chain lift can
+    // match. break out of the dereference loop - the import binding's init isn't an
+    // ObjectExpression and would otherwise bail at the bindingType check below
+    const proxyName = proxyGlobalNameOf(current, binding);
+    if (proxyName && proxyName !== current.name) {
+      current = { type: 'Identifier', name: proxyName };
+      break;
+    }
     const bindingType = adapter.getBindingNodeType(currentScope, current.name);
     // class-bound leaf at empty walkPath: classes are stable bindings (no reassignment
     // legal), so the identifier name reliably identifies the declaration. accept as the
@@ -229,7 +251,6 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
     // here since ClassDeclaration isn't VariableDeclarator)
     if (walkPath.length === 0 && bindingType === 'ClassDeclaration') return current.name;
     if (bindingType !== 'VariableDeclarator') return null;
-    const binding = adapter.getBinding(currentScope, current.name);
     // `binding.constant` may be undefined depending on adapter (babel computes it lazily,
     // estree-toolkit doesn't expose it). use the underlying `constantViolations` list which
     // both adapters surface; empty / missing means no reassignment - shape holds at use site
@@ -253,6 +274,18 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
       return resolveObjectName(current, currentScope, adapter);
     }
     return null;
+  }
+  // proxy-global mid-chain lift: current is a recognised proxy-global identifier (bare
+  // source name OR plugin-rewritten alias resolved via `proxyGlobalNameOf` above). mirror
+  // `resolveNestedDestructureReceiver`'s short-circuit: intermediate hops must also be
+  // proxy-globals (chained `globalThis.self.Array.from` shapes), leaf must be a recognised
+  // static-placement name. without this, nested static-receiver chains like
+  // `const ns = {root: globalThis}; const {root: {Array: {from}}} = ns` bail at the inner
+  // `globalThis` hop and downstream `Array.from` polyfill is missed silently
+  if (proxyGlobalNameOf(current, null)
+      && walkPath.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))
+      && isStaticPlacement(walkPath.at(-1))) {
+    return walkPath.at(-1);
   }
   if (current?.type !== 'ObjectExpression') return null;
   for (const prop of current.properties) {

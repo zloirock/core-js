@@ -281,7 +281,10 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // base returns a string; babel consumers need an Identifier - cache one per name so
-  // repeated `addPureImport` calls return clones of the same node (keeps range/loc stable)
+  // repeated `addPureImport` calls return clones of the same source-shape Identifier.
+  // `t.identifier(name)` has `loc=null` so clones inherit null - the cache provides
+  // node-IDENTITY stability across clones (downstream node-equality and skippedNodes
+  // identity checks), NOT loc/range preservation
   addPureImport(entry, hint) {
     const name = super.addPureImport(entry, hint);
     let id = this.#idByName.get(name);
@@ -295,8 +298,8 @@ export default class ImportInjector extends ImportInjectorState {
   registerUserPureImport(entry, name) {
     super.registerUserPureImport(entry, name);
     // guard against dead writes: a repeat registration for the same name would otherwise
-    // overwrite `#idByName` with a fresh Identifier, breaking range/loc stability
-    // that `addPureImport` relies on (it clones the cached node per call)
+    // overwrite `#idByName` with a fresh Identifier, breaking the node-IDENTITY contract
+    // that `addPureImport` relies on (clones share identity with the cached source node)
     if (!this.#idByName.has(name)) this.#idByName.set(name, this.#t.identifier(name));
   }
 
