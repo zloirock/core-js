@@ -151,7 +151,8 @@ function isSymbolSourcedKey(node, scope, adapter, seen, path, depth = 0) {
     return isSymbolSourcedKey(binding.node.init, scope, adapter, nextSeen, path, depth + 1);
   }
   // plugin-managed: `polyfillHint` (in-place mutation) or real `core-js/.../symbol/X` import
-  return bindingSymbolKey(binding) !== null;
+  // (incl. user-aliased polyfill packages from `additionalPackages`)
+  return bindingSymbolKey(binding, adapter.packages) !== null;
 }
 
 // Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
