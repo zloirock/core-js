@@ -18,6 +18,13 @@ export default class ImportInjector extends ImportInjectorState {
   #emittedKeyByNode = new Map();
   // `_ref` names - iterated by pruneUnusedRefs at programExit
   #refs = new Set();
+  // coupling state: `reorderRefsAfterImports` assumes the import-region is already
+  // canonical-sorted (so its `isImportRegion` accumulator finds the contiguous prefix
+  // ending at the same byte position regardless of pre/post flush ordering). without
+  // pre-sort the ref-region boundary may land mid-imports, leaving `var _ref;` above
+  // sibling imports. flag set by `reorderImportRegion`, asserted by
+  // `reorderRefsAfterImports` so caller-order violations surface as a clear error
+  #importRegionSorted = false;
 
   constructor({ t, programPath, pkg, mode, importStyle, absoluteImports = false }) {
     super({ absoluteImports, mode, pkg, importStyle });
@@ -322,6 +329,7 @@ export default class ImportInjector extends ImportInjectorState {
   // node-identity match (== check on `body[i] === entry.node`) avoids touching user-side
   // imports or sibling-plugin emissions interleaved in the same region
   reorderImportRegion() {
+    this.#importRegionSorted = true;
     if (this.#emittedKeyByNode.size < 2) return;
     const { body } = this.#programPath.node;
     if (!body?.length) return;
@@ -356,6 +364,9 @@ export default class ImportInjector extends ImportInjectorState {
   // once (called from programExit after all pushes settle) and move the ref-only decls
   // past the import header. keeps source order lint-clean without touching pruneUnusedRefs
   reorderRefsAfterImports() {
+    if (!this.#importRegionSorted) {
+      throw new Error('[core-js] import-injector: reorderRefsAfterImports() must follow reorderImportRegion()');
+    }
     const { body } = this.#programPath.node;
     if (!body?.length) return;
     const isRefOnly = stmt => stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
