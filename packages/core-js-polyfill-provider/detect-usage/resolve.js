@@ -168,6 +168,20 @@ const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.[c
 
 const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier', 'ImportNamespaceSpecifier']);
 
+// shared Identifier-binding gate for key-resolution walks: cycle guard via `seen`, fork
+// before recurse, reject reassigned bindings. precomputes `VariableDeclarator` init for
+// the common "follow alias" step so callsites converge on `entry.init ? recurse : fallback`.
+// returns `{ binding, init, nextSeen }` on success, null on miss
+export function enterIdentifierBindingFollow(node, scope, adapter, seen) {
+  if (seen?.has(node.name)) return null;
+  const binding = adapter.getBinding(scope, node.name);
+  if (!binding || binding.constantViolations?.length) return null;
+  const nextSeen = new Set(seen);
+  nextSeen.add(node.name);
+  const init = binding.node?.type === 'VariableDeclarator' ? binding.node.init : null;
+  return { binding, init, nextSeen };
+}
+
 // true when `node` binds the module's default export (either as default specifier or
 // as named `default` re-export). namespace bindings and other named specifiers reject -
 // they alias something other than the module's default, even if the module-source matches.
@@ -483,25 +497,14 @@ export function resolveKey(node, computed, scope, adapter, seen, path, depth = 0
     }
     return out;
   }
-  // computed: const variable - follow to init and resolve recursively
+  // computed: const variable - follow to init, else fall back to plugin-managed bindings
+  // (`polyfillHint` in-place mutation / `core-js/.../symbol/X` import, incl. user-aliased
+  // polyfill packages from `additionalPackages`)
   if (node.type === 'Identifier' && computed) {
-    // depth ceiling alone doesn't catch short cycles (`a = b; b = a`)
-    if (seen?.has(node.name)) return null;
-    // fork `seen` even when caller supplied one: caller may fall through to sibling
-    // branches (BinaryExpression `+`, TemplateLiteral expressions) after this Identifier
-    // branch - mutating shared state would pollute those independent walks
-    const nextSeen = new Set(seen);
-    nextSeen.add(node.name);
-    const binding = adapter.getBinding(scope, node.name);
-    if (binding && !binding.constantViolations?.length) {
-      if (binding.node?.type === 'VariableDeclarator') {
-        const { init } = binding.node;
-        if (init) return resolveKey(init, true, scope, adapter, nextSeen, path, depth + 1);
-      }
-      // plugin-managed binding - either via `polyfillHint` (in-place AST mutation)
-      // or real import from `core-js/.../symbol/X` (or any user-aliased polyfill package
-      // listed in adapter's `packages`)
-      const key = bindingSymbolKey(binding, adapter.packages);
+    const entry = enterIdentifierBindingFollow(node, scope, adapter, seen);
+    if (entry) {
+      if (entry.init) return resolveKey(entry.init, true, scope, adapter, entry.nextSeen, path, depth + 1);
+      const key = bindingSymbolKey(entry.binding, adapter.packages);
       if (key) return key;
     }
   }
