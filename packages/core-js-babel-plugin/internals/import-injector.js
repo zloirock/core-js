@@ -8,7 +8,14 @@ export default class ImportInjector extends ImportInjectorState {
   // binding name -> babel Identifier node (flushed imports clone it to preserve range/loc).
   // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
   #idByName = new Map();
-  // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted
+  // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted.
+  // DUAL PURPOSE: tracks BOTH (a) "what's been emitted as code" (subtract via `.difference`
+  // in flush() to compute newGlobals) AND (b) "has any side-effect import landed" for
+  // `hasFlushed` getter feeding postHook's late-CJS detection diagnostic. (a) requires
+  // node-keyed semantics (one entry per emitted module); (b) just cares about non-empty.
+  // both happen to satisfy "Set of module names" so single field works - if a future
+  // call needs to distinguish "user-emitted via inject side-effect" vs "plugin-emitted
+  // via flush", split into `#emittedGlobals` (data flow) + `#suppressedGlobals` (gating)
   #flushedGlobals = new Set();
   #flushedPure = new Set();
   // emit history for canonical reorder at programExit. each `flush()` only sorts WITHIN
@@ -191,7 +198,13 @@ export default class ImportInjector extends ImportInjectorState {
 
     // step 1: drop unused / dead var declarators. iterate ALL bindings under each name
     // (multi-bindings happen when plugin emits same `_ref` in distinct nested scopes).
-    // `#refs.delete(name)` only when ALL bindings dead; otherwise survivor keeps slot live
+    // `#refs.delete(name)` only when ALL bindings dead; otherwise survivor keeps slot live.
+    // SAFETY: deleting from `#refs` Set DURING `for...of` iteration relies on V8/JSC
+    // implementing Set iterator's "live view" semantics correctly - the spec (TC39 Set
+    // iterator) defines that deletion of already-visited or current entry is safe; only
+    // deletion of NOT-YET-visited entries can skip them. here we only delete `name`
+    // (current iteration item) so this pattern is spec-safe. fragile if someone adds
+    // additional `#refs.delete(otherName)` inside the loop body
     for (const name of this.#refs) {
       const bindings = byName.get(name) ?? [];
       let survivor = false;

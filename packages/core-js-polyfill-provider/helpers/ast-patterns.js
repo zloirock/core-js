@@ -1176,6 +1176,16 @@ function computeDeclaresRequire(body) {
   return false;
 }
 
+// `Object.defineProperty(exports, 'x', ...)` is tsc/esbuild's CJS emit shape for
+// `export const x = ...`; recognise as CJS marker alongside the direct-assign forms
+function isObjectDefinePropertyOnExports(expression) {
+  if (expression?.type !== 'CallExpression' && expression?.type !== 'OptionalCallExpression') return false;
+  const callee = unwrapExpr(expression.callee);
+  if (!isStaticMember(callee, 'Object', 'defineProperty')) return false;
+  const first = expression.arguments?.[0];
+  return !!first && isNamedIdent(unwrapExpr(first), 'exports');
+}
+
 export function detectCommonJS(program) {
   let hasCJS = false;
   for (const stmt of program.body) {
@@ -1187,8 +1197,9 @@ export function detectCommonJS(program) {
     // top-level `await` is ESM-only syntax (parser would reject in script context),
     // so treat it as a strong ESM marker even without explicit import/export
     if (expression?.type === 'AwaitExpression') return false;
-    if (!hasCJS && expression?.type === 'AssignmentExpression'
-        && isCommonJSAssignTarget(expression.left)) hasCJS = true;
+    if (hasCJS) continue;
+    const isDirectAssign = expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left);
+    if (isDirectAssign || isObjectDefinePropertyOnExports(expression)) hasCJS = true;
   }
   return hasCJS;
 }
