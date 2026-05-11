@@ -707,8 +707,10 @@ export default function plugin(api, options) {
         postSweepUnboundGlobals(path);
         // drain deferred synth-swap receivers via program walk - finds receivers via
         // node-identity WeakMap regardless of where sibling plugins (transform-parameters
-        // extracting param defaults to body var declarations) moved them
-        synthSwap.apply(path);
+        // extracting param defaults to body var declarations) moved them. `?.` symmetric
+        // with the preTraverse call at the head of program() - both gated on the same
+        // factory-time conditional that may leave `synthSwap` undefined
+        synthSwap?.apply(path);
         injector?.flush();
         // canonical-sort the polyfill import region across all flushes (pre + post-synth)
         // so the union order matches compat-data canonical order regardless of which
