@@ -24,14 +24,22 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // ParenthesizedExpression IS peeled so `(arr)?.(0)` under `createParenthesizedExpressions:
   // true` aligns with unplugin's NO_REF_NEEDED set - both pipelines avoid `_ref` allocation
   // for paren-wrapped Identifier / ThisExpression
-  const isSafeToReuse = node => {
+  function isSafeToReuse(node) {
     while (node?.type === 'ParenthesizedExpression') node = node.expression;
     return t.isIdentifier(node) || t.isThisExpression(node);
-  };
+  }
 
-  const generateRef = scope => getInjector().generateDeclaredRef(scope);
-  const generateLocalRef = scope => getInjector().generateLocalRef(scope);
-  const generateUnusedId = () => t.identifier(getInjector().generateUnusedName());
+  function generateRef(scope) {
+    return getInjector().generateDeclaredRef(scope);
+  }
+
+  function generateLocalRef(scope) {
+    return getInjector().generateLocalRef(scope);
+  }
+
+  function generateUnusedId() {
+    return t.identifier(getInjector().generateUnusedName());
+  }
 
   function memoize(node, scope) {
     if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
@@ -49,7 +57,9 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   }
 
   // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement)
-  const isLeadingIdentLike = node => t.isIdentifier(node) || t.isThisExpression(node) || t.isSuper(node);
+  function isLeadingIdentLike(node) {
+    return t.isIdentifier(node) || t.isThisExpression(node) || t.isSuper(node);
+  }
 
   function wrapConditional(check, result) {
     // place `null` first when `check` doesn't start with an identifier-like token (typically
@@ -112,7 +122,9 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     if (!parentPath || !isOptionalOperand(path, parentPath)) return null;
     let topPath = null;
     let seenOptional = false;
-    const isOptional = p => p.isOptionalMemberExpression() || p.isOptionalCallExpression();
+    function isOptional(p) {
+      return p.isOptionalMemberExpression() || p.isOptionalCallExpression();
+    }
     // eslint-disable-next-line no-unmodified-loop-condition -- safe
     while (isOptional(parentPath) && (!parentPath.node.optional || stripFirstOptional && !seenOptional)) {
       if (parentPath.node.optional) seenOptional = true;
@@ -305,8 +317,12 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     const callerPath = unwrapTSExpressionParent(outerPath);
     const outerCall = callerPath.parent;
     const { scope } = outerPath;
-    const nullTest = expr => t.binaryExpression('==', t.nullLiteral(), expr);
-    const assign = (ref, value) => t.assignmentExpression('=', t.cloneNode(ref), value);
+    function nullTest(expr) {
+      return t.binaryExpression('==', t.nullLiteral(), expr);
+    }
+    function assign(ref, value) {
+      return t.assignmentExpression('=', t.cloneNode(ref), value);
+    }
 
     const [anAssign, aRef] = memoize(innerCallee.object, scope);
     const mRef = generateRef(scope);

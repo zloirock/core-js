@@ -47,7 +47,9 @@ function optionTypeError(name, expected, received) {
 }
 
 // `null`/`undefined` pass through so users can use conditional spreads to clear an option
-const isEmpty = v => v === null || v === undefined;
+function isEmpty(v) {
+  return v === null || v === undefined;
+}
 
 // accepts `Object.create(null)` alongside `Object.prototype`-backed objects
 function isPlainObject(value) {
@@ -58,7 +60,10 @@ function isPlainObject(value) {
 
 export const VALID_METHODS = new Set(['entry-global', 'usage-global', 'usage-pure']);
 export const VALID_MODES = new Set(['es', 'stable', 'actual', 'full']);
-const formatOptions = set => `one of ${ [...set].map(s => `'${ s }'`).join(', ') }`;
+
+function formatOptions(set) {
+  return `one of ${ [...set].map(s => `'${ s }'`).join(', ') }`;
+}
 
 function expectOptional(name, type, value) {
   if (!isEmpty(value) && typeof value !== type) throw optionTypeError(name, `a ${ type }, or undefined`, value);
@@ -131,7 +136,10 @@ export function validateOptions({
   // pure-slash strings (`/`, `///`) are stripped to `''` by `createPolyfillContext.stripTrailingSlashes`,
   // making `getCoreJSEntry` treat any `/`-prefixed user import as a core-js entry. reject up
   // front so the misconfiguration surfaces as a clean type error
-  const isPureSlash = $pkg => /^\/+$/.test($pkg);
+  function isPureSlash($pkg) {
+    return /^\/+$/.test($pkg);
+  }
+
   if (pkg !== undefined) {
     if (typeof pkg !== 'string') throw optionTypeError('package', 'a string', pkg);
     if (pkg === '' || isPureSlash(pkg)) throw optionTypeError('package', 'a non-empty, non-slash-only string', pkg);

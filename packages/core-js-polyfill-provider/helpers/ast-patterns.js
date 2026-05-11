@@ -171,7 +171,9 @@ const VAR_SCOPE_OWNER_TYPES = new Set([
   'Program',
 ]);
 
-const isVarScopeBoundary = type => VAR_SCOPE_OWNER_TYPES.has(type);
+function isVarScopeBoundary(type) {
+  return VAR_SCOPE_OWNER_TYPES.has(type);
+}
 
 // recursively collect `var` bindings inside `scopeNode`, descending through arbitrary
 // non-boundary node shapes (block / if / loop / switch / try-catch / etc). stops at
@@ -180,7 +182,8 @@ const isVarScopeBoundary = type => VAR_SCOPE_OWNER_TYPES.has(type);
 // StaticBlock host statements directly at `.body`)
 export function collectScopeVars(scopeNode) {
   const locals = new Set();
-  const visit = node => {
+
+  function visit(node) {
     if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
       for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => locals.add(id.name));
@@ -192,7 +195,8 @@ export function collectScopeVars(scopeNode) {
       if (Array.isArray(value)) for (const v of value) visit(v);
       else visit(value);
     }
-  };
+  }
+
   if (Array.isArray(scopeNode?.body)) for (const stmt of scopeNode.body) visit(stmt);
   else visit(scopeNode?.body);
   return locals;
@@ -623,7 +627,9 @@ export function hasRestSiblingExcept(properties, currentProp) {
 // TS expression wrappers + parser-preserved parens (`createParenthesizedExpressions: true`).
 // distinct from `TS_EXPR_WRAPPERS` alone because ParenthesizedExpression is also transparent
 // here but not everywhere (e.g. callee resolution treats parens as chain-breakers)
-const isUpdateOperandWrapper = node => !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
+function isUpdateOperandWrapper(node) {
+  return !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
+}
 
 // peel ParenthesizedExpression + TS expression wrappers. oxc-parser preserves both;
 // babel-parser strips parens by default. used in fallback-receiver / computed-key /
@@ -956,7 +962,9 @@ export const ESM_MARKER_TYPES = new Set([
   'ImportDeclaration',
 ]);
 
-const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name === name;
+function isNamedIdent(node, name) {
+  return node?.type === 'Identifier' && node.name === name;
+}
 
 // oxc-parser preserves `ParenthesizedExpression`; babel strips it by default. strip here
 // so downstream matchers treat `(x)` and `x` identically without probing the parser
@@ -1110,11 +1118,16 @@ function isStringLiteralWithValue(node, value) {
   if (node?.type === 'StringLiteral' && node.value === value) return true;
   return node?.type === 'Literal' && node.value === value;
 }
-const matchesMemberName = (node, name) => (!node.computed && isNamedIdent(node.property, name))
-  || (node.computed && isStringLiteralWithValue(node.property, name));
-const isStaticMember = (node, objName, propName) => (node?.type === 'MemberExpression'
-  || node?.type === 'OptionalMemberExpression')
-  && isNamedIdent(unwrapExpr(node.object), objName) && matchesMemberName(node, propName);
+
+function matchesMemberName(node, name) {
+  return (!node.computed && isNamedIdent(node.property, name))
+    || (node.computed && isStringLiteralWithValue(node.property, name));
+}
+
+function isStaticMember(node, objName, propName) {
+  return (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
+    && isNamedIdent(unwrapExpr(node.object), objName) && matchesMemberName(node, propName);
+}
 
 // walks the MemberExpression chain - any ancestor rooted at `exports` or `module.exports` matches.
 // also handles OptionalMemberExpression: `module?.exports.X = Y` is valid syntax (defensive
@@ -1136,6 +1149,7 @@ export const hasTopLevelESM = program => program.body.some(n => ESM_MARKER_TYPES
 // shadowed `require` makes its calls user-authored no-ops, not real core-js imports.
 // per-body cache - same body walked by multiple passes (detect-usage + detect-entry)
 const REQUIRE_SHADOW_CACHE = new WeakMap();
+
 export function declaresRequireBinding(body) {
   if (!body || typeof body !== 'object') return false;
   if (REQUIRE_SHADOW_CACHE.has(body)) return REQUIRE_SHADOW_CACHE.get(body);
@@ -1143,11 +1157,14 @@ export function declaresRequireBinding(body) {
   REQUIRE_SHADOW_CACHE.set(body, result);
   return result;
 }
+
 function computeDeclaresRequire(body) {
   let found = false;
-  const mark = id => {
+
+  function mark(id) {
     if (id.name === 'require') found = true;
-  };
+  }
+
   for (const stmt of body ?? []) {
     const node = unwrapExportedDeclaration(stmt);
     if (!node) continue;
