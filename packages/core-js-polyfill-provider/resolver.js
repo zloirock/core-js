@@ -202,7 +202,7 @@ export function createPolyfillResolver(options, {
     return false;
   }
 
-  function resolvePureEntry(kind, desc, meta, path) {
+  function resolvePureEntry({ kind, desc, meta, path }) {
     let target = desc;
     if (kind === 'instance') {
       target = resolveHint(desc, meta);
@@ -242,7 +242,7 @@ export function createPolyfillResolver(options, {
     const { kind, desc: { pure: desc } } = resolved;
     const effectiveMeta = buildEffectiveMeta(kind, desc, meta, path);
     if (!effectiveMeta) return null;
-    const entry = resolvePureEntry(kind, desc, effectiveMeta, path);
+    const entry = resolvePureEntry({ kind, desc, meta: effectiveMeta, path });
     if (!entry) return null;
     return {
       entry,
@@ -298,7 +298,7 @@ export function createPolyfillResolver(options, {
       const globalMeta = { kind: 'global', name: meta.object };
       const globalResolved = resolve(globalMeta);
       if (globalResolved && hasOwn(globalResolved.desc, 'pure')) {
-        const entry = resolvePureEntry(globalResolved.kind, globalResolved.desc.pure, globalMeta, path);
+        const entry = resolvePureEntry({ kind: globalResolved.kind, desc: globalResolved.desc.pure, meta: globalMeta, path });
         if (entry) return { result: null, fallback: { entry, hintName: meta.object } };
       }
     }

@@ -15,13 +15,13 @@ export { isDirectiveStatement };
 // used by callers (`polyfillSiblingReceiverRefs`) for context-aware filtering.
 // depth cap protects against pathological deeply-nested AST (template-literal bombs,
 // oxc bug-emitted cycles). 1024 covers realistic depth bounds with margin
-export function walkAstNodes(root, visit, parent = null, depth = 0) {
+export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
   if (!root || typeof root !== 'object' || typeof root.type !== 'string' || depth >= 1024) return;
   visit(root, parent);
   for (const key of Object.keys(root)) {
     const value = root[key];
-    if (Array.isArray(value)) for (const v of value) walkAstNodes(v, visit, root, depth + 1);
-    else walkAstNodes(value, visit, root, depth + 1);
+    if (Array.isArray(value)) for (const v of value) walkAstNodes({ root: v, visit, parent: root, depth: depth + 1 });
+    else walkAstNodes({ root: value, visit, parent: root, depth: depth + 1 });
   }
 }
 

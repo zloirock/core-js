@@ -64,7 +64,7 @@ const LABEL_TYPES = new Set([
 // `skipUpdateTargets` (usage-pure only) additionally rejects UpdateExpression operands, since
 // the polyfill rewrite would produce `_Map++` on a frozen import binding. usage-global must
 // pass `false` here or `Map++` wouldn't inject its polyfill and would ReferenceError in IE 11
-function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
+function isReferenced({ node, parent, parentKey, parentPath, skipUpdateTargets }) {
   if (!parent) return true;
   // TS type-only positions: `type X = ...` ids, `export { type X }` specifiers
   if (isTSTypeOnlyIdentifierPath({ parent, key: parentKey, parentPath })) return false;
@@ -215,7 +215,7 @@ function isLiteralString(node) {
 }
 
 function resolveKey(node, computed, scope) {
-  return sharedResolveKey(node, computed, scope, estreeAdapter);
+  return sharedResolveKey({ node, computed, scope, adapter: estreeAdapter });
 }
 
 // --- Destructuring ---
@@ -310,7 +310,7 @@ function buildDestructuringMeta(propNode, parentPath) {
 
   const key = extractPropertyKey(propNode, scope);
   if (!key) return null;
-  return buildDestructuringInitMeta(initNode, key, scope, estreeAdapter);
+  return buildDestructuringInitMeta({ initNode, key, scope, adapter: estreeAdapter });
 }
 
 // --- Decorator sub-traversal ---
@@ -337,7 +337,7 @@ function forEachChildNode(node, visit) {
 // property name, `container` = the array; for non-array children `key` = property name,
 // `listKey` = null, `container` = parent node. consumers like `getStatementSiblings` rely
 // on numeric key + listKey to recognise statement-in-block position
-function makeSynthPath(node, parent, parentKey, parentPath, scope, listKey = null, container = null) {
+function makeSynthPath({ node, parent, parentKey, parentPath, scope, listKey = null, container = null }) {
   // cache `.get(key)` results per synth-path so repeated `path.get('object')` calls within
   // one traversal return the same wrapper. downstream consumers that identity-check
   // descendants (scope lookups, handled-object Sets) see stable paths. array branches cached
@@ -355,8 +355,12 @@ function makeSynthPath(node, parent, parentKey, parentPath, scope, listKey = nul
       if (childCache.has(key)) return childCache.get(key);
       const value = node?.[key];
       const result = Array.isArray(value)
-        ? value.map((el, i) => makeSynthPath(el, node, i, self, scope, key, value))
-        : makeSynthPath(value ?? null, node, key, self, scope, null, node);
+        ? value.map((el, i) => makeSynthPath({
+          node: el, parent: node, parentKey: i, parentPath: self, scope, listKey: key, container: value,
+        }))
+        : makeSynthPath({
+          node: value ?? null, parent: node, parentKey: key, parentPath: self, scope, container: node,
+        });
       childCache.set(key, result);
       return result;
     },
@@ -374,7 +378,10 @@ function makeFrameScope(parentScope, localDecls) {
       if (!local) return parentScope?.getBinding?.(name) ?? null;
       let binding = bindingCache.get(name);
       if (!binding) {
-        binding = { constant: local.constant, path: makeSynthPath(local.node, null, null, null, frame) };
+        binding = {
+          constant: local.constant,
+          path: makeSynthPath({ node: local.node, parent: null, parentKey: null, parentPath: null, scope: frame }),
+        };
         bindingCache.set(name, binding);
       }
       return binding;
@@ -426,22 +433,28 @@ function collectFunctionLocals(fnNode) {
   return locals;
 }
 
-function walkSubtree(node, parent, parentKey, parentPath, scope, visitors, listKey = null, container = null) {
+function walkSubtree({ node, parent, parentKey, parentPath, scope, visitors, listKey = null, container = null }) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
   const childScope = FUNCTION_NODE_TYPES.has(node.type)
     ? makeFrameScope(scope, collectFunctionLocals(node))
     : scope;
-  const synthPath = makeSynthPath(node, parent, parentKey, parentPath, childScope, listKey, container);
+  const synthPath = makeSynthPath({ node, parent, parentKey, parentPath, scope: childScope, listKey, container });
   visitors[node.type]?.(synthPath);
   forEachChildNode(node, (child, childKey, childListKey, childContainer) => {
-    walkSubtree(child, node, childKey, synthPath, childScope, visitors, childListKey, childContainer);
+    walkSubtree({
+      node: child, parent: node, parentKey: childKey, parentPath: synthPath, scope: childScope, visitors,
+      listKey: childListKey, container: childContainer,
+    });
   });
 }
 
 function walkDecoratorList(decorators, parentPath, decoratorVisitors) {
   if (!decorators?.length) return;
   for (let i = 0; i < decorators.length; i++) {
-    walkSubtree(decorators[i], parentPath.node, i, parentPath, parentPath.scope, decoratorVisitors, 'decorators', decorators);
+    walkSubtree({
+      node: decorators[i], parent: parentPath.node, parentKey: i, parentPath, scope: parentPath.scope,
+      visitors: decoratorVisitors, listKey: 'decorators', container: decorators,
+    });
   }
 }
 
@@ -485,7 +498,7 @@ export function createUsageVisitors({
       const warning = checkLogicalAssignLhsGlobal(node, parent, estreeAdapter.hasBinding(path.scope, node.name));
       if (warning) onWarning(warning);
     }
-    if (!isReferenced(node, parent, parentKey, path.parentPath, skipUpdateTargets)) return;
+    if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
@@ -511,17 +524,21 @@ export function createUsageVisitors({
     // `_globalThis`. `globalProxyMemberName` (used inside the helper) walks chains and
     // gates on shadowing internally - no separate isBound check needed
     if (onWarning) {
-      const warning = checkLogicalAssignLhsMember(node, parent, path.scope, estreeAdapter);
+      const warning = checkLogicalAssignLhsMember({ node, parent, scope: path.scope, adapter: estreeAdapter });
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
-    if (!isReferenced(node, parent, parentKey, path.parentPath, skipUpdateTargets)) return;
-    const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals, path);
+    if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
+    const meta = handleMemberExpressionNode({
+      node, scope: path.scope, adapter: estreeAdapter, handledObjects, suppressProxyGlobals, path,
+    });
     if (meta) onUsage(meta, path);
   }
 
   function binaryExpressionVisitor(path) {
-    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, isEntryAvailable, path);
+    const meta = handleBinaryIn({
+      node: path.node, scope: path.scope, adapter: estreeAdapter, handledObjects, isEntryAvailable, path,
+    });
     if (meta) onUsage(meta, path);
   }
 
