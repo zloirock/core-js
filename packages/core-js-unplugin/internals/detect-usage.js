@@ -167,6 +167,10 @@ export function getCurrentInjector() {
 }
 
 export const estreeAdapter = {
+  // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
+  // detection in `bindingSymbolKey`. read dynamically from the active per-transform
+  // injector via `getCurrentInjector()`. null between transforms (no injector pushed)
+  get packages() { return getCurrentInjector()?.packages ?? null; },
   hasBinding: (scope, name, path = null) => hasRuntimeBinding(scope, name, path),
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
