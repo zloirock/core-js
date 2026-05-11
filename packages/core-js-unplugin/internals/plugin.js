@@ -209,18 +209,14 @@ export default function createPlugin(options) {
     if (hasBOM) code = code.slice(1);
 
     // read + clear snapshot up-front so a later parse/traverse error in post still frees
-    // the entry (otherwise a one-off failure leaks until the next buildEnd reset)
+    // the entry (otherwise a one-off failure leaks until the next buildEnd reset).
+    // `takeWithParse` encapsulates parse-cache reuse gating (sibling between passes may
+    // have mutated text - only `postInput === code` guarantees AST position fidelity)
     if (pass === 'post') {
-      const stored = snapshots.take(id);
-      if (stored) {
-        inherit = stored.snapshot;
-        // sibling may have mutated pre's output between passes; only reuse the parse
-        // when the source bytes match what pre handed off (null for modes that rewrite)
-        if (stored.ast && stored.postInput === code) {
-          cachedAst = stored.ast;
-          cachedComments = stored.comments;
-        }
-      }
+      const stored = snapshots.takeWithParse(id, code);
+      inherit = stored.snapshot;
+      cachedAst = stored.ast;
+      cachedComments = stored.comments;
     }
     let ast;
     let comments;
