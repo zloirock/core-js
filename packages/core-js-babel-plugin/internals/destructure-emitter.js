@@ -101,7 +101,7 @@ export default function createDestructureEmitter({
   // AssignmentPattern (`{from = []} = Array`): accept both `{key: binding}` and
   // `{key = default}` shapes. the user's default becomes dead code under synth-swap
   // (polyfill id is always defined) but stays syntactically intact in the output
-  function handleParameterDestructure(prop, kind, entry, hintName) {
+  function handleParameterDestructure({ prop, kind, entry, hintName }) {
     if (kind === 'instance') return;
     if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
     if (!isIdentifierPropValue(prop.node.value)) return;
@@ -126,7 +126,9 @@ export default function createDestructureEmitter({
     }
     // defer injectPureImport until programExit emits the synth. if a sibling plugin
     // mutates targetPath before then, the swap is skipped and no dead import is left
-    synthSwap.registerPolyfill(targetPath, objectPattern, prop.node.key.name, entry, hintName);
+    synthSwap.registerPolyfill({
+      targetPath, objectPatternPath: objectPattern, key: prop.node.key.name, entry, hintName,
+    });
   }
 
   // body-extract fallback when synth-swap can't fire (computed-key sibling / non-Identifier
@@ -273,7 +275,7 @@ export default function createDestructureEmitter({
   // "polyfill always wins" - destructure discards the receiver's `Array.from` value into
   // `_unused`, then `from = _polyfill` overrides whatever native (potentially buggy) value
   // would have leaked through inline-default fallback
-  function cascadeAssignmentExpressionDestructure(assignPath, valueNode, prop, chain, entry, hintName, peeled = null) {
+  function cascadeAssignmentExpressionDestructure({ assignPath, valueNode, prop, chain, entry, hintName, peeled = null }) {
     const exprStmt = peeled?.exprStmt ?? assignPath.parentPath;
     // strip transparent wrappers between the AssignmentExpression and ExpressionStatement
     // (oxc parens / TS casts / chain / SequenceExpression-with-AE-as-tail). SE prefix
@@ -367,7 +369,9 @@ export default function createDestructureEmitter({
       if (parent?.isAssignmentExpression() && parent.node.left === leftmost) {
         const peeled = peelToExpressionStatement(parent);
         if (peeled) {
-          return cascadeAssignmentExpressionDestructure(parent, valueNode, prop, chain, entry, hintName, peeled);
+          return cascadeAssignmentExpressionDestructure({
+            assignPath: parent, valueNode, prop, chain, entry, hintName, peeled,
+          });
         }
       }
       if (!t.isObjectProperty(parent?.node)) return false;
@@ -481,7 +485,7 @@ export default function createDestructureEmitter({
   // branch (`_Set.from` is undefined). pure mode has no side-effect import channel either,
   // so we leave the code intact and warn - runtime correctness depends on which branch
   // fires and on native availability
-  function handleObjectPropertyResult(prop, meta, kind, entry, hintName) {
+  function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
     if (meta?.fromFallback) {
       // per-branch synth-swap on ConditionalExpression / LogicalExpression branches: each
       // viable branch becomes its own `{key: _Branch$key}` literal, preserving runtime
@@ -501,7 +505,7 @@ export default function createDestructureEmitter({
     // single-element ArrayPattern) - both are passthrough for proxy-global resolution
     const { parent: patternParent } = peelTransparentWrappers(objectPattern);
     if (isFunctionParamDestructureParent(objectPattern)) {
-      handleParameterDestructure(prop, kind, entry, hintName);
+      handleParameterDestructure({ prop, kind, entry, hintName });
       return;
     }
     // nested proxy-global destructure: `{ Array: { from } } = globalThis`. default
@@ -512,7 +516,7 @@ export default function createDestructureEmitter({
     if (patternParent?.isObjectProperty() && kind !== 'instance') {
       if (tryFlattenNestedProxyDestructure(prop, entry, hintName)) return;
       // fallback: non-single shape (outer has siblings) - inline default as last resort
-      handleParameterDestructure(prop, kind, entry, hintName);
+      handleParameterDestructure({ prop, kind, entry, hintName });
       return;
     }
     if (!canTransformDestructuring(prop)) return;
@@ -667,7 +671,7 @@ export default function createDestructureEmitter({
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call.
   // both branches mutate the VariableDeclaration in place; babel's scope tracker doesn't observe
   // raw property/array mutations, so fresh bindings are re-registered on the mutated path
-  function handleForInitSE(declaration, parent, localBinding, value, scope, isStatic) {
+  function handleForInitSE({ declaration, parent, localBinding, value, scope, isStatic }) {
     if (isStatic) {
       // static polyfill import - SE needs a dummy binding to stay in for-init
       const ref = generateLocalRef(scope);
@@ -790,9 +794,9 @@ export default function createDestructureEmitter({
     }
 
     if (parent.isVariableDeclarator()) {
-      emitVariableDeclaratorDestructure(prop, parent, localBinding, value, isStaticValue, isEmpty);
+      emitVariableDeclaratorDestructure({ prop, parent, localBinding, value, isStaticValue, isEmpty });
     } else {
-      emitAssignmentDestructure(parent, localBinding, value, isStaticValue, isEmpty);
+      emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty });
     }
   }
 
@@ -800,7 +804,7 @@ export default function createDestructureEmitter({
   // path. delegates host-shape classification (isExport / isForInit / isBodyless /
   // isMultiDecl) to the shared `classifyVariableDeclarationHost` in polyfill-provider so
   // both plugins compute the same booleans from the same source of truth
-  function classifyVariableDeclaratorSite(declaration, parent, isStaticValue, isEmpty) {
+  function classifyVariableDeclaratorSite({ declaration, parent, isStaticValue, isEmpty }) {
     return {
       parentType: 'VariableDeclarator',
       ...classifyVariableDeclarationHost({
@@ -815,7 +819,7 @@ export default function createDestructureEmitter({
 
   // VariableDeclarator branch executor. classifies the host shape, asks the planner
   // for a strategy, then dispatches to the matching AST mutation
-  function emitVariableDeclaratorDestructure(prop, parent, localBinding, value, isStaticValue, isEmpty) {
+  function emitVariableDeclaratorDestructure({ prop, parent, localBinding, value, isStaticValue, isEmpty }) {
     const declaration = parent.parentPath;
     // save original index before first insertBefore shifts it
     if (!originalDeclKeys.has(declaration.node)) {
@@ -824,15 +828,17 @@ export default function createDestructureEmitter({
     const extractedDeclaration = t.variableDeclaration(declaration.node.kind, [
       t.variableDeclarator(localBinding, value),
     ]);
-    const ctx = classifyVariableDeclaratorSite(declaration, parent, isStaticValue, isEmpty);
+    const ctx = classifyVariableDeclaratorSite({ declaration, parent, isStaticValue, isEmpty });
     const strategy = planDestructureEmission(ctx);
     switch (strategy) {
       case STRATEGIES.WRAP_BODYLESS_SE:
         return wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
       case STRATEGIES.FOR_INIT_SE_STATIC:
       case STRATEGIES.FOR_INIT_SE_INSTANCE:
-        return handleForInitSE(declaration, parent, localBinding, value, prop.scope,
-          strategy === STRATEGIES.FOR_INIT_SE_STATIC);
+        return handleForInitSE({
+          declaration, parent, localBinding, value, scope: prop.scope,
+          isStatic: strategy === STRATEGIES.FOR_INIT_SE_STATIC,
+        });
       case STRATEGIES.FOR_INIT_MUTATE_DECL:
         parent.node.id = localBinding;
         parent.node.init = value;
@@ -844,13 +850,15 @@ export default function createDestructureEmitter({
         deferSideEffect(declaration, parent.node.init);
         // earlier extractions from sibling props are already spliced in-line; swap the
         // now-empty parent declarator for the final one, then split mixed export runs
-        spliceDeclaratorAndSplit(declaration, parent.node, localBinding, value, ctx.isExport);
+        spliceDeclaratorAndSplit({ declaration, parentNode: parent.node, localBinding, value, isExport: ctx.isExport });
         return undefined;
       case STRATEGIES.DEFER_SE_AND_REPLACE:
         deferSideEffect(declaration, parent.node.init);
         return replaceWithAndRegister(declaration, extractedDeclaration);
       case STRATEGIES.SPLICE_AND_SPLIT:
-        return spliceDeclaratorAndSplit(declaration, parent.node, localBinding, value, ctx.isExport);
+        return spliceDeclaratorAndSplit({
+          declaration, parentNode: parent.node, localBinding, value, isExport: ctx.isExport,
+        });
       case STRATEGIES.INSERT_BEFORE_DECLARATOR:
         // `parent.insertBefore` (VariableDeclarator-level) keeps babel-traverse path.key of
         // queued sibling declarators in sync. `declaration.insertBefore` would wrap a
@@ -867,7 +875,7 @@ export default function createDestructureEmitter({
 
   // splice the now-empty parent declarator out, replace with the extracted (binding = value)
   // declarator, then split mixed export runs into separate statements
-  function spliceDeclaratorAndSplit(declaration, parentNode, localBinding, value, isExport) {
+  function spliceDeclaratorAndSplit({ declaration, parentNode, localBinding, value, isExport }) {
     const idx = declaration.node.declarations.indexOf(parentNode);
     if (idx !== -1) declaration.node.declarations.splice(idx, 1, t.variableDeclarator(localBinding, value));
     trySplitDeclaration(declaration, isExport);
@@ -875,7 +883,7 @@ export default function createDestructureEmitter({
 
   // AssignmentExpression branch executor. far simpler than the VariableDeclarator path:
   // either replace the host ExpressionStatement with the new assignment, or insert before
-  function emitAssignmentDestructure(parent, localBinding, value, isStaticValue, isEmpty) {
+  function emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty }) {
     const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
     const assignmentTarget = parent.parentPath;
     const hasSideEffects = isEmpty && mayHaveSideEffects(parent.node.right);

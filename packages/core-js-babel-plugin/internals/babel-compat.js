@@ -73,7 +73,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
   }
 
-  function buildMethodCall(id, object, scope, args, optionalCall) {
+  function buildMethodCall({ id, object, scope, args, optionalCall }) {
     const [assign, ref] = memoize(object, scope);
     // clone args: originals may belong to a parent being replaced (stale Babel path containers)
     const callArgs = [t.cloneNode(ref), ...args.map(a => t.cloneNode(a))];
@@ -187,7 +187,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return [check, node.object, throughTS];
   }
 
-  function replaceAndWrap(replacePath, result, check, embedGuard) {
+  function replaceAndWrap({ replacePath, result, check, embedGuard }) {
     // when check came through a TS wrapper (arr?.at(-1)!.includes), embed the guard
     // directly - Babel's path references become stale after replaceWith and the two-step
     // replace-then-wrap approach loses the guard. for normal chains (no TS wrapper),
@@ -260,7 +260,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // semantically identical
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
-  function replaceInstanceLike(path, id, skipOptional, sideEffects) {
+  function replaceInstanceLike({ path, id, skipOptional, sideEffects }) {
     // SequenceExpression-receiver double-emit guard - `classifyReceiverSE` decides
     // between two strategies (see helper docs). composite receiver-SE + key-SE on
     // optional chain is a rare edge case where suppress would lose key-SE; accepted
@@ -295,16 +295,23 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       return;
     }
     const result = isCall
-      ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
+      ? buildMethodCall({ id, object, scope: path.scope, args: parent.arguments, optionalCall: parent.optional })
       : t.callExpression(id, [t.cloneNode(object)]);
-    replaceAndWrap(isCall ? callerPath.parentPath : path, withSideEffects(result, effectiveSE), check, embed);
+    replaceAndWrap({
+      replacePath: isCall ? callerPath.parentPath : path,
+      result: withSideEffects(result, effectiveSE), check, embedGuard: embed,
+    });
   }
 
   function replaceCallWithSimple(path, id, skipOptional) {
     const [check, object, embed] = extractCheck(path, skipOptional);
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const callerPath = unwrapTSExpressionParent(path);
-    replaceAndWrap(callerPath.parentPath, t.callExpression(id, [t.cloneNode(object)]), check, embed);
+    replaceAndWrap({
+      replacePath: callerPath.parentPath,
+      result: t.callExpression(id, [t.cloneNode(object)]),
+      check, embedGuard: embed,
+    });
   }
 
   // Babel-style OR-chain for `(recv)?.inner?.(ia).outer(oa)`: runs outer directly on
@@ -341,7 +348,9 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     }
     const testOr = tests.reduce((a, b) => t.logicalExpression('||', a, b));
 
-    const replacement = buildMethodCall(outerId, outerObject, scope, outerCall.arguments, outerCall.optional);
+    const replacement = buildMethodCall({
+      id: outerId, object: outerObject, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
+    });
     const conditional = t.conditionalExpression(testOr,
       t.unaryExpression('void', t.numericLiteral(0)), replacement);
     // chained outer calls read the hint off the result node; relocate the pre-combine

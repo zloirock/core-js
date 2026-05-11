@@ -32,7 +32,7 @@ function destructureReceiverHint(objectName) {
 // `receiverHint` lets resolveHint reject `const { includes } = Array` (instance method
 // that doesn't exist on the constructor) while accepting `Array.from` and inherited
 // Function/Object prototype methods like `name`/`toString`.
-export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
+export function buildDestructuringInitMeta({ initNode, key, scope, adapter }) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
   const unwrapped = unwrapParens(initNode);
@@ -40,22 +40,22 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   // expression; pure positional resolution falls through to the type-specific cases below
   switch (unwrapped.type) {
     case 'LogicalExpression':
-      return resolveLogicalDestructureMeta(unwrapped, key, scope, adapter);
+      return resolveLogicalDestructureMeta({ node: unwrapped, key, scope, adapter });
     case 'SequenceExpression':
       // `(0, Array)`: sequence evaluates to its last expression
-      return buildDestructuringInitMeta(unwrapped.expressions.at(-1), key, scope, adapter);
+      return buildDestructuringInitMeta({ initNode: unwrapped.expressions.at(-1), key, scope, adapter });
     case 'ConditionalExpression':
-      return resolveConditionalDestructureMeta(unwrapped, key, scope, adapter);
+      return resolveConditionalDestructureMeta({ node: unwrapped, key, scope, adapter });
     case 'AssignmentExpression':
       // chain `const { from } = foo = cond ? Array : Iterator` evaluates AssignmentExpression
       // to its RHS - recurse on right so meta tracks the actual destructure receiver
-      if (isChainAssignment(unwrapped)) return buildDestructuringInitMeta(unwrapped.right, key, scope, adapter);
+      if (isChainAssignment(unwrapped)) return buildDestructuringInitMeta({ initNode: unwrapped.right, key, scope, adapter });
       break;
   }
   // `const { from } = Array` or `const { from } = globalThis.Array`
   if (unwrapped.type === 'Identifier' || unwrapped.type === 'MemberExpression'
     || unwrapped.type === 'OptionalMemberExpression') {
-    const objectName = resolveObjectName(unwrapped, scope, adapter);
+    const objectName = resolveObjectName({ objectNode: unwrapped, scope, adapter });
     const placement = objectName ? isStaticPlacement(objectName) : null;
     const receiverHint = placement === 'static' ? destructureReceiverHint(objectName) : null;
     return { kind: 'property', object: objectName, key, placement, receiverHint };
@@ -72,10 +72,10 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
 // `fromFallback` disables the destructure replacement when the runtime value may come
 // from either branch - `&&` is always conditional (primary only when left truthy, else
 // falsy left), so always flag; `??`/`||` flag only when the fallback is the resolved side
-function resolveLogicalDestructureMeta(node, key, scope, adapter) {
+function resolveLogicalDestructureMeta({ node, key, scope, adapter }) {
   return node.operator === '&&'
-    ? resolveAndDestructureMeta(node, key, scope, adapter)
-    : resolveOrNullishDestructureMeta(node, key, scope, adapter);
+    ? resolveAndDestructureMeta({ node, key, scope, adapter })
+    : resolveOrNullishDestructureMeta({ node, key, scope, adapter });
 }
 
 // `&&`: primary is the RIGHT branch. when both branches resolve to the SAME known object
@@ -83,10 +83,10 @@ function resolveLogicalDestructureMeta(node, key, scope, adapter) {
 // (`Array && Map` for `entries` -> `Array && _Map`, `Array && Promise` for `from` ->
 // `{from:_Array$from} && _Promise`). `fromFallback` always set when objects differ or left
 // doesn't resolve - runtime value depends on the left's truthiness
-function resolveAndDestructureMeta(node, key, scope, adapter) {
-  const primaryMeta = buildDestructuringInitMeta(node.right, key, scope, adapter);
+function resolveAndDestructureMeta({ node, key, scope, adapter }) {
+  const primaryMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter });
   if (!primaryMeta.object) return primaryMeta;
-  const leftMeta = buildDestructuringInitMeta(node.left, key, scope, adapter);
+  const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter });
   if (leftMeta.object === primaryMeta.object) return primaryMeta;
   return { ...primaryMeta, fromFallback: true };
 }
@@ -97,10 +97,10 @@ function resolveAndDestructureMeta(node, key, scope, adapter) {
 // -> `_keys(...)`). otherwise the fallback (right) carries the actual polyfill - e.g.
 // `MyArray || Iterator` for `from` registers `Iterator.from` because `_Iterator`'s
 // constructor binding doesn't carry the static method
-function resolveOrNullishDestructureMeta(node, key, scope, adapter) {
-  const primaryMeta = buildDestructuringInitMeta(node.left, key, scope, adapter);
+function resolveOrNullishDestructureMeta({ node, key, scope, adapter }) {
+  const primaryMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter });
   if (primaryMeta.object && resolveBuiltIn(primaryMeta)) return primaryMeta;
-  const fallbackMeta = buildDestructuringInitMeta(node.right, key, scope, adapter);
+  const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter });
   return fallbackMeta.object ? { ...fallbackMeta, fromFallback: true } : fallbackMeta;
 }
 
@@ -111,9 +111,9 @@ function resolveOrNullishDestructureMeta(node, key, scope, adapter) {
 // constructor name - the runtime values come from different AST paths (`Array` bare vs
 // `globalThis.Array` member access; user shim vs core-js import) and per-branch synth
 // rewrites each side independently to preserve original receiver semantics
-function resolveConditionalDestructureMeta(node, key, scope, adapter) {
-  const consequent = buildDestructuringInitMeta(node.consequent, key, scope, adapter);
-  const alternate = buildDestructuringInitMeta(node.alternate, key, scope, adapter);
+function resolveConditionalDestructureMeta({ node, key, scope, adapter }) {
+  const consequent = buildDestructuringInitMeta({ initNode: node.consequent, key, scope, adapter });
+  const alternate = buildDestructuringInitMeta({ initNode: node.alternate, key, scope, adapter });
   const resolved = consequent.object ? consequent : alternate.object ? alternate : null;
   return resolved ? { ...resolved, fromFallback: true } : consequent;
 }
@@ -129,7 +129,7 @@ function resolveConditionalDestructureMeta(node, key, scope, adapter) {
 //     and MemberExpression branches in the same conditional
 // returns the resolved pure descriptor (with `entry`/`hintName`/`kind`) or null.
 // shared between babel-plugin and unplugin so the branch-detection rules stay in lockstep
-export function isViableBranchForKey(branch, key, scope, adapter, resolvePure) {
+export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure }) {
   // peel ParenthesizedExpression / TS expression wrappers around the branch:
   // `cond ? (Array) : (Iterator)` (oxc preserves) / `cond ? Array! : Iterator!` (TS).
   // without the peel the strict Identifier check rejected wrapped branches and the synth
@@ -142,7 +142,7 @@ export function isViableBranchForKey(branch, key, scope, adapter, resolvePure) {
   // `Array` a local binding, not a global polyfill candidate. only meaningful for the
   // bare Identifier shape; MemberExpression's binding hop is handled inside resolveObjectName
   if (inner.type === 'Identifier' && adapter.hasBinding(scope, inner.name)) return null;
-  const meta = buildDestructuringInitMeta(inner, key, scope, adapter);
+  const meta = buildDestructuringInitMeta({ initNode: inner, key, scope, adapter });
   if (!meta?.object || meta.kind !== 'property' || meta.placement !== 'static') return null;
   const pure = resolvePure(meta);
   if (!pure || pure.kind === 'instance') return null;
@@ -153,18 +153,18 @@ export function isViableBranchForKey(branch, key, scope, adapter, resolvePure) {
 // `cond1 ? (cond2 ? Array : Iterator) : Set` flattens to [Array, Iterator, Set] - inner
 // conditional's both branches reach their own dispatch. each step peels chain-assign /
 // paren / TS / safe-SE wrappers; non-fallback shapes resolve via `buildDestructuringInitMeta`
-function flattenFallbackBranches(node, key, scope, adapter) {
+function flattenFallbackBranches({ node, key, scope, adapter }) {
   const peeled = peelFallbackReceiver(node);
   const branchSlots = getFallbackBranchSlots(peeled);
   if (branchSlots) {
-    return branchSlots.flatMap(s => flattenFallbackBranches(peeled[s], key, scope, adapter));
+    return branchSlots.flatMap(s => flattenFallbackBranches({ node: peeled[s], key, scope, adapter }));
   }
   // leaf branch: paren/TS-wrapped Identifier / MemberExpression, resolve as a single meta.
   // buildDestructuringInitMeta handles the alias chain + proxy-global / static / global
   // classification. drops branches that didn't resolve to a known global (`object` null)
   const inner = peelFallbackWrappers(peeled);
   if (!inner) return [];
-  const branchMeta = buildDestructuringInitMeta(inner, key, scope, adapter);
+  const branchMeta = buildDestructuringInitMeta({ initNode: inner, key, scope, adapter });
   return branchMeta?.object ? [branchMeta] : [];
 }
 
@@ -177,7 +177,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   const wrapperParent = path.parentPath?.parentPath?.node;
   const slot = destructureReceiverSlot(wrapperParent);
   if (!slot) return null;
-  const out = flattenFallbackBranches(wrapperParent[slot], meta.key, path.scope, adapter);
+  const out = flattenFallbackBranches({ node: wrapperParent[slot], key: meta.key, scope: path.scope, adapter });
   return out.length ? out : null;
 }
 
@@ -204,8 +204,8 @@ const STATIC_WALK_DEPTH = 64;
 //   - missing / computed / shorthand-mismatched property
 //   - non-Identifier leaf - need a constructor name to dispatch polyfill
 // depth-bounded against pathological alias chains (`a -> b -> c -> ...`)
-export function walkStaticReceiverChain(receiverNode, walkPath, scope, adapter) {
-  return walkStaticReceiverStep(receiverNode, walkPath, scope, adapter, 0);
+export function walkStaticReceiverChain({ receiverNode, walkPath, scope, adapter }) {
+  return walkStaticReceiverStep({ node: receiverNode, walkPath, scope, adapter, depth: 0 });
 }
 
 // proxy-global recognition for `walkStaticReceiverStep`: returns the source proxy-global
@@ -220,7 +220,7 @@ function proxyGlobalNameOf(node, binding) {
   return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
 }
 
-function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
+function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth }) {
   if (depth > STATIC_WALK_DEPTH) return null;
   let current = unwrapParens(node);
   let currentScope = scope;
@@ -271,7 +271,7 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
   if (walkPath.length === 0) {
     if (current?.type === 'Identifier') return current.name;
     if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
-      return resolveObjectName(current, currentScope, adapter);
+      return resolveObjectName({ objectNode: current, scope: currentScope, adapter });
     }
     return null;
   }
@@ -294,9 +294,11 @@ function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
     // computed-key bindings (`const k = 'a'; { [k]: Array }`) + StringLiteral / `+`-concat
     // folds to a static string. unresolvable computed keys (dynamic expressions) return null
     // and the prop is correctly skipped
-    const keyName = sharedResolveKey(prop.key, prop.computed, currentScope, adapter);
+    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope: currentScope, adapter });
     if (keyName !== walkPath[0]) continue;
-    return walkStaticReceiverStep(prop.value, walkPath.slice(1), currentScope, adapter, depth + 1);
+    return walkStaticReceiverStep({
+      node: prop.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1,
+    });
   }
   return null;
 }
@@ -352,7 +354,7 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
   for (;;) {
     const pattern = cur.parentPath;
     if (pattern?.node?.type !== 'ObjectPattern') return null;
-    const key = sharedResolveKey(cur.node.key, cur.node.computed, pattern.scope, adapter);
+    const key = sharedResolveKey({ node: cur.node.key, computed: cur.node.computed, scope: pattern.scope, adapter });
     if (!key) return null;
     keys.unshift(key);
     const { parent, arrayDepth } = peelDestructureWrappers(pattern);
@@ -368,7 +370,7 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
       // runtime value is identical to the unwrapped form
       const init = unwrapExpressionChain(receiverNode);
       if (!init) return null;
-      const receiver = resolveObjectName(init, parent.scope, adapter);
+      const receiver = resolveObjectName({ objectNode: init, scope: parent.scope, adapter });
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
           && keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))) {
         // leaf must be a recognised constructor name (`isStaticPlacement` whitelists the
@@ -378,7 +380,7 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
         const leaf = keys.at(-1);
         return isStaticPlacement(leaf) ? leaf : null;
       }
-      return walkStaticReceiverChain(init, keys, parent.scope, adapter);
+      return walkStaticReceiverChain({ receiverNode: init, walkPath: keys, scope: parent.scope, adapter });
     }
     const parentType = parent?.node?.type;
     if (parentType !== 'Property' && parentType !== 'ObjectProperty') return null;

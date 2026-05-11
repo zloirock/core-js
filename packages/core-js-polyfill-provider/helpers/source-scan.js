@@ -75,7 +75,7 @@ export function mergeVisitors(base, extra) {
 // `firstStmtStart`: `disable-file` fires only above all code (eslint-style scope).
 // `ast`: enables multi-line expansion for `disable-next-line` so directives cover the
 // whole following statement, not just its first line
-export function parseDisableDirectives(comments, offsetToLine, firstStmtStart, ast) {
+export function parseDisableDirectives({ comments, offsetToLine, firstStmtStart, ast }) {
   if (!comments) return null;
   const lines = new Set();
   for (const comment of comments) {
@@ -104,7 +104,7 @@ export function parseDisableDirectives(comments, offsetToLine, firstStmtStart, a
     }
     const nextLine = endLine + 1;
     lines.add(nextLine);
-    const stmtEndLine = ast ? findStatementEndLine(ast, nextLine, offsetToLine) : null;
+    const stmtEndLine = ast ? findStatementEndLine({ node: ast, targetLine: nextLine, offsetToLine }) : null;
     if (stmtEndLine > nextLine) {
       for (let i = nextLine + 1; i <= stmtEndLine; i++) lines.add(i);
     }
@@ -127,7 +127,7 @@ const STATEMENT_WRAPPERS = new Set([
 // overflow without a guard. silent truncation > crash here - directive can lose end-line
 // span on deep trees but disable-next-line still works (line itself is added to `lines`)
 const FIND_STATEMENT_MAX_DEPTH = 64;
-function findStatementEndLine(node, targetLine, offsetToLine, depth = 0) {
+function findStatementEndLine({ node, targetLine, offsetToLine, depth = 0 }) {
   if (depth > FIND_STATEMENT_MAX_DEPTH || !isASTNode(node)) return null;
   const lines = nodeLineSpan(node, offsetToLine);
   if (!lines || lines.start > targetLine || lines.end < targetLine) return null;
@@ -139,11 +139,11 @@ function findStatementEndLine(node, targetLine, offsetToLine, depth = 0) {
     const child = node[key];
     if (Array.isArray(child)) {
       for (const c of child) if (isASTNode(c)) {
-        const found = findStatementEndLine(c, targetLine, offsetToLine, depth + 1);
+        const found = findStatementEndLine({ node: c, targetLine, offsetToLine, depth: depth + 1 });
         if (found) return found;
       }
     } else if (isASTNode(child)) {
-      const found = findStatementEndLine(child, targetLine, offsetToLine, depth + 1);
+      const found = findStatementEndLine({ node: child, targetLine, offsetToLine, depth: depth + 1 });
       if (found) return found;
     }
   }
