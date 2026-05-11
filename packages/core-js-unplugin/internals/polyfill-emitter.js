@@ -160,13 +160,78 @@ export function createPolyfillEmitter({
     };
   }
 
-  // build the replacement text for an instance method or Symbol.iterator transform
+  // dispatch classifier for `buildReplacement` - selects body-builder strategy by emit shape.
+  // mutually-exclusive ladder (isNew → bareMember → parenLookup → call); `call` is the
+  // default for `obj.method(args)` instance-call shape
+  function classifyEmitStrategy(opts) {
+    if (opts.isNew) return 'new';
+    if (!opts.isCall) return 'bareMember';
+    if (opts.parenLookupOnly) return 'parenLookup';
+    return 'call';
+  }
+
+  // shared `.call(this, args)` shape components for `parenLookup` / `call` strategies:
+  // `firstArg` is the polyfill's first arg slot (memoized to `_ref = bodyObj` when
+  // chain receiver isn't a bare ident); `obj` is the `this` slot (reuses memoized ref
+  // when allocated). `argsPart` is the leading `, ...args` separator handled here so
+  // empty / non-empty cases don't litter the strategy emit
+  function buildCallParts(bodyObj, isNonIdent, guardRef, args) {
+    const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
+    const argsPart = args ? `, ${ args }` : '';
+    return { obj, firstArg, argsPart };
+  }
+
+  // per-strategy body builders. each receives the resolved `ctx` (opts + computed `bodyObj`
+  // / `guard` / `guardRef`) and returns `{ body, clearGuard?, split? }`:
+  //   - `clearGuard: true` signals the outer concat must drop `guard` (NewExpression and
+  //     parenLookup already absorbed it into their own emit slot)
+  //   - `split: { prefix, suffix }` enables compose-time inner-chain substitution; only
+  //     `call` strategy with no guard / no SE-prefix can support it (other strategies
+  //     interleave content that breaks substring boundaries)
+  const BODY_STRATEGIES = {
+    new: ({ binding, bodyObj, guard, args }) => ({
+      // NewExpression with optional inner: babel-plugin's `normalizeOptionalChain` lifts
+      // the conditional guard into the new's callee slot (`new (CONDITIONAL)(args)`), not
+      // around the whole expression. inject guard inside the `new (...)` callee bracket
+      // so shape matches babel - and compose's rootRaw substitution lands at the right slot
+      body: `new (${ guard }${ binding }(${ bodyObj }))(${ args || '' })`,
+      clearGuard: true,
+    }),
+    bareMember: ({ binding, bodyObj }) => ({
+      body: `${ binding }(${ bodyObj })`,
+    }),
+    parenLookup: ({ binding, bodyObj, isNonIdent, guardRef, guard, args }) => {
+      // `(arr?.method)(args)`: parens preserve Reference Type so native binds `this=arr` on
+      // success; on nullish the outer non-optional call throws (chain ends at `?.`). emit
+      // `(arr == null ? void 0 : binding(_ref = arr.b)).call(_ref, args)`:
+      //   - `(undefined).call(...)` throws on nullish (matches native throw semantics)
+      //   - success path preserves `this` via memoized ref
+      //   - bodyObj evaluated ONCE (deep-chain `arr.b` would re-eval in outer .call otherwise)
+      // bare receiver `arr` and pre-allocated guardRef cases skip memoize - already trivially safe
+      const { obj, firstArg, argsPart } = buildCallParts(bodyObj, isNonIdent, guardRef, args);
+      return {
+        body: `(${ guard }${ binding }(${ firstArg })).call(${ obj }${ argsPart })`,
+        clearGuard: true,
+      };
+    },
+    call: ({ binding, bodyObj, isNonIdent, guardRef, optionalCall, args, guard, sideEffects }) => {
+      const { obj, firstArg, argsPart } = buildCallParts(bodyObj, isNonIdent, guardRef, args);
+      const dot = optionalCall ? '?.' : '.';
+      const prefix = `${ binding }(${ firstArg })`;
+      const suffix = `${ dot }call(${ obj }${ argsPart })`;
+      return {
+        body: `${ prefix }${ suffix }`,
+        split: !guard && !sideEffects?.length ? { prefix, suffix } : null,
+      };
+    },
+  };
+
+  // build the replacement text for an instance method or Symbol.iterator transform.
+  // splits into (a) guard-computation prologue + (b) strategy-dispatched body builder +
+  // (c) final guard/SE wrap. strategy registry isolates the 4 emit shapes
   function buildReplacement(binding, objectSrc, opts) {
-    const {
-      isCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
-      optionalCall, args, objectStart, preAllocatedGuardRef, sideEffects,
-      substituted, rootIsReceiver, parenLookupOnly,
-    } = opts;
+    const { optionalRoot, rootRaw, deoptPositions, objectStart, preAllocatedGuardRef,
+      substituted, rootIsReceiver, sideEffects } = opts;
     const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
     let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
     let guard = '';
@@ -190,41 +255,14 @@ export function createPolyfillEmitter({
       }
     }
 
-    let split = null;
-    let body;
-    if (isNew) {
-      // NewExpression with optional inner: babel-plugin's `normalizeOptionalChain` lifts
-      // the conditional guard into the new's callee slot (`new (CONDITIONAL)(args)`),
-      // not around the whole expression. inject guard inside the `new (...)` callee bracket
-      // so the shape matches babel - and so compose's rootRaw substitution lands at the
-      // right slot. clear `guard` to prevent the outer concat from double-emitting.
-      body = `new (${ guard }${ binding }(${ bodyObj }))(${ args || '' })`;
-      guard = '';
-    } else if (!isCall) {
-      body = `${ binding }(${ bodyObj })`;
-    } else if (parenLookupOnly) {
-      // `(arr?.method)(args)`: parens preserve Reference Type so native binds `this=arr` on
-      // success; on nullish the outer non-optional call throws (chain ends at `?.`). emit
-      // `(arr == null ? void 0 : binding(_ref = arr.b)).call(_ref, args)`:
-      //   - `(undefined).call(...)` throws on nullish (matches native throw semantics)
-      //   - success path preserves `this` via memoized ref
-      //   - bodyObj evaluated ONCE (deep-chain `arr.b` would re-eval in outer .call otherwise)
-      // bare receiver `arr` and pre-allocated guardRef cases skip memoize - already trivially safe
-      const argsPart = args ? `, ${ args }` : '';
-      const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
-      body = `(${ guard }${ binding }(${ firstArg })).call(${ obj }${ argsPart })`;
-      guard = '';
-    } else {
-      const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
-      const dot = optionalCall ? '?.' : '.';
-      const argsPart = args ? `, ${ args }` : '';
-      const prefix = `${ binding }(${ firstArg })`;
-      const suffix = `${ dot }call(${ obj }${ argsPart })`;
-      body = `${ prefix }${ suffix }`;
-      if (!guard && !sideEffects?.length) split = { prefix, suffix };
-    }
-    const replacement = `${ guard }${ wrapSideEffects(body, sideEffects) }`;
-    return { replacement, split };
+    const ctx = { ...opts, binding, bodyObj, guard, guardRef };
+    const { body, clearGuard = false, split = null } = BODY_STRATEGIES[classifyEmitStrategy(opts)](ctx);
+    if (clearGuard) guard = '';
+
+    return {
+      replacement: `${ guard }${ wrapSideEffects(body, sideEffects) }`,
+      split,
+    };
   }
 
   // position past optional `?.` token after pos, skipping whitespace and comments
