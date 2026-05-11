@@ -34,7 +34,7 @@ import {
   USAGE_VISITORS_IS_HANDLED,
   USAGE_VISITORS_RESET,
 } from './internals/detect-usage.js';
-import createEntryVisitors from './internals/detect-entry.js';
+import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 
@@ -585,11 +585,16 @@ export default function plugin(api, options) {
             body.splice(index, 0, node);
             inserted.add(node);
           }
-          if (!helperVisitors) continue;
+          // deferred SE is `cloneDeep` of user-written init prefix - the cloned nodes
+          // weren't visited by main traversal, so walking with full `usageVisitors` (incl.
+          // walkAnnotations) is correct. `helperVisitors` (walkAnnotations=false) targets
+          // sibling-plugin-injected helper bodies (already TS-stripped), wrong contract
+          // here. usage-pure case: usageVisitors === helperVisitors so behaviour identical
+          if (!usageVisitors) continue;
           path.traverse({
             ExpressionStatement(p) {
               if (!inserted.delete(p.node)) return;
-              p.traverse(helperVisitors);
+              p.traverse(usageVisitors);
               if (!inserted.size) p.stop();
             },
           });
@@ -757,7 +762,6 @@ export default function plugin(api, options) {
       // --- mode-specific plugin objects ---
 
       if (method === 'entry-global') {
-        const entryVisitors = createEntryVisitors(entryGlobalCallback);
         return {
           pre() {
             // mirror `preTraverse`'s defensive primitive reset: without this, a sibling
@@ -771,12 +775,10 @@ export default function plugin(api, options) {
             originalBodyNodes = null;
             initFile(this.file.path);
             if (!skipFile) {
-              // Program is a one-shot setup hook called with the FILE path (not Program path);
-              // path.traverse() with `Program: enter` would invoke it with the Program-node path
-              // and break the entry-import scan. ImportDeclaration is a normal visitor; the split
-              // dispatch is intentional, not stylistic
-              if (entryVisitors.Program) entryVisitors.Program(this.file.path);
-              this.file.path.traverse({ ImportDeclaration: entryVisitors.ImportDeclaration });
+              // `runEntryDetection` unifies the dual dispatch (ExpressionStatement body
+              // scan + ImportDeclaration traversal) so the caller doesn't thread a visitor
+              // object through manual pre-call + filtered traverse
+              runEntryDetection(this.file.path, entryGlobalCallback);
             }
             injector?.flush();
           },
