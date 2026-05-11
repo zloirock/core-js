@@ -68,7 +68,9 @@ export function getEntrySource(node, adapter, scope) {
 
 // core-js ships only `.js` files; the trailing `/index` collapses when users reference a
 // directory-style entry path (`core-js/stable/array/index` === `core-js/stable/array`)
-const canonicalizeEntrySubpath = s => s.replace(/\.js$/, '').replace(/\/index$/, '');
+function canonicalizeEntrySubpath(s) {
+  return s.replace(/\.js$/, '').replace(/\/index$/, '');
+}
 
 // `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path.
 // match `source` against `<pkg>/<subPrefix><rest>` where `pkg` is one of `pkgs`;
@@ -103,7 +105,10 @@ function defaultSpecifierNames(node) {
 }
 
 // dual-API stub: Babel (`getBindingIdentifier`) + ESTree (`hasBinding`) adapters
-const REQUIRE_SHADOWED_SCOPE = { hasBinding: () => true, getBindingIdentifier: () => true };
+const REQUIRE_SHADOWED_SCOPE = {
+  hasBinding() { return true; },
+  getBindingIdentifier() { return true; },
+};
 
 // callback receives the AST node so callers can remove+re-emit in canonical order -
 // the only load-order-correct option when user polyfill A and plugin-injected B depend

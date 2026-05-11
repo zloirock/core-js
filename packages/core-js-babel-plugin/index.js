@@ -46,7 +46,7 @@ export default function plugin(api, options) {
   // resolves polyfilled-static aliases (`const from = Array.from` after rewrite) so the
   // call return type propagates to outer member-access narrowing
   const typeResolvers = createResolveNodeType(node => node?.type, t, {
-    getPolyfillBindingEntry: (scope, name) => injector?.getBindingInfo?.(name)?.entry ?? null,
+    getPolyfillBindingEntry(scope, name) { return injector?.getBindingInfo?.(name)?.entry ?? null; },
   });
   const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
 
@@ -96,7 +96,10 @@ export default function plugin(api, options) {
 
   // per-plugin-instance adapter - closure reads current `injector` without module-level state
   const adapter = createBabelAdapter(() => injector);
-  const skipPolyfillableOptional = (node, scope) => isPolyfillableOptional(node, scope, adapter, resolveBuiltIn);
+
+  function skipPolyfillableOptional(node, scope) {
+    return isPolyfillableOptional(node, scope, adapter, resolveBuiltIn);
+  }
 
   return {
     name: 'core-js@4',
