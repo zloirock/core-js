@@ -155,6 +155,14 @@ function substituteInner(content, needle, replacement, nth, outerHint, innerPref
     const rootRawResult = replaceNthOccurrence(content, outerHint.rootRaw, innerPrefix, 0);
     if (rootRawResult !== content) return { content: rootRawResult, found: true };
   }
+  // candidates list ordered MOST-SPECIFIC -> LEAST-SPECIFIC, first-match wins:
+  //   [0] raw needle           - default, matches when outer didn't deoptionalize/guard
+  //   [1] deoptionalized       - matches when outer's compose stripped `?.` markers
+  //   [2] guardRef + deopt-tail - matches when outer memoized rootRaw as guardRef and
+  //                                inner needle extends beyond rootRaw
+  // ordering matters: a guardRef shape ALSO matches as raw needle (the rootRaw prefix
+  // exists verbatim in `_ref = rootRaw`), so trying guardRef first would emit twice.
+  // raw-first wins via short-circuit on the first replacement that changes content
   const candidates = [needle];
   if (needle.includes('?.')) candidates.push(deoptionalizeNeedle(needle));
   if (outerHint?.rootRaw && outerHint.guardRef
