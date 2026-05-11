@@ -52,6 +52,22 @@ TYPEOF_HINT_GROUPS.object = new Set([...TYPE_HINTS].filter(h => {
   return true;
 }));
 
+// iterator-shape stdlib types whose `<TYield, TReturn, TNext>` slot order treats param-0 as
+// yielded element. shared between `SINGLE_ELEMENT_COLLECTIONS` (member-access widening) and
+// `generatorTypeParams` (function return-type extraction). without the shared set, the two
+// callers maintain parallel hardcoded duplicate lists that drift over TS stdlib evolution
+export const GENERATOR_LIKE_NAMES = new Set([
+  'Generator',
+  'AsyncGenerator',
+  'Iterator',
+  'AsyncIterator',
+  'IterableIterator',
+  'AsyncIterableIterator',
+  // TS 5.6+ stdlib base for iterator-helper chains - `declare const x: IteratorObject<T>`
+  'IteratorObject',
+  'AsyncIteratorObject',
+]);
+
 // collection types whose first type parameter is the element type
 export const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'Array',
@@ -59,16 +75,8 @@ export const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'Set',
   'ReadonlySet',
   'Iterable',
-  'IterableIterator',
-  'Iterator',
-  // TS 5.6+ stdlib base for iterator-helper chains - `declare const x: IteratorObject<T>`
-  'IteratorObject',
   'AsyncIterable',
-  'AsyncIterableIterator',
-  'AsyncIterator',
-  'AsyncIteratorObject',
-  'Generator',
-  'AsyncGenerator',
+  ...GENERATOR_LIKE_NAMES,
 ]);
 
 export const PATTERN_WRAPPERS = new Set([
