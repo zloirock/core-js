@@ -6190,11 +6190,42 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // resolve `TSTypeReference { typeName: X }` to a NodePath of `class X { ... }` in scope,
-  // or null if the reference points at an ambient / interface / non-class
+  // or null if the reference points at an ambient / interface / non-class. bare Identifier
+  // uses O(1) scope-binding lookup; qualified `NS.Cls` / `A.B.Cls` walks AST via
+  // `findTypeDeclaration` then recovers the NodePath via `classNodePathInScope` (rare slow
+  // path: babel doesn't bind TS `namespace` declarations as scope values)
   function findClassPathForTypeReference(annotation, scope) {
-    if (annotation?.type !== 'TSTypeReference' || annotation.typeName?.type !== 'Identifier') return null;
-    const binding = scope?.getBinding(annotation.typeName.name);
-    return binding && t.isClassDeclaration(binding.path.node) ? binding.path : null;
+    if (annotation?.type !== 'TSTypeReference') return null;
+    const { typeName } = annotation;
+    if (typeName?.type === 'Identifier') {
+      const binding = scope?.getBinding(typeName.name);
+      return binding && t.isClassDeclaration(binding.path.node) ? binding.path : null;
+    }
+    const segments = isQualifiedNameNode(typeName) ? collectQualifiedSegments(typeName) : null;
+    const decl = segments && findTypeDeclaration(segments, scope);
+    return decl && t.isClassDeclaration(decl) ? classNodePathInScope(decl, scope) : null;
+  }
+
+  // recover a NodePath for a known ClassDeclaration node by traversing from the scope's
+  // root path. node-identity match against `ClassDeclaration` visits is sufficient:
+  // namespace-nested classes have stable node identity through the resolver's lifetime,
+  // and the cost is bounded by program size only when a qualified class type-ref fires.
+  // mutates `found` via closure - estree-toolkit + babel-traverse both honour `.stop()`
+  // once a match is set (no need to walk the full subtree after the path is recovered)
+  function classNodePathInScope(targetNode, scope) {
+    let cur = scope;
+    while (cur?.parent) cur = cur.parent;
+    const rootPath = cur?.path;
+    if (!rootPath?.traverse) return null;
+    let found = null;
+    rootPath.traverse({
+      ClassDeclaration(p) {
+        if (p.node !== targetNode) return;
+        found = p;
+        p.stop?.();
+      },
+    });
+    return found;
   }
 
   // computed dynamic-key member access via TSIndexSignature: `obj[k]` where
