@@ -171,7 +171,9 @@ export const estreeAdapter = {
   // detection in `bindingSymbolKey`. read dynamically from the active per-transform
   // injector via `getCurrentInjector()`. null between transforms (no injector pushed)
   get packages() { return getCurrentInjector()?.packages ?? null; },
-  hasBinding: (scope, name, path = null) => hasRuntimeBinding(scope, name, path),
+  hasBinding(scope, name, path = null) {
+    return hasRuntimeBinding(scope, name, path);
+  },
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
@@ -194,17 +196,23 @@ export const estreeAdapter = {
       polyfillHint: getCurrentInjector()?.getBindingInfo?.(name)?.hint ?? null,
     };
   },
-  getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type ?? null,
+  getBindingNodeType(scope, name) {
+    return scope?.getBinding(name)?.path?.node?.type ?? null;
+  },
   // oxc-parser preserves `ParenthesizedExpression`; unwrap so `require(('x'))` /
   // `import(('x'))` survive the ESTree->string translation
-  isStringLiteral: node => isLiteralString(unwrapParens(node)),
-  getStringValue: node => {
+  isStringLiteral(node) {
+    return isLiteralString(unwrapParens(node));
+  },
+  getStringValue(node) {
     const inner = unwrapParens(node);
     return isLiteralString(inner) ? inner.value : null;
   },
 };
 
-const isLiteralString = node => node?.type === 'Literal' && typeof node.value === 'string';
+function isLiteralString(node) {
+  return node?.type === 'Literal' && typeof node.value === 'string';
+}
 
 function resolveKey(node, computed, scope) {
   return sharedResolveKey(node, computed, scope, estreeAdapter);
@@ -462,10 +470,12 @@ export function createUsageVisitors({
     b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
   );
 
-  const annotationGlobal = path => name => {
-    if (estreeAdapter.hasBinding(path.scope, name)) return;
-    onUsage({ kind: 'global', name }, path);
-  };
+  function annotationGlobal(path) {
+    return name => {
+      if (estreeAdapter.hasBinding(path.scope, name)) return;
+      onUsage({ kind: 'global', name }, path);
+    };
+  }
 
   function identifierVisitor(path) {
     const { node, parent, key: parentKey } = path;
@@ -519,19 +529,26 @@ export function createUsageVisitors({
   // both need `buildDestructuringMeta` to route polyfillable receivers through synth-swap.
   // decorator walk must include it explicitly - `walkSubtree`'s visitor lookup is keyed by
   // node type, and without the entry the decorator subtree never reaches destructure handling
-  const propertyVisitor = path => {
+  function propertyVisitor(path) {
     if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
     const meta = buildDestructuringMeta(path.node, path.parentPath);
     if (meta) onUsage(meta, path);
-  };
+  }
+
   const decoratorVisitors = {
     Identifier: identifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
     Property: propertyVisitor,
   };
-  const visitDecorators = path => walkDecorators(path, decoratorVisitors);
-  const checkTypeAnnotation = path => checkTypeAnnotations(path.node, annotationGlobal(path));
+
+  function visitDecorators(path) {
+    walkDecorators(path, decoratorVisitors);
+  }
+
+  function checkTypeAnnotation(path) {
+    checkTypeAnnotations(path.node, annotationGlobal(path));
+  }
 
   return {
     ...walkAnnotations ? {

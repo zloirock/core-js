@@ -1070,8 +1070,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const tp = node.typeParameter;
     const innerName = mappedTypeKeyName(node);
     const innerSubst = innerName ? dropMapKeys(subst, new Set([innerName])) : subst;
-    const recurseSlot = (parent, slot, map) => parent?.[slot]
-      ? applyAliasSubstDeep(parent[slot], map, depth + 1, visited) : parent?.[slot];
+
+    function recurseSlot(parent, slot, map) {
+      return parent?.[slot]
+        ? applyAliasSubstDeep(parent[slot], map, depth + 1, visited) : parent?.[slot];
+    }
+
     const tpConstraint = recurseSlot(tp, 'constraint', subst);
     const flatConstraint = recurseSlot(node, 'constraint', subst);
     const ann = recurseSlot(node, 'typeAnnotation', innerSubst);
