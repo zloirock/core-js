@@ -9,14 +9,13 @@ export default class ImportInjector extends ImportInjectorState {
   // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
   #idByName = new Map();
   // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted.
-  // DUAL PURPOSE: tracks BOTH (a) "what's been emitted as code" (subtract via `.difference`
-  // in flush() to compute newGlobals) AND (b) "has any side-effect import landed" for
-  // `hasFlushed` getter feeding postHook's late-CJS detection diagnostic. (a) requires
-  // node-keyed semantics (one entry per emitted module); (b) just cares about non-empty.
-  // both happen to satisfy "Set of module names" so single field works - if a future
-  // call needs to distinguish "user-emitted via inject side-effect" vs "plugin-emitted
-  // via flush", split into `#emittedGlobals` (data flow) + `#suppressedGlobals` (gating)
-  #flushedGlobals = new Set();
+  // `#emittedGlobals`: modules WE wrote out (subtract from `globalImports` in `#buildNodes`
+  // to compute newGlobals; drives `hasFlushed` for postHook's late-CJS diagnostic).
+  // `#suppressedGlobals`: user's pre-existing imports (subtract from `globalImports` to
+  // avoid duplicate-emit; does NOT drive `hasFlushed` - user imports don't count as plugin
+  // activity). split previously was a single `#flushedGlobals` Set with dual semantics
+  #emittedGlobals = new Set();
+  #suppressedGlobals = new Set();
   #flushedPure = new Set();
   // emit history for canonical reorder at programExit. each `flush()` only sorts WITHIN
   // its own batch; with two flushes per file (pre / post-synth-swap) the cross-batch
@@ -42,7 +41,7 @@ export default class ImportInjector extends ImportInjectorState {
   // post-hook safety-net needs to know whether any import has already been written so
   // it doesn't switch `importStyle` mid-file and produce ESM+CJS mixed output
   get hasFlushed() {
-    return this.#flushedGlobals.size > 0 || this.#flushedPure.size > 0;
+    return this.#emittedGlobals.size > 0 || this.#flushedPure.size > 0;
   }
 
   isNameTaken(name) {
@@ -199,13 +198,11 @@ export default class ImportInjector extends ImportInjectorState {
     // step 1: drop unused / dead var declarators. iterate ALL bindings under each name
     // (multi-bindings happen when plugin emits same `_ref` in distinct nested scopes).
     // `#refs.delete(name)` only when ALL bindings dead; otherwise survivor keeps slot live.
-    // SAFETY: deleting from `#refs` Set DURING `for...of` iteration relies on V8/JSC
-    // implementing Set iterator's "live view" semantics correctly - the spec (TC39 Set
-    // iterator) defines that deletion of already-visited or current entry is safe; only
-    // deletion of NOT-YET-visited entries can skip them. here we only delete `name`
-    // (current iteration item) so this pattern is spec-safe. fragile if someone adds
-    // additional `#refs.delete(otherName)` inside the loop body
-    for (const name of this.#refs) {
+    // snapshot iteration: walk a frozen copy of `#refs`, mutate the original safely. avoids
+    // depending on Set iterator's "live view" semantics for delete-current-item — fragile
+    // pattern if a future maintainer adds a forward-delete inside the loop body
+    // eslint-disable-next-line unicorn/no-useless-spread -- snapshot intentional: see comment above
+    for (const name of [...this.#refs]) {
       const bindings = byName.get(name) ?? [];
       let survivor = false;
       for (const binding of bindings) {
@@ -291,7 +288,7 @@ export default class ImportInjector extends ImportInjectorState {
 
   registerUserGlobalImport(moduleName) {
     super.registerUserGlobalImport(moduleName);
-    this.#flushedGlobals.add(moduleName);
+    this.#suppressedGlobals.add(moduleName);
   }
 
   #resolvePath(subpath) {
@@ -300,13 +297,16 @@ export default class ImportInjector extends ImportInjectorState {
 
   #buildNodes() {
     const t = this.#t;
-    let newGlobals = [...this.globalImports.difference(this.#flushedGlobals)];
+    // subtract BOTH plugin-emitted (don't re-emit) AND user-suppressed (don't duplicate
+    // user's existing imports). union via spread - both sets are small (per-file scope)
+    const alreadyHandled = new Set([...this.#emittedGlobals, ...this.#suppressedGlobals]);
+    let newGlobals = [...this.globalImports.difference(alreadyHandled)];
     const newPure = [...this.pureImports].filter(([s]) => !this.#flushedPure.has(s));
     if (!newGlobals.length && !newPure.length) return null;
     newGlobals = sortByPolyfillOrder(newGlobals);
     const nodes = [];
     for (const mod of newGlobals) {
-      this.#flushedGlobals.add(mod);
+      this.#emittedGlobals.add(mod);
       const resolved = this.#resolvePath(`modules/${ mod }`);
       const node = this.importStyle === 'require'
         ? t.expressionStatement(t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)]))
