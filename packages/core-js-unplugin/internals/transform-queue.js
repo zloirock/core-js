@@ -495,17 +495,26 @@ export default class TransformQueue {
   }
 
   // guardRef of the outer that memoized `root` - lets nested polyfills reuse it.
-  // pick the OUTERMOST guarded transform (largest range) for stability: insertion order
+  // pick the OUTERMOST guarded transform (largest span) for stability: insertion order
   // depends on visitor traversal which can drift between runs / parser variants. the
-  // outermost transform's guardRef is the one whose memoization should dominate
+  // outermost transform's guardRef is the one whose memoization should dominate. uses
+  // `entryLogicalSpan` so split-entry prefixes (physical end = mid, logicalEnd = end)
+  // contribute their FULL [start, logicalEnd) span - currently call sites pass `null`
+  // guardedRoot for split entries so this is latent, but the API allows split entries
+  // here and physical span would understate their reach
   findOuterGuardRef(root) {
     if (!root) return null;
     const list = this.#byGuardedRoot.get(root);
     if (!list) return null;
     let best = null;
+    let bestSpan = -1;
     for (const t of list) {
       if (!t.rewriteHint?.guardRef) continue;
-      if (!best || (t.end - t.start) > (best.end - best.start)) best = t;
+      const span = entryLogicalSpan(t);
+      if (span > bestSpan) {
+        best = t;
+        bestSpan = span;
+      }
     }
     return best?.rewriteHint?.guardRef ?? null;
   }
