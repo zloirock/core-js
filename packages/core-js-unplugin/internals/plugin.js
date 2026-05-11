@@ -168,9 +168,12 @@ export default function createPlugin(options) {
     }
   }
 
-  // pipeline orchestrator; splitting further would obscure the linear flow
-  // (parse -> visit -> queue -> emit) more than it helps
-  // eslint-disable-next-line max-statements -- pipeline orchestrator
+  // pipeline orchestrator: shared pre-amble (parse, injector setup, scan, orphan adoption,
+  // module-injector wiring, finalize closure) then mode dispatch through inner functions
+  // (`runEntryGlobal` / `runUsageGlobal` / `runUsagePure`) which close over the pre-amble
+  // state. mode bodies kept as inner functions for closure sharing - extracting them to
+  // top-level would force passing 12+ closures explicitly with no readability gain
+  // eslint-disable-next-line max-statements -- pipeline orchestrator + mode dispatcher
   function runTransformInner(code, id, pass) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
@@ -332,8 +335,12 @@ export default function createPlugin(options) {
     // single-post (no pre snapshot, e.g. `phase: 'post'` without `pre`) can still emit
     // dead imports when a destructure transform drops all uses mid-pass, and the ref-tracking
     // overhead is negligible. babel-plugin doesn't call this - it resolves destructure
-    // transforms synchronously during traversal
-    if (pass === 'post') injector.enableReferenceTracking();
+    // transforms synchronously during traversal. SINGLE source of truth: shared by both
+    // `enableReferenceTracking()` activation here AND the usage-pure Identifier visitor mount
+    // in `runUsagePure`. drift in either gate's predicate would leak ALL pure imports per
+    // `pruneUnusedRefs`' dead-import filter (no Identifier ever fires `trackReferencedName`)
+    const trackReferences = pass === 'post';
+    if (trackReferences) injector.enableReferenceTracking();
 
     const debugOutput = createDebugOutput?.() ?? null;
 
@@ -402,7 +409,7 @@ export default function createPlugin(options) {
     }
 
     // entry-global mode: replace `import 'core-js'` with resolved modules
-    if (method === 'entry-global') {
+    function runEntryGlobal() {
       const entryFound = detectEntries(ast, {
         getCoreJSEntry,
         injectModulesForEntry,
@@ -412,6 +419,7 @@ export default function createPlugin(options) {
       if (entryFound) debugOutput?.markEntryFound();
       return finalize();
     }
+    if (method === 'entry-global') return runEntryGlobal();
 
     const {
       resolveStaticInheritedMember,
@@ -420,7 +428,7 @@ export default function createPlugin(options) {
     } = createClassHelpers(types, estreeAdapter, sharedResolveKey, () => injector);
 
     // usage-global mode
-    if (method === 'usage-global') {
+    function runUsageGlobal() {
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
         injectModulesForModeEntry,
@@ -447,9 +455,10 @@ export default function createPlugin(options) {
 
       return finalize();
     }
+    if (method === 'usage-global') return runUsageGlobal();
 
     // usage-pure mode
-    if (method === 'usage-pure') {
+    function runUsagePure() {
       // skippedNodes semantics (implicit contract across ~10 call sites):
       // 1. "don't re-visit this node" - stale visits after a parent rewrite shouldn't re-fire
       // 2. "this node is already handled by a composite rewrite" - inner members in a combined
@@ -677,7 +686,7 @@ export default function createPlugin(options) {
           walkAnnotations: false,
           isEntryAvailable: isEntryNeeded,
         }),
-      }, pass === 'post' ? {
+      }, trackReferences ? {
         // mount tracker for every post pass (parity with `injector.enableReferenceTracking()`
         // gate above): standalone `phase: 'post'` without a pre-pass snapshot also needs
         // `referencedInSource` populated, otherwise `pruneUnusedRefs`'s dead-import filter
@@ -689,6 +698,7 @@ export default function createPlugin(options) {
       scopeTracker.applyTransforms(transforms);
       return finalize();
     }
+    if (method === 'usage-pure') return runUsagePure();
 
     return null;
   }
