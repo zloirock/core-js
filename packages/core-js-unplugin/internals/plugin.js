@@ -274,7 +274,7 @@ export default function createPlugin(options) {
     // late-bound: debugOutput is constructed below (after createPolyfillResolver), but the
     // injector needs it for fallback warnings inside `flush()`. lazy getter avoids TDZ
     const injector = new ImportInjector({
-      ms, pkg, mode, absoluteImports, importStyle,
+      ms, pkg, packages, mode, absoluteImports, importStyle,
       directiveEnd: directivePrologueEnd(ast),
       userImportEnd: lastUserImportEnd(ast),
       deferImports,

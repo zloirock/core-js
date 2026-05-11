@@ -62,6 +62,11 @@ export default class ImportInjectorState {
   absoluteImports;
   mode;
   pkg;
+  // full set of recognized package prefixes (main `pkg` + `additionalPackages`, lowercased).
+  // adapter `bindingSymbolKey` consults this to classify user-emitted symbol imports from
+  // aliased packages (`my-alias/symbol/iterator`) as Symbol.X references. null when caller
+  // omits - bindingSymbolKey falls back to built-in CORE_JS_SOURCE_PREFIX regex only
+  packages;
   importStyle;
 
   globalImports = new Set();
@@ -77,10 +82,11 @@ export default class ImportInjectorState {
   // `resolveSuperImportName` can map `class C extends MyPromise` back to `Promise`
   #importInfoByName = new Map();
 
-  constructor({ absoluteImports, mode, pkg, importStyle }) {
+  constructor({ absoluteImports, mode, pkg, importStyle, packages = null }) {
     this.absoluteImports = absoluteImports;
     this.mode = mode;
     this.pkg = pkg;
+    this.packages = packages;
     this.importStyle = importStyle;
   }
 
