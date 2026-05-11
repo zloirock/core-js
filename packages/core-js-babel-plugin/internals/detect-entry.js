@@ -9,10 +9,10 @@ import { babelAdapter } from './detect-usage.js';
 export default function runEntryDetection(programPath, onEntry) {
   // `getEntrySource` only recognises ImportDeclaration + ExpressionStatement
   // (`require(...)` / `await import(...)`); other shapes short-circuit to null
-  const visit = path => {
+  function visit(path) {
     const source = getEntrySource(path.node, babelAdapter, path.scope);
     if (source !== null) onEntry(source, path);
-  };
+  }
   // top-level ExpressionStatement scan: nested ones (inside function bodies, conditionals)
   // are NOT entry-import shapes and must NOT be visited - hence the body-only loop
   // instead of a wildcard `ExpressionStatement` visitor in the traverse below

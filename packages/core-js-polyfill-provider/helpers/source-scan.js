@@ -31,11 +31,17 @@ const DIRECTIVE = /^[\s*]*core-js-disable-(?<kind>file|line|next-line)(?:\s|$)/m
 // `$` is the estree-toolkit metadata key (e.g. `{ scope: true }`); it carries no enter/exit
 // handlers and is merged shallowly so neither side's metadata is dropped
 export function mergeVisitors(base, extra) {
-  const toObject = v => typeof v === 'function' ? { enter: v } : v;
-  const chain = (f, g) => function (path) {
-    f.call(this, path);
-    g.call(this, path);
-  };
+  function toObject(v) {
+    return typeof v === 'function' ? { enter: v } : v;
+  }
+
+  function chain(f, g) {
+    return function (path) {
+      f.call(this, path);
+      g.call(this, path);
+    };
+  }
+
   const merged = { ...base };
   for (const [key, handler] of Object.entries(extra)) {
     if (key === '$') {

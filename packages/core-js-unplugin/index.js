@@ -72,15 +72,18 @@ const unplugin = createUnplugin((options, meta) => {
   }
 
   const plugin = createPlugin({ ...rest, bundler: meta?.framework });
-  const stage = (enforce, pass) => ({
-    name: `${ plugin.name }:${ enforce }`,
-    enforce,
-    transformInclude: shouldTransform,
-    // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
-    // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
-    // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
-    transform(code, id) { return plugin.transform.call(this, code, id, pass); },
-  });
+
+  function stage(enforce, pass) {
+    return {
+      name: `${ plugin.name }:${ enforce }`,
+      enforce,
+      transformInclude: shouldTransform,
+      // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
+      // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
+      // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
+      transform(code, id) { return plugin.transform.call(this, code, id, pass); },
+    };
+  }
 
   // bound snapshot retention in long-running dev servers. attach to the last sub-plugin -
   // unplugin invokes buildEnd / watchChange once per plugin instance:
@@ -94,8 +97,8 @@ const unplugin = createUnplugin((options, meta) => {
     ? [stage('pre', 'pre'), stage('post', 'post')]
     : [stage(effective, 'single')];
   Object.assign(subs.at(-1), {
-    buildEnd: () => plugin.reset(),
-    watchChange: id => plugin.invalidateSnapshot(id),
+    buildEnd() { plugin.reset(); },
+    watchChange(id) { plugin.invalidateSnapshot(id); },
   });
   return subs;
 });
