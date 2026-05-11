@@ -28,7 +28,7 @@ import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
-import { estreeAdapter, createUsageVisitors, createSyntaxVisitors, setPolyfillBindingHintLookup } from './detect-usage.js';
+import { estreeAdapter, createUsageVisitors, createSyntaxVisitors, setCurrentInjector, getCurrentInjector } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
 import { isOutermostOptionalChainMember } from './emit-utils.js';
 import { createPolyfillEmitter } from './polyfill-emitter.js';
@@ -95,12 +95,14 @@ export default function createPlugin(options) {
   // Node.js JS is single-threaded; Vite/Rollup contracts serialize transforms per plugin.
   // genuine parallelism (worker_threads, parallel test runs) instantiates separate plugins
   // so each gets its own typeResolvers - no cross-worker mutation race
-  // `currentInjector` is the per-transform injector, set inside the transform fn below;
-  // resolver's `getPolyfillBindingEntry` reads it lazily so the shared typeResolvers can
-  // resolve polyfilled-static aliases without paying a per-transform factory cost
-  let currentInjector = null;
+  // per-transform injector reference owned by detect-usage.js (shared with estreeAdapter's
+  // polyfillHint lookup). resolver's `getPolyfillBindingEntry` reads it lazily so the shared
+  // typeResolvers can resolve polyfilled-static aliases without paying a per-transform factory
+  // cost. consolidating into ONE side-channel (vs prior dual `currentInjector` + hint-lookup
+  // closure) keeps `setCurrentInjector(injector)` / `setCurrentInjector(null)` symmetric at
+  // transform boundaries
   const typeResolvers = createResolveNodeType(nodeType, types, {
-    getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
+    getPolyfillBindingEntry: (scope, name) => getCurrentInjector()?.getBindingInfo?.(name)?.entry ?? null,
   });
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling
@@ -162,8 +164,7 @@ export default function createPlugin(options) {
       // clear per-transform state so any out-of-transform invocation of the resolver
       // / adapter (e.g. unit-test direct call into typeResolvers, sibling-plugin probe)
       // can't read stale state from a previously-completed transform
-      currentInjector = null;
-      setPolyfillBindingHintLookup(null);
+      setCurrentInjector(null);
     }
   }
 
@@ -277,15 +278,14 @@ export default function createPlugin(options) {
       inherit,
       getDebugOutput: () => debugOutput,
     });
-    // expose to typeResolvers' `getPolyfillBindingHint` closure for the duration of this
-    // transform - cleared at end so any out-of-transform invocation can't read a stale
-    // injector. cross-transform AST node identity won't carry through (ASTs differ per
-    // transform), so resolver's WeakMap caches don't observe the swap
-    currentInjector = injector;
-    // wire estreeAdapter's polyfill-hint lookup so `import _Promise from '.../constructor';
-    // _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the Promise
-    // constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
-    setPolyfillBindingHintLookup(name => injector.getBindingInfo(name)?.hint ?? null);
+    // single side-channel: typeResolvers' `getPolyfillBindingEntry` AND estreeAdapter's
+    // `polyfillHint` both read through `getCurrentInjector()`. cleared at end so any
+    // out-of-transform invocation can't read a stale injector. cross-transform AST node
+    // identity won't carry through (ASTs differ per transform), so resolver's WeakMap caches
+    // don't observe the swap. `import _Promise from '.../constructor'; _Promise.resolve(1)`
+    // recognises `_Promise` as a proxy-global for the Promise constructor and rewrites to
+    // `_Promise$resolve(1)` (matches babel adapter behavior)
+    setCurrentInjector(injector);
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
