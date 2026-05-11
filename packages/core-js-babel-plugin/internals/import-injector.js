@@ -32,8 +32,8 @@ export default class ImportInjector extends ImportInjectorState {
   // `reorderRefsAfterImports` so caller-order violations surface as a clear error
   #importRegionSorted = false;
 
-  constructor({ t, programPath, pkg, mode, importStyle, absoluteImports = false }) {
-    super({ absoluteImports, mode, pkg, importStyle });
+  constructor({ t, programPath, pkg, packages = null, mode, importStyle, absoluteImports = false }) {
+    super({ absoluteImports, mode, pkg, importStyle, packages });
     this.#t = t;
     this.#programPath = programPath;
   }

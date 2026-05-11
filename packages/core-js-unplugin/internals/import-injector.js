@@ -37,10 +37,11 @@ export default class ImportInjector extends ImportInjectorState {
     inherit = null,
     mode,
     ms,
+    packages = null,
     pkg,
     userImportEnd = null,
   }) {
-    super({ absoluteImports, mode, pkg, importStyle });
+    super({ absoluteImports, mode, pkg, importStyle, packages });
     this.#getDebugOutput = getDebugOutput;
     this.#deferImports = deferImports;
     this.#directiveEnd = directiveEnd;
