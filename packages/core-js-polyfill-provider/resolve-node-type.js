@@ -509,19 +509,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return null;
   }
 
-  // structural identifier-name extract for a TSTypeReference / GenericTypeAnnotation chain
-  // used in the mapped-passthrough check below. `T` and `T[]` both resolve to "T" via
-  // TSTypeReference Identifier; nested namespaces (`A.B.T`) flatten to "A.B.T" via segments.
-  // returns null for any non-reference shape (mapped type body's `objectType` could be a
-  // tuple / inline object / union / ..., none of which can structurally match the source's
-  // `keyof T` operand at the AST level - require strict ref-to-ref match
-  function typeRefSignature(node) {
-    if (!node) return null;
-    if (node.type === 'TSTypeReference' || node.type === 'GenericTypeAnnotation') {
-      const segments = typeRefSegments(node);
-      return segments?.length ? segments.join('.') : null;
-    }
-    return null;
+  // segment-by-segment equality for two TSTypeReference / GenericTypeAnnotation chains.
+  // both-non-ref returns true (both shapes "match" by being not-a-ref); ref-vs-non-ref
+  // and segment mismatch return false. avoids the typeRefSignature string-join allocation
+  // and short-circuits on length mismatch
+  function typeRefSegmentsEqual(a, b) {
+    const segA = typeRefSegments(a);
+    const segB = typeRefSegments(b);
+    if (!segA?.length) return !segB?.length;
+    if (!segB?.length || segA.length !== segB.length) return false;
+    for (let i = 0; i < segA.length; i++) if (segA[i] !== segB[i]) return false;
+    return true;
   }
 
   // detect the trivial passthrough mapped type `{ [K in keyof T]: T[K] }` and return T.
@@ -551,8 +549,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // and silently substitute past their lexical scope. non-Ref source (literal, etc.) has
     // a syntactically distinct shape - downstream callers walk it as a structural type, no
     // capture risk. for non-ref source, accept body.objectType as-is (legacy behavior)
-    const sourceSig = typeRefSignature(shape.source);
-    if (sourceSig !== null && sourceSig !== typeRefSignature(body.objectType)) return null;
+    if (typeRefSegments(shape.source)?.length
+        && !typeRefSegmentsEqual(shape.source, body.objectType)) return null;
     return body.objectType ?? null;
   }
 
@@ -1677,20 +1675,75 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return members && subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
   }
 
-  // TS utility types whose member set is the same as their first type parameter's.
-  // adding new entries requires verifying member-set semantics at every callsite
-  // (`resolveTypeAnnotation` alias-chain entry, `peelStructurePreservingWrapper` tuple
-  // walk, `resolveNamedType` inner-type resolve). `ThisType<T>` excluded - only meaningful
+  // expand `<Wrapper><T, ...>` members for the structure-preserving wrappers set.
+  // transparent wrappers (`Readonly` / `Partial` / etc) pass through to T's members.
+  // key-filtering wrappers (`Pick` / `Omit`) filter T's members when the keys arg is
+  // statically-evaluable; non-decidable keys-arg falls back to passthrough (over-emit
+  // per §6 accepted - safer to over-resolve member access than under-resolve)
+  function resolveStructureWrapperMembers(wrapperName, objectType, scope, depth, visited) {
+    const args = getTypeArgs(objectType)?.params;
+    const arg = args?.[0];
+    if (!arg) return null;
+    const innerMembers = getTypeMembers(unwrapTypeAnnotation(arg), scope, depth + 1, visited);
+    if (!innerMembers || !KEY_FILTERING_WRAPPERS.has(wrapperName)) return innerMembers;
+    const keys = staticKeySet(args[1]);
+    if (!keys) return innerMembers;
+    const isPick = wrapperName === 'Pick';
+    return innerMembers.filter(m => {
+      // non-statically-named members (computed dynamic / private) stay - filter only
+      // resolves the statically-known intersection
+      const name = getKeyName(m.key);
+      if (name === null) return true;
+      return isPick ? keys.has(name) : !keys.has(name);
+    });
+  }
+
+  // collect statically-evaluable literal keys from a TSTypeReference's second arg:
+  // string / numeric / boolean literal types and unions of literals. returns Set<string>
+  // (numeric / boolean values stringified) or null when shape isn't statically decidable
+  // (TypeReference, generic typeparam, intersection, etc.). consumed by `Pick`/`Omit`
+  // member-filter path; non-decidable shapes fall back to passthrough
+  function staticKeySet(node) {
+    const inner = node && unwrapTypeAnnotation(node);
+    if (!inner) return null;
+    if (inner.type === 'TSLiteralType') {
+      const v = literalKeyValue(inner.literal);
+      return v === null ? null : new Set([String(v)]);
+    }
+    if (inner.type !== 'TSUnionType') return null;
+    const out = new Set();
+    for (const branch of inner.types) {
+      const mu = unwrapTypeAnnotation(branch);
+      if (mu?.type !== 'TSLiteralType') return null;
+      const v = literalKeyValue(mu.literal);
+      if (v === null) return null;
+      out.add(String(v));
+    }
+    return out;
+  }
+
+  // truly transparent wrappers: member set identical to first arg. modifiers like
+  // `Partial` / `Readonly` only change descriptor flags (optional / readonly), not the
+  // key set; `NoInfer` is fully transparent. `ThisType<T>` excluded - only meaningful
   // inside object-literal context, requires special handling
-  const STRUCTURE_PRESERVING_WRAPPERS = new Set([
+  const TRANSPARENT_WRAPPERS = new Set([
     'NoInfer',
-    'Omit',
     'Partial',
-    'Pick',
     'Readonly',
     'Required',
     '$ReadOnly',
   ]);
+
+  // key-filtering wrappers: member set is a SUBSET of first arg's, selected by second arg.
+  // when second arg is a statically-evaluable literal / literal-union, `getTypeMembers`
+  // filters accordingly; otherwise passthrough (over-emit per §6 accepted)
+  const KEY_FILTERING_WRAPPERS = new Set(['Pick', 'Omit']);
+
+  // umbrella: wrappers safe to PEEL for member-lookup / tuple-shape recovery without
+  // changing dispatch outcome. callers that don't care about precise member-set semantics
+  // (peelStructurePreservingWrapper, resolveNamedType inner-type resolve, tuple walk) use
+  // this. callers that DO care (getTypeMembers) branch separately on key-filter case
+  const STRUCTURE_PRESERVING_WRAPPERS = new Set([...TRANSPARENT_WRAPPERS, ...KEY_FILTERING_WRAPPERS]);
 
   // TS `PromiseLike<T>` / Flow `Thenable<T>` are structural supertypes of Promise that
   // `await` / `Awaited<>` unwrap identically; alias them to Promise for type resolution
@@ -1788,10 +1841,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // handle dotted refs (`NS.Data`) by passing the segment path through
     const segments = typeRefSegments(objectType);
     if (!segments) return null;
-    // structure-preserving wrappers: `Readonly<{...}>.x`, `Pick<T,K>.x` look up on T directly
+    // structure-preserving wrappers: `Readonly<{...}>.x` / `Pick<T, 'a'>.x` look up on T.
+    // Pick / Omit narrow the member set when their second arg is statically-evaluable
+    // (literal / literal-union); otherwise passthrough as over-emit (per §6 accepted)
     if (segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
-      const arg = getTypeArgs(objectType)?.params[0];
-      return arg ? getTypeMembers(unwrapTypeAnnotation(arg), scope, depth + 1, visited) : null;
+      return resolveStructureWrapperMembers(segments[0], objectType, scope, depth, visited);
     }
     // `Record<K, V>` - every member access returns V. emit a synthetic index signature so
     // findTypeMember's TSIndexSignature fallback picks it up for any key
@@ -2702,7 +2756,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function resolveKeyofSelfValueUnion(node, scope, depth) {
     const idx = node.indexType;
     if (idx?.type !== 'TSTypeOperator' || idx.operator !== 'keyof'
-      || typeRefSignature(idx.typeAnnotation) !== typeRefSignature(node.objectType)) return undefined;
+      || !typeRefSegmentsEqual(idx.typeAnnotation, node.objectType)) return undefined;
     const members = getTypeMembers(node.objectType, scope);
     if (!members) return null;
     const valueAnnotations = members
@@ -3162,17 +3216,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return undefined;
   }
 
-  // `extendIsUnconstrained` is a boolean flag derived from the POST-SUBST AST shape of
-  // the extends side. caller computes via `isUnconstrainedTypeReference(node, typeParamMap?)`
-  // (typeParamMap omitted when AST is already substituted; passed when reasoning from raw
-  // AST + Type-Object map for evaluateConditionalType / pickAwaitedConditionalBranch).
-  // passing the raw AST directly without subst awareness mis-classifies a typeparam ref `U`
-  // (no typeArguments in alias body) as unconstrained even when subst maps U to a concrete
-  // shape (`[]` / `Array<number>`), firing the wrong branch
-  // optional fourth arg `extendsTypeAST`: raw AST of the extends side. used by the
-  // inner-less branch to distinguish concrete-empty shapes (`[]`, `{}`) from post-resolve
-  // inner-less artefacts (`[infer X, X]` where infer doesn't resolve). when AST is concrete
-  // empty, non-null check inner is structurally disjoint → falseBranch deterministic
+  // detect AST-level concrete-empty shapes (`[]`, `{}`) that signal a syntactically definite
+  // disjoint check vs a non-empty inner. peeled-from-Paren so `([])` matches too. post-resolve
+  // inner-less artefacts (e.g. `[infer X, X]` where infer doesn't bind) DON'T match this
+  // predicate - they look like type-refs / non-empty tuples to the AST walker
   function isConcreteEmptyShape(node) {
     if (!node) return false;
     const peeled = peelTSParenthesized(node);
@@ -3183,11 +3230,21 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return false;
   }
 
-  function pickConditionalBranch(check, extend, extendIsUnconstrained, extendsTypeAST) {
+  // `extendIsUnconstrained` reflects POST-SUBST AST shape: caller computes via
+  // `isUnconstrainedTypeReference(node, typeParamMap?)` (map omitted when AST is already
+  // substituted; passed when reasoning from raw AST + Type-Object map for
+  // evaluateConditionalType / pickAwaitedConditionalBranch). passing raw AST directly
+  // without subst awareness mis-classifies a typeparam ref `U` (no typeArguments in alias
+  // body) as unconstrained even when subst maps U to a concrete shape
+  // `extendIsConcreteEmpty` reflects whether the extends-side AST is structurally empty
+  // (`[]`, `{}`). caller computes via `isConcreteEmptyShape(extendsAST)`. used to
+  // distinguish syntactic empty (deterministic falseBranch) from post-resolve inner-less
+  // artefacts (undecidable, fall back to fold)
+  function pickConditionalBranch(check, extend, extendIsUnconstrained, extendIsConcreteEmpty) {
     if (!check || !extend) return null;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
-      // extends has no inner constraint. three sub-cases distinguished by extendsTypeAST:
+      // extends has no inner constraint. three sub-cases distinguished by caller-supplied flags:
       //   - unparameterised TSTypeReference (`Array` -> `Array<any>`): matches any inner
       //   - concrete-empty AST (`[]` empty tuple): structurally distinct from non-empty
       //     check, picks falseBranch per TS spec
@@ -3196,7 +3253,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       //     fold-both-branches via null return
       if (!extend.inner) {
         if (extendIsUnconstrained) return true;
-        if (check.inner && isConcreteEmptyShape(extendsTypeAST)) return false;
+        if (check.inner && extendIsConcreteEmpty) return false;
         return null;
       }
       // check side unconstrained against a concrete extend - can't statically decide
@@ -3227,7 +3284,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function pickConditionalBranchVia(checkAST, extendsAST, resolveOne, isUnconstrained) {
     const astPick = pickConditionalBranchByAST(checkAST, extendsAST);
     if (astPick !== null) return astPick;
-    return pickConditionalBranch(resolveOne(checkAST), resolveOne(extendsAST), isUnconstrained, extendsAST);
+    return pickConditionalBranch(resolveOne(checkAST), resolveOne(extendsAST),
+      isUnconstrained, isConcreteEmptyShape(extendsAST));
   }
 
   // raw AST shape predicate: `Array` / `Promise` / `Set` ... without `<...>` typeArguments
@@ -3316,12 +3374,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return innerNames?.length ? dropMapKeys(subst, new Set(innerNames)) : subst;
   }
 
-  // narrow infer pattern: `T extends (infer U)[] ? U : X` / `T extends Array<infer U> ? U : X`.
-  // when the pattern matches AND checkType's substituted type is array-like, return the
-  // element type. tuple head-infer (`[infer H, ...any[]]`) is not handled - typeParamMap
-  // values are post-resolveTypeArgs, where tuple AST is already collapsed via
-  // `tupleAsArrayType` to `$Object('Array', commonInner)`, losing positional info needed
-  // to extract the head. any other shape -> null, caller falls back to plain branch
+  // narrow infer pattern: `T extends (infer U)[] ? <body> : X` / `T extends Array<infer U>
+  // ? <body> : X` and structural synonyms. when checkType's substituted type is array-like,
+  // bind U -> element type and substitute trueType through. covers bare U short-circuit
+  // (`? U :`), wider compositions (`? U[] :`, `? Promise<U> :`, `? {x: U} :`), and any
+  // shape `substituteTypeParams` knows how to walk. tuple head-infer (`[infer H, ...any[]]`)
+  // is not handled - typeParamMap values are post-resolveTypeArgs, where tuple AST is
+  // already collapsed via `tupleAsArrayType` to `$Object('Array', commonInner)`, losing
+  // positional info needed to extract the head. unresolvable shape -> null, caller falls
+  // back to plain branch
   function resolveInferElementPattern(node, typeParamMap, scope, depth, seen) {
     const inferName = matchArrayInferPattern(node.extendsType);
     if (!inferName) return null;
@@ -3329,11 +3390,6 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!checkType) return null;
     const inner = resolveInnerType(checkType);
     if (!inner) return null;
-    // bare-name short-circuit: `T extends (infer U)[] ? U : never`
-    if (typeRefName(node.trueType) === inferName) return inner;
-    // wider trueType referencing inferName (`U[]`, `Promise<U>`, `{x: U}`, ...) - bind
-    // inferred element into typeParamMap clone and recurse on trueType. substituteTypeParams
-    // returns null for shapes it can't resolve - caller falls back to plain branch
     const inferMap = typeParamMap ? new Map(typeParamMap) : new Map();
     inferMap.set(inferName, inner);
     return substituteTypeParams(node.trueType, inferMap, scope, depth + 1, seen);
@@ -4112,79 +4168,101 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // do NOT pass an AST-valued substitution map (built by `buildSubstMap`) - lookups
   // return AST nodes where Type objects are expected. for AST-valued maps use
   // `applyAliasSubstDeep` instead
+  // recurse helper - closes over (typeParamMap, scope, depth, seen) for handlers that
+  // descend into a sibling slot. extra args sail through unchanged
+  function substRecurse(node, typeParamMap, scope, depth, seen) {
+    return substituteTypeParams(node, typeParamMap, scope, depth + 1, seen);
+  }
+
+  // direct typeparam ref: `T` → map.get('T'). non-typeparam ref: container substitution
+  // (Array<T>, Promise<T>, etc.) via `resolveKnownContainerType`, then user-alias /
+  // utility-type chain through `resolveUserDefinedType` / `resolveNamedType`
+  function substTypeRefAsType(node, typeParamMap, scope, depth, seen) {
+    const name = typeRefName(node);
+    if (!name) return null;
+    if (typeParamMap.has(name)) return typeParamMap.get(name);
+    const ctor = resolveKnownConstructor(name);
+    const known = resolveKnownContainerType(name, ctor, node,
+      p => substRecurse(p, typeParamMap, scope, depth, seen));
+    if (known) return known;
+    return resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen)
+      ?? resolveNamedType(name, node, scope, depth, typeParamMap, seen);
+  }
+
+  // T[] / Array<T> → $Object('Array', inner) with substituted element type
+  function substArrayAsType(node, typeParamMap, scope, depth, seen) {
+    const inner = substRecurse(node.elementType, typeParamMap, scope, depth, seen);
+    return new $Object('Array', inner && !isNullableOrNever(inner) ? inner : null);
+  }
+
+  // [T, U] → Array<commonInner> per-element folded via shared `tupleAsArrayType`
+  function substTupleAsType(node, typeParamMap, scope, depth, seen) {
+    return tupleAsArrayType(node, e => substRecurse(e, typeParamMap, scope, depth, seen));
+  }
+
+  // mapped type: passthrough body recurses with subst preserved; non-passthrough opaque
+  function substMappedAsType(node, typeParamMap, scope, depth, seen) {
+    const passthrough = unwrapMappedTypePassthrough(node);
+    if (passthrough) return substRecurse(passthrough, typeParamMap, scope, depth, seen);
+    return new $Object(null);
+  }
+
+  // TSTypeOperator: `keyof T` opaque, other operators (e.g. `readonly`) transparent
+  function substTypeOperatorAsType(node, typeParamMap, scope, depth, seen) {
+    if (node.operator === 'keyof') return resolveTypeAnnotation(node, scope, depth);
+    return substRecurse(node.typeAnnotation, typeParamMap, scope, depth, seen);
+  }
+
+  // transparent wrapper: TSOptionalType / TSParenthesizedType / NullableTypeAnnotation
+  function substTransparentWrapperAsType(node, typeParamMap, scope, depth, seen) {
+    return substRecurse(node.typeAnnotation, typeParamMap, scope, depth, seen);
+  }
+
+  // union / intersection fold-as-Type
+  function substUnionAsType(node, typeParamMap, scope, depth, seen) {
+    return foldUnionTypes(node.types, m => substRecurse(m, typeParamMap, scope, depth, seen));
+  }
+  function substIntersectionAsType(node, typeParamMap, scope, depth, seen) {
+    return foldIntersectionTypes(node.types, m => substRecurse(m, typeParamMap, scope, depth, seen));
+  }
+
+  // function-types collapse to a plain Function regardless of typeparams - shared handler
+  const substFunctionTypeAsType = () => new $Object('Function');
+
+  // dispatch table: AST shape → Type-object construction. parallels `applyAliasSubstDeepInner`'s
+  // `SUBST_DISPATCH` (AST→AST) - structural symmetry over the same node-type set, different
+  // output domain (Type Object vs AST). cannot unify via shared walker - each handler builds
+  // a fundamentally different result (Type construction vs AST reconstruction)
+  const SUBST_TYPE_DISPATCH = {
+    TSTypeReference: substTypeRefAsType,
+    GenericTypeAnnotation: substTypeRefAsType,
+    TSUnionType: substUnionAsType,
+    UnionTypeAnnotation: substUnionAsType,
+    TSIntersectionType: substIntersectionAsType,
+    IntersectionTypeAnnotation: substIntersectionAsType,
+    TSOptionalType: substTransparentWrapperAsType,
+    TSParenthesizedType: substTransparentWrapperAsType,
+    NullableTypeAnnotation: substTransparentWrapperAsType,
+    TSTypeOperator: substTypeOperatorAsType,
+    TSConditionalType: evaluateConditionalType,
+    TSArrayType: substArrayAsType,
+    ArrayTypeAnnotation: substArrayAsType,
+    TSTupleType: substTupleAsType,
+    TupleTypeAnnotation: substTupleAsType,
+    TSIndexedAccessType: resolveIndexedAccessSubst,
+    TSFunctionType: substFunctionTypeAsType,
+    TSConstructorType: substFunctionTypeAsType,
+    FunctionTypeAnnotation: substFunctionTypeAsType,
+    TSMappedType: substMappedAsType,
+  };
+
   function substituteTypeParams(node, typeParamMap, scope, depth, seen) {
     if (depth > MAX_DEPTH) return null;
     if (!typeParamMap) return resolveTypeAnnotation(node, scope, depth);
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
-    // direct type parameter reference or known type with substituted inner
-    if (node.type === 'TSTypeReference' || node.type === 'GenericTypeAnnotation') {
-      const name = typeRefName(node);
-      if (name && typeParamMap.has(name)) return typeParamMap.get(name);
-      if (name) {
-        // substitute type params in container inner types: Array<T>, Promise<T>, etc.
-        const ctor = resolveKnownConstructor(name);
-        const known = resolveKnownContainerType(name, ctor, node,
-          p => substituteTypeParams(p, typeParamMap, scope, depth + 1, seen));
-        if (known) return known;
-        // user-defined type alias / interface: propagate type parameter substitutions.
-        // resolveNamedType also sees the map so utility types (`Awaited<T>`, `NonNullable<T>`,
-        // `Extract<T,U>`, etc.) resolve their args against the caller's T/U binding
-        return resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen)
-          ?? resolveNamedType(name, node, scope, depth, typeParamMap, seen);
-      }
-      return null;
-    }
-    // union: T | null, T | undefined - strip nullable, substitute T
-    if (node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation') {
-      return foldUnionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1, seen));
-    }
-    // intersection: T & { extra: boolean } - skip plain $Object('Object') from type literals, rest must agree
-    if (node.type === 'TSIntersectionType' || node.type === 'IntersectionTypeAnnotation') {
-      return foldIntersectionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1, seen));
-    }
-    // transparent wrappers: (T), T?, readonly T[], etc.
-    if (node.type === 'TSOptionalType' || node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation'
-      || (node.type === 'TSTypeOperator' && node.operator !== 'keyof')) {
-      return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1, seen);
-    }
-    // conditional type `T extends U ? X : Y` - delegated to evaluateConditionalType which
-    // dispatches across the `infer` short-circuit, structural pick (true/false branch),
-    // and the widened branch fold. structural pick mirrors TS's non-`infer` evaluation:
-    //   `string[] extends string[]` -> true-branch (`T extends U[] ? U : T`)
-    //   `number[] extends string[]` -> false-branch (same outer, disjoint inners)
-    //   `number extends string`     -> false-branch (different primitives)
-    if (node.type === 'TSConditionalType') {
-      return evaluateConditionalType(node, typeParamMap, scope, depth, seen);
-    }
-    // T[] -> Array with substituted element type
-    if (node.type === 'TSArrayType' || node.type === 'ArrayTypeAnnotation') {
-      const inner = substituteTypeParams(node.elementType, typeParamMap, scope, depth + 1, seen);
-      return new $Object('Array', inner && !isNullableOrNever(inner) ? inner : null);
-    }
-    // [T, U] - resolve to Array, compute inner type if all elements agree
-    if (node.type === 'TSTupleType' || node.type === 'TupleTypeAnnotation') {
-      return tupleAsArrayType(node, e => substituteTypeParams(e, typeParamMap, scope, depth + 1, seen));
-    }
-    // T["key"] or T[number] - resolve indexed access, substituting type params in the object type
-    if (node.type === 'TSIndexedAccessType') {
-      return resolveIndexedAccessSubst(node, typeParamMap, scope, depth);
-    }
-    // function type: (x: T) => R / new () => T - always Function regardless of type parameters
-    if (node.type === 'TSFunctionType' || node.type === 'TSConstructorType'
-      || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
-    // mapped type: { [K in keyof T]: V } - structural, can't derive concrete type
-    if (node.type === 'TSMappedType') {
-      const passthrough = unwrapMappedTypePassthrough(node);
-      // passthrough body references the mapped-over type param by name; delegate back to
-      // substituteTypeParams so `{T->string[]}` subst survives into `T`-ref inside the body.
-      // using resolveTypeAnnotation here would drop the map and collapse precise Array
-      // receiver types to generic `$Object(null)` via `Copy<string[]>.at(...)` chains
-      if (passthrough) return substituteTypeParams(passthrough, typeParamMap, scope, depth + 1, seen);
-      return new $Object(null);
-    }
-    // fallback to regular annotation resolution
-    return resolveTypeAnnotation(node, scope, depth);
+    const handler = SUBST_TYPE_DISPATCH[node.type];
+    return handler ? handler(node, typeParamMap, scope, depth, seen) : resolveTypeAnnotation(node, scope, depth);
   }
 
   // resolve return type of a function, inferring generic type parameters from call-site arguments
