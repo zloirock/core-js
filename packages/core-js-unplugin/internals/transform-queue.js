@@ -459,7 +459,12 @@ export default class TransformQueue {
     const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
       { groupId, role: 'prefix', logicalEnd: end });
     // suffix carries the same groupId + the prefix entry reference for compose-time
-    // logical-inner assembly. no guardedRoot/hint - composition queries land on prefix
+    // logical-inner assembly. no guardedRoot/hint - composition queries land on prefix.
+    // WARNING: prefix.splitInfo.peer <-> suffix.splitInfo.peer form a cyclic reference -
+    // `JSON.stringify(entry)` on either side throws on the cycle. transforms are not
+    // serialized in the current pipeline (no JSON.stringify call sites against entries),
+    // so the cycle is benign here; if a future debug / snapshot pathway needs serialization
+    // it must walk via `groupId` lookup instead of dereferencing `.peer`
     const suffixEntry = this.add(mid, end, suffixContent, null, null,
       { groupId, role: 'suffix', logicalEnd: end, peer: prefixEntry });
     prefixEntry.splitInfo.peer = suffixEntry;
@@ -536,8 +541,34 @@ export default class TransformQueue {
   // overwrites at the byte right after `{` AND scope-tracker inserts `var _ref, _ref2, _ref3;`
   // at that same byte; pre-fix the var decl was lost, yielding ReferenceError in strict mode
   apply() {
+    // defensive invariant: inserts MUST NOT land strictly inside any overwrite range -
+    // MagicString anchors `appendRight` to chunk identity; an insert pos that falls inside
+    // a chunk later replaced by `overwrite` is folded into the discarded pre-edit intro
+    // and silently lost (caller bug; manifests as missing-output without a thrown error).
+    // assert at the gate so the source of the bug is the insert call, not a vague absent-
+    // var-decl symptom downstream. `pos === start` and `pos === end` are legitimate boundary
+    // anchors (insert immediately before/after an overwrite chunk) - only strictly-inside is
+    // the violation
+    if (this.#inserts.size && this.#transforms.size) this.#assertNoInsertInsideOverwrite();
     this.#applyOverwrites();
     for (const { pos, content } of this.#inserts) this.#ms.appendRight(pos, content);
+  }
+
+  #assertNoInsertInsideOverwrite() {
+    const ranges = [...this.#transforms].map(t => [t.start, t.end]).sort((a, b) => a[0] - b[0]);
+    for (const { pos } of this.#inserts) {
+      // binary search: largest range whose start <= pos
+      let lo = 0;
+      let hi = ranges.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (ranges[mid][0] <= pos) lo = mid + 1; else hi = mid;
+      }
+      if (lo > 0 && pos > ranges[lo - 1][0] && pos < ranges[lo - 1][1]) {
+        const [start, end] = ranges[lo - 1];
+        throw new RangeError(`[core-js] transform-queue: insert at ${ pos } lands inside overwrite [${ start },${ end })`);
+      }
+    }
   }
 
   #applyOverwrites() {
