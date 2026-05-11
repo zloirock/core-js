@@ -919,6 +919,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const next = list.map(el => applyAliasSubstDeep(el, subst, depth + 1, visited));
     return next.every((el, i) => el === list[i]) ? node : { ...node, [slot]: next };
   }
+  // substList variant for tuple AST (TS uses `elementTypes`, Flow uses `types`) - probes
+  // the right slot via `tupleElements` / `rebuildTupleElements` so the substitution path
+  // doesn't duplicate the dialect dispatch
+  function substTupleAlist(node, subst, depth, visited) {
+    const elements = tupleElements(node);
+    if (!elements?.length) return node;
+    const next = elements.map(e => applyAliasSubstDeep(e, subst, depth + 1, visited));
+    if (next.every((e, i) => e === elements[i])) return node;
+    return rebuildTupleElements(node, (_, i) => next[i]);
+  }
   // rebuild a reference-shape node with substituted typeArguments. `base` is the spread base;
   // when `base === node` (no substitute swap happened), preserves identity if all args
   // resolve to themselves so caller sees `===` against the input
@@ -1033,8 +1043,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'NullableTypeAnnotation': return substSlot(node, 'typeAnnotation', subst, depth, visited);
       case 'TSArrayType':
       case 'ArrayTypeAnnotation': return substSlot(node, 'elementType', subst, depth, visited);
-      case 'TSTupleType': return substList(node, 'elementTypes', subst, depth, visited);
-      case 'TupleTypeAnnotation':
+      // tuple slot dichotomy (TS: elementTypes; Flow: types) routed through shared
+      // `substTupleAlist` helper instead of duplicating substList with two slot names
+      case 'TSTupleType':
+      case 'TupleTypeAnnotation': return substTupleAlist(node, subst, depth, visited);
       case 'TSUnionType':
       case 'UnionTypeAnnotation':
       case 'TSIntersectionType':
@@ -6344,14 +6356,23 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return result;
   }
 
+  // single-step probe: if `node` is a Promise / PromiseLike / Thenable type-reference,
+  // return its first type-argument annotation; null otherwise. shape-only, no recursion.
+  // shared between `getPromiseInnerAnnotation` (callers want one layer for distribute)
+  // and `unwrapPromiseAnnotation` (callers loop for full unwrap). without this helper
+  // both call sites duplicate the TSTypeReference + isPromiseRefName + getTypeArgs probe
+  function promiseRefInner(node) {
+    if (node?.type !== 'TSTypeReference' && node?.type !== 'GenericTypeAnnotation') return null;
+    if (!isPromiseRefName(typeRefName(node))) return null;
+    return getTypeArgs(node)?.params?.[0] ?? null;
+  }
+
   // peel a Promise / PromiseLike / Thenable type-reference annotation, returning the
   // inner type-argument annotation (`Promise<X>` -> X) or null when the node isn't a
   // recognisable Promise reference. operates on the AST so callers can distribute over
   // syntactic shape (unions, type aliases) before resolved-type fold loses information
   function getPromiseInnerAnnotation(node) {
-    const refName = typeRefName(node);
-    if (!refName || !isPromiseRefName(refName)) return null;
-    return getTypeArgs(node)?.params?.[0] ?? null;
+    return promiseRefInner(node);
   }
 
   // `Awaited<T>` semantics mirror TS's distributive recursive conditional:
@@ -7247,10 +7268,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // need parallel peel so `for await (const x of asyncIter<PromiseLike<T>>)` reaches T
   function unwrapPromiseAnnotation(node) {
     let result = unwrapTypeAnnotation(node);
-    while (result?.type === 'TSTypeReference' || result?.type === 'GenericTypeAnnotation') {
-      const name = typeRefName(result);
-      if (!isPromiseRefName(name)) break;
-      const inner = getTypeArgs(result)?.params[0];
+    while (true) {
+      const inner = promiseRefInner(result);
       if (!inner) break;
       const unwrapped = unwrapTypeAnnotation(inner);
       if (!unwrapped) break;
@@ -8395,6 +8414,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     NodeList: 'domcollection',
   });
 
+  // hint = string key used for built-in-definitions lookup ('array', 'string', 'function',
+  // 'iterator', 'domcollection', ...). NOT inverse of `typeFromHint`: case-collapses
+  // (`$Object('Array')` -> 'array'), DOM-collection family collapses to single hint, and
+  // primitive `unknown` returns null. round-trip via `typeFromHint('array')` produces
+  // `$Object('array')` (lowercase) which breaks KNOWN_*_RETURN_TYPES lookups keyed on
+  // capitalized constructor names. callers must use the original Type object when
+  // round-tripping precision matters - hint is for one-way dispatch routing only
   function toHint(type) {
     if (!type) return null;
     if (type.primitive) return type.type === 'unknown' ? null : type.type;
