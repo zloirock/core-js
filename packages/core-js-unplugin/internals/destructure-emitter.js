@@ -505,7 +505,13 @@ export function createDestructureEmitter({
     if (value?.type !== 'ObjectPattern') return { preservedSrc: nodeSrc(outerProp) };
     const newPath = [...path, outerProp.key.name];
     const constructor = walkStaticReceiverChain(hostInit, newPath, scope, estreeAdapter);
-    if (constructor) {
+    // proxy-global hop (`{root: {Array: {from}}} = {root: globalThis}`): walkStaticReceiverChain
+    // resolves the first segment to `globalThis` / `self` / `window` — that's a proxy-global
+    // intermediate, NOT a constructor. continue descent so the next hop reaches the real
+    // constructor (`Array`) via `walkStaticReceiverStep`'s proxy-global mid-chain lift.
+    // without this gate, planInnerProp would fire with `object: 'globalThis'` and resolvePure
+    // bails, leaving the leaf `from` unpolyfilled
+    if (constructor && !POSSIBLE_GLOBAL_OBJECTS.has(constructor)) {
       return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
     }
     return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath, scope));
