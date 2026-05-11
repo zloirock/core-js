@@ -5,6 +5,7 @@ import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk
 import {
   asSymbolRef,
   bindingSymbolKey,
+  enterIdentifierBindingFollow,
   findProxyGlobal,
   inlineCallHasObservableEffects,
   isStaticPlacement,
@@ -138,21 +139,14 @@ function isSymbolSourcedKey(node, scope, adapter, seen, path, depth = 0) {
     }
     return true;
   }
-  if (type !== 'Identifier' || seen?.has(node.name)) return false;
-  // fork `seen` (don't mutate caller's Set) for consistency with the resolveKey-style pattern.
-  // guards against accidental cross-site pollution if the caller walks sibling branches
-  // after returning from this function
-  const nextSeen = new Set(seen);
-  nextSeen.add(node.name);
-  const binding = adapter.getBinding(scope, node.name);
-  if (!binding || binding.constantViolations?.length) return false;
-  // binding indirection - `const k = Symbol.iterator; k in X` resolves through init
-  if (binding.node?.type === 'VariableDeclarator' && binding.node.init) {
-    return isSymbolSourcedKey(binding.node.init, scope, adapter, nextSeen, path, depth + 1);
-  }
-  // plugin-managed: `polyfillHint` (in-place mutation) or real `core-js/.../symbol/X` import
-  // (incl. user-aliased polyfill packages from `additionalPackages`)
-  return bindingSymbolKey(binding, adapter.packages) !== null;
+  if (type !== 'Identifier') return false;
+  const entry = enterIdentifierBindingFollow(node, scope, adapter, seen);
+  if (!entry) return false;
+  // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
+  // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
+  // user-aliased polyfill packages from `additionalPackages`)
+  if (entry.init) return isSymbolSourcedKey(entry.init, scope, adapter, entry.nextSeen, path, depth + 1);
+  return bindingSymbolKey(entry.binding, adapter.packages) !== null;
 }
 
 // Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
