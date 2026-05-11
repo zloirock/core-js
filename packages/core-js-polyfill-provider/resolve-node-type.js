@@ -1712,6 +1712,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `await` / `Awaited<>` unwrap identically; alias them to Promise for type resolution
   const PROMISE_SYNONYMS = new Set(['PromiseLike', 'Thenable']);
 
+  // single-source predicate for "type-ref name unwraps as a Promise per Awaited<> semantics".
+  // shared between every site that needs to recognise Promise / PromiseLike / Thenable
+  // (resolveAwaitedAnnotation, unwrapPromiseAnnotation, getPromiseInnerAnnotation, ...) -
+  // extending the synonym set propagates through one place
+  function isPromiseRefName(name) {
+    return name === 'Promise' || PROMISE_SYNONYMS.has(name);
+  }
+
   // follow superClass for declared parent members. `Identifier` covers both real and ambient
   // (`declare class P {}` + `class C extends P {}`), which behave the same in type position.
   // member-expression super (`extends NS.Base`) resolves through proxy-global walk OR static-
@@ -1965,7 +1973,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const recurse = next => peelAwaitedArgument(next, scope, depth + 1, typeParamMap, seen);
     // distribute Awaited over union / intersection. filter null members - if a member's
     // recursive peel exhausts depth, it returns null; carrying nulls into `.types`
-    // crashes findTypeMember's member-walk. drop nulls so surviving branches still narrow
+    // crashes findTypeMember's member-walk. drop nulls so surviving branches still narrow.
+    // INTENTIONAL DIVERGENCE from `resolveAwaitedAnnotation`'s intersection path: the AST
+    // walker only filters null members; the resolved-type walker (`foldIntersectionTypes`)
+    // additionally drops plain-Object via `commonType`. different output formats justify the
+    // asymmetry - but adding a new intersection-distribution rule MUST update both call sites
     if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation'
         || peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
       const nextTypes = peeled.types.map(recurse).filter(Boolean);
@@ -3221,9 +3233,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // is TS shorthand for `Array<any>` / `Promise<any>` / etc, which structurally match any
   // concrete inner. concrete-shape sites (`[]` empty tuple, `{}` object literal type, etc)
   // resolve to the same inner-less Type object but should NOT match arbitrary inners.
-  // optional `typeParamMap` predicates "unconstrained AFTER subst" - typeparam refs whose
-  // name is in the map substitute to a concrete shape and are NOT unconstrained even
-  // though their raw AST has no typeArguments. omit map for already-substituted AST
+  //
+  // two callsite modes per the three `pickConditionalBranch` consumers:
+  //   - POST-SUBST AST (no map): `findConditionalTypeMember` passes `withSubst(extendsType)`
+  //     which is already substituted; map omitted because residual TypeReferences (failed
+  //     sub-resolution) ARE genuinely unconstrained at this point
+  //   - RAW AST + map: `evaluateConditionalType` / `pickAwaitedConditionalBranch` pass
+  //     `node.extendsType` raw because they substitute via `typeParamMap` rather than
+  //     pre-applying. typeparam refs whose name is in the map substitute to a concrete
+  //     shape and are NOT unconstrained even though their raw AST has no typeArguments
   function isUnconstrainedTypeReference(node, typeParamMap = null) {
     if (!node) return false;
     const target = peelTSParenthesized(node);
@@ -3324,7 +3342,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // slot semantically stores its type parameter - exactly the set of `SINGLE_ELEMENT_COLLECTIONS`
   // plus Promise (and its structural synonyms, which alias to Promise via `resolveNamedType`)
   function isInferContainerName(name) {
-    return SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise' || PROMISE_SYNONYMS.has(name);
+    return SINGLE_ELEMENT_COLLECTIONS.has(name) || isPromiseRefName(name);
   }
 
   // extracts `U` from `(infer U)[]`, `readonly (infer U)[]`, or `Container<infer U>`
@@ -6332,7 +6350,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // syntactic shape (unions, type aliases) before resolved-type fold loses information
   function getPromiseInnerAnnotation(node) {
     const refName = typeRefName(node);
-    if (!refName || (refName !== 'Promise' && !PROMISE_SYNONYMS.has(refName))) return null;
+    if (!refName || !isPromiseRefName(refName)) return null;
     return getTypeArgs(node)?.params?.[0] ?? null;
   }
 
@@ -6343,7 +6361,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   //     `Promise<X> & {tag: 'X'}` peels Promise via the recursion + foldIntersectionTypes
   //     drops the plain Object branch, leaving X. without this, `Awaited<Promise<X> & Y>`
   //     bottoms out via `resolveAnnotationInContext` which folds intersection AFTER both
-  //     branches resolve - Promise<X> survives as a Promise object (not peeled to X)
+  //     branches resolve - Promise<X> survives as a Promise object (not peeled to X).
+  //     INTENTIONAL DIVERGENCE from `peelAwaitedArgument`'s AST intersection path which
+  //     only drops null members: resolved-type fold here additionally drops plain-Object
+  //     via `commonType`. different output formats justify the asymmetry - update both
+  //     sites when adding new intersection-distribution semantics
   //   - `Awaited<C ? T : F>`  -> pick branch when statically decidable, recurse on picked
   //     so Awaited semantics applies post-pick. without this, multi-hop alias chains whose
   //     body is a conditional (`type A<X> = X extends string ? never : Promise<X[]>`) bottom
@@ -7227,7 +7249,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     let result = unwrapTypeAnnotation(node);
     while (result?.type === 'TSTypeReference' || result?.type === 'GenericTypeAnnotation') {
       const name = typeRefName(result);
-      if (name !== 'Promise' && !PROMISE_SYNONYMS.has(name)) break;
+      if (!isPromiseRefName(name)) break;
       const inner = getTypeArgs(result)?.params[0];
       if (!inner) break;
       const unwrapped = unwrapTypeAnnotation(inner);
