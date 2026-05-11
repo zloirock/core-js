@@ -52,6 +52,10 @@ const stringLiteralValue = node => {
 // under parallel transforms (Vite/Rollup/thread-loader)
 export function createBabelAdapter(getInjector = () => null) {
   return {
+    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
+    // detection in `bindingSymbolKey`. null when injector hasn't published packages or
+    // adapter constructed without an injector closure (entry-only detect path)
+    get packages() { return getInjector()?.packages ?? null; },
     hasBinding(scope, name, path = null) {
       // user-declared runtime bindings (var/let/const/function/class/import/TSImportEquals).
       // `getBindingIdentifier` is narrow - `scope.hasBinding` would also fire for free-variable
