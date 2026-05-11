@@ -41,11 +41,15 @@ function peelParens(node) {
   while (node?.type === 'ParenthesizedExpression') node = node.expression;
   return node;
 }
-const isStringLiteral = node => peelParens(node)?.type === 'StringLiteral';
-const stringLiteralValue = node => {
+
+function isStringLiteral(node) {
+  return peelParens(node)?.type === 'StringLiteral';
+}
+
+function stringLiteralValue(node) {
   const inner = peelParens(node);
   return inner?.type === 'StringLiteral' ? inner.value : null;
-};
+}
 
 // factory for a Babel scope adapter bound to a specific plugin-instance injector.
 // the closure over `getInjector` avoids module-level mutable state, which would race
@@ -320,13 +324,16 @@ export function createUsageVisitors({
 
   // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it
   // (`class Map {}; let x: Map = ...` must NOT pull in es.map.constructor)
-  const annotationGlobal = path => name => {
-    // `hasBinding` returns true for free variables via `program.globals` (babel marks `Map`
-    // there as soon as any Identifier visitor reads it, even when no local binds it).
-    // use `getBindingIdentifier` instead - that returns only actual local binders
-    if (path.scope?.getBindingIdentifier(name)) return;
-    onUsage({ kind: 'global', name }, path);
-  };
+  function annotationGlobal(path) {
+    return name => {
+      // `hasBinding` returns true for free variables via `program.globals` (babel marks `Map`
+      // there as soon as any Identifier visitor reads it, even when no local binds it).
+      // use `getBindingIdentifier` instead - that returns only actual local binders
+      if (path.scope?.getBindingIdentifier(name)) return;
+      onUsage({ kind: 'global', name }, path);
+    };
+  }
+
   return {
     ...walkAnnotations ? {
       // babel exposes methods as distinct node types (not MethodDefinition wrappers), so

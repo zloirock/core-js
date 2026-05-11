@@ -157,8 +157,10 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
 // (capturing the variable directly would freeze the undefined slot). caches live on
 // the closure - call once per file
 export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
-  const isClassMember = node => t.isClassMethod(node) || t.isClassPrivateMethod(node)
-    || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
+  function isClassMember(node) {
+    return t.isClassMethod(node) || t.isClassPrivateMethod(node)
+      || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
+  }
 
   // resolve a statically determinable key: Identifier (non-computed), StringLiteral, TemplateLiteral
   function staticKeyName(key, computed) {
@@ -181,10 +183,12 @@ export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
   // ESTree `MethodDefinition.value = FunctionExpression` wrapper. back-fills visited ancestors
   // so sibling walks in the same subtree are amortized O(1)
   let enclosingCache = new WeakMap();
-  const backfill = (visited, value) => {
+
+  function backfill(visited, value) {
     for (const n of visited) enclosingCache.set(n, value);
     return value;
-  };
+  }
+
   function findEnclosingClassMember(path) {
     const visited = [];
     for (let cur = path.parentPath; cur; cur = cur.parentPath) {
