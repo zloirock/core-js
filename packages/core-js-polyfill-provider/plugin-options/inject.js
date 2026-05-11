@@ -14,7 +14,15 @@ const polyfillOrder = new Map(keys(compatData).map((k, i) => [k, i]));
 // registry hasn't been updated with every future proposal - `Infinity - Infinity = NaN`
 // otherwise poisoned the comparator and left relative order undefined. exposed as a
 // raw comparator so callers that already hold their own array can `.sort` directly
-// without round-tripping through `sortByPolyfillOrder`'s array materialisation
+// without round-tripping through `sortByPolyfillOrder`'s array materialisation.
+//
+// CROSS-PACKAGE CONTRACT: this comparator is imported by both `@core-js/babel-plugin` and
+// `@core-js/unplugin` import-injectors AND by `@core-js/builder`'s debug output. callers
+// rely on the SAME canonical compat-data order so concatenated bundles from mixed plugin
+// stacks (babel-plugin + unplugin in same monorepo) produce byte-identical import-region
+// layouts. version-pin via shared `@core-js/compat` workspace dependency in package.json
+// of all three consumers; do NOT branch the comparator per call site without bumping the
+// peer-version requirement on the shared compat-data sibling
 export function polyfillOrderComparator(a, b) {
   const oa = polyfillOrder.get(a) ?? Infinity;
   const ob = polyfillOrder.get(b) ?? Infinity;
