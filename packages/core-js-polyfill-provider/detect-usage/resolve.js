@@ -90,29 +90,31 @@ export function classifyReceiverSE(receiver, isOptional, sideEffects) {
 // peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
 // outermost assignment (evaluating it covers every nested `=` step in source). used by
 // static-method dispatch to recover the actual constructor identifier from a receiver like
-// `(a = Array)` / `(a = b = Array)` and to re-emit the assignment as a side effect
-// (instance dispatch captures it via the `_ref = (a = Array)` memoize shape, so it doesn't
-// need this). returns null `outer` when the input isn't a chain-assignment shape
+// `(a = Array)` / `(a = b = Array)` and to re-emit the assignment as a side effect.
+// instance dispatch captures it via the `_ref = (a = Array)` memoize shape so doesn't need
+// this. handles nested-with-parens shapes (`(a = (b = Array))`) by alternating paren/assign
+// peel internally - safe regardless of caller's pre-unwrap, robust to babel's
+// `createParenthesizedExpressions: true` option. returns null `outer` when input isn't a
+// chain-assign shape
 export function peelChainAssignment(node) {
-  if (node?.type !== 'AssignmentExpression' || node.operator !== '=') return { value: node, outer: null };
-  let cur = node.right;
-  while (cur?.type === 'AssignmentExpression' && cur.operator === '=') cur = cur.right;
-  return { value: cur, outer: node };
+  const peeled = unwrapParens(node);
+  if (peeled?.type !== 'AssignmentExpression' || peeled.operator !== '=') return { value: peeled, outer: null };
+  let cur = peeled.right;
+  // alternate paren-peel + chain-assign-descend to fixpoint; covers `(a = (b = X))` and
+  // multi-layer paren wraps around inner `=`
+  for (;;) {
+    cur = unwrapParens(cur);
+    if (cur?.type !== 'AssignmentExpression' || cur.operator !== '=') break;
+    cur = cur.right;
+  }
+  return { value: cur, outer: peeled };
 }
 
-// alternating peel `(paren)` + `=` chain to fixpoint. covers nested-with-parens shapes
-// like `(a = (b = Array))` (oxc preserves ParenthesizedExpression around the inner `=`,
-// so flat `peelChainAssignment` exits after one hop) and `((a = Array))` (multiple paren
-// layers around a single chain-assign). single-layer shapes (`(a = Array)`,
-// `(a = b = Array)`) work via a single iteration each
+// back-compat alias: `peelChainAssignment` already does the alternating peel internally,
+// so deep-walking just extracts the value field. preserves the legacy two-function API
+// for external callers
 export function peelChainAssignmentDeep(node) {
-  let cur = node;
-  for (;;) {
-    const peeledParens = unwrapParens(cur);
-    const { value } = peelChainAssignment(peeledParens);
-    if (value === cur) return cur;
-    cur = value;
-  }
+  return peelChainAssignment(node).value;
 }
 
 // walk a receiver MemberExpression chain peeling chain-assigns at each `.object` hop.
