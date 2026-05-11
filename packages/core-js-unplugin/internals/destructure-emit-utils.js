@@ -127,5 +127,5 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern) {
   // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
   // succeeds, otherwise destructure-emitter falls through to inline-default
   const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
-  return isExpandedClassifiableReceiver(argReceiver) ? argReceiver : null;
+  return isExpandedClassifiableReceiver({ node: argReceiver }) ? argReceiver : null;
 }
