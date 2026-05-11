@@ -144,7 +144,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const rootName = cur && typeRefName(cur);
     const mapped = rootName && typeParamMap.has(rootName);
     if (mapped) {
-      const direct = resolveIndexAccessHit(rootName, indexNodes, typeParamMap, scope, depth);
+      const direct = resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth });
       if (direct !== null) return direct;
     }
     return resolveTypeAnnotation(node, scope, depth);
@@ -153,7 +153,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // single resolution attempt against a known-mapped typeparam: T[number] inner,
   // argPath descent through literal keys, single-step constraint fallback. returns null
   // on miss so caller can fall through to plain resolveTypeAnnotation
-  function resolveIndexAccessHit(rootName, indexNodes, typeParamMap, scope, depth) {
+  function resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth }) {
     if (indexNodes.length === 1 && indexNodes[0]?.type === 'TSNumberKeyword') {
       const inner = resolveInnerType(typeParamMap.get(rootName));
       if (inner) return inner;
@@ -314,7 +314,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `firstMatch=false` collects ALL matches across the scope chain (used for multi-overload
   // disambiguation - e.g. `isStr(x: number): boolean; isStr(x): asserts x is string;` where
   // only one sibling carries the predicate of interest)
-  function walkAmbientDeclarationPath(name, scope, matchType, firstMatch = true) {
+  function walkAmbientDeclarationPath({ name, scope, matchType, firstMatch = true }) {
     const out = firstMatch ? null : [];
     for (let cur = scope; cur; cur = cur.parent) {
       // Program / BlockStatement / TSModuleBlock - `path.get('body')` already returns the
@@ -353,7 +353,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!scope) return null;
     const byName = getOrInitMap(getOrInitMap(ambientDeclCache, scope), matchType);
     if (byName.has(name)) return byName.get(name);
-    const result = walkAmbientDeclarationPath(name, scope, matchType);
+    const result = walkAmbientDeclarationPath({ name, scope, matchType });
     byName.set(name, result);
     return result;
   }
@@ -363,7 +363,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // later sibling carries the asserts/predicate of interest. shape mirrors
   // `findAmbientDeclarationPath` but returns an array (uncached - rare path)
   function findAmbientFunctionPaths(name, scope) {
-    return walkAmbientDeclarationPath(name, scope, isAmbientFunctionNode, false) ?? [];
+    return walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false }) ?? [];
   }
 
   // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass
@@ -601,7 +601,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // only handles `K extends ...` checks; the extends-side must be a literal or a string
     // template that we can pattern-match against the concrete key
     if (template.type === 'TSConditionalType') {
-      const matched = matchesConditionalPattern(template.checkType, template.extendsType, paramName, keyValue);
+      const matched = matchesConditionalPattern({
+        checkType: template.checkType, extendsType: template.extendsType, paramName, keyValue,
+      });
       if (matched === true) return evalRenameTemplate(template.trueType, paramName, keyValue);
       if (matched === false) return evalRenameTemplate(template.falseType, paramName, keyValue);
       return null;
@@ -617,7 +619,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `K extends `${...}` ? ... : ...` - pattern-match keyValue against the template literal.
   // `K extends 'a' | 'b' ? ... : ...` - any-branch match.
   // returns null when the pattern can't be statically decided (caller bails)
-  function matchesConditionalPattern(checkType, extendsType, paramName, keyValue) {
+  function matchesConditionalPattern({ checkType, extendsType, paramName, keyValue }) {
     if (checkType?.type !== 'TSTypeReference' || checkType.typeName?.name !== paramName) return null;
     if (extendsType?.type === 'TSAnyKeyword' || extendsType?.type === 'TSUnknownKeyword') return true;
     if (extendsType?.type === 'TSStringKeyword') return typeof keyValue === 'string';
@@ -634,7 +636,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (extendsType?.type === 'TSUnionType') {
       let result = false;
       for (const branch of extendsType.types) {
-        const m = matchesConditionalPattern(checkType, branch, paramName, keyValue);
+        const m = matchesConditionalPattern({ checkType, extendsType: branch, paramName, keyValue });
         if (m === true) return true;
         if (m === null) result = null;
       }
@@ -715,7 +717,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   //                        expansion: decidable keys still narrow, undecidable fall through
   //                        to generic dispatch. safe upper bound - never includes a key that
   //                        user-rename would exclude
-  function buildMappedMember(node, paramName, keyName, substValue, body) {
+  function buildMappedMember({ node, paramName, keyName, substValue, body }) {
     const renamed = node.nameType ? evalRenameTemplate(node.nameType, paramName, keyName) : keyName;
     if (renamed === RENAME_SKIP || typeof renamed !== 'string') return null;
     const subst = new Map([[paramName, substValue]]);
@@ -727,7 +729,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     };
   }
 
-  function expandMappedTypeMembers(node, scope, depth, visited) {
+  function expandMappedTypeMembers({ node, scope, depth, visited }) {
     if (!node.typeAnnotation) return null;
     const shape = parseMappedTypeShape(node);
     if (!shape) return null;
@@ -741,7 +743,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const literals = sourceType.type === 'TSLiteralType' ? [sourceType] : sourceType.types;
       for (const lit of literals) {
         const keyName = String(literalKeyValue(lit.literal));
-        const member = buildMappedMember(node, shape.paramName, keyName, lit, body);
+        const member = buildMappedMember({ node, paramName: shape.paramName, keyName, substValue: lit, body });
         if (member) out.push(member);
       }
       return out;
@@ -749,7 +751,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // `keyof T` constraint: enumerate T's members, synth literal-type for each key name
     const sourceType = unwrapTypeAnnotation(shape.source);
     if (!sourceType) return null;
-    const sourceMembers = getTypeMembers(sourceType, scope, depth + 1, visited);
+    const sourceMembers = getTypeMembers({ objectType: sourceType, scope, depth: depth + 1, visited });
     if (!sourceMembers) return null;
     for (const m of sourceMembers) {
       // computed (Symbol-keyed / dynamic-key) members are EXCLUDED from `keyof T` per TS
@@ -763,7 +765,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // mapped expansion and shouldn't sink the rest of the result with them
       if (keyName === null) return null;
       if (keyName.startsWith('#')) continue;
-      const member = buildMappedMember(node, shape.paramName, keyName, literalTypeFromKeyName(keyName), body);
+      const member = buildMappedMember({
+        node, paramName: shape.paramName, keyName, substValue: literalTypeFromKeyName(keyName), body,
+      });
       if (member) out.push(member);
     }
     return out;
@@ -1028,7 +1032,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!node.members) return node;
     let changed = false;
     const members = node.members.map(m => {
-      const next = substMemberAnnotations(m, subst, depth + 1, visited);
+      const next = substMemberAnnotations({ member: m, subst, depth: depth + 1, visited });
       if (next !== m) changed = true;
       return next;
     });
@@ -1199,7 +1203,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // class members aren't ObjectProperties, dispatch through the class-aware resolver.
       // single-level only (`typeof K.x.y` would need recursive class-member-init descent)
       if (t.isClass(resolved.node) && memberPath.length === 1) {
-        const result = resolveClassMember(resolved, memberPath[0], true);
+        const result = resolveClassMember({ classPath: resolved, name: memberPath[0], isStatic: true });
         if (result) return result;
       }
       // ObjectExpression / ArrayExpression chain - shared `resolveObjectMemberPath`
@@ -1321,7 +1325,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `leafMatch` is the predicate the LEAF declaration must satisfy - defaults to type-bearing
   // (alias / interface / class / enum) for findTypeDeclaration; typeof-name resolution swaps
   // in `isFunctionOrClassDeclaration` to also surface `declare function fn` inside a namespace
-  function walkStatementsForDecl(segments, statements, collect, leafMatch = isTypeBearingDeclaration) {
+  function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration }) {
     if (!Array.isArray(statements) || !segments.length) return null;
     const [head, ...rest] = segments;
     for (const statement of statements) {
@@ -1337,12 +1341,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (!moduleSegs) continue;
       // bare name: descend into every namespace; dotted: namespace must prefix segments
       if (rest.length === 0) {
-        const inner = walkStatementsForDecl(segments, moduleStatements(decl), collect, leafMatch);
+        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch });
         if (inner && !collect) return inner;
         continue;
       }
       if (!startsWithSegments(segments, moduleSegs)) continue;
-      const inner = walkStatementsForDecl(segments.slice(moduleSegs.length), moduleStatements(decl), collect, leafMatch);
+      const inner = walkStatementsForDecl({
+        segments: segments.slice(moduleSegs.length), statements: moduleStatements(decl), collect, leafMatch,
+      });
       if (inner && !collect) return inner;
     }
     return null;
@@ -1351,7 +1357,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // walk scope chain; `collect=null` returns first hit, `collect=[]` collects siblings
   // at the first containing scope (interface merging only - others don't merge).
   // `leafMatch` threads through to `walkStatementsForDecl`; see there for the contract
-  function walkScopesForDecl(name, scope, collect, leafMatch = isTypeBearingDeclaration) {
+  function walkScopesForDecl({ name, scope, collect, leafMatch = isTypeBearingDeclaration }) {
     if (!scope) return null;
     const segments = typeof name === 'string' ? name.split('.') : name;
     for (let cur = scope; cur; cur = cur.parent) {
@@ -1359,7 +1365,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (!block) continue;
       const body = block.type === 'Program' ? block.body : block.body?.body;
       const before = collect?.length;
-      const result = walkStatementsForDecl(segments, body, collect, leafMatch);
+      const result = walkStatementsForDecl({ segments, statements: body, collect, leafMatch });
       if (!collect && result) return result;
       if (collect && collect.length > before) return null;
     }
@@ -1374,7 +1380,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // separate scopes for TSModuleDeclaration anyway, so type names referenced in the
   // function's signature resolve through the same outer scope chain
   function findNamespacedFunctionPath(segments, scope) {
-    const node = scope && walkScopesForDecl(segments, scope, null, isFunctionOrClassDeclaration);
+    const node = scope && walkScopesForDecl({ name: segments, scope, collect: null, leafMatch: isFunctionOrClassDeclaration });
     return node ? { node, scope } : null;
   }
 
@@ -1384,10 +1390,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function findTypeDeclaration(name, scope) {
     if (!scope) return null;
     const key = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : null;
-    if (key === null) return walkScopesForDecl(name, scope, null);
+    if (key === null) return walkScopesForDecl({ name, scope, collect: null });
     const byName = getOrInitMap(typeDeclCache, scope);
     if (byName.has(key)) return byName.get(key);
-    const decl = walkScopesForDecl(name, scope, null);
+    const decl = walkScopesForDecl({ name, scope, collect: null });
     byName.set(key, decl);
     return decl;
   }
@@ -1404,7 +1410,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // all `interface X {}` siblings at the first scope level that contains one
   function findAllTypeDeclarations(name, scope) {
     const collected = [];
-    walkScopesForDecl(name, scope, collected);
+    walkScopesForDecl({ name, scope, collect: collected });
     return collected;
   }
 
@@ -1448,7 +1454,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   //      capture guard - nested decl's `T` is its own scope per TS spec)
   // when nothing was substituted AND no name collides, return typeParamMap as-is so
   // caller's identity preserves for downstream memoize keys
-  function resolveTypeArgs(decl, node, typeParamMap, scope, depth, seen) {
+  function resolveTypeArgs({ decl, node, typeParamMap, scope, depth, seen }) {
     const declParams = decl.typeParameters?.params;
     if (!declParams?.length) return typeParamMap;
     const callArgs = getTypeArgs(node)?.params;
@@ -1511,13 +1517,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   //     array-form path to locate the parent interface, recurse with its declaration scope
   // without the qualified branch, namespace extends bails to Object hint and member
   // dispatch loses the parent's structural members
-  function resolveInterfaceExtendsParent(parent, scope, resolve, depth, typeParamMap, visited) {
+  function resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }) {
     const base = extendsId(parent);
     if (!base) return null;
     if (base.type === 'Identifier') {
       const constructor = resolveKnownConstructor(base.name);
-      return resolveKnownContainerType(base.name, constructor, parent, resolve)
-        || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap, visited);
+      return resolveKnownContainerType({ name: base.name, base: constructor, node: parent, innerResolver: resolve })
+        || resolveUserDefinedType({ name: base.name, node: parent, scope, depth: depth + 1, typeParamMap, seen: visited });
     }
     const segments = collectQualifiedSegments(base);
     if (!segments) return null;
@@ -1526,11 +1532,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // sibling-scope declaration sharing the same short name
     const parentDecl = findTypeDeclaration(segments, scope);
     if (!parentDecl || !isInterfaceDeclaration(parentDecl)) return null;
-    return resolveUserDefinedType(segments, parent, parentDecl.scope ?? scope,
-      depth + 1, typeParamMap, visited);
+    return resolveUserDefinedType({
+      name: segments, node: parent, scope: parentDecl.scope ?? scope, depth: depth + 1, typeParamMap, seen: visited,
+    });
   }
 
-  function resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen) {
+  function resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen }) {
     if (depth > MAX_DEPTH) return null;
     // type parameters shadow type declarations with the same name.
     // fall back to `default` FIRST (what TS binds without inference arguments), then
@@ -1561,7 +1568,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     const visited = seen ?? new Set();
     visited.add(declaration);
-    typeParamMap = resolveTypeArgs(declaration, node, typeParamMap, scope, depth, visited);
+    typeParamMap = resolveTypeArgs({ decl: declaration, node, typeParamMap, scope, depth, seen: visited });
     // thread `visited` into the body-resolution closure so self-recursive aliases
     // (`type Rec<T> = Rec<T[]>`) hit the decl-set guard on re-entry instead of
     // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn
@@ -1575,7 +1582,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (parents?.length) {
         const cycleFlipped = cycleFlipDetector(visited);
         for (const parent of parents) {
-          const result = resolveInterfaceExtendsParent(parent, scope, resolve, depth, typeParamMap, visited);
+          const result = resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited });
           if (result) return result;
         }
         if (cycleFlipped()) return null;
@@ -1596,9 +1603,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         typeParameters: getSuperTypeArgs(declaration),
       };
       const ctor = resolveKnownConstructor(superName);
-      if (ctor) return resolveKnownContainerType(superName, ctor, parentRef, resolve) || ctor;
+      if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
       const cycleFlipped = cycleFlipDetector(visited);
-      const result = resolveUserDefinedType(superName, parentRef, scope, depth + 1, typeParamMap, visited);
+      const result = resolveUserDefinedType({
+        name: superName, node: parentRef, scope, depth: depth + 1, typeParamMap, seen: visited,
+      });
       if (result) return result;
       if (cycleFlipped()) return null;
       return new $Object('Object');
@@ -1635,7 +1644,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // walks don't reset the cycle guard - `applyAliasSubstDeepInner`'s TSTypeLiteral case
   // routes through here to avoid duplicating the slot-iteration pattern
   const MEMBER_ANNOTATION_SLOTS = ['typeAnnotation', 'returnType', 'value'];
-  function substMemberAnnotations(member, subst, depth = 0, visited = null) {
+  function substMemberAnnotations({ member, subst, depth = 0, visited = null }) {
     if (!member || typeof member !== 'object') return member;
     let cloned = null;
     for (const slot of MEMBER_ANNOTATION_SLOTS) {
@@ -1676,7 +1685,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // or members list is null. shared between every collector / resolver that needs per-source
   // substitution (class chain, interface merging, parent extends, type alias body)
   function substMembers(members, subst) {
-    return members && subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
+    return members && subst ? members.map(m => substMemberAnnotations({ member: m, subst })) : members;
   }
 
   // expand `<Wrapper><T, ...>` members for the structure-preserving wrappers set.
@@ -1684,11 +1693,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // key-filtering wrappers (`Pick` / `Omit`) filter T's members when the keys arg is
   // statically-evaluable; non-decidable keys-arg falls back to passthrough (over-emit
   // per §6 accepted - safer to over-resolve member access than under-resolve)
-  function resolveStructureWrapperMembers(wrapperName, objectType, scope, depth, visited) {
+  function resolveStructureWrapperMembers({ wrapperName, objectType, scope, depth, visited }) {
     const args = getTypeArgs(objectType)?.params;
     const arg = args?.[0];
     if (!arg) return null;
-    const innerMembers = getTypeMembers(unwrapTypeAnnotation(arg), scope, depth + 1, visited);
+    const innerMembers = getTypeMembers({ objectType: unwrapTypeAnnotation(arg), scope, depth: depth + 1, visited });
     if (!innerMembers || !KEY_FILTERING_WRAPPERS.has(wrapperName)) return innerMembers;
     const keys = staticKeySet(args[1]);
     if (!keys) return innerMembers;
@@ -1778,10 +1787,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function resolveIndexedAccessMembers(node, scope, depth) {
     const key = indexedAccessKey(node.indexType);
     if (key === null) return null;
-    const member = findTypeMember(node.objectType, key, scope);
+    const member = findTypeMember({ objectType: node.objectType, key, scope });
     if (member) {
       const annotation = unwrapTypeAnnotation(member.typeAnnotation ?? member);
-      return annotation ? getTypeMembers(annotation, scope, depth + 1) : null;
+      return annotation ? getTypeMembers({ objectType: annotation, scope, depth: depth + 1 }) : null;
     }
     // numeric-key tuple fallback: `Parameters<typeof fn>[0].x` - findTypeMember can't see
     // the tuple shape (Parameters is not in STRUCTURE_PRESERVING_WRAPPERS and getTypeMembers
@@ -1790,7 +1799,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const numIndex = typeof key === 'number' ? key : Number(key);
     if (!Number.isInteger(numIndex) || numIndex < 0) return null;
     const element = findTupleElement(node.objectType, numIndex, scope);
-    return element ? getTypeMembers(unwrapTypeAnnotation(element), scope, depth + 1) : null;
+    return element ? getTypeMembers({ objectType: unwrapTypeAnnotation(element), scope, depth: depth + 1 }) : null;
   }
 
   // collect members of an interface declaration (including merged sibling interfaces and
@@ -1798,7 +1807,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // MAX_DEPTH bottoms out via 64-frame CPU-burn. visited Set short-circuits at the second
   // visit - mirrors `resolveTypeAnnotation`'s decl-set guard (type aliases) and
   // `collectClassLikeMembers`'s `seen` Set (class-extends chains)
-  function collectInterfaceMembers(declaration, segments, scope, depth, visited) {
+  function collectInterfaceMembers({ declaration, segments, scope, depth, visited }) {
     const seen = visited ?? new Set();
     if (seen.has(declaration)) return null;
     seen.add(declaration);
@@ -1812,7 +1821,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         // synth wraps both bare-Identifier and qualified-name extends; non-name shapes
         // fall back to raw expr so getTypeMembers's defensive null-on-unknown bails
         const parentRef = synthInterfaceExtendsRef(parent) ?? extendsId(parent);
-        const parentMembers = getTypeMembers(parentRef, scope, depth + 1, seen);
+        const parentMembers = getTypeMembers({ objectType: parentRef, scope, depth: depth + 1, visited: seen });
         if (!parentMembers) continue;
         all.push(...substMembers(parentMembers, buildParentSubst(parentRef, scope)));
       }
@@ -1820,7 +1829,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return all.length ? all : null;
   }
 
-  function getTypeMembers(objectType, scope, depth = 0, visited = undefined) {
+  function getTypeMembers({ objectType, scope, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
@@ -1830,14 +1839,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // `{ [K in keyof T as `_${K}`]: T[K] }` resolves through to the source field type
     if (objectType.type === 'TSMappedType') {
       const passthrough = unwrapMappedTypePassthrough(objectType);
-      if (passthrough) return getTypeMembers(unwrapTypeAnnotation(passthrough), scope, depth + 1, visited);
-      return expandMappedTypeMembers(objectType, scope, depth, visited);
+      if (passthrough) return getTypeMembers({ objectType: unwrapTypeAnnotation(passthrough), scope, depth: depth + 1, visited });
+      return expandMappedTypeMembers({ node: objectType, scope, depth, visited });
     }
     // intersection: collect members from all parts
     if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
       const all = [];
       for (const member of objectType.types) {
-        const members = getTypeMembers(unwrapTypeAnnotation(member), scope, depth + 1, visited);
+        const members = getTypeMembers({ objectType: unwrapTypeAnnotation(member), scope, depth: depth + 1, visited });
         if (members) for (const m of members) all.push(m);
       }
       return all.length ? all : null;
@@ -1849,7 +1858,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // Pick / Omit narrow the member set when their second arg is statically-evaluable
     // (literal / literal-union); otherwise passthrough as over-emit (per §6 accepted)
     if (segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
-      return resolveStructureWrapperMembers(segments[0], objectType, scope, depth, visited);
+      return resolveStructureWrapperMembers({ wrapperName: segments[0], objectType, scope, depth, visited });
     }
     // `Record<K, V>` - every member access returns V. emit a synthetic index signature so
     // findTypeMember's TSIndexSignature fallback picks it up for any key
@@ -1873,7 +1882,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
         if (!ret) return null;
         const target = applySubst(ret, subst);
-        return getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1, visited);
+        return getTypeMembers({ objectType: unwrapTypeAnnotation(target), scope, depth: depth + 1, visited });
       }
       if (arg.type !== 'TSTypeQuery') return null;
       const resolved = resolveTypeQueryBinding(arg, scope);
@@ -1888,7 +1897,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // recursive InstanceType branch). InstanceType's synthesized class reference has no
       // type-param to substitute - subst is a no-op there
       const subst = buildCallSiteSubst(resolved.node, arg);
-      return getTypeMembers(applySubst(target, subst), scope, depth + 1, visited);
+      return getTypeMembers({ objectType: applySubst(target, subst), scope, depth: depth + 1, visited });
     }
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
@@ -1903,17 +1912,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const receiverArgs = getTypeArgs(objectType)?.params;
     if (isInterfaceDeclaration(declaration)) {
       const subst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
-      return substMembers(collectInterfaceMembers(declaration, segments, scope, depth, visited), subst);
+      return substMembers(collectInterfaceMembers({ declaration, segments, scope, depth, visited }), subst);
     }
     if (isClassLikeDeclaration(declaration)) {
-      return collectClassLikeMembers(declaration, segments, scope, depth, receiverArgs);
+      return collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs });
     }
     if (isTypeAlias(declaration)) {
       // substitute the alias's type params into member annotations so
       // `type Dict<V> = { [k: string]: V }` + `Dict<number[]>[string]` resolves V to number[]
       const subst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
       return substMembers(
-        getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1, visited),
+        getTypeMembers({ objectType: unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth: depth + 1, visited }),
         subst,
       );
     }
@@ -1927,7 +1936,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // type-param names against the same args - lets renamed params on the interface side
   // (`class C<T>` + `interface C<U>`) substitute correctly. members are returned already
   // substituted so callers must NOT apply an outer subst on top
-  function collectClassLikeMembers(declaration, segments, scope, depth, receiverArgs) {
+  function collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs }) {
     // walk superClass chain with per-class subst derivation: each parent's typeParameters
     // get bound from the current class's `extends Parent<...>` type-args (with the current
     // subst already applied). mirrors `appendInterfaceExtendsMembers` for class chains, so
@@ -1955,7 +1964,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
       const ifaceBody = iface.body?.body ?? iface.body?.properties ?? [];
       merged.push(...substMembers(ifaceBody, ifaceSubst));
-      appendInterfaceExtendsMembers(iface, scope, depth, merged, ifaceSubst);
+      appendInterfaceExtendsMembers({ iface, scope, depth, out: merged, ifaceSubst });
     }
     return merged.length ? merged : null;
   }
@@ -1965,7 +1974,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // (when present) is applied to parentRef's args first, so `extends Base<U>` with
   // iface `U -> string` becomes `Base<string>` before descending - parent subst then
   // sees the substituted slot
-  function appendInterfaceExtendsMembers(iface, scope, depth, out, ifaceSubst) {
+  function appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst }) {
     for (const parent of iface.extends ?? []) {
       // synthInterfaceExtendsRef builds a TSTypeReference wrapping parent's id + args
       // for both bare Identifier and qualified-name shapes; raw `expr` lacks args
@@ -1973,7 +1982,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const parentRef = synthInterfaceExtendsRef(parent);
       if (!parentRef) continue;
       const expanded = ifaceSubst ? applySubstToTypeRefArgs(parentRef, ifaceSubst) : parentRef;
-      const parentMembers = getTypeMembers(expanded, scope, depth + 1);
+      const parentMembers = getTypeMembers({ objectType: expanded, scope, depth: depth + 1 });
       if (!parentMembers) continue;
       out.push(...substMembers(parentMembers, buildParentSubst(expanded, scope)));
     }
@@ -2009,10 +2018,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // extends with the caller's substitution context - dropping them caused inferable branches
   // (`Awaited<Cond<T>>` where Cond's body conditionals reference parent T) to bail to the
   // AST-as-is fallback, and findTypeMember's later AST-only pick missed concrete narrowing
-  function peelAwaitedArgument(arg, scope, depth, typeParamMap, seen) {
+  function peelAwaitedArgument({ arg, scope, depth, typeParamMap, seen }) {
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
-    const recurse = next => peelAwaitedArgument(next, scope, depth + 1, typeParamMap, seen);
+    const recurse = next => peelAwaitedArgument({ arg: next, scope, depth: depth + 1, typeParamMap, seen });
     // distribute Awaited over union / intersection. filter null members - if a member's
     // recursive peel exhausts depth, it returns null; carrying nulls into `.types`
     // crashes findTypeMember's member-walk. drop nulls so surviving branches still narrow.
@@ -2030,7 +2039,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // TSRestType wrappers without dropping their structure so downstream findTupleElement
     // still sees the tuple shape with the awaited inner types
     if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
-      return rebuildTupleElements(peeled, el => peelAwaitedTupleElement(el, scope, depth, typeParamMap, seen));
+      return rebuildTupleElements(peeled, el => peelAwaitedTupleElement({ element: el, scope, depth, typeParamMap, seen }));
     }
     // nested `Awaited<Awaited<X>>` - inner Awaited reaches here as a TSTypeReference whose
     // name fails Promise / wrapper / alias-chain checks. peel once so recursion sees the
@@ -2045,7 +2054,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // its own AST-only pick downstream. INTENTIONAL DIVERGENCE: resolveAwaitedAnnotation
     // folds both branches via foldUnionTypes instead since it produces a Type Object output
     if (peeled.type === 'TSConditionalType') {
-      const branch = pickAwaitedConditionalBranch(peeled, scope, depth, typeParamMap, seen);
+      const branch = pickAwaitedConditionalBranch({ node: peeled, scope, depth, typeParamMap, seen });
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return peeled;
     }
@@ -2078,7 +2087,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (peeled?.type !== 'TSIndexedAccessType') return null;
     const key = indexedAccessKey(peeled.indexType);
     if (key === null) return null;
-    const member = findTypeMember(peeled.objectType, key, scope, depth + 1);
+    const member = findTypeMember({ objectType: peeled.objectType, key, scope, depth: depth + 1 });
     const annotation = unwrapTypeAnnotation(member?.typeAnnotation ?? member?.returnType ?? member);
     return annotation && annotation !== peeled ? annotation : null;
   }
@@ -2086,25 +2095,25 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // peel Awaited inside a tuple element preserving TSNamedTupleMember / TSRestType
   // wrappers (`[name: Promise<X>]`, `[...Promise<X>[]]`) - we want the inner type peeled
   // but the labelled / rest structure kept so findTupleElement still recognises the shape
-  function peelAwaitedTupleElement(element, scope, depth, typeParamMap, seen) {
+  function peelAwaitedTupleElement({ element, scope, depth, typeParamMap, seen }) {
     if (element.type === 'TSNamedTupleMember') {
       return {
         ...element,
-        elementType: peelAwaitedTupleElement(element.elementType, scope, depth + 1, typeParamMap, seen),
+        elementType: peelAwaitedTupleElement({ element: element.elementType, scope, depth: depth + 1, typeParamMap, seen }),
       };
     }
     if (element.type === 'TSRestType') {
-      const inner = peelAwaitedArgument(element.typeAnnotation, scope, depth + 1, typeParamMap, seen);
+      const inner = peelAwaitedArgument({ arg: element.typeAnnotation, scope, depth: depth + 1, typeParamMap, seen });
       return { ...element, typeAnnotation: inner };
     }
     // `[A, B?]` form - TSOptionalType wraps the inner annotation. peel into the wrapper
     // so Promise / union / wrapper distribution on the inner type fires; the rest of the
     // tuple-shape stays preserved
     if (element.type === 'TSOptionalType') {
-      const inner = peelAwaitedArgument(element.typeAnnotation, scope, depth + 1, typeParamMap, seen);
+      const inner = peelAwaitedArgument({ arg: element.typeAnnotation, scope, depth: depth + 1, typeParamMap, seen });
       return { ...element, typeAnnotation: inner };
     }
-    return peelAwaitedArgument(element, scope, depth + 1, typeParamMap, seen);
+    return peelAwaitedArgument({ arg: element, scope, depth: depth + 1, typeParamMap, seen });
   }
 
   // `Awaited<X>` wrapper: returns the peeled inner X (with Promise / union / intersection
@@ -2116,7 +2125,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // chase below; the conditional-branch resolved-fallback only fires when AST + alias miss
   function peelAwaitedWrapper(node, scope) {
     const arg = getSingleTypeRefArg(node, n => n === 'Awaited');
-    return arg ? peelAwaitedArgument(arg, scope, 0) : null;
+    return arg ? peelAwaitedArgument({ arg, scope, depth: 0 }) : null;
   }
 
   // unified passthrough detection: structure-preserving wrapper (`Readonly<T>`, `Partial<T>`,
@@ -2159,22 +2168,25 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // keeping the BRANCH INDEX (steps 1-2) and recursing with the AST trueType/falseType is
   // crucial: AST-driven member lookup works for TSTypeLiteral / TSArrayType / etc. shapes
   // where Type Object inputs would silently null
-  function findConditionalTypeMember(aliased, subst, key, scope, depth, withSubst) {
+  function findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst }) {
     const checkSubst = withSubst(aliased.checkType);
     const extendSubst = withSubst(aliased.extendsType);
     // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
     // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
     // typeparam refs that resolved to a concrete shape no longer read as unconstrained
-    const branch = pickConditionalBranchVia(checkSubst, extendSubst,
-      ast => resolveTypeAnnotation(ast, scope, depth + 1),
-      isUnconstrainedTypeReference(extendSubst));
+    const branch = pickConditionalBranchVia({
+      checkAST: checkSubst,
+      extendsAST: extendSubst,
+      resolveOne: ast => resolveTypeAnnotation(ast, scope, depth + 1),
+      isUnconstrained: isUnconstrainedTypeReference(extendSubst),
+    });
     if (branch !== null) {
-      return findTypeMember(withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth + 1);
+      return findTypeMember({ objectType: withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
     }
     const resolved = evaluateConditionalType(applySubst(aliased, subst), null, scope, depth + 1, null);
-    if (resolved) return findTypeMember(resolved, key, scope, depth + 1);
-    const trueResult = findTypeMember(withSubst(aliased.trueType), key, scope, depth + 1);
-    const falseResult = findTypeMember(withSubst(aliased.falseType), key, scope, depth + 1);
+    if (resolved) return findTypeMember({ objectType: resolved, key, scope, depth: depth + 1 });
+    const trueResult = findTypeMember({ objectType: withSubst(aliased.trueType), key, scope, depth: depth + 1 });
+    const falseResult = findTypeMember({ objectType: withSubst(aliased.falseType), key, scope, depth: depth + 1 });
     // strip nullable/never branches symmetric with `resolveConditionalBranches` - otherwise
     // `K extends string ? Foo : never` post-subst can return a synth union carrying the
     // never branch as a member, which would interfere with downstream member dispatch
@@ -2185,7 +2197,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return { type: 'TSUnionType', types: [trueViable, falseViable] };
   }
 
-  function findTypeMember(objectType, key, scope, depth = 0) {
+  function findTypeMember({ objectType, key, scope, depth = 0 }) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
     // union member may itself be a wrapped generic (`Inner<T>` / `T[]`); deep subst
@@ -2201,7 +2213,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const passthrough = unwrapPassthroughWrapper(aliased ?? objectType, scope);
     if (passthrough) {
       const substituted = applySubst(passthrough, subst);
-      return findTypeMember(substituted, key, scope, depth + 1);
+      return findTypeMember({ objectType: substituted, key, scope, depth: depth + 1 });
     }
     const withSubst = node => {
       if (!node) return node;
@@ -2214,9 +2226,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // max-statements lint threshold and the member-lookup-on-conditional path becomes
     // hard to reason about
     if (aliased?.type === 'TSConditionalType') {
-      return findConditionalTypeMember(aliased, subst, key, scope, depth, withSubst);
+      return findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst });
     }
-    const resolveBranch = member => findTypeMember(withSubst(unwrapTypeAnnotation(member)), key, scope, depth + 1);
+    const resolveBranch = member => findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = aliased.types.map(resolveBranch).filter(Boolean);
       if (!found.length) return null;
@@ -2243,7 +2255,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       return element ? applySubst(element, subst) : null;
     }
     // walk through trivial mapped passthroughs / aliases when looking up members
-    const members = getTypeMembers(aliased ?? objectType, scope, depth);
+    const members = getTypeMembers({ objectType: aliased ?? objectType, scope, depth });
     if (!members) return null;
     for (const member of members) {
       switch (member.type) {
@@ -2436,14 +2448,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // resolve a type-arg annotation honoring the caller's generic-substitution map when present,
   // so utility-type params (`Awaited<T>`, `Extract<T,U>`, etc.) and deep union members bind
   // against the caller's T/U instead of collapsing to null on raw parameter refs
-  function resolveAnnotationInContext(node, scope, depth, typeParamMap, seen) {
+  function resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen }) {
     return typeParamMap
       ? substituteTypeParams(node, typeParamMap, scope, depth + 1, seen)
       : resolveTypeAnnotation(node, scope, depth + 1);
   }
 
-  function resolveExtractExclude(first, second, scope, depth, keep, typeParamMap, seen) {
-    const resolve = node => resolveAnnotationInContext(node, scope, depth, typeParamMap, seen);
+  function resolveExtractExclude({ first, second, scope, depth, keep, typeParamMap, seen }) {
+    const resolve = node => resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
     const target = resolve(second);
     if (!target) return null;
     let unwrapped = unwrapTypeAnnotation(first);
@@ -2484,7 +2496,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (t.isObjectMethod(property.node)) return methodFnPath(property);
     }
     if (t.isClass(containerPath.node)) {
-      const found = findClassMember(containerPath, name, true);
+      const found = findClassMember({ classPath: containerPath, name, isStatic: true });
       if (!found) return null;
       const { member } = found;
       if (t.isClassMethod(member.node)) return methodFnPath(member);
@@ -2550,7 +2562,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding));
     if (!annotation) return null;
     for (const name of path) {
-      const member = findTypeMember(annotation, name, binding.scope);
+      const member = findTypeMember({ objectType: annotation, key: name, scope: binding.scope });
       if (!member) return null;
       annotation = unwrapTypeAnnotation(member);
       if (!annotation) return null;
@@ -2591,7 +2603,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return ret ? resolveTypeAnnotation(ret, fnType.scope) : null;
   }
 
-  function resolveKnownContainerType(name, base, node, innerResolver) {
+  function resolveKnownContainerType({ name, base, node, innerResolver }) {
     if (!base) return null;
     if (!SINGLE_ELEMENT_COLLECTIONS.has(name) && name !== 'Promise') return base;
     const params = getTypeArgs(node)?.params;
@@ -2603,14 +2615,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   function resolveConstructorType(name, path) {
-    return resolveKnownContainerType(name, resolveKnownConstructor(name), path.node, p => resolveTypeAnnotation(p, path.scope));
+    return resolveKnownContainerType({
+      name, base: resolveKnownConstructor(name), node: path.node, innerResolver: p => resolveTypeAnnotation(p, path.scope),
+    });
   }
 
   function resolveConstructorCallType(name, path) {
     if (!hasOwn(KNOWN_CONSTRUCTORS, name)) return null;
     const callResult = typeFromHint(KNOWN_CONSTRUCTORS[name].call);
     if (callResult.primitive) return callResult;
-    return resolveKnownContainerType(name, callResult, path.node, p => resolveTypeAnnotation(p, path.scope));
+    return resolveKnownContainerType({ name, base: callResult, node: path.node, innerResolver: p => resolveTypeAnnotation(p, path.scope) });
   }
 
   // TS 5.6+ stdlib base-classes share method tables with their concrete pairs
@@ -2619,13 +2633,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     AsyncIteratorObject: 'AsyncIterator',
   });
 
-  function resolveNamedType(name, node, scope, depth, typeParamMap, seen) {
+  function resolveNamedType({ name, node, scope, depth, typeParamMap, seen }) {
     // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
     if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
     if (hasOwn(CONSTRUCTOR_ALIASES, name)) name = CONSTRUCTOR_ALIASES[name];
-    const resolveArgInner = arg => resolveAnnotationInContext(arg, scope, depth, typeParamMap, seen);
-    const known = resolveKnownContainerType(name, resolveKnownConstructor(name), node, resolveArgInner);
+    const resolveArgInner = arg => resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
+    const known = resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
     if (known) return known;
     const firstArg = () => getTypeArgs(node)?.params[0];
     const resolveArg = (arg, fallback) => arg
@@ -2673,11 +2687,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'NonNullable':
       case '$NonMaybeType': {
         const arg = firstArg();
-        return arg ? resolveNonNullableAnnotation(arg, scope, depth, typeParamMap, seen) : null;
+        return arg ? resolveNonNullableAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null;
       }
       case 'Awaited': {
         const arg = firstArg();
-        return arg ? resolveAwaitedAnnotation(arg, scope, depth, typeParamMap, seen) : null;
+        return arg ? resolveAwaitedAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null;
       }
       case 'ReturnType': {
         const arg = firstArg();
@@ -2701,12 +2715,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'Exclude': {
         const params = getTypeArgs(node)?.params;
         return params?.length >= 2
-          ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract', typeParamMap, seen) : null;
+          ? resolveExtractExclude({
+            first: params[0], second: params[1], scope, depth, keep: name === 'Extract', typeParamMap, seen,
+          }) : null;
       }
       // Flow $ReadOnlyArray<T> -> Array with inner type (equivalent to ReadonlyArray<T>)
       case '$ReadOnlyArray': {
         const arg = firstArg();
-        return new $Object('Array', arg ? resolveNonNullableAnnotation(arg, scope, depth, typeParamMap, seen) : null);
+        return new $Object('Array', arg ? resolveNonNullableAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null);
       }
       // conservative: unknown for Flow variants we don't model structurally
       case '$Values':
@@ -2715,7 +2731,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case '$Call':
         return null;
     }
-    return resolveUserDefinedType(name, node, scope, depth, undefined, seen);
+    return resolveUserDefinedType({ name, node, scope, depth, seen });
   }
 
   // TS literal types: 'hello', 42, true, etc.
@@ -2745,7 +2761,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `string` instead of collapsing through the generic branches (which can't resolve the
   // naked `U` reference)
   function resolveConditionalType(node, scope, depth) {
-    const inferred = resolveInferElementPattern(node, null, scope, depth, null);
+    const inferred = resolveInferElementPattern({ node, typeParamMap: null, scope, depth, seen: null });
     if (inferred) return inferred;
     return resolveConditionalBranches(
       resolveTypeAnnotation(node.trueType, scope, depth + 1),
@@ -2761,7 +2777,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const idx = node.indexType;
     if (idx?.type !== 'TSTypeOperator' || idx.operator !== 'keyof'
       || !typeRefSegmentsEqual(idx.typeAnnotation, node.objectType)) return undefined;
-    const members = getTypeMembers(node.objectType, scope);
+    const members = getTypeMembers({ objectType: node.objectType, scope });
     if (!members) return null;
     const valueAnnotations = members
       .map(m => m.typeAnnotation ?? m.returnType)
@@ -2775,7 +2791,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
     // T[string] - string index signature type
     if (node.indexType?.type === 'TSStringKeyword') {
-      const members = getTypeMembers(node.objectType, scope);
+      const members = getTypeMembers({ objectType: node.objectType, scope });
       if (members) for (const member of members) {
         if (member.type === 'TSIndexSignature' && member.typeAnnotation
           && member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword') {
@@ -2806,13 +2822,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const literalIndex = node.indexType?.type === 'TSLiteralType' ? node.indexType.literal : node.indexType;
     const quasi = singleQuasiString(literalIndex);
     if (quasi !== null) {
-      const member = findTypeMember(node.objectType, quasi, scope);
+      const member = findTypeMember({ objectType: node.objectType, key: quasi, scope });
       return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
     }
     if (node.indexType?.type !== 'TSLiteralType') return null;
     const { literal } = node.indexType;
     let member;
-    if (isLiteralOf(literal, 'String')) member = findTypeMember(node.objectType, literal.value, scope);
+    if (isLiteralOf(literal, 'String')) member = findTypeMember({ objectType: node.objectType, key: literal.value, scope });
     else if (isLiteralOf(literal, 'Numeric')) member = findTupleElement(node.objectType, literal.value, scope);
     return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
   }
@@ -2888,7 +2904,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       }
       case 'TSArrayType':
       case 'ArrayTypeAnnotation':
-        return new $Object('Array', resolveNonNullableAnnotation(node.elementType, scope, depth));
+        return new $Object('Array', resolveNonNullableAnnotation({ node: node.elementType, scope, depth }));
       case 'TSTupleType':
       case 'TupleTypeAnnotation':
         return tupleAsArrayType(node, e => resolveTypeAnnotation(e, scope, depth + 1));
@@ -2899,7 +2915,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'GenericTypeAnnotation': {
         const segments = typeRefSegments(node);
         if (!segments) return null;
-        return resolveNamedType(segments.join('.'), node, scope, depth);
+        return resolveNamedType({ name: segments.join('.'), node, scope, depth });
       }
       // transparent wrappers - unwrap and resolve the inner type
       case 'TSOptionalType':
@@ -3158,9 +3174,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // resolve a type annotation, returning null for nullable/never types (not useful as inner types)
-  function resolveNonNullableAnnotation(node, scope, depth, typeParamMap, seen) {
+  function resolveNonNullableAnnotation({ node, scope, depth, typeParamMap, seen }) {
     if (!node) return null;
-    const resolved = resolveAnnotationInContext(node, scope, depth, typeParamMap, seen);
+    const resolved = resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
     return resolved && !isNullableOrNever(resolved) ? resolved : null;
   }
 
@@ -3244,7 +3260,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // (`[]`, `{}`). caller computes via `isConcreteEmptyShape(extendsAST)`. used to
   // distinguish syntactic empty (deterministic falseBranch) from post-resolve inner-less
   // artefacts (undecidable, fall back to fold)
-  function pickConditionalBranch(check, extend, extendIsUnconstrained, extendIsConcreteEmpty) {
+  function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty }) {
     if (!check || !extend) return null;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
@@ -3285,11 +3301,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // object and (b) whether the extendsAST is already post-AST-subst or raw + a Type-object
   // substitution map. all 3 conditional-branch sites (`findConditionalTypeMember`,
   // `evaluateConditionalType`, `pickAwaitedConditionalBranch`) flow through this helper
-  function pickConditionalBranchVia(checkAST, extendsAST, resolveOne, isUnconstrained) {
+  function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained }) {
     const astPick = pickConditionalBranchByAST(checkAST, extendsAST);
     if (astPick !== null) return astPick;
-    return pickConditionalBranch(resolveOne(checkAST), resolveOne(extendsAST),
-      isUnconstrained, isConcreteEmptyShape(extendsAST));
+    return pickConditionalBranch({
+      check: resolveOne(checkAST),
+      extend: resolveOne(extendsAST),
+      extendIsUnconstrained: isUnconstrained,
+      extendIsConcreteEmpty: isConcreteEmptyShape(extendsAST),
+    });
   }
 
   // raw AST shape predicate: `Array` / `Promise` / `Set` ... without `<...>` typeArguments
@@ -3322,7 +3342,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // shared between substituteTypeParams's TSConditionalType case and any future caller
   // that needs the same evaluation contract for a TSConditionalType node
   function evaluateConditionalType(node, typeParamMap, scope, depth, seen) {
-    const inferred = resolveInferElementPattern(node, typeParamMap, scope, depth, seen);
+    const inferred = resolveInferElementPattern({ node, typeParamMap, scope, depth, seen });
     if (inferred) return inferred;
     // alpha-rename guard: extendsType's `infer X` declarations scope to trueType ONLY (per
     // TS spec). drop colliding outer entries from a clone passed to trueType subst so the
@@ -3333,9 +3353,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // RAW AST + Type-object map path: substituteTypeParams resolves through typeParamMap.
     // pass raw AST + map to isUnconstrainedTypeReference so typeparam refs that bind via the
     // map are NOT misclassified as unconstrained
-    const branch = pickConditionalBranchVia(node.checkType, node.extendsType,
-      ast => recurse(ast, typeParamMap),
-      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
+    const branch = pickConditionalBranchVia({
+      checkAST: node.checkType,
+      extendsAST: node.extendsType,
+      resolveOne: ast => recurse(ast, typeParamMap),
+      isUnconstrained: isUnconstrainedTypeReference(node.extendsType, typeParamMap),
+    });
     if (branch !== null) return recurse(branch ? node.trueType : node.falseType, branch ? trueMap : typeParamMap);
     return resolveConditionalBranches(
       recurse(node.trueType, trueMap),
@@ -3387,7 +3410,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // already collapsed via `tupleAsArrayType` to `$Object('Array', commonInner)`, losing
   // positional info needed to extract the head. unresolvable shape -> null, caller falls
   // back to plain branch
-  function resolveInferElementPattern(node, typeParamMap, scope, depth, seen) {
+  function resolveInferElementPattern({ node, typeParamMap, scope, depth, seen }) {
     const inferName = matchArrayInferPattern(node.extendsType);
     if (!inferName) return null;
     const checkType = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
@@ -3586,7 +3609,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         // flows into polyfill dispatch (`_atMaybeArray` over generic)
         const args = getSuperTypeArgs(current.node);
         return args?.params
-          ? resolveKnownContainerType(name, base, { typeParameters: args }, p => resolveTypeAnnotation(p, current.scope))
+          ? resolveKnownContainerType({
+            name, base, node: { typeParameters: args }, innerResolver: p => resolveTypeAnnotation(p, current.scope),
+          })
           : base;
       }
       current = resolveRuntimeExpression(superPath);
@@ -3706,14 +3731,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const classPath = findClassPathForTypeReference(annotation, scope);
     if (classPath) {
       const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
-      const found = findClassMember(classPath, 'then', false, classSubst);
+      const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
       if (!found || !isMethodMember(found.member.node)) return null;
       const valueAnn = cbFirstArgAnnotation(methodFnPath(found.member).node.params?.[0]);
       if (!valueAnn) return null;
       return resolveTypeAnnotation(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
     }
     // interface path: getTypeMembers returns already-substituted TSMethodSignature nodes
-    const members = getTypeMembers(annotation, scope);
+    const members = getTypeMembers({ objectType: annotation, scope });
     const thenMember = members?.find(m => keyMatchesName(m.key, 'then') && m.type === 'TSMethodSignature');
     const valueAnn = thenMember && cbFirstArgAnnotation(functionTypeParams(thenMember)?.[0]);
     return valueAnn ? resolveTypeAnnotation(valueAnn, scope) : null;
@@ -3742,7 +3767,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // a direct `Promise<X>` ref via `resolveTypeAnnotation`, leaving aliased / conditional
     // / union shapes resolving as `$Object('Promise')` - misroutes downstream member
     // dispatch (Promise.<x> isn't in built-in definitions, so polyfill emission skipped)
-    const annotated = annotation && resolveAwaitedAnnotation(annotation, annotationInfo.scope, 0);
+    const annotated = annotation && resolveAwaitedAnnotation({ node: annotation, scope: annotationInfo.scope, depth: 0 });
     if (annotated) return annotated;
     return resolveAwaitedFromCallBody(argument);
   }
@@ -4174,7 +4199,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `applyAliasSubstDeep` instead
   // recurse helper - closes over (typeParamMap, scope, depth, seen) for handlers that
   // descend into a sibling slot. extra args sail through unchanged
-  function substRecurse(node, typeParamMap, scope, depth, seen) {
+  function substRecurse({ node, typeParamMap, scope, depth, seen }) {
     return substituteTypeParams(node, typeParamMap, scope, depth + 1, seen);
   }
 
@@ -4186,48 +4211,49 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!name) return null;
     if (typeParamMap.has(name)) return typeParamMap.get(name);
     const ctor = resolveKnownConstructor(name);
-    const known = resolveKnownContainerType(name, ctor, node,
-      p => substRecurse(p, typeParamMap, scope, depth, seen));
+    const known = resolveKnownContainerType({
+      name, base: ctor, node, innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
+    });
     if (known) return known;
-    return resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen)
-      ?? resolveNamedType(name, node, scope, depth, typeParamMap, seen);
+    return resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen })
+      ?? resolveNamedType({ name, node, scope, depth, typeParamMap, seen });
   }
 
   // T[] / Array<T> → $Object('Array', inner) with substituted element type
   function substArrayAsType(node, typeParamMap, scope, depth, seen) {
-    const inner = substRecurse(node.elementType, typeParamMap, scope, depth, seen);
+    const inner = substRecurse({ node: node.elementType, typeParamMap, scope, depth, seen });
     return new $Object('Array', inner && !isNullableOrNever(inner) ? inner : null);
   }
 
   // [T, U] → Array<commonInner> per-element folded via shared `tupleAsArrayType`
   function substTupleAsType(node, typeParamMap, scope, depth, seen) {
-    return tupleAsArrayType(node, e => substRecurse(e, typeParamMap, scope, depth, seen));
+    return tupleAsArrayType(node, e => substRecurse({ node: e, typeParamMap, scope, depth, seen }));
   }
 
   // mapped type: passthrough body recurses with subst preserved; non-passthrough opaque
   function substMappedAsType(node, typeParamMap, scope, depth, seen) {
     const passthrough = unwrapMappedTypePassthrough(node);
-    if (passthrough) return substRecurse(passthrough, typeParamMap, scope, depth, seen);
+    if (passthrough) return substRecurse({ node: passthrough, typeParamMap, scope, depth, seen });
     return new $Object(null);
   }
 
   // TSTypeOperator: `keyof T` opaque, other operators (e.g. `readonly`) transparent
   function substTypeOperatorAsType(node, typeParamMap, scope, depth, seen) {
     if (node.operator === 'keyof') return resolveTypeAnnotation(node, scope, depth);
-    return substRecurse(node.typeAnnotation, typeParamMap, scope, depth, seen);
+    return substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
   }
 
   // transparent wrapper: TSOptionalType / TSParenthesizedType / NullableTypeAnnotation
   function substTransparentWrapperAsType(node, typeParamMap, scope, depth, seen) {
-    return substRecurse(node.typeAnnotation, typeParamMap, scope, depth, seen);
+    return substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
   }
 
   // union / intersection fold-as-Type
   function substUnionAsType(node, typeParamMap, scope, depth, seen) {
-    return foldUnionTypes(node.types, m => substRecurse(m, typeParamMap, scope, depth, seen));
+    return foldUnionTypes(node.types, m => substRecurse({ node: m, typeParamMap, scope, depth, seen }));
   }
   function substIntersectionAsType(node, typeParamMap, scope, depth, seen) {
-    return foldIntersectionTypes(node.types, m => substRecurse(m, typeParamMap, scope, depth, seen));
+    return foldIntersectionTypes(node.types, m => substRecurse({ node: m, typeParamMap, scope, depth, seen }));
   }
 
   // function-types collapse to a plain Function regardless of typeparams - shared handler
@@ -4448,7 +4474,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // returns `{ member, subst }` where subst is the accumulated class type-param map at the
   // depth where the member was found. `subst` is null when no class type-args propagated
   // through the chain. callers that don't care about subst destructure `{ member }`
-  function findClassMember(classPath, name, isStatic, classSubst, depth = 0, visited = undefined) {
+  function findClassMember({ classPath, name, isStatic, classSubst, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
     // walk in reverse: in JS, duplicate method names are legal and the runtime uses the last definition
     // `findObjectMember` does the same; both must agree.
@@ -4473,7 +4499,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const parentPath = resolveSuperClassPath(classPath);
     if (!parentPath) return null;
     const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst);
-    return findClassMember(parentPath, name, isStatic, parentSubst, depth + 1, seen);
+    return findClassMember({ classPath: parentPath, name, isStatic, classSubst: parentSubst, depth: depth + 1, visited: seen });
   }
 
   // single returned expression as a path - used to resolve getters like properties
@@ -4500,9 +4526,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return result;
   }
 
-  function resolveClassMember(classPath, name, isStatic, callPath, receiverArgs) {
+  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
-    const found = findClassMember(classPath, name, isStatic, classSubst);
+    const found = findClassMember({ classPath, name, isStatic, classSubst });
     if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
     // TS declaration merging: sibling `interface X { ... }` contributes instance members
     // to the class type. runs only when the class body has no match, so real class methods
@@ -4510,7 +4536,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // builds its own subst against ITS type-param names - covers renamed params on the
     // interface side of class+interface merging
     if (!isStatic && classPath.node.id?.name) {
-      return resolveMergedInterfaceMember(classPath.node.id.name, classPath.scope, name, callPath, receiverArgs);
+      return resolveMergedInterfaceMember({ className: classPath.node.id.name, scope: classPath.scope, name, callPath, receiverArgs });
     }
     return null;
   }
@@ -4542,7 +4568,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // and (when callable) invoke. shared between class member resolution (with `classSubst`
   // for type-arg substitution) and object member resolution (no subst). returns null when
   // neither path produces a type, letting the caller fall through to other strategies
-  function resolveMethodOrGetterCallReturn(methodFn, kind, callPath, classSubst) {
+  function resolveMethodOrGetterCallReturn({ methodFn, kind, callPath, classSubst }) {
     if (kind !== 'get') return resolveReturnType(methodFn, callPath, classSubst);
     const value = resolveBodyReturnValue(methodFn);
     if (t.isFunction(value?.node)) return resolveReturnType(value, callPath, classSubst);
@@ -4556,7 +4582,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const declaredReturn = member.node.type === 'TSDeclareMethod' ? member.node.returnType : null;
     if (callPath) {
       if (methodFn) {
-        const r = resolveMethodOrGetterCallReturn(methodFn, member.node.kind, callPath, classSubst);
+        const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
         if (r) return r;
       } else if (declaredReturn) {
         // TSDeclareMethod (ambient method, no body) exposes `params` / `returnType` /
@@ -4647,7 +4673,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // walk module-wide `<expr>.<fieldName> = Y` writes (already filtered to `fieldName` via
   // `getModuleFieldIndex`), drop those past the temporal `bound`, fold remaining receivers
   // matching `predicate` into `out`. shared between class and object external-write phases
-  function foldExternalWrites(fieldName, predicate, bound, program, out) {
+  function foldExternalWrites({ fieldName, predicate, bound, program, out }) {
     const index = getModuleFieldIndex(program);
     for (const writePath of index.writesByField.get(fieldName) ?? []) {
       if ((writePath.node.start ?? Infinity) >= bound) continue;
@@ -4692,8 +4718,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const isPrivate = t.isClassPrivateProperty?.(member.node);
     if (!isPrivate && !classBindingName(classPath)) return null;
     return member.node.static
-      ? collectStaticFieldCandidates(member, fieldName, classPath, isPrivate)
-      : collectInstanceFieldCandidates(member, fieldName, classPath, isPrivate);
+      ? collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate })
+      : collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate });
   }
 
   // static field flow: writes via `<class-binding>.<field> = Y` from anywhere in the module,
@@ -4702,7 +4728,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `const Alias = ClassName` aliases. without this split, static external writes through
   // class binding (`C.x = Y`) would fail the instance predicate and stay unsound, emitting
   // narrow polyfills that break at runtime when the field has been mutated to a different type
-  function collectStaticFieldCandidates(member, fieldName, classPath, isPrivate) {
+  function collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate }) {
     let closure = null;
     return collectFieldCandidates({
       earlyBail: () => !isPrivate && isClassExported(classPath),
@@ -4718,7 +4744,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       programWritesPush: (program, candidates) => {
         // static-field temporal narrow not yet modeled (any `<C>.<X>` use could be a deferred
         // call observing static state). bound = Infinity keeps the existing fold-all behavior
-        foldExternalWrites(fieldName, p => isReceiverInClosure(p, closure), Infinity, program, candidates);
+        foldExternalWrites({ fieldName, predicate: p => isReceiverInClosure(p, closure), bound: Infinity, program, out: candidates });
       },
     });
   }
@@ -4728,7 +4754,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // non-static methods of base + subclasses. instance closure now includes subclass `new
   // Sub()` bindings to fix the case where `class Sub extends Base; const s = new Sub();
   // s.x = "string"` was missed by the base-only closure check
-  function collectInstanceFieldCandidates(member, fieldName, classPath, isPrivate) {
+  function collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate }) {
     let closure = null;
     let descendant = null;
     return collectFieldCandidates({
@@ -4754,7 +4780,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates);
         }
         const predicate = p => isReceiverInClosure(p, closure) || isReceiverNewOfClass(p, descendant.names);
-        foldExternalWrites(fieldName, predicate, bound, program, candidates);
+        foldExternalWrites({ fieldName, predicate, bound, program, out: candidates });
       },
     });
   }
@@ -4795,7 +4821,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       anchor: objectPath,
       programWritesPush: (program, candidates) => {
         const bound = getClosureTemporalBound(closure, program);
-        foldExternalWrites(fieldName, p => isReceiverInClosure(p, closure), bound, program, candidates);
+        foldExternalWrites({ fieldName, predicate: p => isReceiverInClosure(p, closure), bound, program, out: candidates });
       },
     });
   }
@@ -5306,7 +5332,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `classifier` parametrizes what counts as trivial / alias / leak so class binding (relaxed
   // for `new C()` / `extends C` / `instanceof C` / TS types) and object-literal / instance
   // binding (strict) share the same walker
-  function computeAliasClosureFromBinding(rootBinding, rootName, anchorPath, classifier = defaultAliasRefClassifier) {
+  function computeAliasClosureFromBinding({ rootBinding, rootName, anchorPath, classifier = defaultAliasRefClassifier }) {
     if (!rootBinding) return null;
     const closure = new Map([[rootName, rootBinding]]);
     const queue = [{ name: rootName, binding: rootBinding }];
@@ -5360,7 +5386,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return memoize(objectAliasClosureCache, objectPath.node, () => {
       const rootName = objectBindingName(objectPath);
       return rootName
-        ? computeAliasClosureFromBinding(objectPath.scope?.getBinding(rootName), rootName, objectPath)
+        ? computeAliasClosureFromBinding({ rootBinding: objectPath.scope?.getBinding(rootName), rootName, anchorPath: objectPath })
         : EMPTY_CLOSURE;
     });
   }
@@ -5490,7 +5516,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           return;
         }
         const binding = p.scope?.getBinding(id.name);
-        const sub = computeAliasClosureFromBinding(binding, id.name, p);
+        const sub = computeAliasClosureFromBinding({ rootBinding: binding, rootName: id.name, anchorPath: p });
         if (sub === null) {
           leaked = true;
           return;
@@ -5540,7 +5566,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const className = classBindingName(classPath);
       const binding = className ? classPath.scope?.getBinding(className) : null;
       if (!binding) return null;
-      return computeAliasClosureFromBinding(binding, className, anchorPath, classBindingRefClassifier);
+      return computeAliasClosureFromBinding({
+        rootBinding: binding, rootName: className, anchorPath, classifier: classBindingRefClassifier,
+      });
     });
   }
 
@@ -5568,7 +5596,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       return name;
     }
     if (superClass?.type !== 'MemberExpression' || superClass.computed) return null;
-    const proxy = globalProxyMemberName(superClass, scope, BABEL_BINDING_ADAPTER, null);
+    const proxy = globalProxyMemberName({ node: superClass, scope, adapter: BABEL_BINDING_ADAPTER, path: null });
     if (proxy) return proxy;
     const path = [];
     let cur = superClass;
@@ -5579,7 +5607,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       cur = cur.object;
     }
     if (cur?.type !== 'Identifier') return null;
-    return walkStaticReceiverChain(cur, path, scope, BABEL_BINDING_ADAPTER);
+    return walkStaticReceiverChain({ receiverNode: cur, walkPath: path, scope, adapter: BABEL_BINDING_ADAPTER });
   }
 
   // child slots to recurse on for compound `extends` shapes that have no single canonical
@@ -5708,8 +5736,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // resolve `name` against a member array, substituting `subst` into each member's annotations
   // first. shared shortcut for both own-body and extends-parent paths
-  function resolveSubstitutedMember(members, subst, name, scope, callPath) {
-    return members?.length ? resolveMemberFromMembers(substMembers(members, subst), name, scope, callPath) : null;
+  function resolveSubstitutedMember({ members, subst, name, scope, callPath }) {
+    return members?.length ? resolveMemberFromMembers({ members: substMembers(members, subst), name, scope, callPath }) : null;
   }
 
   // merged class+interface member lookup. interface body's own members first, then parents
@@ -5718,31 +5746,31 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // class+interface merging with renamed type-params (`class C<T>` + `interface C<U>`) picks
   // up the correct slot positionally. resolveMemberFromMembers does the per-member
   // annotation -> type step
-  function resolveMergedInterfaceMember(className, scope, name, callPath, receiverArgs) {
+  function resolveMergedInterfaceMember({ className, scope, name, callPath, receiverArgs }) {
     const interfaces = findAllTypeDeclarations(className, scope).filter(isInterfaceDeclaration);
     for (const iface of interfaces) {
       const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
       // TS: iface.body.body; Flow: iface.body.properties
       const ownBody = iface.body?.body ?? iface.body?.properties;
-      const ownHit = resolveSubstitutedMember(ownBody, ifaceSubst, name, scope, callPath);
+      const ownHit = resolveSubstitutedMember({ members: ownBody, subst: ifaceSubst, name, scope, callPath });
       if (ownHit) return ownHit;
       for (const parent of iface.extends ?? []) {
         const parentRef = synthInterfaceExtendsRef(parent);
         if (!parentRef) continue;
-        const parentMembers = getTypeMembers(parentRef, scope);
+        const parentMembers = getTypeMembers({ objectType: parentRef, scope });
         if (!parentMembers) continue;
         // compose ifaceSubst -> parentSubst: interface's `extends Base<U>` carries the
         // iface-param through the receiver-type-arg slot; without composition, Base<U>'s
         // decl-param map gets a raw `U` reference instead of the substituted type
         const ownSubst = buildParentSubst(applySubstToTypeRefArgs(parentRef, ifaceSubst), scope);
-        const hit = resolveSubstitutedMember(parentMembers, ownSubst, name, scope, callPath);
+        const hit = resolveSubstitutedMember({ members: parentMembers, subst: ownSubst, name, scope, callPath });
         if (hit) return hit;
       }
     }
     return null;
   }
 
-  function resolveMemberFromMembers(members, name, scope, callPath) {
+  function resolveMemberFromMembers({ members, name, scope, callPath }) {
     if (!members) return null;
     for (const member of members) {
       if (member.computed) continue;
@@ -5779,7 +5807,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const propFn = t.isObjectMethod(prop.node) ? methodFnPath(prop) : null;
     if (callPath) {
       if (propFn) {
-        const r = resolveMethodOrGetterCallReturn(propFn, prop.node.kind, callPath);
+        const r = resolveMethodOrGetterCallReturn({ methodFn: propFn, kind: prop.node.kind, callPath });
         if (r) return r;
       } else if (t.isObjectProperty(prop.node)) {
         const value = resolveRuntimeExpression(prop.get('value'));
@@ -5827,8 +5855,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   //      Interface signatures are tried in declaration order; TS picks the first matching one,
   //      so falling back to "first" is a reasonable approximation when we can't run full
   //      argument-type-based overload selection
-  function resolveMemberCallReturnFromAnnotation(annotation, name, scope, resolve, depth, subst) {
-    const members = getTypeMembers(annotation, scope, depth);
+  function resolveMemberCallReturnFromAnnotation({ annotation, name, scope, resolve, depth, subst }) {
+    const members = getTypeMembers({ objectType: annotation, scope, depth });
     if (!members) return null;
     const resolvedReturns = [];
     for (const member of members) {
@@ -5850,11 +5878,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // resolve in each branch. union folds per-branch return types; intersection picks the
   // first branch that resolves (intersection members are additive, so any match is valid).
   // mirrors findTypeMember's handling for properties
-  function resolveMemberCallReturn(annotation, name, scope, resolve, depth = 0) {
+  function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0 }) {
     if (depth > MAX_DEPTH) return null;
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
     const peelBranch = branch => applySubst(unwrapTypeAnnotation(branch), subst);
-    const recurse = peeled => resolveMemberCallReturn(peeled, name, scope, resolve, depth + 1);
+    const recurse = peeled => resolveMemberCallReturn({ annotation: peeled, name, scope, resolve, depth: depth + 1 });
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       let result = null;
       for (const branch of aliased.types) {
@@ -5882,7 +5910,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // doesn't handle the shape directly. expand manually: get T's structural members, build
     // a synthetic TSUnionType of their value annotations, then recurse self so union dispatch
     // fires per branch. covers `Pick<T> = T[keyof T]` style aliases
-    return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth, subst);
+    return resolveMemberCallReturnFromAnnotation({
+      annotation: aliased ?? annotation, name, scope, resolve, depth, subst,
+    });
   }
 
   // serialize `x`, `this.data`, `obj.a.b` - null for computed / shapes we don't probe
@@ -5930,7 +5960,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `scope` (optional) enables value-side resolution beyond bare literals: `Kind.A` /
   // `Kind['A']` enum-member access, identifier alias to a literal, single-quasi template
   // literal - all routed through `resolveComputedKeyName` which already handles them
-  function parseDiscriminantCheck(rawTest, targetKey, conditionTrue, scope) {
+  function parseDiscriminantCheck({ rawTest, targetKey, conditionTrue, scope }) {
     const { test, negated } = peelNegation(rawTest);
     if (negated) conditionTrue = !conditionTrue;
     if (test?.type !== 'BinaryExpression') return null;
@@ -5939,11 +5969,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!isEq && !isNeq) return null;
     const left = peelParensAndChain(test.left);
     const right = peelParensAndChain(test.right);
-    const pair = memberLiteralPair(left, right, targetKey, scope) ?? memberLiteralPair(right, left, targetKey, scope);
+    const pair = memberLiteralPair({ memberExpr: left, literalNode: right, targetKey, scope })
+      ?? memberLiteralPair({ memberExpr: right, literalNode: left, targetKey, scope });
     return pair && { ...pair, positive: isEq === conditionTrue };
   }
 
-  function memberLiteralPair(memberExpr, literalNode, targetKey, scope) {
+  function memberLiteralPair({ memberExpr, literalNode, targetKey, scope }) {
     const field = getMemberProperty(memberExpr);
     if (field === null) return null;
     if (pathKey(memberExpr.object) !== targetKey) return null;
@@ -5992,10 +6023,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // contributes its narrowing. each clause goes through `parseDiscriminantCheck` (which peels
   // its own `!`/parens), survivors append to `out`. `scope` threads through to enable
   // enum-member / alias-chain resolution on the literal side of the comparison
-  function pushDiscriminantClauses(test, conditionTrue, targetKey, out, scope) {
+  function pushDiscriminantClauses({ test, conditionTrue, targetKey, out, scope }) {
     const parts = flattenCondition(test, conditionTrue ? '&&' : '||');
     for (const part of parts) {
-      const guard = parseDiscriminantCheck(part, targetKey, conditionTrue, scope);
+      const guard = parseDiscriminantCheck({ rawTest: part, targetKey, conditionTrue, scope });
       if (guard) out.push(guard);
     }
   }
@@ -6003,7 +6034,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // scan preceding-sibling statements of `current` at its block level; for each one that
   // unconditionally exits (`if (X) return;` / `... else throw ...`), collect the narrowed
   // discriminant form into `out`. mirrors `findPrecedingExitGuards` but for discriminant kinds
-  function collectPrecedingExitDiscriminants(current, targetKey, out, ctx) {
+  function collectPrecedingExitDiscriminants({ current, targetKey, out, ctx }) {
     const siblings = getStatementSiblings(current);
     if (!siblings) return;
     for (let i = current.key - 1; i >= 0; i--) {
@@ -6011,7 +6042,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const exitCond = resolveExitCondition(sibling);
       if (exitCond === null) continue;
       if (!discriminantGuardApplies(sibling.scope, sibling.node.test?.end, ctx)) continue;
-      pushDiscriminantClauses(sibling.node.test, exitCond, targetKey, out, sibling.scope);
+      pushDiscriminantClauses({ test: sibling.node.test, conditionTrue: exitCond, targetKey, out, scope: sibling.scope });
     }
   }
 
@@ -6038,11 +6069,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         conditionTrue = parent.node.operator === '&&';
         test = parent.node.left;
       } else {
-        collectPrecedingExitDiscriminants(current, targetKey, guards, ctx);
+        collectPrecedingExitDiscriminants({ current, targetKey, out: guards, ctx });
         continue;
       }
       if (!discriminantGuardApplies(parent.scope, test?.end, ctx)) continue;
-      pushDiscriminantClauses(test, conditionTrue, targetKey, guards, parent.scope);
+      pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, scope: parent.scope });
     }
     return guards;
   }
@@ -6156,7 +6187,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // matches the projected RHS value. members with non-literal types / missing RHS keys /
   // unresolvable types pass through (permissive; same convention as discriminant narrow)
   function branchMatchesLiterals(branch, rhsLiterals, scope) {
-    const members = getTypeMembers(unwrapTypeAnnotation(branch), scope);
+    const members = getTypeMembers({ objectType: unwrapTypeAnnotation(branch), scope });
     if (!members) return true;
     for (const m of members) {
       if (m.type !== 'TSPropertySignature' || m.computed) continue;
@@ -6193,7 +6224,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // (permissive; matches the existing precedent for unresolvable members)
   function branchMatchesGuards(branch, guards, scope) {
     for (const { field, value, positive } of guards) {
-      const memberType = findTypeMember(unwrapTypeAnnotation(branch), field, scope);
+      const memberType = findTypeMember({ objectType: unwrapTypeAnnotation(branch), key: field, scope });
       if (!memberType) continue;
       const { node: resolvedNode } = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope);
       const literal = resolvedNode?.type === 'TSLiteralType' ? literalKeyValue(resolvedNode.literal) : null;
@@ -6237,7 +6268,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           if (result) return result;
         }
         const ctx = resolveClassContext(resolved);
-        if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
+        if (ctx) return resolveClassMember({ classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath });
         return null;
       }
       // TSEnumDeclaration has no runtime binding path in `resolveTypeQueryBinding`; route
@@ -6252,7 +6283,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (callPath) {
       const classPath = findClassPathForTypeReference(annotation, scope);
       if (classPath) {
-        const result = resolveClassMember(classPath, name, false, callPath, getTypeArgs(annotation)?.params);
+        const result = resolveClassMember({
+          classPath, name, isStatic: false, callPath, receiverArgs: getTypeArgs(annotation)?.params,
+        });
         if (result) return result;
       }
     }
@@ -6264,11 +6297,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     };
     // property access (not a call): delegate to findTypeMember
     if (!callPath) {
-      const memberType = findTypeMember(annotation, name, scope);
+      const memberType = findTypeMember({ objectType: annotation, key: name, scope });
       return memberType ? resolve(memberType) : null;
     }
     // method call: merge return types across overloads, recursing into union branches
-    return resolveMemberCallReturn(annotation, name, scope, resolve);
+    return resolveMemberCallReturn({ annotation, name, scope, resolve });
   }
 
   // resolve `TSTypeReference { typeName: X }` to a NodePath of `class X { ... }` in scope,
@@ -6360,7 +6393,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     const ctx = resolveClassContext(objectPath);
     if (ctx) {
-      const result = resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
+      const result = resolveClassMember({ classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath });
       if (result) return result;
     }
     // ambient `declare class X { static make() }` - X reference has no scope binding in babel
@@ -6370,7 +6403,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (objectPath.node?.type === 'Identifier') {
       const ambientClass = findAmbientClassPath(objectPath.node.name, objectPath.scope);
       if (ambientClass) {
-        const result = resolveClassMember(ambientClass, name, true, callPath);
+        const result = resolveClassMember({ classPath: ambientClass, name, isStatic: true, callPath });
         if (result) return result;
       }
     }
@@ -6517,12 +6550,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `T & U` which CAN fold (when T and U share a constructor for unions, or when
   // intersection's plain-Object branch is dropped). depth + cycle bounds match
   // `followTypeAliasChain`'s budget
-  function resolveAwaitedAnnotation(node, scope, depth, typeParamMap, seen) {
+  function resolveAwaitedAnnotation({ node, scope, depth, typeParamMap, seen }) {
     if (!node || depth > MAX_DEPTH) return null;
     // oxc preserves `(T)` as TSParenthesizedType (babel strips); must peel before the
     // union / intersection / Promise check or distribution misses the inner shape
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(node));
-    const recurse = next => resolveAwaitedAnnotation(next, scope, depth + 1, typeParamMap, seen);
+    const recurse = next => resolveAwaitedAnnotation({ node: next, scope, depth: depth + 1, typeParamMap, seen });
     if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation') {
       return foldUnionTypes(peeled.types, recurse);
     }
@@ -6544,13 +6577,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // from peelAwaitedArgument: AST walker returns peeled as-is for undecidable, Type walker
     // folds to a single Type Object output
     if (peeled.type === 'TSConditionalType') {
-      const branch = pickAwaitedConditionalBranch(peeled, scope, depth, typeParamMap, seen);
+      const branch = pickAwaitedConditionalBranch({ node: peeled, scope, depth, typeParamMap, seen });
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return foldUnionTypes([peeled.trueType, peeled.falseType], recurse);
     }
     const next = peelAwaitedCommonSteps(peeled, scope, depth);
     if (next) return recurse(next);
-    return resolveAnnotationInContext(node, scope, depth + 1, typeParamMap, seen);
+    return resolveAnnotationInContext({ node, scope, depth: depth + 1, typeParamMap, seen });
   }
 
   // pick a conditional-type branch in Awaited contexts: prefer AST-level literal precision
@@ -6558,10 +6591,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // post-applySubst free type-param refs see their substitutions, then dispatch to
   // pickConditionalBranch. returns true / false / null (undecidable - caller folds /
   // returns AS-IS). shared between resolveAwaitedAnnotation and peelAwaitedArgument
-  function pickAwaitedConditionalBranch(node, scope, depth, typeParamMap, seen) {
-    return pickConditionalBranchVia(node.checkType, node.extendsType,
-      ast => resolveAnnotationInContext(ast, scope, depth + 1, typeParamMap, seen),
-      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
+  function pickAwaitedConditionalBranch({ node, scope, depth, typeParamMap, seen }) {
+    return pickConditionalBranchVia({
+      checkAST: node.checkType,
+      extendsAST: node.extendsType,
+      resolveOne: ast => resolveAnnotationInContext({ node: ast, scope, depth: depth + 1, typeParamMap, seen }),
+      isUnconstrained: isUnconstrainedTypeReference(node.extendsType, typeParamMap),
+    });
   }
 
   // two-level table lookup: table[key1][key2]
@@ -6763,7 +6799,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (id?.type !== 'ObjectPattern' || !init) return null;
     const keyPath = findDestructuredKeyPath(id, name, declarator.scope);
     if (!keyPath?.length) return null;
-    const constructor = walkStaticReceiverChain(init, keyPath.slice(0, -1), declarator.scope, BABEL_BINDING_ADAPTER);
+    const constructor = walkStaticReceiverChain({
+      receiverNode: init, walkPath: keyPath.slice(0, -1), scope: declarator.scope, adapter: BABEL_BINDING_ADAPTER,
+    });
     if (!constructor || !hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
     return { constructor, method: keyPath.at(-1) };
   }
@@ -6912,7 +6950,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         const params = getTypeArgs(node)?.params;
         if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
         if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
-        return resolveUserTypeElement(name, scope, depth, resolveElementType);
+        return resolveUserTypeElement({ name, scope, depth, resolver: resolveElementType });
       }
       // iterating a string yields characters (strings)
       case 'TSStringKeyword':
@@ -6947,7 +6985,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // follow user-defined type aliases and interface extends chain using a parameterized resolver
-  function resolveUserTypeElement(name, scope, depth, resolver) {
+  function resolveUserTypeElement({ name, scope, depth, resolver }) {
     const decl = findTypeDeclaration(name, scope);
     if (isTypeAlias(decl)) return resolver(typeAliasBody(decl), scope, depth + 1);
     if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
@@ -6981,7 +7019,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           const params = getTypeArgs(node)?.params;
           return params?.length >= 2 ? { type: 'TSTupleType', elementTypes: [params[0], params[1]] } : null;
         }
-        return resolveUserTypeElement(name, scope, depth, extractElementAnnotation);
+        return resolveUserTypeElement({ name, scope, depth, resolver: extractElementAnnotation });
       }
       case 'TSTypeOperator':
         return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
@@ -7009,7 +7047,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   }
 
   // resolve the type of a variable destructured from an ArrayPattern
-  function resolveArrayPatternBinding(arrayPattern, varName, annotation, scope) {
+  function resolveArrayPatternBinding({ arrayPattern, varName, annotation, scope }) {
     const index = findPatternIndex(arrayPattern, varName);
     if (index < 0) return null;
     const unwrapped = unwrapTypeAnnotation(annotation);
@@ -7036,7 +7074,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const target = aliased ?? unwrapped;
     const lookup = typeNode => propName === null
       ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst)
-      : resolveMemberInTypeMembers(typeNode, propName, objInfo.scope, subst);
+      : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst });
     if (target.type === 'TSUnionType' || target.type === 'UnionTypeAnnotation') {
       for (const branch of target.types) {
         const peeled = applySubst(unwrapTypeAnnotation(branch), subst);
@@ -7051,8 +7089,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // shared member-by-name lookup against a single (non-union) type's structural members.
   // returns annotation + scope on hit, null on miss (no members / no matching key)
-  function resolveMemberInTypeMembers(typeNode, propName, scope, subst) {
-    const members = typeNode ? getTypeMembers(typeNode, scope) : null;
+  function resolveMemberInTypeMembers({ typeNode, propName, scope, subst }) {
+    const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
@@ -7070,7 +7108,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `obj[k]` where `obj: { [key: string]: V }` - resolve to V via TSIndexSignature member.
   // null on miss (no signature, or signature key type unsupported)
   function resolveIndexSignatureValue(typeNode, scope, subst) {
-    const members = typeNode ? getTypeMembers(typeNode, scope) : null;
+    const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
     for (const m of members) {
       if (m.type !== 'TSIndexSignature' || !m.typeAnnotation) continue;
@@ -7279,14 +7317,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (isRestBinding(arrayPattern.elements ?? [], varName)) return new $Object('Array');
     // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
     if (arrayPattern.typeAnnotation) {
-      const result = resolveArrayPatternBinding(arrayPattern, varName, arrayPattern.typeAnnotation, bindingPath.scope);
+      const result = resolveArrayPatternBinding({
+        arrayPattern, varName, annotation: arrayPattern.typeAnnotation, scope: bindingPath.scope,
+      });
       if (result) return result;
     }
     // annotation on the init expression: const [a] = typedArr
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
       const initInfo = findExpressionAnnotation(bindingPath.get('init'));
       if (initInfo) {
-        const initResult = resolveArrayPatternBinding(arrayPattern, varName, initInfo.annotation, initInfo.scope);
+        const initResult = resolveArrayPatternBinding({ arrayPattern, varName, annotation: initInfo.annotation, scope: initInfo.scope });
         if (initResult) return initResult;
       }
       // runtime init: resolve through variables to the actual value
@@ -7313,7 +7353,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // for-of iterable: for (const [a] of typedArr)
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
     if (elemInfo) {
-      const elemResult = resolveArrayPatternBinding(arrayPattern, varName, elemInfo.annotation, elemInfo.scope);
+      const elemResult = resolveArrayPatternBinding({ arrayPattern, varName, annotation: elemInfo.annotation, scope: elemInfo.scope });
       if (elemResult) return elemResult;
     }
     // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
@@ -7343,7 +7383,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         }
       }
     }
-    const memberType = findTypeMember(unwrapped, keyName, scope);
+    const memberType = findTypeMember({ objectType: unwrapped, key: keyName, scope });
     if (!memberType) return null;
     const defaultMap = buildDefaultTypeParamMap(unwrapped, scope);
     return defaultMap
@@ -7358,7 +7398,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     for (let i = 0; i < keyPath.length - 1; i++) {
       const unwrapped = unwrapTypeAnnotation(current);
       if (!unwrapped) return null;
-      const next = findTypeMember(unwrapped, keyPath[i], scope);
+      const next = findTypeMember({ objectType: unwrapped, key: keyPath[i], scope });
       if (!next) return null;
       current = next;
     }
@@ -7776,12 +7816,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // for the leaf-member lookup below (its raw signature is what callers need)
     for (let i = props.length - 1; i > 0; i--) {
       if (!annotation) return null;
-      const members = getTypeMembers(annotation, scopeRef);
+      const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
       const m = members?.find(mm => keyMatchesName(mm.key, props[i]));
       annotation = m ? unwrapTypeAnnotation(m.typeAnnotation ?? m.returnType) : null;
     }
     if (!annotation) return null;
-    const members = getTypeMembers(annotation, scopeRef);
+    const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
     const member = members?.find(m => keyMatchesName(m.key, props[0]));
     return member ? { member, scope: scopeRef } : null;
   }
@@ -7822,7 +7862,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // narrow the wrong arg. babel uses `params`, oxc/TS-ESTree uses `parameters` for method sigs;
   // probe both. peel TS expression wrappers (`as`, `!`, parens) on the call-arg so wrapped
   // forms (`isStr(o, input as any)`) still bind
-  function matchPredicateArg(predicate, fnNode, args, varName) {
+  function matchPredicateArg({ predicate, fnNode, args, varName }) {
     if (predicate?.parameterName?.type !== 'Identifier') return false;
     const params = fnNode?.params ?? fnNode?.parameters;
     if (!params) return false;
@@ -7875,11 +7915,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   //   `asserts x is T` - narrows after the call completes normally (asserts=true)
   // `args` + `varName` bind `parameterName` to a positional call-arg so non-first-arg
   // predicates (`function isStr(opts, x): x is T`) narrow the right binding
-  function resolvePredicateGuard(callee, scope, negated, asserts, args, varName) {
+  function resolvePredicateGuard({ callee, scope, negated, asserts, args, varName }) {
     if (!scope) return null;
     for (const c of predicateCandidates(callee, scope)) {
       if (c.returnType?.type !== 'TSTypePredicate' || !!c.returnType.asserts !== asserts) continue;
-      if (!matchPredicateArg(c.returnType, c.fnNode, args, varName)) continue;
+      if (!matchPredicateArg({ predicate: c.returnType, fnNode: c.fnNode, args, varName })) continue;
       const resolved = resolveTypeAnnotation(c.returnType.typeAnnotation, c.scope);
       const guard = guardFromResolvedType(resolved, negated);
       if (guard) return guard;
@@ -7890,8 +7930,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
   // assigned to a const. assertion form (`asserts x is T`) goes through `resolvePredicateGuard`
   // with asserts=true via `parseAssertionStatementGuard`
-  function parseUserPredicateGuard(callee, scope, negated, args, varName) {
-    return resolvePredicateGuard(callee, scope, negated, false, args, varName);
+  function parseUserPredicateGuard({ callee, scope, negated, args, varName }) {
+    return resolvePredicateGuard({ callee, scope, negated, asserts: false, args, varName });
   }
 
   // detect `?.` anywhere in a call-expression chain.
@@ -7931,9 +7971,10 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (hasOptionalChainInCall(sibling.node.expression)) return null;
     const call = unwrapRuntimeExpr(sibling.node.expression);
     if (call?.type !== 'CallExpression' || !call.arguments?.length) return null;
-    const guard = resolvePredicateGuard(
-      unwrapExpressionChain(call.callee), sibling.scope, false, true, call.arguments, varName,
-    );
+    const guard = resolvePredicateGuard({
+      callee: unwrapExpressionChain(call.callee),
+      scope: sibling.scope, negated: false, asserts: true, args: call.arguments, varName,
+    });
     if (guard) guard.positive = true;
     return guard;
   }
@@ -7980,7 +8021,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       }
       if (operator === 'instanceof'
         && left.type === 'Identifier' && left.name === varName) {
-        const constructorName = right.type === 'Identifier' ? right.name : globalProxyMemberName(right);
+        const constructorName = right.type === 'Identifier' ? right.name : globalProxyMemberName({ node: right });
         if (constructorName) return instanceofGuard(constructorName, negated);
       }
     }
@@ -8002,7 +8043,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           if (hint) return guardFromHint(hint, negated);
         }
       }
-      const userGuard = parseUserPredicateGuard(callee, scope, negated, test.arguments, varName);
+      const userGuard = parseUserPredicateGuard({ callee, scope, negated, args: test.arguments, varName });
       if (userGuard) return userGuard;
     }
     return null;
@@ -8083,7 +8124,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // extract guards for varName from a condition, applying && / || flattening.
   // scope is the lookup scope for resolving user-defined type predicate functions.
-  function parseGuardsFromCondition(testNode, conditionTrue, varName, scope) {
+  function parseGuardsFromCondition({ testNode, conditionTrue, varName, scope }) {
     const parts = flattenCondition(testNode, conditionTrue ? '&&' : '||');
     const guards = [];
     for (const part of parts) {
@@ -8112,7 +8153,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       conditionTrue = operator === '&&';
       testNode = parent.node.left;
     } else return [];
-    return parseGuardsFromCondition(testNode, conditionTrue, varName, current.scope);
+    return parseGuardsFromCondition({ testNode, conditionTrue, varName, scope: current.scope });
   }
 
   // resolve a string value from a case test: StringLiteral directly or constant Identifier binding
@@ -8185,7 +8226,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function parseSiblingGuards(sibling, varName) {
     const conditionTrue = resolveExitCondition(sibling);
     if (conditionTrue !== null) {
-      return parseGuardsFromCondition(sibling.node.test, conditionTrue, varName, sibling.scope);
+      return parseGuardsFromCondition({ testNode: sibling.node.test, conditionTrue, varName, scope: sibling.scope });
     }
     const assertionGuard = parseAssertionStatementGuard(sibling, varName);
     return assertionGuard ? [assertionGuard] : [];
@@ -8239,7 +8280,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // collect ALL type guards along the AST path for cumulative narrowing.
   // const bindings can't be reassigned - function boundaries don't invalidate guards
-  function findEnclosingTypeGuards(path, varName, isConst = false, binding = null) {
+  function findEnclosingTypeGuards({ path, varName, isConst = false, binding = null }) {
     const guards = [];
     for (let current = path.parentPath; current; current = current.parentPath) {
       if (t.isFunction(current.node) && !isConst) break;
@@ -8344,7 +8385,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const classification = classifyGuardAnnotation(binding);
       if (classification.kind !== 'closed') {
         const isConst = !binding.constantViolations?.length;
-        const guards = findEnclosingTypeGuards(path, name, isConst, binding);
+        const guards = findEnclosingTypeGuards({ path, varName: name, isConst, binding });
         if (guards && (isConst
             || (!hasMutationAfterGuards(binding, path, name)
               && !hasMutationInCapturedFunction(binding)))) {
