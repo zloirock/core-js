@@ -1071,16 +1071,18 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         // dropped from subst clone before recursing into params / returnType
         const innerSubst = dropTypeParamSubst(node.typeParameters, subst);
         const rt = node[returnSlot] ? applyAliasSubstDeep(node[returnSlot], innerSubst, depth + 1, visited) : node[returnSlot];
-        // subst params too: `type F<T> = (x: T) => void; F<number[]>.params[0].type` needs
-        // T -> number[]. rare (params type inference doesn't drive polyfill dispatch for most
-        // callsites), but preserves invariant that subst walks the full type shape
-        const params = node.params?.map(p => {
+        // subst params too so structural Thenable detection (`peelUserThenable`) sees
+        // `then(cb: (v: T) => any)`'s callback-arg T substituted via the receiver's class
+        // type-args. babel quirk: TSFunctionType params live under `parameters` (not `params`
+        // - that's for ClassMethod); use `functionTypeParams` accessor for the right slot
+        const paramsSlot = 'parameters' in node ? 'parameters' : 'params';
+        const params = node[paramsSlot]?.map(p => {
           const pTA = p.typeAnnotation ? applyAliasSubstDeep(p.typeAnnotation, innerSubst, depth + 1, visited) : p.typeAnnotation;
           return pTA === p.typeAnnotation ? p : { ...p, typeAnnotation: pTA };
         });
-        const paramsChanged = params && params.some((p, i) => p !== node.params[i]);
+        const paramsChanged = params && params.some((p, i) => p !== node[paramsSlot][i]);
         if (rt === node[returnSlot] && !paramsChanged) return node;
-        return { ...node, [returnSlot]: rt, ...paramsChanged && { params } };
+        return { ...node, [returnSlot]: rt, ...paramsChanged && { [paramsSlot]: params } };
       }
       case 'TSIndexedAccessType': {
         const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1, visited);
@@ -1657,15 +1659,18 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       cloned ??= { ...member };
       cloned[slot] = next;
     }
-    // TSMethodSignature / TSFunctionType-style members carry params; method's signature-local
-    // typeParameters shadow outer subst. mirror TSFunctionType handling: alpha-rename inner
-    // <T> from subst clone via shared dropTypeParamSubst, then walk each param's
-    // typeAnnotation. without this, methods with parameter types referring to outer alias
-    // type-params bail on overload resolution
-    if (Array.isArray(member.params) && member.params.length) {
+    // method-like members carry params; signature-local typeParameters shadow outer subst.
+    // walk each param's typeAnnotation via shared `dropTypeParamSubst` alpha-rename guard.
+    // babel quirk (same as TSFunctionType): TSMethodSignature uses `parameters`; ClassMethod
+    // uses `params`. probe whichever slot the node carries via `functionTypeParams`. without
+    // this, methods with parameter types referring to outer alias type-params bail on
+    // overload resolution AND interface-shaped Thenable detection (`peelUserThenable`) fails
+    // to substitute T inside `then(cb: (v: T) => ...)`
+    const memberParamsList = functionTypeParams(member);
+    if (Array.isArray(memberParamsList) && memberParamsList.length) {
       const innerSubst = dropTypeParamSubst(member.typeParameters, subst);
       let paramsChanged = false;
-      const params = member.params.map(p => {
+      const nextParams = memberParamsList.map(p => {
         if (!p?.typeAnnotation) return p;
         const next = applyAliasSubstDeep(p.typeAnnotation, innerSubst, depth, visited);
         if (next === p.typeAnnotation) return p;
@@ -1673,8 +1678,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         return { ...p, typeAnnotation: next };
       });
       if (paramsChanged) {
+        const slot = 'parameters' in member ? 'parameters' : 'params';
         cloned ??= { ...member };
-        cloned.params = params;
+        cloned[slot] = nextParams;
       }
     }
     return cloned ?? member;
@@ -3600,11 +3606,61 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return bodyType.constructor === 'Promise' ? unwrapPromise(bodyType) : bodyType;
   }
 
+  // babel quirk: TSFunctionType / FunctionTypeAnnotation store params under `parameters`
+  // (the binding-annotation shape), not `params` (which is for ClassMethod / function decls).
+  // see `resolveBindingReturnInfo` for the same disambiguation. shared accessor keeps the
+  // shape probe in one place; readers don't have to remember which slot applies where
+  function functionTypeParams(node) {
+    return node?.parameters ?? node?.params ?? null;
+  }
+
+  // peel callback's first-arg annotation. cb node may be Identifier with typeAnnotation
+  // (babel ClassMethod / ESTree FunctionExpression params) - extract its function-type then
+  // walk to the first arg's annotation. babel quirk: TSFunctionType uses `parameters`, not
+  // `params`; `functionTypeParams` covers both. returns null when shape isn't a function-type
+  function cbFirstArgAnnotation(cbNode) {
+    const cbType = unwrapTypeAnnotation(cbNode?.typeAnnotation);
+    if (cbType?.type !== 'TSFunctionType' && cbType?.type !== 'FunctionTypeAnnotation') return null;
+    return unwrapTypeAnnotation(functionTypeParams(cbType)?.[0]?.typeAnnotation);
+  }
+
+  // structural Thenable peel (V4-AWAIT-2): `await x` where x has `then(cb: (v: T) => ...): any`
+  // resolves to T per TS Thenable contract. plugin's named-PROMISE_SYNONYMS covers Promise /
+  // PromiseLike / Thenable aliases but misses user classes / interfaces with structural .then.
+  // class path via `findClassMember` handles babel ClassMethod + ESTree MethodDefinition via
+  // `methodFnPath` value-unwrap; interface path iterates substituted TSMethodSignature members
+  function peelUserThenable(annotation, scope) {
+    if (annotation?.type !== 'TSTypeReference' || annotation.typeName?.type !== 'Identifier') return null;
+    const classPath = findClassPathForTypeReference(annotation, scope);
+    if (classPath) {
+      const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
+      const found = findClassMember(classPath, 'then', false, classSubst);
+      if (!found || !isMethodMember(found.member.node)) return null;
+      const valueAnn = cbFirstArgAnnotation(methodFnPath(found.member).node.params?.[0]);
+      if (!valueAnn) return null;
+      return resolveTypeAnnotation(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
+    }
+    // interface path: getTypeMembers returns already-substituted TSMethodSignature nodes
+    const members = getTypeMembers(annotation, scope);
+    const thenMember = members?.find(m => keyMatchesName(m.key, 'then') && m.type === 'TSMethodSignature');
+    const valueAnn = thenMember && cbFirstArgAnnotation(functionTypeParams(thenMember)?.[0]);
+    return valueAnn ? resolveTypeAnnotation(valueAnn, scope) : null;
+  }
+
+  // await expression resolution: Promise / PromiseLike / Thenable named aliases unwrap via
+  // `unwrapPromise` + annotation Awaited<T> machinery; user-defined structural thenables
+  // route through `peelUserThenable`; everything else stays AS-IS per `await x` semantics
   function resolveAwaitExpressionType(path) {
     const argument = path.get('argument');
     const type = resolveNodeType(argument);
-    // await on non-Promise value returns the value type unchanged
-    if (type && type.constructor !== 'Promise') return type;
+    const annotationInfo = findExpressionAnnotation(argument);
+    const annotation = annotationInfo && unwrapTypeAnnotation(annotationInfo.annotation);
+    // non-Promise: try structural Thenable peel (user class with `then(cb: (v:T) => ...)`);
+    // fall back to returning the type unchanged when no thenable shape detected
+    if (type && type.constructor !== 'Promise') {
+      const thenable = annotation && peelUserThenable(annotation, annotationInfo.scope);
+      return thenable ?? type;
+    }
     // recursively unwrap Promise<Promise<...T>> -> T
     const peeled = unwrapPromise(type);
     if (peeled) return peeled;
@@ -3614,12 +3670,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // a direct `Promise<X>` ref via `resolveTypeAnnotation`, leaving aliased / conditional
     // / union shapes resolving as `$Object('Promise')` - misroutes downstream member
     // dispatch (Promise.<x> isn't in built-in definitions, so polyfill emission skipped)
-    const annotationInfo = findExpressionAnnotation(argument);
-    if (annotationInfo) {
-      const annotation = unwrapTypeAnnotation(annotationInfo.annotation);
-      const annotated = annotation && resolveAwaitedAnnotation(annotation, annotationInfo.scope, 0);
-      if (annotated) return annotated;
-    }
+    const annotated = annotation && resolveAwaitedAnnotation(annotation, annotationInfo.scope, 0);
+    if (annotated) return annotated;
     return resolveAwaitedFromCallBody(argument);
   }
 
