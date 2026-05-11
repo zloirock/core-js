@@ -113,7 +113,9 @@ const FUSES_WITH_OPEN_PAREN = /[\w"$')/\]`}]/;
 
 // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). per-char check for
 // hot loops where a regex-per-test would allocate the match array
-export const isLineTerminator = ch => ch === '\n' || ch === '\r' || ch === '\u2028' || ch === '\u2029';
+export function isLineTerminator(ch) {
+  return ch === '\n' || ch === '\r' || ch === '\u2028' || ch === '\u2029';
+}
 
 // forward-scan past a block comment whose opener is at `p` (caller has verified
 // `src[p]==='/' && src[p+1]==='*'`). returns position after `*/`, or `src.length`
@@ -257,7 +259,10 @@ const SCOPE_REBINDING_TYPES = new Set([
   // ES2022 class `static { ... }` has its own var-scope; `var` inside doesn't leak to the class
   'StaticBlock',
 ]);
-const isScopeRebinding = node => SCOPE_REBINDING_TYPES.has(node.type);
+
+function isScopeRebinding(node) {
+  return SCOPE_REBINDING_TYPES.has(node.type);
+}
 
 // plugin never emits `_ref = X` assignments into these parent positions - they surface only
 // from user sloppy-mode code. listed alongside ExpressionStatement (bare statement form) so
@@ -307,12 +312,17 @@ export function collectAllBindingNames(ast) {
   const names = new Set();
   const declaredNames = new Set();
   const orphanRefs = new Set();
+
   // declaredNames is the strict subset; pair the writes so the invariant holds at the source
-  const addDecl = name => {
+  function addDecl(name) {
     names.add(name);
     declaredNames.add(name);
-  };
-  const addPattern = pat => walkPatternIdentifiers(pat, id => addDecl(id.name));
+  }
+
+  function addPattern(pat) {
+    walkPatternIdentifiers(pat, id => addDecl(id.name));
+  }
+
   // scope-depth tracks whether we're still at module top-level (outside any function / class
   // that rebinds `this` / scope). plugin emits its `_ref = X` orphans only at top-level, so
   // nested-scope assignments are user code regardless of RHS shape

@@ -58,13 +58,15 @@ function resolveHint(desc, meta) {
   // null and inflates to `[first, ...]` only on match #2+
   let first = null;
   let rest = null;
-  const add = d => {
+
+  function add(d) {
     if (first === null) first = d;
     else {
       rest ??= [first];
       rest.push(d);
     }
-  };
+  }
+
   for (const $hint of TYPE_HINTS) {
     if (excludedHints?.has($hint)) continue;
     if (includedHints && !includedHints.has($hint)) continue;
@@ -189,7 +191,9 @@ export function createPolyfillResolver(options, {
     }
   }
 
-  const groupRejects = (group, path) => group.some(([name, ...args]) => filter(name, args, path));
+  function groupRejects(group, path) {
+    return group.some(([name, ...args]) => filter(name, args, path));
+  }
 
   // OR within `filters`, AND across `filterGroups` (set by multi-variant `resolveHint`)
   function rejectsByFilters(desc, path) {

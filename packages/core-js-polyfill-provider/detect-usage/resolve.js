@@ -417,7 +417,9 @@ function inlineCallReturnExpression(callNode, scope, adapter, seen, path) {
   return callee ? singleReturnBodyExpression(callee.body) : null;
 }
 
-const isCallShape = node => node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression';
+function isCallShape(node) {
+  return node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression';
+}
 
 // does the inline-resolved call carry prefix statements that would be lost if the site is
 // replaced by the polyfill? expression-body (`() => X`) and direct-return block-body

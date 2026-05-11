@@ -110,7 +110,7 @@ export default class ImportInjector extends ImportInjectorState {
     if (!this.#refs.size) return;
     const t = this.#t;
     const refNames = this.#refs;
-    const normalize = path => {
+    function normalize(path) {
       const { params } = path.node;
       let n = params.length;
       while (n > 0) {
@@ -128,7 +128,7 @@ export default class ImportInjector extends ImportInjectorState {
       }
       bodyPath.unshiftContainer('body', t.variableDeclaration('var',
         refParams.map(p => t.variableDeclarator(t.cloneNode(p)))));
-    };
+    }
     this.#programPath.traverse({
       ArrowFunctionExpression: normalize,
       FunctionExpression: normalize,
@@ -140,9 +140,9 @@ export default class ImportInjector extends ImportInjectorState {
   // pass over the full scope graph after `scope.crawl()`. caller decides what to do with
   // each [name, binding] pair (filter to a multimap / accumulate names into a Set / etc.)
   #forEachScopeBinding(visit) {
-    const apply = scope => {
+    function apply(scope) {
       for (const entry of Object.entries(scope.bindings)) visit(entry);
-    };
+    }
     apply(this.#programPath.scope);
     this.#programPath.traverse({ Scopable({ scope }) { apply(scope); } });
   }
@@ -269,7 +269,9 @@ export default class ImportInjector extends ImportInjectorState {
   // per babel convention). returns Map<oldName, newName> with no-op identity entries
   // omitted - empty map signals "no rename needed", short-circuit at caller
   #buildRenameMap(taken) {
-    const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
+    function slot(i) {
+      return i === 1 ? '_ref' : `_ref${ i }`;
+    }
     const renameMap = new Map();
     let i = 1;
     for (const name of this.#refs) {
@@ -399,8 +401,13 @@ export default class ImportInjector extends ImportInjectorState {
     }
     const { body } = this.#programPath.node;
     if (!body?.length) return;
-    const isRefOnly = stmt => stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
-      && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier' && this.#refs.has(d.id.name));
+    const refsSet = this.#refs;
+
+    function isRefOnly(stmt) {
+      return stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
+        && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier' && refsSet.has(d.id.name));
+    }
+
     // import-region members - the reorder loop accumulates `importEnd` over them and bails
     // on the first non-member. coverage:
     //   - `import ... from 'm'`
@@ -418,18 +425,24 @@ export default class ImportInjector extends ImportInjectorState {
     // with `stmt.directive` field; sibling-emitted `'use strict'` synth shapes preserve the
     // marker). bare `'foo';` non-directive statements should NOT qualify - otherwise they
     // would extend the import-region and `var _ref;` would merge past them
-    const isStringDirective = stmt => stmt.type === 'ExpressionStatement'
-      && (stmt.expression?.type === 'StringLiteral' || stmt.expression?.type === 'Literal')
-      && (stmt.directive !== null && stmt.directive !== undefined
-        || stmt.expression?.directive !== null && stmt.expression?.directive !== undefined);
-    const isImportRegion = stmt => stmt.type === 'ImportDeclaration'
-      || (stmt.type === 'ExportNamedDeclaration' && stmt.source)
-      || stmt.type === 'ExportAllDeclaration'
-      || (stmt.type === 'ExpressionStatement'
-        && stmt.expression?.type === 'CallExpression' && stmt.expression.callee?.name === 'require')
-      || isStringDirective(stmt)
-      || (stmt.type === 'VariableDeclaration'
-        && stmt.declarations.some(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
+    function isStringDirective(stmt) {
+      return stmt.type === 'ExpressionStatement'
+        && (stmt.expression?.type === 'StringLiteral' || stmt.expression?.type === 'Literal')
+        && (stmt.directive !== null && stmt.directive !== undefined
+          || stmt.expression?.directive !== null && stmt.expression?.directive !== undefined);
+    }
+
+    function isImportRegion(stmt) {
+      return stmt.type === 'ImportDeclaration'
+        || (stmt.type === 'ExportNamedDeclaration' && stmt.source)
+        || stmt.type === 'ExportAllDeclaration'
+        || (stmt.type === 'ExpressionStatement'
+          && stmt.expression?.type === 'CallExpression' && stmt.expression.callee?.name === 'require')
+        || isStringDirective(stmt)
+        || (stmt.type === 'VariableDeclaration'
+          && stmt.declarations.some(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
+    }
+
     const refs = [];
     const refIndices = [];
     let importEnd = 0;
