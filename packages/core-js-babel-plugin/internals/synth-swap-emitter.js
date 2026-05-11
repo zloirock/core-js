@@ -31,6 +31,14 @@ export default function createSynthSwapEmitter({
   skippedNodes,
   t,
 }) {
+  // receiver-node -> { entries: [{key, binding, ...}], applied: boolean }. one pending entry
+  // collects ALL polyfill props destructured from the SAME receiver across sibling visits,
+  // so `const { from, of } = Array; const { from: from2 } = Array;` builds ONE pending list
+  // per Array-receiver-node and flushes via single apply() walk. multi-receiver invariant:
+  // distinct AST receiver nodes (even semantically same global, like two `Array` Identifiers
+  // at different source positions) MUST get distinct WeakMap keys - the receiver is the
+  // node-identity key, not a string name. node-cloning sibling plugins MUST preserve receiver
+  // identity through their transform; replacing the receiver node breaks the lookup at flush
   const synthSwapByReceiver = new WeakMap();
 
   // peel runtime-transparent expression wrappers (TS `as` / `satisfies` / `!` / ... and
