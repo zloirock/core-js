@@ -171,7 +171,9 @@ export function createDestructureEmitter({
     // already-flattened statement: per-prop visitor re-entry for sibling polyfills is a
     // no-op (the upfront `rewriteDeclarator` walk on first call already covered all of them)
     if (flattenedAssignments.has(assignNode)) return true;
-    return cascadeAssignmentExpression(assignNode, peeled.exprStmt, metaPath.scope, peeled.sequencePrefix);
+    return cascadeAssignmentExpression({
+      assignNode, stmtPath: peeled.exprStmt, scope: metaPath.scope, outerSequencePrefix: peeled.sequencePrefix,
+    });
   }
 
   // run `fn` with `injector.generateUnusedName` wrapped so every name it emits is also
@@ -208,7 +210,7 @@ export function createDestructureEmitter({
   // bodyless control parent (`if (cond) ({...} = G);`) requires `{...}` wrap when more
   // than one statement is emitted - otherwise siblings to the gated first statement
   // run unconditionally, breaking the guard's runtime semantics
-  function cascadeAssignmentExpression(assignNode, stmtPath, scope, outerSequencePrefix = []) {
+  function cascadeAssignmentExpression({ assignNode, stmtPath, scope, outerSequencePrefix = [] }) {
     const stmtNode = stmtPath.node;
     let cached = trackedUnusedNamesByAssign.get(assignNode);
     if (!cached) {
@@ -230,7 +232,7 @@ export function createDestructureEmitter({
     // SE prefix expressions (RHS-internal AND outer SequenceExpression wrappers) stay
     // visitable so their inner Identifiers (`Promise.resolve`) emit their own polyfill
     // imports during traversal
-    walkAstNodes(assignNode.left, node => skippedNodes.add(node));
+    walkAstNodes({ root: assignNode.left, visit: node => skippedNodes.add(node) });
     const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
     skipReceiverTailSubtree(receiverTail);
     const segments = [];
@@ -382,7 +384,7 @@ export function createDestructureEmitter({
   function skipReceiverTailSubtree(receiverNode) {
     if (!receiverNode) return;
     const { tail } = peelNestedSequenceExpressions(receiverNode);
-    if (tail) walkAstNodes(tail, n => skippedNodes.add(n));
+    if (tail) walkAstNodes({ root: tail, visit: n => skippedNodes.add(n) });
   }
 
   function seedSkippedForExtractedDeclarators(declaration, perDecl) {
@@ -390,7 +392,7 @@ export function createDestructureEmitter({
     for (let i = 0; i < perDecl.length; i++) {
       if (!perDecl[i].extractions.length) continue;
       const decl = declaration.declarations[i];
-      walkAstNodes(decl.id, n => skippedNodes.add(n));
+      walkAstNodes({ root: decl.id, visit: n => skippedNodes.add(n) });
       skipReceiverTailSubtree(decl.init);
       if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
     }
@@ -469,12 +471,14 @@ export function createDestructureEmitter({
       // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
       // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
       const init = unwrapExpressionChain(initSource);
-      const receiver = init ? sharedResolveObjectName(init, scope, estreeAdapter) : null;
+      const receiver = init ? sharedResolveObjectName({ objectNode: init, scope, adapter: estreeAdapter }) : null;
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
         const outerProps = pattern.properties.map(planOuterProp);
         if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern };
       } else if (init) {
-        const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, [], scope));
+        const outerProps = pattern.properties.map(p => planOuterPropStatic({
+          outerProp: p, hostInit: init, path: [], scope,
+        }));
         if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps, pattern };
       }
     }
@@ -499,7 +503,7 @@ export function createDestructureEmitter({
   // non-Property / computed / non-ObjectPattern values bail to opaque preservedSrc.
   // shorthand / Identifier-valued outer props are NOT supported here - they would name a
   // local binding outside the static path, so static-object descent doesn't apply
-  function planOuterPropStatic(outerProp, hostInit, path, scope) {
+  function planOuterPropStatic({ outerProp, hostInit, path, scope }) {
     if (outerProp.type !== 'Property' || outerProp.computed
       || outerProp.key?.type !== 'Identifier') {
       return { preservedSrc: nodeSrc(outerProp) };
@@ -507,7 +511,9 @@ export function createDestructureEmitter({
     const value = peelInnerDefault(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { preservedSrc: nodeSrc(outerProp) };
     const newPath = [...path, outerProp.key.name];
-    const constructor = walkStaticReceiverChain(hostInit, newPath, scope, estreeAdapter);
+    const constructor = walkStaticReceiverChain({
+      receiverNode: hostInit, walkPath: newPath, scope, adapter: estreeAdapter,
+    });
     // proxy-global hop (`{root: {Array: {from}}} = {root: globalThis}`): walkStaticReceiverChain
     // resolves the first segment to `globalThis` / `self` / `window` — that's a proxy-global
     // intermediate, NOT a constructor. continue descent so the next hop reaches the real
@@ -517,7 +523,9 @@ export function createDestructureEmitter({
     if (constructor && !POSSIBLE_GLOBAL_OBJECTS.has(constructor)) {
       return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
     }
-    return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath, scope));
+    return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic({
+      outerProp: innerProp, hostInit, path: newPath, scope,
+    }));
   }
 
   // proxy-global outer prop: four shapes
@@ -851,7 +859,7 @@ export function createDestructureEmitter({
   function tryFromFallbackPerBranchSynth(metaPath, propNode) {
     const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
     if (!desc) return;
-    tryRegisterPerBranchSynth(desc.rhsNode, propNode, metaPath.parent, metaPath.scope);
+    tryRegisterPerBranchSynth({ rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope });
   }
 
   // ConditionalExpression / LogicalExpression in destructure-receiver position
@@ -862,7 +870,7 @@ export function createDestructureEmitter({
   // `{key: _Branch$key, ...}` literal. branches without viable polyfill are left raw -
   // the constructor identifier visitor still emits `_Set` etc. for shadow-correct globals.
   // returns true when at least one branch was registered
-  function tryRegisterPerBranchSynth(rhs, propNode, objectPattern, scope) {
+  function tryRegisterPerBranchSynth({ rhs, propNode, objectPattern, scope }) {
     if (!rhs || !propNode || !objectPattern) return false;
     if (!isSynthSimpleObjectPattern(objectPattern)) return false;
     if (propNode.computed || propNode.key?.type !== 'Identifier') return false;
@@ -877,7 +885,7 @@ export function createDestructureEmitter({
     let registered = false;
     for (const slot of slots) {
       const branch = inner[slot];
-      const pure = isViableBranchForKey(branch, key, scope, estreeAdapter, resolvePure);
+      const pure = isViableBranchForKey({ branch, key, scope, adapter: estreeAdapter, resolvePure });
       if (!pure) continue;
       const binding = injectPureImport(pure.entry, pure.hintName);
       // skip the wrapper chain (ParenthesizedExpression / TS expression) AND the inner
@@ -917,7 +925,9 @@ export function createDestructureEmitter({
       // polyfill object literal, so a non-Identifier receiver (`cond ? Array : Set`) still
       // gets array narrowing on each branch independently
       const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
-      if (desc) tryRegisterPerBranchSynth(desc.rhsNode, propNode, metaPath.parent, metaPath.scope);
+      if (desc) tryRegisterPerBranchSynth({
+        rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope,
+      });
       return;
     }
     const isAssign = value.type === 'AssignmentPattern';
@@ -935,7 +945,9 @@ export function createDestructureEmitter({
       // (`{x}` / `{x: alias}` / `{x = default}` / `{x: alias = default}`) via
       // `propBindingIdentifier`'s AssignmentPattern.left peel - matches babel-plugin's
       // unconditional body-extract dispatch. expr-body arrows skip (no statement slot)
-      if (tryBodyExtractFromParamDestructurePure(metaPath, propNode, binding, objectPattern, pureResult.entry)) return;
+      if (tryBodyExtractFromParamDestructurePure({
+        propPath: metaPath, propNode, binding, objectPattern, entry: pureResult.entry,
+      })) return;
       if (isAssign) transforms.add(value.right.start, value.right.end, binding);
       else transforms.insert(value.end, ` = ${ binding }`);
       return;
@@ -966,7 +978,7 @@ export function createDestructureEmitter({
   // consumes the adjacent comma. user-written default is dropped (dead code under polyfill-
   // always-wins). preserves "polyfill always wins" at the cost of caller-passed
   // `{from: customFrom}` being ignored
-  function tryBodyExtractFromParamDestructurePure(propPath, propNode, binding, objectPattern, entry) {
+  function tryBodyExtractFromParamDestructurePure({ propPath, propNode, binding, objectPattern, entry }) {
     const localId = propBindingIdentifier(propNode.value);
     if (!localId) return false;
     const fnPath = findEnclosingFunctionLikePath(propPath);
@@ -1069,9 +1081,12 @@ export function createDestructureEmitter({
       // `isNonReferencePosition` so the catch transform doesn't fire for unused bindings -
       // pre-fix `try {} catch ({ [Symbol.iterator]: it }) { Math.it; }` over-emitted because
       // `.it` was counted as a reference to `it`
-      walkAstNodes(declaratorPath.node.body, (n, parent) => {
-        if (!referenced && n.type === 'Identifier' && n.name === localName
-            && !isNonReferencePosition(parent, n)) referenced = true;
+      walkAstNodes({
+        root: declaratorPath.node.body,
+        visit(n, parent) {
+          if (!referenced && n.type === 'Identifier' && n.name === localName
+              && !isNonReferencePosition(parent, n)) referenced = true;
+        },
       });
       if (!referenced) return;
     }
@@ -1308,7 +1323,7 @@ export function createDestructureEmitter({
       // returns the polyfilled init source or null when no substitution applies
       function polyfillInitGlobals(info) {
         const initNode = unwrapParens(info.initNode);
-        const leafName = info.initIdentName || globalProxyMemberName(initNode);
+        const leafName = info.initIdentName || globalProxyMemberName({ node: initNode });
         if (leafName) {
           const leafPolyfill = resolvePure({ kind: 'global', name: leafName }, null);
           if (leafPolyfill) return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
@@ -1335,7 +1350,7 @@ export function createDestructureEmitter({
         const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
         const remaining = allProps.filter(p => !polyfillKeys.has(p));
         const hasInstance = entries.some(e => e.kind === 'instance');
-        const resolvedGlobalName = initIdentName || globalProxyMemberName(unwrapParens(info.initNode));
+        const resolvedGlobalName = initIdentName || globalProxyMemberName({ node: unwrapParens(info.initNode) });
         // gate global-identifier substitution on init-being-used to avoid emitting unused
         // proxy-global imports for the all-bindings-discarded case (`const { from } = globalThis`)
         const initIsUsed = remaining.length > 0 || hasRest || hasInstance;

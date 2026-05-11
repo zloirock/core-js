@@ -257,7 +257,7 @@ export default function createPlugin(options) {
     // a `'use strict'` prologue can precede `disable-file`, so skip directives before the cutoff
     const offsetToLine = buildOffsetToLine(code);
     const firstNonDirective = ast.body.find(s => !isDirectiveStatement(s));
-    const disabledLines = parseDisableDirectives(comments, offsetToLine, firstNonDirective?.start, ast);
+    const disabledLines = parseDisableDirectives({ comments, offsetToLine, firstStmtStart: firstNonDirective?.start, ast });
     if (disabledLines === true) return null; // entire file disabled
 
     function isDisabled(node) {
@@ -421,7 +421,7 @@ export default function createPlugin(options) {
       resolveStaticInheritedMember,
       isInheritedStaticLookup,
       isShadowedByClassOwnMember,
-    } = createClassHelpers(types, estreeAdapter, sharedResolveKey, () => injector);
+    } = createClassHelpers({ t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector });
 
     // usage-global mode
     function runUsageGlobal() {
@@ -581,7 +581,7 @@ export default function createPlugin(options) {
             if (!meta) return;
           }
           if (isTaggedTemplateTag(parent, node, meta.placement)) return;
-          if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
+          if (meta.key === 'Symbol.iterator') return handleSymbolIterator({ node, parent, metaPath });
         }
 
         let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
@@ -642,9 +642,9 @@ export default function createPlugin(options) {
         if (node.type === 'MemberExpression' && kind !== 'instance') skipProxyGlobal(node);
 
         if (kind === 'instance' && node.type === 'MemberExpression') {
-          replaceInstance(binding, node, parent, metaPath, meta.sideEffects);
+          replaceInstance({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
         } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-          replaceGlobalOrStatic(binding, node, parent, metaPath, meta.sideEffects);
+          replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
           // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`).
           // without seeding skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol`
           // transform whose needle composes into the outer's `_Symbol$iterator` replacement as

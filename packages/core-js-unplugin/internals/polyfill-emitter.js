@@ -140,7 +140,7 @@ export function createPolyfillEmitter({
     }
 
     function isPoly(n) {
-      return isPolyfillableOptional(n, scope, estreeAdapter, resolveBuiltIn);
+      return isPolyfillableOptional({ node: n, scope, adapter: estreeAdapter, resolve: resolveBuiltIn });
     }
 
     let current = node.optional ? node : chainChild(node);
@@ -182,7 +182,7 @@ export function createPolyfillEmitter({
   // chain receiver isn't a bare ident); `obj` is the `this` slot (reuses memoized ref
   // when allocated). `argsPart` is the leading `, ...args` separator handled here so
   // empty / non-empty cases don't litter the strategy emit
-  function buildCallParts(bodyObj, isNonIdent, guardRef, args) {
+  function buildCallParts({ bodyObj, isNonIdent, guardRef, args }) {
     const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
     const argsPart = args ? `, ${ args }` : '';
     return { obj, firstArg, argsPart };
@@ -215,14 +215,14 @@ export function createPolyfillEmitter({
       //   - success path preserves `this` via memoized ref
       //   - bodyObj evaluated ONCE (deep-chain `arr.b` would re-eval in outer .call otherwise)
       // bare receiver `arr` and pre-allocated guardRef cases skip memoize - already trivially safe
-      const { obj, firstArg, argsPart } = buildCallParts(bodyObj, isNonIdent, guardRef, args);
+      const { obj, firstArg, argsPart } = buildCallParts({ bodyObj, isNonIdent, guardRef, args });
       return {
         body: `(${ guard }${ binding }(${ firstArg })).call(${ obj }${ argsPart })`,
         clearGuard: true,
       };
     },
     call: ({ binding, bodyObj, isNonIdent, guardRef, optionalCall, args, guard, sideEffects }) => {
-      const { obj, firstArg, argsPart } = buildCallParts(bodyObj, isNonIdent, guardRef, args);
+      const { obj, firstArg, argsPart } = buildCallParts({ bodyObj, isNonIdent, guardRef, args });
       const dot = optionalCall ? '?.' : '.';
       const prefix = `${ binding }(${ firstArg })`;
       const suffix = `${ dot }call(${ obj }${ argsPart })`;
@@ -299,7 +299,7 @@ export function createPolyfillEmitter({
   }
 
   // resolve optional root + skip redundant guard when nested inside an outer transform
-  function resolveOptionalRoot(node, parent, isCall, scope) {
+  function resolveOptionalRoot({ node, parent, isCall, scope }) {
     let { root, rootRaw, deoptPositions, rootNode } = findChainRoot(node, scope);
     if (root) {
       const start = isCall ? parent.start : node.start;
@@ -321,7 +321,7 @@ export function createPolyfillEmitter({
   }
 
   // does guard ternary need () to preserve correct precedence?
-  function guardNeedsParens(metaPath, isCall, start, end) {
+  function guardNeedsParens({ metaPath, isCall, start, end }) {
     let outer = (isCall ? metaPath.parentPath : metaPath)?.parentPath;
     while (outer?.node && (outer.node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(outer.node.type))) {
       outer = outer.parentPath;
@@ -333,8 +333,10 @@ export function createPolyfillEmitter({
   }
 
   // build replacement, wrap guard if needed, add to transform queue
-  function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
-    sideEffects = null, parenLookupOnly = false) {
+  function addInstanceTransform({
+    binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
+    sideEffects = null, parenLookupOnly = false,
+  }) {
     // SequenceExpression-receiver double-emit guard - `classifyReceiverSE` (shared with
     // babel-compat) decides between peel + prepend (non-optional) and SE-in-memoize +
     // suppress prepend (optional). detects SE through transparent wrappers so oxc's
@@ -345,7 +347,9 @@ export function createPolyfillEmitter({
     if (seMode === 'suppress') sideEffects = null;
     const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
-    const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
+    const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot({
+      node, parent, isCall, scope: metaPath?.scope,
+    });
     const rootIsReceiver = rootNode === node.object;
     const optionalRootCapturesIntoRef = optionalRoot && !isBareIdentifier(optionalRoot);
     const isProxyGlobalLeaf = recv.skipNode?.type === 'Identifier'
@@ -392,7 +396,7 @@ export function createPolyfillEmitter({
     });
     let { replacement } = built;
     const { split } = built;
-    if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
+    if (optionalRoot && guardNeedsParens({ metaPath, isCall, start, end })) {
       replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, start);
     }
     const hint = createRewriteHint({
@@ -419,7 +423,7 @@ export function createPolyfillEmitter({
     if (!recv.substituted) skipProxyGlobal(node);
   }
 
-  function handleSymbolIterator(meta, node, parent, metaPath) {
+  function handleSymbolIterator({ node, parent, metaPath }) {
     if (node.object?.type === 'Super') return;
     if (node.computed && hasSideEffectfulSequencePrefix(node.property)) return;
     const isCallParent = isCallee(node, parent);
@@ -428,8 +432,10 @@ export function createPolyfillEmitter({
         ? 'get-iterator' : 'get-iterator-method';
     if (!isEntryNeeded(entry)) return;
     const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
-    addInstanceTransform(binding, node, parent, metaPath, isCallParent,
-      isCallParent && (parent.arguments.length > 0 || parent.optional));
+    addInstanceTransform({
+      binding, node, parent, metaPath, isCall: isCallParent,
+      replacementIsCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
+    });
     if (node.property) skipWrappedNode(node.property);
   }
 
@@ -535,7 +541,7 @@ export function createPolyfillEmitter({
     return { chainStart: current, innerCallee: callee, innerResult: result };
   }
 
-  function replaceInstanceChainCombined(outerBinding, node, parent, metaPath, chain) {
+  function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain }) {
     const { chainStart, innerCallee, innerResult } = chain;
     const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
     // chain-rooted polyfillable receiver: without substituting the leaf, OR-chain emit
@@ -577,7 +583,7 @@ export function createPolyfillEmitter({
     // also guard against ASI fusion: a `(`-leading replacement at a statement-leading slot
     // can fuse with the preceding statement (`prev\n(_at(...)...)` -> `prev(...)`),
     // triggering a TypeError at runtime. mirrors `addInstanceTransform`'s ASI guard
-    if (guardNeedsParens(metaPath, true, parent.start, parent.end)) {
+    if (guardNeedsParens({ metaPath, isCall: true, start: parent.start, end: parent.end })) {
       replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, parent.start);
     }
 
@@ -596,26 +602,28 @@ export function createPolyfillEmitter({
   // via `.call` access on undefined; success path preserves `this`. parity with babel-side
   // requires walking the chain (not just `node.optional` flag) since ESTree continuation
   // members carry optional=false even within an optional chain
-  function replaceInstance(binding, node, parent, metaPath, sideEffects) {
+  function replaceInstance({ binding, node, parent, metaPath, sideEffects }) {
     const wrappedInParen = isCalleeWrappedInParens(parent, node);
     const optionalInsideChain = node.optional || hasOptionalChainSegment(node);
     const isParenLookupOnly = isCallee(node, parent) && wrappedInParen
       && optionalInsideChain && !parent.optional;
     if (isParenLookupOnly) {
-      addInstanceTransform(binding, node, parent, metaPath, true, true, sideEffects, true);
+      addInstanceTransform({
+        binding, node, parent, metaPath, isCall: true, replacementIsCall: true, sideEffects, parenLookupOnly: true,
+      });
       return;
     }
     const chain = findInnerPolyChain(node, parent, metaPath);
-    if (chain) return replaceInstanceChainCombined(binding, node, parent, metaPath, chain);
+    if (chain) return replaceInstanceChainCombined({ outerBinding: binding, node, parent, metaPath, chain });
     const isCall = isCallee(node, parent);
-    addInstanceTransform(binding, node, parent, metaPath, isCall, isCall, sideEffects);
+    addInstanceTransform({ binding, node, parent, metaPath, isCall, replacementIsCall: isCall, sideEffects });
   }
 
   // replace global identifier or static member with polyfill import binding. the
   // shorthand / export / super early-returns don't carry side effects (Identifier /
   // Super can't host a SequenceExpression); only the final MemberExpression replacement
   // wraps with `sideEffects` from the receiver / computed-key
-  function replaceGlobalOrStatic(binding, node, parent, metaPath, sideEffects) {
+  function replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects }) {
     // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
     // same source range for shorthand `{ Promise }` and bare `export { Promise }`
     const directParent = metaPath.parent;
@@ -706,7 +714,7 @@ export function createPolyfillEmitter({
         // marking only `node.right` leaves nested identifiers (`foo.bar.baz` -> `foo`)
         // visible to child visitors, which would emit spurious polyfill imports for
         // code the `'true'` replacement has already discarded
-        walkAstNodes(node.right, n => skippedNodes.add(n));
+        walkAstNodes({ root: node.right, visit: n => skippedNodes.add(n) });
         skipProxyGlobal(node.right);
       }
     }

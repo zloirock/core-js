@@ -4,7 +4,7 @@
 //   - `walkTypeAnnotationGlobals(annotation, onGlobal)` walker (entry-global needs to pull
 //     `Foo` from `let x: Foo` so `es.foo.constructor` lands at file level)
 //   - `checkTypeAnnotations(node, onGlobal)` helper for class / function annotation slots
-//   - `isPolyfillableOptional(member, scope, adapter, resolve)` - the polyfill replacement
+//   - `isPolyfillableOptional({ node: member, scope, adapter, resolve })` - the polyfill replacement
 //     consumes `?.`, so the receiver null-check is redundant
 import { getSuperTypeArgs } from '../helpers/ast-patterns.js';
 import { unwrapParens } from './resolve.js';
@@ -214,7 +214,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 // the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
 // ESTree (oxc) preserves ParenthesizedExpression around the object (`(globalThis)?.Array`),
 // which babel strips - unwrap here so the optimization fires for both parsers
-export function isPolyfillableOptional(node, scope, adapter, resolve) {
+export function isPolyfillableOptional({ node, scope, adapter, resolve }) {
   const obj = unwrapParens(node.object);
   if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name)) return false;
   if (resolve({ kind: 'global', name: obj.name })) return true;
