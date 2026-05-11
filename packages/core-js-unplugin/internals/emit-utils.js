@@ -44,7 +44,11 @@ export function isCalleeWrappedInParens(parent, node) {
 
 // outermost optional-chain member: useful for the deep-chain generic-fallback heuristic.
 // matching that scope keeps unplugin's output shape aligned with babel: e.g. 5-deep chain
-// polyfills M5 via generic fallback, leaves M4 raw the same way babel does
+// polyfills M5 via generic fallback, leaves M4 raw the same way babel does.
+// LIMITATION: skips AT MOST ONE wrapping CallExpression (for instance calls -
+// `arr.flat?.()`). nested call-wraps like `wrapper(arr.flat?.())` would land outside the
+// chain-detection scope - the second wrapper's parent is the expression-statement, not
+// ChainExpression. acceptable: babel emits the same shape, parity preserved
 export function isOutermostOptionalChainMember(path) {
   // skip past the wrapping call (for instance calls) before checking the chain boundary
   let current = path?.parentPath;

@@ -228,15 +228,16 @@ export function createPolyfillResolver(options, {
     return dependencies;
   }
 
-  function resolvePure(meta, path) {
+  // shared pure-resolve protocol: resolve meta -> require `pure` desc -> extract (kind, desc)
+  // -> caller-supplied effectiveMeta builder -> resolvePureEntry -> build return shape.
+  // both consumers (`resolvePure` standard path, `resolvePureGeneric` fallback path) differ
+  // ONLY in step 3 (effectiveMeta construction); steps 1-2 and 4-5 are identical
+  function resolvePureWith(meta, path, buildEffectiveMeta) {
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
     const { kind, desc: { pure: desc } } = resolved;
-    let effectiveMeta = meta;
-    if (kind === 'instance') {
-      effectiveMeta = enhanceMeta(meta, path, desc);
-      if (!effectiveMeta) return null;
-    }
+    const effectiveMeta = buildEffectiveMeta(kind, desc, meta, path);
+    if (!effectiveMeta) return null;
     const entry = resolvePureEntry(kind, desc, effectiveMeta, path);
     if (!entry) return null;
     return {
@@ -244,6 +245,15 @@ export function createPolyfillResolver(options, {
       kind,
       hintName: pureImportName(kind, resolved.name, entry),
     };
+  }
+
+  function resolvePure(meta, path) {
+    return resolvePureWith(meta, path, (kind, desc) => {
+      // non-instance kinds use bare meta; instance kinds run through enhanceMeta which
+      // narrows by receiver type-hint (e.g. `arr.at()` -> Array-specific entry vs common)
+      if (kind !== 'instance') return meta;
+      return enhanceMeta(meta, path, desc) ?? null;
+    });
   }
 
   // generic-fallback resolve: look up the `common` entry directly, bypassing the type-hint
@@ -257,28 +267,20 @@ export function createPolyfillResolver(options, {
   // they've detected the "ancestor polyfill breaks type inference" scenario and want the
   // generic entry that would have fired on babel's re-visit
   function resolvePureGeneric(meta, path) {
-    const resolved = resolve(meta);
-    if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
-    const { kind, desc: { pure: desc } } = resolved;
-    if (kind !== 'instance') return null;
-    if (!hasOwn(desc, 'common')) return null;
-    // bail when the receiver type is statically known and incompatible with desc's variants.
-    // enhanceMeta returns null when the hint isn't in TYPE_HINTS but desc requires hints;
-    // returns a meta with `object` in TYPE_HINTS when the type folded into a primitive /
-    // collection slot. either way the upstream resolvePure already concluded "no polyfill
-    // applies" - emitting common here over-injects relative to babel's natural-bail (babel
-    // only deopts to common AFTER an inner polyfill mutation, never for a typed receiver)
-    if (path && receiverIncompatibleWithDesc(meta, path, desc)) return null;
-    // pass meta with object stripped so resolveHint's placement-based branch skips and the
-    // `!excludedHints && !includedHints && hasOwn(desc, 'common')` branch picks up common
-    const genericMeta = { ...meta, object: null };
-    const entry = resolvePureEntry(kind, desc, genericMeta, path);
-    if (!entry) return null;
-    return {
-      entry,
-      kind,
-      hintName: pureImportName(kind, resolved.name, entry),
-    };
+    return resolvePureWith(meta, path, (kind, desc, baseMeta) => {
+      if (kind !== 'instance') return null;
+      if (!hasOwn(desc, 'common')) return null;
+      // bail when the receiver type is statically known and incompatible with desc's variants.
+      // enhanceMeta returns null when the hint isn't in TYPE_HINTS but desc requires hints;
+      // returns a meta with `object` in TYPE_HINTS when the type folded into a primitive /
+      // collection slot. either way the upstream resolvePure already concluded "no polyfill
+      // applies" - emitting common here over-injects relative to babel's natural-bail (babel
+      // only deopts to common AFTER an inner polyfill mutation, never for a typed receiver)
+      if (path && receiverIncompatibleWithDesc(baseMeta, path, desc)) return null;
+      // pass meta with object stripped so resolveHint's placement-based branch skips and the
+      // `!excludedHints && !includedHints && hasOwn(desc, 'common')` branch picks up common
+      return { ...baseMeta, object: null };
+    });
   }
 
   // two distinct lookups, not a duplicate: first resolves the property meta against
