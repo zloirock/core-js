@@ -184,15 +184,30 @@ export function bindsModuleDefault(node) {
   return false;
 }
 
+// match `<pkg>/...` for any pkg in the user's resolved `packages` array (main + additional).
+// allows aliased / monorepo polyfill packages to participate in Symbol.X detection alongside
+// the built-in CORE_JS_SOURCE_PREFIX. lowercased prefix comparison mirrors `packages` already
+// being lowercased at construction time (see polyfill-provider/index.js)
+function importSourceMatchesUserPackage(source, packages) {
+  if (!packages?.length) return false;
+  const lower = source.toLowerCase();
+  for (const pkg of packages) if (lower.startsWith(`${ pkg }/`)) return true;
+  return false;
+}
+
 // resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
 // `polyfillHint` (in-place AST mutation leaves this on the binding) and `importSource`
 // (real `import X from '.../symbol/iterator'` that the plugin emitted). symbol modules
 // export the well-known Symbol as their default - only default bindings count as Symbol.X refs.
 // CORE_JS_SOURCE_PREFIX filter rejects unrelated user imports like `my-lib/symbol/iterator`
-// whose `*/symbol/X` suffix would otherwise match the regex and route through Symbol.X polyfill
-export function bindingSymbolKey(binding) {
+// whose `*/symbol/X` suffix would otherwise match the regex and route through Symbol.X polyfill.
+// optional `packages` array extends the prefix check to user-aliased polyfill packages
+// (`additionalPackages` config) so monorepo / vendor-fork imports are recognised
+export function bindingSymbolKey(binding, packages = null) {
   if (binding.polyfillHint?.startsWith('Symbol.')) return binding.polyfillHint;
-  if (!binding.importSource || !CORE_JS_SOURCE_PREFIX.test(binding.importSource)) return null;
+  if (!binding.importSource) return null;
+  if (!CORE_JS_SOURCE_PREFIX.test(binding.importSource)
+    && !importSourceMatchesUserPackage(binding.importSource, packages)) return null;
   const match = SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
   if (!match || !bindsModuleDefault(binding.node)) return null;
   return `Symbol.${ kebabToCamel(match.groups.name) }`;
@@ -484,8 +499,9 @@ export function resolveKey(node, computed, scope, adapter, seen, path, depth = 0
         if (init) return resolveKey(init, true, scope, adapter, nextSeen, path, depth + 1);
       }
       // plugin-managed binding - either via `polyfillHint` (in-place AST mutation)
-      // or real import from `core-js/.../symbol/X`
-      const key = bindingSymbolKey(binding);
+      // or real import from `core-js/.../symbol/X` (or any user-aliased polyfill package
+      // listed in adapter's `packages`)
+      const key = bindingSymbolKey(binding, adapter.packages);
       if (key) return key;
     }
   }
