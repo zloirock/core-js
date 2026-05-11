@@ -36,16 +36,18 @@ export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, 
 // `isEntryNeeded` in `polyfill-provider/index.js` for entry-level filtering. flipping one
 // without the other would desync - change both sites in lockstep
 export function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback }) {
-  const matchers = patterns => {
+  function matchers(patterns) {
     if (!patterns) return null;
     return (Array.isArray(patterns) ? patterns : [patterns]).map(p => {
       const re = patternToRegExp(p);
       return re ? mod => re.test(mod) : () => false;
     });
-  };
+  }
+
   const includeMatchers = matchers(include);
   const excludeMatchers = matchers(exclude);
-  const defaultShouldInject = mod => {
+
+  function defaultShouldInject(mod) {
     if (excludeMatchers?.some(m => m(mod))) return false;
     if (includeMatchers?.some(m => m(mod))) return true;
     if (parsedTargets) {
@@ -57,7 +59,8 @@ export function buildShouldInjectPolyfill({ include, exclude, parsedTargets, use
       return false;
     }
     return true;
-  };
+  }
+
   // no cache at THIS layer - each call forwards to userCallback. note: createPolyfillContext
   // still caches per entry path in `modulesForEntryCache` / `isEntryNeededCache`, so a user
   // callback that returns different answers for the same module across transform invocations
