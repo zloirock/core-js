@@ -329,7 +329,18 @@ export function createDestructureEmitter({
       if (perDecl[i].preservedSrc === null) continue;
       const substSplices = perDecl[i].siblingSubstSplices ?? [];
       const splices = [...substSplices, ...refSplices];
-      if (splices.length) perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
+      if (!splices.length) continue;
+      // invariant: every splice must fall within [decl.start, decl.end). spliceInRange
+      // anchors at decl.start and indexes into preservedSrc; an out-of-range splice would
+      // either silently no-op or corrupt source. asserting at the gate isolates the splice
+      // contract violation to this function instead of letting a downstream MagicString /
+      // applyTransforms surface emit a confusing chunk-split error far from the cause
+      for (const s of splices) {
+        if (s.start < decl.start || s.end > decl.end) {
+          throw new RangeError(`bakePendingSplicesIntoPreserved: splice [${ s.start },${ s.end }) outside decl [${ decl.start },${ decl.end })`);
+        }
+      }
+      perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
     }
   }
 
