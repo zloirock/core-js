@@ -18,6 +18,7 @@ import {
 import {
   $Object,
   $Primitive,
+  GENERATOR_LIKE_NAMES,
   MAX_DEPTH,
   PATTERN_WRAPPERS,
   PRIMITIVE_WRAPPERS,
@@ -1003,164 +1004,130 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     perNode.set(subst, result);
     return result;
   }
-  function applyAliasSubstDeepInner(node, subst, depth, visited) {
-    switch (node.type) {
-      case 'TSTypeReference':
-      case 'GenericTypeAnnotation': {
-        const name = typeRefName(node);
-        // chained generic aliases can stash a compound arg under a param key - e.g.
-        // `type A<T> = B<T[]>; type B<U> = U[]` leaves subst {T: string, U: T[]}, and
-        // naive `subst.get(U)` leaks T. re-run the replacement through the same subst
-        // to finish resolving references inside the compound AST. cycle guard via
-        // `visited` Set on param names prevents `T -> U; U -> T` from looping forever
-        // (depth bound alone catches it eventually but allocates O(MAX_DEPTH) frames)
-        if (name && subst.has(name)) {
-          const seen = visited ?? new Set();
-          if (seen.has(name)) return node;
-          // restore on return: caller's Set is shared across siblings, leaking `name`
-          // would make the second occurrence of the same param self-bail (cycle-guard
-          // misfire). try/finally keeps the cycle-detection path-local
-          seen.add(name);
-          try {
-            const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1, seen);
-            // higher-kinded `Wrap<F, U> = F<U>` with F->Box: travel ownArgs onto the replacement
-            // when it's a parameterisable shape without its own args. otherwise (primitive
-            // keyword, array, already-parameterised) ownArgs stay dropped - attaching would
-            // corrupt the shape
-            if (replaced?.type !== 'TSTypeReference' && replaced?.type !== 'GenericTypeAnnotation') return replaced;
-            if (getTypeArgs(replaced)?.params?.length) return replaced;
-            return withSubstitutedTypeArgs(node, replaced, subst, depth, seen);
-          } finally {
-            seen.delete(name);
-          }
-        }
-        return withSubstitutedTypeArgs(node, node, subst, depth, visited);
+  function substTypeReference(node, subst, depth, visited) {
+    const name = typeRefName(node);
+    if (name && subst.has(name)) {
+      const seen = visited ?? new Set();
+      if (seen.has(name)) return node;
+      seen.add(name);
+      try {
+        const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1, seen);
+        if (replaced?.type !== 'TSTypeReference' && replaced?.type !== 'GenericTypeAnnotation') return replaced;
+        if (getTypeArgs(replaced)?.params?.length) return replaced;
+        return withSubstitutedTypeArgs(node, replaced, subst, depth, seen);
+      } finally {
+        seen.delete(name);
       }
-      case 'TSTypeAnnotation':
-      case 'TypeAnnotation':
-      case 'TSParenthesizedType':
-      case 'TSOptionalType':
-      case 'NullableTypeAnnotation': return substSlot(node, 'typeAnnotation', subst, depth, visited);
-      case 'TSArrayType':
-      case 'ArrayTypeAnnotation': return substSlot(node, 'elementType', subst, depth, visited);
-      // tuple slot dichotomy (TS: elementTypes; Flow: types) routed through shared
-      // `substTupleAlist` helper instead of duplicating substList with two slot names
-      case 'TSTupleType':
-      case 'TupleTypeAnnotation': return substTupleAlist(node, subst, depth, visited);
-      case 'TSUnionType':
-      case 'UnionTypeAnnotation':
-      case 'TSIntersectionType':
-      case 'IntersectionTypeAnnotation': return substList(node, 'types', subst, depth, visited);
-      case 'TSTypeLiteral': {
-        if (!node.members) return node;
-        let changed = false;
-        const members = node.members.map(m => {
-          const next = substMemberAnnotations(m, subst, depth + 1, visited);
-          if (next !== m) changed = true;
-          return next;
-        });
-        return changed ? { ...node, members } : node;
-      }
-      case 'TSConditionalType': {
-        const ck = applyAliasSubstDeep(node.checkType, subst, depth + 1, visited);
-        // alpha-rename guard for both extendsType AND trueType: `infer X` declares local X
-        // whose binding scopes from declaration through trueType. backward-references to X
-        // INSIDE extendsType (`T extends [infer X, X]`) should also see the alpha-rename
-        // so outer X (if present in subst) does not capture the locally-bound X
-        const localSubst = trueBranchSubst(node.extendsType, subst);
-        const ex = applyAliasSubstDeep(node.extendsType, localSubst, depth + 1, visited);
-        const tr = applyAliasSubstDeep(node.trueType, localSubst, depth + 1, visited);
-        const fl = applyAliasSubstDeep(node.falseType, subst, depth + 1, visited);
-        return ck === node.checkType && ex === node.extendsType && tr === node.trueType && fl === node.falseType
-          ? node : { ...node, checkType: ck, extendsType: ex, trueType: tr, falseType: fl };
-      }
-      case 'TSFunctionType':
-      case 'TSConstructorType':
-      case 'FunctionTypeAnnotation': {
-        const returnSlot = node.returnType ? 'returnType' : 'typeAnnotation';
-        // alpha-rename guard: function type's own `<T>` typeParameters shadow outer subst
-        // entries. `type Outer<T> = <T>(x: T) => T` - inner <T> is fresh; outer T must be
-        // dropped from subst clone before recursing into params / returnType
-        const innerSubst = dropTypeParamSubst(node.typeParameters, subst);
-        const rt = node[returnSlot] ? applyAliasSubstDeep(node[returnSlot], innerSubst, depth + 1, visited) : node[returnSlot];
-        // subst params too so structural Thenable detection (`peelUserThenable`) sees
-        // `then(cb: (v: T) => any)`'s callback-arg T substituted via the receiver's class
-        // type-args. babel quirk: TSFunctionType params live under `parameters` (not `params`
-        // - that's for ClassMethod); use `functionTypeParams` accessor for the right slot
-        const paramsSlot = 'parameters' in node ? 'parameters' : 'params';
-        const params = node[paramsSlot]?.map(p => {
-          const pTA = p.typeAnnotation ? applyAliasSubstDeep(p.typeAnnotation, innerSubst, depth + 1, visited) : p.typeAnnotation;
-          return pTA === p.typeAnnotation ? p : { ...p, typeAnnotation: pTA };
-        });
-        const paramsChanged = params && params.some((p, i) => p !== node[paramsSlot][i]);
-        if (rt === node[returnSlot] && !paramsChanged) return node;
-        return { ...node, [returnSlot]: rt, ...paramsChanged && { [paramsSlot]: params } };
-      }
-      case 'TSIndexedAccessType': {
-        const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1, visited);
-        const idx = applyAliasSubstDeep(node.indexType, subst, depth + 1, visited);
-        return obj === node.objectType && idx === node.indexType
-          ? node : { ...node, objectType: obj, indexType: idx };
-      }
-      case 'TSTypeOperator':
-        return substSlot(node, 'typeAnnotation', subst, depth, visited);
-      // mapped type: `{ [K in T]: T[K] }` - substitute the constraint, `typeAnnotation`,
-      // and `nameType` (TS `as` remapping). without this, `type Box<T> = { [K in keyof T]: T[K] }`
-      // passed `Box<{a: string[]}>` wouldn't substitute T in the mapped body. babel nests
-      // the constraint under `typeParameter.constraint`; oxc/TS-ESTree flattens to
-      // `node.constraint` directly - both shapes need a substitution slot here
-      case 'TSMappedType': {
-        const tp = node.typeParameter;
-        // alpha-rename guard: mapped type binds its own K, so outer subst entries for the
-        // same key MUST NOT propagate into body / nameType (variable capture). constraint
-        // references outer types (`keyof T`) and uses the unmodified subst; body / nameType
-        // see inner K as a fresh variable. `mappedTypeKeyName` covers both parser shapes:
-        // babel nests under `node.typeParameter.name`; oxc flattens to `node.key`
-        const innerName = mappedTypeKeyName(node);
-        const innerSubst = innerName ? dropMapKeys(subst, new Set([innerName])) : subst;
-        const recurseSlot = (parent, slot, map) => parent?.[slot]
-          ? applyAliasSubstDeep(parent[slot], map, depth + 1, visited) : parent?.[slot];
-        const tpConstraint = recurseSlot(tp, 'constraint', subst);
-        const flatConstraint = recurseSlot(node, 'constraint', subst);
-        const ann = recurseSlot(node, 'typeAnnotation', innerSubst);
-        const nameType = recurseSlot(node, 'nameType', innerSubst);
-        if (tpConstraint === tp?.constraint && flatConstraint === node.constraint
-          && ann === node.typeAnnotation && nameType === node.nameType) return node;
-        return {
-          ...node,
-          typeParameter: tp ? { ...tp, constraint: tpConstraint } : tp,
-          ...node.constraint !== undefined && { constraint: flatConstraint },
-          typeAnnotation: ann,
-          nameType,
-        };
-      }
-      // rest type inside tuples: `[...T[]]` / `[first, ...Rest]` - substitute inner
-      case 'TSRestType': return substSlot(node, 'typeAnnotation', subst, depth, visited);
-      // named tuple member: `[x: string, ...rest: number[]]` - inner elementType
-      case 'TSNamedTupleMember': return substSlot(node, 'elementType', subst, depth, visited);
-      // `typeof X` - exprName is a VALUE-space binding ref; subst keys live in TYPE space,
-      // so matching by name conflates namespaces (TS itself rejects `typeof T` where T is a
-      // type-param: "refers only to a type"). do NOT substitute exprName - the only way
-      // names could collide is value-binding shadowing of an outer type-param, where the
-      // existing TSTypeQuery semantics already correctly point at the runtime binding.
-      // typeParameters / typeArguments (`typeof fn<T>` instantiation expression, TS 4.7+)
-      // DO carry type-space refs and must be recursed - withSubstitutedTypeArgs preserves
-      // the TSTypeQuery shape on `node` and substitutes through the args list
-      case 'TSTypeQuery':
-        return withSubstitutedTypeArgs(node, node, subst, depth, visited);
-      // template literal type `\`${A}_${B}\``: substitute each interpolated expression so
-      // mapped-type rename templates (`as \`${InnerKey}_${K}\``) reach evalRenameTemplate
-      // with type-param refs replaced. oxc emits `TSTemplateLiteralType { types: [...] }`,
-      // babel emits `TSLiteralType { literal: TemplateLiteral { expressions: [...] } }`.
-      // quasis are pure text and don't carry substitutable refs
-      case 'TSTemplateLiteralType': return substList(node, 'types', subst, depth, visited);
-      case 'TSLiteralType': {
-        if (node.literal?.type !== 'TemplateLiteral') return node;
-        const inner = substList(node.literal, 'expressions', subst, depth, visited);
-        return inner === node.literal ? node : { ...node, literal: inner };
-      }
-      default: return node;
     }
+    return withSubstitutedTypeArgs(node, node, subst, depth, visited);
+  }
+
+  function substTypeLiteral(node, subst, depth, visited) {
+    if (!node.members) return node;
+    let changed = false;
+    const members = node.members.map(m => {
+      const next = substMemberAnnotations(m, subst, depth + 1, visited);
+      if (next !== m) changed = true;
+      return next;
+    });
+    return changed ? { ...node, members } : node;
+  }
+
+  function substConditional(node, subst, depth, visited) {
+    const ck = applyAliasSubstDeep(node.checkType, subst, depth + 1, visited);
+    const localSubst = trueBranchSubst(node.extendsType, subst);
+    const ex = applyAliasSubstDeep(node.extendsType, localSubst, depth + 1, visited);
+    const tr = applyAliasSubstDeep(node.trueType, localSubst, depth + 1, visited);
+    const fl = applyAliasSubstDeep(node.falseType, subst, depth + 1, visited);
+    return ck === node.checkType && ex === node.extendsType && tr === node.trueType && fl === node.falseType
+      ? node : { ...node, checkType: ck, extendsType: ex, trueType: tr, falseType: fl };
+  }
+
+  function substFunctionType(node, subst, depth, visited) {
+    const returnSlot = node.returnType ? 'returnType' : 'typeAnnotation';
+    const innerSubst = dropTypeParamSubst(node.typeParameters, subst);
+    const rt = node[returnSlot] ? applyAliasSubstDeep(node[returnSlot], innerSubst, depth + 1, visited) : node[returnSlot];
+    const paramsSlot = 'parameters' in node ? 'parameters' : 'params';
+    const params = node[paramsSlot]?.map(p => {
+      const pTA = p.typeAnnotation ? applyAliasSubstDeep(p.typeAnnotation, innerSubst, depth + 1, visited) : p.typeAnnotation;
+      return pTA === p.typeAnnotation ? p : { ...p, typeAnnotation: pTA };
+    });
+    const paramsChanged = params && params.some((p, i) => p !== node[paramsSlot][i]);
+    if (rt === node[returnSlot] && !paramsChanged) return node;
+    return { ...node, [returnSlot]: rt, ...paramsChanged && { [paramsSlot]: params } };
+  }
+
+  function substIndexedAccess(node, subst, depth, visited) {
+    const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1, visited);
+    const idx = applyAliasSubstDeep(node.indexType, subst, depth + 1, visited);
+    return obj === node.objectType && idx === node.indexType
+      ? node : { ...node, objectType: obj, indexType: idx };
+  }
+
+  function substMappedType(node, subst, depth, visited) {
+    const tp = node.typeParameter;
+    const innerName = mappedTypeKeyName(node);
+    const innerSubst = innerName ? dropMapKeys(subst, new Set([innerName])) : subst;
+    const recurseSlot = (parent, slot, map) => parent?.[slot]
+      ? applyAliasSubstDeep(parent[slot], map, depth + 1, visited) : parent?.[slot];
+    const tpConstraint = recurseSlot(tp, 'constraint', subst);
+    const flatConstraint = recurseSlot(node, 'constraint', subst);
+    const ann = recurseSlot(node, 'typeAnnotation', innerSubst);
+    const nameType = recurseSlot(node, 'nameType', innerSubst);
+    if (tpConstraint === tp?.constraint && flatConstraint === node.constraint
+      && ann === node.typeAnnotation && nameType === node.nameType) return node;
+    return {
+      ...node,
+      typeParameter: tp ? { ...tp, constraint: tpConstraint } : tp,
+      ...node.constraint !== undefined && { constraint: flatConstraint },
+      typeAnnotation: ann,
+      nameType,
+    };
+  }
+
+  function substLiteralType(node, subst, depth, visited) {
+    if (node.literal?.type !== 'TemplateLiteral') return node;
+    const inner = substList(node.literal, 'expressions', subst, depth, visited);
+    return inner === node.literal ? node : { ...node, literal: inner };
+  }
+
+  // dispatch table: 14 AST shapes routed to per-shape handlers. simple slot-substitution
+  // cases (`substSlot` / `substList`) stay as inline arrow values; complex multi-slot
+  // / alpha-rename cases live as named functions for readability and stack traces
+  const SUBST_DISPATCH = {
+    TSTypeReference: substTypeReference,
+    GenericTypeAnnotation: substTypeReference,
+    TSTypeAnnotation: (n, s, d, v) => substSlot(n, 'typeAnnotation', s, d, v),
+    TypeAnnotation: (n, s, d, v) => substSlot(n, 'typeAnnotation', s, d, v),
+    TSParenthesizedType: (n, s, d, v) => substSlot(n, 'typeAnnotation', s, d, v),
+    TSOptionalType: (n, s, d, v) => substSlot(n, 'typeAnnotation', s, d, v),
+    NullableTypeAnnotation: (n, s, d, v) => substSlot(n, 'typeAnnotation', s, d, v),
+    TSTypeOperator: (n, s, d, v) => substSlot(n, 'typeAnnotation', s, d, v),
+    TSRestType: (n, s, d, v) => substSlot(n, 'typeAnnotation', s, d, v),
+    TSNamedTupleMember: (n, s, d, v) => substSlot(n, 'elementType', s, d, v),
+    TSArrayType: (n, s, d, v) => substSlot(n, 'elementType', s, d, v),
+    ArrayTypeAnnotation: (n, s, d, v) => substSlot(n, 'elementType', s, d, v),
+    TSTupleType: substTupleAlist,
+    TupleTypeAnnotation: substTupleAlist,
+    TSUnionType: (n, s, d, v) => substList(n, 'types', s, d, v),
+    UnionTypeAnnotation: (n, s, d, v) => substList(n, 'types', s, d, v),
+    TSIntersectionType: (n, s, d, v) => substList(n, 'types', s, d, v),
+    IntersectionTypeAnnotation: (n, s, d, v) => substList(n, 'types', s, d, v),
+    TSTypeLiteral: substTypeLiteral,
+    TSConditionalType: substConditional,
+    TSFunctionType: substFunctionType,
+    TSConstructorType: substFunctionType,
+    FunctionTypeAnnotation: substFunctionType,
+    TSIndexedAccessType: substIndexedAccess,
+    TSMappedType: substMappedType,
+    TSTypeQuery: (n, s, d, v) => withSubstitutedTypeArgs(n, n, s, d, v),
+    TSTemplateLiteralType: (n, s, d, v) => substList(n, 'types', s, d, v),
+    TSLiteralType: substLiteralType,
+  };
+
+  function applyAliasSubstDeepInner(node, subst, depth, visited) {
+    const handler = SUBST_DISPATCH[node.type];
+    return handler ? handler(node, subst, depth, visited) : node;
   }
 
   // small predicate-style helper for the `subst ? applyAliasSubstDeep(node, subst) : node`
@@ -2002,33 +1969,42 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
       return rebuildTupleElements(peeled, el => peelAwaitedTupleElement(el, scope, depth, typeParamMap, seen));
     }
-    // structure-preserving wrapper (`Required<Promise<X>>`, `NoInfer<Promise<X>>`, etc) -
-    // peel before Promise check so the wrapper doesn't shadow the awaited inner shape
-    const passthrough = peelStructurePreservingWrapper(peeled);
-    if (passthrough) return recurse(passthrough);
     // nested `Awaited<Awaited<X>>` - inner Awaited reaches here as a TSTypeReference whose
     // name fails Promise / wrapper / alias-chain checks. peel once so recursion sees the
-    // inner X and continues with Promise / union / tuple distribution
+    // inner X. unique to AST walker - resolveAwaitedAnnotation routes through
+    // resolveAnnotationInContext at terminal which handles nested Awaited natively
     const awaitedInner = getSingleTypeRefArg(peeled, n => n === 'Awaited');
     if (awaitedInner) return recurse(awaitedInner);
-    const promiseInner = getPromiseInnerAnnotation(peeled);
-    if (promiseInner) return recurse(promiseInner);
     // conditional reached via post-subst alias body: pick firing branch (AST-level for
     // literal precision, then resolved-type for primitive disjoint check sides) and recurse
     // on the chosen branch's AST so member-lookup callers see the picked shape directly.
     // undecidable -> return AST as-is so findTypeMember's TSConditionalType branch can try
-    // its own AST-only pick downstream
+    // its own AST-only pick downstream. INTENTIONAL DIVERGENCE: resolveAwaitedAnnotation
+    // folds both branches via foldUnionTypes instead since it produces a Type Object output
     if (peeled.type === 'TSConditionalType') {
       const branch = pickAwaitedConditionalBranch(peeled, scope, depth, typeParamMap, seen);
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return peeled;
     }
-    // `Awaited<T['p']>` - resolve indexed-access to member annotation AST, recurse Awaited
+    const next = peelAwaitedCommonSteps(peeled, scope, depth);
+    return next ? recurse(next) : peeled;
+  }
+
+  // shared peel sequence between peelAwaitedArgument (AST walker) and resolveAwaitedAnnotation
+  // (Type walker): structure-preserving wrapper -> Promise inner -> indexed-access ->
+  // type-alias chain. returns next AST node to recurse on, or null when none of these
+  // steps fires. callers handle union/intersection/tuple distribution upfront and the
+  // TSConditionalType case specially (different fold strategies per output format)
+  function peelAwaitedCommonSteps(peeled, scope, depth) {
+    const passthrough = peelStructurePreservingWrapper(peeled);
+    if (passthrough) return passthrough;
+    const promiseInner = getPromiseInnerAnnotation(peeled);
+    if (promiseInner) return promiseInner;
     const indexedAST = resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth);
-    if (indexedAST) return recurse(indexedAST);
+    if (indexedAST) return indexedAST;
     const aliased = followTypeAliasChain(peeled, scope);
-    if (aliased?.node && aliased.node !== peeled) return recurse(applySubst(aliased.node, aliased.subst));
-    return peeled;
+    if (aliased?.node && aliased.node !== peeled) return applySubst(aliased.node, aliased.subst);
+    return null;
   }
 
   // shared helper: when `peeled` is TSIndexedAccessType, resolve its member's annotation
@@ -2123,15 +2099,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function findConditionalTypeMember(aliased, subst, key, scope, depth, withSubst) {
     const checkSubst = withSubst(aliased.checkType);
     const extendSubst = withSubst(aliased.extendsType);
-    let branch = pickConditionalBranchByAST(checkSubst, extendSubst);
-    if (branch === null) {
-      const checkResolved = resolveTypeAnnotation(checkSubst, scope, depth + 1);
-      const extendsResolved = resolveTypeAnnotation(extendSubst, scope, depth + 1);
-      // pass POST-SUBST AST flag - aliased.extendsType is the raw alias-body AST, may be
-      // a typeparam ref (`U`) that reads as unconstrained pre-subst but subst-maps to a
-      // concrete shape (`[]` / `Array<X>`). extendSubst already has the substitution applied
-      branch = pickConditionalBranch(checkResolved, extendsResolved, isUnconstrainedTypeReference(extendSubst), extendSubst);
-    }
+    // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
+    // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
+    // typeparam refs that resolved to a concrete shape no longer read as unconstrained
+    const branch = pickConditionalBranchVia(checkSubst, extendSubst,
+      ast => resolveTypeAnnotation(ast, scope, depth + 1),
+      isUnconstrainedTypeReference(extendSubst));
     if (branch !== null) {
       return findTypeMember(withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth + 1);
     }
@@ -3241,6 +3214,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return null;
   }
 
+  // shared 2-step conditional-branch picker: AST-equality shortcut, then resolved-type
+  // structural pick. callers vary only in (a) which resolver maps an AST node to a Type
+  // object and (b) whether the extendsAST is already post-AST-subst or raw + a Type-object
+  // substitution map. all 3 conditional-branch sites (`findConditionalTypeMember`,
+  // `evaluateConditionalType`, `pickAwaitedConditionalBranch`) flow through this helper
+  function pickConditionalBranchVia(checkAST, extendsAST, resolveOne, isUnconstrained) {
+    const astPick = pickConditionalBranchByAST(checkAST, extendsAST);
+    if (astPick !== null) return astPick;
+    return pickConditionalBranch(resolveOne(checkAST), resolveOne(extendsAST), isUnconstrained, extendsAST);
+  }
+
   // raw AST shape predicate: `Array` / `Promise` / `Set` ... without `<...>` typeArguments
   // is TS shorthand for `Array<any>` / `Promise<any>` / etc, which structurally match any
   // concrete inner. concrete-shape sites (`[]` empty tuple, `{}` object literal type, etc)
@@ -3279,12 +3263,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // TSConditionalType handling. falseType doesn't see infer bindings - keeps outer map
     const trueMap = trueBranchSubst(node.extendsType, typeParamMap);
     const recurse = (branchNode, map) => substituteTypeParams(branchNode, map, scope, depth + 1, seen);
-    const checkResolved = recurse(node.checkType, typeParamMap);
-    const extendsResolved = recurse(node.extendsType, typeParamMap);
-    // post-subst flag - typeparam refs that map to concrete shapes via typeParamMap are
-    // NOT unconstrained even though their raw AST has no typeArguments
-    const branch = pickConditionalBranch(checkResolved, extendsResolved,
-      isUnconstrainedTypeReference(node.extendsType, typeParamMap), node.extendsType);
+    // RAW AST + Type-object map path: substituteTypeParams resolves through typeParamMap.
+    // pass raw AST + map to isUnconstrainedTypeReference so typeparam refs that bind via the
+    // map are NOT misclassified as unconstrained
+    const branch = pickConditionalBranchVia(node.checkType, node.extendsType,
+      ast => recurse(ast, typeParamMap),
+      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
     if (branch !== null) return recurse(branch ? node.trueType : node.falseType, branch ? trueMap : typeParamMap);
     return resolveConditionalBranches(
       recurse(node.trueType, trueMap),
@@ -3548,16 +3532,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // TS lib types whose first type-param is the yielded element type, structurally
   // equivalent to Generator's TYield slot. `Iterator<T,...>`/`AsyncIterator<T,...>` carry
-  // optional TReturn / TNext slots; `IterableIterator<T>`/`AsyncIterableIterator<T>` carry
-  // only T. all share param-0 = TYield, matching `resolveGeneratorTypeParam`'s contract
-  const GENERATOR_LIKE_NAMES = new Set([
-    'Generator', 'AsyncGenerator',
-    'Iterator', 'AsyncIterator',
-    'IterableIterator', 'AsyncIterableIterator',
-    // TS 5.6+ stdlib bases sharing the same `<TYield, TReturn, TNext>` slot order
-    'IteratorObject', 'AsyncIteratorObject',
-  ]);
-
+  // `GENERATOR_LIKE_NAMES` imported from base - shared with `SINGLE_ELEMENT_COLLECTIONS` so
+  // the two callers don't maintain parallel hardcoded lists. all members share param-0 =
+  // TYield, matching `resolveGeneratorTypeParam`'s contract
   // if annotation resolves to one of GENERATOR_LIKE_NAMES, return its type params; otherwise null
   // handles aliased types: type MyGen<T> = Generator<T> -> substitutes T with actual args
   // supports chained aliases with different param names: type A<T> = B<T>; type B<U> = Generator<U>
@@ -5286,6 +5263,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // on leak / reassignment). cached per ObjectExpression node: a single literal can have
   // many distinct field reads (`this.a`, `this.b`, ...) but the closure is field-agnostic
   let objectAliasClosureCache = new WeakMap();
+  // shared sentinel for "no closure found" returns - cheaper than allocating a fresh empty
+  // Map per object literal when the rootName resolution bails. SAFE ONLY because every
+  // consumer treats the Map as READ-ONLY (`isReceiverInClosure` uses `.get()`, no mutation).
+  // adding a caller that mutates this Map (`.set` / `.delete` / `.clear`) would poison the
+  // sentinel for every concurrent consumer - allocate a fresh Map instead at the new call site
   const EMPTY_CLOSURE = new Map();
   function computeObjectAliasClosure(objectPath) {
     return memoize(objectAliasClosureCache, objectPath.node, () => {
@@ -5515,7 +5497,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // child slots to recurse on for compound `extends` shapes that have no single canonical
   // name. unrecognised shapes return undefined - caller falls through to silent bail
-  //   Call / NewExpression: args only (callee is the mixin function, not a class)
+  //   Call / NewExpression: args only (callee is the mixin function, not a class).
+  //     INTENTIONAL OVER-REGISTRATION: mixin `extends mix(Base)` returns a runtime class
+  //     that may itself extend Base; we can't statically resolve "what mix() returns" so
+  //     we register Base as super-candidate. SAFE: writes through this subclass widen
+  //     Base's field-flow type - conservative over-emit, never under-emit. wrong-class
+  //     misses (mix returns sibling, not Base-extending) treated as same conservative miss
   //   Conditional / Logical: both branches contribute candidate names
   //   Assignment: RHS only (LHS is a side-effect target)
   //   Sequence: tail (preceding-elements are side-effects, not the super)
@@ -6421,32 +6408,18 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
       return tupleAsArrayType(peeled, recurse);
     }
-    // structure-preserving wrapper around the Awaited arg (`Awaited<Required<Promise<X>>>`,
-    // `Awaited<NoInfer<Promise<X>>>`, `Awaited<Readonly<Promise<X>>>` etc) - peel to the
-    // wrapped type so the Promise unwrap downstream fires on the underlying shape.
-    // without this peel, Awaited returns `Promise` raw and the await result loses type narrowing
-    const passthrough = peelStructurePreservingWrapper(peeled);
-    if (passthrough) return recurse(passthrough);
-    const promiseInner = getPromiseInnerAnnotation(peeled);
-    if (promiseInner) return recurse(promiseInner);
     // post-subst alias body landing on a conditional must be evaluated BEFORE the alias-chain
     // re-walk so Awaited<picked-branch> recurses with the chosen AST. undecidable -> fold both
-    // branches under Awaited (mirrors TS's distributive widening). identical structure in
-    // peelAwaitedArgument
+    // branches under Awaited (mirrors TS's distributive widening). INTENTIONAL DIVERGENCE
+    // from peelAwaitedArgument: AST walker returns peeled as-is for undecidable, Type walker
+    // folds to a single Type Object output
     if (peeled.type === 'TSConditionalType') {
       const branch = pickAwaitedConditionalBranch(peeled, scope, depth, typeParamMap, seen);
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return foldUnionTypes([peeled.trueType, peeled.falseType], recurse);
     }
-    // `Awaited<T['p']>` - resolve indexed-access to member annotation AST, recurse Awaited
-    const indexedAST = resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth);
-    if (indexedAST) return recurse(indexedAST);
-    // type alias hop: `type Inner = Promise<...>; Awaited<Inner>` - chase to the underlying
-    // shape so the outer Promise / union dispatch fires on the aliased form
-    const aliased = followTypeAliasChain(peeled, scope);
-    if (aliased?.node && aliased.node !== peeled) {
-      return recurse(applySubst(aliased.node, aliased.subst));
-    }
+    const next = peelAwaitedCommonSteps(peeled, scope, depth);
+    if (next) return recurse(next);
     return resolveAnnotationInContext(node, scope, depth + 1, typeParamMap, seen);
   }
 
@@ -6456,14 +6429,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // pickConditionalBranch. returns true / false / null (undecidable - caller folds /
   // returns AS-IS). shared between resolveAwaitedAnnotation and peelAwaitedArgument
   function pickAwaitedConditionalBranch(node, scope, depth, typeParamMap, seen) {
-    const astPick = pickConditionalBranchByAST(node.checkType, node.extendsType);
-    if (astPick !== null) return astPick;
-    const checkResolved = resolveAnnotationInContext(node.checkType, scope, depth + 1, typeParamMap, seen);
-    const extendsResolved = resolveAnnotationInContext(node.extendsType, scope, depth + 1, typeParamMap, seen);
-    // post-subst flag - same reasoning as evaluateConditionalType: typeparam refs in
-    // typeParamMap are NOT unconstrained even though raw AST has no typeArguments
-    return pickConditionalBranch(checkResolved, extendsResolved,
-      isUnconstrainedTypeReference(node.extendsType, typeParamMap), node.extendsType);
+    return pickConditionalBranchVia(node.checkType, node.extendsType,
+      ast => resolveAnnotationInContext(ast, scope, depth + 1, typeParamMap, seen),
+      isUnconstrainedTypeReference(node.extendsType, typeParamMap));
   }
 
   // two-level table lookup: table[key1][key2]
@@ -6500,7 +6468,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // without this, `await Promise.resolve([1,2,3])` resolves to $Promise<null>, unwrapPromise
   // returns null, await gives unknown, downstream member dispatch goes generic.
   // `Promise.resolve(thenable)` flattens at runtime; treat outer Promise<Promise<X>> as
-  // Promise<X> so unwrapPromise lands on a precise inner without two-layer peel
+  // Promise<X> so unwrapPromise lands on a precise inner without two-layer peel.
+  //
+  // EXTENSION POINT: future "arg-based static inference" needs (e.g. `Array.of(...args)` ->
+  // Array<commonType>, `Map.groupBy(arr, fn)` -> Map<ReturnType<fn>, arr-inner>) currently
+  // require new special-case helpers. when adding a third resolver-style static, consider
+  // promoting to a registry pattern (`{ 'Promise.resolve': inferFn, 'Array.of': ..., ... }`)
+  // keyed in `resolveKnownStaticReturnType` rather than open-coding each one
   function inferPromiseResolveReturnType(callPath) {
     // defensive: callPath may be TaggedTemplateExpression when invoked via tag-recursion
     // (`String.raw\`...\``) - TT has no `arguments` slot. check via node.type so the guard
@@ -8312,7 +8286,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   let resolvedTypeCache = new WeakMap();
 
   // rebuild per-file to bound memory and drop retained entries from previous parses
-  // (WeakMap is GC-safe, but rebuilding makes the memory footprint deterministic)
+  // (WeakMap is GC-safe, but rebuilding makes the memory footprint deterministic).
+  //
+  // INVARIANT: all caches below MUST be node-keyed (WeakMap, NodePath identity). cross-
+  // program-state retention only matters when a Node identity is reused across parses,
+  // which Babel's parser doesn't do (fresh AST per file). reset() runs at parser-level
+  // entry (per-file). adding a NEW cache here means: (a) declare let-binding above, (b)
+  // re-assign to fresh WeakMap in reset, (c) use ONLY node-identity / NodePath as keys -
+  // never strings (file paths / type names) which can collide across parses
   function reset() {
     typeParamArgPaths = new WeakMap();
     sortedAssignmentCache = new WeakMap();

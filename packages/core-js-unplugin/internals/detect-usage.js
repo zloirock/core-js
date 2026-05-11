@@ -140,16 +140,25 @@ function hasRuntimeBinding(scope, name, path = null) {
   return !(native && isAmbientBinding(native));
 }
 
-// per-transform polyfill-hint lookup; plugin.js sets this via `setPolyfillBindingHintLookup`
-// at the start of each transform and resets it on completion. without this, user-imported
-// polyfill UIDs (`import _Promise from '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`)
-// don't get recognised as proxy-globals - babel adapter already exposes `polyfillHint` via
-// its own injector closure; unplugin matches the contract through this module-level setter
-// `?.()` invocation on null when no setter has fired - any `name` is a no-op
-let polyfillBindingHintLookup = null;
+// per-transform injector reference. plugin.js calls `setCurrentInjector(injector)` at the
+// start of each transform and `setCurrentInjector(null)` at completion. consolidates what
+// was previously TWO module-level side-channels (this hint-lookup + plugin.js's local
+// `currentInjector` for typeResolvers entry lookup) into ONE shared injector reference;
+// both consumers (estreeAdapter.getBinding's polyfillHint AND typeResolvers'
+// getPolyfillBindingEntry via `getCurrentInjector()`) read the same injector via
+// `getBindingInfo(name)`. without this, user-imported polyfill UIDs (`import _Promise from
+// '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) don't get recognised as
+// proxy-globals - babel adapter already exposes `polyfillHint` via its own injector closure;
+// unplugin matches the contract through this shared module-level state
+// null guard during between-transform windows: any `name` lookup is a no-op
+let currentInjector = null;
 
-export function setPolyfillBindingHintLookup(fn) {
-  polyfillBindingHintLookup = fn ?? null;
+export function setCurrentInjector(injector) {
+  currentInjector = injector ?? null;
+}
+
+export function getCurrentInjector() {
+  return currentInjector;
 }
 
 export const estreeAdapter = {
@@ -173,7 +182,7 @@ export const estreeAdapter = {
       node: b.path.node,
       constantViolations: b.constantViolations,
       importSource,
-      polyfillHint: polyfillBindingHintLookup?.(name) ?? null,
+      polyfillHint: currentInjector?.getBindingInfo?.(name)?.hint ?? null,
     };
   },
   getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type ?? null,
