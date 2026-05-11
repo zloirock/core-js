@@ -81,7 +81,7 @@ function formatError(message, patterns) {
   return `  - ${ message }:\n${ patterns.map(p => `    ${ p }\n`).join('') }`;
 }
 
-function validateIncludeExclude(include, exclude, modules, method) {
+function validateIncludeExclude({ include, exclude, modules, method }) {
   validatePatternList('include', include);
   validatePatternList('exclude', exclude);
   if (!include && !exclude) return;
@@ -194,7 +194,7 @@ export function createPolyfillContext({
   // is target-derived and not available at options-parsing time. `buildShouldInjectPolyfill`
   // already ran in initPluginOptions but returns a lazy fn - no observable behavior depends
   // on this order, so the split is acceptable
-  validateIncludeExclude(include, exclude, modulesSetForTargetVersion, method);
+  validateIncludeExclude({ include, exclude, modules: modulesSetForTargetVersion, method });
 
   function resolveModule(mod) {
     if (modulesSetForTargetVersion.has(mod)) return mod;

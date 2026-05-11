@@ -141,7 +141,7 @@ export function createUsageVisitors({
   let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
 
   function resolveKey(path, computed) {
-    return sharedResolveKey(path.node, computed, path.scope, adapter);
+    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter });
   }
 
   function handleIdentifier(path) {
@@ -203,19 +203,21 @@ export function createUsageVisitors({
     // `globalProxyMemberName` (used inside the helper) walks proxy-global chains and gates
     // on shadowing internally - no separate isBound computation needed at this site
     if (onWarning) {
-      const warning = checkLogicalAssignLhsMember(node, parent, path.scope, adapter);
+      const warning = checkLogicalAssignLhsMember({ node, parent, scope: path.scope, adapter });
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
     if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) return;
-    const meta = handleMemberExpressionNode(node, path.scope, adapter, handledObjects, suppressProxyGlobals, path);
+    const meta = handleMemberExpressionNode({
+      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path,
+    });
     if (meta) onUsage(meta, path);
   }
 
   // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
   // N-deep: resolve the outer key chain to an effective receiver, emit meta accordingly
   function emitNestedDestructureMeta(path, outerProp) {
-    const innerKey = sharedResolveKey(path.node.key, path.node.computed, path.scope, adapter);
+    const innerKey = sharedResolveKey({ node: path.node.key, computed: path.node.computed, scope: path.scope, adapter });
     if (!innerKey) return;
     const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
     onUsage(receiverKey !== null
@@ -250,7 +252,7 @@ export function createUsageVisitors({
       if (!key) return;
       const argNode = findIifeArgForParam(parent.parentPath, parent.node);
       const receiverNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
-      const meta = buildDestructuringInitMeta(receiverNode, key, parent.scope, adapter);
+      const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter });
       onUsage(meta, path);
       return;
     } else if (parent.isAssignmentPattern() && parent.parentPath?.isObjectProperty()
@@ -294,7 +296,7 @@ export function createUsageVisitors({
         const key = resolveKey(path.get('key'), path.node.computed);
         if (!key) return;
         const argNode = resolveCallArgument(callPath.node.arguments, paramIndex);
-        const meta = buildDestructuringInitMeta(argNode ?? null, key, callPath.scope, adapter);
+        const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: callPath.scope, adapter });
         onUsage(meta, path);
         return;
       }
@@ -303,7 +305,7 @@ export function createUsageVisitors({
     if (!initPath?.node) return;
     const key = resolveKey(path.get('key'), path.node.computed);
     if (!key) return;
-    let meta = buildDestructuringInitMeta(initPath.node, key, initPath.scope, adapter);
+    let meta = buildDestructuringInitMeta({ initNode: initPath.node, key, scope: initPath.scope, adapter });
     // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization).
     // spread instead of in-place mutation: contract with buildDestructuringInitMeta
     // doesn't promise mutable meta, and a fresh object is cheap here
@@ -318,7 +320,9 @@ export function createUsageVisitors({
   }
 
   function handleBinaryExpression(path) {
-    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects, isEntryAvailable, path);
+    const meta = handleBinaryIn({
+      node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, path,
+    });
     if (meta) onUsage(meta, path);
   }
 
