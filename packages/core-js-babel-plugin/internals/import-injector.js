@@ -156,6 +156,24 @@ export default class ImportInjector extends ImportInjectorState {
     return parent?.type === 'VariableDeclaration' && parent.kind === 'var';
   }
 
+  // walk plugin-shape bindings under one name; remove declarators with no references AND
+  // no SE-bearing init AND no constantViolations. returns true iff any binding stays alive.
+  // multi-declarator `var _ref, _refOther` removes only the dead declarator, leaving siblings
+  static #removeDeadBindings(bindings) {
+    let survivor = false;
+    for (const binding of bindings) {
+      // referenced / mutated / SE-init declarators MUST stay even when var itself is unused
+      if (binding.references || binding.constantViolations.length || binding.path.node?.init) {
+        survivor = true;
+        continue;
+      }
+      const declPath = binding.path.parentPath;
+      if (declPath.node.declarations.length === 1) declPath.remove();
+      else binding.path.remove();
+    }
+    return survivor;
+  }
+
   // collect every plugin-shape binding across all scopes, grouped by name. first-write-wins
   // shadow with user's `let _refN` would otherwise mistake the user's binding for the
   // plugin's, renaming user code. dedupe by identity - re-crawl after replaceWith can
@@ -195,40 +213,36 @@ export default class ImportInjector extends ImportInjectorState {
     this.#programPath.scope.crawl();
     const byName = this.#collectPluginShapeBindings();
 
-    // step 1: drop unused / dead var declarators. iterate ALL bindings under each name
-    // (multi-bindings happen when plugin emits same `_ref` in distinct nested scopes).
-    // `#refs.delete(name)` only when ALL bindings dead; otherwise survivor keeps slot live.
-    // snapshot iteration: walk a frozen copy of `#refs`, mutate the original safely. avoids
-    // depending on Set iterator's "live view" semantics for delete-current-item — fragile
-    // pattern if a future maintainer adds a forward-delete inside the loop body
+    // step 1: drop unused / dead var declarators per name. three outcomes:
+    //   1. no plugin-shape bindings  -> drop from `#refs` only (catch / fn-param shape
+    //      still owns the slot; can't free for reclaim or survivors would shadow-collide)
+    //   2. at least one survivor     -> keep in `#refs`, name stays live
+    //   3. all bindings dead         -> drop from `#refs` AND record in `prunedNames` so
+    //      step 2's `taken` releases the slot (`program.uids` is never un-published by
+    //      `uniqueName`, so removed slots otherwise block survivors from reclaiming)
+    // snapshot iteration: walk a frozen copy of `#refs`, mutate the original safely
+    const prunedNames = new Set();
     // eslint-disable-next-line unicorn/no-useless-spread -- snapshot intentional: see comment above
     for (const name of [...this.#refs]) {
-      const bindings = byName.get(name) ?? [];
-      let survivor = false;
-      for (const binding of bindings) {
-        if (binding.references || binding.constantViolations.length) {
-          survivor = true;
-          continue;
-        }
-        // `var _ref = (se(), Array)` - side-effectful init must stay even if var unused
-        if (binding.path.node?.init) {
-          survivor = true;
-          continue;
-        }
-        const declPath = binding.path.parentPath;
-        if (declPath.node.declarations.length === 1) declPath.remove();
-        else binding.path.remove();
+      const bindings = byName.get(name);
+      if (!bindings?.length) {
+        this.#refs.delete(name);
+        continue;
       }
-      if (!survivor) this.#refs.delete(name);
+      if (!ImportInjector.#removeDeadBindings(bindings)) {
+        this.#refs.delete(name);
+        prunedNames.add(name);
+      }
     }
     if (!this.#refs.size) return;
 
     // step 2: build rename map. `taken` = every occupied name minus the ones the plugin
-    // owns (releasable). `ownedBindings` = identity set guarding the rename traversal
-    // against user's nested `let _ref3` shadow (Identifier visitor checks scope.getBinding
-    // matches a plugin-owned binding)
+    // owns (releasable: surviving refs + pruned refs whose declarators were just removed).
+    // `ownedBindings` = identity set guarding the rename traversal against user's nested
+    // `let _ref3` shadow (Identifier visitor checks scope.getBinding matches plugin-owned)
     const taken = this.#collectTakenNames();
     for (const name of this.#refs) taken.delete(name);
+    for (const name of prunedNames) taken.delete(name);
     const ownedBindings = new Set();
     for (const name of this.#refs) for (const b of byName.get(name) ?? []) ownedBindings.add(b);
     const renameMap = this.#buildRenameMap(taken);
