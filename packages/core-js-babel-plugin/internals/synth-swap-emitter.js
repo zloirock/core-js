@@ -133,7 +133,7 @@ export default function createSynthSwapEmitter({
     // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
     // succeeds, otherwise destructure-emitter falls through to inline-default
     const argPath = detectIifeArgPath(wrapper, objectPattern);
-    return argPath && isExpandedClassifiableReceiver(argPath.node) ? argPath : null;
+    return argPath && isExpandedClassifiableReceiver({ node: argPath.node }) ? argPath : null;
   }
 
   // register a polyfill for a single key on a synth target. ensures the pending entry
@@ -141,7 +141,7 @@ export default function createSynthSwapEmitter({
   // same node and emit a parallel `_Receiver` import that gets dropped post-swap).
   // metadata is keyed on the receiver NODE (not path) so apply() locates the receiver
   // by walking the program - survives sibling-plugin moves that orphan the original path
-  function registerPolyfill(targetPath, objectPatternPath, key, entry, hintName) {
+  function registerPolyfill({ targetPath, objectPatternPath, key, entry, hintName }) {
     const receiver = targetPath.node;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
@@ -191,9 +191,9 @@ export default function createSynthSwapEmitter({
       const branchPath = peelTransparentPath(innerPath.get(slot));
       if (!branchPath?.node) continue;
       const branch = branchPath.node;
-      const pure = isViableBranchForKey(branch, key, branchPath.scope, adapter, resolvePure);
+      const pure = isViableBranchForKey({ branch, key, scope: branchPath.scope, adapter, resolvePure });
       if (!pure) continue;
-      registerPolyfill(branchPath, objectPattern, key, pure.entry, pure.hintName);
+      registerPolyfill({ targetPath: branchPath, objectPatternPath: objectPattern, key, entry: pure.entry, hintName: pure.hintName });
       registered = true;
     }
     return registered;

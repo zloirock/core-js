@@ -44,13 +44,13 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
 // `globalProxyMemberName` walks the proxy-global chain and short-circuits on shadowed leafs
 // (`function f(globalThis) { globalThis.Map ||= ... }`) - returns null when the chain doesn't
 // bottom out on a real proxy global, which subsumes the per-callsite isBound check
-export function checkLogicalAssignLhsMember(memberNode, parent, scope, adapter) {
-  if (!memberNode || memberNode.type !== 'MemberExpression' || memberNode.computed) return null;
-  const op = logicalAssignOperator(memberNode, parent);
+export function checkLogicalAssignLhsMember({ node, parent, scope, adapter }) {
+  if (!node || node.type !== 'MemberExpression' || node.computed) return null;
+  const op = logicalAssignOperator(node, parent);
   if (!op) return null;
-  const propName = globalProxyMemberName(memberNode, scope, adapter);
+  const propName = globalProxyMemberName({ node, scope, adapter });
   if (!propName || !isKnownGlobalName(propName)) return null;
-  return `\`${ stringifyMemberChain(memberNode) } ${ op } ...\` left-hand side cannot be polyfilled `
+  return `\`${ stringifyMemberChain(node) } ${ op } ...\` left-hand side cannot be polyfilled `
     + `(plugin rewrites reads, not writes); expected runtime engine to provide \`${ propName }\``;
 }
 
