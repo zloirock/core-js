@@ -127,6 +127,22 @@ export default class SnapshotCache {
     return entry ?? null;
   }
 
+  // post-pass entry: take + decide whether pre's cached parse can be reused. parse reuse
+  // requires `postInput` byte-equality with current code - sibling plugins may have
+  // mutated text between passes, and only matching bytes guarantee AST position fidelity.
+  // returns `{ snapshot, ast, comments }` with ast/comments null when parse can't reuse
+  // (mismatched bytes, mode that rewrote pre's output, or pre stored nulls intentionally)
+  takeWithParse(id, code) {
+    const stored = this.take(id);
+    if (!stored) return { snapshot: null, ast: null, comments: null };
+    const canReuse = stored.ast && stored.postInput === code;
+    return {
+      snapshot: stored.snapshot,
+      ast: canReuse ? stored.ast : null,
+      comments: canReuse ? stored.comments : null,
+    };
+  }
+
   // per-file invalidation hook for Vite/Rollup `watchChange`. drops a single snapshot
   // when its source file changes - prevents unbounded growth in long-running dev servers
   // where a pre-pass ran but the matching post was skipped (tree-shake, sibling bail).

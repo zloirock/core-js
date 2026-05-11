@@ -232,7 +232,7 @@ export function createDestructureEmitter({
     // imports during traversal
     walkAstNodes(assignNode.left, node => skippedNodes.add(node));
     const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
-    if (receiverTail) walkAstNodes(receiverTail, node => skippedNodes.add(node));
+    skipReceiverTailSubtree(receiverTail);
     const segments = [];
     for (const expr of outerSequencePrefix) segments.push(`${ nodeSrc(expr) };`);
     for (const expr of seExprs) segments.push(`${ nodeSrc(expr) };`);
@@ -376,19 +376,22 @@ export function createDestructureEmitter({
   // would block them. siblings reusing a flattened receiver's name
   // (`{X:{m}}=globalThis, y=globalThis`) get inline substitution via
   // `polyfillSiblingReceiverRefs` so compose's nth-count matches the flattened source
+  // shared with `cascadeAssignmentExpression`: walk the receiver tail (peeled through
+  // SE prefixes, parens, TS wrappers) and mark its subtree skipped so leaf Identifier
+  // visitors don't double-emit polyfills for already-flattened receivers
+  function skipReceiverTailSubtree(receiverNode) {
+    if (!receiverNode) return;
+    const { tail } = peelNestedSequenceExpressions(receiverNode);
+    if (tail) walkAstNodes(tail, n => skippedNodes.add(n));
+  }
+
   function seedSkippedForExtractedDeclarators(declaration, perDecl) {
     const flattenedReceivers = new Set();
     for (let i = 0; i < perDecl.length; i++) {
       if (!perDecl[i].extractions.length) continue;
       const decl = declaration.declarations[i];
       walkAstNodes(decl.id, n => skippedNodes.add(n));
-      // peel parens AND TS wrappers (`as` / `satisfies` / `!` / chain): SE prefixes
-      // through TS casts (`(logCall(), globalThis) as any`) must lift the same as bare
-      // SE. without TS unwrap, the SE prefix sits inside a TSAsExpression that doesn't
-      // get scanned, and the call gets silently dropped when the declarator is flattened
-      const initInner = unwrapRuntimeExpr(decl.init);
-      const consumedTail = initInner?.type === 'SequenceExpression' ? initInner.expressions.at(-1) : initInner;
-      if (consumedTail) walkAstNodes(consumedTail, n => skippedNodes.add(n));
+      skipReceiverTailSubtree(decl.init);
       if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
     }
     if (flattenedReceivers.size) {
