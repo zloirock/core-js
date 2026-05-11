@@ -98,7 +98,7 @@ export default function plugin(api, options) {
   const adapter = createBabelAdapter(() => injector);
 
   function skipPolyfillableOptional(node, scope) {
-    return isPolyfillableOptional(node, scope, adapter, resolveBuiltIn);
+    return isPolyfillableOptional({ node, scope, adapter, resolve: resolveBuiltIn });
   }
 
   return {
@@ -159,7 +159,7 @@ export default function plugin(api, options) {
         const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
         const id = injectPureImport(entry, hint);
         if (entry === 'get-iterator') replaceCallWithSimple(path, id, skipPolyfillableOptional);
-        else replaceInstanceLike(path, id, skipPolyfillableOptional);
+        else replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional });
       }
 
       // destructure rewrite pipeline (parameter-default synth-swap entry, top-level extraction,
@@ -173,7 +173,7 @@ export default function plugin(api, options) {
         isInheritedStaticLookup,
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
-      } = createClassHelpers(t, adapter, sharedResolveKey, () => injector);
+      } = createClassHelpers({ t, adapter, resolveKey: sharedResolveKey, getInjector: () => injector });
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
@@ -345,7 +345,9 @@ export default function plugin(api, options) {
             // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
             // before reaching handleObjectPropertyResult. dispatch fromFallback up front so
             // per-branch synth-swap fires regardless of which branch the resolver picked
-            if (meta.fromFallback) return destructureEmit.handleObjectPropertyResult(path, meta, null, null, null);
+            if (meta.fromFallback) return destructureEmit.handleObjectPropertyResult({
+              prop: path, meta, kind: null, entry: null, hintName: null,
+            });
           } else {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             // `path.isReferenced()` drops grandparent - pass it explicitly
@@ -395,7 +397,9 @@ export default function plugin(api, options) {
         if (!result) {
           // [Symbol.iterator] in destructuring: resolve returns null, use getIteratorMethod
           if (path.isObjectProperty() && path.node.computed && meta.key === 'Symbol.iterator') {
-            destructureEmit.handleObjectPropertyResult(path, meta, 'instance', 'get-iterator-method', 'getIteratorMethod');
+            destructureEmit.handleObjectPropertyResult({
+              prop: path, meta, kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod',
+            });
           }
           return;
         }
@@ -403,7 +407,7 @@ export default function plugin(api, options) {
         const { entry, kind, hintName } = result;
 
         if (path.isObjectProperty()) {
-          destructureEmit.handleObjectPropertyResult(path, meta, kind, entry, hintName);
+          destructureEmit.handleObjectPropertyResult({ prop: path, meta, kind, entry, hintName });
         } else {
           // inherited-static lookup where resolve() DID return an instance entry - `this` in
           // static ctx is the constructor, not an instance; `_at(this)` would treat the class
@@ -435,7 +439,7 @@ export default function plugin(api, options) {
             const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
               && callParent.node.callee === callerPath.node;
             const callType = isCallParent ? resolveNodeType(callParent) : null;
-            replaceInstanceLike(path, id, skipPolyfillableOptional, meta.sideEffects);
+            replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional, sideEffects: meta.sideEffects });
             if (callType && callParent.node) resolvedType.set(callParent.node, callType);
           } else if (t.isSuper(path.node.object)) {
             replaceSuperStatic(path, id, meta.sideEffects);
@@ -544,7 +548,9 @@ export default function plugin(api, options) {
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
         // `directives === true` signals `disable-file` - collapse both skip sources into one write
-        const directives = isInternalCoreJS ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start, path.node);
+        const directives = isInternalCoreJS ? null : parseDisableDirectives({
+          comments, offsetToLine: undefined, firstStmtStart: path.node.body[0]?.start, ast: path.node,
+        });
         const fileDisabled = directives === true;
         skipFile = isInternalCoreJS || fileDisabled;
         disabledLines = fileDisabled ? null : directives;

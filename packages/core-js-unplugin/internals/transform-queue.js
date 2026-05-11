@@ -5,7 +5,7 @@
 // split entries are owned through `splitInfo.logicalEnd` (prefix-only `.end` = mid stops
 // short of the suffix tail) - prefixMaxEnd is built on logical ends, linear-scan check
 // also queries via the helper
-function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
+function isStrictlyContained({ ranges, start, end, prefixMaxEnd }) {
   let lo = 0;
   let hi = ranges.length - 1;
   while (lo <= hi) {
@@ -27,7 +27,7 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
 // non-overlapping jumpsize - polyfill needles embed syntactic delimiters (`.`, `(`,
 // identifiers) that cannot self-overlap. empty needle is a caller bug - guard so
 // indexOf('', ...) doesn't infinite-loop (pos never advances)
-export function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
+export function countOccurrences({ haystack, needle, rangeStart = 0, rangeEnd = haystack.length }) {
   if (!needle.length) return 0;
   let count = 0;
   for (let pos = haystack.indexOf(needle, rangeStart);
@@ -38,11 +38,11 @@ export function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = ha
 
 // when composing `Array.from(x).reduce(Array.from)`, filter consumes the leftmost `Array.from`
 // during its substitution, so the rightmost inner's nth must decrement past that slot
-function consumedOccurrencesBefore(originalSlice, needle, innerStartAbs, outerStart, processedRanges) {
+function consumedOccurrencesBefore({ originalSlice, needle, innerStartAbs, outerStart, processedRanges }) {
   let consumed = 0;
   for (const r of processedRanges) {
     if (r.end <= innerStartAbs) {
-      consumed += countOccurrences(originalSlice, needle, r.start - outerStart, r.end - outerStart);
+      consumed += countOccurrences({ haystack: originalSlice, needle, rangeStart: r.start - outerStart, rangeEnd: r.end - outerStart });
     }
   }
   return consumed;
@@ -53,7 +53,7 @@ function consumedOccurrencesBefore(originalSlice, needle, innerStartAbs, outerSt
 // a corrupt slice from `str.slice(0, -1) + replacement + ...` falling through the empty loop.
 // empty needle: `indexOf('', 0)` returns 0 on any string, so without a guard we'd splice
 // `replacement` in at position 0 repeatedly - silent corruption. bail early instead
-function replaceNthOccurrence(str, needle, replacement, n) {
+function replaceNthOccurrence({ str, needle, replacement, n }) {
   if (n < 0 || !needle.length) return str;
   let idx = -1;
   for (let i = 0; i <= n; i++) {
@@ -133,7 +133,7 @@ function hasRootBoundary(needle, rootLength) {
   return next === '.' || next === '?' || next === '[' || next === '(';
 }
 
-function substituteInner(content, needle, replacement, nth, outerHint, innerPrefix) {
+function substituteInner({ content, needle, replacement, nth, outerHint, innerPrefix }) {
   // mirror babel-plugin's AST-mutation flow for `new (chain.method)(args)`: the outer
   // memoizes `chainRoot` (e.g. `arr.flat`) as `_ref`, then the inner visit replaces
   // `arr.flat` with `_flatMaybeArray(arr)` INSIDE the assignment. result: outer guard
@@ -152,7 +152,7 @@ function substituteInner(content, needle, replacement, nth, outerHint, innerPref
       && needle.startsWith(outerHint.rootRaw)
       && needle.length > outerHint.rootRaw.length
       && hasRootBoundary(needle, outerHint.rootRaw.length)) {
-    const rootRawResult = replaceNthOccurrence(content, outerHint.rootRaw, innerPrefix, 0);
+    const rootRawResult = replaceNthOccurrence({ str: content, needle: outerHint.rootRaw, replacement: innerPrefix, n: 0 });
     if (rootRawResult !== content) return { content: rootRawResult, found: true };
   }
   // candidates list ordered MOST-SPECIFIC -> LEAST-SPECIFIC, first-match wins:
@@ -170,7 +170,7 @@ function substituteInner(content, needle, replacement, nth, outerHint, innerPref
     candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
   }
   for (const candidate of candidates) {
-    const result = replaceNthOccurrence(content, candidate, replacement, nth);
+    const result = replaceNthOccurrence({ str: content, needle: candidate, replacement, n: nth });
     if (result !== content) return { content: result, found: true };
   }
   return { content, found: false };
@@ -212,7 +212,7 @@ function upperBound(ranges, target) {
 // containing the needle multiple times would silently ignore later occurrences here -
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
-export function mergeEqualRange(a, b, originalNeedle, range = null) {
+export function mergeEqualRange({ a, b, originalNeedle, range = null }) {
   const aFirst = a.indexOf(originalNeedle);
   const wrapper = aFirst !== -1 ? a : b;
   const inner = aFirst !== -1 ? b : a;
@@ -306,7 +306,7 @@ function updatePrefixMaxOnInsert(sorted, prefixMaxEnd, pos) {
   }
 }
 
-function updatePrefixMaxOnRemove(sorted, prefixMaxEnd, si, removedEnd) {
+function updatePrefixMaxOnRemove({ sorted, prefixMaxEnd, si, removedEnd }) {
   prefixMaxEnd.splice(si, 1);
   const prev = si > 0 ? prefixMaxEnd[si - 1] : -1;
   // removed end wasn't the contributor -> shifted-left stale values are already correct
@@ -534,7 +534,7 @@ export default class TransformQueue {
 
   // O(log n) check if [start, end] is strictly contained within an already-queued transform
   containsRange(start, end) {
-    return isStrictlyContained(this.#sorted, start, end, this.#prefixMaxEnd);
+    return isStrictlyContained({ ranges: this.#sorted, start, end, prefixMaxEnd: this.#prefixMaxEnd });
   }
 
   // O(log n) via indexed lookup + sorted binary search; was 3 x O(n) linear scans
@@ -557,7 +557,7 @@ export default class TransformQueue {
     while (si < sorted.length && sorted[si].start === start && sorted[si] !== entry) si++;
     if (si < sorted.length && sorted[si] === entry) {
       sorted.splice(si, 1);
-      updatePrefixMaxOnRemove(sorted, this.#prefixMaxEnd, si, entryLogicalEnd(entry));
+      updatePrefixMaxOnRemove({ sorted, prefixMaxEnd: this.#prefixMaxEnd, si, removedEnd: entryLogicalEnd(entry) });
     }
     return entry.content;
   }
@@ -684,7 +684,7 @@ export default class TransformQueue {
         const dupContent = isSplit(dup)
           ? splitInnerContent(dup, composedContent)
           : composedContent.get(dup) ?? dup.content;
-        content = mergeEqualRange(content, dupContent, originalSlice, { start, end: logicalEnd });
+        content = mergeEqualRange({ a: content, b: dupContent, originalNeedle: originalSlice, range: { start, end: logicalEnd } });
       }
     }
     sortInnersInnermostLast(inners);
@@ -755,9 +755,11 @@ export default class TransformQueue {
       // same-needle occurrences already replaced by strictly-preceding processedRanges.
       // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
       // during composition, so the rightmost inner's nth must point to the sole remaining slot.
-      const nth = countOccurrences(originalSlice, needle, 0, inner.start - start)
-        - consumedOccurrencesBefore(originalSlice, needle, inner.start, start, processedRanges);
-      const result = substituteInner(content, needle, innerContent, nth, rewriteHint, innerPrefix);
+      const nth = countOccurrences({ haystack: originalSlice, needle, rangeStart: 0, rangeEnd: inner.start - start })
+        - consumedOccurrencesBefore({
+          originalSlice, needle, innerStartAbs: inner.start, outerStart: start, processedRanges,
+        });
+      const result = substituteInner({ content, needle, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix });
       if (!result.found) {
         // inner was already swallowed by an enclosing inner we processed earlier
         if (processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
