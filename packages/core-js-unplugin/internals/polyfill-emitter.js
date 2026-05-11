@@ -48,7 +48,10 @@ export function createPolyfillEmitter({
   // operators. used to gate guard emission - bare-Identifier roots use `X == null`, anything
   // else captures into a `_ref` first to avoid double-evaluating side effects
   const BARE_IDENTIFIER_REGEX = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
-  const isBareIdentifier = src => typeof src === 'string' && BARE_IDENTIFIER_REGEX.test(src);
+
+  function isBareIdentifier(src) {
+    return typeof src === 'string' && BARE_IDENTIFIER_REGEX.test(src);
+  }
 
   function nodeSrc(n) {
     return code.slice(n.start, n.end);
@@ -135,7 +138,11 @@ export function createPolyfillEmitter({
       }
       return { root: unwrapParensSrc(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
     }
-    const isPoly = n => isPolyfillableOptional(n, scope, estreeAdapter, resolveBuiltIn);
+
+    function isPoly(n) {
+      return isPolyfillableOptional(n, scope, estreeAdapter, resolveBuiltIn);
+    }
+
     let current = node.optional ? node : chainChild(node);
     while (current && typeof current === 'object') {
       if (current.optional) {
@@ -232,7 +239,11 @@ export function createPolyfillEmitter({
   function buildReplacement(binding, objectSrc, opts) {
     const { optionalRoot, rootRaw, deoptPositions, objectStart, preAllocatedGuardRef,
       substituted, rootIsReceiver, sideEffects } = opts;
-    const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
+
+    function strip(src) {
+      return stripOptionalDots(src, objectStart ?? 0, deoptPositions);
+    }
+
     let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
     let guard = '';
     let guardRef = null;

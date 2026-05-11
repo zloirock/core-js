@@ -241,14 +241,24 @@ export function mergeEqualRange(a, b, originalNeedle, range = null) {
 }
 
 // composite key for the (start, end) range index
-const rangeKey = (start, end) => `${ start }|${ end }`;
+function rangeKey(start, end) {
+  return `${ start }|${ end }`;
+}
 
 // split entries store [start, mid) / [mid, end) physically but logically own [start, end).
 // these helpers paper over the prefix/suffix duality so callers can treat split + non-split
 // uniformly via logical-range queries
-const entryLogicalEnd = entry => entry.splitInfo ? entry.splitInfo.logicalEnd : entry.end;
-const entryLogicalSpan = entry => entryLogicalEnd(entry) - entry.start;
-const isSplit = entry => !!entry.splitInfo;
+function entryLogicalEnd(entry) {
+  return entry.splitInfo ? entry.splitInfo.logicalEnd : entry.end;
+}
+
+function entryLogicalSpan(entry) {
+  return entryLogicalEnd(entry) - entry.start;
+}
+
+function isSplit(entry) {
+  return !!entry.splitInfo;
+}
 
 // for a split-pair entry, return the logical inner content (full prefix+suffix range).
 // after the prefix's own outer iteration, composedContent.get(prefix) already holds the
@@ -274,7 +284,10 @@ function innerSubstitution(inner, composedContent) {
 // (split entries are leaves; non-split equal-span entries are wrappers that semantically
 // own the range, e.g. arrow-body wrap). then right-to-left for stable ordering
 function sortInnersInnermostLast(inners) {
-  const splitWeight = inner => inner.splitInfo ? 1 : 0;
+  function splitWeight(inner) {
+    return inner.splitInfo ? 1 : 0;
+  }
+
   inners.sort((a, b) => entryLogicalSpan(b) - entryLogicalSpan(a)
     || splitWeight(a) - splitWeight(b)
     || b.start - a.start);
