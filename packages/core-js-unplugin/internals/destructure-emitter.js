@@ -177,7 +177,14 @@ export function createDestructureEmitter({
   // run `fn` with `injector.generateUnusedName` wrapped so every name it emits is also
   // pushed onto `target`. used by the AssignmentExpression cascade path - the names
   // generated during `rewriteDeclarator`'s plan walk land inside the rendered preservedSrc
-  // text, but we need them separately to emit `var _unused;` hoist declarations
+  // text, but we need them separately to emit `var _unused;` hoist declarations.
+  //
+  // CONTRACT: monkey-patches `injector.generateUnusedName` for the synchronous scope of `fn`
+  // only. `fn` MUST NOT escape its synchronous execution (no async work, no deferred
+  // callbacks queued inside that read the patched method after return). try/finally
+  // guarantees restoration even on throw; nested calls compose correctly because each
+  // restores the previous binding (not the original-original). violation symptom: a later
+  // unrelated `generateUnusedName()` call leaks into `target` array
   function withTrackedUnusedNames(target, fn) {
     const orig = injector.generateUnusedName.bind(injector);
     injector.generateUnusedName = () => {
@@ -763,6 +770,12 @@ export function createDestructureEmitter({
       return false;
     }
 
+    // LIMITATION: 1-hop check only. recognises `identifierNode.<polyfillName>` but NOT
+    // multi-hop proxy chains like `globalThis.Map.from` where the polyfillable name is
+    // two members deep. acceptable for the destructure-emitter callsite: the substituter
+    // walks identifier-by-identifier, and the OUTER MemberExpression range covers the
+    // full chain - skipping at the 1-hop level prevents inline `globalThis -> _globalThis`
+    // substitution INSIDE the outer transform's `_Map.from` replacement
     function isPolyfillableMemberAccess(parent, identifierNode) {
       if (parent?.type !== 'MemberExpression' || parent.object !== identifierNode) return false;
       const { property } = parent;
