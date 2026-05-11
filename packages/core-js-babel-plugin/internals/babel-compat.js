@@ -95,7 +95,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       : parent.isOptionalCallExpression() ? 'callee' : null;
     if (!slot) return false;
     let cur = parent.node[slot];
-    while (cur && (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression')) {
+    while (cur && TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type)) {
       cur = cur.expression;
     }
     return cur === child.node;
@@ -103,8 +103,12 @@ export default function (t, { getInjector, typeResolvers } = {}) {
 
   function normalizeOptionalChain(path, stripFirstOptional) {
     let { parentPath } = path;
-    // walk past TS wrappers (satisfies, as, !) between the replaced node and the optional chain
-    while (parentPath && TS_EXPR_WRAPPERS.has(parentPath.node?.type)) ({ parentPath } = parentPath);
+    // walk past TS wrappers (satisfies, as, !) AND ParenthesizedExpression (preserved by
+    // parser when `createParenthesizedExpressions: true`) between the replaced node and the
+    // optional chain. without paren-walk, `(arr.includes)?.(1)` under that parser config
+    // wouldn't deopt the chain. shared `TRANSPARENT_EXPR_WRAPPER_TYPES` keeps the parent-walk
+    // symmetric with `extractCheck`'s child-walk below
+    while (parentPath && TRANSPARENT_EXPR_WRAPPER_TYPES.has(parentPath.node?.type)) ({ parentPath } = parentPath);
     if (!parentPath || !isOptionalOperand(path, parentPath)) return null;
     let topPath = null;
     let seenOptional = false;
@@ -128,9 +132,11 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     if (!path.isOptionalMemberExpression()) return [null, node.object];
     let chainStart = null;
     let current = path.get('object');
-    // skip TS wrappers (as, satisfies, !) that sit between the member and the inner chain
-    const throughTS = current.node && TS_EXPR_WRAPPERS.has(current.node.type);
-    while (current.node && TS_EXPR_WRAPPERS.has(current.node.type)) current = current.get('expression');
+    // skip TS wrappers (as, satisfies, !) AND ParenthesizedExpression between the member
+    // and the inner chain. symmetric with `normalizeOptionalChain`'s parent-walk above -
+    // a paren wrapping `(arr?.b)` would otherwise leave the chain detection one hop short
+    const throughTS = current.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(current.node.type);
+    while (current.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(current.node.type)) current = current.get('expression');
     while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
       if (current.node.optional) {
         chainStart = current;
