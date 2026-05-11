@@ -22,7 +22,7 @@ export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalPro
 // shadows the global - shadowed names without `polyfillHint` are NOT proxy-global. `path`
 // (optional) anchors TS-runtime shadow detection (`enum globalThis {}` / `namespace self {}`
 // inside a static block) for adapters whose scope tracker can't see those declarations
-function isProxyGlobalIdentifierNode(node, scope, adapter, path) {
+function isProxyGlobalIdentifierNode({ node, scope, adapter, path }) {
   if (node?.type !== 'Identifier') return false;
   if (scope && adapter) {
     const binding = adapter.getBinding(scope, node.name);
@@ -57,7 +57,7 @@ function memberKeyName(node) {
 // walks intermediate proxy-global links (`globalThis.self` / `globalThis.window`) so deeper
 // chains still resolve to the final key. empty-string key (`globalThis['']`) returns null -
 // no real global has empty name; treat as miss so callers' `!== null` check stays sound
-export function globalProxyMemberName(node, scope, adapter, path) {
+export function globalProxyMemberName({ node, scope, adapter, path }) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   let object = unwrapRuntimeExpr(node.object);
@@ -66,7 +66,7 @@ export function globalProxyMemberName(node, scope, adapter, path) {
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
     object = unwrapRuntimeExpr(object.object);
   }
-  if (!isProxyGlobalIdentifierNode(object, scope, adapter, path)) return null;
+  if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path })) return null;
   return memberKeyName(node) || null;
 }
 
@@ -85,9 +85,9 @@ export function isClassifiableReceiverArg(node) {
 // resolution can match `globalThis.X.key` to `X.key` via `globalProxyMemberName`. failing
 // to widen here would force inline-default fallback, asymmetric with the bare-Identifier
 // IIFE path. scope+adapter optional - structural-only classification when omitted
-export function isExpandedClassifiableReceiver(node, scope, adapter, path) {
+export function isExpandedClassifiableReceiver({ node, scope, adapter, path }) {
   if (node?.type === 'Identifier') return true;
-  return globalProxyMemberName(node, scope, adapter, path) !== null;
+  return globalProxyMemberName({ node, scope, adapter, path }) !== null;
 }
 
 // mark a synth-swap receiver and all its inner sub-nodes as "owned" by skippedNodes so
@@ -156,7 +156,7 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
 // passed lazily because the factory runs before `pre()` allocates the per-file injector
 // (capturing the variable directly would freeze the undefined slot). caches live on
 // the closure - call once per file
-export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
+export function createClassHelpers({ t, adapter, resolveKey, getInjector = null }) {
   function isClassMember(node) {
     return t.isClassMethod(node) || t.isClassPrivateMethod(node)
       || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
@@ -277,8 +277,8 @@ export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
       if (decl.id?.type === 'ObjectPattern') {
         const keyName = findDestructureKeyForBinding(decl.id, name);
         if (!keyName) return null;
-        if (isProxyGlobalIdentifierNode(init, scope, adapter)
-            || globalProxyMemberName(init, scope, adapter) !== null) return keyName;
+        if (isProxyGlobalIdentifierNode({ node: init, scope, adapter })
+            || globalProxyMemberName({ node: init, scope, adapter }) !== null) return keyName;
         return resolveBindingToGlobalName({
           type: 'MemberExpression',
           object: init,
@@ -342,7 +342,7 @@ export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
   // chain) and `resolveBindingToGlobalName` (which feeds the value back through itself to
   // map to a global name). leaf-key resolution accepts computed/literal/const-alias chains
   function resolveMemberAccess(memberNode, scope, seen) {
-    const propName = resolveKey(memberNode.property, memberNode.computed, scope, adapter);
+    const propName = resolveKey({ node: memberNode.property, computed: memberNode.computed, scope, adapter });
     if (!propName) return null;
     const outer = resolveToContainer(memberNode.object, scope, seen);
     if (!outer) return null;
@@ -378,7 +378,7 @@ export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
     if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
     // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key
-    const proxyKey = globalProxyMemberName(peeled, scope, adapter);
+    const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter });
     if (proxyKey !== null) return proxyKey;
     // namespace-member chain - feed leaf value back through self so deeper namespaces /
     // alias chains / proxy-globals compose naturally
@@ -393,7 +393,7 @@ export function createClassHelpers(t, adapter, resolveKey, getInjector = null) {
   // `super[CONST]` where CONST is a const-bound string / template literal / 'a' + 'b'
   // concat / aliased Symbol.X still lands on the matching static entry
   function resolveStaticInheritedMember(path) {
-    const key = resolveKey(path.node.property, path.node.computed, path.scope, adapter);
+    const key = resolveKey({ node: path.node.property, computed: path.node.computed, scope: path.scope, adapter });
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
