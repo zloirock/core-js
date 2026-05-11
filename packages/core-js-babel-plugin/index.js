@@ -509,7 +509,7 @@ export default function plugin(api, options) {
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
           && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
-        injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
+        injector = new ImportInjector({ t, programPath: path, pkg, packages, mode, importStyle, absoluteImports });
         skippedNodes = new WeakSet();
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
