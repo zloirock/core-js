@@ -218,8 +218,12 @@ export default function createSynthSwapEmitter({
     const receiverPure = resolvePure({ kind: 'global', name: receiver.name });
     const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
     let receiverRef = null;
-    const getReceiverRef = () => receiverRef ??= isPolyfillableGlobal
-      ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
+
+    function getReceiverRef() {
+      return receiverRef ??= isPolyfillableGlobal
+        ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
+    }
+
     const properties = [];
     for (const property of objectPatternNode.properties) {
       if (!t.isObjectProperty(property) || property.computed || !t.isIdentifier(property.key)) continue;
