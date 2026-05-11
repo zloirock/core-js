@@ -1172,12 +1172,13 @@ export function createDestructureEmitter({
     }
     // non-entry prop source: use polyfilled key when extracted, else original slice.
     // shared between no-rest prelude and hasRest pattern rebuild
-    const nonEntryPropSrc = p => {
+    function nonEntryPropSrc(p) {
       const polyfilledKey = computedKeyContent.get(p);
       return polyfilledKey === undefined
         ? nodeSrc(p)
         : `[${ polyfilledKey }]: ${ nodeSrc(p.value) }`;
-    };
+    }
+
     const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
     const lines = [];
     for (const p of allProps) {

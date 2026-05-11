@@ -3,7 +3,9 @@ import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provi
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
-const blockify = lines => `${ lines.join('\n') }\n`;
+function blockify(lines) {
+  return `${ lines.join('\n') }\n`;
+}
 
 export default class ImportInjector extends ImportInjectorState {
   // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot

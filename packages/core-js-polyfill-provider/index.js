@@ -52,11 +52,11 @@ function collectEntryPaths(patterns) {
 }
 
 // strip `file://` / `./` prefixes that bundler id resolution commonly introduces
-const stripLeadingPrefix = p => {
+function stripLeadingPrefix(p) {
   if (p.startsWith('file://')) return p.slice(7);
   if (p.startsWith('./')) return p.slice(2);
   return p;
-};
+}
 
 // normalize the import source to a canonical entry path so we can look it up in the `entries`
 // map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`.
@@ -156,7 +156,10 @@ export function createPolyfillContext({
   // shape guard for direct callers bypassing validateOptions. applies to `pkg` AND each
   // `additionalPackages` member - empty / slash-only entries cascade through `packages`
   // and false-positive every absolute path in `getCoreJSEntry`'s `startsWith('/')` check
-  const isInvalidPkgShape = p => typeof p !== 'string' || p === '' || /^\/+$/.test(p);
+  function isInvalidPkgShape(p) {
+    return typeof p !== 'string' || p === '' || /^\/+$/.test(p);
+  }
+
   if (isInvalidPkgShape(pkg)) {
     throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ JSON.stringify(pkg) }`);
   }
@@ -173,11 +176,12 @@ export function createPolyfillContext({
   // too (not just packages-array members) so emitted import paths stay clean: injector-base
   // joins via `resolveImportPath(this.pkg, subpath)` which would otherwise produce
   // `'@core-js/pure///actual/array/from'` from `package: '@core-js/pure///'`
-  const stripTrailingSlashes = p => {
+  function stripTrailingSlashes(p) {
     let end = p.length;
     while (end > 0 && p[end - 1] === '/') end--;
     return end === p.length ? p : p.slice(0, end);
-  };
+  }
+
   pkg = stripTrailingSlashes(pkg);
   const packages = [...new Set([pkg, ...additionalPackages ?? []]
     .map(p => stripTrailingSlashes(p.toLowerCase())))];
@@ -274,7 +278,8 @@ export const resolve = createMetaResolver(builtInDefinitions);
 const CONSTRUCTOR_TAIL = '/constructor';
 function buildEntryHintIndex({ globals, statics }) {
   const index = new Map();
-  const register = (name, deps, requireMatch) => {
+
+  function register(name, deps, requireMatch) {
     if (!Array.isArray(deps)) return;
     const lower = requireMatch ? name.toLowerCase() : null;
     for (const dep of deps) {
@@ -282,7 +287,8 @@ function buildEntryHintIndex({ globals, statics }) {
       const [head] = dep.split('/');
       if (head && !index.has(head) && (!requireMatch || head === lower)) index.set(head, name);
     }
-  };
+  }
+
   for (const [name, desc] of Object.entries(globals)) register(name, desc?.pure?.dependencies, false);
   for (const [name, methods] of Object.entries(statics)) {
     for (const desc of Object.values(methods)) register(name, desc?.pure?.dependencies, true);
