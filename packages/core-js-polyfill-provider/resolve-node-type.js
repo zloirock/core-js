@@ -825,9 +825,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return decl.right;
   }
 
-  // TS extends: TSExpressionWithTypeArguments has .expression; Flow extends: InterfaceExtends has .id
+  // TS extends: TSExpressionWithTypeArguments has .expression; Flow extends: InterfaceExtends has .id.
+  // null on neither slot — callers use `?.type` / `if (!base)` to bail rather than silently
+  // treating the heritage clause itself as the qualified head. earlier `?? parent` fallback
+  // masked future parser regressions (new heritage shape) by handing back a non-Identifier
+  // wrapper that downstream filters silently rejected
   function extendsId(parent) {
-    return parent.expression ?? parent.id ?? parent;
+    return parent.expression ?? parent.id ?? null;
   }
 
   // synthesize a TSTypeReference wrapping the parent's id + its type-args. accepts both
@@ -836,7 +840,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // returns null for unhandled shapes (TSTypeLiteral / call / etc) so callers can skip
   function synthInterfaceExtendsRef(parent) {
     const expr = extendsId(parent);
-    if (expr.type !== 'Identifier' && !isQualifiedNameNode(expr)) return null;
+    if (!expr || (expr.type !== 'Identifier' && !isQualifiedNameNode(expr))) return null;
     return { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) };
   }
 
@@ -1507,6 +1511,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // dispatch loses the parent's structural members
   function resolveInterfaceExtendsParent(parent, scope, resolve, depth, typeParamMap, visited) {
     const base = extendsId(parent);
+    if (!base) return null;
     if (base.type === 'Identifier') {
       const constructor = resolveKnownConstructor(base.name);
       return resolveKnownContainerType(base.name, constructor, parent, resolve)
@@ -5884,12 +5889,20 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // a guard is valid for narrowing iff (a) `rootName` resolves to the same binding in the
   // guard's enclosing scope as at varPath (rejects inner-shadow leakage), and (b) no
-  // reassignment of that binding sits between `testEnd` and the use site (`ctx.objectStart`)
+  // reassignment of that binding sits between `testEnd` and the use site (`ctx.objectStart`).
+  // missing-position polarity mirrors `hasMutationAfterGuards`' `isBefore`: synthetic AST
+  // nodes without source ranges are conservatively assumed to potentially violate, so the
+  // guard drops rather than over-keeps. without the symmetry, discriminant narrowing would
+  // SILENTLY survive synthetic violations while typeof / instanceof guards correctly drop
   function discriminantGuardApplies(scope, testEnd, ctx) {
     const { rootName, objectBinding, violations, objectStart } = ctx;
     if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
-    return testEnd === undefined || objectStart === undefined
-      || !violations.some(v => v.node?.start > testEnd && v.node?.start < objectStart);
+    if (testEnd === undefined || objectStart === undefined) return false;
+    return !violations.some(v => {
+      const start = v.node?.start;
+      if (start === undefined || start === null) return true;
+      return start > testEnd && start < objectStart;
+    });
   }
 
   // flatten `&&` (truthy) / `||` (falsy) chains so a discriminant clause embedded alongside
@@ -5935,8 +5948,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         if (current.key !== 'consequent' && current.key !== 'alternate') continue;
         conditionTrue = current.key === 'consequent';
         test = parent.node.test;
-      } else if (t.isLogicalExpression(parent.node) && parent.node.operator === '&&' && current.key === 'right') {
-        conditionTrue = true;
+      } else if (t.isLogicalExpression(parent.node) && current.key === 'right'
+          && (parent.node.operator === '&&' || parent.node.operator === '||')) {
+        // `&&` right side: left was truthy, condition holds positively
+        // `||` right side: left was falsy, condition holds negatively
+        // mirrors `findConditionalGuards`' LogicalExpression handling for typeof guards
+        conditionTrue = parent.node.operator === '&&';
         test = parent.node.left;
       } else {
         collectPrecedingExitDiscriminants(current, targetKey, guards, ctx);
@@ -6823,7 +6840,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
     for (const parent of decl.extends) {
       const expr = extendsId(parent);
-      if (expr.type !== 'Identifier') continue;
+      if (expr?.type !== 'Identifier') continue;
       const parentRef = { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) };
       const result = resolver(parentRef, scope, depth + 1);
       if (result) return result;

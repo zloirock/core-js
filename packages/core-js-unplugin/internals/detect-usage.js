@@ -149,16 +149,21 @@ function hasRuntimeBinding(scope, name, path = null) {
 // `getBindingInfo(name)`. without this, user-imported polyfill UIDs (`import _Promise from
 // '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) don't get recognised as
 // proxy-globals - babel adapter already exposes `polyfillHint` via its own injector closure;
-// unplugin matches the contract through this shared module-level state
-// null guard during between-transform windows: any `name` lookup is a no-op
-let currentInjector = null;
+// unplugin matches the contract through this shared module-level state.
+// stack-based push/pop semantics defend against re-entrant transforms (theoretical: bundler
+// hook recursively calls plugin.transform): inner `setCurrentInjector(null)` pops the inner
+// injector, restoring the outer one rather than zeroing it. non-re-entrant case (typical):
+// stack depth alternates 0 ↔ 1, identical to the old single-slot model
+// null guard during between-transform windows (empty stack): any `name` lookup is a no-op
+const injectorStack = [];
 
 export function setCurrentInjector(injector) {
-  currentInjector = injector ?? null;
+  if (injector === null || injector === undefined) injectorStack.pop();
+  else injectorStack.push(injector);
 }
 
 export function getCurrentInjector() {
-  return currentInjector;
+  return injectorStack.at(-1) ?? null;
 }
 
 export const estreeAdapter = {
@@ -182,7 +187,7 @@ export const estreeAdapter = {
       node: b.path.node,
       constantViolations: b.constantViolations,
       importSource,
-      polyfillHint: currentInjector?.getBindingInfo?.(name)?.hint ?? null,
+      polyfillHint: getCurrentInjector()?.getBindingInfo?.(name)?.hint ?? null,
     };
   },
   getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type ?? null,
