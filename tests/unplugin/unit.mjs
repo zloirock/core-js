@@ -1,8 +1,8 @@
 import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
-import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
-import { entryToGlobalHint, ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
+import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
+import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
