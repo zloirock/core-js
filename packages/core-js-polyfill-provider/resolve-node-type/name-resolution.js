@@ -1,0 +1,298 @@
+// Scope-walking + name-based resolution: type declarations, type parameters, namespaced
+// references, and ambient `declare ...` walks. centralises three resolution strategies that
+// all need scope-chain traversal but differ in their match criteria:
+//   - `findTypeDeclaration` / `findEnumDeclaration` / `findAllTypeDeclarations` - type-
+//     bearing declarations (alias / interface / class / enum) inside (possibly nested)
+//     namespaces via `walkStatementsForDecl` + `walkScopesForDecl`. memoized via
+//     `typeDeclCache` because the chain through TSModuleBlock is recursive
+//   - `findTypeParameter` - inline `<T>` declarations on enclosing functions / classes
+//   - `findAmbientDeclarationPath` / `findAmbientFunctionPaths` - `declare function/class`
+//     headers that Babel doesn't register in `scope.bindings`. memoized via `ambientDeclCache`
+//
+// Module-level `isAmbientFunctionNode` / `isAmbientClassNode` consts are stable identities
+// used as cache keys for `ambientDeclCache`'s `matchType` slot, so the predicates must
+// import the same way both inside and outside the cluster - they ship as named exports.
+//
+// Service object passes `t` (babel-types adapter). Closure-free predicates come from
+// `ast-shapes` (`isTypeAlias` / `isInterfaceDeclaration`) and `helpers/ast-patterns`
+// (`unwrapExportedDeclaration`) - imported directly. Public `reset()` is wired into
+// the factory's per-file cache reset.
+import {
+  AMBIENT_FN_OR_CLASS_DECLARATION_TYPES,
+  AMBIENT_FUNCTION_TYPES,
+  getOrInitMap,
+} from './base.js';
+import { isInterfaceDeclaration, isTypeAlias } from './ast-shapes.js';
+import { unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
+
+// TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass.
+// module-level functions so `ambientDeclCache` keys by identity stay stable across calls
+export function isAmbientFunctionNode(node) {
+  return node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction';
+}
+export function isAmbientClassNode(node) {
+  return node?.type === 'DeclareClass'
+    || (node?.type === 'ClassDeclaration' && node.declare === true);
+}
+export function isAmbientFunctionOrClassNode(node) {
+  return isAmbientFunctionNode(node) || isAmbientClassNode(node);
+}
+
+export function createNameResolution({ t }) {
+  function isFunctionLike(node) {
+    return !!node && (t.isFunction(node) || AMBIENT_FUNCTION_TYPES.has(node.type));
+  }
+
+  function isFunctionOrClassDeclaration(node) {
+    return !!node && (t.isFunctionDeclaration(node) || t.isClassDeclaration(node)
+      || AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has(node.type));
+  }
+
+  function isClassLikeDeclaration(decl) {
+    return decl?.type === 'ClassDeclaration' || decl?.type === 'DeclareClass';
+  }
+
+  function isTypeBearingDeclaration(decl) {
+    return isTypeAlias(decl) || isInterfaceDeclaration(decl) || isClassLikeDeclaration(decl)
+      || decl?.type === 'TSEnumDeclaration';
+  }
+
+  // walk enclosing statement lists collecting ambient declaration paths matching `name`.
+  // `firstMatch=true` short-circuits at the first hit (legacy single-result path);
+  // `firstMatch=false` collects ALL matches across the scope chain (used for multi-overload
+  // disambiguation - e.g. `isStr(x: number): boolean; isStr(x): asserts x is string;` where
+  // only one sibling carries the predicate of interest)
+  function walkAmbientDeclarationPath({ name, scope, matchType, firstMatch = true }) {
+    const out = firstMatch ? null : [];
+    for (let cur = scope; cur; cur = cur.parent) {
+      // Program / BlockStatement / TSModuleBlock - `path.get('body')` already returns the
+      // statement array. Function / method scopes wrap statements in a BlockStatement, so
+      // `path.get('body')` returns the BlockStatement path; drill once more to reach the
+      // array. Without this, ambient declarations inside function bodies
+      // (`function f() { declare function g(): T }`) aren't discovered, falling through to
+      // generic resolution. Mirrors `walkScopesForDecl`'s `block.body.body` for non-Program.
+      // estree-toolkit may emit a bodyless scope owner (e.g. SwitchCase `consequent` array,
+      // for-statement init slots) whose drill-once `.get('body')` lands on a null NodePath -
+      // skip such scopes rather than crash on `.get` over null
+      let bodyPaths = cur.path?.get('body');
+      if (bodyPaths && !Array.isArray(bodyPaths)) {
+        bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
+      }
+      if (!Array.isArray(bodyPaths)) continue;
+      for (const stmtPath of bodyPaths) {
+        const { type } = stmtPath.node ?? {};
+        const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
+          ? stmtPath.get('declaration') : stmtPath;
+        const { node } = declPath;
+        if (node?.id?.name !== name || !matchType(node)) continue;
+        if (firstMatch) return declPath;
+        out.push(declPath);
+      }
+    }
+    return firstMatch ? null : out;
+  }
+
+  // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
+  // enclosing statement lists instead. `matchType` picks the ambient kind we want.
+  // keyed by (scope, matchType, name) - matchType references are module-level constants,
+  // safe Map keys; inner Map uses string name
+  let ambientDeclCache = new WeakMap();
+  function findAmbientDeclarationPath(name, scope, matchType) {
+    if (!scope) return null;
+    const byName = getOrInitMap(getOrInitMap(ambientDeclCache, scope), matchType);
+    if (byName.has(name)) return byName.get(name);
+    const result = walkAmbientDeclarationPath({ name, scope, matchType });
+    byName.set(name, result);
+    return result;
+  }
+
+  // collect all ambient function decls by name. used for multi-overload predicate
+  // resolution where the FIRST ambient match may carry a non-predicate signature, but a
+  // later sibling carries the asserts/predicate of interest. shape mirrors
+  // `findAmbientDeclarationPath` but returns an array (uncached - rare path)
+  function findAmbientFunctionPaths(name, scope) {
+    return walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false }) ?? [];
+  }
+
+  function findAmbientFunctionPath(name, scope) {
+    return findAmbientDeclarationPath(name, scope, isAmbientFunctionNode);
+  }
+  // `declare class X { ... }` - babel doesn't bind the name as a value (unlike runtime
+  // `class X`), so `resolveRuntimeExpression(X)` returns the bare Identifier. without an
+  // ambient lookup, `X.staticMethod()` skips the class-member resolution path entirely
+  // and falls through to `findTypeMember`'s synthetic TSFunctionType stub (return-type-less).
+  // estree-toolkit registers the binding regardless of `declare`, hence the cross-pipeline
+  // asymmetry seen in `audit-declare-static-generic-call` / `audit-extends-renamed-typeparam-static`
+  function findAmbientClassPath(name, scope) {
+    return findAmbientDeclarationPath(name, scope, isAmbientClassNode);
+  }
+
+  // statement list directly inside a TSModuleDeclaration. for Babel's nested form
+  // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
+  // so the next recursion can match its name. for oxc's flat form (id = TSQualifiedName)
+  // the body is a TSModuleBlock and we return its statements directly.
+  function moduleStatements(decl) {
+    const body = decl?.body;
+    if (body?.type === 'TSModuleDeclaration') return [body];
+    return Array.isArray(body?.body) ? body.body : null;
+  }
+
+  // segment names of a TSModuleDeclaration id: Babel uses Identifier (single segment),
+  // oxc uses TSQualifiedName for `namespace A.B {}` (multi-segment)
+  function moduleNameSegments(id) {
+    if (!id) return null;
+    if (id.type === 'Identifier') return [id.name];
+    if (id.type === 'TSQualifiedName') {
+      const left = moduleNameSegments(id.left);
+      return left && [...left, id.right.name];
+    }
+    return null;
+  }
+
+  // does `segments` start with the same names as `prefix`?
+  function startsWithSegments(segments, prefix) {
+    if (prefix.length > segments.length) return false;
+    for (let i = 0; i < prefix.length; i++) if (segments[i] !== prefix[i]) return false;
+    return true;
+  }
+
+  // resolve `NS.Inner.Decl` segments inside a statement list. `collect=null` short-circuits
+  // on the first hit; `collect=[]` keeps walking to enable TS interface merging.
+  // `leafMatch` is the predicate the LEAF declaration must satisfy - defaults to type-bearing
+  // (alias / interface / class / enum) for findTypeDeclaration; typeof-name resolution swaps
+  // in `isFunctionOrClassDeclaration` to also surface `declare function fn` inside a namespace
+  function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration }) {
+    if (!Array.isArray(statements) || !segments.length) return null;
+    const [head, ...rest] = segments;
+    for (const statement of statements) {
+      const decl = unwrapExportedDeclaration(statement);
+      if (!decl) continue;
+      if (rest.length === 0 && decl.id?.name === head && leafMatch(decl)) {
+        if (!collect) return decl;
+        collect.push(decl);
+        continue;
+      }
+      if (decl.type !== 'TSModuleDeclaration') continue;
+      const moduleSegs = moduleNameSegments(decl.id);
+      if (!moduleSegs) continue;
+      // bare name: descend into every namespace; dotted: namespace must prefix segments
+      if (rest.length === 0) {
+        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch });
+        if (inner && !collect) return inner;
+        continue;
+      }
+      if (!startsWithSegments(segments, moduleSegs)) continue;
+      const inner = walkStatementsForDecl({
+        segments: segments.slice(moduleSegs.length), statements: moduleStatements(decl), collect, leafMatch,
+      });
+      if (inner && !collect) return inner;
+    }
+    return null;
+  }
+
+  // walk scope chain; `collect=null` returns first hit, `collect=[]` collects siblings
+  // at the first containing scope (interface merging only - others don't merge).
+  // `leafMatch` threads through to `walkStatementsForDecl`; see there for the contract
+  function walkScopesForDecl({ name, scope, collect, leafMatch = isTypeBearingDeclaration }) {
+    if (!scope) return null;
+    const segments = typeof name === 'string' ? name.split('.') : name;
+    for (let cur = scope; cur; cur = cur.parent) {
+      const block = cur.block ?? cur.path?.node;
+      if (!block) continue;
+      const body = block.type === 'Program' ? block.body : block.body?.body;
+      const before = collect?.length;
+      const result = walkStatementsForDecl({ segments, statements: body, collect, leafMatch });
+      if (!collect && result) return result;
+      if (collect && collect.length > before) return null;
+    }
+    return null;
+  }
+
+  // resolve `typeof NS.Inner.fn` namespaced lookups: babel doesn't bind TS `namespace`
+  // declarations as scope values, so `constantBindingPath` returns null. delegate to
+  // `walkScopesForDecl` with the function/class leaf-match, and surface the result as a
+  // {node, scope}-shape - resolveReturnType only consumes those two properties (not full
+  // NodePath methods). passes the input scope as the result scope: babel doesn't create
+  // separate scopes for TSModuleDeclaration anyway, so type names referenced in the
+  // function's signature resolve through the same outer scope chain
+  function findNamespacedFunctionPath(segments, scope) {
+    const node = scope && walkScopesForDecl({ name: segments, scope, collect: null, leafMatch: isFunctionOrClassDeclaration });
+    return node ? { node, scope } : null;
+  }
+
+  // per-scope cache. serialize multi-segment / array inputs to a dotted string so qualified
+  // references (`NS.Type`) and array-form callsites share the cache slot with their string form
+  let typeDeclCache = new WeakMap();
+  function findTypeDeclaration(name, scope) {
+    if (!scope) return null;
+    const key = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : null;
+    if (key === null) return walkScopesForDecl({ name, scope, collect: null });
+    const byName = getOrInitMap(typeDeclCache, scope);
+    if (byName.has(key)) return byName.get(key);
+    const decl = walkScopesForDecl({ name, scope, collect: null });
+    byName.set(key, decl);
+    return decl;
+  }
+
+  // narrow `findTypeDeclaration` to TSEnumDeclaration. callers care about the enum-decl
+  // shape specifically (member-type lookup, value-kind probe, reverse-mapping check), so
+  // collapse the find + type-check pattern into one call to keep predicate and lookup at
+  // the same level of abstraction
+  function findEnumDeclaration(name, scope) {
+    const decl = findTypeDeclaration(name, scope);
+    return decl?.type === 'TSEnumDeclaration' ? decl : null;
+  }
+
+  // all `interface X {}` siblings at the first scope level that contains one
+  function findAllTypeDeclarations(name, scope) {
+    const collected = [];
+    walkScopesForDecl({ name, scope, collect: collected });
+    return collected;
+  }
+
+  // ESTree (oxc-parser): TSTypeParameter.name is Identifier node; Babel: it's a string
+  function typeParamName(param) {
+    if (!param) return undefined;
+    return typeof param.name === 'string' ? param.name : param.name?.name;
+  }
+
+  function findTypeParameter(name, scope) {
+    let currentScope = scope;
+    while (currentScope) {
+      const params = (currentScope.block ?? currentScope.path?.node)?.typeParameters?.params;
+      if (params) for (const param of params) {
+        if (typeParamName(param) === name) return {
+          constraint: param.constraint ?? param.bound,
+          default: param.default,
+          scope: currentScope,
+        };
+      }
+      currentScope = currentScope.parent;
+    }
+    return null;
+  }
+
+  function reset() {
+    ambientDeclCache = new WeakMap();
+    typeDeclCache = new WeakMap();
+  }
+
+  // `isTypeBearingDeclaration` stays cluster-private (default `leafMatch` for
+  // `walkStatementsForDecl` / `walkScopesForDecl`)
+  return {
+    isFunctionLike,
+    isFunctionOrClassDeclaration,
+    isClassLikeDeclaration,
+    findAmbientDeclarationPath,
+    findAmbientFunctionPaths,
+    findAmbientFunctionPath,
+    findAmbientClassPath,
+    findNamespacedFunctionPath,
+    findTypeDeclaration,
+    findEnumDeclaration,
+    findAllTypeDeclarations,
+    typeParamName,
+    findTypeParameter,
+    reset,
+  };
+}
