@@ -225,28 +225,61 @@ export function createBindingAnalysis({
       : !mutates.includes(argIndex);
   }
 
+  // shared per-program index: one walk builds both the `Identifier`-by-binding map (used by
+  // `collectBindingReferences` for estree-toolkit fallback and by `closure-analysis` temporal
+  // bound classification) AND the `NewExpression`-by-callee-name map (used by `closure-analysis`
+  // class-instance closure collection and temporal-bound `new C().method(...)` chain
+  // detection). without this, N bindings or C classes would each trigger their own O(N) program
+  // walk, turning closure construction into O(N^2)
+  let programIndexCache = new WeakMap();
+  function buildProgramIndex(programPath) {
+    return memoize(programIndexCache, programPath.node, () => {
+      const identifierByBinding = new Map();
+      const newExprByName = new Map();
+      function pushByKey(map, key, value) {
+        let list = map.get(key);
+        if (!list) map.set(key, list = []);
+        list.push(value);
+      }
+      programPath.traverse({
+        Identifier(p) {
+          // declaration-id slots are NOT references (mirrors babel's `referencePaths`)
+          if (isBindingPosition(p.parent, p.node)) return;
+          const binding = p.scope?.getBinding(p.node.name);
+          if (!binding) return;
+          pushByKey(identifierByBinding, binding, p);
+        },
+        NewExpression(p) {
+          const callee = unwrapRuntimeExpr(p.node.callee);
+          if (!callee || callee.type !== 'Identifier') return;
+          const { parent } = p;
+          // classify parent context so consumers decide leak / declarator-init / chain
+          // semantics without re-walking. `isMemberRecv` carries the parent MemberExpression
+          // for `new C().X(...)` chain detection (the temporal-bound consumer needs both
+          // the call's start AND that the `.X(...)` follows the new-expression)
+          const isDeclaratorInit = parent?.type === 'VariableDeclarator' && parent.init === p.node;
+          const isExprStmt = parent?.type === 'ExpressionStatement';
+          const isMemberRecv = parent?.type === 'MemberExpression' && parent.object === p.node;
+          pushByKey(newExprByName, callee.name, {
+            path: p,
+            isDeclaratorInit,
+            isLeakPosition: !isDeclaratorInit && !isExprStmt && !isMemberRecv,
+            isMemberRecv,
+          });
+        },
+      });
+      return { identifierByBinding, newExprByName };
+    });
+  }
+
   // collect every reference path of `binding` (excluding the declarator id slot). babel
   // exposes the canonical `binding.referencePaths`; estree-toolkit doesn't - fall back to
-  // program walk gated on scope-identity equality (rejects same-name shadows in inner
-  // scopes). null result signals "couldn't enumerate" (no program path)
+  // the shared per-program index. null result signals "couldn't enumerate" (no program path)
   function collectBindingReferences(binding, name, anchorPath) {
     if (Array.isArray(binding.referencePaths)) return binding.referencePaths;
     const program = findProgramPath(anchorPath);
     if (!program) return null;
-    const refs = [];
-    program.traverse({
-      Identifier(p) {
-        if (p.node.name !== name) return;
-        if (p.scope?.getBinding(name) !== binding) return;
-        // declaration-id slots (`const X = ...`, `class X`, `function X`, `catch (X)`) are
-        // NOT references. babel's `referencePaths` excludes them natively; manual estree-
-        // toolkit traversal must mirror via the shared `isBindingPosition` predicate or the
-        // alias-closure walker misclassifies the binding's own declaration as a 'leak' ref
-        if (isBindingPosition(p.parent, p.node)) return;
-        refs.push(p);
-      },
-    });
-    return refs;
+    return buildProgramIndex(program).identifierByBinding.get(binding) ?? [];
   }
 
   // ref classifier used during alias-closure construction. categories:
@@ -368,6 +401,7 @@ export function createBindingAnalysis({
 
   function reset() {
     exportedNamesCache = new WeakMap();
+    programIndexCache = new WeakMap();
   }
 
   // cluster-private helpers (used only by other cluster functions, not by the factory
@@ -375,6 +409,7 @@ export function createBindingAnalysis({
   // `resolveStaticCalleePair` / `resolveKnownStaticEntry` / `isKnownNonMutatingCallSite` /
   // `collectBindingReferences` / `defaultAliasRefClassifier` / `isTypePositionParent`
   return {
+    buildProgramIndex,
     classBindingName,
     isClassExported,
     isNewOfClass,
