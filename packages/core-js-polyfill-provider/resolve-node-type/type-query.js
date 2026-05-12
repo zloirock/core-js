@@ -152,6 +152,14 @@ export function createTypeQuery({
   // resolve a bare `typeof X` (no member chain) to its declaring path: const-bound value
   // (function/class decl, var declarator with init), runtime-init expression, or ambient
   // (`declare function` / `declare class` not in scope.bindings)
+  // shared root-binding lookup for `typeof X` chains: scope binding first, ambient
+  // `declare class/function` walk as fallback (tsc-elided declarations aren't registered
+  // in scope.bindings by either parser's tracker)
+  function resolveTypeQueryRoot(name, scope) {
+    return constantBindingPath(name, scope)
+      ?? findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
+  }
+
   function resolveBareTypeQueryBinding(name, scope) {
     const bindingPath = constantBindingPath(name, scope);
     if (!bindingPath) return findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
@@ -196,8 +204,18 @@ export function createTypeQuery({
     const segments = collectQualifiedSegments(exprName);
     if (!segments?.length) return null;
     const [rootName, ...path] = segments;
-    const binding = constantBindingPath(rootName, scope);
+    const binding = resolveTypeQueryRoot(rootName, scope);
     if (!binding) return null;
+    // class binding direct lookup: `typeof X.method` where X is a class declaration walks
+    // the class body for a static member instead of an annotation walk, so the full
+    // TSDeclareMethod / ClassMethod node reaches `functionTypeReturnAnnotation` with its
+    // return-type slot intact. without this, the annotation fallback below finds no binding
+    // annotation on the class and returns null, costing return-type narrowing for
+    // `ReturnType<typeof X.method>`
+    if (t.isClassDeclaration(binding.node) && path.length === 1) {
+      const found = findClassMember({ classPath: binding, name: path[0], isStatic: true });
+      if (found?.member?.node) return { type: found.member.node, scope: binding.scope };
+    }
     let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding));
     if (!annotation) return null;
     for (const name of path) {
