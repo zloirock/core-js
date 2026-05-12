@@ -50,6 +50,14 @@ export function createPatternBindings({
   //   - [i, ...sub]  found at index i (possibly nested)
   // `findPatternIndex` below uses `-1` with a DIFFERENT meaning ("not found" scalar); the
   // return shape (array vs scalar) disambiguates at call sites
+  // dispatch by pattern kind so callers (and the recursive child walks below) don't repeat
+  // the type-test pair. unknown kinds return null - caller signals "binding not found here"
+  function findPatternKeyPath(pattern, name, scope) {
+    if (pattern?.type === 'ObjectPattern') return findDestructuredKeyPath(pattern, name, scope);
+    if (pattern?.type === 'ArrayPattern') return findArrayPatternKeyPath(pattern, name, scope);
+    return null;
+  }
+
   function findArrayPatternKeyPath(arrayPattern, name, scope) {
     for (let i = 0; i < (arrayPattern.elements?.length ?? 0); i++) {
       const el = arrayPattern.elements[i];
@@ -61,19 +69,14 @@ export function createPatternBindings({
       }
       const unwrapped = el.type === 'AssignmentPattern' ? el.left : el;
       if (unwrapped?.type === 'Identifier' && unwrapped.name === name) return [i];
-      if (unwrapped?.type === 'ObjectPattern') {
-        const inner = findDestructuredKeyPath(unwrapped, name, scope);
-        if (inner) return [i, ...inner];
-      }
-      if (unwrapped?.type === 'ArrayPattern') {
-        const inner = findArrayPatternKeyPath(unwrapped, name, scope);
-        if (inner) return [i, ...inner];
-      }
+      const inner = findPatternKeyPath(unwrapped, name, scope);
+      if (inner) return [i, ...inner];
     }
     return null;
   }
 
-  // `{ a: { b: c } }`, target `c` -> `['a', 'b']`. nested ObjectPatterns walked recursively
+  // `{ a: { b: c } }`, target `c` -> `['a', 'b']`. nested ObjectPatterns / ArrayPatterns
+  // walked through `findPatternKeyPath` so both child kinds use one dispatch path
   function findDestructuredKeyPath(objectPattern, name, scope) {
     for (const prop of objectPattern.properties) {
       if (babelNodeType(prop) !== 'ObjectProperty') continue;
@@ -81,14 +84,8 @@ export function createPatternBindings({
       if (key === null) continue;
       const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
       if (value?.type === 'Identifier' && value.name === name) return [key];
-      if (value?.type === 'ObjectPattern') {
-        const inner = findDestructuredKeyPath(value, name, scope);
-        if (inner) return [key, ...inner];
-      }
-      if (value?.type === 'ArrayPattern') {
-        const arrResult = findArrayPatternKeyPath(value, name, scope);
-        if (arrResult) return [key, ...arrResult];
-      }
+      const inner = findPatternKeyPath(value, name, scope);
+      if (inner) return [key, ...inner];
     }
     return null;
   }
@@ -493,21 +490,12 @@ export function createPatternBindings({
       }
       const left = assignLeft(lastAssign.node);
       const rightKey = assignRightKey(lastAssign.node);
-      // destructuring: `({ a: { b } } = ...)` or `var { a: { b } } = ...`
-      if (left?.type === 'ObjectPattern') {
-        const keyPath = findDestructuredKeyPath(left, name, lastAssign.scope);
-        if (!keyPath) return null;
-        return resolveDestructuredMember(lastAssign.get(rightKey), keyPath);
-      }
-      // array destructuring: `[x] = ['hello']`, `var [{ a }] = [{ a: 'x' }]`
-      if (left?.type === 'ArrayPattern') {
-        const arrPath = findArrayPatternKeyPath(left, name, lastAssign.scope);
-        if (arrPath) {
-          const initPath = resolveRuntimeExpression(lastAssign.get(rightKey));
-          return resolveObjectMemberPath(initPath, arrPath);
-        }
-        return null;
-      }
+      // destructuring: `({ a: { b } } = ...)` / `[x] = ['hi']` / `var [{ a }] = [{ a: 'x' }]` -
+      // dispatch by pattern kind, then resolve via the shared runtime-or-annotation fallback
+      // (keeps ArrayPattern and ObjectPattern reassign-narrowing symmetric)
+      const keyPath = findPatternKeyPath(left, name, lastAssign.scope);
+      if (keyPath) return resolveDestructuredMember(lastAssign.get(rightKey), keyPath);
+      if (left?.type === 'ObjectPattern' || left?.type === 'ArrayPattern') return null;
       return resolveNodeType(lastAssign.get(rightKey));
     }
     // no assignment found - resolve from init when either const or all mutations are after usage
