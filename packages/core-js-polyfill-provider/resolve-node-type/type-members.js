@@ -21,7 +21,7 @@ import {
   typeAliasBody,
   typeRefSegments,
 } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
   unwrapTypeAnnotation,
@@ -220,35 +220,45 @@ export function createTypeMembers({
   // type-param names against the same args - lets renamed params on the interface side
   // (`class C<T>` + `interface C<U>`) substitute correctly. members are returned already
   // substituted so callers must NOT apply an outer subst on top
+  // append all merged sibling interface members for a class name into `out`, with each iface
+  // building its own subst against ITS type-param names from `receiverArgs`. covers renamed
+  // params on the interface side of class+interface merging. walks `extends A, B` parents
+  // of every matched iface too
+  function appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs }) {
+    if (!segments) return;
+    for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
+      const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
+      const ifaceBody = iface.body?.body ?? iface.body?.properties ?? [];
+      out.push(...substMembers(ifaceBody, ifaceSubst));
+      appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst });
+    }
+  }
+
   function collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs }) {
     // walk superClass chain with per-class subst derivation: each parent's typeParameters
     // get bound from the current class's `extends Parent<...>` type-args (with the current
-    // subst already applied). mirrors `appendInterfaceExtendsMembers` for class chains, so
-    // `class Child<Y> extends Parent<Y[]>` correctly maps Parent's `<X> -> Y[]` then Y -> string
+    // subst already applied). `class Child<Y> extends Parent<Y[]>` correctly maps Parent's
+    // `<X> -> Y[]` then `Y -> string`. on every hop also pull merged sibling interfaces for
+    // the current class - inherited iface members must surface on subclasses (TS declaration
+    // merging). receiver's iface lookup uses the user-passed `segments` (may be multi-segment
+    // qualified name `NS.Foo`); parents are matched by their bare id name. parent receiverArgs
+    // come from the previous class's `extends Parent<...>` slot. seen-set prevents cycles
     const merged = [];
     const seen = new Set();
     let cur = declaration;
     let curSubst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
+    let curReceiverArgs = receiverArgs;
     while (cur && !seen.has(cur)) {
       seen.add(cur);
       const ownBody = (cur.body?.body ?? []).filter(m => !m?.static);
       merged.push(...substMembers(ownBody, curSubst));
+      const lookupSegments = cur === declaration ? segments : (cur.id?.name ? [cur.id.name] : null);
+      appendMergedInterfaceMembers({ segments: lookupSegments, scope, depth, out: merged, receiverArgs: curReceiverArgs });
       const parent = findParentClassDecl(cur, scope);
       if (!parent) break;
-      // derive parent subst via the same primitive path-based `buildParentClassSubst` uses;
-      // when either side is missing (no `<U>` extends, or parent has no `<X>`), the helper
-      // returns null and parent's own type-params (if any) remain unbound - same precision-
-      // edge as before. seen-set prevents inheritance cycles
       curSubst = buildParentClassSubstFromNodes(cur, parent, curSubst);
+      curReceiverArgs = getSuperTypeArgs(cur)?.params ?? null;
       cur = parent;
-    }
-    // each iface gets its own subst built against ITS type-param names so renamed params
-    // on the interface side of class+interface merging substitute correctly
-    for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
-      const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
-      const ifaceBody = iface.body?.body ?? iface.body?.properties ?? [];
-      merged.push(...substMembers(ifaceBody, ifaceSubst));
-      appendInterfaceExtendsMembers({ iface, scope, depth, out: merged, ifaceSubst });
     }
     return merged.length ? merged : null;
   }
