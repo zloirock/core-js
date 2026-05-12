@@ -34,7 +34,7 @@ export function createClosureAnalysis({
   computeAliasClosureFromBinding,
   classBindingName,
   classBindingRefClassifier,
-  isNewOfClass,
+  buildProgramIndex,
   resolveNodeType,
 }) {
   // anonymous objects (no stable binding name) get an empty closure rather than null bail:
@@ -87,71 +87,91 @@ export function createClosureAnalysis({
     return { kind: 'extraction' };
   }
 
+  // single per-program index of all classified Identifier refs (grouped by their resolved
+  // binding) plus direct `new <Name>().<X>(...)` chain calls (grouped by constructor name).
+  // built once per file with one programPath.traverse, then reused by every temporal-bound
+  // query - previous design re-walked the entire program once per closure (one per class /
+  // object literal), turning C classes with public instance fields into O(C * N). lookup is
+  // now O(|closure| + |classNames|) over already-classified entries
+  // derived per-program index keyed off the shared `buildProgramIndex` from `binding-analysis`.
+  // Post-classifies the raw refs through `classifyClosureRef` (filtering out writes / decl-id
+  // slots) and extracts `new C().<member>(...)` chain call starts. Decoupled from the raw
+  // index so consumers don't pay the classification cost when only raw refs are needed
+  let programClosureIndexCache = new WeakMap();
+  function buildProgramClosureIndex(programPath) {
+    return memoize(programClosureIndexCache, programPath.node, () => {
+      const { identifierByBinding, newExprByName } = buildProgramIndex(programPath);
+      const classifiedByBinding = new Map();
+      for (const [binding, paths] of identifierByBinding) {
+        const refs = [];
+        for (const p of paths) {
+          const cls = classifyClosureRef(p);
+          if (cls === null || cls.kind === 'write') continue;
+          refs.push(cls);
+        }
+        if (refs.length) classifiedByBinding.set(binding, refs);
+      }
+      const newCallsByName = new Map();
+      for (const [name, entries] of newExprByName) {
+        for (const entry of entries) {
+          if (!entry.isMemberRecv) continue;
+          const ctx = entry.path.parentPath?.parent;
+          if (ctx?.type !== 'CallExpression' && ctx?.type !== 'OptionalCallExpression') continue;
+          if (ctx.callee !== entry.path.parent) continue;
+          let starts = newCallsByName.get(name);
+          if (!starts) newCallsByName.set(name, starts = []);
+          starts.push(ctx.start);
+        }
+      }
+      return { classifiedByBinding, newCallsByName };
+    });
+  }
+
   // latest source position where any closure binding could be invoked. used to bound the
   // external-write fold by temporal flow: writes whose start >= this bound happen after
   // every observable invocation, so they cannot be observed at any call site of any method
   // on the closure. returns:
-  //   `Infinity` - method extraction detected; deferred invocation can happen any time, so
-  //                no temporal benefit applies and all writes are folded as before
+  //   `Infinity` - method extraction detected; deferred invocation can happen any time
   //   numeric    - latest start of `<closure-name>.<X>(...)` direct call expression
-  //   `-Infinity` - no calls AND no extractions: closure methods are never invoked, so all
-  //                writes happen after their (non-existent) observable time and are excluded
-  // shared between object-literal and class-instance closures. `extraVisitorsFactory`
-  // optionally supplies additional traversal visitors (class case adds NewExpression to
-  // catch direct `new C().method(...)` chain calls, which don't go through closure bindings)
-  // cached by closure Map identity. closures are themselves cached upstream (per class /
-  // object node), so the same Map instance is reused across multiple field queries on the
-  // same anchor - one program walk per closure instead of one per field. for the class case
-  // `extraVisitorsFactory` captures classNames derived from the same class as the closure,
-  // so the bound is determined entirely by closure identity (class with N instance fields:
-  // N walks -> 1 walk + N - 1 cache hits)
+  //   `-Infinity` - no calls AND no extractions: closure methods are never invoked
+  // shared between object-literal and class-instance closures. cached by closure Map identity
   let closureTemporalBoundCache = new WeakMap();
-  function getClosureTemporalBound(closure, programPath, extraVisitorsFactory) {
+  function getClosureTemporalBound(closure, programPath) {
     return memoize(closureTemporalBoundCache, closure, () => {
+      const { classifiedByBinding } = buildProgramClosureIndex(programPath);
       let latestCallStart = -Infinity;
-      let extracted = false;
-      function noteCall(start) {
-        if (start !== null && start !== undefined && start > latestCallStart) latestCallStart = start;
+      for (const binding of closure.values()) {
+        const refs = classifiedByBinding.get(binding);
+        if (!refs) continue;
+        for (const cls of refs) {
+          if (cls.kind === 'extraction') return Infinity;
+          if (cls.start > latestCallStart) latestCallStart = cls.start;
+        }
       }
-      const visitors = {
-        Identifier(p) {
-          if (extracted || !closure.has(p.node.name)) return;
-          const binding = closure.get(p.node.name);
-          if (p.scope?.getBinding(p.node.name) !== binding) return;
-          const cls = classifyClosureRef(p);
-          if (cls === null || cls.kind === 'write') return;
-          if (cls.kind === 'extraction') extracted = true;
-          else noteCall(cls.start);
-        },
-      };
-      if (extraVisitorsFactory) {
-        Object.assign(visitors, extraVisitorsFactory({
-          noteCall,
-          markExtraction: () => { extracted = true; },
-          isExtracted: () => extracted,
-        }));
-      }
-      programPath.traverse(visitors);
-      return extracted ? Infinity : latestCallStart;
+      return latestCallStart;
     });
   }
 
-  // class-side temporal bound: closure refs PLUS direct `new C().method(...)` chain calls
-  // that aren't captured by any binding. `(new C()).x = Y` writes are similarly handled
-  // separately by `isReceiverNewOfClass` in the write-filter predicate. `classNames` is the
-  // descendant-names Set so subclass invocations also extend the bound
+  // class-side temporal bound: closure refs PLUS direct `new C().method(...)` chain calls.
+  // `classNames` is the descendant-names Set so subclass invocations also extend the bound.
+  // memoizes by closure identity AND classNames identity: same closure with different
+  // descendant sets (rare) gets its own slot; same call site gets a cache hit
+  let classInstanceTemporalBoundCache = new WeakMap();
   function getClassInstanceTemporalBound(closure, classNames, programPath) {
-    return getClosureTemporalBound(closure, programPath, ({ noteCall, isExtracted }) => ({
-      NewExpression(p) {
-        if (isExtracted()) return;
-        if (!isNewOfClass(p.node, classNames)) return;
-        const { parent } = p;
-        if (parent?.type !== 'MemberExpression' || parent.object !== p.node) return;
-        const ctx = p.parentPath?.parent;
-        if ((ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression')
-          && ctx.callee === parent) noteCall(ctx.start);
-      },
-    }));
+    let inner = classInstanceTemporalBoundCache.get(closure);
+    if (!inner) classInstanceTemporalBoundCache.set(closure, inner = new WeakMap());
+    return memoize(inner, classNames, () => {
+      const base = getClosureTemporalBound(closure, programPath);
+      if (base === Infinity) return Infinity;
+      const { newCallsByName } = buildProgramClosureIndex(programPath);
+      let latestCallStart = base;
+      for (const name of classNames) {
+        const starts = newCallsByName.get(name);
+        if (!starts) continue;
+        for (const start of starts) if (start > latestCallStart) latestCallStart = start;
+      }
+      return latestCallStart;
+    });
   }
 
   // collect base class + every transitive subclass path. used by instance flow scan to
@@ -195,41 +215,24 @@ export function createClosureAnalysis({
   function collectClassInstanceClosure(classPath, programPath) {
     const desc = collectClassDescendantPaths(classPath, programPath);
     if (!desc) return null;
+    const { newExprByName } = buildProgramIndex(programPath);
     const closure = new Map();
-    let leaked = false;
-    programPath.traverse({
-      VariableDeclarator(p) {
-        if (leaked) return;
-        if (!isNewOfClass(p.node.init, desc.names)) return;
-        const { id } = p.node;
-        if (id?.type !== 'Identifier') {
-          leaked = true;
-          return;
-        }
-        const binding = p.scope?.getBinding(id.name);
-        const sub = computeAliasClosureFromBinding({ rootBinding: binding, rootName: id.name, anchorPath: p });
-        if (sub === null) {
-          leaked = true;
-          return;
-        }
-        for (const [name, b] of sub) closure.set(name, b);
-      },
-      NewExpression(p) {
-        if (leaked) return;
-        if (!isNewOfClass(p.node, desc.names)) return;
-        const { parent } = p;
-        // safe positions for direct `new C()`:
-        //   - VariableDeclarator init (already handled by VariableDeclarator visitor above)
-        //   - bare ExpressionStatement (`new C();`) - value discarded, no channel
-        //   - MemberExpression where the new is the receiver (`new C().x`) - field accessed
-        //     once, instance dies; no later mutation channel
-        if (parent?.type === 'VariableDeclarator' && parent.init === p.node) return;
-        if (parent?.type === 'ExpressionStatement') return;
-        if (parent?.type === 'MemberExpression' && parent.object === p.node) return;
-        leaked = true;
-      },
-    });
-    return leaked ? null : closure;
+    for (const name of desc.names) {
+      const entries = newExprByName.get(name);
+      if (!entries) continue;
+      for (const entry of entries) {
+        if (entry.isLeakPosition) return null;
+        if (!entry.isDeclaratorInit) continue;
+        const declarator = entry.path.parentPath;
+        const { id } = declarator.node;
+        if (id?.type !== 'Identifier') return null;
+        const binding = declarator.scope?.getBinding(id.name);
+        const sub = computeAliasClosureFromBinding({ rootBinding: binding, rootName: id.name, anchorPath: declarator });
+        if (sub === null) return null;
+        for (const [k, b] of sub) closure.set(k, b);
+      }
+    }
+    return closure;
   }
 
   // cached wrapper of `collectClassInstanceClosure`. mirrors `objectAliasClosureCache`:
@@ -397,10 +400,12 @@ export function createClosureAnalysis({
   function reset() {
     objectAliasClosureCache = new WeakMap();
     closureTemporalBoundCache = new WeakMap();
+    classInstanceTemporalBoundCache = new WeakMap();
     classInstanceClosureCache = new WeakMap();
     classBindingClosureCache = new WeakMap();
     classDescendantPathsCache = new WeakMap();
     moduleFieldIndexCache = new WeakMap();
+    programClosureIndexCache = new WeakMap();
   }
 
   return {
