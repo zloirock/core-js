@@ -3,7 +3,7 @@
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import { kebabToPascal } from './helpers/ast-patterns.js';
-import { TYPE_HINTS } from './resolve-node-type.js';
+import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
 import { createPolyfillContext, resolve } from './index.js';
 
