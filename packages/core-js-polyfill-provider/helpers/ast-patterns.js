@@ -1,4 +1,4 @@
-import { MAX_DEPTH } from '../resolve-node-type-base.js';
+import { MAX_DEPTH } from '../resolve-node-type/base.js';
 
 // typed AST node predicate - excludes scalars, SourceLocation objects, and foreign markers
 // (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools).
