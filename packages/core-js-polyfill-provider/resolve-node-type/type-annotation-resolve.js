@@ -387,8 +387,16 @@ export function createTypeAnnotationResolve({
       // TS `object` keyword = any non-primitive, too broad to narrow polyfills
       case 'TSObjectKeyword':
         return new $Object(null);
+      // member-method shapes reach here when `findTypeMember` returns the full method node
+      // instead of a synthetic stub - property-access on a method-typed slot semantically
+      // yields a Function value (same as a TSFunctionType-typed property)
       case 'TSFunctionType':
       case 'TSConstructorType':
+      case 'TSMethodSignature':
+      case 'TSDeclareMethod':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+      case 'MethodDefinition':
       case 'FunctionTypeAnnotation':
         return new $Object('Function');
       // TS `{}` without members matches ANY non-nullish runtime value - primitives (string,
