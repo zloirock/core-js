@@ -902,9 +902,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     KNOWN_STATIC_METHOD_RETURN_TYPES,
   });
   const {
+    buildProgramIndex,
     classBindingName,
     isClassExported,
-    isNewOfClass,
     isReceiverNewOfClass,
     objectBindingName,
     isReflectConstructCallee,
@@ -983,7 +983,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     computeAliasClosureFromBinding,
     classBindingName,
     classBindingRefClassifier,
-    isNewOfClass,
+    buildProgramIndex,
     resolveNodeType,
   });
   const {
