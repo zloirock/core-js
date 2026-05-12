@@ -10,11 +10,6 @@ import { findUniqueName } from './helpers/pattern-matching.js';
 // the pattern. `.test()` users ignore the group; both share one regex
 export const ORPHAN_REF_PATTERN = /^_ref(?<suffix>[2-9]|[1-9]\d+)?$/;
 
-// `entryToGlobalHint` lives in `./index.js` next to `entryHintIndex` (the data driving
-// it); re-exported here so existing consumers (`tests/unplugin/unit.mjs`) keep their
-// `injector-base` import path. binding-name -> global hint is the only consumer
-export { entryToGlobalHint };
-
 // returns the next suffix to seed `#nextSuffixByPrefix` after `findUniqueName` produced
 // `name`. bare prefix -> reserve slot 2 (babel skip-1); numeric tail -> advance by 1.
 // non-numeric tail (subclass override) -> null, signalling "leave cache untouched"

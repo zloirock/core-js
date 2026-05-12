@@ -1,0 +1,545 @@
+// Destructuring + for-of binding resolution. given an Identifier inside an ArrayPattern /
+// ObjectPattern (potentially nested), walks up to find what type-shape the binding receives.
+// supports four sources, tried in order:
+//   1. annotation on the pattern itself (`const { x }: { x: T }`)
+//   2. annotation on the init expression (`const { x } = (init as { x: T })`)
+//   3. for-of iterable element type (`for (const { x } of items)`)
+//   4. destructuring default fallback (`const { x = T() } = ...`)
+//
+// For-of helpers double-duty for both annotated (`Iterable<T>` -> T) and runtime
+// (`for (const x of 'hello')` -> string) cases. Promise unwrapping for `for await of`.
+//
+// Public surface mirrors the previous factory functions - external callers are heavy
+// (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
+// is late-bound via thunk since the cluster recurses into the main resolver.
+import { $Object, $Primitive, PATTERN_WRAPPERS } from './base.js';
+import { collectQualifiedSegments } from './ast-shapes.js';
+import { assignLeft, assignRightKey } from './straight-line-flow.js';
+
+export function createPatternBindings({
+  t,
+  babelNodeType,
+  isRestBinding,
+  resolveNodeType,
+  resolveRuntimeExpression,
+  resolveInnerType,
+  commonType,
+  findEnumDeclaration,
+  resolveEnumMemberType,
+  findTypeMember,
+  substituteTypeParams,
+  buildDefaultTypeParamMap,
+  promiseRefInner,
+  unwrapPromise,
+  unwrapTypeAnnotation,
+  findExpressionAnnotation,
+  extractElementAnnotation,
+  resolveElementType,
+  findTupleElement,
+  resolveObjectMember,
+  findObjectMember,
+  resolveTypeAnnotation,
+  resolveComputedKeyName,
+  getKeyName,
+  findLastStraightLineAssignment,
+}) {
+  // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
+  // sentinel conventions:
+  //   - null         not found
+  //   - [-1]         found in rest (-1 signals "whole tail" slice, not an index)
+  //   - [i, ...sub]  found at index i (possibly nested)
+  // `findPatternIndex` below uses `-1` with a DIFFERENT meaning ("not found" scalar); the
+  // return shape (array vs scalar) disambiguates at call sites
+  function findArrayPatternKeyPath(arrayPattern, name, scope) {
+    for (let i = 0; i < (arrayPattern.elements?.length ?? 0); i++) {
+      const el = arrayPattern.elements[i];
+      if (!el) continue;
+      // rest: [...x] is always Array - signal via negative index so callers know
+      if (el.type === 'RestElement') {
+        if (el.argument?.type === 'Identifier' && el.argument.name === name) return [-1];
+        continue;
+      }
+      const unwrapped = el.type === 'AssignmentPattern' ? el.left : el;
+      if (unwrapped?.type === 'Identifier' && unwrapped.name === name) return [i];
+      if (unwrapped?.type === 'ObjectPattern') {
+        const inner = findDestructuredKeyPath(unwrapped, name, scope);
+        if (inner) return [i, ...inner];
+      }
+      if (unwrapped?.type === 'ArrayPattern') {
+        const inner = findArrayPatternKeyPath(unwrapped, name, scope);
+        if (inner) return [i, ...inner];
+      }
+    }
+    return null;
+  }
+
+  // `{ a: { b: c } }`, target `c` -> `['a', 'b']`. nested ObjectPatterns walked recursively
+  function findDestructuredKeyPath(objectPattern, name, scope) {
+    for (const prop of objectPattern.properties) {
+      if (babelNodeType(prop) !== 'ObjectProperty') continue;
+      const key = prop.computed ? resolveComputedKeyName(prop.key, scope) : getKeyName(prop.key);
+      if (key === null) continue;
+      const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+      if (value?.type === 'Identifier' && value.name === name) return [key];
+      if (value?.type === 'ObjectPattern') {
+        const inner = findDestructuredKeyPath(value, name, scope);
+        if (inner) return [key, ...inner];
+      }
+      if (value?.type === 'ArrayPattern') {
+        const arrResult = findArrayPatternKeyPath(value, name, scope);
+        if (arrResult) return [key, ...arrResult];
+      }
+    }
+    return null;
+  }
+
+  // resolve the type of a destructuring default: const { items = [] } = obj or const [a = []] = arr.
+  // recurses into nested ObjectPatterns / ArrayPatterns - `const { a: { b = [] } } = obj`
+  // resolving `b` finds the depth-2 default that one-level walk missed
+  function resolveDestructuringDefault(pattern, varName, bindingPath) {
+    const patternPath = bindingPath.node === pattern ? bindingPath
+      : bindingPath.node.id === pattern ? bindingPath.get('id')
+      : bindingPath.node.left === pattern ? bindingPath.get('left') : null;
+    if (!patternPath) return null;
+    return walkDestructuringForDefault(patternPath, pattern, varName);
+  }
+
+  function walkDestructuringForDefault(patternPath, pattern, varName) {
+    const children = patternPath.get(pattern.properties ? 'properties' : 'elements');
+    for (const child of children) {
+      if (!child.node) continue;
+      const valuePath = babelNodeType(child.node) === 'ObjectProperty' ? child.get('value') : child;
+      if (t.isAssignmentPattern(valuePath.node)) {
+        if (valuePath.node.left?.type === 'Identifier' && valuePath.node.left.name === varName) {
+          return resolveNodeType(valuePath.get('right'));
+        }
+        // `{ a: { b = [] } = {} }` - the inner pattern is on `valuePath.left`, recurse there
+        const innerLeft = valuePath.get('left');
+        if (innerLeft.node?.type === 'ObjectPattern' || innerLeft.node?.type === 'ArrayPattern') {
+          const found = walkDestructuringForDefault(innerLeft, innerLeft.node, varName);
+          if (found) return found;
+        }
+      } else if (valuePath.node?.type === 'ObjectPattern' || valuePath.node?.type === 'ArrayPattern') {
+        const found = walkDestructuringForDefault(valuePath, valuePath.node, varName);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  function resolveDestructuredType(objectPattern, name, scope) {
+    const keyPath = findDestructuredKeyPath(objectPattern, name, scope);
+    if (!keyPath) return null;
+    return resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, scope);
+  }
+
+  // resolve the type of a variable destructured from an ArrayPattern
+  function resolveArrayPatternBinding({ arrayPattern, varName, annotation, scope }) {
+    const index = findPatternIndex(arrayPattern, varName);
+    if (index < 0) return null;
+    const unwrapped = unwrapTypeAnnotation(annotation);
+    if (!unwrapped) return null;
+    const tupleElem = findTupleElement(unwrapped, index, scope);
+    if (tupleElem) return resolveTypeAnnotation(tupleElem, scope);
+    return resolveElementType(unwrapped, scope, 0);
+  }
+
+  // traverse from a binding to its enclosing for-in/for-of statement (if any)
+  // binding must be a VariableDeclarator without init, declared in the loop header
+  function findForLoopParent(bindingPath) {
+    if (!t.isVariableDeclarator(bindingPath?.node) || bindingPath.node.init) return null;
+    const declarationPath = bindingPath.parentPath;
+    if (!t.isVariableDeclaration(declarationPath?.node)) return null;
+    const forPath = declarationPath.parentPath;
+    if (!forPath || forPath.node.left !== declarationPath.node) return null;
+    return forPath;
+  }
+
+  // find the index of a variable in an ArrayPattern, accounting for holes and defaults.
+  // sentinel: scalar `-1` means "not found" (contrast with `findArrayPatternKeyPath` whose
+  // `[-1]` array signals "found in rest"); `RestElement` matches are skipped here because
+  // callers use this fn only for positional-tuple lookups where rest is a distinct case
+  function findPatternIndex(arrayPattern, varName) {
+    const { elements } = arrayPattern;
+    if (!elements) return -1;
+    for (let i = 0; i < elements.length; i++) {
+      const element = elements[i];
+      if (!element || element.type === 'RestElement') continue;
+      const id = element.type === 'AssignmentPattern' ? element.left : element;
+      if (id?.type === 'Identifier' && id.name === varName) return i;
+    }
+    return -1;
+  }
+
+  // resolve the type of a specific element in an ArrayExpression by index
+  // arrayPath must already be a resolved ArrayExpression path
+  function resolveArrayLiteralElement(arrayPath, index) {
+    const { elements } = arrayPath.node;
+    if (index < 0 || index >= elements.length) return null;
+    // bail if any spread at or before target index - positions become unpredictable
+    for (let i = 0; i <= index; i++) {
+      if (elements[i]?.type === 'SpreadElement') return null;
+    }
+    if (!elements[index]) return null; // hole
+    return resolveNodeType(arrayPath.get('elements')[index]);
+  }
+
+  // resolve common element type from an ArrayExpression if all elements share the same type
+  // arrayPath must already be a resolved ArrayExpression path
+  function resolveArrayLiteralCommonType(arrayPath) {
+    const { elements } = arrayPath.node;
+    if (elements.length === 0) return null;
+    let common = null;
+    for (let i = 0; i < elements.length; i++) {
+      // bail on holes and spreads - can't determine element types
+      if (!elements[i] || elements[i].type === 'SpreadElement') return null;
+      const resolved = resolveNodeType(arrayPath.get('elements')[i]);
+      if (!resolved) return null;
+      common = commonType(common, resolved);
+      if (!common) return null; // mixed types
+    }
+    return common;
+  }
+
+  // resolve element type from a runtime iterable (follows variables via resolvePath)
+  // handles: string literals (chars) and homogeneous array literals (common element type)
+  function resolveRuntimeIterableElement(path) {
+    return resolveInnerType(resolveNodeType(resolveRuntimeExpression(path)));
+  }
+
+  function findBindingAnnotation(bindingPath) {
+    const { node } = bindingPath;
+    return node.typeAnnotation
+      || node.id?.typeAnnotation
+      || node.param?.typeAnnotation
+      || (t.isAssignmentPattern(bindingPath.node) && node.left?.typeAnnotation);
+  }
+
+  // resolve array destructuring from any annotation source: pattern, init, or for-of iterable
+  function resolveArrayBinding(arrayPattern, varName, bindingPath) {
+    // array rest: const [a, ...rest] = items -> rest is always Array
+    if (isRestBinding(arrayPattern.elements ?? [], varName)) return new $Object('Array');
+    // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
+    if (arrayPattern.typeAnnotation) {
+      const result = resolveArrayPatternBinding({
+        arrayPattern, varName, annotation: arrayPattern.typeAnnotation, scope: bindingPath.scope,
+      });
+      if (result) return result;
+    }
+    // annotation on the init expression: const [a] = typedArr
+    if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
+      const initInfo = findExpressionAnnotation(bindingPath.get('init'));
+      if (initInfo) {
+        const initResult = resolveArrayPatternBinding({ arrayPattern, varName, annotation: initInfo.annotation, scope: initInfo.scope });
+        if (initResult) return initResult;
+      }
+      // runtime init: resolve through variables to the actual value
+      const initPath = resolveRuntimeExpression(bindingPath.get('init'));
+      const index = findPatternIndex(arrayPattern, varName);
+      if (index >= 0) {
+        // direct element: const [a] = typedArr -> resolve inner type or literal element
+        const initType = resolveNodeType(initPath);
+        const inner = resolveInnerType(initType);
+        if (inner) return inner;
+        if (t.isArrayExpression(initPath.node)) {
+          const elemType = resolveArrayLiteralElement(initPath, index);
+          if (elemType) return elemType;
+        }
+      } else {
+        // nested pattern: const [{ a }] = [{ a: 'x' }] or const [[b]] = [['x']]
+        const arrPath = findArrayPatternKeyPath(arrayPattern, varName, bindingPath.scope);
+        if (arrPath) {
+          const result = resolveObjectMemberPath(initPath, arrPath);
+          if (result) return result;
+        }
+      }
+    }
+    // for-of iterable: for (const [a] of typedArr)
+    const elemInfo = resolveForOfElementAnnotation(bindingPath);
+    if (elemInfo) {
+      const elemResult = resolveArrayPatternBinding({ arrayPattern, varName, annotation: elemInfo.annotation, scope: elemInfo.scope });
+      if (elemResult) return elemResult;
+    }
+    // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
+    const forOfPath = findForLoopParent(bindingPath);
+    if (t.isForOfStatement(forOfPath?.node)) {
+      // resolve for-of element, then unwrap one more level for array destructuring
+      const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
+      if (inner) return inner;
+    }
+    // fallback: resolve from destructuring default value: const [a = []] = arr
+    return resolveDestructuringDefault(arrayPattern, varName, bindingPath);
+  }
+
+  function resolveAnnotatedMember(annotation, keyName, scope) {
+    const unwrapped = unwrapTypeAnnotation(annotation);
+    if (!unwrapped) return null;
+    // `typeof Enum` in annotation position - member access on the enum object yields the
+    // enum value kind. findTypeMember doesn't walk TSTypeQuery bodies, so dispatch here
+    if (unwrapped.type === 'TSTypeQuery') {
+      const segments = collectQualifiedSegments(unwrapped.exprName);
+      const rootName = segments?.[0];
+      if (rootName && segments.length === 1) {
+        const enumDecl = findEnumDeclaration(rootName, scope);
+        if (enumDecl) {
+          const type = resolveEnumMemberType(enumDecl, keyName);
+          if (type) return type;
+        }
+      }
+    }
+    const memberType = findTypeMember({ objectType: unwrapped, key: keyName, scope });
+    if (!memberType) return null;
+    const defaultMap = buildDefaultTypeParamMap(unwrapped, scope);
+    return defaultMap
+      ? substituteTypeParams(memberType, defaultMap, scope, 0)
+      : resolveTypeAnnotation(memberType, scope);
+  }
+
+  // step through `['a', 'b']` against the annotation; final step goes through resolveAnnotatedMember
+  function resolveAnnotatedMemberPath(annotation, keyPath, scope) {
+    if (!keyPath?.length) return null;
+    let current = annotation;
+    for (let i = 0; i < keyPath.length - 1; i++) {
+      const unwrapped = unwrapTypeAnnotation(current);
+      if (!unwrapped) return null;
+      const next = findTypeMember({ objectType: unwrapped, key: keyPath[i], scope });
+      if (!next) return null;
+      current = next;
+    }
+    return resolveAnnotatedMember(current, keyPath.at(-1), scope);
+  }
+
+  // recursively unwrap Promise<T> annotation to T for for-await-of element types
+  // mirrors runtime `await` semantics: Promise<Promise<T>> -> T. peel structural-Promise
+  // synonyms (PromiseLike / Thenable) the same way - PROMISE_SYNONYMS aliases them at the
+  // type-resolver level, but raw AST consumers (for-await-of element annotation, destructure)
+  // need parallel peel so `for await (const x of asyncIter<PromiseLike<T>>)` reaches T
+  function unwrapPromiseAnnotation(node) {
+    let result = unwrapTypeAnnotation(node);
+    while (true) {
+      const inner = promiseRefInner(result);
+      if (!inner) break;
+      const unwrapped = unwrapTypeAnnotation(inner);
+      if (!unwrapped) break;
+      result = unwrapped;
+    }
+    return result ?? node;
+  }
+
+  // resolve the raw element annotation of a for-of iterable from its type annotation
+  function resolveForOfElementAnnotation(path) {
+    const forOfPath = findForLoopParent(path);
+    if (!t.isForOfStatement(forOfPath?.node)) return null;
+    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+    if (!annotationInfo) return null;
+    let elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+    // for-await-of unwraps Promise elements: Iterable<Promise<T>> -> T
+    if (elemAnnotation && forOfPath.node.await) elemAnnotation = unwrapPromiseAnnotation(elemAnnotation);
+    return elemAnnotation ? { annotation: elemAnnotation, scope: annotationInfo.scope } : null;
+  }
+
+  // resolve the element type of a for-of iterable, unwrapping Promise for for-await-of
+  function resolveForOfResolvedElement(forOfPath) {
+    const isAwait = forOfPath.node.await;
+    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+    if (annotationInfo) {
+      const annotatedType = resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
+      if (annotatedType) return isAwait ? unwrapPromise(annotatedType) : annotatedType;
+    }
+    const runtimeType = resolveRuntimeIterableElement(forOfPath.get('right'));
+    if (runtimeType) return isAwait ? unwrapPromise(runtimeType) : runtimeType;
+    return null;
+  }
+
+  // { a: [{ b: 'x' }] } with path ['a', 0, 'b'] -> resolveObjectMember for 'x'
+  // string keys resolve object properties, number keys resolve array elements
+  function resolveObjectMemberPath(objPath, keyPath) {
+    if (keyPath.length === 0) return resolveNodeType(objPath);
+    const [step] = keyPath;
+    const rest = keyPath.slice(1);
+    if (typeof step === 'number') {
+      // -1 = rest element, always Array
+      if (step < 0) return new $Object('Array');
+      if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
+      return resolveObjectMemberPath(resolveRuntimeExpression(objPath.get('elements')[step]), rest);
+    }
+    if (!t.isObjectExpression(objPath.node)) return null;
+    if (!rest.length) return resolveObjectMember(objPath, step);
+    const prop = findObjectMember(objPath, step);
+    if (!prop || !t.isObjectProperty(prop.node)) return null;
+    const next = resolveRuntimeExpression(prop.get('value'));
+    return resolveObjectMemberPath(next, rest);
+  }
+
+  // try runtime object literal, then annotation-based resolution for a destructured member
+  function resolveDestructuredMember(exprPath, keyPath) {
+    const runtimeResult = resolveObjectMemberPath(resolveRuntimeExpression(exprPath), keyPath);
+    if (runtimeResult) return runtimeResult;
+    const info = findExpressionAnnotation(exprPath);
+    if (info) return resolveAnnotatedMemberPath(info.annotation, keyPath, info.scope);
+    return null;
+  }
+
+  // walk from a nested pattern up through parent wrappers, collecting the key path
+  // { a: [{ b }] } -> from ObjectPattern({ b }) up to stop: ['a', 0]
+  function collectPatternKeyPath(startPath, stop) {
+    const result = [];
+    let prev = startPath;
+    let cur = startPath.parentPath;
+    while (cur && cur !== stop && PATTERN_WRAPPERS.has(babelNodeType(cur.node))) {
+      const type = babelNodeType(cur.node);
+      if (type === 'ObjectProperty' || type === 'Property') {
+        const key = cur.node.computed
+          ? resolveComputedKeyName(cur.node.key, cur.scope ?? startPath.scope)
+          : getKeyName(cur.node.key);
+        if (key === null) return null;
+        result.unshift(key);
+      } else if (type === 'ArrayPattern') {
+        const idx = cur.node.elements?.indexOf(prev.node);
+        if (idx === undefined || idx < 0) return null;
+        result.unshift(idx);
+      }
+      prev = cur;
+      cur = cur.parentPath;
+    }
+    return result;
+  }
+
+  function resolveObjectBinding(objectPattern, varName, bindingPath) {
+    // object rest: const { a, ...rest } = obj -> rest is always Object
+    if (isRestBinding(objectPattern.properties, varName)) return new $Object('Object');
+    // annotation on the pattern: const { items }: { items: number[] } = ...
+    if (objectPattern.typeAnnotation) {
+      const result = resolveDestructuredType(objectPattern, varName, bindingPath.scope);
+      if (result) return result;
+    }
+    const keyPath = findDestructuredKeyPath(objectPattern, varName, bindingPath.scope);
+    if (!keyPath) return null;
+    if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
+      // build full path through nested patterns: { a: [{ b }] } = init -> ['a', 0, 'b']
+      const prefix = collectPatternKeyPath(objectPattern, bindingPath);
+      const fullPath = prefix?.length ? [...prefix, ...keyPath] : keyPath;
+      const result = resolveDestructuredMember(bindingPath.get('init'), fullPath);
+      if (result) return result;
+    }
+    const elemInfo = resolveForOfElementAnnotation(bindingPath);
+    if (elemInfo) return resolveAnnotatedMemberPath(elemInfo.annotation, keyPath, elemInfo.scope);
+    // runtime: for (const { name } of [{ name: [1,2,3] }])
+    const forOfPath = findForLoopParent(bindingPath);
+    if (t.isForOfStatement(forOfPath?.node)) {
+      const iterPath = resolveRuntimeExpression(forOfPath.get('right'));
+      if (t.isArrayExpression(iterPath.node) && iterPath.node.elements.length) {
+        const firstElem = resolveRuntimeExpression(iterPath.get('elements')[0]);
+        const result = resolveObjectMemberPath(firstElem, keyPath);
+        if (result) return result;
+      }
+    }
+    return resolveDestructuringDefault(objectPattern, varName, bindingPath);
+  }
+
+  function findBindingPattern(node, type) {
+    if (node.type === type) return node;
+    if (node.id?.type === type) return node.id;
+    if (node.left?.type === type) return node.left;
+    return null;
+  }
+
+  // resolve a binding's type via the most precise source available: rest-param ->
+  // destructure -> annotation -> for-of element -> straight-line assignment -> const init.
+  // single Identifier path; never recurses through the resolver entry-point on the binding
+  // itself (callers use this as the leaf of an `Identifier` resolution chain). returns null
+  // for any non-Identifier path or unresolvable binding shape
+  function resolveBindingType(path) {
+    if (!t.isIdentifier(path.node)) return null;
+    const binding = path.scope?.getBinding(path.node.name);
+    if (!binding) return null;
+    const { path: bindingPath } = binding;
+    const { name } = path.node;
+    const { node } = bindingPath;
+    // rest-param: `function f(...xs) { xs.at(0) }` - `xs` is always an Array at runtime
+    // regardless of call-site. annotated form (`...xs: T[]`) flows through the annotation
+    // branch below; unannotated falls here. without this, `.at(0)` on `xs` dispatches the
+    // generic polyfill instead of the array-specific helper
+    if (node?.type === 'RestElement') {
+      const annotated = findBindingAnnotation(bindingPath);
+      if (annotated) return resolveTypeAnnotation(annotated, bindingPath.scope);
+      return new $Object('Array');
+    }
+    // destructured object: for (const { a } of ...) or const { a } = ...
+    const objectPattern = findBindingPattern(node, 'ObjectPattern');
+    if (objectPattern) return resolveObjectBinding(objectPattern, name, bindingPath);
+    // destructured array: for (const [a] of ...) or const [a] = ...
+    const arrayPattern = findBindingPattern(node, 'ArrayPattern');
+    if (arrayPattern) return resolveArrayBinding(arrayPattern, name, bindingPath);
+    // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
+    // must NOT be reached for destructured bindings - their pattern-level annotation
+    // describes the container type, not the element type
+    const typeAnnotation = findBindingAnnotation(bindingPath);
+    if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
+    // for-in / for-of (only for direct bindings - destructured bindings return early above)
+    const forLoopParent = findForLoopParent(bindingPath);
+    if (forLoopParent) {
+      // for-in: iteration variable is always a string per ECMAScript spec
+      if (t.isForInStatement(forLoopParent.node)) return new $Primitive('string');
+      // for-of / for-await-of: infer element type from the iterable
+      if (t.isForOfStatement(forLoopParent.node)) return resolveForOfResolvedElement(forLoopParent);
+    }
+    // mutable binding: resolve from the last straight-line assignment before usage
+    const lastAssign = findLastStraightLineAssignment(binding, path);
+    if (lastAssign) {
+      // `+=` / `-=` / ... - the assignment node's own type captures the result
+      if (lastAssign.node.type === 'AssignmentExpression' && lastAssign.node.operator !== '=') {
+        return resolveNodeType(lastAssign);
+      }
+      const left = assignLeft(lastAssign.node);
+      const rightKey = assignRightKey(lastAssign.node);
+      // destructuring: `({ a: { b } } = ...)` or `var { a: { b } } = ...`
+      if (left?.type === 'ObjectPattern') {
+        const keyPath = findDestructuredKeyPath(left, name, lastAssign.scope);
+        if (!keyPath) return null;
+        return resolveDestructuredMember(lastAssign.get(rightKey), keyPath);
+      }
+      // array destructuring: `[x] = ['hello']`, `var [{ a }] = [{ a: 'x' }]`
+      if (left?.type === 'ArrayPattern') {
+        const arrPath = findArrayPatternKeyPath(left, name, lastAssign.scope);
+        if (arrPath) {
+          const initPath = resolveRuntimeExpression(lastAssign.get(rightKey));
+          return resolveObjectMemberPath(initPath, arrPath);
+        }
+        return null;
+      }
+      return resolveNodeType(lastAssign.get(rightKey));
+    }
+    // no assignment found - resolve from init when either const or all mutations are after usage
+    if (t.isVariableDeclarator(node) && node.init) {
+      const violations = binding.constantViolations;
+      if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
+      const usagePos = path.node.start;
+      if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos)) {
+        return resolveNodeType(bindingPath.get('init'));
+      }
+    }
+    return null;
+  }
+
+  // cluster-private (consumed only by other cluster functions, not by factory or other
+  // clusters): `resolveDestructuringDefault` / `resolveDestructuredType` /
+  // `resolveArrayPatternBinding` / `findPatternIndex` / `resolveRuntimeIterableElement` /
+  // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveDestructuredMember` /
+  // `resolveObjectBinding` / `findBindingPattern`
+  return {
+    findArrayPatternKeyPath,
+    findDestructuredKeyPath,
+    findForLoopParent,
+    resolveArrayLiteralElement,
+    resolveArrayLiteralCommonType,
+    findBindingAnnotation,
+    resolveAnnotatedMember,
+    resolveAnnotatedMemberPath,
+    unwrapPromiseAnnotation,
+    resolveForOfResolvedElement,
+    resolveObjectMemberPath,
+    collectPatternKeyPath,
+    resolveBindingType,
+  };
+}
