@@ -1,0 +1,481 @@
+// AST type annotation -> Type object resolution. dispatches on every TS / Flow type-node
+// discriminator and folds container shapes (union / intersection / tuple / mapped /
+// indexed-access / conditional / TSTypeQuery / utility-type names) into the resolved Type
+// object representation `$Object` / `$Primitive`.
+//
+// Public surface:
+//   resolveTypeAnnotation(node, scope, depth=0)   - main entry
+//   resolveConstructorType(name, path)            - `new Container<T>()` typed call expression
+//   resolveConstructorCallType(name, path)        - `Container<T>(x)` typed call (no `new`)
+//
+// All other handlers (`resolveNamedType` / `resolveLiteralType` / `resolveConditionalType` /
+// `resolveKeyofSelfValueUnion` / `resolveIndexedAccessType` / `resolveKnownContainerType` /
+// `resolveExtractExclude` / `isAssignableTo`) are cluster-private. `resolveAnnotationInContext`
+// and `resolveNonNullableAnnotation` live in the factory (they're consumed both inside this
+// cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
+// path - factory destructure binds the cluster output by the time those run.
+import { $Object, $Primitive } from './base.js';
+import { typeRefSegments } from './ast-shapes.js';
+import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
+
+const { hasOwn } = Object;
+
+export function createTypeAnnotationResolve({
+  t,
+  babelNodeType,
+  isLiteralOf,
+  KNOWN_CONSTRUCTORS,
+  CONSTRUCTOR_ALIASES,
+  PROMISE_SYNONYMS,
+  STRUCTURE_PRESERVING_WRAPPERS,
+  SINGLE_ELEMENT_COLLECTIONS,
+  MAX_DEPTH,
+  isAmbientClassNode,
+  typeRefSegmentsEqual,
+  collectQualifiedSegments,
+  unwrapTypeAnnotation,
+  isNullableOrNever,
+  followTypeAliasChain,
+  applySubst,
+  resolveKnownConstructor,
+  typeFromHint,
+  resolveInnerType,
+  effectiveParam,
+  resolveParametersParams,
+  resolveAnnotationInContext,
+  resolveNonNullableAnnotation,
+  resolveAwaitedAnnotation,
+  resolveReturnTypeFromTypeQuery,
+  functionTypeReturnAnnotation,
+  resolveTypeQueryBinding,
+  resolveTypeQuery,
+  resolveTypeofFromSegments,
+  resolveClassInheritance,
+  resolveUserDefinedType,
+  resolveElementType,
+  foldUnionTypes,
+  foldIntersectionTypes,
+  findTypeMember,
+  findTupleElement,
+  unwrapMappedTypePassthrough,
+  tupleAsArrayType,
+  resolveInferElementPattern,
+  resolveConditionalBranches,
+  getTypeMembers,
+}) {
+  function isAssignableTo(candidate, target) {
+    if (typesEqualLocal(candidate, target)) {
+      // matching outer type (e.g. both Array) - require inner distinction for container types
+      // so `Extract<Array<number>|Array<string>, Array<string>>` narrows correctly. target with
+      // no inner (bare `Array`) accepts any inner (covariant); mismatched inners reject
+      if (!target.inner) return true;
+      return innersEqualLocal(candidate.inner, target.inner);
+    }
+    // any non-primitive is assignable to object / Object
+    return !candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object');
+  }
+
+  // local equality helpers to keep the cluster self-contained. mirrors factory's
+  // `typesEqual` / `innersEqual` semantics (referential outer + recursive inner-by-string
+  // or inner-by-type)
+  function typesEqualLocal(a, b) {
+    return a.type === b.type && a.constructor === b.constructor;
+  }
+
+  function innersEqualLocal(a, b) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (typeof a === 'string' || typeof b === 'string') return a === b;
+    return typesEqualLocal(a, b) && innersEqualLocal(a.inner, b.inner);
+  }
+
+  function resolveExtractExclude({ first, second, scope, depth, keep, typeParamMap, seen }) {
+    const resolve = node => resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
+    const target = resolve(second);
+    if (!target) return null;
+    let unwrapped = unwrapTypeAnnotation(first);
+    if (!unwrapped) return null;
+    // capture subst so generic union members (`type Foo<T> = T | string`) keep their bindings
+    const { node: aliasTarget, subst } = followTypeAliasChain(unwrapped, scope);
+    if (aliasTarget) unwrapped = aliasTarget;
+    const types = unwrapped.type === 'TSUnionType' || unwrapped.type === 'UnionTypeAnnotation' ? unwrapped.types : [unwrapped];
+    let result = null;
+    let anyKept = false;
+    for (const member of types) {
+      const substituted = applySubst(member, subst);
+      const resolved = resolve(substituted);
+      if (!resolved) return null;
+      if (isAssignableTo(resolved, target) !== keep) continue;
+      anyKept = true;
+      result = commonTypeLocal(result, resolved);
+      if (!result) return null;
+    }
+    // all members excluded -> never (not null/unknown)
+    if (!anyKept) return new $Primitive('never');
+    return result;
+  }
+
+  // local commonType to avoid pulling another factory dep; mirrors factory's `commonType`
+  function commonTypeLocal(existing, incoming) {
+    if (!existing) return incoming;
+    if (!typesEqualLocal(existing, incoming)) return null;
+    if (existing.primitive || innersEqualLocal(existing.inner, incoming.inner)) return existing;
+    return new $Object(existing.constructor);
+  }
+
+  function resolveKnownContainerType({ name, base, node, innerResolver }) {
+    if (!base) return null;
+    if (!SINGLE_ELEMENT_COLLECTIONS.has(name) && name !== 'Promise') return base;
+    const params = getTypeArgs(node)?.params;
+    if (params?.[0]) {
+      const inner = innerResolver(params[0]);
+      if (inner && !isNullableOrNever(inner)) return new $Object(base.constructor, inner);
+    }
+    return base;
+  }
+
+  function resolveConstructorType(name, path) {
+    return resolveKnownContainerType({
+      name, base: resolveKnownConstructor(name), node: path.node, innerResolver: p => resolveTypeAnnotation(p, path.scope),
+    });
+  }
+
+  function resolveConstructorCallType(name, path) {
+    if (!hasOwn(KNOWN_CONSTRUCTORS, name)) return null;
+    const callResult = typeFromHint(KNOWN_CONSTRUCTORS[name].call);
+    if (callResult.primitive) return callResult;
+    return resolveKnownContainerType({ name, base: callResult, node: path.node, innerResolver: p => resolveTypeAnnotation(p, path.scope) });
+  }
+
+  function resolveNamedType({ name, node, scope, depth, typeParamMap, seen }) {
+    // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
+    // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
+    if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
+    if (hasOwn(CONSTRUCTOR_ALIASES, name)) name = CONSTRUCTOR_ALIASES[name];
+    const resolveArgInner = arg => resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
+    const known = resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
+    if (known) return known;
+    const firstArg = () => getTypeArgs(node)?.params[0];
+    const resolveArg = (arg, fallback) => arg
+      ? resolveArgInner(arg) ?? fallback
+      : null;
+    // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
+    // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
+    if (STRUCTURE_PRESERVING_WRAPPERS.has(name)) return resolveArg(firstArg(), new $Object('Object'));
+    switch (name) {
+      // structurally new shape from their type parameter - collapse to Object
+      case 'Record':
+      case '$Shape':
+      case '$Diff':
+      case '$Rest':
+      case '$ObjMap':
+      case '$ObjMapi':
+      case '$ObjMapConst':
+        return new $Object('Object');
+      case 'Parameters':
+      case 'ConstructorParameters': {
+        // tuple approximated as Array<first-param-type> so chained `.at(0)` / `.forEach`
+        // resolve; indexed access `T[N]` picks the N-th via `findTupleElement`
+        const { param, isRest } = effectiveParam(resolveParametersParams(node, scope)?.[0]);
+        const resolved = param?.typeAnnotation ? resolveArgInner(param.typeAnnotation) : null;
+        // `...xs: T[]` - annotation is `T[]`, the tuple element is T
+        const inner = isRest ? resolveInnerType(resolved) : resolved;
+        return inner && !isNullableOrNever(inner) ? new $Object('Array', inner) : new $Object('Array');
+      }
+      // Flow: $Keys
+      case 'Uppercase':
+      case 'Lowercase':
+      case 'Capitalize':
+      case 'Uncapitalize':
+      case '$Keys':
+        return new $Primitive('string');
+      // TS lib alias for `string | number | symbol`; no shared polyfill API, null lets
+      // downstream fall back to generic-instance emission
+      case 'PropertyKey':
+        return null;
+      // transparent wrappers resolving type parameter. Flow: $Exact
+      case 'NoInfer':
+      case '$Exact':
+        return resolveArg(firstArg(), null);
+      // resolve type parameter, strip nullable/never. Flow: $NonMaybeType
+      case 'NonNullable':
+      case '$NonMaybeType': {
+        const arg = firstArg();
+        return arg ? resolveNonNullableAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null;
+      }
+      case 'Awaited': {
+        const arg = firstArg();
+        return arg ? resolveAwaitedAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null;
+      }
+      case 'ReturnType': {
+        const arg = firstArg();
+        if (!arg) return null;
+        // TSTypeQuery (`ReturnType<typeof fn>`) routes through runtime-binding lookup.
+        // direct function type alias (`type Fn = () => T; ReturnType<Fn>`) has no typeof -
+        // follow the alias chain, extract return annotation, fold accumulated subst into it
+        // (mirrors Awaited / Extract / findTupleElement)
+        if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope);
+        const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
+        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
+        return ret ? resolveTypeAnnotation(applySubst(ret, subst), scope) : null;
+      }
+      case 'InstanceType': {
+        const arg = firstArg();
+        const resolved = arg ? resolveTypeQueryBinding(arg, scope) : null;
+        if (!(t.isClass(resolved?.node) || isAmbientClassNode(resolved?.node))) return null;
+        return resolveClassInheritance(resolved) || new $Object('Object');
+      }
+      case 'Extract':
+      case 'Exclude': {
+        const params = getTypeArgs(node)?.params;
+        return params?.length >= 2
+          ? resolveExtractExclude({
+            first: params[0], second: params[1], scope, depth, keep: name === 'Extract', typeParamMap, seen,
+          }) : null;
+      }
+      // Flow $ReadOnlyArray<T> -> Array with inner type (equivalent to ReadonlyArray<T>)
+      case '$ReadOnlyArray': {
+        const arg = firstArg();
+        return new $Object('Array', arg ? resolveNonNullableAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null);
+      }
+      // conservative: unknown for Flow variants we don't model structurally
+      case '$Values':
+      case '$ElementType':
+      case '$PropertyType':
+      case '$Call':
+        return null;
+    }
+    return resolveUserDefinedType({ name, node, scope, depth, seen });
+  }
+
+  // TS literal types: 'hello', 42, true, etc.
+  function resolveLiteralType(node) {
+    if (!node.literal) return null;
+    switch (babelNodeType(node.literal)) {
+      case 'StringLiteral':
+      case 'TemplateLiteral':
+        return new $Primitive('string');
+      case 'NumericLiteral':
+        return new $Primitive('number');
+      case 'BooleanLiteral':
+        return new $Primitive('boolean');
+      case 'BigIntLiteral':
+        return new $Primitive('bigint');
+      // signed-numeric literal types: `-1` / `-1n` wrap UnaryExpression around the magnitude
+      case 'UnaryExpression':
+        return new $Primitive(isLiteralOf(node.literal.argument, 'BigInt') ? 'bigint' : 'number');
+    }
+    return null;
+  }
+
+  // TS conditional type: T extends U ? X : Y - resolve if both branches have the same
+  // type, or one is `never`. `T extends (infer U)[] ? U : never` with T already substituted
+  // (via alias-chain) is the canonical element-extraction shape: trueType references the
+  // inferred name, falseType is never-like. match first so `First<string[]>` resolves to
+  // `string` instead of collapsing through the generic branches (which can't resolve the
+  // naked `U` reference)
+  function resolveConditionalType(node, scope, depth) {
+    const inferred = resolveInferElementPattern({ node, typeParamMap: null, scope, depth, seen: null });
+    if (inferred) return inferred;
+    return resolveConditionalBranches(
+      resolveTypeAnnotation(node.trueType, scope, depth + 1),
+      resolveTypeAnnotation(node.falseType, scope, depth + 1));
+  }
+
+  // TS indexed access type: Config["items"], [string, number[]][1], Items[number], or Dict[string]
+  // `T[keyof T]` shape: index references its own object. fold each property's value
+  // annotation into a union (mirrors TS evaluation). returns:
+  //   - resolved Type / null on hit (handled by foldUnionTypes)
+  //   - undefined when shape doesn't match (caller falls through to other dispatch)
+  function resolveKeyofSelfValueUnion(node, scope, depth) {
+    const idx = node.indexType;
+    if (idx?.type !== 'TSTypeOperator' || idx.operator !== 'keyof'
+      || !typeRefSegmentsEqual(idx.typeAnnotation, node.objectType)) return undefined;
+    const members = getTypeMembers({ objectType: node.objectType, scope });
+    if (!members) return null;
+    const valueAnnotations = members
+      .map(m => m.typeAnnotation ?? m.returnType)
+      .filter(Boolean);
+    if (!valueAnnotations.length) return null;
+    return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, scope, depth + 1));
+  }
+
+  function resolveIndexedAccessType(node, scope, depth) {
+    // T[number] - element type of array/tuple
+    if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
+    // T[string] - string index signature type
+    if (node.indexType?.type === 'TSStringKeyword') {
+      const members = getTypeMembers({ objectType: node.objectType, scope });
+      if (members) for (const member of members) {
+        if (member.type === 'TSIndexSignature' && member.typeAnnotation
+          && member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword') {
+          return resolveTypeAnnotation(member.typeAnnotation, scope, depth + 1);
+        }
+      }
+      return null;
+    }
+    // `T[keyof T]` self-indexed access folds to value-union of T's properties.
+    // delegated to helper to keep dispatcher under max-statements lint
+    const keyofSelf = resolveKeyofSelfValueUnion(node, scope, depth);
+    if (keyofSelf !== undefined) return keyofSelf;
+    // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
+    // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to the
+    // widest common type, handing us precise inference when all branches agree
+    if (node.indexType?.type === 'TSUnionType') {
+      return foldUnionTypes(node.indexType.types, branch => resolveTypeAnnotation(
+        { type: 'TSIndexedAccessType', objectType: node.objectType, indexType: branch },
+        scope,
+        depth + 1,
+      ));
+    }
+    // template-literal type index `T[\`foo\`]` without interpolations is equivalent to
+    // `T['foo']` - TS-level evaluation of the template yields a plain string literal.
+    // interpolations (`T[\`_${K}\`]`) would require compile-time type-string computation
+    // (mapped-type renamers like `as \`_${K & string}\``); conservative bail for now.
+    // TS wraps template literals in TSLiteralType { literal: TemplateLiteral }; unwrap first
+    const literalIndex = node.indexType?.type === 'TSLiteralType' ? node.indexType.literal : node.indexType;
+    const quasi = singleQuasiString(literalIndex);
+    if (quasi !== null) {
+      const member = findTypeMember({ objectType: node.objectType, key: quasi, scope });
+      return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
+    }
+    if (node.indexType?.type !== 'TSLiteralType') return null;
+    const { literal } = node.indexType;
+    let member;
+    if (isLiteralOf(literal, 'String')) member = findTypeMember({ objectType: node.objectType, key: literal.value, scope });
+    else if (isLiteralOf(literal, 'Numeric')) member = findTupleElement(node.objectType, literal.value, scope);
+    return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
+  }
+
+  function resolveTypeAnnotation(node, scope, depth = 0) {
+    if (depth > MAX_DEPTH) return null;
+    node = unwrapTypeAnnotation(node);
+    if (!node) return null;
+    switch (babelNodeType(node)) {
+      // TS / Flow primitive keywords + literal-typeof + TSTemplateLiteralType (`prefix_${string}`)
+      case 'TSStringKeyword':
+      case 'StringTypeAnnotation':
+      case 'StringLiteralTypeAnnotation':
+      case 'TSTemplateLiteralType':
+        return new $Primitive('string');
+      case 'TSNumberKeyword':
+      case 'NumberTypeAnnotation':
+      case 'NumberLiteralTypeAnnotation':
+        return new $Primitive('number');
+      // boolean keywords + TSTypePredicate (`x is string` -> boolean)
+      case 'TSBooleanKeyword':
+      case 'BooleanTypeAnnotation':
+      case 'BooleanLiteralTypeAnnotation':
+      case 'TSTypePredicate':
+        return new $Primitive('boolean');
+      case 'TSBigIntKeyword':
+      case 'BigIntTypeAnnotation':
+        return new $Primitive('bigint');
+      case 'TSSymbolKeyword':
+      case 'SymbolTypeAnnotation':
+        return new $Primitive('symbol');
+      case 'TSVoidKeyword':
+      case 'TSUndefinedKeyword':
+      case 'VoidTypeAnnotation':
+        return new $Primitive('undefined');
+      case 'TSNullKeyword':
+      case 'NullLiteralTypeAnnotation':
+        return new $Primitive('null');
+      case 'TSNeverKeyword':
+      case 'EmptyTypeAnnotation':
+        return new $Primitive('never');
+      // TS `object` keyword = any non-primitive, too broad to narrow polyfills
+      case 'TSObjectKeyword':
+        return new $Object(null);
+      case 'TSFunctionType':
+      case 'TSConstructorType':
+      case 'FunctionTypeAnnotation':
+        return new $Object('Function');
+      // TS `{}` without members matches ANY non-nullish runtime value - primitives (string,
+      // number, bigint, boolean, symbol), functions, all constructor objects (Array, Map,
+      // Promise, Date, ...), user classes. returning `$Object('Object')` would narrow to
+      // Object-methods only and misroute `.at()` / `.includes()` etc; null routes through
+      // `resolveHint` common/rest fallback which is the correct conservative choice.
+      // `TSImportType` (`typeof import('x')`) explicit so future extension doesn't need to
+      // untangle a silent fall-through through `TSTypeReference`.
+      // `TSAnyKeyword` / `TSUnknownKeyword` / `AnyTypeAnnotation` / `MixedTypeAnnotation`
+      // are wide-open: type-guard narrowing (`classifyGuardAnnotation:'open'`) refines them
+      // contextually; bare resolution stays null so the hint dispatcher takes the same
+      // conservative path as for `{}`
+      case 'TSTypeLiteral':
+      case 'ObjectTypeAnnotation':
+      case 'TSImportType':
+      case 'TSAnyKeyword':
+      case 'TSUnknownKeyword':
+      case 'AnyTypeAnnotation':
+      case 'MixedTypeAnnotation':
+        return null;
+      // TS mapped type: detect the trivial passthrough `{ [K in keyof T]: T[K] }` and resolve
+      // through to T directly; everything else is structurally opaque
+      case 'TSMappedType': {
+        const passthrough = unwrapMappedTypePassthrough(node);
+        return passthrough ? resolveTypeAnnotation(passthrough, scope, depth + 1) : null;
+      }
+      case 'TSArrayType':
+      case 'ArrayTypeAnnotation':
+        return new $Object('Array', resolveNonNullableAnnotation({ node: node.elementType, scope, depth }));
+      case 'TSTupleType':
+      case 'TupleTypeAnnotation':
+        return tupleAsArrayType(node, e => resolveTypeAnnotation(e, scope, depth + 1));
+      // TS / Flow named types - only well-known built-ins and utility types.
+      // handle dotted refs (`NS.Data`) by joining segments so resolveNamedType /
+      // findTypeDeclaration can split them back into a path-walk
+      case 'TSTypeReference':
+      case 'GenericTypeAnnotation': {
+        const segments = typeRefSegments(node);
+        if (!segments) return null;
+        return resolveNamedType({ name: segments.join('.'), node, scope, depth });
+      }
+      // transparent wrappers - unwrap and resolve the inner type
+      case 'TSOptionalType':
+      case 'TSParenthesizedType':
+      case 'NullableTypeAnnotation':
+        return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
+      // TS type operator: `readonly T[]`, `unique symbol` - but NOT `keyof T`
+      case 'TSTypeOperator':
+        return node.operator === 'keyof' ? null : resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
+      // TS typeof in type position: `typeof variable`
+      case 'TSTypeQuery':
+        return resolveTypeQuery(node, scope);
+      // Flow typeof in type position: `typeof variable`
+      case 'TypeofTypeAnnotation': {
+        const arg = node.argument;
+        return arg?.type === 'GenericTypeAnnotation'
+          ? resolveTypeofFromSegments(collectQualifiedSegments(arg.id), scope) : null;
+      }
+      case 'TSConditionalType':
+        return resolveConditionalType(node, scope, depth);
+      // TS / Flow union and intersection - resolve if all (non-nullable for unions) members have the same type
+      case 'TSUnionType':
+      case 'UnionTypeAnnotation': {
+        const { types } = node;
+        if (!types || !types.length) return null;
+        return foldUnionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1));
+      }
+      case 'TSIntersectionType':
+      case 'IntersectionTypeAnnotation': {
+        const { types } = node;
+        if (!types || !types.length) return null;
+        return foldIntersectionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1));
+      }
+      case 'TSLiteralType':
+        return resolveLiteralType(node);
+      case 'TSIndexedAccessType':
+        return resolveIndexedAccessType(node, scope, depth);
+    }
+    return null;
+  }
+
+  return {
+    resolveTypeAnnotation,
+    resolveConstructorType,
+    resolveConstructorCallType,
+    resolveKnownContainerType,
+    resolveNamedType,
+  };
+}
