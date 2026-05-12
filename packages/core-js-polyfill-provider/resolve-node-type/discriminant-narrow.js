@@ -149,6 +149,11 @@ export function createDiscriminantNarrow({
     const ctx = buildDiscriminantContext(varPath, targetKey);
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
+      // function boundary: guards above this point fire at call-evaluation time, but
+      // the use inside the function runs at invocation time; for rebindable bindings any
+      // outer-scope reassignment between those moments invalidates narrowing. mirrors the
+      // typeof-side stop in `findEnclosingTypeGuards`. const bindings stay closure-stable
+      if (t.isFunction(parent.node) && ctx.violations.length) break;
       let test;
       let conditionTrue;
       if (t.isIfStatement(parent.node) || t.isConditionalExpression(parent.node)) {
@@ -214,6 +219,10 @@ export function createDiscriminantNarrow({
     const limit = scopeNode(binding.scope);
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
+      // function boundary: preceding sibling in an outer block is not guaranteed to
+      // run before a closure-captured use - the closure may invoke after later outer
+      // reassignments. binding rebindable was already gated above
+      if (t.isFunction(parent.node)) return null;
       if (isBlockChildPath(parent, current)) {
         const siblings = parent.get('body');
         for (let i = current.key - 1; i >= 0; i--) {
