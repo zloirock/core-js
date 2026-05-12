@@ -485,7 +485,10 @@ export function createUsageVisitors({
 
   function annotationGlobal(path) {
     return name => {
-      if (estreeAdapter.hasBinding(path.scope, name)) return;
+      // pass `path` so `hasRuntimeBinding`'s var-hoisting fallback can detect `var Name`
+      // declarations buried inside nested non-function blocks (estree-toolkit registers them
+      // in the block's own scope rather than hoisting to the enclosing function)
+      if (estreeAdapter.hasBinding(path.scope, name, path)) return;
       onUsage({ kind: 'global', name }, path);
     };
   }
@@ -495,7 +498,7 @@ export function createUsageVisitors({
     // `isReferenced` returns false for write-context leaves like `Map ||= X`; diagnose the
     // pattern before the early return so users see why nothing was polyfilled
     if (onWarning) {
-      const warning = checkLogicalAssignLhsGlobal(node, parent, estreeAdapter.hasBinding(path.scope, node.name));
+      const warning = checkLogicalAssignLhsGlobal(node, parent, estreeAdapter.hasBinding(path.scope, node.name, path));
       if (warning) onWarning(warning);
     }
     if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
@@ -599,7 +602,10 @@ export function createUsageVisitors({
         isMemberRoot = cur !== path && cur?.parent?.type === 'JSXOpeningElement' && cur.key === 'name';
       }
       if (!isOpeningTagName && !isMemberRoot) return;
-      if (estreeAdapter.hasBinding(path.scope, path.node.name)) return;
+      // pass `path` so `hasRuntimeBinding`'s var-hoisting fallback can detect a `var Tag`
+      // declaration inside a nested non-function block (estree-toolkit registers it in the
+      // block's own scope rather than hoisting to the enclosing function)
+      if (estreeAdapter.hasBinding(path.scope, path.node.name, path)) return;
       onUsage({ kind: 'global', name: path.node.name }, path);
     },
     MemberExpression: memberExpressionVisitor,
