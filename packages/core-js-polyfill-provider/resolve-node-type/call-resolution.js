@@ -170,13 +170,29 @@ export function createCallResolution({
   }
 
   // Babel TSFunctionType: `typeAnnotation` (TSTypeAnnotation wrapper)
-  // oxc TSFunctionType / Flow FunctionTypeAnnotation: `returnType` (raw type)
+  // oxc TSFunctionType / Flow FunctionTypeAnnotation: `returnType` (raw type).
+  // TSMethodSignature / TSDeclareMethod / ClassMethod / ClassPrivateMethod use the same
+  // slot pair (babel `typeAnnotation`, oxc `returnType`) directly on the member node.
+  // ESTree MethodDefinition wraps the function in `.value` so the return type lives one
+  // level deeper. consumers (e.g. ReturnType<typeof X.method>) call into this when
+  // `findTypeMember` returns the raw signature instead of a synthetic stub
   function functionTypeReturnAnnotation(node) {
-    if (node?.type === 'TSFunctionType' || node?.type === 'TSConstructorType') {
-      return node.typeAnnotation ?? node.returnType;
+    if (!node) return null;
+    switch (node.type) {
+      case 'TSFunctionType':
+      case 'TSConstructorType':
+      case 'TSMethodSignature':
+      case 'TSDeclareMethod':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+        return node.typeAnnotation ?? node.returnType;
+      case 'MethodDefinition':
+        return node.value?.returnType ?? node.value?.typeAnnotation;
+      case 'FunctionTypeAnnotation':
+        return node.returnType;
+      default:
+        return null;
     }
-    if (node?.type === 'FunctionTypeAnnotation') return node.returnType;
-    return null;
   }
 
   // extract return type from a binding's function-type annotation:
