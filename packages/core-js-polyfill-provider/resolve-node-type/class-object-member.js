@@ -20,23 +20,16 @@
 //   findObjectMember(objectPath, name)
 //   resolveObjectMember(objectPath, name, callPath)
 //   applySubstToTypeRefArgs(typeRef, subst)
-//   resolveMergedInterfaceMember({ className, scope, name, callPath, receiverArgs })
 //   resolveMemberFromMembers({ members, name, scope, callPath })
-//   resolveSubstitutedMember({ members, subst, name, scope, callPath })
 //   isMethodMember(node)
 //   isPropertyMember(node)
-import { MAX_DEPTH, $Object } from './base.js';
-import {
-  isInterfaceDeclaration,
-  synthInterfaceExtendsRef,
-} from './ast-shapes.js';
+import { $Object, MAX_DEPTH } from './base.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 
 export function createClassObjectMember({
   t,
   keyMatchesName,
   buildSubstMap,
-  buildParentSubst,
   unwrapTypeAnnotation,
   typesEqual,
   collectReturnPaths,
@@ -46,8 +39,6 @@ export function createClassObjectMember({
   resolveTypeAnnotation,
   applySubst,
   applyAliasSubstDeep,
-  substMembers,
-  findAllTypeDeclarations,
   resolveSuperClassPath,
   buildParentClassSubst,
   resolveClassFieldType,
@@ -114,15 +105,17 @@ export function createClassObjectMember({
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
     const found = findClassMember({ classPath, name, isStatic, classSubst });
     if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
-    // TS declaration merging: sibling `interface X { ... }` contributes instance members
-    // to the class type. runs only when the class body has no match, so real class methods
-    // always win on collision (matches TS semantics). pass `receiverArgs` so each iface
-    // builds its own subst against ITS type-param names - covers renamed params on the
-    // interface side of class+interface merging
-    if (!isStatic && classPath.node.id?.name) {
-      return resolveMergedInterfaceMember({ className: classPath.node.id.name, scope: classPath.scope, name, callPath, receiverArgs });
-    }
-    return null;
+    if (isStatic || !classPath.node.id?.name) return null;
+    // body chain exhausted - delegate annotation-only fallback to `getTypeMembers`, which
+    // walks the super chain merging interface members at each hop with proper per-hop
+    // type-arg propagation. real class-body methods always win on collision (handled above)
+    const synthRef = {
+      type: 'TSTypeReference',
+      typeName: { type: 'Identifier', name: classPath.node.id.name },
+      typeParameters: receiverArgs ? { type: 'TSTypeParameterInstantiation', params: receiverArgs } : undefined,
+    };
+    const members = getTypeMembers({ objectType: synthRef, scope: classPath.scope });
+    return resolveMemberFromMembers({ members, name, scope: classPath.scope, callPath });
   }
 
   // ESTree MethodDefinition / ObjectMethod wrap the function in `.value`; babel ClassMethod /
@@ -205,42 +198,6 @@ export function createClassObjectMember({
     };
   }
 
-  // resolve `name` against a member array, substituting `subst` into each member's annotations
-  // first. shared shortcut for both own-body and extends-parent paths
-  function resolveSubstitutedMember({ members, subst, name, scope, callPath }) {
-    return members?.length ? resolveMemberFromMembers({ members: substMembers(members, subst), name, scope, callPath }) : null;
-  }
-
-  // merged class+interface member lookup. interface body's own members first, then parents
-  // via `extends` - `interface C extends A` lets `A.x` show up on `C` via declaration merging.
-  // each iface builds its own subst against ITS type-param names from `receiverArgs`, so
-  // class+interface merging with renamed type-params (`class C<T>` + `interface C<U>`) picks
-  // up the correct slot positionally. resolveMemberFromMembers does the per-member
-  // annotation -> type step
-  function resolveMergedInterfaceMember({ className, scope, name, callPath, receiverArgs }) {
-    const interfaces = findAllTypeDeclarations(className, scope).filter(isInterfaceDeclaration);
-    for (const iface of interfaces) {
-      const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
-      // TS: iface.body.body; Flow: iface.body.properties
-      const ownBody = iface.body?.body ?? iface.body?.properties;
-      const ownHit = resolveSubstitutedMember({ members: ownBody, subst: ifaceSubst, name, scope, callPath });
-      if (ownHit) return ownHit;
-      for (const parent of iface.extends ?? []) {
-        const parentRef = synthInterfaceExtendsRef(parent);
-        if (!parentRef) continue;
-        const parentMembers = getTypeMembers({ objectType: parentRef, scope });
-        if (!parentMembers) continue;
-        // compose ifaceSubst -> parentSubst: interface's `extends Base<U>` carries the
-        // iface-param through the receiver-type-arg slot; without composition, Base<U>'s
-        // decl-param map gets a raw `U` reference instead of the substituted type
-        const ownSubst = buildParentSubst(applySubstToTypeRefArgs(parentRef, ifaceSubst), scope);
-        const hit = resolveSubstitutedMember({ members: parentMembers, subst: ownSubst, name, scope, callPath });
-        if (hit) return hit;
-      }
-    }
-    return null;
-  }
-
   function resolveMemberFromMembers({ members, name, scope, callPath }) {
     if (!members) return null;
     for (const member of members) {
@@ -295,8 +252,7 @@ export function createClassObjectMember({
 
   // cluster-private (consumed only by other cluster functions, never reach the factory
   // surface): `resolveClassMemberNode` / `resolveMethodOrGetterCallReturn` /
-  // `resolveBodyReturnValue` / `resolveMergedInterfaceMember` / `resolveMemberFromMembers` /
-  // `resolveSubstitutedMember` / `isPropertyMember`
+  // `resolveBodyReturnValue` / `resolveMemberFromMembers` / `isPropertyMember`
   return {
     findClassMember,
     resolveClassMember,
