@@ -392,6 +392,17 @@ export function createTypeMembers({
     return { type: 'TSUnionType', types: [trueViable, falseViable] };
   }
 
+  // method-member lookups (TSMethodSignature, ClassMethod, TSDeclareMethod, MethodDefinition,
+  // ClassPrivateMethod) used to fold to `{ type: 'TSFunctionType' }` - sufficient for the
+  // "this is a function-typed slot" answer but loses parameters + return type, breaking
+  // `ReturnType<typeof X.method>` / `Parameters<typeof X.method>`. expose the full signature
+  // so `functionTypeReturnAnnotation` and friends can read the slots; subst applied deeply
+  // so type-ref substitution composes into return type / parameter types. `resolveTypeAnnotation`
+  // maps the same node kinds back to `$Object('Function')` for property-access semantics
+  function returnMemberMethodNode(member, subst) {
+    return subst ? applyAliasSubstDeep(member, subst) : member;
+  }
+
   function findTypeMember({ objectType, key, scope, depth = 0 }) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
@@ -458,11 +469,11 @@ export function createTypeMembers({
         case 'TSMethodSignature':
           if (keyMatchesName(member.key, key)) {
             if (member.type !== 'TSMethodSignature') return withSubst(member.typeAnnotation);
-            // getters are TSMethodSignature kind:'get' but semantically read the return
-            // value, not a function. plain methods -> function type
-            return member.kind === 'get'
-              ? withSubst(member.typeAnnotation ?? member.returnType)
-              : { type: 'TSFunctionType' };
+            // getter: read the return; setter: continue iteration to a paired getter;
+            // plain method: expose the full signature (see returnMemberMethodNode)
+            if (member.kind === 'get') return withSubst(member.typeAnnotation ?? member.returnType);
+            if (member.kind === 'set') break;
+            return returnMemberMethodNode(member, subst);
           }
           break;
         case 'ObjectTypeProperty':
@@ -483,7 +494,7 @@ export function createTypeMembers({
           if (member.computed || !keyMatchesName(member.key, key)) break;
           if (member.kind === 'get') return withSubst(member.returnType ?? member.value?.returnType);
           if (member.kind === 'set') break;
-          return { type: 'TSFunctionType' };
+          return returnMemberMethodNode(member, subst);
       }
     }
     const indexSig = pickIndexSignature(members, key);
