@@ -403,6 +403,26 @@ export function createTypeMembers({
     return subst ? applyAliasSubstDeep(member, subst) : member;
   }
 
+  // numeric-index access on tuple / array shapes. tuple: `[T, U][0]` -> T, `[T][length]` ->
+  // number (static arity). array: `T[][i]` -> T regardless of index. non-numeric / out-of-range
+  // keys return null so the caller can continue through the generic member walk
+  function tryIndexedElementMember({ aliased, key, scope, subst }) {
+    if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
+      if (key === 'length') return { type: 'TSNumberKeyword' };
+      const index = typeof key === 'number' ? key : Number(key);
+      if (!Number.isInteger(index) || index < 0) return null;
+      const element = findTupleElement(aliased, index, scope);
+      return element ? applySubst(element, subst) : null;
+    }
+    if (aliased?.type === 'TSArrayType' || aliased?.type === 'ArrayTypeAnnotation') {
+      const index = typeof key === 'number' ? key : Number(key);
+      if (Number.isInteger(index) && index >= 0 && aliased.elementType) {
+        return applySubst(aliased.elementType, subst);
+      }
+    }
+    return null;
+  }
+
   function findTypeMember({ objectType, key, scope, depth = 0 }) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
@@ -450,16 +470,8 @@ export function createTypeMembers({
       }
       return null;
     }
-    // tuple numeric index: `type Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`.
-    // `length` resolves to the tuple's static arity (`number` literal); handle separately
-    // so `Number('length') = NaN` doesn't silently drop the lookup
-    if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
-      if (key === 'length') return { type: 'TSNumberKeyword' };
-      const index = typeof key === 'number' ? key : Number(key);
-      if (!Number.isInteger(index) || index < 0) return null;
-      const element = findTupleElement(aliased, index, scope);
-      return element ? applySubst(element, subst) : null;
-    }
+    const indexedElement = tryIndexedElementMember({ aliased, key, scope, subst });
+    if (indexedElement) return indexedElement;
     // walk through trivial mapped passthroughs / aliases when looking up members
     const members = getTypeMembers({ objectType: aliased ?? objectType, scope, depth });
     if (!members) return null;
