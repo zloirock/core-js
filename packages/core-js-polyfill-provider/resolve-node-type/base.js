@@ -264,10 +264,15 @@ export const CONSTRUCTOR_ALIASES = assign(create(null), {
 });
 
 // AST-level counterpart to `isNullableOrNever` for union/intersection branch filtering.
-// accepts both TS and Flow annotation shapes for null / undefined / never keywords
+// accepts both TS and Flow annotation shapes for null / undefined / never / void keywords.
+// `TSVoidKeyword` maps to `$Primitive('undefined')` in `resolveTypeAnnotation`, so semantically
+// belongs with the nullable group; without it, union member-call return inference bails on
+// any `T | void` because the void branch tries to walk a non-object as a receiver and the
+// fold collapses to null, producing over-injection downstream
 export const NULLABLE_NEVER_ANNOTATIONS = new Set([
   'TSNullKeyword',
   'TSUndefinedKeyword',
+  'TSVoidKeyword',
   'TSNeverKeyword',
   'NullLiteralTypeAnnotation',
   'VoidTypeAnnotation',
