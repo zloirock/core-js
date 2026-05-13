@@ -491,10 +491,14 @@ export function createTypeMembers({
         case 'ObjectTypeProperty':
           if (keyMatchesName(member.key, key)) return withSubst(member.value);
           break;
-        case 'ClassProperty':
-        case 'PropertyDefinition':
-        case 'ClassAccessorProperty':
-          // class body property: typeAnnotation if present, otherwise we can't infer the type
+        case 'ClassProperty':         // flow
+        case 'PropertyDefinition':    // babel TS / ESTree spec
+        case 'ClassAccessorProperty': // babel decoratorAutoAccessors plugin
+        case 'AccessorProperty':      // TC39 stage-4 auto-accessor: oxc / ESTree spec
+          // class body property: typeAnnotation if present, otherwise we can't infer the type.
+          // keep parser-shape list in sync with `createClassMemberShape.isPropertyMember`
+          // in `resolve-node-type/class-member-shapes.js` (predicate-based dispatch of the
+          // same surface used by class-walk / type-query)
           if (!member.computed && keyMatchesName(member.key, key)) return withSubst(member.typeAnnotation ?? null);
           break;
         // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
