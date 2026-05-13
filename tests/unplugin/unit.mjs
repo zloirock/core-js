@@ -1282,6 +1282,38 @@ checkPolyfillContextRejects('createPolyfillContext/non-string package',
 checkPolyfillContextRejects('createPolyfillContext/null package',
   { method: 'usage-pure', package: null });
 
+// the diagnostic must NOT be masked by a secondary `JSON.stringify` throw when the bad
+// value can't serialize (BigInt, circular structure, hostile Proxy). `safeStringify` in
+// `createPolyfillContext` catches the failure and renders a sentinel instead so the user
+// sees the primary "wrong shape" message, not a confusing serialization TypeError
+function checkPolyfillContextRejectsCleanly(label, opts) {
+  try {
+    createPolyfillContext(opts);
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan(label) } :: expected throw`;
+  } catch (error) {
+    if (/Converting circular|Do not know how to serialize/.test(error.message)) {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(label) } :: JSON.stringify secondary throw leaked :: ${ error.message }`;
+    } else if (/\[core-js\]/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(label) } :: unexpected error :: ${ error.message }`;
+    }
+  }
+}
+
+const circular = {};
+circular.self = circular;
+checkPolyfillContextRejectsCleanly('createPolyfillContext/bigint package',
+  { method: 'usage-pure', package: 1n });
+checkPolyfillContextRejectsCleanly('createPolyfillContext/circular package',
+  { method: 'usage-pure', package: circular });
+checkPolyfillContextRejectsCleanly('createPolyfillContext/bigint in additionalPackages',
+  { method: 'usage-pure', package: 'foo', additionalPackages: [1n] });
+checkPolyfillContextRejectsCleanly('createPolyfillContext/circular in additionalPackages',
+  { method: 'usage-pure', package: 'foo', additionalPackages: [circular] });
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
