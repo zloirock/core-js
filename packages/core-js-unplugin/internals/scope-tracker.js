@@ -1,23 +1,32 @@
 // per-traversal scope state for `var _ref;` ref injection. mutates as the visitor walks
 // (`setScope` runs before each callback; `genRef` reads the current scope), drains accumulated
-// arrow / scoped vars after the traverse pass via `applyTransforms`. `genRef` allocates a
-// UID AND queues a scope-local `var X;` emission at the target block (arrow-body wrap /
+// body / scoped vars after the traverse pass via `applyTransforms`. `genRef` allocates a
+// UID AND queues a scope-local `var X;` emission at the target block (body wrap /
 // block body / program). callers that emit their own `const X = Y` (e.g. memo decls inside
 // destructure parts) go straight to `injector.generateLocalRef` with `hoisted: false` to
 // avoid a duplicate bare `var X;`
+import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import { varScopeAnchor } from './plugin-helpers.js';
+
+// arrow expression body wraps to `{ var ...; return expr; }` (host is Expression);
+// bodyless control-statement body wraps to `{ var ...; stmt }` (host is Statement). same
+// node-keyed bookkeeping for both - one Map with a kind tag drives both the queue-applied
+// path (`applyTransforms`) and the inline-bake path (`consumeRefBindingsInRange`)
+const WRAP_KIND_ARROW = 'arrow';
+const WRAP_KIND_STMT = 'stmt';
 
 export default class ScopeTracker {
   // insertion position for `var _ref;` inside enclosing block (-1 = file scope)
   scope = -1;
-  // innermost arrow expression body node needing block conversion
-  arrow = null;
+  // innermost body node needing block conversion + its wrap kind, or null. picked up by
+  // `genRef` so the var lands in a fresh block right above its use sites
+  bodyWrap = null;
   #code;
   #injector;
   // insertionPos -> [var names]
   #scopedVars = new Map();
-  // arrow body node -> [var names]
-  #arrowVars = new Map();
+  // body node -> { kind, names: [var names] }
+  #bodyWraps = new Map();
   // setScope walk-up cache. each node's enclosing scope is fixed by its position in the
   // AST, so the walk is purely a function of the node. multiple traverse passes within
   // one runTransform are SAFE (same AST, same node identity); a fresh AST per file
@@ -48,11 +57,11 @@ export default class ScopeTracker {
     const cached = this.#scopeCache.get(metaPath.node);
     if (cached) {
       this.scope = cached.scope;
-      this.arrow = cached.arrow;
+      this.bodyWrap = cached.bodyWrap;
       return;
     }
     this.scope = -1;
-    this.arrow = null;
+    this.bodyWrap = null;
     // walk up; on each step `prev` is the immediate child path of `p`. ES spec:
     // parameter expressions live in their own scope and CANNOT see `var` declarations
     // from the function body, so if the polyfill is inside the params (default value,
@@ -61,8 +70,18 @@ export default class ScopeTracker {
     for (let prev = metaPath, p = metaPath.parentPath; p; prev = p, p = p.parentPath) {
       const { type, body, params } = p.node;
       if (params?.includes(prev.node)) continue;
+      // arrow expression body: var goes into a new block wrapping the body (kind=arrow,
+      // wrap text adds `return` since the host is an Expression slot)
       if (type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') {
-        this.arrow ??= body;
+        this.bodyWrap ??= { body, kind: WRAP_KIND_ARROW };
+        continue;
+      }
+      // bodyless control body (`for (..;..) stmt`, `if (..) stmt`, etc. without braces):
+      // `var _ref;` cannot land here without converting the slot to a BlockStatement;
+      // hoisting to the enclosing function would visually divorce the ref from its uses
+      // and diverge from babel-plugin's per-block wrap
+      if (prev.node.type !== 'BlockStatement' && isBodylessStatementSlot(p.node, prev.node)) {
+        this.bodyWrap ??= { body: prev.node, kind: WRAP_KIND_STMT };
         continue;
       }
       const anchor = varScopeAnchor(p.node, this.#code);
@@ -71,16 +90,16 @@ export default class ScopeTracker {
         break;
       }
     }
-    this.#scopeCache.set(metaPath.node, { scope: this.scope, arrow: this.arrow });
+    this.#scopeCache.set(metaPath.node, { scope: this.scope, bodyWrap: this.bodyWrap });
   }
 
   genRef(overrides) {
-    const { arrow, scope } = overrides || this;
-    // arrow expression body: var goes into a new block wrapping the body
-    if (arrow) {
+    const { bodyWrap, scope } = overrides || this;
+    if (bodyWrap) {
       const name = this.#injector.generateLocalRef();
-      if (!this.#arrowVars.has(arrow)) this.#arrowVars.set(arrow, []);
-      this.#arrowVars.get(arrow).push(name);
+      const entry = this.#bodyWraps.get(bodyWrap.body) ?? { kind: bodyWrap.kind, names: [] };
+      entry.names.push(name);
+      this.#bodyWraps.set(bodyWrap.body, entry);
       return name;
     }
     // file scope: hoisted via injector.flush; block body: var inserted at body start
@@ -124,20 +143,24 @@ export default class ScopeTracker {
     return `\n${ this.#detectIndentAt(insertPos) }var ${ names.join(', ') };`;
   }
 
-  // text replacing an arrow's expression body with `{ var _ref...; return expr; }`. the
-  // wrapping `{}` makes the body a BlockStatement so `var _ref` has a place to live
-  #arrowBodyWrap(body, names) {
-    return `{ var ${ names.join(', ') }; return ${ this.#code.slice(body.start, body.end) }; }`;
+  // text replacing a body node with a BlockStatement. arrow expression body adds `return`
+  // (host is Expression); bodyless control-statement body keeps the slice verbatim (host
+  // is already a Statement with its own terminator)
+  #bodyWrapText(body, entry) {
+    const slice = this.#code.slice(body.start, body.end);
+    return entry.kind === WRAP_KIND_ARROW
+      ? `{ var ${ entry.names.join(', ') }; return ${ slice }; }`
+      : `{ var ${ entry.names.join(', ') }; ${ slice } }`;
   }
 
   // claim ref-binding emissions whose anchor lies within [start, end] - both `#scopedVars`
-  // (block-body `var _ref;` zero-length inserts) and `#arrowVars` (arrow expr-body block
-  // conversions) get unified into a single `{start, end, content}` splice list (insert
-  // shape uses start === end). used by destructure-emitter's flatten path: it queues an
-  // overwrite covering the same range and bakes these splices into the replacement text
-  // directly. without consume-and-bake, `applyTransforms` queues an insert at a position
-  // INSIDE the parent overwrite, MagicString `_split`s an already-edited chunk and throws
-  // "Cannot split a chunk that has already been edited"
+  // (block-body `var _ref;` zero-length inserts) and `#bodyWraps` (expr-body / bodyless-
+  // stmt-body block conversions) get unified into a single `{start, end, content}` splice
+  // list (insert shape uses start === end). used by destructure-emitter's flatten path:
+  // it queues an overwrite covering the same range and bakes these splices into the
+  // replacement text directly. without consume-and-bake, `applyTransforms` queues an
+  // insert at a position INSIDE the parent overwrite, MagicString `_split`s an already-
+  // edited chunk and throws "Cannot split a chunk that has already been edited"
   consumeRefBindingsInRange(start, end) {
     const splices = [];
     for (const [insertPos, names] of this.#scopedVars) {
@@ -146,19 +169,20 @@ export default class ScopeTracker {
         this.#scopedVars.delete(insertPos);
       }
     }
-    for (const [body, names] of this.#arrowVars) {
+    for (const [body, entry] of this.#bodyWraps) {
       if (body.start >= start && body.end <= end) {
-        splices.push({ start: body.start, end: body.end, content: this.#arrowBodyWrap(body, names) });
-        this.#arrowVars.delete(body);
+        splices.push({ start: body.start, end: body.end, content: this.#bodyWrapText(body, entry) });
+        this.#bodyWraps.delete(body);
       }
     }
     return splices;
   }
 
   applyTransforms(queue) {
-    // wrap arrow expression bodies: () => expr -> () => { var _ref; return expr; }
-    for (const [body, names] of this.#arrowVars) {
-      queue.add(body.start, body.end, this.#arrowBodyWrap(body, names));
+    // wrap body nodes: arrow `() => expr` -> `() => { var _ref; return expr; }`;
+    // bodyless `for (..;..) stmt` -> `for (..;..) { var _ref; stmt }`
+    for (const [body, entry] of this.#bodyWraps) {
+      queue.add(body.start, body.end, this.#bodyWrapText(body, entry));
     }
     // queue scoped var declarations at each computed insertion point (after `{` + any
     // directive prologue - see skipDirectives). use `queue.insert` so the apply phase

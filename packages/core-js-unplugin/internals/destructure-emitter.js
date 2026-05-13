@@ -253,6 +253,16 @@ export function createDestructureEmitter({
   // since `seedSkippedForExtractedDeclarators` already added the tail Identifier to
   // skippedNodes (it expected the init to be discarded). non-SE inits and partial-consume
   // entries are left as-is - they reach `renderFlattened` through the regular path
+  // bake scope-tracker ref-binding inserts that anchor inside `node`'s original range
+  // directly into its `nodeSrc` text. shared helper used by `injectForInitSESinks` (synth
+  // `_unused = (seSrc)` buffer for for-init) and `liftExtractedSEPrefixes` (lifted SE prefix
+  // for non-for-init): both paths build text that's no longer position-aligned with the
+  // original source, so the generic `bakePendingSplicesIntoPreserved` path can't reuse them
+  function bakeRefSplicesInRange(node, refSplices) {
+    const inRange = refSplices.filter(s => s.start >= node.start && s.end <= node.end);
+    return spliceInRange(nodeSrc(node), node.start, inRange);
+  }
+
   function injectForInitSESinks(declaration, perDecl) {
     for (let i = 0; i < declaration.declarations.length; i++) {
       const { init } = declaration.declarations[i];
@@ -260,13 +270,15 @@ export function createDestructureEmitter({
       // through TS casts (`(se(), R) as any`) must reach the SE check the same as bare SE
       const peeled = unwrapRuntimeExpr(init);
       if (peeled?.type !== 'SequenceExpression' || perDecl[i].preservedSrc !== null) continue;
+      const refSplices = perDecl[i].drainedRefs;
       const receiverPure = perDecl[i].receiver ? resolveGlobalPolyfill(perDecl[i].receiver) : null;
       const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(init);
       const tailSrc = receiverPure
         ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-        : nodeSrc(receiverTail);
+        : bakeRefSplicesInRange(receiverTail, refSplices);
+      const sePrefixSrcs = seExprs.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
       const seSrc = seExprs.length
-        ? `(${ [...seExprs.map(nodeSrc), tailSrc].join(', ') })`
+        ? `(${ [...sePrefixSrcs, tailSrc].join(', ') })`
         : tailSrc;
       perDecl[i].preservedSrc = `${ injector.generateUnusedName() } = ${ seSrc }`;
     }
@@ -286,7 +298,6 @@ export function createDestructureEmitter({
     if (!perDecl.some(r => r.extractions.length)) return false;
     flattenedNestedDecls.add(declaration);
     seedSkippedForExtractedDeclarators(declaration, perDecl);
-    if (isForInit) injectForInitSESinks(declaration, perDecl);
     // defer rendering + transforms.add to applyDestructuringTransforms - sibling subtree
     // visits AFTER this point may register `var _ref;` scope-tracker bindings for inner
     // instance-method polyfills. baking those into preservedSrc requires post-traverse state
@@ -318,41 +329,29 @@ export function createDestructureEmitter({
     for (let i = 0; i < declaration.declarations.length; i++) {
       if (!perDecl[i].extractions.length) continue;
       const { prefix } = peelNestedSequenceExpressions(declaration.declarations[i].init);
-      const refSplices = perDecl[i].pendingRefSplices ?? [];
-      for (const seExpr of prefix) {
-        // `spliceInRange` is a no-op when its splices array is empty - one call covers
-        // both the bake (forwarded refs anchored inside seExpr's range) and the plain lift
-        const inRange = refSplices.filter(s => s.start >= seExpr.start && s.end <= seExpr.end);
-        sequencePrefixes.push(spliceInRange(nodeSrc(seExpr), seExpr.start, inRange));
-      }
+      const refSplices = perDecl[i].drainedRefs ?? [];
+      for (const seExpr of prefix) sequencePrefixes.push(bakeRefSplicesInRange(seExpr, refSplices));
     }
     return sequencePrefixes;
   }
 
-  // bake all per-decl splices into preservedSrc using the original-source coordinate
-  // system. two independent splice sources, both at original positions:
+  // bake per-decl splices into preservedSrc using original-source coordinates. two splice
+  // sources both at original positions:
   //   - `siblingSubstSplices` (`globalThis -> _globalThis` from `polyfillSiblingReceiverRefs`,
-  //     populated during traverse)
-  //   - scope-tracker ref-binding splices (`var _ref;` inserts at nested-function body
-  //     anchors, populated post-traverse via sibling-subtree visits)
-  // both flow through `spliceInRange`'s descending-order traversal so neither set's
-  // mutations invalidate the other's anchor positions.
-  // fully-consumed declarators (`preservedSrc === null`) still drain scope-tracker so
-  // applyTransforms doesn't queue an insert inside the parent overwrite (MagicString throws
-  // "Cannot split a chunk that has already been edited"); the drained splices anchor inside
-  // the discarded init - typically the arrow body of an SE-prefix IIFE - so they get
-  // stashed on `perDecl[i].pendingRefSplices` for `liftExtractedSEPrefixes` to bake into
-  // the lifted SE-prefix source (otherwise `_ref` ends up referenced but never declared)
+  //     populated during traverse for non-extracted siblings)
+  //   - `perDecl[i].drainedRefs` (scope-tracker `var _ref;` inserts, drained once in
+  //     `flushPendingFlatten` and attached to each entry)
+  // extracted declarators take separate paths: synthesized `_unused = (seSrc)` (for-init
+  // synth) already baked refs into seSrc with seExpr-local coords; null preservedSrc
+  // (non-for-init lift) bakes refs into the lifted SE source via `liftExtractedSEPrefixes`.
+  // both bypass the generic splice path here because their text is not aligned to
+  // original-source coordinates
   function bakePendingSplicesIntoPreserved(declaration, perDecl) {
     for (let i = 0; i < perDecl.length; i++) {
+      if (perDecl[i].extractions.length) continue;
       const decl = declaration.declarations[i];
-      const refSplices = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
-      if (perDecl[i].preservedSrc === null) {
-        perDecl[i].pendingRefSplices = refSplices;
-        continue;
-      }
       const substSplices = perDecl[i].siblingSubstSplices ?? [];
-      const splices = [...substSplices, ...refSplices];
+      const splices = [...substSplices, ...perDecl[i].drainedRefs];
       if (!splices.length) continue;
       // invariant: every splice must fall within [decl.start, decl.end). spliceInRange
       // anchors at decl.start and indexes into preservedSrc; an out-of-range splice would
@@ -368,11 +367,19 @@ export function createDestructureEmitter({
     }
   }
 
-  // post-traverse render: bake pending splices, build replacement, queue the overwrite.
-  // without consume-and-bake, scope-tracker would queue insert at a position INSIDE this
-  // overwrite range and MagicString would split-an-edited-chunk
+  // post-traverse render: drain scope-tracker once per declarator, fork between for-init
+  // synth (refs baked into synthesized seSrc) and non-for-init lift (refs baked into lifted
+  // SE text in `liftExtractedSEPrefixes`). draining here also keeps applyTransforms from
+  // queueing an insert INSIDE the parent overwrite range (MagicString would split-an-
+  // edited-chunk). drained refs attach to `perDecl[i].drainedRefs` so all three consumers
+  // (inject / bake / lift) read from a single channel
   function flushPendingFlatten() {
     for (const { declaration, declPath, perDecl, isForInit } of pendingFlatten) {
+      for (let i = 0; i < perDecl.length; i++) {
+        const decl = declaration.declarations[i];
+        perDecl[i].drainedRefs = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
+      }
+      if (isForInit) injectForInitSESinks(declaration, perDecl);
       bakePendingSplicesIntoPreserved(declaration, perDecl);
       let replacement = renderFlattened(perDecl, declaration.kind, isForInit);
       if (!isForInit) {
