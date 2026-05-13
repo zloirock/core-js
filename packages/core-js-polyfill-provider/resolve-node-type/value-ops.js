@@ -22,6 +22,7 @@ import { $Primitive, primitiveTypeOf } from './base.js';
 export function createValueOps({
   isLiteralOf,
   literalKeyValue,
+  singleQuasiString,
   getKeyName,
   resolveRuntimeExpression,
   resolveComputedKeyName,
@@ -40,12 +41,18 @@ export function createValueOps({
 
   // resolve property name from a MemberExpression, handling both
   // non-computed (obj.prop), string/numeric literal (obj['prop'], obj[0]),
-  // constant binding (const key = 'prop'; obj[key]) and enum member access (`obj[Enum.A]`)
+  // single-quasi TemplateLiteral (obj[`prop`]), constant binding (const key = 'prop'; obj[key])
+  // and enum member access (obj[Enum.A]). singleQuasiString is checked at both the raw
+  // property AND after binding-follow so const-bound back-tick keys (const k = `foo`; obj[k])
+  // resolve identically to literal-string keys - mirrors getMemberProperty / indexedAccessKey
   function resolveMemberPropertyName(path) {
     const { property, computed } = path.node;
     if (!computed) return getKeyName(property);
+    const resolved = resolveRuntimeExpression(path.get('property')).node;
     return literalKeyValue(property)
-      ?? literalKeyValue(resolveRuntimeExpression(path.get('property')).node)
+      ?? singleQuasiString(property)
+      ?? literalKeyValue(resolved)
+      ?? singleQuasiString(resolved)
       ?? resolveComputedKeyName(property, path.scope);
   }
 

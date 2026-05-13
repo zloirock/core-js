@@ -468,6 +468,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   } = createValueOps({
     isLiteralOf,
     literalKeyValue,
+    singleQuasiString,
     getKeyName,
     resolveRuntimeExpression,
     resolveComputedKeyName,
