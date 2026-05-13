@@ -643,12 +643,16 @@ export function createPolyfillEmitter({
     // trailing commas); `sep` branches on AST arity so `super.foo(/* c */)` (no real args,
     // comment still round-trips inside argsSrc) doesn't get a dangling leading comma.
     // sideEffects covers computed-key SE: `super[(fn(),'X')](args)` collected fn() into
-    // sideEffects via members.js; wrapSideEffects emits `(fn(), binding.call(this, args))`
+    // sideEffects via members.js; wrapSideEffects emits `(fn(), binding.call(this, args))`.
+    // SE branch leads with `(` and lives in a method-body statement slot - an unterminated
+    // predecessor would fuse the call into the prior expression, so asiGuardLeadingParen
+    // injects `;` (no-op for empty sideEffects when wrap is bare `binding.call(...)`)
     if (node.object?.type === 'Super' && parent?.type === 'CallExpression' && isCallee(node, parent)) {
       const argsSrc = sliceBetweenParens(parent) ?? '';
       const sep = parent.arguments.length ? ', ' : '';
       const callExpr = `${ binding }.call(this${ sep }${ argsSrc })`;
-      return transforms.add(parent.start, parent.end, wrapSideEffects(callExpr, sideEffects));
+      return transforms.add(parent.start, parent.end,
+        asiGuardLeadingParen(wrapSideEffects(callExpr, sideEffects), metaPath, parent.start));
     }
     // strip TS wrappers (satisfies, as, !) - meaningless after polyfill replacement
     let { start, end } = node;
