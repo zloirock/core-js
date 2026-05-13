@@ -710,7 +710,11 @@ export function createPolyfillEmitter({
         let replacement = 'true';
         if (seqPrefix) replacement = `(${ seqPrefix.map(e => nodeSrc(e)).join(', ') }, true)`;
         else if (rhs?.type === 'AssignmentExpression') replacement = `(${ nodeSrc(rhs) }, true)`;
-        transforms.add(node.start, node.end, replacement);
+        // SE-rescue / assign-wrap replacements lead with `(`; at a statement-leading slot
+        // (the in-expression IS the whole ExpressionStatement) the ASI rule fuses the
+        // previous unterminated line into the new `(...)` as a call. `'true'` bare path
+        // is no-op for the guard
+        transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
         // marking only `node.right` leaves nested identifiers (`foo.bar.baz` -> `foo`)
         // visible to child visitors, which would emit spurious polyfill imports for
         // code the `'true'` replacement has already discarded
