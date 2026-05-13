@@ -37,6 +37,8 @@ export function createTypeExpansion({
   peelTSParenthesized,
   substituteTypeParams,
   resolveInnerType,
+  resolveTypeAnnotation,
+  typeParamName,
   commonType,
   isNullableOrNever,
   typesEqual,
@@ -599,16 +601,27 @@ export function createTypeExpansion({
   // is not handled - typeParamMap values are post-resolveTypeArgs, where tuple AST is
   // already collapsed via `tupleAsArrayType` to `$Object('Array', commonInner)`, losing
   // positional info needed to extract the head. unresolvable shape -> null, caller falls
-  // back to plain branch
+  // back to plain branch.
+  // `infer U extends C` constraint (TS 4.7+): the inferred slot is bound to the constraint
+  // when the element type is unresolvable / unknown - matches the TypeScript rule "constraint
+  // narrows the inference candidate". precise candidate-vs-constraint intersection is out of
+  // scope; the conservative "use inner if present, else fall back to constraint" recovers
+  // narrowing for `Array<infer U extends string>` on opaque arrays without false-narrowing
+  // when the inner type is already concrete
   function resolveInferElementPattern({ node, typeParamMap, scope, depth, seen }) {
-    const inferName = matchArrayInferPattern(node.extendsType);
-    if (!inferName) return null;
+    const match = matchArrayInferPattern(node.extendsType);
+    if (!match) return null;
     const checkType = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
     if (!checkType) return null;
-    const inner = resolveInnerType(checkType);
+    // constraint AST (TSStringKeyword / TSNumberKeyword / ...) must pass through
+    // resolveTypeAnnotation first; `substituteTypeParams` inserts the value as-is, and
+    // downstream consumers expect the internal `$Primitive` / `$Object` shape rather than
+    // a raw AST keyword node
+    const fromConstraint = match.constraint ? resolveTypeAnnotation(match.constraint, scope) : null;
+    const inner = resolveInnerType(checkType) ?? fromConstraint;
     if (!inner) return null;
     const inferMap = typeParamMap ? new Map(typeParamMap) : new Map();
-    inferMap.set(inferName, inner);
+    inferMap.set(match.name, inner);
     return substituteTypeParams(node.trueType, inferMap, scope, depth + 1, seen);
   }
 
@@ -619,8 +632,22 @@ export function createTypeExpansion({
     return SINGLE_ELEMENT_COLLECTIONS.has(name) || isPromiseRefName(name);
   }
 
-  // extracts `U` from `(infer U)[]`, `readonly (infer U)[]`, or `Container<infer U>`
-  // where Container is a known single-element generic. returns null otherwise
+  // `infer U extends C` parses as TSInferType wrapping a TSTypeParameter. shared
+  // `typeParamName` handles the babel (Identifier-wrapped) / oxc (bare string) name shapes
+  // identically with mapped-type's typeParameter binding lookup. constraint is the optional
+  // `extends C` annotation (TS 4.7+); plain `infer U` returns `constraint: null`
+  function extractInferTarget(inferNode) {
+    if (inferNode?.type !== 'TSInferType') return null;
+    const param = inferNode.typeParameter;
+    const name = typeParamName(param);
+    if (typeof name !== 'string') return null;
+    return { name, constraint: param?.constraint ?? null };
+  }
+
+  // extracts `{ name, constraint }` from `(infer U)[]`, `readonly (infer U)[]`, or
+  // `Container<infer U>` where Container is a known single-element generic. returns null
+  // otherwise. constraint is the optional `extends C` annotation (TS 4.7+); plain
+  // `infer U` returns `constraint: null`
   function matchArrayInferPattern(extendsType) {
     let node = unwrapTypeAnnotation(extendsType);
     // peel `readonly X` modifier (TSTypeOperator operator='readonly')
@@ -628,14 +655,10 @@ export function createTypeExpansion({
     if (node?.type === 'TSArrayType') {
       // babel wraps `(infer U)` in TSParenthesizedType; oxc collapses to bare TSInferType.
       // peel the wrapper so both shapes reach the inner inference name
-      const element = peelTSParenthesized(node.elementType);
-      if (element?.type === 'TSInferType') {
-        return element.typeParameter?.name?.name ?? element.typeParameter?.name;
-      }
+      return extractInferTarget(peelTSParenthesized(node.elementType));
     }
     if (node?.type === 'TSTypeReference' && isInferContainerName(typeRefName(node))) {
-      const arg = getTypeArgs(node)?.params?.[0];
-      if (arg?.type === 'TSInferType') return arg.typeParameter?.name?.name ?? arg.typeParameter?.name;
+      return extractInferTarget(getTypeArgs(node)?.params?.[0]);
     }
     return null;
   }
