@@ -27,7 +27,7 @@ import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usa
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
-import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
+import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors, setCurrentInjector, getCurrentInjector } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
 import { isOutermostOptionalChainMember } from './emit-utils.js';
@@ -323,7 +323,8 @@ export default function createPlugin(options) {
         // splice from AST too - `await import(...)` would otherwise drag Promise polyfills
         // via the syntax visitor after its statement is gone from output
         ast.body = ast.body.filter(n => !removed.has(n));
-        for (const node of removed) removeTopLevelStatement(ms, node);
+        const removeStatement = createTopLevelStatementRemover(ms);
+        for (const node of removed) removeStatement(node);
       }
     }
     // post drops pure imports whose binding isn't referenced - sibling may have deleted
