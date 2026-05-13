@@ -24,28 +24,55 @@ function isStrictlyContained({ ranges, start, end, prefixMaxEnd }) {
   return false;
 }
 
-// non-overlapping jumpsize - polyfill needles embed syntactic delimiters (`.`, `(`,
+// non-overlapping needle scan - polyfill needles embed syntactic delimiters (`.`, `(`,
 // identifiers) that cannot self-overlap. empty needle is a caller bug - guard so
 // indexOf('', ...) doesn't infinite-loop (pos never advances)
-export function countOccurrences({ haystack, needle, rangeStart = 0, rangeEnd = haystack.length }) {
-  if (!needle.length) return 0;
-  let count = 0;
-  for (let pos = haystack.indexOf(needle, rangeStart);
-    pos !== -1 && pos + needle.length <= rangeEnd;
-    pos = haystack.indexOf(needle, pos + needle.length)) count++;
-  return count;
+function collectOccurrencePositions(haystack, needle) {
+  if (!needle.length) return [];
+  const positions = [];
+  for (let p = haystack.indexOf(needle); p !== -1; p = haystack.indexOf(needle, p + needle.length)) {
+    positions.push(p);
+  }
+  return positions;
 }
 
-// when composing `Array.from(x).reduce(Array.from)`, filter consumes the leftmost `Array.from`
-// during its substitution, so the rightmost inner's nth must decrement past that slot
-function consumedOccurrencesBefore({ originalSlice, needle, innerStartAbs, outerStart, processedRanges }) {
-  let consumed = 0;
-  for (const r of processedRanges) {
-    if (r.end <= innerStartAbs) {
-      consumed += countOccurrences({ haystack: originalSlice, needle, rangeStart: r.start - outerStart, rangeEnd: r.end - outerStart });
-    }
+function lowerBoundNumber(arr, target) {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid] < target) lo = mid + 1; else hi = mid;
   }
-  return consumed;
+  return lo;
+}
+
+// factory: per-haystack memoized lookup of `(needle) -> { positions, countInRange }`.
+// the inner-substitution loop calls countInRange once per inner plus once per
+// processedRange-per-inner pair; without memoization that yields O(N² L) for N inners
+// over a slice of length L. caching positions arrays per unique needle reduces it to
+// O(unique × L) precompute + O(N² log positions) range queries via binary search
+function createNeedleScanner(haystack) {
+  const cache = new Map();
+  function positionsFor(needle) {
+    let positions = cache.get(needle);
+    if (!positions) {
+      positions = collectOccurrencePositions(haystack, needle);
+      cache.set(needle, positions);
+    }
+    return positions;
+  }
+  // count occurrences that fit entirely in [rangeStart, rangeEnd) - p satisfies
+  // `p >= rangeStart AND p + needle.length <= rangeEnd`. binary search on the cached
+  // positions array; degenerate ranges (negative span or shorter than needle) short-circuit
+  function countInRange(needle, rangeStart, rangeEnd) {
+    const len = needle.length;
+    if (!len || rangeEnd - rangeStart < len) return 0;
+    const positions = positionsFor(needle);
+    const lo = lowerBoundNumber(positions, rangeStart);
+    const hi = lowerBoundNumber(positions, rangeEnd - len + 1);
+    return hi - lo;
+  }
+  return { countInRange };
 }
 
 // replace the `n`-th (0-based) occurrence of `needle` in `str`; return `str` unchanged if not found.
@@ -725,9 +752,12 @@ export default class TransformQueue {
   }
 
   // apply substituteInner per inner, tracking processedRanges for nth adjustment and
-  // for skipping inners already swallowed by a wider sibling. throws on locate failure
+  // for skipping inners already swallowed by a wider sibling. throws on locate failure.
+  // `createNeedleScanner` memoizes per-needle position arrays for the originalSlice so
+  // the loop runs in O(N L_unique + N² log L) instead of O(N² L) for N inners
   #substituteInners({ content, inners, originalSlice, start, logicalEnd, rewriteHint, composedContent }) {
     const processedRanges = [];
+    const { countInRange } = createNeedleScanner(originalSlice);
     for (const inner of inners) {
       const { end: innerEndLogical, content: innerContent } = innerSubstitution(inner, composedContent);
       const innerRange = { start: inner.start, end: innerEndLogical };
@@ -754,11 +784,11 @@ export default class TransformQueue {
       // needle position in originalSlice: count from start up to innerOffset, then subtract
       // same-needle occurrences already replaced by strictly-preceding processedRanges.
       // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
-      // during composition, so the rightmost inner's nth must point to the sole remaining slot.
-      const nth = countOccurrences({ haystack: originalSlice, needle, rangeStart: 0, rangeEnd: inner.start - start })
-        - consumedOccurrencesBefore({
-          originalSlice, needle, innerStartAbs: inner.start, outerStart: start, processedRanges,
-        });
+      // during composition, so the rightmost inner's nth must point to the sole remaining slot
+      let nth = countInRange(needle, 0, inner.start - start);
+      for (const r of processedRanges) {
+        if (r.end <= inner.start) nth -= countInRange(needle, r.start - start, r.end - start);
+      }
       const result = substituteInner({ content, needle, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix });
       if (!result.found) {
         // inner was already swallowed by an enclosing inner we processed earlier
