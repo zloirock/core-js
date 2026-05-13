@@ -3,21 +3,18 @@ import { babelAdapter } from './detect-usage.js';
 
 // detect every entry-import shape in a program: top-level `require('core-js/...')` /
 // `import('core-js/...')` ExpressionStatements (scanned manually since deeper-nested
-// call sites are NOT entry imports) AND ESM `import 'core-js/...'` ImportDeclarations
-// (handled by normal traversal). single function unifies the dual dispatch so consumers
-// don't thread a visitor object through manual pre-call + filtered traverse
+// call sites are NOT entry imports) AND ESM `import 'core-js/...'` ImportDeclarations.
+// both shapes are visited via the same body-only loop - a wildcard traverse picks up
+// type-only ImportDeclarations nested inside `declare module "x" { import ... }` blocks,
+// which TypeScript elides at runtime but babel-traverse still walks before
+// `@babel/preset-typescript` strips them. unplugin's detect-entry already scans `ast.body`
+// only, so this keeps the two adapters symmetric
 export default function runEntryDetection(programPath, onEntry) {
   // `getEntrySource` only recognises ImportDeclaration + ExpressionStatement
   // (`require(...)` / `await import(...)`); other shapes short-circuit to null
-  function visit(path) {
-    const source = getEntrySource(path.node, babelAdapter, path.scope);
-    if (source !== null) onEntry(source, path);
-  }
-  // top-level ExpressionStatement scan: nested ones (inside function bodies, conditionals)
-  // are NOT entry-import shapes and must NOT be visited - hence the body-only loop
-  // instead of a wildcard `ExpressionStatement` visitor in the traverse below
   for (const bodyPath of programPath.get('body')) {
-    if (bodyPath.isExpressionStatement()) visit(bodyPath);
+    if (!bodyPath.isExpressionStatement() && !bodyPath.isImportDeclaration()) continue;
+    const source = getEntrySource(bodyPath.node, babelAdapter, bodyPath.scope);
+    if (source !== null) onEntry(source, bodyPath);
   }
-  programPath.traverse({ ImportDeclaration: visit });
 }
