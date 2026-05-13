@@ -28,7 +28,7 @@ import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js';
-import { estreeAdapter, createUsageVisitors, createSyntaxVisitors, setCurrentInjector, getCurrentInjector } from './detect-usage.js';
+import { createEstreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
 import { isOutermostOptionalChainMember } from './emit-utils.js';
 import { createPolyfillEmitter } from './polyfill-emitter.js';
@@ -94,15 +94,15 @@ export default function createPlugin(options) {
   // plugin instances. shared between transforms WITHIN one instance is safe because
   // Node.js JS is single-threaded; Vite/Rollup contracts serialize transforms per plugin.
   // genuine parallelism (worker_threads, parallel test runs) instantiates separate plugins
-  // so each gets its own typeResolvers - no cross-worker mutation race
-  // per-transform injector reference owned by detect-usage.js (shared with estreeAdapter's
-  // polyfillHint lookup). resolver's `getPolyfillBindingEntry` reads it lazily so the shared
-  // typeResolvers can resolve polyfilled-static aliases without paying a per-transform factory
-  // cost. consolidating into ONE side-channel (vs prior dual `currentInjector` + hint-lookup
-  // closure) keeps `setCurrentInjector(injector)` / `setCurrentInjector(null)` symmetric at
-  // transform boundaries
+  // so each gets its own typeResolvers - no cross-worker mutation race.
+  // `currentInjector` is the active per-transform injector, owned by this plugin instance
+  // (not module-global). runTransformInner save/restore the slot via try/finally so a
+  // re-entrant inner transform leaves the outer's injector intact. adapter and typeResolvers
+  // share the same getter so they always see the same per-transform binding state
+  let currentInjector = null;
+  const estreeAdapter = createEstreeAdapter(() => currentInjector);
   const typeResolvers = createResolveNodeType(nodeType, types, {
-    getPolyfillBindingEntry: (scope, name) => getCurrentInjector()?.getBindingInfo?.(name)?.entry ?? null,
+    getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
   });
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling
@@ -155,16 +155,13 @@ export default function createPlugin(options) {
   function runTransform(code, id, pass = 'single') {
     try {
       // thread bundler's `this` (Vite/Rollup/Webpack stage context with `.warn`) through
-      // to runTransformInner so internal warnings reach the bundler's diagnostic channel
+      // to runTransformInner so internal warnings reach the bundler's diagnostic channel.
+      // injector save/restore happens INSIDE runTransformInner so early-returns before
+      // its installation point don't disturb a re-entrant outer transform's slot
       return runTransformInner.call(this, code, id, pass);
     } catch (error) {
       tagErrorWithFile(error, id);
       throw error;
-    } finally {
-      // clear per-transform state so any out-of-transform invocation of the resolver
-      // / adapter (e.g. unit-test direct call into typeResolvers, sibling-plugin probe)
-      // can't read stale state from a previously-completed transform
-      setCurrentInjector(null);
     }
   }
 
@@ -267,8 +264,10 @@ export default function createPlugin(options) {
     }
 
     const ms = new MagicString(code, { filename: id });
-    // late-bound: debugOutput is constructed below (after createPolyfillResolver), but the
-    // injector needs it for fallback warnings inside `flush()`. lazy getter avoids TDZ
+    // late-bound: debugOutput is constructed below (after createPolyfillResolver) but the
+    // injector closes over it for fallback warnings inside `flush()`. hoist above the try
+    // block so the lazy getter sees the same binding the later assignment populates
+    let debugOutput = null;
     const injector = new ImportInjector({
       ms, pkg, packages, mode, absoluteImports, importStyle,
       directiveEnd: directivePrologueEnd(ast),
@@ -277,185 +276,191 @@ export default function createPlugin(options) {
       inherit,
       getDebugOutput: () => debugOutput,
     });
-    // single side-channel: typeResolvers' `getPolyfillBindingEntry` AND estreeAdapter's
-    // `polyfillHint` both read through `getCurrentInjector()`. cleared at end so any
-    // out-of-transform invocation can't read a stale injector. cross-transform AST node
-    // identity won't carry through (ASTs differ per transform), so resolver's WeakMap caches
-    // don't observe the swap. `import _Promise from '.../constructor'; _Promise.resolve(1)`
-    // recognises `_Promise` as a proxy-global for the Promise constructor and rewrites to
-    // `_Promise$resolve(1)` (matches babel adapter behavior)
-    setCurrentInjector(injector);
+    // typeResolvers' `getPolyfillBindingEntry` AND estreeAdapter's `polyfillHint` both
+    // close over the plugin instance's `currentInjector` slot. save/restore via try/finally
+    // (closing at runTransformInner's tail) so a re-entrant inner transform leaves the
+    // outer's injector intact - the early-return guards above (typeof/isCoreJSFile/
+    // disable-file/parse-fail) run BEFORE the save and never touch the slot. cross-transform
+    // AST node identity won't carry through (ASTs differ per transform), so resolver's
+    // WeakMap caches don't observe the swap. `import _Promise from '.../constructor';
+    // _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the Promise
+    // constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
+    const previousInjector = currentInjector;
+    currentInjector = injector;
+    try {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
-    const { names: bindingNames, declaredNames, orphanRefs } = collectAllBindingNames(ast);
-    injector.seedReservedNames(bindingNames);
-    // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
-    // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline.
-    // filter against `declaredNames` (decls + non-orphan assignments only) - `bindingNames`
-    // also includes Identifier reads, which always contains the orphan target itself and
-    // would make the filter dead code (every plugin-emitted `_ref` reads its own slot)
-    if (pass === 'post' && !inherit && hasCoreJSPureImport(ast, packages)) {
-      const adoptable = new Set();
-      for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
-      injector.adoptOrphanRefs(adoptable);
-    }
-    // post WITH inherit already has user imports dedup'd via the pre-pass snapshot;
-    // post WITHOUT inherit (single `phase: 'post'` or dropped snapshot) still needs to
-    // scan so user `import 'core-js/...'` isn't duplicated alongside plugin-injected ones.
-    // entry-global handles re-emit via detectEntries
-    if (!(pass === 'post' && inherit) && method !== 'entry-global') {
-      const removed = new Set();
-      scanExistingCoreJSImports(ast, {
-        adapter: estreeAdapter,
-        mode,
-        // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be removed,
-        // so the dedup filter must not suppress re-emit
-        onGlobalImport: (mod, node) => {
-          injector.addGlobalImport(mod);
-          removed.add(node);
-        },
-        onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
-        packages,
-        pkg,
-      });
-      if (removed.size) {
+      const { names: bindingNames, declaredNames, orphanRefs } = collectAllBindingNames(ast);
+      injector.seedReservedNames(bindingNames);
+      // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
+      // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline.
+      // filter against `declaredNames` (decls + non-orphan assignments only) - `bindingNames`
+      // also includes Identifier reads, which always contains the orphan target itself and
+      // would make the filter dead code (every plugin-emitted `_ref` reads its own slot)
+      if (pass === 'post' && !inherit && hasCoreJSPureImport(ast, packages)) {
+        const adoptable = new Set();
+        for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
+        injector.adoptOrphanRefs(adoptable);
+      }
+      // post WITH inherit already has user imports dedup'd via the pre-pass snapshot;
+      // post WITHOUT inherit (single `phase: 'post'` or dropped snapshot) still needs to
+      // scan so user `import 'core-js/...'` isn't duplicated alongside plugin-injected ones.
+      // entry-global handles re-emit via detectEntries
+      if (!(pass === 'post' && inherit) && method !== 'entry-global') {
+        const removed = new Set();
+        scanExistingCoreJSImports(ast, {
+          adapter: estreeAdapter,
+          mode,
+          // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be removed,
+          // so the dedup filter must not suppress re-emit
+          onGlobalImport: (mod, node) => {
+            injector.addGlobalImport(mod);
+            removed.add(node);
+          },
+          onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
+          packages,
+          pkg,
+        });
+        if (removed.size) {
         // splice from AST too - `await import(...)` would otherwise drag Promise polyfills
         // via the syntax visitor after its statement is gone from output
-        ast.body = ast.body.filter(n => !removed.has(n));
-        const removeStatement = createTopLevelStatementRemover(ms);
-        for (const node of removed) removeStatement(node);
+          ast.body = ast.body.filter(n => !removed.has(n));
+          const removeStatement = createTopLevelStatementRemover(ms);
+          for (const node of removed) removeStatement(node);
+        }
       }
-    }
-    // post drops pure imports whose binding isn't referenced - sibling may have deleted
-    // the usage between pre and post. enable for every post pass, not just `inherit`:
-    // single-post (no pre snapshot, e.g. `phase: 'post'` without `pre`) can still emit
-    // dead imports when a destructure transform drops all uses mid-pass, and the ref-tracking
-    // overhead is negligible. babel-plugin doesn't call this - it resolves destructure
-    // transforms synchronously during traversal. SINGLE source of truth: shared by both
-    // `enableReferenceTracking()` activation here AND the usage-pure Identifier visitor mount
-    // in `runUsagePure`. drift in either gate's predicate would leak ALL pure imports per
-    // `pruneUnusedRefs`' dead-import filter (no Identifier ever fires `trackReferencedName`)
-    const trackReferences = pass === 'post';
-    if (trackReferences) injector.enableReferenceTracking();
+      // post drops pure imports whose binding isn't referenced - sibling may have deleted
+      // the usage between pre and post. enable for every post pass, not just `inherit`:
+      // single-post (no pre snapshot, e.g. `phase: 'post'` without `pre`) can still emit
+      // dead imports when a destructure transform drops all uses mid-pass, and the ref-tracking
+      // overhead is negligible. babel-plugin doesn't call this - it resolves destructure
+      // transforms synchronously during traversal. SINGLE source of truth: shared by both
+      // `enableReferenceTracking()` activation here AND the usage-pure Identifier visitor mount
+      // in `runUsagePure`. drift in either gate's predicate would leak ALL pure imports per
+      // `pruneUnusedRefs`' dead-import filter (no Identifier ever fires `trackReferencedName`)
+      const trackReferences = pass === 'post';
+      if (trackReferences) injector.enableReferenceTracking();
 
-    const debugOutput = createDebugOutput?.() ?? null;
+      debugOutput = createDebugOutput?.() ?? null;
 
-    const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
-      mode,
-      getModulesForEntry,
-      getDebugOutput() { return debugOutput; },
-      injectGlobal: moduleName => injector.addGlobalImport(moduleName),
-    });
+      const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
+        mode,
+        getModulesForEntry,
+        getDebugOutput() { return debugOutput; },
+        injectGlobal: moduleName => injector.addGlobalImport(moduleName),
+      });
 
-    function injectPureImport(entry, hint) {
-      debugOutput?.add(entry);
-      return injector.addPureImport(entry, hint);
-    }
+      function injectPureImport(entry, hint) {
+        debugOutput?.add(entry);
+        return injector.addPureImport(entry, hint);
+      }
 
-    function finalize() {
-      injector.flush();
-      outputDebug();
-      if (pass === 'pre') {
+      function finalize() {
+        injector.flush();
+        outputDebug();
+        if (pass === 'pre') {
         // reuse the parse in post only when pre didn't rewrite the source (usage-global
         // leaves `code` untouched; usage-pure mutates via TransformQueue so positions
         // in its AST no longer line up with what post receives)
-        const canReuseParse = !ms.hasChanged();
-        snapshots.store(id, {
-          snapshot: injector.snapshot(),
-          ast: canReuseParse ? ast : null,
-          comments: canReuseParse ? comments : null,
-          postInput: canReuseParse ? code : null,
+          const canReuseParse = !ms.hasChanged();
+          snapshots.store(id, {
+            snapshot: injector.snapshot(),
+            ast: canReuseParse ? ast : null,
+            comments: canReuseParse ? comments : null,
+            postInput: canReuseParse ? code : null,
+          });
+        }
+        // post's snapshot delete happens at the top of runTransform so it runs even on
+        // early-return paths (parse error, isCoreJSFile, disabled directive)
+        if (!ms.hasChanged()) return null;
+        // re-prepend BOM through MagicString so the sourcemap's output columns on line 0
+        // account for the extra char (external string concat would leave mappings claiming
+        // output[0,0] -> source[0,0] while the real output[0,0] is the BOM). gated on
+        // hasChanged so no-op transforms still return null
+        if (hasBOM) ms.prepend('\uFEFF');
+        // pre+post `pass='post'` with `inherit`: `ms.original` is pre-output, not real source -
+        // omit sourcesContent so the bundler chains through pre-pass map's content. standalone
+        // `phase: 'post'` (no inherit) operates on the raw source, so content must be emitted
+        const chainedFromPre = pass === 'post' && !!inherit;
+        // `file` field is optional per spec but devtools and downstream chain consumers (e.g.
+        // bundler `combineSourceMaps`) rely on it for output filename hints; emit it on both
+        // pre and post passes so the chain stays self-describing.
+        // `source` (full id) and `file` (basename) must differ - MagicString's
+        // `getRelativePath` collapses `sources[0]` to the basename when both equal, dropping
+        // dirname for every file. devtools / `combineSourcemaps` then can't distinguish
+        // files with the same basename in different dirs. patch `file` to basename so
+        // `sources[0] === id` survives in the emitted map
+        // strip Vite SFC virtual-id query (`App.vue?vue&type=script&lang=ts` -> `App.vue`)
+        // before basename extraction; otherwise devtools show the filename with the full
+        // query string attached, which is noise rather than signal for the user
+        const fileName = stripQueryHash(id).split(/[/\\]/).pop() || id;
+        const map = ms.generateMap({ source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary' });
+        // restore BOM in sourcesContent so devtools show the file with its on-disk byte
+        // count. MagicString's `prepend` updates the output but the original source it
+        // captured for `sourcesContent` is the BOM-stripped slice we passed in
+        if (hasBOM && map?.sourcesContent?.[0] && map.sourcesContent[0].charCodeAt(0) !== 0xFEFF) {
+          map.sourcesContent[0] = `\uFEFF${ map.sourcesContent[0] }`;
+        }
+        return {
+          code: ms.toString(),
+          map,
+        };
+      }
+
+      // entry-global mode: replace `import 'core-js'` with resolved modules
+      function runEntryGlobal() {
+        const entryFound = detectEntries(ast, {
+          adapter: estreeAdapter,
+          getCoreJSEntry,
+          injectModulesForEntry,
+          isDisabled,
+          ms,
         });
+        if (entryFound) debugOutput?.markEntryFound();
+        return finalize();
       }
-      // post's snapshot delete happens at the top of runTransform so it runs even on
-      // early-return paths (parse error, isCoreJSFile, disabled directive)
-      if (!ms.hasChanged()) return null;
-      // re-prepend BOM through MagicString so the sourcemap's output columns on line 0
-      // account for the extra char (external string concat would leave mappings claiming
-      // output[0,0] -> source[0,0] while the real output[0,0] is the BOM). gated on
-      // hasChanged so no-op transforms still return null
-      if (hasBOM) ms.prepend('\uFEFF');
-      // pre+post `pass='post'` with `inherit`: `ms.original` is pre-output, not real source -
-      // omit sourcesContent so the bundler chains through pre-pass map's content. standalone
-      // `phase: 'post'` (no inherit) operates on the raw source, so content must be emitted
-      const chainedFromPre = pass === 'post' && !!inherit;
-      // `file` field is optional per spec but devtools and downstream chain consumers (e.g.
-      // bundler `combineSourceMaps`) rely on it for output filename hints; emit it on both
-      // pre and post passes so the chain stays self-describing.
-      // `source` (full id) and `file` (basename) must differ - MagicString's
-      // `getRelativePath` collapses `sources[0]` to the basename when both equal, dropping
-      // dirname for every file. devtools / `combineSourcemaps` then can't distinguish
-      // files with the same basename in different dirs. patch `file` to basename so
-      // `sources[0] === id` survives in the emitted map
-      // strip Vite SFC virtual-id query (`App.vue?vue&type=script&lang=ts` -> `App.vue`)
-      // before basename extraction; otherwise devtools show the filename with the full
-      // query string attached, which is noise rather than signal for the user
-      const fileName = stripQueryHash(id).split(/[/\\]/).pop() || id;
-      const map = ms.generateMap({ source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary' });
-      // restore BOM in sourcesContent so devtools show the file with its on-disk byte
-      // count. MagicString's `prepend` updates the output but the original source it
-      // captured for `sourcesContent` is the BOM-stripped slice we passed in
-      if (hasBOM && map?.sourcesContent?.[0] && map.sourcesContent[0].charCodeAt(0) !== 0xFEFF) {
-        map.sourcesContent[0] = `\uFEFF${ map.sourcesContent[0] }`;
-      }
-      return {
-        code: ms.toString(),
-        map,
-      };
-    }
+      if (method === 'entry-global') return runEntryGlobal();
 
-    // entry-global mode: replace `import 'core-js'` with resolved modules
-    function runEntryGlobal() {
-      const entryFound = detectEntries(ast, {
-        getCoreJSEntry,
-        injectModulesForEntry,
-        isDisabled,
-        ms,
-      });
-      if (entryFound) debugOutput?.markEntryFound();
-      return finalize();
-    }
-    if (method === 'entry-global') return runEntryGlobal();
-
-    const {
-      resolveStaticInheritedMember,
-      isInheritedStaticLookup,
-      isShadowedByClassOwnMember,
-    } = createClassHelpers({ t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector });
-
-    // usage-global mode
-    function runUsageGlobal() {
-      const usageGlobalCallback = createUsageGlobalCallback({
-        resolveUsage,
-        injectModulesForModeEntry,
-        isDisabled,
+      const {
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
         isShadowedByClassOwnMember,
-        enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, estreeAdapter),
-      });
+      } = createClassHelpers({ t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector });
 
-      const usageVisitors = createUsageVisitors({
-        onUsage: usageGlobalCallback,
-        onWarning: msg => debugOutput?.warn(msg),
-        method,
-        isEntryAvailable: isEntryNeeded,
-      });
-      const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
+      // usage-global mode
+      function runUsageGlobal() {
+        const usageGlobalCallback = createUsageGlobalCallback({
+          resolveUsage,
+          injectModulesForModeEntry,
+          isDisabled,
+          resolveStaticInheritedMember,
+          isInheritedStaticLookup,
+          isShadowedByClassOwnMember,
+          enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, estreeAdapter),
+        });
 
-      traverse(ast, mergeVisitors({
-        $: { scope: true },
-        Program(path) { injector.rootScope = path.scope; },
-        ...usageVisitors,
-      }, syntaxVisitors));
+        const usageVisitors = createUsageVisitors({
+          adapter: estreeAdapter,
+          onUsage: usageGlobalCallback,
+          onWarning: msg => debugOutput?.warn(msg),
+          method,
+          isEntryAvailable: isEntryNeeded,
+        });
+        const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
-      return finalize();
-    }
-    if (method === 'usage-global') return runUsageGlobal();
+        traverse(ast, mergeVisitors({
+          $: { scope: true },
+          Program(path) { injector.rootScope = path.scope; },
+          ...usageVisitors,
+        }, syntaxVisitors));
 
-    // usage-pure mode
-    function runUsagePure() {
+        return finalize();
+      }
+      if (method === 'usage-global') return runUsageGlobal();
+
+      // usage-pure mode
+      function runUsagePure() {
       // skippedNodes semantics (implicit contract across ~10 call sites):
       // 1. "don't re-visit this node" - stale visits after a parent rewrite shouldn't re-fire
       // 2. "this node is already handled by a composite rewrite" - inner members in a combined
@@ -463,241 +468,245 @@ export default function createPlugin(options) {
       // 3. "don't emit polyfill for this identifier" - receiver Identifier of a known member
       // a single WeakSet covers all three because the downstream check is the same: any visitor
       // that sees a node in the set exits early. keep this in mind when adding new usages
-      const skippedNodes = new WeakSet();
-      const transforms = new TransformQueue(code, ms, id);
+        const skippedNodes = new WeakSet();
+        const transforms = new TransformQueue(code, ms, id);
 
-      // per-traversal scope state for `var _ref;`-style refs. setScope() runs before each
-      // callback; genRef() reads the current scope. applyTransforms() drains accumulated
-      // arrow / scoped vars after the traverse pass. instance + destructure emitters both
-      // read scope position + allocate refs through this single tracker
-      const scopeTracker = new ScopeTracker({ code, injector });
+        // per-traversal scope state for `var _ref;`-style refs. setScope() runs before each
+        // callback; genRef() reads the current scope. applyTransforms() drains accumulated
+        // arrow / scoped vars after the traverse pass. instance + destructure emitters both
+        // read scope position + allocate refs through this single tracker
+        const scopeTracker = new ScopeTracker({ code, injector });
 
-      // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
-      // binding info; null when not polyfillable as a global. shared between the polyfill
-      // emitter and the destructure emitter
-      function resolveGlobalPolyfill(name) {
-        const pure = resolvePure({ kind: 'global', name });
-        return pure && pure.kind !== 'instance' ? pure : null;
-      }
+        // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
+        // binding info; null when not polyfillable as a global. shared between the polyfill
+        // emitter and the destructure emitter
+        function resolveGlobalPolyfill(name) {
+          const pure = resolvePure({ kind: 'global', name });
+          return pure && pure.kind !== 'instance' ? pure : null;
+        }
 
-      // polyfill emission pipeline. covers all kinds dispatched from the usage-pure visitor:
-      // instance-method member-calls (with optional-chain handling, Symbol.iterator special
-      // path, receiver-polyfill substitution, chain composition), global / static member
-      // rewrites, and `in` expression rewrites. factory in `internals/polyfill-emitter.js`
-      // captures the closure deps below; public entries become local consts so existing
-      // call sites stay unchanged
-      const emitter = createPolyfillEmitter({
-        canFuseWithOpenParen,
-        code,
-        estreeAdapter,
-        injectPureImport,
-        isEntryNeeded,
-        NEEDS_GUARD_PARENS,
-        NO_REF_NEEDED,
-        resolveGlobalPolyfill,
-        resolvePureOrGlobalFallback,
-        scopeTracker,
-        skippedNodes,
-        startsEnclosingStatement,
-        transforms,
-      });
-      const {
-        handleInExpression,
-        handleSymbolIterator,
-        nodeSrc,
-        replaceGlobalOrStatic,
-        replaceInstance,
-        skipProxyGlobal,
-      } = emitter;
+        // polyfill emission pipeline. covers all kinds dispatched from the usage-pure visitor:
+        // instance-method member-calls (with optional-chain handling, Symbol.iterator special
+        // path, receiver-polyfill substitution, chain composition), global / static member
+        // rewrites, and `in` expression rewrites. factory in `internals/polyfill-emitter.js`
+        // captures the closure deps below; public entries become local consts so existing
+        // call sites stay unchanged
+        const emitter = createPolyfillEmitter({
+          canFuseWithOpenParen,
+          code,
+          estreeAdapter,
+          injectPureImport,
+          isEntryNeeded,
+          NEEDS_GUARD_PARENS,
+          NO_REF_NEEDED,
+          resolveGlobalPolyfill,
+          resolvePureOrGlobalFallback,
+          scopeTracker,
+          skippedNodes,
+          startsEnclosingStatement,
+          transforms,
+        });
+        const {
+          handleInExpression,
+          handleSymbolIterator,
+          nodeSrc,
+          replaceGlobalOrStatic,
+          replaceInstance,
+          skipProxyGlobal,
+        } = emitter;
 
-      // destructure-rewrite pipeline (parameter-default synth-swap, top-level VariableDecl
-      // extraction, catch-clause rewrite, per-branch fallback synth-swap, nested proxy-global
-      // flatten `const {Array:{from}} = globalThis` -> `const from = _Array$from`). factory
-      // in `internals/destructure-emitter.js` captures the closure deps below; public methods
-      // become local consts so existing call sites stay unchanged. pending-collection Maps
-      // for destructuring + synth-swap are factory-internal (drained via the public methods)
-      const destructureEmitter = createDestructureEmitter({
-        estreeAdapter,
-        injectPureImport,
-        injector,
-        isBodylessStatementBody,
-        nodeSrc,
-        resolveGlobalPolyfill,
-        resolvePure,
-        scopeTracker,
-        skippedNodes,
-        transforms,
-      });
-      const {
-        applyDestructuringTransforms,
-        applySynthSwaps,
-        canFullyConsumeProxyDeclarator,
-        handleDestructuringPure,
-      } = destructureEmitter;
+        // destructure-rewrite pipeline (parameter-default synth-swap, top-level VariableDecl
+        // extraction, catch-clause rewrite, per-branch fallback synth-swap, nested proxy-global
+        // flatten `const {Array:{from}} = globalThis` -> `const from = _Array$from`). factory
+        // in `internals/destructure-emitter.js` captures the closure deps below; public methods
+        // become local consts so existing call sites stay unchanged. pending-collection Maps
+        // for destructuring + synth-swap are factory-internal (drained via the public methods)
+        const destructureEmitter = createDestructureEmitter({
+          estreeAdapter,
+          injectPureImport,
+          injector,
+          isBodylessStatementBody,
+          nodeSrc,
+          resolveGlobalPolyfill,
+          resolvePure,
+          scopeTracker,
+          skippedNodes,
+          transforms,
+        });
+        const {
+          applyDestructuringTransforms,
+          applySynthSwaps,
+          canFullyConsumeProxyDeclarator,
+          handleDestructuringPure,
+        } = destructureEmitter;
 
-      const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
+        const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
-      const usagePureCallback = (meta, metaPath) => {
-        if (isDisabled(metaPath.node)) return;
-        if (skippedNodes.has(metaPath.node)) return;
-        // see babel-plugin `usagePureCallback` - `<_Map/>` would invoke polyfill as a component
-        if (metaPath.node?.type === 'JSXIdentifier') return;
-        if (isInTypeAnnotation(metaPath)) return;
-        scopeTracker.setScope(metaPath);
-        const { node } = metaPath;
-        // walk past parens, chain expressions, and TS wrappers - they all forward to
-        // whatever wraps them, so the semantic parent is past them
-        let { parentPath } = metaPath;
-        while (parentPath?.node && (parentPath.node.type === 'ParenthesizedExpression'
+        const usagePureCallback = (meta, metaPath) => {
+          if (isDisabled(metaPath.node)) return;
+          if (skippedNodes.has(metaPath.node)) return;
+          // see babel-plugin `usagePureCallback` - `<_Map/>` would invoke polyfill as a component
+          if (metaPath.node?.type === 'JSXIdentifier') return;
+          if (isInTypeAnnotation(metaPath)) return;
+          scopeTracker.setScope(metaPath);
+          const { node } = metaPath;
+          // walk past parens, chain expressions, and TS wrappers - they all forward to
+          // whatever wraps them, so the semantic parent is past them
+          let { parentPath } = metaPath;
+          while (parentPath?.node && (parentPath.node.type === 'ParenthesizedExpression'
             || parentPath.node.type === 'ChainExpression'
             || TS_EXPR_WRAPPERS.has(parentPath.node.type))) {
-          parentPath = parentPath.parentPath;
-        }
-        const parent = parentPath?.node;
-
-        if (meta.kind === 'in') return handleInExpression(meta, metaPath);
-
-        // parent is already unwrapped past parens/chain/TS above
-        if (isDeleteTarget(parent)) return;
-
-        let inheritedStatic = false;
-        if (meta.kind === 'property') {
-          if (node.type === 'Property' && metaPath.parent?.type === 'ObjectPattern') {
-            return handleDestructuringPure(meta, metaPath, node);
+            parentPath = parentPath.parentPath;
           }
-          if (node.type !== 'MemberExpression') return;
-          if (isUpdateTarget(parent)) return;
-          if (isForXWriteTarget(metaPath)) return;
-          if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-          // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
-          // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
-          if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
-          // `super.X` and unshadowed `this.X` in static ctx resolve against the super
-          // class's static surface via the same path - `this` in static ctx is the
-          // constructor, so inherited static lookup behaves exactly like `super.X`.
-          // cache the predicate so the instance-fallback bail below doesn't re-walk
-          inheritedStatic = isInheritedStaticLookup(metaPath);
-          if (inheritedStatic) {
-            meta = remapInheritedStaticMeta(injector, meta, resolveStaticInheritedMember(metaPath));
-            if (!meta) return;
-          }
-          if (isTaggedTemplateTag(parent, node, meta.placement)) return;
-          if (meta.key === 'Symbol.iterator') return handleSymbolIterator({ node, parent, metaPath });
-        }
+          const parent = parentPath?.node;
 
-        let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
-        // inherited-static lookup (`this.X()` in static block of `class C extends Y`) has
-        // already been retargeted to `Y`-static-meta above. when `Y` has no static `X`,
-        // resolvePure misses and the global fallback fires - rewriting `this` to `_Y` would
-        // silently change runtime semantics (`this` is the dynamic constructor, `_Y` is the
-        // import binding). babel bails the same way; gate the fallback to keep parity
-        if (fallback && node.type === 'MemberExpression'
+          if (meta.kind === 'in') return handleInExpression(meta, metaPath);
+
+          // parent is already unwrapped past parens/chain/TS above
+          if (isDeleteTarget(parent)) return;
+
+          let inheritedStatic = false;
+          if (meta.kind === 'property') {
+            if (node.type === 'Property' && metaPath.parent?.type === 'ObjectPattern') {
+              return handleDestructuringPure(meta, metaPath, node);
+            }
+            if (node.type !== 'MemberExpression') return;
+            if (isUpdateTarget(parent)) return;
+            if (isForXWriteTarget(metaPath)) return;
+            if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
+            // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
+            // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
+            if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
+            // `super.X` and unshadowed `this.X` in static ctx resolve against the super
+            // class's static surface via the same path - `this` in static ctx is the
+            // constructor, so inherited static lookup behaves exactly like `super.X`.
+            // cache the predicate so the instance-fallback bail below doesn't re-walk
+            inheritedStatic = isInheritedStaticLookup(metaPath);
+            if (inheritedStatic) {
+              meta = remapInheritedStaticMeta(injector, meta, resolveStaticInheritedMember(metaPath));
+              if (!meta) return;
+            }
+            if (isTaggedTemplateTag(parent, node, meta.placement)) return;
+            if (meta.key === 'Symbol.iterator') return handleSymbolIterator({ node, parent, metaPath });
+          }
+
+          let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
+          // inherited-static lookup (`this.X()` in static block of `class C extends Y`) has
+          // already been retargeted to `Y`-static-meta above. when `Y` has no static `X`,
+          // resolvePure misses and the global fallback fires - rewriting `this` to `_Y` would
+          // silently change runtime semantics (`this` is the dynamic constructor, `_Y` is the
+          // import binding). babel bails the same way; gate the fallback to keep parity
+          if (fallback && node.type === 'MemberExpression'
           && node.object?.type !== 'Super' && !inheritedStatic) {
-          skipProxyGlobal(node);
-          const binding = injectPureImport(fallback.entry, fallback.hintName);
-          // fallback fires for non-proxy-global polyfilled idents (`Promise?.foo`, `Map?.x`);
-          // proxy-global resolver gate excludes them from this branch. preserve user's `?.`
-          // even though `_Promise` is always defined post-import - parity with babel-plugin's
-          // emit (`_Promise?.foo` rather than `_Promise.foo`) keeps the user-written deopt
-          // shape intact. proxy-global path (replaceGlobalOrStatic) does strip `?.` since the
-          // polyfill renames the proxy itself, the user-visible chain has no surface there
-          transforms.add(node.object.start, node.object.end, binding);
-          // outer text-emit absorbs the whole receiver: any inner Identifier whose name
-          // matches the polyfill's substitution would compose into the emit (`_Map` substring
-          // inside the outer's `_Map` -> `__Map`). peel through wrappers + IIFE shells to find
-          // the effective receiver leaf and mark it skipped before the Identifier visitor runs
-          const inner = unwrapReceiverLeaf(node.object);
-          if (inner?.type === 'Identifier') skippedNodes.add(inner);
-          return;
-        }
-        // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
-        // ancestor chain got polyfilled. on that re-visit, the now-replaced ancestor's call
-        // returns unknown type, so `resolvePropertyObjectType` yields null and `resolveHint`
-        // lands on `desc.common`. text-based rewrite never mutates the AST, so the outer
-        // sees its "correct" type-inferred primitive (e.g. 4-deep `.at` on a 3-deep array
-        // resolves to `number` via element-tracking) - no matching desc variant, bail.
-        // detect the equivalent scenario proactively. scope matches babel's re-visit reach:
-        // only the OUTERMOST chain member gets the fallback - inner bailed members stay raw
-        // the same way babel leaves them (avoids over-injection relative to babel's output)
-        if (!pureResult && meta.kind === 'property' && node.type === 'MemberExpression'
-          && !inheritedStatic && isOutermostOptionalChainMember(metaPath)) {
-          const generic = resolvePureGeneric(meta, metaPath);
-          if (generic) pureResult = generic;
-        }
-        if (!pureResult) return;
-        const { entry: importEntry, kind, hintName } = pureResult;
-        // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
-        // on the super class - resolve() falls back to instance. for super: syntactically
-        // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
-        // `_at(this)` would treat the class as an array. either way, bail
-        if (kind === 'instance' && node.type === 'MemberExpression' && inheritedStatic) return;
-        const binding = injectPureImport(importEntry, hintName);
-
-        // proxy-global suppression is dispatch-conditional. instance dispatch leaves the
-        // receiver Identifier live so its substitution composes into the outer guard's
-        // rootRaw slot (`_globalThis.foo` instead of `globalThis?.foo` in the memo'd guard).
-        // static dispatch already swallows the receiver in its own emit, so suppress the
-        // parallel identifier transform (its needle wouldn't compose anyway and the
-        // injected import would be filtered as dead by reference tracking, but skipping
-        // saves a wasted transform allocation)
-        if (node.type === 'MemberExpression' && kind !== 'instance') skipProxyGlobal(node);
-
-        if (kind === 'instance' && node.type === 'MemberExpression') {
-          replaceInstance({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
-        } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-          replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
-          // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`).
-          // without seeding skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol`
-          // transform whose needle composes into the outer's `_Symbol$iterator` replacement as
-          // `__Symbol$iterator` (substring `Symbol` inside the outer's emit gets re-prefixed).
-          // peels parens / SE-tail / TS wrappers / chain wrappers AND no-arg arrow / fn IIFE
-          // shells (`(() => Symbol)?.()`) so the receiver Identifier we want to suppress is
-          // reached through any combination of transparent wrappers
-          if (node.type === 'MemberExpression') {
+            skipProxyGlobal(node);
+            const binding = injectPureImport(fallback.entry, fallback.hintName);
+            // fallback fires for non-proxy-global polyfilled idents (`Promise?.foo`, `Map?.x`);
+            // proxy-global resolver gate excludes them from this branch. preserve user's `?.`
+            // even though `_Promise` is always defined post-import - parity with babel-plugin's
+            // emit (`_Promise?.foo` rather than `_Promise.foo`) keeps the user-written deopt
+            // shape intact. proxy-global path (replaceGlobalOrStatic) does strip `?.` since the
+            // polyfill renames the proxy itself, the user-visible chain has no surface there
+            transforms.add(node.object.start, node.object.end, binding);
+            // outer text-emit absorbs the whole receiver: any inner Identifier whose name
+            // matches the polyfill's substitution would compose into the emit (`_Map` substring
+            // inside the outer's `_Map` -> `__Map`). peel through wrappers + IIFE shells to find
+            // the effective receiver leaf and mark it skipped before the Identifier visitor runs
             const inner = unwrapReceiverLeaf(node.object);
             if (inner?.type === 'Identifier') skippedNodes.add(inner);
+            return;
           }
-        }
-      };
+          // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
+          // ancestor chain got polyfilled. on that re-visit, the now-replaced ancestor's call
+          // returns unknown type, so `resolvePropertyObjectType` yields null and `resolveHint`
+          // lands on `desc.common`. text-based rewrite never mutates the AST, so the outer
+          // sees its "correct" type-inferred primitive (e.g. 4-deep `.at` on a 3-deep array
+          // resolves to `number` via element-tracking) - no matching desc variant, bail.
+          // detect the equivalent scenario proactively. scope matches babel's re-visit reach:
+          // only the OUTERMOST chain member gets the fallback - inner bailed members stay raw
+          // the same way babel leaves them (avoids over-injection relative to babel's output)
+          if (!pureResult && meta.kind === 'property' && node.type === 'MemberExpression'
+          && !inheritedStatic && isOutermostOptionalChainMember(metaPath)) {
+            const generic = resolvePureGeneric(meta, metaPath);
+            if (generic) pureResult = generic;
+          }
+          if (!pureResult) return;
+          const { entry: importEntry, kind, hintName } = pureResult;
+          // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
+          // on the super class - resolve() falls back to instance. for super: syntactically
+          // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
+          // `_at(this)` would treat the class as an array. either way, bail
+          if (kind === 'instance' && node.type === 'MemberExpression' && inheritedStatic) return;
+          const binding = injectPureImport(importEntry, hintName);
 
-      // pre-pass: detect declarations that WILL be fully flattened (every outer prop
-      // resolvable as proxy-global shorthand or nested static method). the outer rewrite
-      // discards the init span, so suppress handleIdentifier's `_globalThis` injection
-      // for it - otherwise a now-dead import leaks into the final bundle
-      traverse(ast, {
-        $: { scope: true },
-        VariableDeclaration(path) {
-          for (const d of path.node.declarations) {
-            if (d.init && canFullyConsumeProxyDeclarator(d, path.scope)) skippedNodes.add(d.init);
+          // proxy-global suppression is dispatch-conditional. instance dispatch leaves the
+          // receiver Identifier live so its substitution composes into the outer guard's
+          // rootRaw slot (`_globalThis.foo` instead of `globalThis?.foo` in the memo'd guard).
+          // static dispatch already swallows the receiver in its own emit, so suppress the
+          // parallel identifier transform (its needle wouldn't compose anyway and the
+          // injected import would be filtered as dead by reference tracking, but skipping
+          // saves a wasted transform allocation)
+          if (node.type === 'MemberExpression' && kind !== 'instance') skipProxyGlobal(node);
+
+          if (kind === 'instance' && node.type === 'MemberExpression') {
+            replaceInstance({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
+          } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
+            replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
+            // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`).
+            // without seeding skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol`
+            // transform whose needle composes into the outer's `_Symbol$iterator` replacement as
+            // `__Symbol$iterator` (substring `Symbol` inside the outer's emit gets re-prefixed).
+            // peels parens / SE-tail / TS wrappers / chain wrappers AND no-arg arrow / fn IIFE
+            // shells (`(() => Symbol)?.()`) so the receiver Identifier we want to suppress is
+            // reached through any combination of transparent wrappers
+            if (node.type === 'MemberExpression') {
+              const inner = unwrapReceiverLeaf(node.object);
+              if (inner?.type === 'Identifier') skippedNodes.add(inner);
+            }
           }
-        },
-      });
-      traverse(ast, mergeVisitors({
-        $: { scope: true },
-        Program(path) { injector.rootScope = path.scope; },
-        ...createUsageVisitors({
-          onUsage: usagePureCallback,
-          onWarning: msg => debugOutput?.warn(msg),
-          method,
-          suppressProxyGlobals: true,
-          walkAnnotations: false,
-          isEntryAvailable: isEntryNeeded,
-        }),
-      }, trackReferences ? {
+        };
+
+        // pre-pass: detect declarations that WILL be fully flattened (every outer prop
+        // resolvable as proxy-global shorthand or nested static method). the outer rewrite
+        // discards the init span, so suppress handleIdentifier's `_globalThis` injection
+        // for it - otherwise a now-dead import leaks into the final bundle
+        traverse(ast, {
+          $: { scope: true },
+          VariableDeclaration(path) {
+            for (const d of path.node.declarations) {
+              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope)) skippedNodes.add(d.init);
+            }
+          },
+        });
+        traverse(ast, mergeVisitors({
+          $: { scope: true },
+          Program(path) { injector.rootScope = path.scope; },
+          ...createUsageVisitors({
+            adapter: estreeAdapter,
+            onUsage: usagePureCallback,
+            onWarning: msg => debugOutput?.warn(msg),
+            method,
+            suppressProxyGlobals: true,
+            walkAnnotations: false,
+            isEntryAvailable: isEntryNeeded,
+          }),
+        }, trackReferences ? {
         // mount tracker for every post pass (parity with `injector.enableReferenceTracking()`
         // gate above): standalone `phase: 'post'` without a pre-pass snapshot also needs
         // `referencedInSource` populated, otherwise `pruneUnusedRefs`'s dead-import filter
         // strips ALL pure imports because no Identifier ever calls `trackReferencedName`
-        Identifier(path) { injector.trackReferencedName(path.node.name); },
-      } : {}));
-      applySynthSwaps();
-      applyDestructuringTransforms();
-      scopeTracker.applyTransforms(transforms);
-      return finalize();
-    }
-    if (method === 'usage-pure') return runUsagePure();
+          Identifier(path) { injector.trackReferencedName(path.node.name); },
+        } : {}));
+        applySynthSwaps();
+        applyDestructuringTransforms();
+        scopeTracker.applyTransforms(transforms);
+        return finalize();
+      }
+      if (method === 'usage-pure') return runUsagePure();
 
-    return null;
+      return null;
+    } finally {
+      currentInjector = previousInjector;
+    }
   }
 
   return {
