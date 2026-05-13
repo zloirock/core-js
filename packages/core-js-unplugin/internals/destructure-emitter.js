@@ -649,11 +649,17 @@ export function createDestructureEmitter({
     }
     if (!preservedOuter.length) return { extractions, preservedSrc: null, receiver: plan.receiver };
     // partial flatten: preserved declarator still destructures from the receiver,
-    // so polyfill it - old runtimes without `globalThis` / `self` would crash otherwise
+    // so polyfill it - old runtimes without `globalThis` / `self` would crash otherwise.
+    // peel SE prefix off the embedded init: prefix lifts standalone via
+    // `liftExtractedSEPrefixes` (VariableDeclaration) or the segments loop in
+    // `cascadeAssignmentExpression` (AssignmentExpression). embedding the original
+    // `(se(), wrapper)` slice here would re-execute every prefix expression alongside
+    // the lift - the babel-plugin counterpart mutates `init` to the tail and avoids
+    // this; text-only mode must peel at emit time
     const receiverPure = resolveGlobalPolyfill(plan.receiver);
     const initSrc = receiverPure
       ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-      : nodeSrc(declarator.init);
+      : nodeSrc(peelNestedSequenceExpressions(declarator.init).tail);
     return {
       extractions,
       preservedSrc: `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`,
