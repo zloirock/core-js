@@ -308,13 +308,23 @@ export function createDestructureEmitter({
 
   // lift extracted-declarator SE prefixes (`(logCall(), globalThis)` -> standalone
   // `logCall();` statements before the flattened decl). non-extracted siblings keep their
-  // SE prefixes verbatim through `nodeSrc` (lifting both would double-execute)
+  // SE prefixes verbatim through `nodeSrc` (lifting both would double-execute).
+  // `pendingRefSplices` come from `bakePendingSplicesIntoPreserved` when the declarator was
+  // fully consumed: scope-tracker drained `var _ref;` inserts anchored inside the discarded
+  // init. those splices typically anchor inside an SE-prefix IIFE's arrow body and get
+  // baked into the lifted SE text here so the `_ref` declaration survives next to its uses
   function liftExtractedSEPrefixes(declaration, perDecl) {
     const sequencePrefixes = [];
     for (let i = 0; i < declaration.declarations.length; i++) {
       if (!perDecl[i].extractions.length) continue;
       const { prefix } = peelNestedSequenceExpressions(declaration.declarations[i].init);
-      for (const seExpr of prefix) sequencePrefixes.push(nodeSrc(seExpr));
+      const refSplices = perDecl[i].pendingRefSplices ?? [];
+      for (const seExpr of prefix) {
+        // `spliceInRange` is a no-op when its splices array is empty - one call covers
+        // both the bake (forwarded refs anchored inside seExpr's range) and the plain lift
+        const inRange = refSplices.filter(s => s.start >= seExpr.start && s.end <= seExpr.end);
+        sequencePrefixes.push(spliceInRange(nodeSrc(seExpr), seExpr.start, inRange));
+      }
     }
     return sequencePrefixes;
   }
@@ -326,16 +336,21 @@ export function createDestructureEmitter({
   //   - scope-tracker ref-binding splices (`var _ref;` inserts at nested-function body
   //     anchors, populated post-traverse via sibling-subtree visits)
   // both flow through `spliceInRange`'s descending-order traversal so neither set's
-  // mutations invalidate the other's anchor positions
+  // mutations invalidate the other's anchor positions.
+  // fully-consumed declarators (`preservedSrc === null`) still drain scope-tracker so
+  // applyTransforms doesn't queue an insert inside the parent overwrite (MagicString throws
+  // "Cannot split a chunk that has already been edited"); the drained splices anchor inside
+  // the discarded init - typically the arrow body of an SE-prefix IIFE - so they get
+  // stashed on `perDecl[i].pendingRefSplices` for `liftExtractedSEPrefixes` to bake into
+  // the lifted SE-prefix source (otherwise `_ref` ends up referenced but never declared)
   function bakePendingSplicesIntoPreserved(declaration, perDecl) {
     for (let i = 0; i < perDecl.length; i++) {
       const decl = declaration.declarations[i];
-      // even fully-extracted declarators must drain scope-tracker ref-bindings whose
-      // anchor positions fall in [decl.start, decl.end). without this consume, applyTransforms
-      // would later queue `var _ref;` insert inside the parent overwrite range and
-      // MagicString throws "Cannot split a chunk that has already been edited"
       const refSplices = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
-      if (perDecl[i].preservedSrc === null) continue;
+      if (perDecl[i].preservedSrc === null) {
+        perDecl[i].pendingRefSplices = refSplices;
+        continue;
+      }
       const substSplices = perDecl[i].siblingSubstSplices ?? [];
       const splices = [...substSplices, ...refSplices];
       if (!splices.length) continue;
