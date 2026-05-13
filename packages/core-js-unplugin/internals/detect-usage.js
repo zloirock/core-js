@@ -140,177 +140,64 @@ function hasRuntimeBinding(scope, name, path = null) {
   return !(native && isAmbientBinding(native));
 }
 
-// per-transform injector reference. plugin.js calls `setCurrentInjector(injector)` at the
-// start of each transform and `setCurrentInjector(null)` at completion. consolidates what
-// was previously TWO module-level side-channels (this hint-lookup + plugin.js's local
-// `currentInjector` for typeResolvers entry lookup) into ONE shared injector reference;
-// both consumers (estreeAdapter.getBinding's polyfillHint AND typeResolvers'
-// getPolyfillBindingEntry via `getCurrentInjector()`) read the same injector via
-// `getBindingInfo(name)`. without this, user-imported polyfill UIDs (`import _Promise from
-// '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) don't get recognised as
-// proxy-globals - babel adapter already exposes `polyfillHint` via its own injector closure;
-// unplugin matches the contract through this shared module-level state.
-// stack-based push/pop semantics defend against re-entrant transforms (theoretical: bundler
-// hook recursively calls plugin.transform): inner `setCurrentInjector(null)` pops the inner
-// injector, restoring the outer one rather than zeroing it. non-re-entrant case (typical):
-// stack depth alternates 0 ↔ 1, identical to the old single-slot model
-// null guard during between-transform windows (empty stack): any `name` lookup is a no-op
-const injectorStack = [];
-
-export function setCurrentInjector(injector) {
-  if (injector === null || injector === undefined) injectorStack.pop();
-  else injectorStack.push(injector);
+// factory: per-plugin-instance adapter closed over a getInjector callback. babel-plugin
+// uses the same shape (`createBabelAdapter(getInjector)`) - keeps unplugin's adapter
+// contract symmetric without leaning on module-level state. `getInjector()` returns the
+// active per-transform injector or null between transforms; both consumers
+// (adapter.getBinding's polyfillHint AND typeResolvers' getPolyfillBindingEntry) read
+// through the same callback so user-imported polyfill UIDs (`import _Promise from
+// '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) get recognised as
+// proxy-globals. re-entrancy is the caller's contract: plugin.js save/restore is the
+// runTransform try/finally - early-returns before the save leave the outer injector intact.
+// no-injector instances (default callback) are safe for adapter consumers that only need
+// pure literal / binding checks (detect-entry's require/import scan)
+export function createEstreeAdapter(getInjector = () => null) {
+  return {
+    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
+    // detection in `bindingSymbolKey`. null between transforms (no injector active)
+    get packages() { return getInjector()?.packages ?? null; },
+    hasBinding(scope, name, path = null) {
+      return hasRuntimeBinding(scope, name, path);
+    },
+    getBinding(scope, name) {
+      const b = scope?.getBinding(name);
+      if (!b) return null;
+      // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
+      // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
+      // raw module source at this interface is deliberate - not a leak, just the minimum
+      // parser-agnostic info the provider requires to infer well-known symbol imports.
+      // `polyfillHint` enables proxy-global recognition for user-imported polyfill UIDs
+      // (`_Promise` -> 'Promise') so `_Promise.resolve(1)` rewrites to `_Promise$resolve(1)`
+      // matching babel-plugin's behavior - constructor module typically doesn't expose
+      // statics, so the rewrite avoids a runtime undefined-call crash
+      let importSource = null;
+      if (IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)) {
+        importSource = b.path.parent?.source?.value ?? null;
+      }
+      return {
+        node: b.path.node,
+        constantViolations: b.constantViolations,
+        importSource,
+        polyfillHint: getInjector()?.getBindingInfo?.(name)?.hint ?? null,
+      };
+    },
+    getBindingNodeType(scope, name) {
+      return scope?.getBinding(name)?.path?.node?.type ?? null;
+    },
+    // oxc-parser preserves `ParenthesizedExpression`; unwrap so `require(('x'))` /
+    // `import(('x'))` survive the ESTree->string translation
+    isStringLiteral(node) {
+      return isLiteralString(unwrapParens(node));
+    },
+    getStringValue(node) {
+      const inner = unwrapParens(node);
+      return isLiteralString(inner) ? inner.value : null;
+    },
+  };
 }
-
-export function getCurrentInjector() {
-  return injectorStack.at(-1) ?? null;
-}
-
-export const estreeAdapter = {
-  // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
-  // detection in `bindingSymbolKey`. read dynamically from the active per-transform
-  // injector via `getCurrentInjector()`. null between transforms (no injector pushed)
-  get packages() { return getCurrentInjector()?.packages ?? null; },
-  hasBinding(scope, name, path = null) {
-    return hasRuntimeBinding(scope, name, path);
-  },
-  getBinding(scope, name) {
-    const b = scope?.getBinding(name);
-    if (!b) return null;
-    // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
-    // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
-    // raw module source at this interface is deliberate - not a leak, just the minimum
-    // parser-agnostic info the provider requires to infer well-known symbol imports.
-    // `polyfillHint` enables proxy-global recognition for user-imported polyfill UIDs
-    // (`_Promise` -> 'Promise') so `_Promise.resolve(1)` rewrites to `_Promise$resolve(1)`
-    // matching babel-plugin's behavior - constructor module typically doesn't expose
-    // statics, so the rewrite avoids a runtime undefined-call crash
-    let importSource = null;
-    if (IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)) {
-      importSource = b.path.parent?.source?.value ?? null;
-    }
-    return {
-      node: b.path.node,
-      constantViolations: b.constantViolations,
-      importSource,
-      polyfillHint: getCurrentInjector()?.getBindingInfo?.(name)?.hint ?? null,
-    };
-  },
-  getBindingNodeType(scope, name) {
-    return scope?.getBinding(name)?.path?.node?.type ?? null;
-  },
-  // oxc-parser preserves `ParenthesizedExpression`; unwrap so `require(('x'))` /
-  // `import(('x'))` survive the ESTree->string translation
-  isStringLiteral(node) {
-    return isLiteralString(unwrapParens(node));
-  },
-  getStringValue(node) {
-    const inner = unwrapParens(node);
-    return isLiteralString(inner) ? inner.value : null;
-  },
-};
 
 function isLiteralString(node) {
   return node?.type === 'Literal' && typeof node.value === 'string';
-}
-
-function resolveKey(node, computed, scope) {
-  return sharedResolveKey({ node, computed, scope, adapter: estreeAdapter });
-}
-
-// --- Destructuring ---
-
-function extractPropertyKey(propNode, scope) {
-  if (!propNode.computed) {
-    return propNode.key.type === 'Identifier' ? propNode.key.name
-      : estreeAdapter.isStringLiteral(propNode.key) ? propNode.key.value
-        : null;
-  }
-  return resolveKey(propNode.key, true, scope);
-}
-
-// build meta for destructuring property: const { from } = Array, ({ from } = Array)
-function buildDestructuringMeta(propNode, parentPath) {
-  const objectPattern = parentPath;
-  const parent = objectPattern?.parentPath;
-  if (!parent) return null;
-
-  let initNode;
-  const scope = parent.scope || objectPattern.scope;
-  // nested patterns leave `initNode` undefined -> typeless meta (`object: null`)
-  switch (parent.node.type) {
-    case 'VariableDeclarator': initNode = parent.node.init; break;
-    case 'AssignmentExpression': initNode = parent.node.right; break;
-    case 'AssignmentPattern':
-      // `function({ from } = Array)` - AssignmentPattern wraps the param. Route `parent.right`
-      // as the destructure receiver so `from` resolves to `Array.from`.
-      // for IIFE with statically-classifiable caller-arg (Identifier matching a known
-      // builtin), the wrapper-default is dead code at runtime: prefer caller-arg as
-      // receiver. non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) carry no
-      // static type, so wrapper-default still provides the best static context and the
-      // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
-      if (isFunctionParamDestructureParent(objectPattern)) {
-        const argNode = findIifeArgForParam(parent.parentPath, parent.node);
-        initNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
-        break;
-      }
-      // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
-      // AssignmentPattern wrapper and resolve via the same nested-chain classifier as the
-      // bare `{ Array: { from } } = X` shape (proxy-global init guarantees default never
-      // fires, so it's transparent under "polyfill always wins")
-      if (parent.parentPath?.node?.type === 'Property' && parent.node.left === objectPattern.node) {
-        const innerKey = extractPropertyKey(propNode, scope);
-        const constructor = innerKey
-          ? sharedResolveNestedDestructureReceiver(parent.parentPath, estreeAdapter) : null;
-        if (constructor) {
-          return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
-        }
-      }
-      break;
-    case 'Property': {
-      // nested pattern - shared `resolveNestedDestructureReceiver` walks outer-prop chain
-      // up to the destructure host and returns the constructor name across proxy-global
-      // and static-object descent shapes (see helper docstring)
-      const innerKey = extractPropertyKey(propNode, scope);
-      const constructor = innerKey ? sharedResolveNestedDestructureReceiver(parent, estreeAdapter) : null;
-      if (constructor) {
-        return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
-      }
-      break;
-    }
-    case 'ForOfStatement':
-    case 'ForInStatement':
-    case 'ArrayPattern':
-    case 'RestElement':
-    case 'CatchClause': break;
-    default: {
-      // IIFE destructuring: !function ({ entries }) {} (Object). also covers TS-wrapped
-      // callees `((arrow) as any)(Object)` and ChainExpression-wrapped optional call sites
-      const funcNode = parent.node;
-      if (funcNode.type === 'FunctionExpression' || funcNode.type === 'ArrowFunctionExpression') {
-        const paramIndex = funcNode.params?.indexOf(objectPattern.node);
-        if (paramIndex >= 0) {
-          let callPath = parent.parentPath;
-          while (callPath?.node && (callPath.node.type === 'UnaryExpression'
-            || callPath.node.type === 'SequenceExpression'
-            || callPath.node.type === 'ParenthesizedExpression'
-            || callPath.node.type === 'ChainExpression'
-            || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
-            callPath = callPath.parentPath;
-          }
-          const callNode = callPath?.node;
-          if (callNode?.type === 'NewExpression' || callNode?.type === 'CallExpression') {
-            initNode = resolveCallArgument(callNode.arguments ?? [], paramIndex);
-          }
-        }
-      }
-      if (!initNode) return null;
-    }
-  }
-
-  const key = extractPropertyKey(propNode, scope);
-  if (!key) return null;
-  return buildDestructuringInitMeta({ initNode, key, scope, adapter: estreeAdapter });
 }
 
 // --- Decorator sub-traversal ---
@@ -471,7 +358,7 @@ function walkDecorators(parentPath, decoratorVisitors) {
 // --- Usage visitors ---
 
 export function createUsageVisitors({
-  onUsage, onWarning, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
+  adapter, onUsage, onWarning, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
 }) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
@@ -483,12 +370,110 @@ export function createUsageVisitors({
     b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
   );
 
+  function resolveKey(node, computed, scope) {
+    return sharedResolveKey({ node, computed, scope, adapter });
+  }
+
+  function extractPropertyKey(propNode, scope) {
+    if (!propNode.computed) {
+      return propNode.key.type === 'Identifier' ? propNode.key.name
+        : adapter.isStringLiteral(propNode.key) ? propNode.key.value
+          : null;
+    }
+    return resolveKey(propNode.key, true, scope);
+  }
+
+  // build meta for destructuring property: const { from } = Array, ({ from } = Array)
+
+  function buildDestructuringMeta(propNode, parentPath) {
+    const objectPattern = parentPath;
+    const parent = objectPattern?.parentPath;
+    if (!parent) return null;
+
+    let initNode;
+    const scope = parent.scope || objectPattern.scope;
+    // nested patterns leave `initNode` undefined -> typeless meta (`object: null`)
+    switch (parent.node.type) {
+      case 'VariableDeclarator': initNode = parent.node.init; break;
+      case 'AssignmentExpression': initNode = parent.node.right; break;
+      case 'AssignmentPattern':
+        // `function({ from } = Array)` - AssignmentPattern wraps the param. Route `parent.right`
+        // as the destructure receiver so `from` resolves to `Array.from`.
+        // for IIFE with statically-classifiable caller-arg (Identifier matching a known
+        // builtin), the wrapper-default is dead code at runtime: prefer caller-arg as
+        // receiver. non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) carry no
+        // static type, so wrapper-default still provides the best static context and the
+        // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
+        if (isFunctionParamDestructureParent(objectPattern)) {
+          const argNode = findIifeArgForParam(parent.parentPath, parent.node);
+          initNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
+          break;
+        }
+        // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
+        // AssignmentPattern wrapper and resolve via the same nested-chain classifier as the
+        // bare `{ Array: { from } } = X` shape (proxy-global init guarantees default never
+        // fires, so it's transparent under "polyfill always wins")
+        if (parent.parentPath?.node?.type === 'Property' && parent.node.left === objectPattern.node) {
+          const innerKey = extractPropertyKey(propNode, scope);
+          const constructor = innerKey
+            ? sharedResolveNestedDestructureReceiver(parent.parentPath, adapter) : null;
+          if (constructor) {
+            return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
+          }
+        }
+        break;
+      case 'Property': {
+        // nested pattern - shared `resolveNestedDestructureReceiver` walks outer-prop chain
+        // up to the destructure host and returns the constructor name across proxy-global
+        // and static-object descent shapes (see helper docstring)
+        const innerKey = extractPropertyKey(propNode, scope);
+        const constructor = innerKey ? sharedResolveNestedDestructureReceiver(parent, adapter) : null;
+        if (constructor) {
+          return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
+        }
+        break;
+      }
+      case 'ForOfStatement':
+      case 'ForInStatement':
+      case 'ArrayPattern':
+      case 'RestElement':
+      case 'CatchClause': break;
+      default: {
+        // IIFE destructuring: !function ({ entries }) {} (Object). also covers TS-wrapped
+        // callees `((arrow) as any)(Object)` and ChainExpression-wrapped optional call sites
+        const funcNode = parent.node;
+        if (funcNode.type === 'FunctionExpression' || funcNode.type === 'ArrowFunctionExpression') {
+          const paramIndex = funcNode.params?.indexOf(objectPattern.node);
+          if (paramIndex >= 0) {
+            let callPath = parent.parentPath;
+            while (callPath?.node && (callPath.node.type === 'UnaryExpression'
+              || callPath.node.type === 'SequenceExpression'
+              || callPath.node.type === 'ParenthesizedExpression'
+              || callPath.node.type === 'ChainExpression'
+              || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
+              callPath = callPath.parentPath;
+            }
+            const callNode = callPath?.node;
+            if (callNode?.type === 'NewExpression' || callNode?.type === 'CallExpression') {
+              initNode = resolveCallArgument(callNode.arguments ?? [], paramIndex);
+            }
+          }
+        }
+        if (!initNode) return null;
+      }
+    }
+
+    const key = extractPropertyKey(propNode, scope);
+    if (!key) return null;
+    return buildDestructuringInitMeta({ initNode, key, scope, adapter });
+  }
+
   function annotationGlobal(path) {
     return name => {
       // pass `path` so `hasRuntimeBinding`'s var-hoisting fallback can detect `var Name`
       // declarations buried inside nested non-function blocks (estree-toolkit registers them
       // in the block's own scope rather than hoisting to the enclosing function)
-      if (estreeAdapter.hasBinding(path.scope, name, path)) return;
+      if (adapter.hasBinding(path.scope, name, path)) return;
       onUsage({ kind: 'global', name }, path);
     };
   }
@@ -498,14 +483,14 @@ export function createUsageVisitors({
     // `isReferenced` returns false for write-context leaves like `Map ||= X`; diagnose the
     // pattern before the early return so users see why nothing was polyfilled
     if (onWarning) {
-      const warning = checkLogicalAssignLhsGlobal(node, parent, estreeAdapter.hasBinding(path.scope, node.name, path));
+      const warning = checkLogicalAssignLhsGlobal(node, parent, adapter.hasBinding(path.scope, node.name, path));
       if (warning) onWarning(warning);
     }
     if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
-    if (estreeAdapter.hasBinding(path.scope, node.name, path)) {
+    if (adapter.hasBinding(path.scope, node.name, path)) {
       // self-reference `var X = X` - hoisted var init reads the outer (global) scope
       // before the local is assigned. narrow via cached binding check; exclude let/const
       // (TDZ error) and ImportSpecifiers. `node.name` equals binding's own name by lookup
@@ -527,20 +512,20 @@ export function createUsageVisitors({
     // `_globalThis`. `globalProxyMemberName` (used inside the helper) walks chains and
     // gates on shadowing internally - no separate isBound check needed
     if (onWarning) {
-      const warning = checkLogicalAssignLhsMember({ node, parent, scope: path.scope, adapter: estreeAdapter });
+      const warning = checkLogicalAssignLhsMember({ node, parent, scope: path.scope, adapter });
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
     if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
     const meta = handleMemberExpressionNode({
-      node, scope: path.scope, adapter: estreeAdapter, handledObjects, suppressProxyGlobals, path,
+      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path,
     });
     if (meta) onUsage(meta, path);
   }
 
   function binaryExpressionVisitor(path) {
     const meta = handleBinaryIn({
-      node: path.node, scope: path.scope, adapter: estreeAdapter, handledObjects, isEntryAvailable, path,
+      node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, path,
     });
     if (meta) onUsage(meta, path);
   }
@@ -605,7 +590,7 @@ export function createUsageVisitors({
       // pass `path` so `hasRuntimeBinding`'s var-hoisting fallback can detect a `var Tag`
       // declaration inside a nested non-function block (estree-toolkit registers it in the
       // block's own scope rather than hoisting to the enclosing function)
-      if (estreeAdapter.hasBinding(path.scope, path.node.name, path)) return;
+      if (adapter.hasBinding(path.scope, path.node.name, path)) return;
       onUsage({ kind: 'global', name: path.node.name }, path);
     },
     MemberExpression: memberExpressionVisitor,
