@@ -512,6 +512,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     peelTSParenthesized,
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     resolveInnerType,
+    // late-bound: type-annotation-resolve cluster builds resolveTypeAnnotation after this
+    // factory runs. used in `infer T extends C` to convert the constraint AST keyword
+    // (TSStringKeyword / TSNumberKeyword / ...) to the internal $Primitive representation
+    // before substitution; otherwise downstream `toHint` walks an AST node and crashes
+    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    // shared parser-shape helper: babel wraps TSTypeParameter.name as Identifier,
+    // oxc stores the bare string. extractInferTarget reuses it for `infer U` extraction
+    typeParamName,
     commonType,
     isNullableOrNever,
     typesEqual,
