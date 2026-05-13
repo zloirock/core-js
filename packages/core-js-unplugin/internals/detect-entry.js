@@ -1,16 +1,18 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage/entries';
 import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { estreeAdapter } from './detect-usage.js';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
-// detect and transform core-js entry imports (entry-global mode)
-export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
+// detect and transform core-js entry imports (entry-global mode). `adapter` is the
+// plugin-instance estree adapter (`getEntrySource` only consults `isStringLiteral` and
+// the stub `hasBinding('require')` - no polyfillHint dependency, but threading the
+// per-instance adapter keeps the call symmetric with usage-pipeline detection)
+export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
   const toRemove = [];
   // stub scope: getEntrySource only consults `hasBinding('require')` to skip shadowed calls
   const shadowScope = declaresRequireBinding(ast.body) ? { hasBinding: () => true } : null;
 
   for (const node of ast.body) {
-    const source = getEntrySource(node, estreeAdapter, shadowScope);
+    const source = getEntrySource(node, adapter, shadowScope);
     if (source === null) continue;
     if (isDisabled(node)) continue;
     const entry = getCoreJSEntry(source);
