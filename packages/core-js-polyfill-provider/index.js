@@ -5,7 +5,7 @@ import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
 import { kebabToPascal } from './helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
-import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
+import { isEntryPattern, isModulePattern, patternToRegExp, safeStringify, validatePatternList } from './helpers/pattern-matching.js';
 import { lookupEntryModules, normalizeImportSource } from './helpers/path-normalize.js';
 
 const { hasOwn } = Object;
@@ -160,11 +160,16 @@ export function createPolyfillContext({
     return typeof p !== 'string' || p === '' || /^\/+$/.test(p);
   }
 
+  // `safeStringify` swallows JSON.stringify failures on BigInt / circular / hostile Proxy so
+  // the secondary serialization throw doesn't mask the primary "wrong shape" diagnostic
   if (isInvalidPkgShape(pkg)) {
-    throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ JSON.stringify(pkg) }`);
+    throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ safeStringify(pkg) }`);
   }
   if (additionalPackages?.some(isInvalidPkgShape)) {
-    throw new TypeError(`[core-js] \`additionalPackages\` entries must be non-empty, non-slash-only strings; received ${ JSON.stringify(additionalPackages) }`);
+    // per-element stringify so the invalid item is identifiable even when one bad entry
+    // (BigInt / circular / Proxy) would corrupt whole-array `safeStringify` to `[Object]`
+    const invalid = additionalPackages.filter(isInvalidPkgShape).map(safeStringify).join(', ');
+    throw new TypeError(`[core-js] \`additionalPackages\` entries must be non-empty, non-slash-only strings; invalid: [${ invalid }]`);
   }
 
   version = normalizeCoreJSVersion(version);
