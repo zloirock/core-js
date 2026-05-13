@@ -19,7 +19,8 @@ export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEnt
     toRemove.push(node);
   }
 
-  for (const node of toRemove) removeTopLevelStatement(ms, node);
+  const removeStatement = createTopLevelStatementRemover(ms);
+  for (const node of toRemove) removeStatement(node);
   return toRemove.length > 0;
 }
 
@@ -47,30 +48,60 @@ function skipWhitespaceAndComments(src, pos) {
   }
 }
 
-// prev ending in `;` is the only case we can cheaply prove safe - `}` can close a function/class
-// expr and still fuse (`function(){}`hello`` is a tag call)
-function guardAsiAtBoundary(ms, prevEnd, removalEnd) {
-  const nextIdx = skipWhitespaceAndComments(ms.original, removalEnd);
-  if (!ASI_HAZARD_STARTS.has(ms.original[nextIdx])) return;
-  let prevIdx = prevEnd - 1;
-  while (prevIdx >= 0 && /\s/.test(ms.original[prevIdx])) prevIdx--;
-  if (prevIdx < 0 || ms.original[prevIdx] === ';') return;
-  ms.prependLeft(removalEnd, ';');
+// factory: returns a `remove(node)` closure that drops a top-level statement (including its
+// trailing newline so it doesn't leave a blank gap) and guards against ASI fusion across the
+// batch. each closure owns its `removedRanges` so the backward scan can skip past chunks
+// already removed in this batch - otherwise the trailing `;` of a sibling removal would
+// masquerade as the active terminator. oxc extends ImportDeclaration.end to cover the
+// trailing `;` - when that `;` was actually guarding the next statement's leading
+// `(` / `[` / `` ` `` / ..., removal silently turns `var x = 1\n(fn)()` into a call, so
+// re-injects a `;` when the boundary would fuse. prev ending in `;` is the only case we
+// can cheaply prove safe - `}` can close a function/class expr and still fuse
+// (`function(){}`hello`` is a tag call)
+export function createTopLevelStatementRemover(ms) {
+  const src = ms.original;
+  const removedRanges = [];
+
+  // walks backward from `fromIdx` over whitespace AND chunks already in `removedRanges`,
+  // landing on the first source char that survives into output. -1 means the boundary
+  // touches start-of-file (no preceding statement to terminate)
+  function findPrevSignificantChar(fromIdx) {
+    let p = fromIdx;
+    while (p >= 0) {
+      const range = findRangeContaining(removedRanges, p);
+      if (range) {
+        p = range[0] - 1;
+        continue;
+      }
+      if (!/\s/.test(src[p])) return p;
+      p--;
+    }
+    return -1;
+  }
+
+  function guardAsiAtBoundary(start, end) {
+    const nextIdx = skipWhitespaceAndComments(src, end);
+    if (!ASI_HAZARD_STARTS.has(src[nextIdx])) return;
+    const prevIdx = findPrevSignificantChar(start - 1);
+    if (prevIdx < 0 || src[prevIdx] === ';') return;
+    ms.prependLeft(end, ';');
+  }
+
+  return function remove(node) {
+    let { end } = node;
+    while (end < src.length && (src[end] === ' ' || src[end] === '\t')) end++;
+    // ES spec LineTerminator covers LF / CR / CRLF / LS (U+2028) / PS (U+2029). without LS/PS
+    // handling, a bundler-emitted separator between the removed import and the following line
+    // would stay behind and confuse downstream tooling
+    if (src[end] === '\r' && src[end + 1] === '\n') end += 2;
+    else if (isLineTerminator(src[end])) end++;
+    ms.remove(node.start, end);
+    guardAsiAtBoundary(node.start, end);
+    removedRanges.push([node.start, end]);
+  };
 }
 
-// drops a top-level statement including its trailing newline so it doesn't leave a blank gap;
-// must not eat the following line's indent. oxc extends `ImportDeclaration.end` to include
-// a trailing `;` - when that `;` was actually guarding the next statement's leading
-// `(` / `[` / `` ` `` / ..., removal silently turns `var x = 1\n(fn)()` into a call, so
-// `guardAsiAtBoundary` re-injects a `;` when the boundary would fuse
-export function removeTopLevelStatement(ms, node) {
-  let { end } = node;
-  while (end < ms.original.length && (ms.original[end] === ' ' || ms.original[end] === '\t')) end++;
-  // ES spec LineTerminator covers LF / CR / CRLF / LS (U+2028) / PS (U+2029). without LS/PS
-  // handling, a bundler-emitted separator between the removed import and the following line
-  // would stay behind and confuse downstream tooling
-  if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
-  else if (isLineTerminator(ms.original[end])) end++;
-  ms.remove(node.start, end);
-  guardAsiAtBoundary(ms, node.start, end);
+function findRangeContaining(removedRanges, pos) {
+  for (const range of removedRanges) if (pos >= range[0] && pos < range[1]) return range;
+  return null;
 }
