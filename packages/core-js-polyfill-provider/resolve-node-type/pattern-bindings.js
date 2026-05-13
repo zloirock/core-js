@@ -130,15 +130,26 @@ export function createPatternBindings({
     return resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, scope);
   }
 
-  // resolve the type of a variable destructured from an ArrayPattern
+  // resolve the type of a variable destructured from an ArrayPattern against an annotation.
+  // covers two shapes uniformly:
+  //   - top-level Identifier element: `[a]` -> findPatternIndex + tuple/array element type
+  //   - nested pattern (`[{x}]`, `[[y]]`): top-level scan misses varName; key-path walk via
+  //     `findArrayPatternKeyPath` against the same annotation reaches the leaf. without this
+  //     branch, `for (const [{ x }] of items)` falls through to generic .at fallback while
+  //     the symmetric object-outer / array-inner case (`for (const { arr: [x] } of items)`)
+  //     resolves through resolveObjectBinding's collectPatternKeyPath
   function resolveArrayPatternBinding({ arrayPattern, varName, annotation, scope }) {
     const index = findPatternIndex(arrayPattern, varName);
-    if (index < 0) return null;
-    const unwrapped = unwrapTypeAnnotation(annotation);
-    if (!unwrapped) return null;
-    const tupleElem = findTupleElement(unwrapped, index, scope);
-    if (tupleElem) return resolveTypeAnnotation(tupleElem, scope);
-    return resolveElementType(unwrapped, scope, 0);
+    if (index >= 0) {
+      const unwrapped = unwrapTypeAnnotation(annotation);
+      if (!unwrapped) return null;
+      const tupleElem = findTupleElement(unwrapped, index, scope);
+      if (tupleElem) return resolveTypeAnnotation(tupleElem, scope);
+      return resolveElementType(unwrapped, scope, 0);
+    }
+    const keyPath = findArrayPatternKeyPath(arrayPattern, varName, scope);
+    if (!keyPath) return null;
+    return resolveAnnotatedMemberPath(annotation, keyPath, scope);
   }
 
   // traverse from a binding to its enclosing for-in/for-of statement (if any)
@@ -212,7 +223,9 @@ export function createPatternBindings({
       || (t.isAssignmentPattern(bindingPath.node) && node.left?.typeAnnotation);
   }
 
-  // resolve array destructuring from any annotation source: pattern, init, or for-of iterable
+  // resolve array destructuring from any annotation source: pattern, init, or for-of iterable.
+  // `resolveArrayPatternBinding` handles top-level Identifier AND nested-pattern element
+  // shapes against a single annotation, so each annotation source needs just one call
   function resolveArrayBinding(arrayPattern, varName, bindingPath) {
     // array rest: const [a, ...rest] = items -> rest is always Array
     if (isRestBinding(arrayPattern.elements ?? [], varName)) return new $Object('Array');
@@ -227,7 +240,9 @@ export function createPatternBindings({
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
       const initInfo = findExpressionAnnotation(bindingPath.get('init'));
       if (initInfo) {
-        const initResult = resolveArrayPatternBinding({ arrayPattern, varName, annotation: initInfo.annotation, scope: initInfo.scope });
+        const initResult = resolveArrayPatternBinding({
+          arrayPattern, varName, annotation: initInfo.annotation, scope: initInfo.scope,
+        });
         if (initResult) return initResult;
       }
       // runtime init: resolve through variables to the actual value
@@ -251,10 +266,12 @@ export function createPatternBindings({
         }
       }
     }
-    // for-of iterable: for (const [a] of typedArr)
+    // for-of iterable: for (const [a] of typedArr) / nested: for (const [{ x }] of typedArr)
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
     if (elemInfo) {
-      const elemResult = resolveArrayPatternBinding({ arrayPattern, varName, annotation: elemInfo.annotation, scope: elemInfo.scope });
+      const elemResult = resolveArrayPatternBinding({
+        arrayPattern, varName, annotation: elemInfo.annotation, scope: elemInfo.scope,
+      });
       if (elemResult) return elemResult;
     }
     // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
