@@ -4,6 +4,5 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // inference). narrowing `x.kind === 'a'` selects the array leg. expect `_atMaybeArray`.
 type X = { kind: 'a'; val: string[] } | { kind: 'b' };
 function f(x: X) {
-  var _ref;
-  if (x.kind === 'a') return _atMaybeArray(_ref = x.val).call(_ref, 0);
+  if (x.kind === 'a') { var _ref; return _atMaybeArray(_ref = x.val).call(_ref, 0); }
 }
