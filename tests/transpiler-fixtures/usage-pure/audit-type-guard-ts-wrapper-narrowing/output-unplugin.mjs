@@ -5,7 +5,6 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 declare const x: unknown;
 declare const y: unknown;
 function f() {
-  var _ref, _ref2;
-  if ((x as any) instanceof Array) _atMaybeArray(_ref = x as any[]).call(_ref, 0);
-  if (y! instanceof Array) _atMaybeArray(_ref2 = y as any[]).call(_ref2, 0);
+  if ((x as any) instanceof Array) { var _ref; _atMaybeArray(_ref = x as any[]).call(_ref, 0); }
+  if (y! instanceof Array) { var _ref2; _atMaybeArray(_ref2 = y as any[]).call(_ref2, 0); }
 }
