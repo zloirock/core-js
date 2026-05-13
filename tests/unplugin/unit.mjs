@@ -360,6 +360,25 @@ function checkAdoptOrphanRespectsFlushed() {
 }
 checkAdoptOrphanRespectsFlushed();
 
+// sequential transforms via one plugin instance must not bleed state between them.
+// runTransformInner installs `currentInjector` AFTER its early-return guards and the
+// try/finally restores the previous slot - a second transform sees a fresh tree and
+// the third must not be polluted by either. core-js-internal short-circuit between
+// real transforms confirms the early-return path doesn't touch the slot either
+function checkRunTransformStateIsolation() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const a = plugin.transform('Array.from([1]);', '/a.ts');
+  // core-js-internal early-return between real transforms must not corrupt state
+  plugin.transform('var x = 1;', '/some/path/core-js/internals/foo.js');
+  const b = plugin.transform('Promise.resolve(1);', '/b.ts');
+  // each transform emits its own polyfill family, neither pollutes the other
+  check('isolation/transform a emits Array.from', /array\/from/.test(a?.code ?? ''), true);
+  check('isolation/transform a has no Promise import', /promise\//.test(a?.code ?? ''), false);
+  check('isolation/transform b emits Promise.resolve', /promise\/resolve/.test(b?.code ?? ''), true);
+  check('isolation/transform b has no Array import', /array\/from/.test(b?.code ?? ''), false);
+}
+checkRunTransformStateIsolation();
+
 // orphan list missing bare `_ref` but containing `_ref2+` must not seed the suffix cache
 // past bare. snapshot loss after user-edited removal of `_ref` declaration means bare is
 // free again; allocator must reuse it before claiming a new numeric slot
