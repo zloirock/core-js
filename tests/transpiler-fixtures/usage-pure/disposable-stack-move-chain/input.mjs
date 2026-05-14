@@ -1,0 +1,1 @@
+new DisposableStack().move().move();
