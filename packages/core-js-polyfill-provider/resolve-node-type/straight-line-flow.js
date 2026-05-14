@@ -30,6 +30,27 @@ export function scopeNode(s) {
   return s.block ?? s.path?.node;
 }
 
+// climb to the nearest ancestor (inclusive) whose AST type matches `stmtType`.
+// shared by inner/outer straight-line checks - same walk-up shape with different targets
+function findEnclosingStatement(path, stmtType) {
+  let p = path;
+  while (p && p.node.type !== stmtType) p = p.parentPath;
+  return p;
+}
+
+// every wrapping statement from startPath up to endNode is a plain BlockStatement /
+// Program / StaticBlock - reject if / switch / loop / try / etc. that make execution
+// conditional. endNode is either the binding's var-scope body (outer check) or an
+// IIFE function body (inner check during the lift loop)
+function reachesStraightLine(startPath, endNode) {
+  for (let p = startPath; p; p = p.parentPath) {
+    if (p.node === endNode) return true;
+    const { type } = p.node;
+    if (type !== 'BlockStatement' && type !== 'Program' && type !== 'StaticBlock') return false;
+  }
+  return false;
+}
+
 export function createStraightLineFlow({ t, babelNodeType }) {
   // walk a constant-violation path up to the enclosing assignment node. accepts:
   //   - `x = y` / `({x} = y)`                          -> AssignmentExpression
@@ -48,8 +69,14 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return null;
   }
 
-  // if `path` is inside a synchronous IIFE within `targetScope`, return the CallExpression
-  // path. matches `(() => { x = 1 })()` but NOT `setTimeout(() => { x = 1 })`
+  // if `path` is inside a synchronous IIFE within `targetScope`, return `{ call, fnBody }`
+  // - the wrapping CallExpression path plus the IIFE's body AST node. matches
+  // `(() => { x = 1 })()` but NOT `setTimeout(() => { x = 1 })`. `fnBody` is BlockStatement
+  // for block-bodied functions; for arrow-with-expression-body it's the expression itself
+  // (paren-wrapped expression bodies are peeled so identity comparison works with the
+  // assignment node - oxc preserves `() => (expr)`'s outer ParenthesizedExpression).
+  // callers need both: the call to continue the lift loop, the body to bound the inner
+  // straight-line check (so inner if / switch / loop / try inside the IIFE blocks lifting).
   function findEnclosingIIFE(path, targetScope) {
     for (let cur = path; cur; cur = cur.parentPath) {
       if (cur.scope === targetScope) return null;
@@ -63,9 +90,11 @@ export function createStraightLineFlow({ t, babelNodeType }) {
         callee = callee.parentPath;
       }
       const call = callee.parentPath;
-      if (call && (call.node.type === 'CallExpression' || call.node.type === 'OptionalCallExpression')
-        && call.node.callee === callee.node) return call;
-      return null;
+      if (!call || call.node.callee !== callee.node) return null;
+      if (call.node.type !== 'CallExpression' && call.node.type !== 'OptionalCallExpression') return null;
+      let fnBody = cur.node.body;
+      while (fnBody?.type === 'ParenthesizedExpression') fnBody = fnBody.expression;
+      return { call, fnBody };
     }
     return null;
   }
@@ -82,15 +111,24 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return false;
   }
 
-  // every wrapping statement up to varScopeBody is a plain BlockStatement / Program /
-  // StaticBlock - reject if / switch / loop / try / etc. that make execution conditional
-  function reachesVarScopeStraightLine(startPath, varScopeBody) {
-    for (let p = startPath; p; p = p.parentPath) {
-      if (p.node === varScopeBody) return true;
-      const { type } = p.node;
-      if (type !== 'BlockStatement' && type !== 'Program' && type !== 'StaticBlock') return false;
+  // lift `ap` through nested synchronous IIFE wrappers until it lands in binding's
+  // var-scope. each lift step also verifies the inner path (assignment -> IIFE function
+  // body) is straight-line, so inner if / switch / loop / try inside the IIFE blocks
+  // the narrow lift instead of slipping past the outer check (which would only see the
+  // always-running CallExpression). returns the lifted path on success, null on bail
+  function liftThroughIIFEs(ap, wrapStmtType, bindingScope) {
+    let effectiveAp = ap;
+    while (effectiveAp && !isInBindingVarScope(effectiveAp.scope, bindingScope)) {
+      const { call, fnBody } = findEnclosingIIFE(effectiveAp, bindingScope) ?? {};
+      if (!call) return null;
+      // arrow-with-expression-body: assignment IS the body, trivially straight-line
+      if (effectiveAp.node !== fnBody) {
+        const innerStmt = findEnclosingStatement(effectiveAp, wrapStmtType);
+        if (!innerStmt || !reachesStraightLine(innerStmt.parentPath, fnBody)) return null;
+      }
+      effectiveAp = call;
     }
-    return false;
+    return effectiveAp;
   }
 
   // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched per query
@@ -108,21 +146,18 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       // `var x;` without init is a no-op at runtime - binding keeps its previous value
       if (isVarDecl && !ap.node.init) continue;
       if (!ASSIGN_LEFT_TYPES.has(assignLeft(ap.node)?.type)) continue;
-      // lift through nested synchronous IIFE wrappers until we land in binding's var-scope
-      let effectiveAp = ap;
-      while (effectiveAp && !isInBindingVarScope(effectiveAp.scope, bindingScope)) {
-        effectiveAp = findEnclosingIIFE(effectiveAp, bindingScope);
-      }
+
+      const wrapStmtType = isVarDecl ? 'VariableDeclaration' : 'ExpressionStatement';
+      const effectiveAp = liftThroughIIFEs(ap, wrapStmtType, bindingScope);
       if (!effectiveAp) continue;
       const pos = effectiveAp.node.start;
       if (pos === undefined || pos === null) continue;
-      // walk to the directly-wrapping statement:
-      //   AssignmentExpression -> ExpressionStatement
-      //   VariableDeclarator -> VariableDeclaration (one step up)
-      const stmtType = isVarDecl ? 'VariableDeclaration' : 'ExpressionStatement';
-      let stmt = effectiveAp;
-      while (stmt && stmt.node.type !== stmtType) stmt = stmt.parentPath;
-      if (!stmt || !reachesVarScopeStraightLine(stmt.parentPath, varScopeBody)) continue;
+
+      // no IIFE lift -> ap is wrapped in its native wrapStmtType. lifted -> effectiveAp is
+      // a CallExpression which always lives inside an ExpressionStatement
+      const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
+      const stmt = findEnclosingStatement(effectiveAp, outerWrapType);
+      if (!stmt || !reachesStraightLine(stmt.parentPath, varScopeBody)) continue;
       out.push({ ap, pos });
     }
     out.sort((a, b) => a.pos - b.pos);
