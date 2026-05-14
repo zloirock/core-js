@@ -110,11 +110,16 @@ export function createPredicateGuards({
   // form yields a single leaf-member candidate from the dotted chain. identifier-form yields
   // the runtime binding plus all ambient overload siblings (TSDeclareFunction headers) so
   // multi-overload predicates - where only one header carries `x is T` - are still found.
-  // ambient list is filtered against the runtime binding to avoid retesting the same node
+  // ambient list is filtered against the runtime binding to avoid retesting the same node.
+  // `unwrapRuntimeExpr` peels ESTree's `ChainExpression`, TS expression wrappers, and
+  // parens in one step; the dedicated-shape branch then matches both `MemberExpression`
+  // and babel's `OptionalMemberExpression` (`obj?.isStr`) - both resolve identically
   function predicateCandidates(callee, scope) {
-    if (callee.type === 'MemberExpression' && !callee.computed
-      && callee.property?.type === 'Identifier') {
-      const result = resolveMemberCallChain(callee, scope);
+    const memberNode = unwrapRuntimeExpr(callee);
+    if ((memberNode?.type === 'MemberExpression' || memberNode?.type === 'OptionalMemberExpression')
+      && !memberNode.computed
+      && memberNode.property?.type === 'Identifier') {
+      const result = resolveMemberCallChain(memberNode, scope);
       if (!result) return [];
       return [{
         fnNode: result.member,
