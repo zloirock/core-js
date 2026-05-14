@@ -1367,7 +1367,7 @@ export function createDestructureEmitter({
           + info.initSrc.slice(offset + (proxyRoot.end - proxyRoot.start));
       }
 
-      function emitPolyfilled(info, parts, deferredSEs) {
+      function emitPolyfilled(info, parts, forInitSESinks) {
         const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
         let initTransformed = (initStart !== undefined && initEnd !== undefined
             ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
@@ -1393,6 +1393,19 @@ export function createDestructureEmitter({
           parts.push(`${ memoPrefix }${ objRef } = ${ initTransformed }`);
         }
 
+        // lift the static-init SE so its evaluation point survives extraction. non-for-init
+        // hosts inline the SE at this declarator's slot in `parts` so sibling evaluation
+        // order (pre-sibling -> SE -> extracted -> post-sibling) is preserved. for-init
+        // can't host statement-level SE (the whole declaration is one comma-list), so the
+        // SE is wrapped as `_unused = SE` and routed through `forInitSESinks` to be
+        // prepended into the comma-list by the outer drain
+        const liftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
+            && mayHaveSideEffects(info.initNode);
+        if (liftSE) {
+          if (isForInit) forInitSESinks.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
+          else parts.push(initTransformed);
+        }
+
         for (const e of entries) {
           const isInstance = e.kind === 'instance' && initSrc;
           const valueSrc = isInstance ? `${ e.binding }(${ objRef })` : e.binding;
@@ -1404,13 +1417,6 @@ export function createDestructureEmitter({
           } else {
             parts.push(`${ stmtPrefix }${ e.localName } = ${ valueSrc }`);
           }
-        }
-
-        if (!hasInstance && !hasRest && remaining.length === 0 && initSrc
-            && mayHaveSideEffects(info.initNode)) {
-          deferredSEs.push(isForInit
-              ? `${ injector.generateLocalRef() } = ${ initTransformed }`
-              : initTransformed);
         }
 
         const entryByProp = hasRest ? new Map(entries.map(e => [e.propNode, e])) : null;
@@ -1430,18 +1436,20 @@ export function createDestructureEmitter({
       }
 
       const parts = [];
-      const deferredSEs = [];
+      // populated only when `isForInit` (the only path that can't inline SE at its slot);
+      // outer drain prepends as synthesized `_unused = SE` declarators into the comma-list
+      const forInitSESinks = [];
       if (isAssignment) {
-        for (const info of infos) emitPolyfilled(info, parts, deferredSEs);
+        for (const info of infos) emitPolyfilled(info, parts, forInitSESinks);
       } else {
         const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
         for (const dec of declPath.node.declarations) {
           const info = polyfilledByDecl.get(dec);
-          if (info) emitPolyfilled(info, parts, deferredSEs);
+          if (info) emitPolyfilled(info, parts, forInitSESinks);
           else parts.push(`${ stmtPrefix }${ nodeSrc(dec) }`);
         }
       }
-      if (deferredSEs.length) parts.unshift(...deferredSEs);
+      if (isForInit && forInitSESinks.length) parts.unshift(...forInitSESinks);
 
       if (isForInit) {
         transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
