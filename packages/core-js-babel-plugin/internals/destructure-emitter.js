@@ -422,6 +422,16 @@ export default function createDestructureEmitter({
       declarator.insertBefore(extractedDeclarator);
       return true;
     }
+    // multi-decl + willRemove + SE prefix: split declaration around the consumed slot so
+    // sibling evaluation order survives. earlier `liftSEPrefixSwap` lifted SE before the
+    // whole declaration; pre-sibling inits (with inline SEs in their initializers) then
+    // ran AFTER the lifted SE - observable when both halves emit effects
+    // (`a=(log('A'),'x'), {Array:{from}}=(log('B'),globalThis)`). no-SE multi-decl flows
+    // through the legacy `declaration.insertBefore` + splice path below to avoid churning
+    // existing fixtures that rely on its shape
+    if (trySplitAroundConsumedDeclarator({
+      declaration, declarator, extractedDeclarator, willRemoveDeclarator, declCount, isForInit,
+    })) return true;
     // declarator-level insert in for-init keeps loop-header shape; declaration-level
     // insert would wrap for-init in an arrow-IIFE and duplicate the bound name inside.
     // for-init can't host external statements either, so SE-prefix lift below is gated
@@ -436,16 +446,12 @@ export default function createDestructureEmitter({
     else {
       const newDecl = t.variableDeclaration(declaration.node.kind, [extractedDeclarator]);
       // lift leading comments from the host onto the FIRST inserted cascade decl. without
-      // this, sibling cascades land split around the original host's comments: the first
-      // visitor's `insertBefore` keeps comments on the host, then the LAST visitor's
-      // `replaceWith` (when its level becomes the willRemoveDeclarator branch) inherits
-      // them - cosmetically the comments appear BETWEEN the cascade emits. lifting on
-      // first emit is idempotent: subsequent inserts find empty leadingComments
-      const lead = declaration.node.leadingComments;
-      if (lead?.length) {
-        newDecl.leadingComments = lead;
-        declaration.node.leadingComments = null;
-      }
+      // this, sibling cascades land split around the original host's comments: first
+      // visitor's `insertBefore` keeps comments on the host, then LAST visitor's
+      // `replaceWith` (when its level becomes willRemoveDeclarator) inherits them -
+      // cosmetically the comments appear BETWEEN cascade emits. idempotent: subsequent
+      // inserts find empty leadingComments
+      liftLeadingComments(declaration.node, newDecl);
       declaration.insertBefore(newDecl);
     }
     if (willRemoveDeclarator && declCount > 1) {
@@ -856,7 +862,7 @@ export default function createDestructureEmitter({
       case STRATEGIES.REPLACE_DECL:
         return replaceWithAndRegister(declaration, extractedDeclaration);
       case STRATEGIES.DEFER_SE_AND_SPLICE:
-        return spliceAndLiftSideEffect({ declaration, parent, localBinding, value, isExport: ctx.isExport });
+        return spliceAndLiftSideEffect({ declaration, parent, localBinding, value });
       case STRATEGIES.DEFER_SE_AND_REPLACE:
         deferSideEffect(declaration, parent.node.init);
         return replaceWithAndRegister(declaration, extractedDeclaration);
@@ -889,8 +895,9 @@ export default function createDestructureEmitter({
   // wrap declarators into VariableDeclaration statements. when any declarator still
   // carries an unconsumed ObjectPattern, keep them grouped so later visitor passes see
   // an intact multi-decl; otherwise emit one statement per declarator. shared by
-  // `trySplitDeclaration` (whole-declaration split) and `spliceAndLiftSideEffect`
-  // (pre/post halves around a lifted SE)
+  // `trySplitDeclaration` (whole-declaration split), `spliceAndLiftSideEffect` (pre/post
+  // halves around a lifted SE in DEFER_SE_AND_SPLICE), and
+  // `splitDeclarationAroundLiftedSE` (nested-proxy SE-prefix lift through a multi-decl)
   function splitDeclarators(decls, kind, isExport) {
     if (!decls.length) return [];
     const groups = decls.some(d => t.isObjectPattern(d.id)) ? [decls] : decls.map(d => [d]);
@@ -900,30 +907,67 @@ export default function createDestructureEmitter({
     });
   }
 
-  // multi-decl destructure-init at consumed slot. with a side-effecting init, split
-  // pre/post around the slot and emit the lifted SE between halves so sibling order
-  // survives (earlier `deferSideEffect` anchored SE at original-declaration body index;
-  // after `trySplitDeclaration` shifted siblings, the lifted SE landed BEFORE
-  // pre-siblings, observable when both halves carry effects). no-SE init flows through
-  // the regular splice-and-split path - planner can't gate this strategy on
-  // `hasSideEffects` without churning every empty + static multi-decl fixture
-  function spliceAndLiftSideEffect({ declaration, parent, localBinding, value, isExport }) {
-    const decls = declaration.node.declarations;
-    const idx = decls.indexOf(parent.node);
-    if (idx === -1) return;
-    const extracted = t.variableDeclarator(localBinding, value);
-    if (!mayHaveSideEffects(parent.node.init)) {
-      decls.splice(idx, 1, extracted);
-      trySplitDeclaration(declaration, isExport);
-      return;
+  // move leading comments from `from` AST node onto `to` (clears them on the source).
+  // shared by cascade insert paths and `splitDeclarationAroundLiftedSE` so the relocated
+  // first statement inherits the host's leading docblock
+  function liftLeadingComments(from, to) {
+    const lead = from.leadingComments;
+    if (lead?.length) {
+      to.leadingComments = lead;
+      from.leadingComments = null;
     }
+  }
+
+  // nested-proxy cascade split gate: fires on multi-decl + willRemove + non-for-init.
+  // peels the consumed declarator's SE prefix (empty array when no SE) and delegates
+  // to the shared `splitDeclarationAtSlot`. for-init / single-decl take legacy paths
+  // (loop-header shape / no siblings to reorder)
+  function trySplitAroundConsumedDeclarator({
+    declaration, declarator, extractedDeclarator, willRemoveDeclarator, declCount, isForInit,
+  }) {
+    if (!willRemoveDeclarator || declCount <= 1 || isForInit) return false;
+    const idx = declaration.node.declarations.indexOf(declarator.node);
+    if (idx === -1) return false;
+    const { prefix } = peelNestedSequenceExpressions(declarator.node.init);
+    splitDeclarationAtSlot({ declaration, idx, sePrefix: prefix, extractedDeclarator });
+    return true;
+  }
+
+  // shared primitive: replace declaration with `[pre-siblings, ...SE expression
+  // statements, extracted + post-siblings]`. `sePrefix` is an array of AST expression
+  // nodes (empty for no-SE callers) - each cloned into a standalone ExpressionStatement
+  // between the pre and post halves so sibling evaluation order survives. consumers:
+  //   - `trySplitAroundConsumedDeclarator` (nested-proxy cascade, pre-peeled SE prefix)
+  //   - `spliceAndLiftSideEffect` (DEFER_SE_AND_SPLICE, single-element SE array or empty)
+  function splitDeclarationAtSlot({ declaration, idx, sePrefix, extractedDeclarator }) {
     const { kind } = declaration.node;
-    const seStmt = t.expressionStatement(t.cloneDeep(trimSideEffectTail(parent.node.init)));
-    declaration.replaceWithMultiple([
+    const isExport = declaration.parentPath?.isExportNamedDeclaration();
+    const decls = declaration.node.declarations;
+    const stmts = [
       ...splitDeclarators(decls.slice(0, idx), kind, isExport),
-      seStmt,
-      ...splitDeclarators([extracted, ...decls.slice(idx + 1)], kind, isExport),
-    ]);
+      ...sePrefix.map(e => t.expressionStatement(t.cloneNode(e))),
+      ...splitDeclarators([extractedDeclarator, ...decls.slice(idx + 1)], kind, isExport),
+    ];
+    if (stmts.length) liftLeadingComments(declaration.node, stmts[0]);
+    declaration.replaceWithMultiple(stmts);
+  }
+
+  // DEFER_SE_AND_SPLICE strategy executor: lift the side-effecting init out of the
+  // consumed slot and split declaration around it. SE init -> single trimmed expression
+  // emitted between pre/post halves; no-SE init -> empty SE prefix (split still
+  // preserves sibling order). earlier `deferSideEffect` anchored SE at original-
+  // declaration body index, so after `trySplitDeclaration` shifted siblings, the lifted
+  // SE landed BEFORE pre-siblings (observable when both halves carry effects)
+  function spliceAndLiftSideEffect({ declaration, parent, localBinding, value }) {
+    const idx = declaration.node.declarations.indexOf(parent.node);
+    if (idx === -1) return;
+    const sePrefix = mayHaveSideEffects(parent.node.init)
+      ? [trimSideEffectTail(parent.node.init)]
+      : [];
+    splitDeclarationAtSlot({
+      declaration, idx, sePrefix,
+      extractedDeclarator: t.variableDeclarator(localBinding, value),
+    });
   }
 
   // AssignmentExpression branch executor. far simpler than the VariableDeclarator path:

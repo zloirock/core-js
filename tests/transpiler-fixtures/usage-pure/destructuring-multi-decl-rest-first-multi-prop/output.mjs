@@ -6,5 +6,5 @@ const includes = _includes(obj),
     includes: _unused,
     ...rest
   } = obj,
-  from = _Array$from,
-  of = _Array$of;
+  from = _Array$from;
+const of = _Array$of;
