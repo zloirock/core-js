@@ -9,7 +9,28 @@ import ImportInjector from '../../packages/core-js-unplugin/internals/import-inj
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
-import { collectAllBindingNames, directivePrologueEnd, lastUserImportEnd, liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import {
+  canFuseWithOpenParen,
+  collectAllBindingNames,
+  directivePrologueEnd,
+  hasCoreJSPureImport,
+  isBodylessStatementBody,
+  isLineTerminator,
+  lastUserImportEnd,
+  liftSfcLangSuffix,
+  NO_REF_NEEDED,
+  skipBlockComment,
+  skipGap,
+  varScopeAnchor,
+  walkAstNodes,
+} from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import {
+  isCallee,
+  isCalleeWrappedInParens,
+  isOutermostOptionalChainMember,
+  unwrapNode,
+  unwrapNodeForMemoize,
+} from '../../packages/core-js-unplugin/internals/emit-utils.js';
 
 const { cyan, green, red } = chalk;
 
@@ -433,8 +454,6 @@ checkSourceMapFileField();
 // offset right after the last directive's source range. Inject point starts there so user
 // directives stay at the head of the file. Stops at the first non-directive statement
 function checkDirectivePrologueEnd() {
-  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-  const programOf = src => parseSync('/x.mjs', src, { sourceType: 'module' }).program;
   const empty = programOf('');
   check('directivePrologueEnd/empty', directivePrologueEnd(empty), 0);
   const noDirective = programOf('foo();');
@@ -457,8 +476,6 @@ checkDirectivePrologueEnd();
 // imports and break the scan. interleaved shapes that mix declarations and code break
 // the scan at the first non-import statement, matching babel-plugin's reorderRefsAfterImports
 function checkLastUserImportEnd() {
-  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-  const programOf = src => parseSync('/x.mjs', src, { sourceType: 'module' }).program;
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
   const tsProgramOf = src => parseSync('/x.ts', src, { sourceType: 'module' }).program;
   // empty body returns null (no anchor)
@@ -1313,6 +1330,474 @@ checkPolyfillContextRejectsCleanly('createPolyfillContext/bigint in additionalPa
   { method: 'usage-pure', package: 'foo', additionalPackages: [1n] });
 checkPolyfillContextRejectsCleanly('createPolyfillContext/circular in additionalPackages',
   { method: 'usage-pure', package: 'foo', additionalPackages: [circular] });
+
+// --- isLineTerminator: ES spec LineTerminator set (LF / CR / LS / PS) ---
+check('isLineTerminator/LF', isLineTerminator('\n'), true);
+check('isLineTerminator/CR', isLineTerminator('\r'), true);
+check('isLineTerminator/LS U+2028', isLineTerminator('\u2028'), true);
+check('isLineTerminator/PS U+2029', isLineTerminator('\u2029'), true);
+check('isLineTerminator/space', isLineTerminator(' '), false);
+check('isLineTerminator/tab', isLineTerminator('\t'), false);
+check('isLineTerminator/empty rejects', isLineTerminator(''), false);
+check('isLineTerminator/NBSP not LT', isLineTerminator('\u00A0'), false);
+
+// --- skipBlockComment: forward-scan past `/* ... */`, returns position after `*/` ---
+// caller has verified `src[p]==='/' && src[p+1]==='*'`; unterminated comment falls back
+// to src.length so upstream raw-text scanners can't infinite-loop on broken source
+check('skipBlockComment/normal', skipBlockComment('/* x */y', 0), 7);
+check('skipBlockComment/empty body', skipBlockComment('/**/a', 0), 4);
+check('skipBlockComment/multi-line', skipBlockComment('/*\n*\n*/z', 0), 7);
+check('skipBlockComment/unterminated -> src.length',
+  skipBlockComment('/* no close', 0), 'no close'.length + '/* '.length);
+check('skipBlockComment/offset-relative scan', skipBlockComment('zz/* y */a', 2), 9);
+
+// --- skipGap: forward-scan past whitespace + line comments + block comments ---
+check('skipGap/no gap', skipGap('foo', 0), 0);
+check('skipGap/spaces only', skipGap('   foo', 0), 3);
+check('skipGap/tabs and newlines', skipGap('\t\n\r foo', 0), 4);
+check('skipGap/line comment', skipGap('// hi\nfoo', 0), 6);
+check('skipGap/line comment hits EOF', skipGap('// hi', 0), 5);
+check('skipGap/block comment', skipGap('/* x */ foo', 0), 8);
+check('skipGap/mixed gap chain', skipGap('  // a\n /* b */\t foo', 0), 17);
+check('skipGap/U+2028 inside gap', skipGap('\u2028foo', 0), 1);
+check('skipGap/U+2029 inside gap', skipGap('\u2029foo', 0), 1);
+check('skipGap/NBSP inside gap', skipGap('\u00A0foo', 0), 1);
+check('skipGap/unterminated block returns src.length',
+  skipGap('/* no close', 0), '/* no close'.length);
+check('skipGap/from offset', skipGap('xx  yy', 2), 4);
+
+// --- canFuseWithOpenParen: prev significant char fuses with `(` per ASI semantics ---
+// `\w` / `"` / `$` / `)` / `/` / `]` / `` ` `` / `}` form a callable / member-access /
+// computed-key / template-tag boundary; `(` after them parses as a CallExpression and
+// breaks any subsequent injection that expects to live on its own statement
+check('canFuseWithOpenParen/identifier end', canFuseWithOpenParen('foo (', 4), true);
+check('canFuseWithOpenParen/digit', canFuseWithOpenParen('a1 (', 3), true);
+check('canFuseWithOpenParen/closing paren', canFuseWithOpenParen('a() (', 4), true);
+check('canFuseWithOpenParen/closing bracket', canFuseWithOpenParen('a[1] (', 5), true);
+check('canFuseWithOpenParen/closing brace', canFuseWithOpenParen('{} (', 3), true);
+check('canFuseWithOpenParen/string end', canFuseWithOpenParen('"x" (', 4), true);
+check('canFuseWithOpenParen/template end', canFuseWithOpenParen('`x` (', 4), true);
+check('canFuseWithOpenParen/start of file', canFuseWithOpenParen('(', 0), false);
+check('canFuseWithOpenParen/only whitespace before', canFuseWithOpenParen('   (', 3), false);
+check('canFuseWithOpenParen/semicolon before', canFuseWithOpenParen('foo; (', 5), false);
+check('canFuseWithOpenParen/skips line comment',
+  canFuseWithOpenParen('foo // tail\n(', 12), true);
+check('canFuseWithOpenParen/skips block comment',
+  canFuseWithOpenParen('foo /* tail */(', 14), true);
+check('canFuseWithOpenParen/block comment hides fuse',
+  canFuseWithOpenParen('; /* foo */ (', 12), false);
+
+// --- hasCoreJSPureImport: fingerprint pre-pass against configured packages ---
+function checkHasPureImport(label, src, packages, expected) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const ast = parseSync('/x.mjs', src, { sourceType: 'module' }).program;
+  check(label, hasCoreJSPureImport(ast, packages), expected);
+}
+checkHasPureImport('hasCoreJSPureImport/match',
+  'import _ from "@core-js/pure/x";\nfoo();', ['@core-js/pure'], true);
+checkHasPureImport('hasCoreJSPureImport/exact-prefix not enough',
+  'import _ from "@core-js/pure";\nfoo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSPureImport/no imports', 'foo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSPureImport/non-matching package',
+  'import _ from "lodash";\nfoo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSPureImport/multiple packages',
+  'import _ from "vendor-pure/y";\nfoo();', ['@core-js/pure', 'vendor-pure'], true);
+checkHasPureImport('hasCoreJSPureImport/relative path mimicking pkg',
+  'import _ from "./vendor/@core-js/pure/x";\nfoo();', ['@core-js/pure'], false);
+// re-export with source is NOT detected: `pureImportSource` matches ImportDeclaration /
+// ExpressionStatement(require()) / VariableDeclaration(...=require()), not
+// ExportNamedDeclaration. fingerprint cares about INPUT module record fetches, not
+// re-exports - if user re-exports from `@core-js/pure`, the original importer chain
+// already had a direct import and would have been flagged there
+checkHasPureImport('hasCoreJSPureImport/re-export with source NOT detected',
+  'export { x } from "@core-js/pure/m";\nfoo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSPureImport/CJS require shape',
+  'const x = require("@core-js/pure/y");\nfoo();', ['@core-js/pure'], true);
+checkHasPureImport('hasCoreJSPureImport/lowercased package match',
+  'import _ from "@CORE-JS/PURE/x";\nfoo();', ['@core-js/pure'], true);
+
+// --- entryToGlobalHint: entry name (sans `core-js/<head>/` prefix) -> global hint ---
+// callers pre-strip `core-js/<bucket>/` (`actual/`, `stable/`, `full/`, etc.); the
+// hint resolver consumes the tail. data-driven index covers acronym globals
+// (URL / DOMException / ...); fallback derives kebab -> Pascal head when entry is
+// `<head>` or `<head>/constructor`. multi-segment entries below the head bail to null
+check('entryToGlobalHint/promise constructor strip',
+  entryToGlobalHint('promise/constructor'), 'Promise');
+check('entryToGlobalHint/array head fallback derives Pascal',
+  entryToGlobalHint('array'), 'Array');
+check('entryToGlobalHint/url acronym from index',
+  entryToGlobalHint('url'), 'URL');
+check('entryToGlobalHint/url-search-params acronym',
+  entryToGlobalHint('url-search-params'), 'URLSearchParams');
+check('entryToGlobalHint/dom-exception acronym',
+  entryToGlobalHint('dom-exception'), 'DOMException');
+check('entryToGlobalHint/multi-segment below head bails',
+  entryToGlobalHint('array/from'), null);
+check('entryToGlobalHint/null entry returns null',
+  entryToGlobalHint(null), null);
+check('entryToGlobalHint/empty string returns null',
+  entryToGlobalHint(''), null);
+
+// --- NO_REF_NEEDED: shapes that don't need a memo `_ref` (already trivially reusable) ---
+check('NO_REF_NEEDED has Identifier', NO_REF_NEEDED.has('Identifier'), true);
+check('NO_REF_NEEDED has ThisExpression', NO_REF_NEEDED.has('ThisExpression'), true);
+check('NO_REF_NEEDED rejects CallExpression', NO_REF_NEEDED.has('CallExpression'), false);
+check('NO_REF_NEEDED rejects MemberExpression', NO_REF_NEEDED.has('MemberExpression'), false);
+
+// --- walkAstNodes: visit-all-descendants walker used by injector subtree scans ---
+function exprOf(src, sourceType = 'module') {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  return parseSync('/x.mjs', src, { sourceType }).program.body[0].expression;
+}
+function checkWalkVisitsAll() {
+  const node = exprOf('foo.bar.baz');
+  const types = [];
+  walkAstNodes({ root: node, visit: n => types.push(n.type) });
+  // depth-first: outer member -> inner member -> root identifier -> property identifiers
+  check('walkAstNodes/visits outer first', types[0], 'MemberExpression');
+  check('walkAstNodes/visits all member nodes', types.filter(t => t === 'MemberExpression').length, 2);
+  check('walkAstNodes/visits all identifier descendants', types.filter(t => t === 'Identifier').length, 3);
+}
+checkWalkVisitsAll();
+
+function checkWalkParentArg() {
+  const node = exprOf('a.b');
+  const seen = [];
+  walkAstNodes({ root: node, visit: (n, parent) => seen.push([n.type, parent?.type ?? null]) });
+  check('walkAstNodes/root has null parent', seen[0][1], null);
+  check('walkAstNodes/descendants have parent', seen[1][1], 'MemberExpression');
+}
+checkWalkParentArg();
+
+function checkWalkSkipsNonNodes() {
+  let count = 0;
+  walkAstNodes({ root: { type: 'X', noise: 42, str: 's', bool: true, nil: null },
+    visit: () => count++ });
+  check('walkAstNodes/visits leaf node only', count, 1);
+  walkAstNodes({ root: null, visit: () => count++ });
+  walkAstNodes({ root: 'string', visit: () => count++ });
+  walkAstNodes({ root: { /* no type */ }, visit: () => count++ });
+  check('walkAstNodes/no-op on null/non-object/typeless', count, 1);
+}
+checkWalkSkipsNonNodes();
+
+function checkWalkDepthCap() {
+  // build pathologically nested AST 1500 levels deep - walker bails at 1024 to bound CPU
+  let nested = { type: 'L', child: null };
+  for (let i = 0; i < 1500; i++) nested = { type: 'L', child: nested };
+  let count = 0;
+  walkAstNodes({ root: nested, visit: () => count++ });
+  check('walkAstNodes/depth cap at 1024', count, 1024);
+}
+checkWalkDepthCap();
+
+// --- varScopeAnchor: anchor for `var _ref;` insertion at function/block scope ---
+function programOf(src, sourceType = 'module') {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  return parseSync('/x.mjs', src, { sourceType }).program;
+}
+function checkVarScopeAnchor() {
+  // BlockStatement: insertPos is `{` + 1 (open-brace position + 1)
+  const [block] = programOf('{ a; b; }').body;
+  const blockAnchor = varScopeAnchor(block, '{ a; b; }');
+  check('varScopeAnchor/BlockStatement statements ref', blockAnchor?.statements, block.body);
+  check('varScopeAnchor/BlockStatement insertPos after {', blockAnchor?.insertPos, block.start + 1);
+
+  // StaticBlock: insertPos skips `static` keyword + whitespace + comments before `{`
+  const [cls] = programOf('class C { static /* x */ { a; } }').body;
+  const [sb] = cls.body.body;
+  const code = 'class C { static /* x */ { a; } }';
+  const sbAnchor = varScopeAnchor(sb, code);
+  check('varScopeAnchor/StaticBlock statements', sbAnchor?.statements, sb.body);
+  check('varScopeAnchor/StaticBlock insertPos after { past comment',
+    code[sbAnchor.insertPos - 1], '{');
+
+  // non-anchor shapes return null - plugin walks past them
+  check('varScopeAnchor/Identifier returns null', varScopeAnchor({ type: 'Identifier', name: 'x' }, 'x'), null);
+  check('varScopeAnchor/IfStatement returns null',
+    varScopeAnchor({ type: 'IfStatement', body: null }, 'if (x);'), null);
+}
+checkVarScopeAnchor();
+
+// --- isBodylessStatementBody: is this path the body slot of an if/loop/arrow? ---
+// path stubs mirror the `node` / `parentPath.node` shape the helper uses. NOTE: the
+// helper passes the (parent.node, node) pair to `isBodylessStatementSlot` without an
+// extra BlockStatement gate - so a BlockStatement IN a body slot returns true. real
+// callers (destructure-emitter) pass declaration paths INSIDE the BlockStatement,
+// whose parent is the BlockStatement itself (not a body-slot host), so the false case
+// arises naturally there
+function checkIsBodylessStatementBody() {
+  // unbraced single-statement consequent: `if (cond) call();` - call is body slot of if
+  const [ifStmt] = programOf('if (cond) call();').body;
+  const callPath = { node: ifStmt.consequent, parentPath: { node: ifStmt } };
+  check('isBodylessStatementBody/unbraced if consequent', isBodylessStatementBody(callPath), true);
+
+  // a polyfill-target sitting INSIDE the BlockStatement has parent=BlockStatement (not
+  // IfStatement) - BlockStatement is not a body-slot host type, so returns false. this
+  // is the real usage path - destructure-emitter passes the declaration path inside the
+  // block, not the BlockStatement itself
+  const [ifBraced] = programOf('if (cond) { call(); }').body;
+  const [stmtInsideBlock] = ifBraced.consequent.body;
+  const insidePath = { node: stmtInsideBlock, parentPath: { node: ifBraced.consequent } };
+  check('isBodylessStatementBody/stmt inside BlockStatement', isBodylessStatementBody(insidePath), false);
+
+  // bodyless else clause: `if(c) a(); else b();` - else slot is also body-slot of IfStatement
+  const [ifElse] = programOf('if (c) a(); else b();').body;
+  const elsePath = { node: ifElse.alternate, parentPath: { node: ifElse } };
+  check('isBodylessStatementBody/unbraced else alternate', isBodylessStatementBody(elsePath), true);
+
+  // unbraced while body
+  const [whileStmt] = programOf('while (c) call();').body;
+  const whileBody = { node: whileStmt.body, parentPath: { node: whileStmt } };
+  check('isBodylessStatementBody/while body', isBodylessStatementBody(whileBody), true);
+
+  // null parent path returns false (defensive)
+  check('isBodylessStatementBody/no parentPath returns false',
+    isBodylessStatementBody({ node: ifStmt.consequent, parentPath: null }), false);
+}
+checkIsBodylessStatementBody();
+
+// --- emit-utils.unwrapNode: peel parens / chain / TS wrappers down to semantic core ---
+function checkUnwrapNode() {
+  // bare node passes through
+  const ident = { type: 'Identifier', name: 'x' };
+  check('unwrapNode/Identifier passes through', unwrapNode(ident), ident);
+
+  // ParenthesizedExpression peeled
+  const inner = { type: 'Identifier', name: 'y' };
+  check('unwrapNode/ParenthesizedExpression peeled',
+    unwrapNode({ type: 'ParenthesizedExpression', expression: inner }), inner);
+
+  // ChainExpression peeled
+  check('unwrapNode/ChainExpression peeled',
+    unwrapNode({ type: 'ChainExpression', expression: inner }), inner);
+
+  // TSAsExpression / TSNonNullExpression / TSSatisfiesExpression peeled
+  check('unwrapNode/TSAsExpression peeled',
+    unwrapNode({ type: 'TSAsExpression', expression: inner }), inner);
+  check('unwrapNode/TSNonNullExpression peeled',
+    unwrapNode({ type: 'TSNonNullExpression', expression: inner }), inner);
+  check('unwrapNode/TSSatisfiesExpression peeled',
+    unwrapNode({ type: 'TSSatisfiesExpression', expression: inner }), inner);
+
+  // stacked wrappers all peel
+  const stacked = { type: 'ParenthesizedExpression',
+    expression: { type: 'TSAsExpression',
+      expression: { type: 'ChainExpression', expression: inner } } };
+  check('unwrapNode/stacked Paren+TS+Chain peeled', unwrapNode(stacked), inner);
+
+  // null / undefined safe
+  check('unwrapNode/null', unwrapNode(null), null);
+  check('unwrapNode/undefined', unwrapNode(undefined), undefined);
+}
+checkUnwrapNode();
+
+// --- emit-utils.unwrapNodeForMemoize: peel parens/chain ONLY (TS wrappers kept) ---
+function checkUnwrapNodeForMemoize() {
+  const inner = { type: 'Identifier', name: 'z' };
+  check('unwrapNodeForMemoize/ParenthesizedExpression peeled',
+    unwrapNodeForMemoize({ type: 'ParenthesizedExpression', expression: inner }), inner);
+  check('unwrapNodeForMemoize/ChainExpression peeled',
+    unwrapNodeForMemoize({ type: 'ChainExpression', expression: inner }), inner);
+  // TS wrappers retained - mirrors babel `isSafeToReuse` precedent
+  const tsWrap = { type: 'TSAsExpression', expression: inner };
+  check('unwrapNodeForMemoize/TSAsExpression NOT peeled', unwrapNodeForMemoize(tsWrap), tsWrap);
+  // null safe
+  check('unwrapNodeForMemoize/null', unwrapNodeForMemoize(null), null);
+}
+checkUnwrapNodeForMemoize();
+
+// --- emit-utils.isCallee: parent is Call/New with `node` as callee (through wrappers) ---
+function checkIsCallee() {
+  const ident = { type: 'Identifier', name: 'fn' };
+  const callDirect = { type: 'CallExpression', callee: ident };
+  check('isCallee/CallExpression direct', isCallee(ident, callDirect), true);
+
+  const newDirect = { type: 'NewExpression', callee: ident };
+  check('isCallee/NewExpression direct', isCallee(ident, newDirect), true);
+
+  // through TS wrapper - unwrapNode peels
+  const callThroughTS = { type: 'CallExpression',
+    callee: { type: 'TSAsExpression', expression: ident } };
+  check('isCallee/through TSAsExpression', isCallee(ident, callThroughTS), true);
+
+  // not callee: parent is member access, not call
+  const memberParent = { type: 'MemberExpression', object: ident };
+  check('isCallee/MemberExpression NOT callee', isCallee(ident, memberParent), false);
+
+  // mismatched callee
+  const otherIdent = { type: 'Identifier', name: 'fn2' };
+  const callOther = { type: 'CallExpression', callee: otherIdent };
+  check('isCallee/different callee', isCallee(ident, callOther), false);
+
+  // null parent
+  check('isCallee/null parent', isCallee(ident, null), false);
+}
+checkIsCallee();
+
+// --- emit-utils.isCalleeWrappedInParens: any paren between parent.callee and node ---
+function checkIsCalleeWrappedInParens() {
+  const node = { type: 'OptionalMemberExpression', name: 'leaf' };
+
+  // direct - no paren
+  const direct = { callee: node };
+  check('isCalleeWrappedInParens/direct callee no paren', isCalleeWrappedInParens(direct, node), false);
+
+  // paren wraps node
+  const paren = { callee: { type: 'ParenthesizedExpression', expression: node } };
+  check('isCalleeWrappedInParens/paren wraps node', isCalleeWrappedInParens(paren, node), true);
+
+  // TS wrapping paren wrapping node
+  const tsThenParen = { callee: { type: 'TSAsExpression',
+    expression: { type: 'ParenthesizedExpression', expression: node } } };
+  check('isCalleeWrappedInParens/TS then paren', isCalleeWrappedInParens(tsThenParen, node), true);
+
+  // TS only, no paren
+  const tsOnly = { callee: { type: 'TSNonNullExpression', expression: node } };
+  check('isCalleeWrappedInParens/TS only no paren', isCalleeWrappedInParens(tsOnly, node), false);
+
+  // null parent
+  check('isCalleeWrappedInParens/null parent', isCalleeWrappedInParens(null, node), false);
+
+  // node not callee at all
+  const unrelated = { callee: { type: 'Identifier', name: 'other' } };
+  check('isCalleeWrappedInParens/node not under callee', isCalleeWrappedInParens(unrelated, node), false);
+}
+checkIsCalleeWrappedInParens();
+
+// --- emit-utils.isOutermostOptionalChainMember: path-aware chain-boundary detection ---
+function checkIsOutermostOptionalChainMember() {
+  const leaf = { type: 'OptionalMemberExpression' };
+
+  // direct child of ChainExpression
+  const chainPath = { node: leaf, parentPath: { node: { type: 'ChainExpression' } } };
+  check('isOutermostOptionalChainMember/direct chain child', isOutermostOptionalChainMember(chainPath), true);
+
+  // wrapped via CallExpression-with-leaf-as-callee then ChainExpression (instance-call shape)
+  const callPath = {
+    node: leaf,
+    parentPath: {
+      node: { type: 'CallExpression', callee: leaf },
+      parentPath: { node: { type: 'ChainExpression' } },
+    },
+  };
+  check('isOutermostOptionalChainMember/wrapped through call', isOutermostOptionalChainMember(callPath), true);
+
+  // through TS wrapper before chain
+  const tsPath = {
+    node: leaf,
+    parentPath: {
+      node: { type: 'TSAsExpression' },
+      parentPath: { node: { type: 'ChainExpression' } },
+    },
+  };
+  check('isOutermostOptionalChainMember/through TS wrapper', isOutermostOptionalChainMember(tsPath), true);
+
+  // not in chain - parent is statement
+  const stmtPath = { node: leaf, parentPath: { node: { type: 'ExpressionStatement' } } };
+  check('isOutermostOptionalChainMember/non-chain context',
+    isOutermostOptionalChainMember(stmtPath), false);
+
+  // null path
+  check('isOutermostOptionalChainMember/null path',
+    isOutermostOptionalChainMember(null), false);
+}
+checkIsOutermostOptionalChainMember();
+
+// --- SnapshotCache lifecycle: store -> take chains, miss-after-take, invalidate cycles ---
+// take() consumes the entry (last-write-wins HMR semantic) and returns `entry ?? null`
+function checkSnapshotStoreTakeRoundTrip() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  check('SnapshotCache/store+take returns payload', cache.take('/a.js')?.v, 1);
+  // single-shot: after take, next take is null (entry consumed)
+  check('SnapshotCache/take consumes entry', cache.take('/a.js'), null);
+}
+checkSnapshotStoreTakeRoundTrip();
+
+function checkSnapshotMissBeforeStore() {
+  const cache = new SnapshotCache();
+  check('SnapshotCache/miss before store returns null', cache.take('/never-seen.js'), null);
+}
+checkSnapshotMissBeforeStore();
+
+function checkSnapshotMultipleFilesIsolation() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { tag: 'A' });
+  cache.store('/b.js', { tag: 'B' });
+  check('SnapshotCache/multi-file/size after 2 stores', cache.size(), 2);
+  check('SnapshotCache/multi-file/a take', cache.take('/a.js')?.tag, 'A');
+  check('SnapshotCache/multi-file/b take', cache.take('/b.js')?.tag, 'B');
+  check('SnapshotCache/multi-file/a re-take is null', cache.take('/a.js'), null);
+  check('SnapshotCache/multi-file/size after both taken', cache.size(), 0);
+}
+checkSnapshotMultipleFilesIsolation();
+
+function checkSnapshotOverwrite() {
+  // store followed by store at same id: second overwrites first (HMR semantic)
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  cache.store('/a.js', { v: 2 });
+  check('SnapshotCache/overwrite/second store wins', cache.take('/a.js')?.v, 2);
+}
+checkSnapshotOverwrite();
+
+function checkSnapshotInvalidateLifecycle() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  // invalidate returns true when entry existed
+  check('SnapshotCache/invalidate hit returns true', cache.invalidate('/a.js'), true);
+  check('SnapshotCache/post-invalidate take is null', cache.take('/a.js'), null);
+  // invalidate miss returns false
+  check('SnapshotCache/invalidate miss returns false', cache.invalidate('/never-seen.js'), false);
+}
+checkSnapshotInvalidateLifecycle();
+
+function checkSnapshotReset() {
+  const cache = new SnapshotCache();
+  cache.store('/a.js', { v: 1 });
+  cache.store('/b.js', { v: 2 });
+  cache.reset();
+  check('SnapshotCache/reset clears all', cache.size(), 0);
+  check('SnapshotCache/post-reset take is null', cache.take('/a.js'), null);
+}
+checkSnapshotReset();
+
+// takeWithParse: dev-server fast-path - reuse pre's AST when post-input byte-matches.
+// covers `applyTransforms`' parse-cache check so post avoids re-parsing pre's input
+function checkSnapshotTakeWithParseMiss() {
+  const cache = new SnapshotCache();
+  const result = cache.takeWithParse('/a.js', 'foo();');
+  check('takeWithParse/miss snapshot null', result.snapshot, null);
+  check('takeWithParse/miss ast null', result.ast, null);
+  check('takeWithParse/miss comments null', result.comments, null);
+}
+checkSnapshotTakeWithParseMiss();
+
+function checkSnapshotTakeWithParseReuse() {
+  const cache = new SnapshotCache();
+  const fakeAst = { type: 'Program', body: [] };
+  const fakeComments = [];
+  const snap = { signal: 'ok' };
+  cache.store('/a.js', { snapshot: snap, ast: fakeAst, comments: fakeComments, postInput: 'foo();' });
+  const result = cache.takeWithParse('/a.js', 'foo();');
+  check('takeWithParse/reuse same bytes -> snapshot returned', result.snapshot, snap);
+  check('takeWithParse/reuse same bytes -> ast cached', result.ast, fakeAst);
+  check('takeWithParse/reuse same bytes -> comments cached', result.comments, fakeComments);
+}
+checkSnapshotTakeWithParseReuse();
+
+function checkSnapshotTakeWithParseMismatch() {
+  // sibling plugin mutated text between pre and post: snapshot survives, parse-cache invalidated
+  const cache = new SnapshotCache();
+  const snap = { signal: 'ok' };
+  cache.store('/a.js', { snapshot: snap, ast: { type: 'Program' }, comments: [], postInput: 'before' });
+  const result = cache.takeWithParse('/a.js', 'after');
+  check('takeWithParse/mismatch snapshot kept', result.snapshot, snap);
+  check('takeWithParse/mismatch ast invalidated', result.ast, null);
+  check('takeWithParse/mismatch comments invalidated', result.comments, null);
+}
+checkSnapshotTakeWithParseMismatch();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
