@@ -109,6 +109,7 @@
     "@babel/plugin-transform-shorthand-properties": "^7.29.7",
     "@babel/plugin-transform-spread": "^7.29.7",
     "@babel/plugin-transform-template-literals": "^7.29.7",
+    "@babel/plugin-transform-typescript": "^7.29.7",
     "@babel/plugin-transform-unicode-regex": "^7.29.7",
     "konan": "^2.1.1",
     "npm-run-all2": "^9.0.2",
