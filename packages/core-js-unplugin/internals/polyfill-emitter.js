@@ -321,15 +321,52 @@ export function createPolyfillEmitter({
   }
 
   // does guard ternary need () to preserve correct precedence?
+  // walks past `ChainExpression` (transparent) and `TS_EXPR_WRAPPERS` (`as` / `satisfies`
+  // / `!` / parens) to find the semantic outer context. four wrap-triggering conditions:
+  //   1. crossed a TS wrapper AND chain was terminated (different / no enclosing
+  //      ChainExpression vs metaPath's) - TS suffix binds tighter than `?:`, so without
+  //      parens `cond ? a : b as T` would apply the wrapper to the falsy branch only.
+  //      same-chain skip: `arr?.b!.m()` keeps `.m()` inside the chain, wrapping would
+  //      prematurely terminate it
+  //   2. outer parent (after walk-past) needs guard parens by precedence table
+  //      (binary / logical / unary / etc.) - listed in `NEEDS_GUARD_PARENS`
+  //   3. outer is a ConditionalExpression test slot - parens isolate the ternary from
+  //      the surrounding `?:`
+  //   4. source has `?.` continuation right after the replaced span - parens prevent
+  //      runaway chain extension into the replacement
   function guardNeedsParens({ metaPath, isCall, start, end }) {
     let outer = (isCall ? metaPath.parentPath : metaPath)?.parentPath;
+    let throughTS = false;
     while (outer?.node && (outer.node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(outer.node.type))) {
+      if (TS_EXPR_WRAPPERS.has(outer.node.type)) throughTS = true;
       outer = outer.parentPath;
     }
+    if (throughTS && !sharesChainExpression(metaPath, outer)) return true;
     if (NEEDS_GUARD_PARENS.has(outer?.node?.type)) return true;
     if (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === end) return true;
     const p = skipGap(code, end);
     return code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end);
+  }
+
+  // two paths share a ChainExpression iff their closest enclosing ChainExpression
+  // ancestor is the SAME AST node. used to decide whether a TS-wrapper crossing breaks
+  // the optional-chain semantics or sits within it. paren-terminated chains have no
+  // enclosing ChainExpression on the outer side; multi-chain shapes (`(... as T)?.b`)
+  // have different ChainExpression ancestors for inner and outer
+  function sharesChainExpression(a, b) {
+    const chainA = findEnclosingChainExpression(a);
+    return chainA !== null && chainA === findEnclosingChainExpression(b);
+  }
+
+  // walk up the ancestry looking for the closest enclosing `ChainExpression` AST node.
+  // returns the node (not the path) for identity comparison via `sharesChainExpression`
+  function findEnclosingChainExpression(path) {
+    let cur = path?.parentPath;
+    while (cur?.node) {
+      if (cur.node.type === 'ChainExpression') return cur.node;
+      cur = cur.parentPath;
+    }
+    return null;
   }
 
   // build replacement, wrap guard if needed, add to transform queue
