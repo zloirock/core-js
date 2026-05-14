@@ -7,15 +7,15 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // substitution
 var from = _Array$from;
 var cls = class {
-    globalThis() {
-      return 1;
-    }
-  },
-  obj = {
-    globalThis: 1
-  },
-  member = {}.globalThis,
-  ref = _globalThis;
+  globalThis() {
+    return 1;
+  }
+};
+var obj = {
+  globalThis: 1
+};
+var member = {}.globalThis;
+var ref = _globalThis;
 from([1]);
 cls;
 obj;
