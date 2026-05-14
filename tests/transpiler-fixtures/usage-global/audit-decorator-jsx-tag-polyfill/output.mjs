@@ -14,8 +14,6 @@ import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.function.metadata";
-import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
 // JSX inside decorator expressions (`@(<Map/>) class C {}`). unplugin's decorator
 // walker previously had no JSXIdentifier visitor, so embedded JSX tag-names did not
