@@ -89,15 +89,26 @@ export function createTypeAnnotationResolve({
     return typesEqualLocal(a, b) && innersEqualLocal(a.inner, b.inner);
   }
 
+  // oxc preserves `(A | B)` as TSParenthesizedType around the union (babel strips during
+  // parsing). peel before pattern-matching on TSUnionType, otherwise paren-wrapped unions
+  // land in single-member fallback and lose distribution. inline loop (not the factory
+  // helper) keeps this cluster's service-object surface stable
+  function peelParens(node) {
+    while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
+    return node;
+  }
+
   function resolveExtractExclude({ first, second, scope, depth, keep, typeParamMap, seen }) {
     const resolve = node => resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
     const target = resolve(second);
     if (!target) return null;
-    let unwrapped = unwrapTypeAnnotation(first);
+    let unwrapped = peelParens(unwrapTypeAnnotation(first));
     if (!unwrapped) return null;
-    // capture subst so generic union members (`type Foo<T> = T | string`) keep their bindings
+    // capture subst so generic union members (`type Foo<T> = T | string`) keep their bindings.
+    // alias targets may themselves be paren-wrapped (`type Mixed = (A | B)`); peel again
     const { node: aliasTarget, subst } = followTypeAliasChain(unwrapped, scope);
-    if (aliasTarget) unwrapped = aliasTarget;
+    if (aliasTarget) unwrapped = peelParens(aliasTarget);
+    if (!unwrapped) return null;
     const types = unwrapped.type === 'TSUnionType' || unwrapped.type === 'UnionTypeAnnotation' ? unwrapped.types : [unwrapped];
     let result = null;
     let anyKept = false;
