@@ -289,8 +289,15 @@ const SKIP_DIRS = new Set([
   'audit-late-cjs-rewriter-warning',
 ]);
 
-function shouldSkip(dirName) {
-  return SKIP_DIRS.has(dirName) || dirName.includes('-flow-') || dirName.startsWith('flow-');
+// flow language fixtures: oxc-parser doesn't support Flow syntax, so unplugin can't run
+// them. detection routes through the explicit `flow` parser plugin in options.json -
+// earlier name-based heuristic (`dirName.includes('-flow-')`) over-skipped unrelated
+// audit fixtures whose names merely mention `flow` (e.g. `*-control-flow-bail`,
+// `*-flow-multi-hop`, `*-flow-segments`), all of which actually parse as TS or vanilla JS
+function shouldSkip(dirName, babelOptions) {
+  if (SKIP_DIRS.has(dirName)) return true;
+  const plugins = babelOptions?.parserOpts?.plugins ?? [];
+  return plugins.some(p => (typeof p === 'string' ? p : p?.[0]) === 'flow');
 }
 
 async function runErrorFixture(directory, pluginOptions, errorFile) {
@@ -393,14 +400,14 @@ function compareMainOutput({ directory, actual, babelOutput, method, hasUnplugin
 async function runFixture(directory) {
   const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
   const hasUnpluginOutput = await exists(unpluginOutputFile);
+  const babelOptions = await loadBabelOptions(directory);
 
-  if (shouldSkip(path.basename(directory))) {
+  if (shouldSkip(path.basename(directory), babelOptions)) {
     if (hasUnpluginOutput) return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in skipped fixture`);
     counts.skipped++;
     return;
   }
 
-  const babelOptions = await loadBabelOptions(directory);
   if (!babelOptions) {
     counts.skipped++;
     return;
