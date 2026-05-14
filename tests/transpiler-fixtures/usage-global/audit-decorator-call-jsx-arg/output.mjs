@@ -8,8 +8,6 @@ import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.function.metadata";
-import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
 // Decorator-call shape (`@wrap(<Map />)`) - decorator IS a call expression whose argument
 // is a JSX element. without `decoratorVisitors.JSXIdentifier`, the Map tag-name inside
