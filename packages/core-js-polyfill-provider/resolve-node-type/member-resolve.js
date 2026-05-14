@@ -31,7 +31,7 @@
 import { MAX_DEPTH, $Primitive } from './base.js';
 import { collectQualifiedSegments, isQualifiedNameNode } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 
 export function createMemberResolve({
   t,
@@ -82,8 +82,12 @@ export function createMemberResolve({
   // missing root binding, or unresolvable intermediate hop
   function resolveMemberCallChain(callee, scope) {
     const props = [];
-    let node = callee;
-    while (node?.type === 'MemberExpression' && !node.computed && node.property?.type === 'Identifier') {
+    // peel ESTree `ChainExpression` / TS wrappers / parens at entry; intermediate hops
+    // need explicit handling - both `MemberExpression` and babel's `OptionalMemberExpression`
+    // share `object`/`property`/`computed` slots and resolve to the same member chain
+    let node = unwrapRuntimeExpr(callee);
+    while ((node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
+      && !node.computed && node.property?.type === 'Identifier') {
       props.push(node.property.name);
       node = node.object;
     }
