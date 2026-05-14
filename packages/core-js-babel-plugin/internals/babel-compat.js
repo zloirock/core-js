@@ -192,9 +192,12 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // directly - Babel's path references become stale after replaceWith and the two-step
     // replace-then-wrap approach loses the guard. for normal chains (no TS wrapper),
     // use the two-step approach so normalizeOptionalChain correctly lifts the guard
-    // past chain continuations like .valueOf()
+    // past chain continuations like .valueOf(). `embedGuard` may pair with `check=null`
+    // when `extractCheck` peeled a TS wrapper but `skipOptional` skipped the chainStart
+    // (no memoize, no check) - emit plain `result` to avoid `wrapConditional(null,...)`
+    // synthesising an invalid `null == null` BinaryExpression
     if (embedGuard) {
-      replacePath.replaceWith(wrapConditional(check, result));
+      replacePath.replaceWith(check ? wrapConditional(check, result) : result);
       normalizeOptionalChain(replacePath);
     } else {
       replacePath.replaceWith(result);
