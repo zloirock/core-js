@@ -6,7 +6,7 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // `!check.primitive && extend.primitive -> return false` (generic; subsumes the never case).
 // without this rule, heterogeneous fold over trueBranch=Promise and falseBranch=Array
 // collapses to commonType (Object) and loses narrow Array hint. with the rule: deterministic
-// falseBranch pick → resolver walks T = number[] → narrow Array dispatch
+// falseBranch pick -> resolver walks T = number[] -> narrow Array dispatch
 type Wrap<T> = T extends string ? Promise<number> : T;
 declare const r: Wrap<number[]>;
 _atMaybeArray(r).call(r, 0);
