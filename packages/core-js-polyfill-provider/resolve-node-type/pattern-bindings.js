@@ -375,6 +375,13 @@ export function createPatternBindings({
       // -1 = rest element, always Array
       if (step < 0) return new $Object('Array');
       if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
+      // any spread at or before the target index shifts subsequent positions to a runtime-
+      // determined slot - `[...spread, 'x'][1]` resolves to spread[1] OR 'x' depending on
+      // spread.length. mirror `resolveArrayLiteralElement`'s spread-guard so this nested
+      // path matches the top-level extraction semantics
+      for (let i = 0; i <= step; i++) {
+        if (objPath.node.elements[i]?.type === 'SpreadElement') return null;
+      }
       return resolveObjectMemberPath(resolveRuntimeExpression(objPath.get('elements')[step]), rest);
     }
     if (!t.isObjectExpression(objPath.node)) return null;
