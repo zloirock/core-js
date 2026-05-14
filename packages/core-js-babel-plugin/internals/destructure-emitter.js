@@ -645,11 +645,7 @@ export default function createDestructureEmitter({
   // split multi-declarator VariableDeclaration into separate statements when all patterns resolved
   function trySplitDeclaration(declaration, isExport) {
     if (declaration.node.declarations.some(d => t.isObjectPattern(d.id))) return;
-    const { kind } = declaration.node;
-    const stmts = declaration.node.declarations.map(d => isExport
-      ? t.exportNamedDeclaration(t.variableDeclaration(kind, [d]))
-      : t.variableDeclaration(kind, [d]));
-    declaration.replaceWithMultiple(stmts);
+    declaration.replaceWithMultiple(splitDeclarators(declaration.node.declarations, declaration.node.kind, isExport));
   }
 
   // bodyless control statement with side-effect: wrap in block to keep scope.
@@ -658,12 +654,20 @@ export default function createDestructureEmitter({
   // that babel's path tracker mishandles. expensive (deep walk) but bounded by init AST size.
   // deliberately keeps the trailing value of `(se(), Array)` uncut (unlike `deferSideEffect`'s
   // `trimSideEffectTail`) - existing fixtures encode the full sequence as a signal that the
-  // block came from a destructure-init extraction
-  function wrapBodylessWithSideEffect(declaration, initNode, extractedDeclaration) {
-    declaration.replaceWith(t.blockStatement([
-      t.expressionStatement(t.cloneDeep(initNode)),
-      extractedDeclaration,
-    ]));
+  // block came from a destructure-init extraction.
+  // multi-decl host (`var a=1, {p}=SE(), b=2`): sibling declarators preserve their original
+  // position around the consumed slot. pre-siblings run before the lifted SE, post-siblings
+  // after the extracted target. earlier collapsed-trailing emission silently reordered
+  // pre-sibling initializers past the SE expression, observable when both sides carry effects
+  function wrapBodylessWithSideEffect({ declaration, initNode, parentDeclarator, extractedDeclaration }) {
+    const decls = declaration.node.declarations;
+    const idx = decls.indexOf(parentDeclarator);
+    const { kind } = declaration.node;
+    const stmts = [];
+    if (idx > 0) stmts.push(t.variableDeclaration(kind, decls.slice(0, idx)));
+    stmts.push(t.expressionStatement(t.cloneDeep(initNode)), extractedDeclaration);
+    if (idx < decls.length - 1) stmts.push(t.variableDeclaration(kind, decls.slice(idx + 1)));
+    declaration.replaceWith(t.blockStatement(stmts));
   }
 
   // for-init with SE: keep SE inline so it doesn't escape the loop.
@@ -832,7 +836,12 @@ export default function createDestructureEmitter({
     const strategy = planDestructureEmission(ctx);
     switch (strategy) {
       case STRATEGIES.WRAP_BODYLESS_SE:
-        return wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
+        return wrapBodylessWithSideEffect({
+          declaration,
+          initNode: parent.node.init,
+          parentDeclarator: parent.node,
+          extractedDeclaration,
+        });
       case STRATEGIES.FOR_INIT_SE_STATIC:
       case STRATEGIES.FOR_INIT_SE_INSTANCE:
         return handleForInitSE({
@@ -847,11 +856,7 @@ export default function createDestructureEmitter({
       case STRATEGIES.REPLACE_DECL:
         return replaceWithAndRegister(declaration, extractedDeclaration);
       case STRATEGIES.DEFER_SE_AND_SPLICE:
-        deferSideEffect(declaration, parent.node.init);
-        // earlier extractions from sibling props are already spliced in-line; swap the
-        // now-empty parent declarator for the final one, then split mixed export runs
-        spliceDeclaratorAndSplit({ declaration, parentNode: parent.node, localBinding, value, isExport: ctx.isExport });
-        return undefined;
+        return spliceAndLiftSideEffect({ declaration, parent, localBinding, value, isExport: ctx.isExport });
       case STRATEGIES.DEFER_SE_AND_REPLACE:
         deferSideEffect(declaration, parent.node.init);
         return replaceWithAndRegister(declaration, extractedDeclaration);
@@ -879,6 +884,46 @@ export default function createDestructureEmitter({
     const idx = declaration.node.declarations.indexOf(parentNode);
     if (idx !== -1) declaration.node.declarations.splice(idx, 1, t.variableDeclarator(localBinding, value));
     trySplitDeclaration(declaration, isExport);
+  }
+
+  // wrap declarators into VariableDeclaration statements. when any declarator still
+  // carries an unconsumed ObjectPattern, keep them grouped so later visitor passes see
+  // an intact multi-decl; otherwise emit one statement per declarator. shared by
+  // `trySplitDeclaration` (whole-declaration split) and `spliceAndLiftSideEffect`
+  // (pre/post halves around a lifted SE)
+  function splitDeclarators(decls, kind, isExport) {
+    if (!decls.length) return [];
+    const groups = decls.some(d => t.isObjectPattern(d.id)) ? [decls] : decls.map(d => [d]);
+    return groups.map(g => {
+      const decl = t.variableDeclaration(kind, g);
+      return isExport ? t.exportNamedDeclaration(decl) : decl;
+    });
+  }
+
+  // multi-decl destructure-init at consumed slot. with a side-effecting init, split
+  // pre/post around the slot and emit the lifted SE between halves so sibling order
+  // survives (earlier `deferSideEffect` anchored SE at original-declaration body index;
+  // after `trySplitDeclaration` shifted siblings, the lifted SE landed BEFORE
+  // pre-siblings, observable when both halves carry effects). no-SE init flows through
+  // the regular splice-and-split path - planner can't gate this strategy on
+  // `hasSideEffects` without churning every empty + static multi-decl fixture
+  function spliceAndLiftSideEffect({ declaration, parent, localBinding, value, isExport }) {
+    const decls = declaration.node.declarations;
+    const idx = decls.indexOf(parent.node);
+    if (idx === -1) return;
+    const extracted = t.variableDeclarator(localBinding, value);
+    if (!mayHaveSideEffects(parent.node.init)) {
+      decls.splice(idx, 1, extracted);
+      trySplitDeclaration(declaration, isExport);
+      return;
+    }
+    const { kind } = declaration.node;
+    const seStmt = t.expressionStatement(t.cloneDeep(trimSideEffectTail(parent.node.init)));
+    declaration.replaceWithMultiple([
+      ...splitDeclarators(decls.slice(0, idx), kind, isExport),
+      seStmt,
+      ...splitDeclarators([extracted, ...decls.slice(idx + 1)], kind, isExport),
+    ]);
   }
 
   // AssignmentExpression branch executor. far simpler than the VariableDeclarator path:
