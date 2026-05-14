@@ -318,21 +318,26 @@ export function createDestructureEmitter({
   }
 
   // lift extracted-declarator SE prefixes (`(logCall(), globalThis)` -> standalone
-  // `logCall();` statements before the flattened decl). non-extracted siblings keep their
-  // SE prefixes verbatim through `nodeSrc` (lifting both would double-execute).
-  // `pendingRefSplices` come from `bakePendingSplicesIntoPreserved` when the declarator was
-  // fully consumed: scope-tracker drained `var _ref;` inserts anchored inside the discarded
-  // init. those splices typically anchor inside an SE-prefix IIFE's arrow body and get
-  // baked into the lifted SE text here so the `_ref` declaration survives next to its uses
-  function liftExtractedSEPrefixes(declaration, perDecl) {
-    const sequencePrefixes = [];
+  // `logCall();` statements next to the flattened decl). non-extracted siblings keep
+  // their SE prefixes verbatim through `nodeSrc` (lifting both would double-execute).
+  // returns a per-declarator-index array so `renderFlattened` can place each slot's SE
+  // prefixes IMMEDIATELY before its extracted lines instead of collapsing all SE prefixes
+  // ahead of everything (pre-siblings between declarators would otherwise execute AFTER
+  // an SE from a later slot - observable when both halves emit log() calls).
+  // `pendingRefSplices` come from `bakePendingSplicesIntoPreserved` when the declarator
+  // was fully consumed: scope-tracker drained `var _ref;` inserts anchored inside the
+  // discarded init. those splices typically anchor inside an SE-prefix IIFE's arrow body
+  // and get baked into the lifted SE text here so the `_ref` declaration survives next to its uses
+  function liftExtractedSEPrefixesByIdx(declaration, perDecl) {
+    const byIdx = [];
     for (let i = 0; i < declaration.declarations.length; i++) {
+      byIdx.push([]);
       if (!perDecl[i].extractions.length) continue;
       const { prefix } = peelNestedSequenceExpressions(declaration.declarations[i].init);
       const refSplices = perDecl[i].drainedRefs ?? [];
-      for (const seExpr of prefix) sequencePrefixes.push(bakeRefSplicesInRange(seExpr, refSplices));
+      for (const seExpr of prefix) byIdx[i].push(bakeRefSplicesInRange(seExpr, refSplices));
     }
-    return sequencePrefixes;
+    return byIdx;
   }
 
   // bake per-decl splices into preservedSrc using original-source coordinates. two splice
@@ -381,10 +386,12 @@ export function createDestructureEmitter({
       }
       if (isForInit) injectForInitSESinks(declaration, perDecl);
       bakePendingSplicesIntoPreserved(declaration, perDecl);
-      let replacement = renderFlattened(perDecl, declaration.kind, isForInit);
-      if (!isForInit) {
-        const prefixes = liftExtractedSEPrefixes(declaration, perDecl);
-        if (prefixes.length) replacement = `${ prefixes.map(p => `${ p };`).join('\n') }\n${ replacement }`;
+      let replacement;
+      if (isForInit) {
+        replacement = renderFlattened(perDecl, declaration.kind, isForInit);
+      } else {
+        const sePrefixesByIdx = liftExtractedSEPrefixesByIdx(declaration, perDecl);
+        replacement = renderFlattened(perDecl, declaration.kind, isForInit, sePrefixesByIdx);
         replacement = wrapBodylessIfMulti(replacement, replacement.includes('\n'), declPath);
       }
       transforms.add(declaration.start, declaration.end, replacement);
@@ -428,10 +435,11 @@ export function createDestructureEmitter({
   }
 
   // for-init: single `kind d1, d2, d3` - `\n`-separated statements parse as for-init-test-
-  // update with the middle declaration as test, a syntax error.
-  // block-level: extractions split to separate statements (match babel), preserved
-  // declarators collapse into one trailing `kind` statement
-  function renderFlattened(perDecl, kind, isForInit) {
+  // update with the middle declaration as test, a syntax error. block-level: walk in
+  // original declarator order, flush buffered preserved declarators (consecutive
+  // pre-siblings collapse into one `kind` statement) when crossing an extracted slot;
+  // SE prefixes for the slot land between flushed pre-buffer and the extracted lines
+  function renderFlattened(perDecl, kind, isForInit, sePrefixesByIdx) {
     if (isForInit) {
       const parts = [];
       for (const r of perDecl) {
@@ -440,10 +448,29 @@ export function createDestructureEmitter({
       }
       return `${ kind } ${ parts.join(', ') }`;
     }
-    const extractedLines = perDecl.flatMap(r => r.extractions.map(e => `${ kind } ${ e.decl };`));
-    const preservedDecls = perDecl.map(r => r.preservedSrc).filter(s => s !== null);
-    return extractedLines.join('\n')
-      + (preservedDecls.length ? `\n${ kind } ${ preservedDecls.join(', ') };` : '');
+    const lines = [];
+    let preserveBuffer = [];
+    function flushPreserveBuffer() {
+      // emit one statement per declarator to match babel's `splitDeclarators` shape -
+      // grouped `kind a, b, c;` is also valid but diverges textually from babel output
+      for (const p of preserveBuffer) lines.push(`${ kind } ${ p };`);
+      preserveBuffer = [];
+    }
+    for (let i = 0; i < perDecl.length; i++) {
+      const r = perDecl[i];
+      if (r.extractions.length) {
+        flushPreserveBuffer();
+        const slotSEPrefixes = sePrefixesByIdx?.[i];
+        if (slotSEPrefixes) for (const p of slotSEPrefixes) lines.push(`${ p };`);
+        for (const e of r.extractions) lines.push(`${ kind } ${ e.decl };`);
+      }
+      // rest case: same declarator carries BOTH extractions (e.g. `from = _Array$from`)
+      // AND a preserved residue (the rebuilt pattern with `from: _unused` + ...rest), so
+      // preservedSrc is pushed unconditionally - independent of the extractions branch
+      if (r.preservedSrc !== null) preserveBuffer.push(r.preservedSrc);
+    }
+    flushPreserveBuffer();
+    return lines.join('\n');
   }
 
   // plan factory: classify every outer prop of a destructure declarator without side
