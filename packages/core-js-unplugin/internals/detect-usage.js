@@ -355,6 +355,26 @@ function walkDecorators(parentPath, decoratorVisitors) {
   for (const param of params) walkDecoratorList(param?.decorators, parentPath, decoratorVisitors);
 }
 
+// JSXIdentifier sits at the opening tag-name slot (`<Map />`'s `Map` Identifier with
+// parent=JSXOpeningElement, key='name'). only this position is a runtime reference;
+// attribute names, closing-tag dupes, and member-property tails reach the visitor too
+// but should be ignored
+function isJsxOpeningTagName(path) {
+  return path.parent?.type === 'JSXOpeningElement' && path.key === 'name';
+}
+
+// JSXMemberExpression root (`<Map.Provider.X />` -> `Map` Identifier sits at the bottom
+// of an `object`-chain whose terminal `MemberExpression` is the opening tag-name).
+// walks `.object` upward; arbitrary depth supported - returns true only when we land on
+// a JSXOpeningElement.name slot AFTER traversing at least one JSXMemberExpression hop
+function isJsxMemberRoot(path) {
+  let cur = path;
+  while (cur?.parent?.type === 'JSXMemberExpression' && cur.parent.object === cur.node) {
+    cur = cur.parentPath;
+  }
+  return cur !== path && isJsxOpeningTagName(cur);
+}
+
 // --- Usage visitors ---
 
 export function createUsageVisitors({
@@ -540,11 +560,25 @@ export function createUsageVisitors({
     if (meta) onUsage(meta, path);
   }
 
+  // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`). shared between
+  // the top-level visitor and `decoratorVisitors` so `@(<Map/>) class C {}` decorators
+  // detect the global runtime reference (previously skipped - decorator walk had no
+  // JSXIdentifier entry, so the embedded JSX element never triggered polyfill emission).
+  // `adapter.hasBinding` gets the path so `hasRuntimeBinding`'s var-hoisting fallback
+  // detects a `var Tag` declaration inside a nested non-function block (estree-toolkit
+  // registers var in the block's own scope rather than hoisting to enclosing function)
+  function jsxIdentifierVisitor(path) {
+    if (!isJsxOpeningTagName(path) && !isJsxMemberRoot(path)) return;
+    if (adapter.hasBinding(path.scope, path.node.name, path)) return;
+    onUsage({ kind: 'global', name: path.node.name }, path);
+  }
+
   const decoratorVisitors = {
     Identifier: identifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
     Property: propertyVisitor,
+    JSXIdentifier: jsxIdentifierVisitor,
   };
 
   function visitDecorators(path) {
@@ -575,24 +609,9 @@ export function createUsageVisitors({
     // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
     // names and closing-tag dupes. also accept root of `<Map.Provider.X/>` (N-deep
     // JSXMemberExpression chain) - walk the `.object` chain from path so deeper-than-2
-    // namespace tags still polyfill the outer global
-    JSXIdentifier(path) {
-      const isOpeningTagName = path.parent?.type === 'JSXOpeningElement' && path.key === 'name';
-      let isMemberRoot = false;
-      if (!isOpeningTagName) {
-        let cur = path;
-        while (cur?.parent?.type === 'JSXMemberExpression' && cur.parent.object === cur.node) {
-          cur = cur.parentPath;
-        }
-        isMemberRoot = cur !== path && cur?.parent?.type === 'JSXOpeningElement' && cur.key === 'name';
-      }
-      if (!isOpeningTagName && !isMemberRoot) return;
-      // pass `path` so `hasRuntimeBinding`'s var-hoisting fallback can detect a `var Tag`
-      // declaration inside a nested non-function block (estree-toolkit registers it in the
-      // block's own scope rather than hoisting to the enclosing function)
-      if (adapter.hasBinding(path.scope, path.node.name, path)) return;
-      onUsage({ kind: 'global', name: path.node.name }, path);
-    },
+    // namespace tags still polyfill the outer global. shared with `decoratorVisitors`
+    // so JSX inside decorator expressions (`@(<Map/>) class C {}`) also triggers
+    JSXIdentifier: jsxIdentifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
     Property: propertyVisitor,
