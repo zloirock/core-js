@@ -339,26 +339,57 @@ export function createAwaited({
     return unwrapTypeAnnotation(functionTypeParams(cbType)?.[0]?.typeAnnotation);
   }
 
+  // peel a function-type annotation slot into its first parameter node. used for property-
+  // form `then` whose typeAnnotation IS the TSFunctionType (`then: (cb) => ...`) - the cb
+  // sits at the TSFunctionType's first parameter slot, one extra unwrap layer beyond
+  // method-form's direct `parameters[0]` access
+  function firstParamOfFnTypeAnnotation(typeAnnotation) {
+    const fnType = unwrapTypeAnnotation(typeAnnotation);
+    if (fnType?.type !== 'TSFunctionType') return null;
+    return functionTypeParams(fnType)?.[0];
+  }
+
+  // extract the `cb` parameter from a `then` interface member. method-form
+  // (`then(cb: (v:T) => ...)`) lands in TSMethodSignature - cb at `parameters[0]`.
+  // property-form (`then: (cb: (v:T) => ...) => ...`) lands in TSPropertySignature with
+  // its TSFunctionType under typeAnnotation - peel via `firstParamOfFnTypeAnnotation`
+  function interfaceThenCbParam(member) {
+    if (member?.type === 'TSMethodSignature') return functionTypeParams(member)?.[0];
+    if (member?.type === 'TSPropertySignature') return firstParamOfFnTypeAnnotation(member.typeAnnotation);
+    return null;
+  }
+
+  // extract the `cb` parameter from a `then` class member. method-form
+  // (`then(cb)`) is a ClassMethod / MethodDefinition - unwrap via `methodFnPath` to
+  // the inner FunctionExpression and read `params[0]`. property-form
+  // (`then!: (cb) => ...`) is a ClassProperty / PropertyDefinition with TSFunctionType
+  // annotation - peel via `firstParamOfFnTypeAnnotation`
+  function classThenCbParam(memberPath) {
+    if (isMethodMember(memberPath.node)) return methodFnPath(memberPath).node.params?.[0];
+    return firstParamOfFnTypeAnnotation(memberPath.node.typeAnnotation);
+  }
+
   // structural Thenable peel (V4-AWAIT-2): `await x` where x has `then(cb: (v: T) => ...): any`
   // resolves to T per TS Thenable contract. plugin's named-PROMISE_SYNONYMS covers Promise /
   // PromiseLike / Thenable aliases but misses user classes / interfaces with structural .then.
-  // class path via `findClassMember` handles babel ClassMethod + ESTree MethodDefinition via
-  // `methodFnPath` value-unwrap; interface path iterates substituted TSMethodSignature members
+  // class path via `findClassMember` (handles babel + ESTree shapes); interface path iterates
+  // substituted members via `getTypeMembers`. both method-form and property-form `then`
+  // accepted on either side - cb extraction routed through `classThenCbParam` /
+  // `interfaceThenCbParam`, both ending in `cbFirstArgAnnotation` for the inner value type
   function peelUserThenable(annotation, scope) {
     if (annotation?.type !== 'TSTypeReference' || annotation.typeName?.type !== 'Identifier') return null;
     const classPath = findClassPathForTypeReference(annotation, scope);
     if (classPath) {
       const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
       const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
-      if (!found || !isMethodMember(found.member.node)) return null;
-      const valueAnn = cbFirstArgAnnotation(methodFnPath(found.member).node.params?.[0]);
+      if (!found) return null;
+      const valueAnn = cbFirstArgAnnotation(classThenCbParam(found.member));
       if (!valueAnn) return null;
       return resolveTypeAnnotation(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
     }
-    // interface path: getTypeMembers returns already-substituted TSMethodSignature nodes
     const members = getTypeMembers({ objectType: annotation, scope });
-    const thenMember = members?.find(m => keyMatchesName(m.key, 'then') && m.type === 'TSMethodSignature');
-    const valueAnn = thenMember && cbFirstArgAnnotation(functionTypeParams(thenMember)?.[0]);
+    const thenMember = members?.find(m => keyMatchesName(m.key, 'then'));
+    const valueAnn = cbFirstArgAnnotation(interfaceThenCbParam(thenMember));
     return valueAnn ? resolveTypeAnnotation(valueAnn, scope) : null;
   }
 
