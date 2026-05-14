@@ -18,16 +18,8 @@
 // search; weaker invariant than `findLastStraightLineAssignment` from straight-line-flow,
 // because it requires only block-child preceding-sibling reachability, not var-scope-wide
 // straight-line execution).
-import { unwrapParens } from '../helpers/ast-patterns.js';
+import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { scopeNode } from './straight-line-flow.js';
-
-// oxc wraps optional chains in ChainExpression (`s?.kind` -> `ChainExpression > Member{optional}`);
-// babel uses OptionalMemberExpression directly. peel both so downstream sees the member node
-function peelParensAndChain(node) {
-  node = unwrapParens(node);
-  if (node?.type === 'ChainExpression') node = node.expression;
-  return node;
-}
 
 export function createDiscriminantNarrow({
   t,
@@ -61,8 +53,12 @@ export function createDiscriminantNarrow({
     const isEq = test.operator === '===' || test.operator === '==';
     const isNeq = test.operator === '!==' || test.operator === '!=';
     if (!isEq && !isNeq) return null;
-    const left = peelParensAndChain(test.left);
-    const right = peelParensAndChain(test.right);
+    // `unwrapRuntimeExpr` peels parens, `ChainExpression` (oxc optional-chain wrapper),
+    // и TS expression wrappers (`as` / `satisfies` / `!`) - covers all transparent
+    // adapters that may sit on either side of the equality. earlier `peelParensAndChain`
+    // missed TS wrappers, so `(box as A).kind === 'a'` dropped narrow
+    const left = unwrapRuntimeExpr(test.left);
+    const right = unwrapRuntimeExpr(test.right);
     const pair = memberLiteralPair({ memberExpr: left, literalNode: right, targetKey, scope })
       ?? memberLiteralPair({ memberExpr: right, literalNode: left, targetKey, scope });
     return pair && { ...pair, positive: isEq === conditionTrue };
@@ -71,7 +67,9 @@ export function createDiscriminantNarrow({
   function memberLiteralPair({ memberExpr, literalNode, targetKey, scope }) {
     const field = getMemberProperty(memberExpr);
     if (field === null) return null;
-    if (pathKey(memberExpr.object) !== targetKey) return null;
+    // TS wrappers may sit on the member's object slot (`(box as A).kind`); peel before
+    // path-keying so the narrow binds to the underlying binding identity, not the wrapper
+    if (pathKey(unwrapRuntimeExpr(memberExpr.object)) !== targetKey) return null;
     // value side: bare literal first (cheap, no scope walk), then enum-member / alias-chain /
     // template-literal via `resolveComputedKeyName`. without the second branch,
     // `box.kind === Kind.A` (and `Kind['A']` / `Kind[`A`]`) stays unmatched and the
