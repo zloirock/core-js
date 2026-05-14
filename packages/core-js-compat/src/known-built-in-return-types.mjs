@@ -97,6 +97,10 @@ export const globalMethods = {
   requestAnimationFrame: 'number',
   unescape: 'string',
 };
+// NOTE: setTimeout / setInterval / setImmediate intentionally absent - return type is
+// platform-dependent (browser: long integer per HTML spec; Node.js: Timeout / Immediate
+// object instance). asymmetry with the clear* entries above is intentional - clear*
+// uniformly return undefined per spec on both platforms, set* don't
 
 // known types for global properties and well-known identifiers
 export const globalProperties = {
