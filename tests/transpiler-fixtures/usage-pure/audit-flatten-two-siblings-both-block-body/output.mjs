@@ -5,11 +5,11 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 // Cross-pollution would inject `_ref` into the wrong sibling and break both call sites.
 const from = _Array$from;
 const kls1 = (() => {
-    var _ref;
-    return _valuesMaybeArray(_ref = []).call(_ref);
-  })(),
-  kls2 = (() => {
-    var _ref2;
-    return _keysMaybeArray(_ref2 = []).call(_ref2);
-  })();
+  var _ref;
+  return _valuesMaybeArray(_ref = []).call(_ref);
+})();
+const kls2 = (() => {
+  var _ref2;
+  return _keysMaybeArray(_ref2 = []).call(_ref2);
+})();
 export { from, kls1, kls2 };
