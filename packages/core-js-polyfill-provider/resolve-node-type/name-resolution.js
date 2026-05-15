@@ -175,8 +175,16 @@ export function createNameResolution({ t }) {
       if (decl.type !== 'TSModuleDeclaration') continue;
       const moduleSegs = moduleNameSegments(decl.id);
       if (!moduleSegs) continue;
-      // bare name: descend into every namespace; dotted: namespace must prefix segments
+      // bare-name lookup (`rest.length === 0`) MUST NOT descend into nested
+      // TSModuleDeclaration bodies - that would violate TS lexical scoping:
+      // `namespace N { interface Box {} }; declare const x: Box;` - top-level `Box`
+      // is undefined, the bare name must not promiscuously pick up `N.Box`. scope-
+      // chain climbing is handled by `walkScopesForDecl`; each scope checks its OWN
+      // direct statements only. EXCEPTION: `declare global { ... }` (`decl.global`)
+      // augments the global scope - its body's bindings ARE visible at program scope,
+      // so descend into them
       if (rest.length === 0) {
+        if (!decl.global) continue;
         const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch });
         if (inner && !collect) return inner;
         continue;
