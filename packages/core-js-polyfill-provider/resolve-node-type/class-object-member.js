@@ -23,8 +23,10 @@
 //   resolveMemberFromMembers({ members, name, scope, callPath })
 //   isMethodMember(node)
 //   isPropertyMember(node)
-import { $Object, MAX_DEPTH } from './base.js';
+import { $Object, MAX_DEPTH, nodePathInScope } from './base.js';
 import { createClassMemberShape } from './class-member-shapes.js';
+
+const NAMESPACE_FN_PATH_TYPES = ['FunctionDeclaration', 'TSDeclareFunction'];
 
 export function createClassObjectMember({
   t,
@@ -145,8 +147,19 @@ export function createClassObjectMember({
     if (!classPath.node.id?.name) return null;
     const found = findNamespacedFunctionPath([classPath.node.id.name, name], classPath.scope);
     if (found) {
-      const returnAnnotation = unwrapTypeAnnotation(found.node.returnType);
-      if (returnAnnotation) return resolveTypeAnnotation(returnAnnotation, found.scope);
+      // matched in THIS class's namespace - own export wins. route through
+      // `resolveReturnType` which handles BOTH annotated returns (with type-param subst
+      // from call-site args - `identity<T>(item: T): T` + `Box.identity('hello')` -> T=string)
+      // AND body-return inference (`function build() { return [1,2,3] }` -> Array).
+      // ClassDeclaration leaves (`export class Inner {}`) miss the visitor list and fall
+      // through to null - synthesising a TSTypeReference back to the inner class would
+      // face scope-binding issues and the user-class member path doesn't over-inject
+      // without that signal. bail on null result instead of falling through to the
+      // parent walk: parent's same-name export has a different return type, and
+      // returning its annotation would emit the wrong polyfill family for the runtime
+      // value of the child override
+      const fnPath = nodePathInScope(found.node, found.scope, NAMESPACE_FN_PATH_TYPES);
+      return fnPath ? resolveReturnType(fnPath, callPath, null) : null;
     }
     const seen = visited ?? new Set();
     if (seen.has(classPath.node)) return null;
