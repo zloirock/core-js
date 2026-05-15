@@ -1,3 +1,4 @@
-// validation: `targets` passed as an array must be rejected - browserslist-format
-// targets are expected as a string or object.
+// `targets` passed as an array of browserslist query strings IS accepted: browserslist
+// natively consumes string arrays. only an EMPTY array is rejected as misconfiguration
+// (see `audit-targets-empty-array`). entry expands per the resolved engine set
 import 'core-js/actual/array/at';
