@@ -1,16 +1,8 @@
 // Unit tests for `@core-js/polyfill-provider`'s type-inference engine.
-// Cross-parser: every snippet runs through BOTH babel (used by babel-plugin) AND
-// oxc (used by unplugin), so dispatch-shape regressions in either adapter surface
-// immediately. parse-and-scope abstractions are normalised to a shared `{ programPath,
-// pickPath, makeResolver }` shape per parser; tests use `runBoth(code, scenario)` and
-// can assert outcomes per-parser when they should agree (typical) or diverge (rare
-// parser-shape edge case - currently none)
-import { parse as babelParse } from '@babel/parser';
-import _babelTraverse from '@babel/traverse';
-import * as babelTypes from '@babel/types';
-import { parseSync as oxcParseSync } from 'oxc-parser';
-import { traverse as estreeTraverse } from 'estree-toolkit';
-import { createResolveNodeType } from '../../packages/core-js-polyfill-provider/resolve-node-type.js';
+// Cross-parser via shared harness: every snippet runs through BOTH babel (used by
+// babel-plugin) AND oxc (used by unplugin), so dispatch-shape regressions in either
+// adapter surface immediately
+import { adapters, createChecker } from './harness.mjs';
 import { blockAlwaysExits, canFallThrough, nodeAlwaysExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
 import {
   isAmbientClassNode,
@@ -129,26 +121,8 @@ import {
   resolveSuperImportName,
   symbolKeyToEntry,
 } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
-import { nodeType as estreeNodeType, types as estreeTypes } from '../../packages/core-js-unplugin/internals/estree-compat.js';
 
-// `@babel/traverse` is a CJS module re-exported as default under ESM consumption
-const babelTraverse = _babelTraverse.default ?? _babelTraverse;
-const { cyan, green, red } = chalk;
-const counts = { passed: 0, failed: 0 };
-
-function fail(label, message) {
-  counts.failed++;
-  echo`${ red('FAIL') } ${ cyan(label) }${ message ? ` :: ${ message }` : '' }`;
-}
-
-function pass() {
-  counts.passed++;
-}
-
-function check(label, actual, expected) {
-  if (actual === expected) return pass();
-  fail(label, `got ${ JSON.stringify(actual) }, want ${ JSON.stringify(expected) }`);
-}
+const { check, checkTruthy, fail, finish, pass, runBoth } = createChecker('resolve-node-type');
 
 // NOTE: `constructor` as a destructured key reads via prototype chain
 // (`Object.prototype.constructor` = the Object function), so a missing slot would
@@ -166,100 +140,6 @@ function checkType(label, type, expected) {
     return fail(label, `type.constructor=${ type.constructor }, want ${ ctor }`);
   }
   pass();
-}
-
-function checkTruthy(label, value, message = 'expected truthy') {
-  if (value) return pass();
-  fail(label, `${ message }, got ${ JSON.stringify(value) }`);
-}
-
-// --- Adapter abstraction: babel side ---
-
-// the babel adapter is identity for resolve-node-type since `node.type` is already
-// in the Babel shape and `@babel/types` is the predicate surface the engine expects
-const babelAdapter = {
-  name: 'babel',
-  parseAndScope(code) {
-    const ast = babelParse(code, {
-      sourceType: 'module',
-      plugins: ['typescript'],
-      allowReturnOutsideFunction: true,
-      allowAwaitOutsideFunction: true,
-    });
-    let programPath = null;
-    babelTraverse(ast, { Program(path) { programPath = path; } });
-    return programPath;
-  },
-  // collect all paths of `type` matching optional `predicate`; pickPath returns first.
-  // babel-traverse supports wildcard `enter`; we use explicit type-keyed visitor here too
-  // for parity with the estree-toolkit side where wildcard isn't available
-  collectPaths(programPath, type, predicate = () => true) {
-    const found = [];
-    programPath.traverse({
-      [type](path) {
-        if (predicate(path)) found.push(path);
-      },
-    });
-    return found;
-  },
-  pickPath(programPath, type, predicate) {
-    return this.collectPaths(programPath, type, predicate)[0] ?? null;
-  },
-  makeResolver(opts = {}) {
-    return createResolveNodeType(node => node?.type, babelTypes, opts);
-  },
-};
-
-// --- Adapter abstraction: oxc / ESTree side ---
-
-// oxc-parser produces ESTree shape with `Literal` for all literal kinds;
-// `estreeNodeType` (from unplugin's estree-compat) normalises that to the Babel
-// dispatch name. `estreeTypes` shims the `t.isXxx` predicate API used internally.
-// estree-toolkit's traverse populates `.scope` on each path - matches babel-traverse's
-// shape closely enough that resolve-node-type's `path.scope.getBinding(...)` works
-const oxcAdapter = {
-  name: 'oxc',
-  parseAndScope(code) {
-    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-    const { program } = oxcParseSync('test.ts', code, { sourceType: 'module' });
-    let programPath = null;
-    estreeTraverse(program, {
-      $: { scope: true },
-      Program(path) { programPath = path; },
-    });
-    return programPath;
-  },
-  // estree-toolkit's visitor API is per-node-type (no wildcard) - register a visitor
-  // keyed on the requested type so the matcher fires once per matching node
-  collectPaths(programPath, type, predicate = () => true) {
-    const found = [];
-    estreeTraverse(programPath.node, {
-      $: { scope: true },
-      [type](path) {
-        if (predicate(path)) found.push(path);
-      },
-    });
-    return found;
-  },
-  pickPath(programPath, type, predicate) {
-    return this.collectPaths(programPath, type, predicate)[0] ?? null;
-  },
-  makeResolver(opts = {}) {
-    return createResolveNodeType(estreeNodeType, estreeTypes, opts);
-  },
-};
-
-// run scenario against BOTH parsers; scenario is `(adapter, programPath) => void`
-// so it can call `adapter.pickPath` / `adapter.makeResolver` internally
-function runBoth(label, code, scenario) {
-  for (const adapter of [babelAdapter, oxcAdapter]) {
-    try {
-      const programPath = adapter.parseAndScope(code);
-      scenario(adapter, programPath, `${ label } [${ adapter.name }]`);
-    } catch (error) {
-      fail(`${ label } [${ adapter.name }]`, `threw: ${ error.message }`);
-    }
-  }
 }
 
 // --- TYPE_HINTS surface ---
@@ -383,7 +263,7 @@ runBoth('isObject([] init) / isString false', 'const a = [];', (adapter, prog, l
 // --- `toHint` round-trip (parser-agnostic; runs once on babel resolver) ---
 
 {
-  const resolver = babelAdapter.makeResolver();
+  const resolver = adapters[0].makeResolver();
   check('toHint(null) -> null', resolver.toHint(null), null);
   check('toHint(string primitive) -> "string"',
     resolver.toHint({ primitive: true, type: 'string' }), 'string');
@@ -3390,7 +3270,4 @@ runBoth('class method declared return -> Map',
     castMeta?.object, 'Base');
 }
 
-// --- summary ---
-const { passed, failed } = counts;
-echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
-if (failed) throw new Error('Some tests have failed');
+finish();
