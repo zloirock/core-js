@@ -43,6 +43,7 @@ export function createClassObjectMember({
   buildParentClassSubst,
   resolveClassFieldType,
   getTypeMembers,
+  findNamespacedFunctionPath,
 }) {
   // babel splits public/private/accessor into distinct types; ESTree uses MethodDefinition /
   // PropertyDefinition with a PrivateIdentifier key. shared `./class-member-shapes.js`
@@ -105,7 +106,13 @@ export function createClassObjectMember({
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
     const found = findClassMember({ classPath, name, isStatic, classSubst });
     if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
-    if (isStatic || !classPath.node.id?.name) return null;
+    if (!classPath.node.id?.name) return null;
+    // static lookup miss: try TS declaration-merging fallback. when `namespace Foo { export
+    // function bar(): T {} }` merges with `class Foo {}`, `Foo.bar` is a runtime callable
+    // but doesn't appear in the class body. without this branch the resolver falls through
+    // and the call's return type stays unknown, costing instance-method polyfill narrowing
+    // on downstream chains like `Foo.bar([...]).map(...)`
+    if (isStatic) return resolveMergedNamespaceStatic({ classPath, name, callPath });
     // body chain exhausted - delegate annotation-only fallback to `getTypeMembers`, which
     // walks the super chain merging interface members at each hop with proper per-hop
     // type-arg propagation. real class-body methods always win on collision (handled above)
@@ -116,6 +123,37 @@ export function createClassObjectMember({
     };
     const members = getTypeMembers({ objectType: synthRef, scope: classPath.scope });
     return resolveMemberFromMembers({ members, name, scope: classPath.scope, callPath });
+  }
+
+  // TS declaration merging: `class Foo {}` + `namespace Foo { export function bar(): T {} }`.
+  // `findNamespacedFunctionPath` walks scope chain for a matching `TSModuleDeclaration` whose
+  // body exports `bar`. `isFunctionOrClassDeclaration` leaf-match covers FunctionDeclaration,
+  // TSDeclareFunction (ambient), and ClassDeclaration. only FunctionDeclaration-like nodes
+  // carry an inferable `returnType` annotation we can resolve here - `export class Inner {}`
+  // falls through silently because synthesising a TSTypeReference back to the inner class
+  // would face scope-binding issues (inner names aren't bound in the outer scope) and the
+  // user-class member path doesn't over-inject without that signal. `export const x = ...`
+  // and other VariableDeclaration shapes don't match the leaf at all - not common in real
+  // TS code for class-namespace merging.
+  //
+  // walks the parent-class chain (visited-set guards cycles) so `class Child extends Base`
+  // sees `Base`'s merged namespace exports as inherited statics. mirrors `findClassMember`'s
+  // super-walk semantics for class body
+  function resolveMergedNamespaceStatic({ classPath, name, callPath, depth = 0, visited }) {
+    if (!callPath || depth > MAX_DEPTH) return null;
+    if (!findNamespacedFunctionPath) return null;
+    if (!classPath.node.id?.name) return null;
+    const found = findNamespacedFunctionPath([classPath.node.id.name, name], classPath.scope);
+    if (found) {
+      const returnAnnotation = unwrapTypeAnnotation(found.node.returnType);
+      if (returnAnnotation) return resolveTypeAnnotation(returnAnnotation, found.scope);
+    }
+    const seen = visited ?? new Set();
+    if (seen.has(classPath.node)) return null;
+    seen.add(classPath.node);
+    const parentPath = resolveSuperClassPath(classPath);
+    if (!parentPath) return null;
+    return resolveMergedNamespaceStatic({ classPath: parentPath, name, callPath, depth: depth + 1, visited: seen });
   }
 
   // ESTree MethodDefinition / ObjectMethod wrap the function in `.value`; babel ClassMethod /
