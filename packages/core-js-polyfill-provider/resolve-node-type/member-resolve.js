@@ -19,7 +19,6 @@
 // Cluster-private helpers (not in service-object return):
 //   resolveMemberCallReturnFromAnnotation - per-annotation overload fold
 //   resolveMemberCallReturn               - union / intersection / alias-chain aware dispatch
-//   classNodePathInScope                  - recover NodePath from a known class node
 //   collectMemberSegments                 - runtime MemberExpression chain -> segment array
 //
 // Merging removes one cluster boundary the factory had to chase: runtime `member-dispatch`
@@ -28,10 +27,12 @@
 //
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
-import { MAX_DEPTH, $Primitive } from './base.js';
+import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
 import { collectQualifiedSegments, isQualifiedNameNode } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, singleQuasiString, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+
+const CLASS_PATH_TYPES = ['ClassDeclaration'];
 
 export function createMemberResolve({
   t,
@@ -321,29 +322,7 @@ export function createMemberResolve({
     }
     const segments = isQualifiedNameNode(typeName) ? collectQualifiedSegments(typeName) : null;
     const decl = segments && findTypeDeclaration(segments, scope);
-    return decl && t.isClassDeclaration(decl) ? classNodePathInScope(decl, scope) : null;
-  }
-
-  // recover a NodePath for a known ClassDeclaration node by traversing from the scope's
-  // root path. node-identity match against `ClassDeclaration` visits is sufficient:
-  // namespace-nested classes have stable node identity through the resolver's lifetime,
-  // and the cost is bounded by program size only when a qualified class type-ref fires.
-  // mutates `found` via closure - estree-toolkit + babel-traverse both honour `.stop()`
-  // once a match is set (no need to walk the full subtree after the path is recovered)
-  function classNodePathInScope(targetNode, scope) {
-    let cur = scope;
-    while (cur?.parent) cur = cur.parent;
-    const rootPath = cur?.path;
-    if (!rootPath?.traverse) return null;
-    let found = null;
-    rootPath.traverse({
-      ClassDeclaration(p) {
-        if (p.node !== targetNode) return;
-        found = p;
-        p.stop?.();
-      },
-    });
-    return found;
+    return decl && t.isClassDeclaration(decl) ? nodePathInScope(decl, scope, CLASS_PATH_TYPES) : null;
   }
 
   // computed dynamic-key member access via TSIndexSignature: `obj[k]` where
