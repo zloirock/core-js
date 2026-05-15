@@ -52,7 +52,7 @@
     "test-promises": "npm run zxi time cd tests/promises/runner.mjs",
     "test-entries": "npm run zxi tests/entries/index.mjs",
     "test-babel-plugin": "npm run zxi time cd tests/babel-plugin/index.mjs",
-    "test-polyfill-provider": "npm run zxi time cd tests/polyfill-provider/resolve-node-type.mjs",
+    "test-polyfill-provider": "npm run zxi time cd tests/polyfill-provider/index.mjs",
     "test-unplugin": "npm run zxi time cd tests/unplugin/index.mjs",
     "test-unplugin-unit": "npm run zxi time cd tests/unplugin/unit.mjs",
     "test-transpiler-integration": "npm run zxi time cd tests/transpiler-integration/runner.mjs",
