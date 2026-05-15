@@ -15,6 +15,29 @@
 //
 // O(V) cache build per binding (sorted by source position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
+import { IIFE_CALL_PATH_WRAPPERS, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
+
+// expression wrappers whose child position is ALWAYS evaluated. used to validate the
+// chain from a candidate assignment up to its enclosing statement: any intermediate
+// node not in this set (LogicalExpression / ConditionalExpression / OptionalCallExpression
+// / `||=`-style AssignmentExpression) means the inner assignment is conditionally
+// executed and must NOT be treated as straight-line. IIFE_CALL_PATH_WRAPPERS covers
+// `!iife()`, `(0, iife())`, `(iife())`, ChainExpression-wrap; TS_EXPR_WRAPPERS covers
+// `(iife() as any)` / `(iife()!)` / `(iife() satisfies T)`. `BinaryExpression` is also
+// always-eval but rare in IIFE wrap patterns - omitted to keep the contract minimal
+const STRAIGHT_LINE_WRAPPER_TYPES = new Set([...IIFE_CALL_PATH_WRAPPERS, ...TS_EXPR_WRAPPERS]);
+
+// short-circuit AssignmentExpression operators: `||=` / `&&=` / `??=` conditionally
+// evaluate RHS. plain `=` and arithmetic compounds (`+=`/`*=`/...) evaluate RHS
+// unconditionally so they don't break straight-line. inverse-list because the safe set
+// has more entries (10+ arithmetic compounds) than the unsafe set (3 logical compounds)
+const SHORT_CIRCUITING_ASSIGN_OPS = new Set(['||=', '&&=', '??=']);
+
+function isAlwaysEvaluatingWrapper(node) {
+  if (STRAIGHT_LINE_WRAPPER_TYPES.has(node.type)) return true;
+  if (node.type === 'AssignmentExpression') return !SHORT_CIRCUITING_ASSIGN_OPS.has(node.operator);
+  return false;
+}
 
 // node-shape adapters: AssignmentExpression has left/right/operator; VariableDeclarator
 // has id/init. extracted at module level so `findLastStraightLineAssignment`'s callers
@@ -134,6 +157,18 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched per query
   let sortedAssignmentCache = new WeakMap();
 
+  // walk from `path` UP to `stmt` (exclusive), requiring every intermediate node to be
+  // an always-evaluating wrapper. catches both IIFE-lifted shapes (`false && iife()`,
+  // `cond ? iife() : 0`) and bare assignment shapes (`false && (x = 'hello')`,
+  // `cond ? (x = 'hello') : 0`, `flag ||= (x = 'hello', flag)`). previous gate restricted
+  // to `effectiveAp !== ap`, missing bare-conditional-assignment cases entirely
+  function isStraightLineExpressionChain(path, stmt) {
+    for (let cur = path.parentPath; cur && cur.node !== stmt.node; cur = cur.parentPath) {
+      if (!isAlwaysEvaluatingWrapper(cur.node)) return false;
+    }
+    return true;
+  }
+
   function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
     const bindingScopeNode = scopeNode(bindingScope);
@@ -158,6 +193,13 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
       const stmt = findEnclosingStatement(effectiveAp, outerWrapType);
       if (!stmt || !reachesStraightLine(stmt.parentPath, varScopeBody)) continue;
+      // validate the expression chain from the assignment (or lifted-IIFE call) up to
+      // its enclosing statement. statement-level `reachesStraightLine` above only checks
+      // BlockStatement / Program / StaticBlock ancestors of `stmt`; the chain BELOW
+      // `stmt` may pass through LogicalExpression / ConditionalExpression / `||=`-style
+      // AssignmentExpression that make the inner write conditional. covers both
+      // `false && (x = 'hello')` (bare) and `false && (() => { x = 'hello' })()` (IIFE)
+      if (!isStraightLineExpressionChain(effectiveAp, stmt)) continue;
       out.push({ ap, pos });
     }
     out.sort((a, b) => a.pos - b.pos);
