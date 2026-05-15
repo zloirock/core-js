@@ -1063,6 +1063,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     buildParentClassSubst,
     resolveClassFieldType,
     getTypeMembers: (...args) => getTypeMembers(...args),
+    findNamespacedFunctionPath,
   });
   ({
     classSubstInner,
