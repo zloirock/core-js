@@ -1,0 +1,1 @@
+"str".toSpliced(1, 1);
