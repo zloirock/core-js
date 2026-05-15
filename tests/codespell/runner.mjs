@@ -4,10 +4,14 @@ const skip = [
   '**/node_modules/**',
   './tests/**bundles',
   './packages/core-js-bundle/*.js',
+  './website/dist/**',
+  './website/templates/**',
+  './website/src/public/**',
 ];
 
 const ignoreWords = [
   'aNumber',
+  'forIn',
   'importEnd',
   'larg',
   'outLow',
