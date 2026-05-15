@@ -191,6 +191,29 @@ export const AMBIENT_FN_OR_CLASS_DECLARATION_TYPES = new Set([
 // distinct from `null` (which means the template is statically un-evaluable -> bail expansion)
 export const RENAME_SKIP = Symbol('rename-skip');
 
+// recover a NodePath for a known AST node by identity match, traversing from `scope`'s
+// program root. `types` is the visitor-key list (`['ClassDeclaration']`,
+// `['FunctionDeclaration', 'TSDeclareFunction']`); caller pre-narrows by type to bound
+// traversal cost. `p.stop()` halts the walk once the match is set. rare slow path -
+// only fires when downstream needs a NodePath but only has the raw node (e.g. namespace
+// merge resolution, qualified type-ref class lookup)
+export function nodePathInScope(targetNode, scope, types) {
+  let cur = scope;
+  while (cur?.parent) cur = cur.parent;
+  const rootPath = cur?.path;
+  if (!rootPath?.traverse) return null;
+  let found = null;
+  function visit(path) {
+    if (path.node !== targetNode) return;
+    found = path;
+    path.stop?.();
+  }
+  const visitors = {};
+  for (const type of types) visitors[type] = visit;
+  rootPath.traverse(visitors);
+  return found;
+}
+
 // intrinsic TS string transformers (`Uppercase<S>` / `Capitalize<S>` / ...)
 export const INTRINSIC_STRING_TRANSFORMERS = {
   Uppercase: s => s.toUpperCase(),
