@@ -51,8 +51,29 @@ export function createGlobalResolve({
     return t.isThisExpression(objectPath.node) && isGlobalThis(objectPath);
   }
 
+  // user-aliased global: `const A = Array; new A(...)` / `A(...)` / etc.
+  // `resolveRuntimeExpression` peels const-bound Identifier aliases until it lands on
+  // an unbound Identifier (a global) or stops at a non-const / non-Identifier RHS.
+  // accept only when the walk LANDED on a different Identifier that's a KNOWN
+  // constructor -- returning a non-global name here would short-circuit downstream
+  // type-inference fallbacks (`null` lets generic dispatchers kick in; a non-global
+  // name reaches `resolveKnownConstructor`, which returns null, suppressing the
+  // generic emit). reassigned bindings (`let A; A = other`) walk to `other`, which
+  // isn't a known constructor -- we bail and preserve the pre-fix generic-dispatch
+  function resolveAliasedGlobalName(path) {
+    const walked = resolveRuntimeExpression(path);
+    const node = walked?.node;
+    if (!node || node === path.node || !t.isIdentifier(node)) return null;
+    if (walked.scope?.getBinding(node.name)) return null;
+    return resolveKnownConstructor(node.name) ? node.name : null;
+  }
+
   function resolveGlobalName(path) {
-    if (t.isIdentifier(path.node) && !path.scope?.getBinding(path.node.name)) return path.node.name;
+    if (t.isIdentifier(path.node)) {
+      return path.scope?.getBinding(path.node.name)
+        ? resolveAliasedGlobalName(path)
+        : path.node.name;
+    }
     if (!isMemberLike(path) || path.node.computed) return null;
     const object = path.get('object');
     if (!isGlobalProxy(object)) return null;
