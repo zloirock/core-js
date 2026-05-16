@@ -42,6 +42,7 @@ export function createPatternBindings({
   resolveComputedKeyName,
   getKeyName,
   findLastStraightLineAssignment,
+  withLookupPath,
 }) {
   // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
   // sentinel conventions:
@@ -494,9 +495,12 @@ export function createPatternBindings({
     if (arrayPattern) return resolveArrayBinding(arrayPattern, name, bindingPath);
     // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
     // must NOT be reached for destructured bindings - their pattern-level annotation
-    // describes the container type, not the element type
+    // describes the container type, not the element type.
+    // `withLookupPath(bindingPath, ...)` registers the binding's NodePath as anchor for
+    // downstream `findTypeDeclaration` calls - lets parsers without TSModuleDeclaration
+    // scope (estree-toolkit) fall back to walking ancestors for namespace-local type decls
     const typeAnnotation = findBindingAnnotation(bindingPath);
-    if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
+    if (typeAnnotation) return withLookupPath(bindingPath, () => resolveTypeAnnotation(typeAnnotation, bindingPath.scope));
     // for-in / for-of (only for direct bindings - destructured bindings return early above)
     const forLoopParent = findForLoopParent(bindingPath);
     if (forLoopParent) {
