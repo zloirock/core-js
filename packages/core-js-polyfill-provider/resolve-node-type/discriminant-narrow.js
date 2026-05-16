@@ -53,6 +53,7 @@ export function createDiscriminantNarrow({
   findPatternKeyPath,
   getKeyName,
   unwrapTypeAnnotation,
+  canFallThrough,
   getTypeMembers,
   findTypeMember,
   followTypeAliasChain,
@@ -83,18 +84,29 @@ export function createDiscriminantNarrow({
     return pair && { ...pair, positive: isEq === conditionTrue };
   }
 
-  function memberLiteralPair({ memberExpr, literalNode, targetKey, scope }) {
+  // `memberExpr.object` peeled through TS wrappers (`(box as A).kind`) to bind narrow
+  // to the underlying binding identity. returns the property name or null when shape
+  // doesn't match: not a member, computed without resolvable key, or object-path
+  // diverges from `targetKey`
+  function matchTargetField(memberExpr, targetKey) {
     const field = getMemberProperty(memberExpr);
     if (field === null) return null;
-    // TS wrappers may sit on the member's object slot (`(box as A).kind`); peel before
-    // path-keying so the narrow binds to the underlying binding identity, not the wrapper
     if (pathKey(unwrapRuntimeExpr(memberExpr.object)) !== targetKey) return null;
-    // value side: bare literal first (cheap, no scope walk), then enum-member / alias-chain /
-    // template-literal via `resolveComputedKeyName`. without the second branch,
-    // `box.kind === Kind.A` (and `Kind['A']` / `Kind[`A`]`) stays unmatched and the
-    // discriminant narrowing falls back to the unrefined union receiver
-    const value = literalKeyValue(literalNode)
-      ?? (scope ? resolveComputedKeyName(literalNode, scope) : null);
+    return field;
+  }
+
+  // bare literal first (cheap, no scope walk), then enum-member / alias-chain /
+  // template-literal via `resolveComputedKeyName`. without the second branch,
+  // `box.kind === Kind.A` (and `Kind['A']` / `Kind[`A`]`) stays unmatched and the
+  // discriminant narrowing falls back to the unrefined union receiver
+  function resolveLiteralOrComputed(node, scope) {
+    return literalKeyValue(node) ?? (scope ? resolveComputedKeyName(node, scope) : null);
+  }
+
+  function memberLiteralPair({ memberExpr, literalNode, targetKey, scope }) {
+    const field = matchTargetField(memberExpr, targetKey);
+    if (field === null) return null;
+    const value = resolveLiteralOrComputed(literalNode, scope);
     return value === null ? null : { field, value };
   }
 
@@ -157,6 +169,35 @@ export function createDiscriminantNarrow({
     }
   }
 
+  // `switch (<target>.<field>) { case 'value': ... }` - discriminant narrow via case test
+  // value. emits `{field, value, positive: true}` for the current explicit case (with no
+  // fall-through predecessor; fall-through requires OR-of-values which the AND-semantics
+  // guards.every filter can't express - bail conservatively). default case with no
+  // preceding fall-through emits negative guards for each explicit case value
+  function collectSwitchCaseDiscriminants({ current, targetKey, out, ctx }) {
+    const switchCase = current.parentPath;
+    if (!t.isSwitchCase(switchCase?.node)) return;
+    const switchStmt = switchCase.parentPath;
+    if (!t.isSwitchStatement(switchStmt?.node)) return;
+    const field = matchTargetField(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey);
+    if (field === null) return;
+    if (!discriminantGuardApplies(switchStmt.scope, switchStmt.node.discriminant?.end, ctx)) return;
+    const { cases } = switchStmt.node;
+    const { scope } = switchCase;
+    const caseIndex = cases.indexOf(switchCase.node);
+    if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return;
+    // default branch (`test === null`): narrow by excluding every explicit case value
+    if (switchCase.node.test === null) {
+      for (const $case of cases) {
+        const value = resolveLiteralOrComputed($case.test, scope);
+        if (value !== null) out.push({ field, value, positive: false });
+      }
+      return;
+    }
+    const value = resolveLiteralOrComputed(switchCase.node.test, scope);
+    if (value !== null) out.push({ field, value, positive: true });
+  }
+
   // walk up collecting `<path>.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`,
   // plus preceding early-exit siblings. `targetKey` covers arbitrary LHS shapes
   // (Identifier / `this.x` / `obj.a.b`). binding-identity + mutation checks (via `ctx`)
@@ -185,6 +226,7 @@ export function createDiscriminantNarrow({
         conditionTrue = parent.node.operator === '&&';
         test = parent.node.left;
       } else {
+        collectSwitchCaseDiscriminants({ current, targetKey, out: guards, ctx });
         collectPrecedingExitDiscriminants({ current, targetKey, out: guards, ctx });
         continue;
       }
