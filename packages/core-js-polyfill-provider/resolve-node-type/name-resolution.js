@@ -285,6 +285,52 @@ export function createNameResolution({ t }) {
     typeDeclCache = new WeakMap();
   }
 
+  // path-aware variant of `walkScopesForDecl` for qualified names. mirrors the
+  // segment-descent semantics of `walkStatementsForDecl` (recursing through
+  // TSModuleDeclaration / TSModuleBlock) but tracks NodePath rather than bare nodes -
+  // consumers like `resolveSuperClassPath` feed the result into `findClassMember`, which
+  // walks the class body via `classPath.get('body').get('body')` (NodePath-only API)
+  function findDeclPathBySegments(segments, scope, matchType) {
+    if (!Array.isArray(segments) || !segments.length || !scope) return null;
+    for (let cur = scope; cur; cur = cur.parent) {
+      let bodyPaths = cur.path?.get('body');
+      if (bodyPaths && !Array.isArray(bodyPaths)) {
+        bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
+      }
+      if (!Array.isArray(bodyPaths)) continue;
+      const found = walkDeclPathsBySegments(segments, bodyPaths, matchType);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function walkDeclPathsBySegments(segments, stmtPaths, matchType) {
+    const [head, ...rest] = segments;
+    for (const stmtPath of stmtPaths) {
+      const { type } = stmtPath.node ?? {};
+      const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
+        ? stmtPath.get('declaration') : stmtPath;
+      const decl = declPath.node;
+      if (!decl) continue;
+      if (rest.length === 0 && decl.id?.name === head && matchType(decl)) return declPath;
+      if (decl.type !== 'TSModuleDeclaration') continue;
+      const moduleSegs = moduleNameSegments(decl.id);
+      if (!moduleSegs || !startsWithSegments(segments, moduleSegs)) continue;
+      // babel nested form (`namespace A.B {}` -> A.body is TSModuleDeclaration B):
+      // recurse with single-element list so the next iter matches B's name. flat form
+      // (oxc + babel non-nested): body is TSModuleBlock whose `.body` is the statement
+      // array we descend into
+      const bodyPath = declPath.get('body');
+      const innerPaths = bodyPath?.node?.type === 'TSModuleDeclaration'
+        ? [bodyPath]
+        : bodyPath?.get?.('body');
+      if (!Array.isArray(innerPaths)) continue;
+      const found = walkDeclPathsBySegments(segments.slice(moduleSegs.length), innerPaths, matchType);
+      if (found) return found;
+    }
+    return null;
+  }
+
   // `isTypeBearingDeclaration` stays cluster-private (default `leafMatch` for
   // `walkStatementsForDecl` / `walkScopesForDecl`)
   return {
@@ -296,6 +342,7 @@ export function createNameResolution({ t }) {
     findAmbientFunctionPath,
     findAmbientClassPath,
     findNamespacedFunctionPath,
+    findDeclPathBySegments,
     findTypeDeclaration,
     findEnumDeclaration,
     findAllTypeDeclarations,
