@@ -9,6 +9,7 @@ import {
   isDirectiveStatement,
   kebabToCamel,
   mayHaveSideEffects,
+  peelZeroArgIifeReturn,
   singleQuasiString,
   singleReturnBodyExpression,
   TS_EXPR_WRAPPERS,
@@ -279,6 +280,15 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name, path)) return unwrapped.name;
     return resolveBindingToGlobal({ name: unwrapped.name, scope, adapter, seen, path });
   }
+  // identity / param-free / SE-prefix IIFE peel applied ONLY in the binding-init walk,
+  // not in `resolveObjectName`'s generic CallExpression branch: the const intermediate
+  // (`const X = (arg => arg)(Array)`) keeps the IIFE detached from the eventual usage
+  // site, so polyfill emit operates on the binding name (`X`) not the IIFE expression.
+  // direct member-receiver IIFE (`((arg) => arg)(WeakMap).has(1)`) doesn't reach here
+  // and preserves its AST shape -- the identifier-visitor's inner-arg rewrite stays
+  // unrivalled, no double-rewrite overlap with a wide polyfill substitution
+  const iifePeeled = peelZeroArgIifeReturn(unwrapped);
+  if (iifePeeled) return resolveObjectName({ objectNode: iifePeeled, scope, adapter, seen, path });
   // MemberExpression / OptionalMemberExpression / CallExpression / OptionalCallExpression all
   // delegate to resolveObjectName - it handles each shape (proxy-global walk, call-inline).
   // unhandled shapes (NewExpression, BinaryExpression, etc.) safely return null
@@ -368,7 +378,14 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path }) {
   // call expression: inline the function-like callee's body return when it bottoms out on
   // a resolvable receiver. covers IIFE (`(() => Map)()`), function-expression IIFE, and
   // identifier-bound arrow/fn (`const f = () => Map; 'X' in f()`). recursion through
-  // resolveObjectName handles chains like `(() => globalThis)().Map`
+  // resolveObjectName handles chains like `(() => globalThis)().Map`.
+  // identity / param-free / SE-prefix IIFE peel (`peelZeroArgIifeReturn`) is intentionally
+  // NOT applied at this generic call site -- it'd let `((Map) => Map)(WeakMap).has(1)`
+  // resolve as a polyfillable receiver, and unplugin's text-rewrite would queue a wide
+  // replacement overlapping the identifier-visitor's inner-arg rewrite (`WeakMap` ->
+  // `_WeakMap`), producing broken `__WeakMap` output. binding-init walks apply the peel
+  // separately (`resolveVariableBindingToGlobal`); direct member-receiver IIFE preserves
+  // its AST shape so identifier-visitor's inner rewrite stays the single source of truth
   if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
     const inlined = inlineCallReturnExpression({ callNode: objectNode, scope, adapter, seen, path });
     return inlined ? resolveObjectName({ objectNode: inlined, scope, adapter, seen, path }) : null;
