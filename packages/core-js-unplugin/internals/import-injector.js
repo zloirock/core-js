@@ -106,12 +106,13 @@ export default class ImportInjector extends ImportInjectorState {
     return this.usedNames.has(name) || (this.#rootScope?.hasBinding(name) ?? false);
   }
 
-  // numbering is shared via `ImportInjectorState.generateRefName`; we track hoisted names
-  // locally so flush() can emit the `var _ref, _ref2, ...;` declaration.
-  // callers choose:
-  //   `generateHoistedRef()` - queues `var _refN;` at flush (caller writes `_refN = ...`)
-  //   `generateLocalRef()`   - UID only (caller emits its own `const _refN = ...` inline)
-  generateHoistedRef() {
+  // numbering is shared via `ImportInjectorState.generateRefName`; we track declared names
+  // locally so flush() can emit the `var _ref, _ref2, ...;` declaration. callers choose:
+  //   `generateDeclaredRef()` - queues `var _refN;` at flush (caller writes `_refN = ...`).
+  //                             same abstract role as babel's `scope.push({id})`-backed
+  //                             `generateDeclaredRef(scope)`; see injector-base.js docstring
+  //   `generateLocalRef()`    - UID only (caller emits its own `const _refN = ...` inline)
+  generateDeclaredRef() {
     const name = this.generateRefName();
     this.#refs.add(name);
     return name;
@@ -242,7 +243,7 @@ export default class ImportInjector extends ImportInjectorState {
   // the output strict-mode safe; post's emission adds any new refs post allocated.
   // no usage-tracking filter (unlike babel-plugin's `pruneUnusedRefs`): call sites follow
   // synchronous allocate-and-use discipline - every `scopeTracker.genRef()` /
-  // `generateHoistedRef()` result is immediately embedded in a replacement string that goes
+  // `generateDeclaredRef()` result is immediately embedded in a replacement string that goes
   // to `transforms.add(...)`. `preAllocatedGuardRef` is allocated only under conditions that
   // guarantee consumption
   #collectRefLines() {
