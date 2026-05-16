@@ -794,7 +794,7 @@ function iifeBodyReturn(callee, paramNames) {
 //    identifiers, so it correctly stays sound for property writes)
 //  - wrapper-hidden: SequenceExpression (`side(), arg = X`), BinaryExpression / Logical /
 //    Conditional, ParenthesizedExpression (oxc preserves; babel strips at parse),
-//    TS_EXPR_WRAPPERS, ChainExpression - the AE / UE sits one or more levels deep,
+//    TS_EXPR_WRAPPERS, ChainExpression - the assignment / update sits one or more levels deep,
 //    generic `Object.keys` descent finds it
 //  - shallow Identifier LHS / UpdateExpression target - the pre-fix behavior
 // `NESTED_BINDING_INTRODUCERS` bail: do not descend into nested function / class
