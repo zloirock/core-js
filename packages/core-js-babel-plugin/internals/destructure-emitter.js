@@ -23,6 +23,7 @@ import {
   peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiverPath,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -386,10 +387,11 @@ export default function createDestructureEmitter({
     // declarator within the same VariableDeclaration so SE evaluation stays observable
     // while polyfill is still extracted as `from = _Array$from` (always wins). non-SE
     // for-init shapes flow through the regular `isForInit` branches below.
-    // parser-preserved ParenthesizedExpression wrappers (`createParenthesizedExpressions:
-    // true`) can wrap the SE - peel so the shape check still fires under those parser opts
-    let forInitRaw = declarator.node.init;
-    while (forInitRaw?.type === 'ParenthesizedExpression') forInitRaw = forInitRaw.expression;
+    // unwrapRuntimeExpr peels Paren / Chain / TS expression wrappers so `((se(), R) as any)`,
+    // `((se(), R))`, `((se(), R) satisfies any)` all reach the underlying SequenceExpression
+    // and trip the SE-preservation branch; a Paren-only peel would have TSAsExpression hide
+    // the SE and silently drop `se()` from the rewrite
+    const forInitRaw = unwrapRuntimeExpr(declarator.node.init);
     const isForInit = declaration.parentPath?.isForStatement()
       && declaration.parentPath.node.init === declaration.node;
     const isForInitWithSE = isForInit && forInitRaw?.type === 'SequenceExpression';
