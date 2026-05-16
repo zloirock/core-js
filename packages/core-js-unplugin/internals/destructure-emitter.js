@@ -685,7 +685,7 @@ export function createDestructureEmitter({
         // (`xs = from('hi'); xs.at(0)`) finds the polyfill entry path. matches babel's
         // body-extract paths so multi-method narrowing works on extracted `from` / `of`
         // / etc. (without it, `at` / `includes` fall to generic `_at` / `_includes`)
-        injector.registerBodyExtractAlias(e.localName, e.entry);
+        injector.registerBodyExtractAlias(e.localName, e.entry, scope?.getBinding(e.localName));
         extractions.push({ decl: `${ e.localName } = ${ binding }` });
       }
       if (outer.preservedSrc !== null) {
@@ -1052,7 +1052,7 @@ export function createDestructureEmitter({
     // (`arr = from('x'); arr.at(-1)`) finds the polyfill's static return type without
     // having to re-derive (Constructor, method) from the destructure pattern shape. matches
     // babel-plugin's body-extract paths which register the same alias post-AST-mutation
-    injector.registerBodyExtractAlias(localId.name, entry);
+    injector.registerBodyExtractAlias(localId.name, entry, propPath.scope?.getBinding(localId.name));
     skippedNodes.add(propNode);
     if (propNode.value) skippedNodes.add(propNode.value);
     return true;

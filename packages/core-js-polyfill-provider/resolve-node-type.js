@@ -92,7 +92,7 @@ const BABEL_BINDING_ADAPTER = {
 // by typeof-guards + name-resolution).
 
 // eslint-disable-next-line max-statements -- factory of type inference engine
-function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () => null } = {}) {
+function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () => null, isReassignedBinding = () => false } = {}) {
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
   // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
@@ -780,6 +780,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (!path.scope) break;
       const binding = path.scope?.getBinding(path.node.name);
       if (!binding) break;
+      // injector-recorded reassignment flag: the destructure-emitter saw `constantViolations`
+      // at registration time (pre-AST-mutation, when scope was fresh) and stored the flag.
+      // babel's post-mutation scope can't be queried reliably here -- the original binding
+      // is replaced and the new one has empty `constantViolations`. break out of the alias
+      // walk so downstream narrowing (e.g. via the polyfill UID this binding was rewritten
+      // to) doesn't dispatch type-specific instance polyfills for a value whose runtime
+      // identity is no longer guaranteed
+      if (isReassignedBinding(path.node.name)) break;
       // mutable binding with reassignments: follow the last preceding-block `=` assignment
       // before `path` so `let f: Foo = init; f = { kind:'b', data:'str' }; f.data.at(0)`
       // (and `if (...) { f = {...}; f.data.at(0); }`) narrows `f` to the RHS shape, not the
