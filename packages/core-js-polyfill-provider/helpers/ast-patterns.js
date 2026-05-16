@@ -784,11 +784,46 @@ function iifeBodyReturn(callee, paramNames) {
   return last.argument;
 }
 
+// detect any param reassignment hidden anywhere inside `expr` (the expression of one
+// prefix ExpressionStatement before the body's `return`). recursive walk covers:
+//  - pattern-LHS: `[arg] = X`, `{a: arg} = X`, `[...arg] = X`, `[arg = 0] = X` -
+//    `walkPatternIdentifiers` enumerates every binding leaf (also handles bare
+//    Identifier and bare MemberExpression LHS uniformly: `arg.foo = X` walks no
+//    identifiers, so it correctly stays sound for property writes)
+//  - wrapper-hidden: SequenceExpression (`side(), arg = X`), BinaryExpression / Logical /
+//    Conditional, ParenthesizedExpression (oxc preserves; babel strips at parse),
+//    TS_EXPR_WRAPPERS, ChainExpression - the AE / UE sits one or more levels deep,
+//    generic `Object.keys` descent finds it
+//  - shallow Identifier LHS / UpdateExpression target - the pre-fix behavior
+// `NESTED_BINDING_INTRODUCERS` bail: do not descend into nested function / class
+// bodies. their rebinds either shadow (own param with same name) or only run when
+// the closure is invoked elsewhere - neither propagates to the outer param's value
+// at the prefix-statement evaluation point
 function prefixStmtRebindsParam(expr, paramNames) {
   if (!expr || paramNames.size === 0) return false;
-  if (expr.type === 'AssignmentExpression') return expr.left?.type === 'Identifier' && paramNames.has(expr.left.name);
-  if (expr.type === 'UpdateExpression') return expr.argument?.type === 'Identifier' && paramNames.has(expr.argument.name);
+  if (typeof expr !== 'object' || typeof expr.type !== 'string') return false;
+  if (NESTED_BINDING_INTRODUCERS.has(expr.type)) return false;
+  if (expr.type === 'UpdateExpression') {
+    return expr.argument?.type === 'Identifier' && paramNames.has(expr.argument.name);
+  }
+  if (expr.type === 'AssignmentExpression') {
+    if (patternBindsAnyParam(expr.left, paramNames)) return true;
+    // RHS may carry its own rebind too (`other = (arg = X)`) - keep walking
+    return prefixStmtRebindsParam(expr.right, paramNames);
+  }
+  for (const key of Object.keys(expr)) {
+    const value = expr[key];
+    if (Array.isArray(value)) {
+      if (value.some(v => prefixStmtRebindsParam(v, paramNames))) return true;
+    } else if (prefixStmtRebindsParam(value, paramNames)) return true;
+  }
   return false;
+}
+
+function patternBindsAnyParam(pattern, paramNames) {
+  let found = false;
+  walkPatternIdentifiers(pattern, id => { if (paramNames.has(id.name)) found = true; });
+  return found;
 }
 
 // peel TS / paren wrappers and report whether the underlying node is a SequenceExpression
@@ -1275,35 +1310,55 @@ export function declaresRequireBinding(body) {
 }
 
 function computeDeclaresRequire(body) {
-  let found = false;
-
-  function mark(id) {
-    if (id.name === 'require') found = true;
-  }
-
   for (const stmt of body ?? []) {
-    const node = unwrapExportedDeclaration(stmt);
-    if (!node) continue;
-    switch (node.type) {
-      case 'VariableDeclaration':
-        for (const d of node.declarations) walkPatternIdentifiers(d.id, mark);
-        break;
-      case 'FunctionDeclaration':
-      case 'ClassDeclaration':
-        if (node.id?.name === 'require') return true;
-        break;
-      case 'ImportDeclaration':
-        for (const s of node.specifiers) {
-          if (s.local?.name === 'require') return true;
-        }
-        break;
-      // `import require = X.Y` - TS-specific syntax that creates a runtime binding to
-      // anything named `require`. namespace refs / proper modules both reach runtime,
-      // so shadowing is real
-      case 'TSImportEqualsDeclaration':
-        if (node.id?.name === 'require') return true;
-        break;
-    }
+    if (statementShadowsRequireAtProgramScope(stmt)) return true;
+  }
+  // `var require` hoists from nested non-function scopes (for-of head, if-body, blocks,
+  // try-catch) to program scope per JS semantics. babel's scope tracker hoists vars
+  // natively; mirror that here so unplugin's entry-detection synth-scope matches
+  // babel-plugin's real-scope `getBindingIdentifier('require')` behavior
+  return collectScopeVars({ body }).has('require');
+}
+
+// covers what babel's `scope.getBindingIdentifier('require')` (filtered by
+// `isAmbientBindingShape`) plus `findTSRuntimeBindingInPath` would report for a
+// program-direct binding. `var` is excluded - the recursive hoist sweep in
+// `computeDeclaresRequire` handles it uniformly, including top-level `var require`
+function statementShadowsRequireAtProgramScope(stmt) {
+  const node = unwrapExportedDeclaration(stmt);
+  if (!node || node.declare === true) return false;
+  switch (node.type) {
+    case 'VariableDeclaration':
+      // block-scoped `let`/`const` only matter at program-direct position. `var` falls
+      // through to the recursive collectScopeVars sweep (handles nested + program-direct)
+      if (node.kind === 'var') return false;
+      return declaratorsBindName(node.declarations, 'require');
+    case 'FunctionDeclaration':
+    case 'ClassDeclaration':
+      return node.id?.name === 'require';
+    case 'ImportDeclaration':
+      // type-only forms (declaration-level `import type ...` and per-specifier `import { type X }`)
+      // are tsc-elided - references resolve to the global, so no runtime shadow
+      if (node.importKind === 'type') return false;
+      return node.specifiers.some(s => s.importKind !== 'type' && s.local?.name === 'require');
+    // `import require = X.Y` creates a runtime binding (namespace refs / proper modules
+    // both reach runtime). `import type require = ...` is tsc-elided
+    case 'TSImportEqualsDeclaration':
+      return !isTypeOnlyImportEquals(node) && node.id?.name === 'require';
+    // non-ambient `enum X {}` / `const enum X {}` / `namespace X {}` emit IIFE-backed
+    // runtime bindings. babel's scope tracker exposes them only via
+    // `findTSRuntimeBindingInPath`, not `getBindingIdentifier`
+    case 'TSEnumDeclaration':
+    case 'TSModuleDeclaration':
+      return node.id?.name === 'require';
+  }
+  return false;
+}
+
+function declaratorsBindName(decls, name) {
+  let found = false;
+  for (const d of decls ?? []) {
+    walkPatternIdentifiers(d.id, id => { if (id.name === name) found = true; });
     if (found) return true;
   }
   return false;
