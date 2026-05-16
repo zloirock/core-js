@@ -434,8 +434,15 @@ export function createPolyfillEmitter({
     let { replacement } = built;
     const { split } = built;
     if (optionalRoot && guardNeedsParens({ metaPath, isCall, start, end })) {
-      replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, start);
+      replacement = `(${ replacement })`;
     }
+    // ASI guard runs UNCONDITIONALLY for any `(`-leading replacement -- covers both the
+    // optionalRoot-wrap above and the bare SE-wrap path (`(sideEffect, _at(obj).call(obj,
+    // 0))` produced when computed-key carries SE, e.g. `arr[(bar(), 'at')](0)`). without
+    // this, a replacement at statement-leading slot after an unterminated predecessor
+    // would fuse into a call (`prev\n(SE,_at(obj).call(obj,0))` -> `prev(SE,...)`).
+    // `asiGuardLeadingParen` is a no-op for non-`(`-leading replacements
+    replacement = asiGuardLeadingParen(replacement, metaPath, start);
     const hint = createRewriteHint({
       rootRaw,
       guardRef: preAllocatedGuardRef ?? reusedOuterRef,
