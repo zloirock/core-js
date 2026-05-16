@@ -47,6 +47,7 @@ export default function plugin(api, options) {
   // call return type propagates to outer member-access narrowing
   const typeResolvers = createResolveNodeType(node => node?.type, t, {
     getPolyfillBindingEntry(scope, name) { return injector?.getBindingInfo?.(name)?.entry ?? null; },
+    isReassignedBinding(name) { return injector?.isReassignedBinding?.(name) ?? false; },
   });
   const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
 
