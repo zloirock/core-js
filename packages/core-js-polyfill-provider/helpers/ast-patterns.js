@@ -645,9 +645,10 @@ export function peelFallbackWrappers(node) {
 
 // deep peel for fallback receivers: chain-assignment (`foo = bar = (cond ? A : B)`) +
 // ParenthesizedExpression + TS expression wrappers + side-effect-free SequenceExpression
-// tails (`(0, cond ? A : B)`), alternating until stable. shape: `r = (cond ? A : B)` ->
-// ConditionalExpression. used by per-branch synth-swap and fallback enumeration to reach
-// the underlying conditional/logical regardless of chain-assign / paren / TS / safe-SE
+// tails (`(0, cond ? A : B)`) + zero-arg IIFE returning the fallback (`(() => cond ? A
+// : B)()`), alternating until stable. shape: `r = (cond ? A : B)` -> ConditionalExpression.
+// used by per-branch synth-swap and fallback enumeration to reach the underlying
+// conditional/logical regardless of chain-assign / paren / TS / safe-SE / factory-IIFE
 // layering order. SE prefix that carries observable side effects stops further SE-layer
 // peeling - dropping it would silently elide effects the rewrite can't preserve.
 // visited Set guards against synthetic cyclic ASTs (`a = (a = ...)`-shaped self-loops):
@@ -671,8 +672,123 @@ export function peelFallbackReceiver(node) {
       visited.add(tail);
       node = tail;
     }
+    // outer loop's top adds `node` to `visited` at the next iteration and bails on
+    // re-entry; don't pre-add `iifeInner` here or we short-circuit before iterating through
+    // a legitimate nested-IIFE peel chain (`(() => (() => expr)())()` -> outer peeled to
+    // inner CallExpression on this iter, then iter+1 peels inner to expr)
+    const iifeInner = peelZeroArgIifeReturn(node);
+    if (iifeInner) node = iifeInner;
   }
   return node;
+}
+
+// nodes that introduce their own scope and may shadow outer bindings - `bodyHasParamReference`
+// treats them as "may reference" since reasoning about their internal bindings statically
+// requires a full scope walk
+const NESTED_BINDING_INTRODUCERS = new Set([
+  'ArrowFunctionExpression',
+  'FunctionExpression',
+  'FunctionDeclaration',
+  'ClassExpression',
+  'ClassDeclaration',
+]);
+
+// peel a transparent IIFE call to its underlying receiver expression. covers three
+// pass-through shapes (in increasing scope of evaluation, all valid as a single peel):
+//   - zero-arg + zero-param: `(() => expr)()` -> `expr`
+//   - identity: `(arg => arg)(X)` / `((a, b) => b)(X, Y)` -> the arg matching the body's
+//     returned param (positional)
+//   - param-free body: `(arg => globalThis)(X)` -> `globalThis`. body doesn't reference
+//     any param; the IIFE is a no-shadow pass-through (args evaluated for side-effect,
+//     return value is the body verbatim). factory wrappers `(arg => { setup(arg); return
+//     arg; })(X)` also fit here when intermediates don't rebind a param
+// returns null for non-IIFE callees, async/generator functions, spread args, destructure
+// params, bodies with control flow / non-ExpressionStatement intermediates / prefix
+// reassignments to params, or bodies whose free variables overlap params without
+// matching the identity shape
+export function peelZeroArgIifeReturn(node) {
+  if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
+  const callee = peelFallbackWrappers(node.callee);
+  if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return null;
+  if (callee.async || callee.generator) return null;
+  const args = node.arguments ?? [];
+  if (args.some(a => a?.type === 'SpreadElement')) return null;
+  const params = callee.params ?? [];
+  const paramNames = collectParamBindingNames(params);
+  if (paramNames === null) return null;
+  const body = iifeBodyReturn(callee, paramNames);
+  if (body === null) return null;
+  // identity IIFE: body is a bare param Identifier - lift the matching arg by position.
+  // requires args.length === params.length so positional match is unambiguous
+  if (body.type === 'Identifier' && params.length === args.length && paramNames.has(body.name)) {
+    const i = params.findIndex(p => p?.type === 'Identifier' && p.name === body.name);
+    if (i !== -1) return args[i];
+  }
+  // zero-arg/zero-param OR param-free body: lift the body verbatim (resolver-side
+  // classification ignores arg side effects since it only needs receiver shape)
+  return bodyHasParamReference(body, paramNames) ? null : body;
+}
+
+// collect Identifier names introduced by the param list. supports simple Identifier
+// params, AssignmentPattern wraps (`x = 1`), and RestElement (`...x`). returns null for
+// destructure patterns and other shapes we don't statically track -- caller bails on
+// null to keep the peel sound
+function collectParamBindingNames(params) {
+  const names = new Set();
+  for (const p of params) {
+    const base = p?.type === 'AssignmentPattern' ? p.left : p?.type === 'RestElement' ? p.argument : p;
+    if (base?.type !== 'Identifier') return null;
+    names.add(base.name);
+  }
+  return names;
+}
+
+// shallow free-variable scan: true if any Identifier in `node`'s reference positions
+// matches a param name. skips non-reference slots (non-computed member property), bails
+// conservatively on nested scope introducers (nested function / class bodies could
+// declare a local with a param name, masking the outer binding)
+function bodyHasParamReference(node, paramNames) {
+  if (paramNames.size === 0 || !node || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (node.type === 'Identifier') return paramNames.has(node.name);
+  if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+    return bodyHasParamReference(node.object, paramNames)
+      || (node.computed && bodyHasParamReference(node.property, paramNames));
+  }
+  if (NESTED_BINDING_INTRODUCERS.has(node.type)) return true;
+  for (const key of Object.keys(node)) {
+    const value = node[key];
+    if (Array.isArray(value)) {
+      if (value.some(v => bodyHasParamReference(v, paramNames))) return true;
+    } else if (bodyHasParamReference(value, paramNames)) return true;
+  }
+  return false;
+}
+
+// extract the body's terminal return expression while validating the prefix. arrow
+// expression-body returns directly. BlockStatement body: accept a side-effect
+// ExpressionStatement prefix preceding `return expr;`. non-ExpressionStatement
+// intermediates (control flow, bindings) or expressions that rebind a param (`arg = X`
+// / `arg++`) make the peel unsound. single body walk handles both checks
+function iifeBodyReturn(callee, paramNames) {
+  const { body } = callee;
+  if (callee.type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') return body ?? null;
+  if (body?.type !== 'BlockStatement') return null;
+  const stmts = body.body ?? [];
+  if (stmts.length === 0) return null;
+  const last = stmts.at(-1);
+  if (last?.type !== 'ReturnStatement' || !last.argument) return null;
+  for (let i = 0; i < stmts.length - 1; i++) {
+    if (stmts[i]?.type !== 'ExpressionStatement') return null;
+    if (prefixStmtRebindsParam(stmts[i].expression, paramNames)) return null;
+  }
+  return last.argument;
+}
+
+function prefixStmtRebindsParam(expr, paramNames) {
+  if (!expr || paramNames.size === 0) return false;
+  if (expr.type === 'AssignmentExpression') return expr.left?.type === 'Identifier' && paramNames.has(expr.left.name);
+  if (expr.type === 'UpdateExpression') return expr.argument?.type === 'Identifier' && paramNames.has(expr.argument.name);
+  return false;
 }
 
 // peel TS / paren wrappers and report whether the underlying node is a SequenceExpression

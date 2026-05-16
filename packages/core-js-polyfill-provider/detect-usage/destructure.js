@@ -12,6 +12,7 @@ import {
   isTransparentDestructureWrapper,
   peelFallbackReceiver,
   peelFallbackWrappers,
+  peelZeroArgIifeReturn,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
@@ -51,6 +52,16 @@ export function buildDestructuringInitMeta({ initNode, key, scope, adapter }) {
       // to its RHS - recurse on right so meta tracks the actual destructure receiver
       if (isChainAssignment(unwrapped)) return buildDestructuringInitMeta({ initNode: unwrapped.right, key, scope, adapter });
       break;
+    case 'CallExpression':
+    case 'OptionalCallExpression': {
+      // zero-arg IIFE wrapping a fallback shape: `const { from } = (() => cond ? Array
+      // : Iterator)()`. recurse on the IIFE's return expression so per-branch enumeration
+      // sees the conditional/logical inside. args-bearing calls preserve their semantics
+      // (peel returns null, switch falls through to the `object: null` default)
+      const iifeInner = peelZeroArgIifeReturn(unwrapped);
+      if (iifeInner) return buildDestructuringInitMeta({ initNode: iifeInner, key, scope, adapter });
+      break;
+    }
   }
   // `const { from } = Array` or `const { from } = globalThis.Array`
   if (unwrapped.type === 'Identifier' || unwrapped.type === 'MemberExpression'
