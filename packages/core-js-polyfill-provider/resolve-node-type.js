@@ -301,6 +301,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `matchType` key
   const nameResolutionCluster = createNameResolution({ t });
   const {
+    withLookupPath,
     isFunctionLike,
     isFunctionOrClassDeclaration,
     isClassLikeDeclaration,
@@ -1226,6 +1227,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     resolveComputedKeyName,
     getKeyName,
     findLastStraightLineAssignment,
+    withLookupPath,
   });
   const {
     findArrayPatternKeyPath,
@@ -1674,6 +1676,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // sentinel before recursion: circular references (e.g. `const a = b.x(); const b = a.x();`)
     // resolve to null (unknown type) instead of causing infinite recursion
     resolveCache.set(node, null);
+    // anchor the path on the lookup-path stack for the WHOLE resolution chain - covers
+    // direct annotation lookups, member-type substitution, generic-arg resolution, etc.
+    // parsers (estree-toolkit) that don't expose TSModuleDeclaration as scope can then
+    // fall back to walking path ancestors for namespace-local type decls regardless of
+    // how deep into the resolver chain the lookup happens
+    return withLookupPath(path, () => resolveNodeTypeInternal(path, node));
+  }
+
+  function resolveNodeTypeInternal(path, node) {
     let result;
     try {
       result = resolveNodeTypeExpression(path);
