@@ -180,7 +180,7 @@ export function varScopeAnchor(node, code) {
 
 // scan backwards past whitespace and comments; -1 if we walked off the start.
 // ES line-terminators include U+2028 / U+2029 in addition to LF / CR
-function prevSignificantPos(src, pos) {
+export function prevSignificantPos(src, pos) {
   let i = pos - 1;
   while (i >= 0) {
     const ch = src[i];
