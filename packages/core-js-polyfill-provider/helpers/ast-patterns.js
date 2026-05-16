@@ -682,10 +682,12 @@ export function peelFallbackReceiver(node) {
   return node;
 }
 
-// nodes that introduce their own scope and may shadow outer bindings - `bodyHasParamReference`
-// treats them as "may reference" since reasoning about their internal bindings statically
-// requires a full scope walk
-const NESTED_BINDING_INTRODUCERS = new Set([
+// nodes that introduce their own scope and may shadow outer bindings - subtree walkers
+// stop at these boundaries: `bodyHasParamReference` / `prefixStmtRebindsParam` treat them
+// as opaque (can't reason about inner bindings statically), `subtreeContainsExit` (in
+// straight-line-flow) treats them as scope-local exits that don't propagate to the outer
+// straight-line check
+export const NESTED_BINDING_INTRODUCERS = new Set([
   'ArrowFunctionExpression',
   'FunctionExpression',
   'FunctionDeclaration',
