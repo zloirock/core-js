@@ -16,9 +16,9 @@ import {
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
-  TS_EXPR_WRAPPERS,
   findFunctionScopeVarInPath,
   findIifeArgForParam,
+  findIifeCallSite,
   findTSRuntimeBindingInPath,
   isASTNode,
   isAmbientBindingShape,
@@ -459,26 +459,14 @@ export function createUsageVisitors({
       case 'RestElement':
       case 'CatchClause': break;
       default: {
-        // IIFE destructuring: !function ({ entries }) {} (Object). also covers TS-wrapped
-        // callees `((arrow) as any)(Object)` and ChainExpression-wrapped optional call sites
-        const funcNode = parent.node;
-        if (funcNode.type === 'FunctionExpression' || funcNode.type === 'ArrowFunctionExpression') {
-          const paramIndex = funcNode.params?.indexOf(objectPattern.node);
-          if (paramIndex >= 0) {
-            let callPath = parent.parentPath;
-            while (callPath?.node && (callPath.node.type === 'UnaryExpression'
-              || callPath.node.type === 'SequenceExpression'
-              || callPath.node.type === 'ParenthesizedExpression'
-              || callPath.node.type === 'ChainExpression'
-              || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
-              callPath = callPath.parentPath;
-            }
-            const callNode = callPath?.node;
-            if (callNode?.type === 'NewExpression' || callNode?.type === 'CallExpression') {
-              initNode = resolveCallArgument(callNode.arguments ?? [], paramIndex);
-            }
-          }
-        }
+        // IIFE destructuring: `!function({entries}) {}(Object)`. shared `findIifeCallSite`
+        // peels wrapper chain (Unary / Sequence / Paren / Chain / TS), accepts CallExpression /
+        // NewExpression / OptionalCallExpression, AND enforces the callee-identity gate
+        // (`peelIifeCallee(callee, fn) === fn`) so functions PASSED AS ARGS to another call
+        // (`doStuff(Object, function({entries}) {...})`) don't get misclassified as IIFEs
+        const site = findIifeCallSite(parent, objectPattern.node);
+        if (!site) return null;
+        initNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
         if (!initNode) return null;
       }
     }
