@@ -21,6 +21,25 @@
 import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { scopeNode } from './straight-line-flow.js';
 
+// nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
+// would TypeError on these at runtime, so the branch is unreachable in the guarded
+// scope. TS keywords + Flow type-annotation variants. `NullLiteral` deliberately omitted
+// (runtime literal, only appears wrapped inside TSLiteralType, not as a direct union
+// branch in either parser)
+const NULLISH_BRANCH_TYPES = new Set([
+  'TSNullKeyword',
+  'TSUndefinedKeyword',
+  'TSVoidKeyword',
+  'NullLiteralTypeAnnotation',
+  'VoidTypeAnnotation',
+]);
+
+// TS + Flow union-type predicate. used by both narrowing entry points and the inner
+// alias-walk flattener; shape parity must stay in sync across all three call sites
+function isUnionType(node) {
+  return node?.type === 'TSUnionType' || node?.type === 'UnionTypeAnnotation';
+}
+
 export function createDiscriminantNarrow({
   t,
   peelNegation,
@@ -279,7 +298,7 @@ export function createDiscriminantNarrow({
     const rhs = lastAssign?.node?.right;
     if (rhs?.type !== 'ObjectExpression') return null;
     const { node: aliased } = followTypeAliasChain(unwrapTypeAnnotation(annotation), scope);
-    if (aliased?.type !== 'TSUnionType' && aliased?.type !== 'UnionTypeAnnotation') return null;
+    if (!isUnionType(aliased)) return null;
     const rhsLiterals = collectObjectLiteralProps(rhs);
     if (rhsLiterals.size === 0) return null;
     const filtered = aliased.types.filter(branch => branchMatchesLiterals(branch, rhsLiterals, scope));
@@ -309,11 +328,18 @@ export function createDiscriminantNarrow({
     const targetKey = pathKey(objectPath.node);
     if (!targetKey) return null;
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
-    if (aliased?.type !== 'TSUnionType' && aliased?.type !== 'UnionTypeAnnotation') return null;
+    if (!isUnionType(aliased)) return null;
     const guards = findDiscriminantGuards(objectPath, targetKey);
     if (!guards.length) return null;
+    // flatten nested-union branches (`type Outer = DiscUnion | null` -> walk DiscUnion's
+    // body so each individual `{kind:'a',...}` / `{kind:'b',...}` branch is visible to the
+    // discriminant filter). without this, `aliased.types` for `DiscUnion | null` is
+    // [DiscUnion, null] -- the filter checks `findTypeMember(DiscUnion, 'kind')` which
+    // returns a union of all `kind` literals, no single value to compare, branch passes
+    // permissively and narrowing degrades to identity
+    const flattened = flattenUnionBranches(aliased.types, scope);
     // permissive: branches with unresolvable discriminant members pass through
-    const filtered = aliased.types.filter(branch => branchMatchesGuards(branch, guards, scope));
+    const filtered = flattened.filter(branch => branchMatchesGuards(branch, guards, scope));
     const narrowed = buildNarrowedUnion(filtered, aliased);
     if (!narrowed) return null;
     // preserve accumulated type-param substitutions through the narrowed result - without
@@ -322,18 +348,42 @@ export function createDiscriminantNarrow({
     return applySubst(narrowed, subst);
   }
 
-  // a branch survives discriminant filtering when every guard's expected value agrees with
-  // the branch's literal-typed member at the same key - non-literal members pass through
-  // (permissive; matches the existing precedent for unresolvable members)
-  function branchMatchesGuards(branch, guards, scope) {
-    for (const { field, value, positive } of guards) {
-      const memberType = findTypeMember({ objectType: unwrapTypeAnnotation(branch), key: field, scope });
-      if (!memberType) continue;
-      const { node: resolvedNode } = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope);
-      const literal = resolvedNode?.type === 'TSLiteralType' ? literalKeyValue(resolvedNode.literal) : null;
-      if (literal !== null && (literal === value) !== positive) return false;
+  // recursively expand alias chains that resolve to unions so each inner branch appears
+  // at the top-level filter list. inline branches (non-union after the alias walk) are
+  // kept verbatim so the outer `applySubst` at the caller still handles type-param
+  // propagation. `applySubst` is a no-op when its subst arg is null (`type-subst.js`),
+  // so the per-inner-branch call covers both the alias-with-subst and bare-alias cases
+  function flattenUnionBranches(types, scope) {
+    const out = [];
+    for (const branch of types) {
+      const { node: resolved, subst } = followTypeAliasChain(unwrapTypeAnnotation(branch), scope);
+      if (!isUnionType(resolved)) {
+        out.push(branch);
+        continue;
+      }
+      for (const inner of flattenUnionBranches(resolved.types, scope)) out.push(applySubst(inner, subst));
     }
-    return true;
+    return out;
+  }
+
+  // a branch survives discriminant filtering when every guard's expected value agrees with
+  // the branch's literal-typed member at the same key. nullish-keyword branches (`null`,
+  // `undefined`, `void`) are excluded outright -- runtime evaluation of any property-
+  // access guard (`x.kind === 'a'`) would TypeError before the comparison, so the branch
+  // is unreachable in the guarded scope. non-literal / unresolvable members pass through
+  // permissively (matches the existing precedent for unknown member types)
+  function branchMatchesGuards(branch, guards, scope) {
+    const unwrapped = unwrapTypeAnnotation(branch);
+    if (NULLISH_BRANCH_TYPES.has(unwrapped?.type)) return false;
+    return guards.every(guard => guardMatchesBranchMember(guard, unwrapped, scope));
+  }
+
+  function guardMatchesBranchMember({ field, value, positive }, objectType, scope) {
+    const memberType = findTypeMember({ objectType, key: field, scope });
+    if (!memberType) return true;
+    const { node: resolvedNode } = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope);
+    const literal = resolvedNode?.type === 'TSLiteralType' ? literalKeyValue(resolvedNode.literal) : null;
+    return literal === null || (literal === value) === positive;
   }
 
   return {
