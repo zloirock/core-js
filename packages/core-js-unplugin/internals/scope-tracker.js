@@ -104,7 +104,7 @@ export default class ScopeTracker {
     }
     // file scope: hoisted via injector.flush; block body: var inserted at body start
     // (caller tracks via `scopedVars` and emits its own `var X;`, so no injector-level hoist)
-    const name = scope === -1 ? this.#injector.generateHoistedRef() : this.#injector.generateLocalRef();
+    const name = scope === -1 ? this.#injector.generateDeclaredRef() : this.#injector.generateLocalRef();
     if (scope !== -1) {
       if (!this.#scopedVars.has(scope)) this.#scopedVars.set(scope, []);
       this.#scopedVars.get(scope).push(name);
