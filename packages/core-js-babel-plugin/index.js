@@ -275,6 +275,15 @@ export default function plugin(api, options) {
         }
       }
 
+      // peel SequenceExpression's preceding elements when at least one carries a
+      // side-effect; trailing tail is the value used by the in-expression. returns null
+      // when not a sequence or when no preceding element has side-effects
+      function sequencePrefixWithSideEffects(expr) {
+        if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
+        const prefix = expr.expressions.slice(0, -1);
+        return prefix.some(e => mayHaveSideEffects(e)) ? prefix : null;
+      }
+
       // `X in Y` rewrite. symbol-sourced LHS (`Symbol.X in obj` / alias binding) takes the
       // symbol-in polyfill path; string-sourced LHS (`'Symbol.X' in Obj`) falls through to
       // the string-key lookup and emits `true` only if the static table matches the literal
@@ -293,23 +302,26 @@ export default function plugin(api, options) {
           return;
         }
         if (meta.object) {
-          // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
-          const resolved = resolvePureOrGlobalFallback(meta, path);
-          if (!resolved.result) return;
-          // RHS-side preserves SE: `'k' in (fn(), Array)` / `'k' in (a = Array)` evaluates
-          // the SE even when LHS is a known constant. drop without rescue would silently
-          // elide observable side-effects. SequenceExpression: keep SE-bearing prefix and
-          // drop the receiver tail; AssignmentExpression: wrap whole rhs as a sequence prefix.
+          // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable.
+          // BOTH sides preserve SE: `(bar(), 'from') in Array` and `'k' in (fn(), Array)`
+          // evaluate their SE even when the in-check folds to a constant. shapes:
+          //   SequenceExpression: keep SE-bearing prefix, drop tail (consumed by in-check)
+          //   AssignmentExpression on RHS: wrap whole RHS as sequence prefix (rescues
+          //   assignment side-effect + binding update)
           // CallExpression rhs is intentionally NOT rescued here - inline-call analysis
           // upstream filters out SE-bearing IIFEs separately, and conservative wrapping for
           // pure IIFE receivers would emit `((() => X)(), true)` for the explicit-classify path
+          const resolved = resolvePureOrGlobalFallback(meta, path);
+          if (!resolved.result) return;
+          const seExprs = [];
+          const lhsPrefix = sequencePrefixWithSideEffects(path.node.left);
+          if (lhsPrefix) seExprs.push(...lhsPrefix.map(e => t.cloneNode(e)));
           const rhs = path.node.right;
-          if (rhs?.type === 'SequenceExpression' && rhs.expressions.length > 1
-            && rhs.expressions.slice(0, -1).some(e => mayHaveSideEffects(e))) {
-            const prefix = rhs.expressions.slice(0, -1);
-            path.replaceWith(t.sequenceExpression([...prefix, t.booleanLiteral(true)]));
-          } else if (rhs?.type === 'AssignmentExpression') {
-            path.replaceWith(t.sequenceExpression([t.cloneNode(rhs), t.booleanLiteral(true)]));
+          const rhsPrefix = sequencePrefixWithSideEffects(rhs);
+          if (rhsPrefix) seExprs.push(...rhsPrefix.map(e => t.cloneNode(e)));
+          else if (rhs?.type === 'AssignmentExpression') seExprs.push(t.cloneNode(rhs));
+          if (seExprs.length) {
+            path.replaceWith(t.sequenceExpression([...seExprs, t.booleanLiteral(true)]));
           } else {
             path.replaceWith(t.booleanLiteral(true));
           }
