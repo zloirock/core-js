@@ -15,7 +15,7 @@
 //
 // O(V) cache build per binding (sorted by source position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
-import { IIFE_CALL_PATH_WRAPPERS, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
+import { IIFE_CALL_PATH_WRAPPERS, NESTED_BINDING_INTRODUCERS, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
 
 // expression wrappers whose child position is ALWAYS evaluated. used to validate the
 // chain from a candidate assignment up to its enclosing statement: any intermediate
@@ -26,6 +26,49 @@ import { IIFE_CALL_PATH_WRAPPERS, TS_EXPR_WRAPPERS } from '../helpers/ast-patter
 // `(iife() as any)` / `(iife()!)` / `(iife() satisfies T)`. `BinaryExpression` is also
 // always-eval but rare in IIFE wrap patterns - omitted to keep the contract minimal
 const STRAIGHT_LINE_WRAPPER_TYPES = new Set([...IIFE_CALL_PATH_WRAPPERS, ...TS_EXPR_WRAPPERS]);
+
+// control-flow exits that, when reachable in a preceding sibling of the candidate
+// assignment, mean the assignment may NOT run: function-exit (return / throw), loop-exit
+// (break), iteration-skip (continue). nested function / class bodies do NOT propagate
+// (their exits escape their OWN scope) - the `NESTED_BINDING_INTRODUCERS` boundary in
+// `subtreeContainsExit` stops descent there
+const EXIT_STATEMENT_TYPES = new Set([
+  'BreakStatement',
+  'ContinueStatement',
+  'ReturnStatement',
+  'ThrowStatement',
+]);
+
+function subtreeContainsExit(node) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (EXIT_STATEMENT_TYPES.has(node.type)) return true;
+  if (NESTED_BINDING_INTRODUCERS.has(node.type)) return false;
+  for (const key of Object.keys(node)) {
+    const value = node[key];
+    if (Array.isArray(value)) {
+      if (value.some(subtreeContainsExit)) return true;
+    } else if (subtreeContainsExit(value)) return true;
+  }
+  return false;
+}
+
+// walk from `startStmt` up to `endNode` checking that no preceding sibling at any
+// statement-list level contains an exit (return / throw / break / continue) reachable
+// from outside a nested function. complements `reachesStraightLine`'s ancestor-only
+// check - the assignment's ancestor chain may all be straight-line BlockStatements,
+// but a preceding `if (c) return;` at the same block level still makes the assignment
+// conditionally unreachable
+function precedingSiblingsExitFree(startStmt, endNode) {
+  for (let cur = startStmt; cur && cur.node !== endNode; cur = cur.parentPath) {
+    const parentNode = cur.parentPath?.node;
+    if (!parentNode || !Array.isArray(parentNode.body)) continue;
+    const idx = parentNode.body.indexOf(cur.node);
+    for (let i = 0; i < idx; i++) {
+      if (subtreeContainsExit(parentNode.body[i])) return false;
+    }
+  }
+  return true;
+}
 
 // short-circuit AssignmentExpression operators: `||=` / `&&=` / `??=` conditionally
 // evaluate RHS. plain `=` and arithmetic compounds (`+=`/`*=`/...) evaluate RHS
@@ -100,16 +143,22 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   // assignment node - oxc preserves `() => (expr)`'s outer ParenthesizedExpression).
   // callers need both: the call to continue the lift loop, the body to bound the inner
   // straight-line check (so inner if / switch / loop / try inside the IIFE blocks lifting).
+  // callee-side wrapper peel uses the shared `IIFE_CALL_PATH_WRAPPERS` + `TS_EXPR_WRAPPERS`
+  // sets so TS-cast IIFEs (`((arrow) as any)()`) and ChainExpression-wrapped optional
+  // call sites are recognised in lockstep with detect-usage / synth-swap / findIifeCallSite
   function findEnclosingIIFE(path, targetScope) {
     for (let cur = path; cur; cur = cur.parentPath) {
       if (cur.scope === targetScope) return null;
       if (!t.isFunction(cur.node)) continue;
       if (cur.node.async || cur.node.generator) return null;
-      // walk past parens and `(0, fn)` sequence wrappers
       let callee = cur;
-      while (callee.parentPath?.node.type === 'ParenthesizedExpression'
-        || (callee.parentPath?.node.type === 'SequenceExpression'
-          && callee.node === callee.parentPath.node.expressions.at(-1))) {
+      while (callee.parentPath?.node
+        && (IIFE_CALL_PATH_WRAPPERS.has(callee.parentPath.node.type)
+          || TS_EXPR_WRAPPERS.has(callee.parentPath.node.type))) {
+        // SequenceExpression only peels when our callee is the TAIL - preceding elements
+        // are side-effect slots that don't carry the invoked value
+        if (callee.parentPath.node.type === 'SequenceExpression'
+          && callee.node !== callee.parentPath.node.expressions.at(-1)) break;
         callee = callee.parentPath;
       }
       const call = callee.parentPath;
@@ -135,10 +184,11 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   }
 
   // lift `ap` through nested synchronous IIFE wrappers until it lands in binding's
-  // var-scope. each lift step also verifies the inner path (assignment -> IIFE function
-  // body) is straight-line, so inner if / switch / loop / try inside the IIFE blocks
-  // the narrow lift instead of slipping past the outer check (which would only see the
-  // always-running CallExpression). returns the lifted path on success, null on bail
+  // var-scope. each lift step verifies (a) ancestor chain to IIFE body is plain blocks
+  // (no if / switch / loop / try around the assignment) AND (b) no preceding sibling at
+  // any block level may exit before reaching the assignment - `if (c) return;` ahead of
+  // `x = 'hello'` makes the assignment conditionally unreachable even when the ancestor
+  // chain is straight-line. returns the lifted path on success, null on bail
   function liftThroughIIFEs(ap, wrapStmtType, bindingScope) {
     let effectiveAp = ap;
     while (effectiveAp && !isInBindingVarScope(effectiveAp.scope, bindingScope)) {
@@ -148,6 +198,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       if (effectiveAp.node !== fnBody) {
         const innerStmt = findEnclosingStatement(effectiveAp, wrapStmtType);
         if (!innerStmt || !reachesStraightLine(innerStmt.parentPath, fnBody)) return null;
+        if (!precedingSiblingsExitFree(innerStmt, fnBody)) return null;
       }
       effectiveAp = call;
     }
