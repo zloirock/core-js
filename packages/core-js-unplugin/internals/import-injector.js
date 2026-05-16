@@ -180,13 +180,18 @@ export default class ImportInjector extends ImportInjectorState {
     if (!imports.length && !refs.length) return;
     const importPos = this.#prologueEnd();
     const refPos = this.#userImportEnd ?? importPos;
-    const lead = needsLeadingNewlineAt(this.#ms.original, importPos) ? '\n' : '';
+    const src = this.#ms.original;
+    const lead = needsLeadingNewlineAt(src, importPos) ? '\n' : '';
     // when imports and refs share the same anchor, combine into one block so MagicString
     // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
     // position can re-order vs prepend semantics
     if (importPos === refPos) return this.#emit(lead + blockify([...imports, ...refs]), importPos);
     if (imports.length) this.#emit(lead + blockify(imports), importPos);
-    if (refs.length) this.#emit(blockify(refs), refPos);
+    // refPos lands right after the trailing user import. when that import omits its `;`
+    // (ASI), refPos sits on whatever token followed - we must prefix our `var _ref;` block
+    // with `\n` to terminate the prior statement. otherwise `import x from "y"var _ref;`
+    // bombs the next parse pass with SyntaxError
+    if (refs.length) this.#emit(needsRefLeadingNewlineAt(src, refPos) ? `\n${ blockify(refs) }` : blockify(refs), refPos);
   }
 
   // sibling plugin may overwrite a range that contains the insert position, leaving no
@@ -275,6 +280,16 @@ function skipShebang(src, pos) {
 // the emitted block when this returns true
 function needsLeadingNewlineAt(src, pos) {
   return pos > 0 && pos === src.length && !isLineTerminator(src[pos - 1]);
+}
+
+// ref-block emission lands at `refPos` (right after the trailing user import). when that
+// user import ends without `;` (ASI), refPos sits on whatever token came next - inserting
+// `var _ref;` here would fuse the prior statement into `import x from "y"var _ref;` and
+// crash the next parse pass. detection: prev char is neither `;` nor a line terminator
+function needsRefLeadingNewlineAt(src, pos) {
+  if (pos <= 0) return false;
+  const prev = src[pos - 1];
+  return prev !== ';' && !isLineTerminator(prev);
 }
 
 // land insertion on the next line: skip trailing whitespace and any chain of inline
