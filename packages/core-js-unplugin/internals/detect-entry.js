@@ -1,6 +1,6 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage/entries';
 import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
+import { isLineTerminator, prevSignificantPos, skipBlockComment } from './plugin-helpers.js';
 
 // detect and transform core-js entry imports (entry-global mode). `adapter` is the
 // plugin-instance estree adapter (`getEntrySource` only consults `isStringLiteral` and
@@ -64,9 +64,12 @@ export function createTopLevelStatementRemover(ms) {
   const src = ms.original;
   const removedRanges = [];
 
-  // walks backward from `fromIdx` over whitespace AND chunks already in `removedRanges`,
-  // landing on the first source char that survives into output. -1 means the boundary
-  // touches start-of-file (no preceding statement to terminate)
+  // walks backward from `fromIdx` over whitespace, line / block comments, AND chunks
+  // already in `removedRanges`, landing on the first SOURCE char that survives into
+  // output. -1 means the boundary touches start-of-file (no preceding statement to
+  // terminate). `prevSignificantPos` handles whitespace + comments; the removedRanges
+  // skip handles batch removals where the trailing `;` of an earlier-removed sibling
+  // would otherwise masquerade as the active terminator
   function findPrevSignificantChar(fromIdx) {
     let p = fromIdx;
     while (p >= 0) {
@@ -75,8 +78,14 @@ export function createTopLevelStatementRemover(ms) {
         p = range[0] - 1;
         continue;
       }
-      if (!/\s/.test(src[p])) return p;
-      p--;
+      const sig = prevSignificantPos(src, p + 1);
+      if (sig < 0) return -1;
+      // landed inside or before a previously-removed range; loop around to skip past it
+      if (findRangeContaining(removedRanges, sig)) {
+        p = sig;
+        continue;
+      }
+      return sig;
     }
     return -1;
   }
