@@ -1072,6 +1072,22 @@ function checkEntryGlobalTransformWithPhasePre() {
 }
 checkEntryGlobalTransformWithPhasePre();
 
+// --- usage-pure standalone phase: 'post' wrapper dispatches `pass='post'` ---
+// regression lock for S34-1: the wrapper at unplugin/index.js builds sub-plugins via
+// `stage(effective, ...)`; when phase=='post' the second-arg `pass` MUST be 'post' (not
+// 'single'), otherwise `enableReferenceTracking` / `pruneUnusedRefs` / post-snapshot
+// pickup don't fire and an isolated post build emits an empty bundle. mirrors the
+// entry-global phase=='pre' end-to-end test above but goes through usage-pure to assert
+// pure imports survive the wrapper-driven pass dispatch
+function checkUsagePurePhasePostWrapperEmitsImports() {
+  const subs = unplugin.raw({ method: 'usage-pure', phase: 'post', targets: { ie: '11' } }, { framework: 'vite' });
+  check('usage-pure phase: post yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  const result = subs[0]?.transform?.call({ warn: msg => msg }, 'export var x = "test".at(-1);', '/post-probe.mjs');
+  const importLines = (result?.code ?? '').split('\n').filter(l => l.startsWith('import '));
+  check('usage-pure phase: post wrapper emits pure imports', importLines.length > 0, true);
+}
+checkUsagePurePhasePostWrapperEmitsImports();
+
 // --- bundler diagnostic captured by warn hijack ---
 // `unknown bundler` value triggers `console.warn` at plugin instantiation. unit test
 // asserts that the warn is observable via console.warn (test-runner's captureTransform
