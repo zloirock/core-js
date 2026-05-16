@@ -93,9 +93,15 @@ const unplugin = createUnplugin((options, meta) => {
   //   `watchChange`  - per-file invalidation when a file is edited/added/removed during
   //                    dev. drops only the changed file's snapshot so other files' state
   //                    survives. without this, HMR sessions accumulated orphan snapshots
+  // standalone `phase: 'post'` MUST dispatch `pass='post'` (not `'single'`) so plugin.js's
+  // `enableReferenceTracking` + Identifier visitor for usage-pure activate. without this,
+  // standalone post mode emits dead imports through `pruneUnusedRefs` filter being off
+  // (see plugin.js: `trackReferences = pass === 'post'`). standalone `phase: 'pre'` stays
+  // at `pass='single'` - 'pre' would enable `deferImports` expecting a follow-up post pass
+  // that never comes
   const subs = effective === 'pre+post'
     ? [stage('pre', 'pre'), stage('post', 'post')]
-    : [stage(effective, 'single')];
+    : [stage(effective, effective === 'post' ? 'post' : 'single')];
   Object.assign(subs.at(-1), {
     buildEnd() { plugin.reset(); },
     watchChange(id) { plugin.invalidateSnapshot(id); },

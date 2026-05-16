@@ -26,12 +26,15 @@ function isStrictlyContained({ ranges, start, end, prefixMaxEnd }) {
 
 // non-overlapping needle scan - polyfill needles embed syntactic delimiters (`.`, `(`,
 // identifiers) that cannot self-overlap. empty needle is a caller bug - guard so
-// indexOf('', ...) doesn't infinite-loop (pos never advances)
+// indexOf('', ...) doesn't infinite-loop (pos never advances). identifier-boundary filter
+// here keeps the position list aligned with `replaceNthOccurrence`'s match acceptance -
+// without it, `countInRange` for needle `Array` would tally `_Array$from` substring matches
+// that the replacer rejects, drifting `nth` and silently dropping legitimate substitutions
 function collectOccurrencePositions(haystack, needle) {
   if (!needle.length) return [];
   const positions = [];
   for (let p = haystack.indexOf(needle); p !== -1; p = haystack.indexOf(needle, p + needle.length)) {
-    positions.push(p);
+    if (hasIdentifierBoundary(haystack, p, needle)) positions.push(p);
   }
   return positions;
 }
@@ -80,12 +83,36 @@ function createNeedleScanner(haystack) {
 // a corrupt slice from `str.slice(0, -1) + replacement + ...` falling through the empty loop.
 // empty needle: `indexOf('', 0)` returns 0 on any string, so without a guard we'd splice
 // `replacement` in at position 0 repeatedly - silent corruption. bail early instead
+// JS identifier-character set: word-boundary check ensures `Promise` (the inner
+// needle from a polyfill substitution) doesn't match SUBSTRING inside an already-
+// substituted `_Promise` token in the outer's content - that double-substitution would
+// produce `__Promise` (extra underscore, ReferenceError). when needle starts or ends
+// with an identifier char, require the neighbour chars on the surrounding sides of
+// each candidate match to be non-identifier (or absent at string boundaries)
+const IDENT_CHAR_RE = /[\w$]/;
+
+function isIdentifierEdge(needle, edge) {
+  return edge === 'start' ? IDENT_CHAR_RE.test(needle[0])
+    : IDENT_CHAR_RE.test(needle.at(-1));
+}
+
+function hasIdentifierBoundary(str, idx, needle) {
+  if (isIdentifierEdge(needle, 'start') && idx > 0 && IDENT_CHAR_RE.test(str[idx - 1])) return false;
+  const tail = idx + needle.length;
+  if (isIdentifierEdge(needle, 'end') && tail < str.length && IDENT_CHAR_RE.test(str[tail])) return false;
+  return true;
+}
+
 function replaceNthOccurrence({ str, needle, replacement, n }) {
   if (n < 0 || !needle.length) return str;
   let idx = -1;
-  for (let i = 0; i <= n; i++) {
+  let matches = 0;
+  for (;;) {
     idx = str.indexOf(needle, idx + 1);
     if (idx === -1) return str;
+    if (!hasIdentifierBoundary(str, idx, needle)) continue;
+    if (matches === n) break;
+    matches++;
   }
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
@@ -789,10 +816,31 @@ export default class TransformQueue {
       for (const r of processedRanges) {
         if (r.end <= inner.start) nth -= countInRange(needle, r.start - start, r.end - start);
       }
-      const result = substituteInner({ content, needle, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix });
+      let result = substituteInner({ content, needle, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix });
+      // rebuild-outer recovery: source-position nth assumes outer's content preserves every
+      // source needle match. multi-decl flatten REWRITES earlier declarators (`{X:{m}}=globalThis`
+      // -> `const m = _polyfill`), stripping some source-level needle matches from content
+      // entirely. when source-nth overshoots the surviving matches in content, decrement and
+      // retry - each strip-only-before-inner case reduces the effective ordinal by one.
+      // bounded by `nth` (worst case scans down to 0); first successful nth wins so a hit at
+      // nth-1 is the correct slot when outer dropped one preceding match
+      if (!result.found && nth > 0) {
+        for (let tryNth = nth - 1; tryNth >= 0 && !result.found; tryNth--) {
+          result = substituteInner({ content, needle, replacement: innerContent, nth: tryNth, outerHint: rewriteHint, innerPrefix });
+        }
+      }
       if (!result.found) {
         // inner was already swallowed by an enclosing inner we processed earlier
         if (processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
+        // identifier-boundary rejection: outer's content has substring matches for `needle`
+        // but ALL of them sit inside larger identifier tokens (e.g. needle `Promise` finds
+        // only `_Promise`-style substrings, never standalone). this means the outer transform
+        // already substituted the global at every reachable position - inner's transform is
+        // a phantom whose effect is already encoded by outer. silently skip rather than throw
+        if (content.includes(needle)) {
+          processedRanges.push(innerRange);
+          continue;
+        }
         throw this.#invariant('could not locate inner needle in outer content. '
           + `outer=[${ start },${ logicalEnd }] inner=[${ inner.start },${ innerEndLogical }]. `
           + 'this is a composition bug - please report with a reproducer.');

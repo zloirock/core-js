@@ -236,15 +236,30 @@ export function createPolyfillEmitter({
   // build the replacement text for an instance method or Symbol.iterator transform.
   // splits into (a) guard-computation prologue + (b) strategy-dispatched body builder +
   // (c) final guard/SE wrap. strategy registry isolates the 4 emit shapes
+  // re-anchor the body chain on `guardRef` after the optional-root capture in guard text.
+  // three cases, in priority order:
+  //   1. `substituted && rootIsReceiver`: bodyObj IS the substituted root (no tail) -
+  //      collapse to bare `guardRef`. slicing by raw rootRaw length leaves a substring
+  //      tail (`_globalThis.foo`.slice(`globalThis.foo`.length) = `o` -> `_refo`)
+  //   2. `substituted` with rootNode deeper than receiver (`(globalThis?.X)?.Y.flat?.()`):
+  //      raw rootRaw length drifts from substituted prefix length by the binding-name
+  //      delta, so bodyObj-slice corrupts the tail. pull the tail straight from source
+  //      (rebuild path emits property names verbatim, so source-tail is the right text)
+  //   3. neither - bodyObj is source-aligned, slice by raw rootRaw length works
+  function rebindBodyOnGuard({ bodyObj, guardRef, rootRaw, substituted, rootIsReceiver,
+    rootNodeEnd, receiverEnd, deoptPositions, objectStart }) {
+    if (substituted && rootIsReceiver) return guardRef;
+    if (substituted && rootNodeEnd !== undefined && receiverEnd !== undefined) {
+      return guardRef + stripOptionalDots(code.slice(rootNodeEnd, receiverEnd), rootNodeEnd, deoptPositions);
+    }
+    return guardRef + bodyObj.slice(stripOptionalDots(rootRaw, objectStart ?? 0, deoptPositions).length);
+  }
+
   function buildReplacement(binding, objectSrc, opts) {
     const { optionalRoot, rootRaw, deoptPositions, objectStart, preAllocatedGuardRef,
-      substituted, rootIsReceiver, sideEffects } = opts;
+      substituted, rootIsReceiver, sideEffects, rootNodeEnd, receiverEnd } = opts;
 
-    function strip(src) {
-      return stripOptionalDots(src, objectStart ?? 0, deoptPositions);
-    }
-
-    let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
+    let bodyObj = deoptPositions?.length ? stripOptionalDots(objectSrc, objectStart ?? 0, deoptPositions) : objectSrc;
     let guard = '';
     let guardRef = null;
 
@@ -254,15 +269,10 @@ export function createPolyfillEmitter({
       } else {
         guardRef = preAllocatedGuardRef ?? scopeTracker.genRef();
         guard = `null == (${ guardRef } = ${ optionalRoot }) ? void 0 : `;
-        // when receiver is chain-substituted (`globalThis?.foo` -> `_globalThis.foo`) and
-        // rootNode equals receiverObj, the entire bodyObj IS the substituted root; slicing
-        // by `strip(rootRaw).length` would leave a substring tail (`_globalThis.foo`.slice
-        // (`globalThis.foo`.length) = `o`), corrupting bodyObj into `_refo`. compose layer
-        // later re-substitutes the original `optionalRoot` in guard text via inner-needle
-        // matching, so leaving bodyObj as bare `guardRef` here keeps both layers consistent
-        bodyObj = substituted && rootIsReceiver
-          ? guardRef
-          : guardRef + bodyObj.slice(strip(rootRaw).length);
+        bodyObj = rebindBodyOnGuard({
+          bodyObj, guardRef, rootRaw, substituted, rootIsReceiver,
+          rootNodeEnd, receiverEnd, deoptPositions, objectStart,
+        });
       }
     }
 
@@ -397,10 +407,11 @@ export function createPolyfillEmitter({
     // per-member fallback path for proxy globals (Promise/Map go through that path instead),
     // so without this leg the guard emits raw `globalThis?.foo` and IE11 ReferenceErrors on
     // the implicit lookup. all OTHER paths (non-proxy leaf, non-optional outer, bare-Identifier
-    // optionalRoot) keep the skip - outer's body / guard already carries the substituted form
-    // via chain.src and compose substring-matching would poison it (e.g. needle `globalThis`
-    // substring-matches inside `_globalThis` -> `__globalThis` corruption)
-    const composeSafeForInnerLeaf = optionalRootCapturesIntoRef && rootIsReceiver;
+    // optionalRoot) keep the skip - body uses `guardRef` directly (rootIsReceiver) or stitches
+    // raw `code.slice(rootNode.end, receiver.end)` tail onto `guardRef` (mid-chain rootNode)
+    // - both shapes never contain the substituted leaf, so compose's substring guard can't
+    // double-match it (word-boundary rejection rules out `_globalThis` substring poisoning)
+    const composeSafeForInnerLeaf = optionalRootCapturesIntoRef;
     if (recv.skipNode && !(isProxyGlobalLeaf && composeSafeForInnerLeaf)) {
       skippedNodes.add(recv.skipNode);
     }
@@ -429,6 +440,12 @@ export function createPolyfillEmitter({
       // returns rootNode === node.object); guard text must come from the substituted bodyObj
       // in that case (see buildReplacement comment)
       rootIsReceiver,
+      // rootNode.end + receiver.end let `buildReplacement` lift the receiver-tail straight
+      // from source when `substituted` collapses bodyObj's prefix to a shorter polyfill
+      // binding. source-slice math on rootRaw against substituted bodyObj otherwise drifts
+      // by the binding-length delta and corrupts the tail (e.g. `.Y` -> `Y`)
+      rootNodeEnd: rootNode?.end,
+      receiverEnd: node.object.end,
       parenLookupOnly,
     });
     let { replacement } = built;
@@ -493,35 +510,54 @@ export function createPolyfillEmitter({
   }
 
   // member-chain receiver rooted at a polyfillable global Identifier (`globalThis?.X.Y`,
-  // `(globalThis as any)?.X.Y`). substitute the leaf with its polyfill binding and consume
-  // any immediately following `?.`: every leaf returned by `resolveGlobalPolyfill` is
-  // always-defined post-rewrite, so the receiver null-check is redundant. without this the
-  // outer instance-call transform emits `_X(_ref = globalThis?.X.Y).call(_ref, ...)`
-  // verbatim and engines without a native `globalThis` (ie11) TypeError on the implicit
-  // `globalThis.X` lookup.
-  // peels parens / TS wrappers AROUND the leaf only - wrappers further up the chain (e.g.
-  // `(globalThis?.X).Y`) bail to avoid src-splice breakage (closing wrapper would land in
-  // the tail slice as syntactic garbage). deeper `?.` past the leaf hop is preserved as-is:
-  // we only know the leaf substitution is always-defined, not intermediate lookups
+  // `(globalThis as any)?.X.Y`, `(globalThis?.X).Y`). substitute the leaf with its polyfill
+  // binding so the receiver doesn't reference the raw global (engines without `globalThis`
+  // ReferenceError on it). descends through transparent wrappers (Paren / TS) BOTH around
+  // the leaf and mid-chain. bare-chain case uses original text-slice (preserves source
+  // verbatim, cheap). wrapped case rebuilds chain inner-to-outer: drops wrapper boundaries
+  // and collapses optional `?.` since the substituted leaf is always defined
   function resolveProxyGlobalChainSrc(receiverObj, metaPath) {
     if (receiverObj?.type !== 'MemberExpression' && receiverObj?.type !== 'OptionalMemberExpression') return null;
-    // descend strictly through bare member hops (no wrapper peel here - wrappers in the
-    // middle of the chain make the tail slice unsafe). track the immediate parent so we
-    // can read `.computed` for the `?.` consume decision and use the wrapped-leaf's end
-    // (covers `?.` peel AND any leaf-side wrapper closing token like `)` / `as any`)
-    let leafParent = receiverObj;
-    while (leafParent.object?.type === 'MemberExpression' || leafParent.object?.type === 'OptionalMemberExpression') {
-      leafParent = leafParent.object;
+    const hops = [];
+    let hasMidChainWrappers = false;
+    let cur = receiverObj;
+    while (cur && (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression')) {
+      hops.push(cur);
+      let next = cur.object;
+      // peel transparent wrappers between hops: ParenthesizedExpression (oxc emits for `(...)`),
+      // ChainExpression (oxc wraps the inside of a paren'd optional chain to scope the `?.`),
+      // and TS expression wrappers (`as` / `satisfies` / `!`)
+      while (next && (next.type === 'ParenthesizedExpression' || next.type === 'ChainExpression'
+          || TS_EXPR_WRAPPERS.has(next.type))) {
+        hasMidChainWrappers = true;
+        next = next.expression;
+      }
+      cur = next;
     }
-    const wrappedLeaf = leafParent.object;
+    const wrappedLeaf = hops.at(-1).object;
     const leaf = unwrapNode(wrappedLeaf);
     if (leaf?.type !== 'Identifier') return null;
     if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
     const pure = resolveGlobalPolyfill(leaf.name);
     if (!pure) return null;
     const polyfillBinding = injectPureImport(pure.entry, pure.hintName);
-    const tailStart = afterOptional(wrappedLeaf.end, !leafParent.computed);
-    return { src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: leaf };
+    if (!hasMidChainWrappers) {
+      const tailStart = afterOptional(wrappedLeaf.end, !hops.at(-1).computed);
+      return { src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: leaf };
+    }
+    // wrapped case: rebuild chain inner-to-outer. each hop emits its own property accessor;
+    // wrapper tokens (parens, ChainExpression) between hops are dropped. leaf-adjacent hop
+    // collapses `?.` to `.` (polyfilled leaf is always defined); mid-chain hops preserve their
+    // original optionality (`(globalThis?.X)?.Y` keeps `?.Y` since `_globalThis.X` may still be null)
+    let src = polyfillBinding;
+    for (let i = hops.length - 1; i >= 0; i--) {
+      const hop = hops[i];
+      const propText = code.slice(hop.property.start, hop.property.end);
+      const useOptional = i !== hops.length - 1 && hop.optional;
+      if (hop.computed) src += useOptional ? `?.[${ propText }]` : `[${ propText }]`;
+      else src += useOptional ? `?.${ propText }` : `.${ propText }`;
+    }
+    return { src, leafNode: leaf };
   }
 
   // unified receiver-source resolution for instance-call emission. tries (a) direct
@@ -724,6 +760,15 @@ export function createPolyfillEmitter({
     transforms.add(start, end, asiGuardLeadingParen(wrapSideEffects(binding, allEffects), metaPath, start));
   }
 
+  // peel a SequenceExpression's preceding elements when at least one carries an observable
+  // side-effect; the trailing tail is the value used by the in-expression. returns null
+  // when not a sequence or when no preceding element has side-effects (cheap drop)
+  function sequencePrefixWithSideEffects(expr) {
+    if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
+    const prefix = expr.expressions.slice(0, -1);
+    return prefix.some(e => mayHaveSideEffects(e)) ? prefix : null;
+  }
+
   // `key in obj` rewrite: Symbol-sourced LHS (`Symbol.X in obj`) takes the symbol-in
   // polyfill path; bare-name LHS with statically-known polyfilled key (`'from' in Array`)
   // folds the whole expression to `true` (polyfill is always defined). string-keyed Symbol
@@ -741,23 +786,26 @@ export function createPolyfillEmitter({
       }
     } else if (meta.object) {
       // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable.
-      // RHS-side preserves SE: `'k' in (a = Array)` / `'k' in (fn(), Array)` evaluates
-      // the SE even when LHS is a known constant. SequenceExpression: keep SE-bearing
-      // prefix and drop the receiver tail; AssignmentExpression: wrap whole rhs as a
-      // sequence prefix. CallExpression rhs intentionally NOT rescued - inline-call
-      // analysis upstream filters out SE-bearing IIFEs separately
+      // BOTH sides preserve SE: `(bar(), 'from') in Array` and `'k' in (fn(), Array)`
+      // evaluate their respective SE even when the in-check folds to a constant. shapes:
+      //   SequenceExpression: keep SE-bearing prefix, drop the tail (used by in-check)
+      //   AssignmentExpression on RHS: wrap whole RHS as a sequence prefix (rescues both
+      //   the assignment side-effect AND the binding update)
+      // CallExpression rhs intentionally NOT rescued - inline-call analysis upstream
+      // filters out SE-bearing IIFEs separately
       const resolved = resolvePureOrGlobalFallback(meta, metaPath);
       if (resolved.result) {
-        // oxc preserves ParenthesizedExpression around the rhs; peel via unwrapNode so
-        // SE-shape detection works the same as on babel-stripped form
+        // oxc preserves ParenthesizedExpression around the operands; peel via unwrapNode
+        // so SE-shape detection works the same as on babel-stripped form
+        const lhs = unwrapNode(node.left);
         const rhs = unwrapNode(node.right);
-        const seqPrefix = rhs?.type === 'SequenceExpression'
-          && rhs.expressions.length > 1
-          && rhs.expressions.slice(0, -1).some(e => mayHaveSideEffects(e))
-            ? rhs.expressions.slice(0, -1) : null;
-        let replacement = 'true';
-        if (seqPrefix) replacement = `(${ seqPrefix.map(e => nodeSrc(e)).join(', ') }, true)`;
-        else if (rhs?.type === 'AssignmentExpression') replacement = `(${ nodeSrc(rhs) }, true)`;
+        const seParts = [];
+        const lhsSeqPrefix = sequencePrefixWithSideEffects(lhs);
+        if (lhsSeqPrefix) seParts.push(...lhsSeqPrefix.map(e => nodeSrc(e)));
+        const rhsSeqPrefix = sequencePrefixWithSideEffects(rhs);
+        if (rhsSeqPrefix) seParts.push(...rhsSeqPrefix.map(e => nodeSrc(e)));
+        else if (rhs?.type === 'AssignmentExpression') seParts.push(nodeSrc(rhs));
+        const replacement = seParts.length ? `(${ seParts.join(', ') }, true)` : 'true';
         // SE-rescue / assign-wrap replacements lead with `(`; at a statement-leading slot
         // (the in-expression IS the whole ExpressionStatement) the ASI rule fuses the
         // previous unterminated line into the new `(...)` as a call. `'true'` bare path
