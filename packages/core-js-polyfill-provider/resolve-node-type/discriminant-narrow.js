@@ -349,19 +349,31 @@ export function createDiscriminantNarrow({
   }
 
   // recursively expand alias chains that resolve to unions so each inner branch appears
-  // at the top-level filter list. inline branches (non-union after the alias walk) are
-  // kept verbatim so the outer `applySubst` at the caller still handles type-param
-  // propagation. `applySubst` is a no-op when its subst arg is null (`type-subst.js`),
-  // so the per-inner-branch call covers both the alias-with-subst and bare-alias cases
-  function flattenUnionBranches(types, scope) {
+  // at the top-level filter list. non-union branches push the RESOLVED alias body (with
+  // accumulated subst applied) rather than the raw ref - that way `type N = null; type
+  // Outer = Inner | N` surfaces N as `TSNullKeyword` to the downstream `NULLISH_BRANCH_TYPES`
+  // filter instead of as a `TSTypeReference` the filter doesn't recognise.
+  // `applySubst` is null-safe (`type-subst.js`) so non-generic aliases pay no extra alloc.
+  // cycle protection: `visited` tracks already-expanded UnionType node identities;
+  // cyclic alias chains (`type A = B | C; type B = A`) resolve B and C both to the same
+  // UnionType identity, and re-expanding it would recurse forever. on hit, push the raw
+  // ref so the downstream filter sees an un-expanded TypeReference and bails permissively
+  function flattenUnionBranches(types, scope, visited = new Set()) {
     const out = [];
     for (const branch of types) {
       const { node: resolved, subst } = followTypeAliasChain(unwrapTypeAnnotation(branch), scope);
       if (!isUnionType(resolved)) {
+        out.push(applySubst(resolved, subst));
+        continue;
+      }
+      if (visited.has(resolved)) {
         out.push(branch);
         continue;
       }
-      for (const inner of flattenUnionBranches(resolved.types, scope)) out.push(applySubst(inner, subst));
+      visited.add(resolved);
+      for (const inner of flattenUnionBranches(resolved.types, scope, visited)) {
+        out.push(applySubst(inner, subst));
+      }
     }
     return out;
   }
