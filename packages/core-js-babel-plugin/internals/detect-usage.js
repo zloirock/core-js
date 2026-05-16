@@ -15,9 +15,8 @@ import {
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
-  IIFE_CALL_PATH_WRAPPERS,
-  TS_EXPR_WRAPPERS,
   findIifeArgForParam,
+  findIifeCallSite,
   findTSRuntimeBindingInPath,
   isAmbientBindingShape,
   isFunctionParamDestructureParent,
@@ -278,28 +277,19 @@ export function createUsageVisitors({
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;
     } else if (parent.isFunction()) {
-      // IIFE: (({ from }) => {})(Array), !function ({ from }) {} (Array). also covers
-      // TS-wrapped callees `((arrow) as any)(Array)`, ChainExpression-wrapped optional
-      // call sites, AND `ParenthesizedExpression` (preserved as a node when parser runs
-      // with `createParenthesizedExpressions: true`). reuses the shared
-      // `IIFE_CALL_PATH_WRAPPERS` Set (Unary / Sequence / Paren / Chain) so the four
-      // call sites (this loop, `findIifeCallSite`, `detectIifeArgPath`, `findIifeArgForParam`)
-      // stay in lockstep
-      const paramIndex = parent.node.params.indexOf(objectPattern.node);
-      if (paramIndex === -1) return;
-      let callPath = parent.parentPath;
-      while (callPath?.node && (IIFE_CALL_PATH_WRAPPERS.has(callPath.node.type)
-        || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
-        callPath = callPath.parentPath;
-      }
-      if (callPath?.isCallExpression() || callPath?.isNewExpression() || callPath?.isOptionalCallExpression()) {
-        const key = resolveKey(path.get('key'), path.node.computed);
-        if (!key) return;
-        const argNode = resolveCallArgument(callPath.node.arguments, paramIndex);
-        const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: callPath.scope, adapter });
-        onUsage(meta, path);
-        return;
-      }
+      // IIFE: `(({from}) => {})(Array)` / `!function({from}) {}(Array)`. shared
+      // `findIifeCallSite` peels wrapper chain (Unary / Sequence / Paren / Chain / TS),
+      // accepts CallExpression / NewExpression / OptionalCallExpression, AND enforces
+      // the callee-identity gate (`peelIifeCallee(callee, fn) === fn`) so functions
+      // PASSED AS ARGS to another call (`doStuff(Array, function({from}) {...})`) don't
+      // get misclassified as IIFEs reading from the outer call's args
+      const site = findIifeCallSite(parent, objectPattern.node);
+      if (!site) return;
+      const key = resolveKey(path.get('key'), path.node.computed);
+      if (!key) return;
+      const argNode = resolveCallArgument(site.callPath.node.arguments, site.paramIndex);
+      const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: site.callPath.scope, adapter });
+      onUsage(meta, path);
       return;
     } else return;
     if (!initPath?.node) return;
