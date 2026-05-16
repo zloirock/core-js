@@ -178,6 +178,28 @@ export function varScopeAnchor(node, code) {
   return null;
 }
 
+// find the position of a real line-comment `//` on the line starting at `lineStart`,
+// occurring at or before `until`. raw `src.indexOf('//', lineStart)` mis-detects `//`
+// inside string / template literals (`var x = 'https://...'`); scan forward tracking
+// the active quote (null in JS context, the quote-char while inside a literal) and only
+// return a `//` that sits in JS context. -1 when none. regex literals (`/.../`) are NOT
+// tracked - their lexical context is ambiguous without a full tokenizer, and the entry-
+// global / pre-import shapes this serves rarely place regex on the same line as a comment
+function realLineCommentStart(src, lineStart, until) {
+  let quote = null;
+  for (let p = lineStart; p <= until; p++) {
+    const ch = src[p];
+    if (quote !== null) {
+      if (ch === '\\') p++;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') quote = ch;
+    else if (ch === '/' && src[p + 1] === '/' && p + 1 <= until) return p;
+  }
+  return -1;
+}
+
 // scan backwards past whitespace and comments; -1 if we walked off the start.
 // ES line-terminators include U+2028 / U+2029 in addition to LF / CR
 export function prevSignificantPos(src, pos) {
@@ -195,13 +217,15 @@ export function prevSignificantPos(src, pos) {
       i = start - 1;
       continue;
     }
-    // line comment: if `//` lives earlier on the same line, current char is inside it.
+    // line comment: if a real `//` lives earlier on the same line, current char is inside it.
     // ES spec LineTerminator includes LS (U+2028) and PS (U+2029) alongside LF / CR -
-    // `isLineTerminator` covers all four so current-line scan stops at the right boundary
+    // `isLineTerminator` covers all four so current-line scan stops at the right boundary.
+    // `realLineCommentStart` filters out `//` inside string / template literals so the
+    // backward walk doesn't mistake `'https://...'` content for a comment-prefixed line
     let lineStart = i;
     while (lineStart > 0 && !isLineTerminator(src[lineStart - 1])) lineStart--;
-    const slash = src.indexOf('//', lineStart);
-    if (slash !== -1 && slash <= i) {
+    const slash = realLineCommentStart(src, lineStart, i);
+    if (slash !== -1) {
       i = slash - 1;
       continue;
     }
