@@ -276,8 +276,21 @@ export default function createDestructureEmitter({
   // "polyfill always wins" - destructure discards the receiver's `Array.from` value into
   // `_unused`, then `from = _polyfill` overrides whatever native (potentially buggy) value
   // would have leaked through inline-default fallback
+  // force-wrap a bodyless-slot ExpressionStatement (`if (cond) STMT;` / `while (cond) STMT;`
+  // / etc.) in a BlockStatement and return the in-block path. babel's `path.insertAfter` on
+  // such a slot internally wraps the slot but DOES NOT update the original path's listKey/
+  // key; subsequent `path.remove()` then targets the stale slot key and silently removes
+  // the whole synthetic block. wrapping up-front and re-resolving via parent.get(key) keeps
+  // listKey/key correct for downstream insertAfter / insertBefore / remove operations
+  function ensureExprStmtInBlock(exprStmt) {
+    const parent = exprStmt.parentPath;
+    if (!isBodylessStatementSlot(parent?.node, exprStmt.node)) return exprStmt;
+    parent.node[exprStmt.key] = t.blockStatement([exprStmt.node]);
+    return parent.get(exprStmt.key).get('body')[0];
+  }
+
   function cascadeAssignmentExpressionDestructure({ assignPath, valueNode, prop, chain, entry, hintName, peeled = null }) {
-    const exprStmt = peeled?.exprStmt ?? assignPath.parentPath;
+    const exprStmt = ensureExprStmtInBlock(peeled?.exprStmt ?? assignPath.parentPath);
     // strip transparent wrappers between the AssignmentExpression and ExpressionStatement
     // (oxc parens / TS casts / chain / SequenceExpression-with-AE-as-tail). SE prefix
     // expressions become side-effect ExpressionStatement siblings before the cascade
