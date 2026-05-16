@@ -502,7 +502,8 @@ export function createPolyfillEmitter({
 
   // direct-Identifier polyfillable receiver (`Array.prototype.X`, `globalThis.foo` where
   // `globalThis` itself is the receiver). chain receivers (`globalThis?.X.Y`) go through
-  // `resolveProxyGlobalChainSrc` instead
+  // `resolveProxyGlobalChainSrc` instead. caller (`resolveReceiverSource`) peels wrappers
+  // up-front so wrapped shapes (`(globalThis).flat?.()`) reach this entry as a bare Identifier
   function resolveReceiverPolyfill(obj, metaPath) {
     if (obj?.type !== 'Identifier') return null;
     if (metaPath?.scope?.hasBinding?.(obj.name)) return null;
@@ -571,14 +572,25 @@ export function createPolyfillEmitter({
   // - `substituted` whether `src` diverges from the original AST source (gates `canSplit`:
   //   substituted text can't be split at original positions)
   function resolveReceiverSource(receiverObj, metaPath) {
-    const direct = resolveReceiverPolyfill(receiverObj, metaPath);
+    // top-level peel: receiver may be wrapped in Paren / Chain / TS (`(globalThis).flat?.()`,
+    // `(globalThis?.X.Y).flat?.()`, `(globalThis as any).flat?.()`). without peel the direct-
+    // Identifier and chain-Member resolvers reject the wrapper at their type gates and the
+    // proxy-global leaf falls through to less precise substitution paths (raw `globalThis`
+    // survives into the emit, IE11 ReferenceError). skipNode targets the unwrapped node so
+    // the inner Identifier visitor doesn't double-substitute against the outer's content
+    const unwrapped = unwrapNode(receiverObj);
+    const direct = resolveReceiverPolyfill(unwrapped, metaPath);
     if (direct) return {
       src: injectPureImport(direct.entry, direct.hintName),
-      isNonIdent: false,
-      skipNode: receiverObj,
+      // isNonIdent mirrors babel's `isSafeToReuse` gate (Sticky: `unwrapNodeForMemoize no
+      // TS wrappers - intentional consistency`). Paren / Chain wrappers around bare
+      // Identifier are safe-to-reuse (no memo); TS wrappers (`as` / `satisfies` / `!`) keep
+      // the babel-shape memo `(_ref = _polyfill)` so cross-plugin output stays aligned
+      isNonIdent: unwrapNodeForMemoize(receiverObj).type !== 'Identifier',
+      skipNode: unwrapped,
       substituted: true,
     };
-    const chain = resolveProxyGlobalChainSrc(receiverObj, metaPath);
+    const chain = resolveProxyGlobalChainSrc(unwrapped, metaPath);
     if (chain) return {
       src: chain.src,
       isNonIdent: true,
