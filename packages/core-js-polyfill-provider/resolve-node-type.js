@@ -1147,6 +1147,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     findPatternKeyPath,
     getKeyName,
     unwrapTypeAnnotation,
+    canFallThrough,
     getTypeMembers: (...args) => getTypeMembers(...args),
     findTypeMember: (...args) => findTypeMember(...args),
     followTypeAliasChain,
