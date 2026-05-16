@@ -1174,6 +1174,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     commonType,
     isNullableOrNever,
     findTypeDeclaration,
+    applyAliasSubstDeep,
+    buildSubstMap,
   });
   ({ extractElementAnnotation } = elementTypesCluster);
   const { resolveElementType } = elementTypesCluster;

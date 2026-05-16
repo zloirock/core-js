@@ -16,9 +16,9 @@
 // flavors.
 import { $Object, $Primitive, MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS } from './base.js';
 import {
-  extendsId,
   isInterfaceDeclaration,
   isTypeAlias,
+  synthInterfaceExtendsRef,
   typeAliasBody,
   typeRefName,
 } from './ast-shapes.js';
@@ -33,6 +33,8 @@ export function createElementTypes({
   commonType,
   isNullableOrNever,
   findTypeDeclaration,
+  applyAliasSubstDeep,
+  buildSubstMap,
 }) {
   // resolve the element type of a collection from its type annotation
   function resolveElementType(node, scope, depth) {
@@ -60,7 +62,7 @@ export function createElementTypes({
         const params = getTypeArgs(node)?.params;
         if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
         if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
-        return resolveUserTypeElement({ name, scope, depth, resolver: resolveElementType });
+        return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: resolveElementType });
       }
       // iterating a string yields characters (strings)
       case 'TSStringKeyword':
@@ -94,16 +96,25 @@ export function createElementTypes({
     return null;
   }
 
-  // follow user-defined type aliases and interface extends chain using a parameterized resolver
-  function resolveUserTypeElement({ name, scope, depth, resolver }) {
+  // follow user-defined type aliases and interface extends chain using a parameterized resolver.
+  // `typeArgs` are the caller's usage args (`MyArr<string>` -> `[string]`); without subst, the
+  // alias body / parent ref retains the declaration-side type-parameter refs (`T`), which
+  // resolve to null in the caller's scope and bail the user-type element resolution. mirrors
+  // the `resolveUserDefinedType` -> `resolveTypeArgs` propagation in user-type-resolve.js.
+  // `applyAliasSubstDeep` is a no-op when `subst` is null, so unparameterized aliases /
+  // interfaces flow through unchanged without an explicit guard
+  function resolveUserTypeElement({ name, typeArgs, scope, depth, resolver }) {
     const decl = findTypeDeclaration(name, scope);
-    if (isTypeAlias(decl)) return resolver(typeAliasBody(decl), scope, depth + 1);
+    const subst = buildSubstMap(decl?.typeParameters?.params, typeArgs);
+    if (isTypeAlias(decl)) return resolver(applyAliasSubstDeep(typeAliasBody(decl), subst), scope, depth + 1);
     if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
     for (const parent of decl.extends) {
-      const expr = extendsId(parent);
-      if (expr?.type !== 'Identifier') continue;
-      const parentRef = { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) };
-      const result = resolver(parentRef, scope, depth + 1);
+      const baseRef = synthInterfaceExtendsRef(parent);
+      // `resolveElementType` / `extractElementAnnotation` look up the parent's name via
+      // `typeRefName` (single-segment only), so qualified-name refs would bail anyway -
+      // skip them here to avoid an unproductive recursive call
+      if (!baseRef || baseRef.typeName.type !== 'Identifier') continue;
+      const result = resolver(applyAliasSubstDeep(baseRef, subst), scope, depth + 1);
       if (result) return result;
     }
     return null;
@@ -122,14 +133,14 @@ export function createElementTypes({
       case 'GenericTypeAnnotation': {
         const name = typeRefName(node);
         if (!name) return null;
-        if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return getTypeArgs(node)?.params[0] ?? null;
+        const params = getTypeArgs(node)?.params;
+        if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ?? null;
         // Map/ReadonlyMap iterate as [K, V] - synthesize a TSTupleType so `findTupleElement`
         // can pick up K or V by index
         if (name === 'Map' || name === 'ReadonlyMap') {
-          const params = getTypeArgs(node)?.params;
           return params?.length >= 2 ? { type: 'TSTupleType', elementTypes: [params[0], params[1]] } : null;
         }
-        return resolveUserTypeElement({ name, scope, depth, resolver: extractElementAnnotation });
+        return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: extractElementAnnotation });
       }
       case 'TSTypeOperator':
         return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
