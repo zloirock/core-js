@@ -309,6 +309,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     findAmbientFunctionPath,
     findAmbientClassPath,
     findNamespacedFunctionPath,
+    findDeclPathBySegments,
     findTypeDeclaration,
     findEnumDeclaration,
     findAllTypeDeclarations,
@@ -940,6 +941,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     isReflectConstructCallee,
     buildSubstMap,
     findAmbientDeclarationPath,
+    findDeclPathBySegments,
+    isClassLikeDeclaration,
     applyAliasSubstDeep,
   });
   const {

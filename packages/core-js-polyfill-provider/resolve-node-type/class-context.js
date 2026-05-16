@@ -21,6 +21,7 @@
 // for `ambientDeclCache`; identity must match between cluster and factory call sites.
 // `getSuperTypeArgs` comes from `helpers/ast-patterns.js` directly
 import { isAmbientClassNode } from './name-resolution.js';
+import { collectQualifiedSegments } from './ast-shapes.js';
 import { getSuperTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createClassContext({
@@ -29,6 +30,8 @@ export function createClassContext({
   isReflectConstructCallee,
   buildSubstMap,
   findAmbientDeclarationPath,
+  findDeclPathBySegments,
+  isClassLikeDeclaration,
   applyAliasSubstDeep,
 }) {
   // walk up from `path` to find the enclosing scope that bound `this` to the function that
@@ -82,9 +85,14 @@ export function createClassContext({
     return anchor?.kind === 'object' ? anchor.objectPath : null;
   }
 
-  // resolve a class's superClass identifier to a declaration path, handling both real
-  // (`class C extends Parent`) and ambient (`declare class Parent`) forms. returns null
-  // for non-Identifier or unresolvable super heads
+  // resolve a class's superClass to a declaration path. handles:
+  //   - runtime binding (`class C extends Parent` where Parent is in scope)
+  //   - ambient (`declare class Parent`) - babel/Flow don't bind as values
+  //   - qualified (`class C extends NS.Base` / `Outer.Inner.Base`) - descends through
+  //     `TSModuleDeclaration` bodies via segment walk
+  // returns null for unresolvable shapes (parametric mixins, conditionals, etc.);
+  // `findClassMember` treats null parent as "no further inheritance" and falls through to
+  // the resolver's generic dispatch
   function resolveSuperClassPath(classPath) {
     const superClass = classPath.get('superClass');
     if (!superClass.node) return null;
@@ -96,8 +104,15 @@ export function createClassContext({
       // for type-flow analysis, even though only the TS form is currently common
       const ambient = findAmbientDeclarationPath(superClass.node.name, superClass.scope, isAmbientClassNode);
       if (ambient?.node.type === 'ClassDeclaration' || ambient?.node.type === 'DeclareClass') return ambient;
+      return null;
     }
-    return null;
+    // qualified shapes (`NS.Base`, `Outer.Inner.Base`) reach here as MemberExpression /
+    // TSQualifiedName / QualifiedTypeIdentifier. `collectQualifiedSegments` peels the
+    // chain into a segment list; non-identifier links (computed member, call expressions,
+    // etc.) yield null so `findDeclPathBySegments` short-circuits without descent
+    const segments = collectQualifiedSegments(superClass.node);
+    if (!segments?.length) return null;
+    return findDeclPathBySegments(segments, superClass.scope, isClassLikeDeclaration);
   }
 
   function resolveClassContext(objectPath) {
