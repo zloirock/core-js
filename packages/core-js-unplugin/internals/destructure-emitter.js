@@ -1131,16 +1131,21 @@ export function createDestructureEmitter({
     if (isCatchClause && !objectPatternPropNeedsReceiverRewrite(propNode)
         && !objectPattern.properties.some(p => p.type === 'RestElement')) {
       let referenced = false;
-      // walkAstNodes visits every Identifier node, including ones in non-reference slots
-      // (`Math.it` has `.it` as MemberExpression.property, not a binding ref). filter via
-      // `isNonReferencePosition` so the catch transform doesn't fire for unused bindings -
-      // pre-fix `try {} catch ({ [Symbol.iterator]: it }) { Math.it; }` over-emitted because
-      // `.it` was counted as a reference to `it`
+      // matches babel-plugin's symmetric filter pair in `extractCatchClause`:
+      // `isNonReferencePosition` excludes method/property keys / member-access tails /
+      // labels / import-export specifier names; `isBindingPosition` additionally excludes
+      // declaration-id slots (NFE id, class id, declarator id, nested catch param) -
+      // shadow re-declarations like `const fn = function from() {}` inside the catch
+      // body are bindings, not references, and would otherwise force an unneeded
+      // catch-receiver extract. defensive symmetry with babel-plugin even when the
+      // polyfill-gated entry typically can't reach this walker (no receiver context for
+      // catch params), guarding against future top-level catch processors that might
+      // share this body-reference scan
       walkAstNodes({
         root: declaratorPath.node.body,
         visit(n, parent) {
           if (!referenced && n.type === 'Identifier' && n.name === localName
-              && !isNonReferencePosition(parent, n)) referenced = true;
+              && !isNonReferencePosition(parent, n) && !isBindingPosition(parent, n)) referenced = true;
         },
       });
       if (!referenced) return;
