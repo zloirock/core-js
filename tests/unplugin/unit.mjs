@@ -432,6 +432,39 @@ function checkBareSlotReclaim() {
 }
 checkBareSlotReclaim();
 
+// --- generateDeclaredRef vs generateLocalRef contract ---
+// `generateDeclaredRef` is the unplugin counterpart of babel's `generateDeclaredRef(scope)`
+// abstract method declared in injector-base.js's docstring. it queues the ref for
+// hoisted `var _refN;` emission at flush, whereas `generateLocalRef` returns the name
+// only and leaves it up to the caller to emit a binding. parity check ensures the rename
+// from `generateHoistedRef` to `generateDeclaredRef` (S15-1 closure) doesn't drift the
+// behavior: declared refs land in the flushed `var` line, local refs do not
+function checkGenerateDeclaredRefHoists() {
+  function freshInjector() {
+    const ms = new MagicString('');
+    return { ms, injector: new ImportInjector({ mode: 'actual', pkg: 'x', ms }) };
+  }
+  function flushOutput(injector, ms) {
+    injector.flush();
+    return ms.toString();
+  }
+
+  // both flavours allocate ref names; only declared lands in the hoisted `var` line
+  const { ms, injector } = freshInjector();
+  const declared = injector.generateDeclaredRef();
+  const local = injector.generateLocalRef();
+  const out = flushOutput(injector, ms);
+  check('declared/local return distinct names', declared !== local, true);
+  check('declaredRef in flushed var line', out.includes(`var ${ declared };`), true);
+  check('localRef NOT in flushed var line', out.includes(`var ${ local };`), false);
+
+  // localRef-only path emits no `var` at all - caller owns its own binding emission
+  const { ms: msLocal, injector: injLocal } = freshInjector();
+  injLocal.generateLocalRef();
+  check('localRef-only flush emits no var', flushOutput(injLocal, msLocal).includes('var _ref'), false);
+}
+checkGenerateDeclaredRefHoists();
+
 // post-pass map must carry the `file` field so devtools and combineSourceMaps consumers
 // see the output filename hint. omitting it (spec-optional) makes the chained map
 // ambiguous when bundlers merge multiple plugin maps. MagicString basenames the hint
