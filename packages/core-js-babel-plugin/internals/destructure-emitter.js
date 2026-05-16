@@ -26,7 +26,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
+import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   planDestructureEmission,
   STRATEGIES,
@@ -970,17 +970,32 @@ export default function createDestructureEmitter({
     });
   }
 
-  // AssignmentExpression branch executor. far simpler than the VariableDeclarator path:
-  // either replace the host ExpressionStatement with the new assignment, or insert before
+  // build the planner context for an AssignmentExpression destructure host. mirrors
+  // `classifyVariableDeclaratorSite`: `assignmentTarget` is the host ExpressionStatement,
+  // `isBodyless` reports whether that statement is the unbraced body of a control statement,
+  // `hasSideEffects` is only relevant when the destructure pattern was fully consumed (isEmpty)
+  function classifyAssignmentDestructureSite({ parent, assignmentTarget, isStaticValue, isEmpty }) {
+    return {
+      parentType: 'AssignmentExpression',
+      isEmpty,
+      isStaticValue,
+      hasSideEffects: isEmpty && mayHaveSideEffects(parent.node.right),
+      isBodyless: isBodylessStatementSlot(assignmentTarget.parentPath?.node, assignmentTarget.node),
+    };
+  }
+
+  // AssignmentExpression branch executor. dispatches the planner strategy to the matching
+  // AST mutation - parallel to `emitVariableDeclaratorDestructure`'s switch
   function emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty }) {
     const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
     const assignmentTarget = parent.parentPath;
-    const hasSideEffects = isEmpty && mayHaveSideEffects(parent.node.right);
-    const strategy = planDestructureEmission({
-      parentType: 'AssignmentExpression',
-      isEmpty, isStaticValue, hasSideEffects,
-    });
+    const ctx = classifyAssignmentDestructureSite({ parent, assignmentTarget, isStaticValue, isEmpty });
+    const strategy = planDestructureEmission(ctx);
     switch (strategy) {
+      case STRATEGIES.WRAP_BODYLESS_SE_ASSIGN:
+        return wrapBodylessAssignWithSideEffect({
+          assignmentTarget, initNode: parent.node.right, assignment,
+        });
       case STRATEGIES.DEFER_SE_AND_REPLACE_ASSIGN:
         deferSideEffect(assignmentTarget, parent.node.right);
         return assignmentTarget.replaceWith(assignment);
@@ -991,6 +1006,17 @@ export default function createDestructureEmitter({
       default:
         throw new Error(`[core-js] destructure-emitter: unhandled destructure strategy ${ strategy }`);
     }
+  }
+
+  // AE counterpart of `wrapBodylessWithSideEffect`. simpler shape: the host is a single
+  // ExpressionStatement with no sibling declarators, so the block is just `[<SE>; <assign>;]`.
+  // `cloneDeep` for the same reason as the VariableDeclarator wrap: `initNode` is still
+  // referenced by the about-to-be-replaced assignment expression
+  function wrapBodylessAssignWithSideEffect({ assignmentTarget, initNode, assignment }) {
+    assignmentTarget.replaceWith(t.blockStatement([
+      t.expressionStatement(t.cloneDeep(initNode)),
+      assignment,
+    ]));
   }
 
   return { deferredSideEffects, extractCatchClause, handleObjectPropertyResult };

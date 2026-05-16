@@ -43,6 +43,9 @@ export const STRATEGIES = Object.freeze({
   REPLACE_ASSIGNMENT: 'replace-assignment',
   // empty AssignmentExpression with static value - defer SE, replace
   DEFER_SE_AND_REPLACE_ASSIGN: 'defer-se-and-replace-assign',
+  // bodyless host + empty AssignmentExpression with SE-bearing static value - block-wrap
+  // so the SE stays conditional on the host. AE counterpart of `WRAP_BODYLESS_SE`
+  WRAP_BODYLESS_SE_ASSIGN: 'wrap-bodyless-se-assign',
   // non-empty AssignmentExpression - insert new assignment before
   INSERT_BEFORE_ASSIGNMENT: 'insert-before-assignment',
 });
@@ -60,10 +63,9 @@ export function planDestructureEmission({
   if (parentType === 'VariableDeclarator') return planVariableDeclarator({
     isEmpty, isExport, isMultiDecl, isForInit, isBodyless, isStaticValue, hasSideEffects,
   });
-  // AssignmentExpression branch is the only other shape callers reach here with -
+  // AssignmentExpression is the only other shape callers reach here with -
   // function-param destructure / catch / nested-proxy go through other emit paths
-  if (isEmpty) return isStaticValue ? STRATEGIES.DEFER_SE_AND_REPLACE_ASSIGN : STRATEGIES.REPLACE_ASSIGNMENT;
-  return STRATEGIES.INSERT_BEFORE_ASSIGNMENT;
+  return planAssignmentExpression({ isEmpty, isBodyless, isStaticValue, hasSideEffects });
 }
 
 // VariableDeclarator branch dispatcher. extracted as a sub-function to keep the top-level
@@ -84,4 +86,14 @@ function planVariableDeclarator({
   // block-level empty - SE deferral applies only to static values (instance call consumes init)
   if (isStaticValue) return isMultiDecl ? STRATEGIES.DEFER_SE_AND_SPLICE : STRATEGIES.DEFER_SE_AND_REPLACE;
   return isMultiDecl ? STRATEGIES.SPLICE_AND_SPLIT : STRATEGIES.REPLACE_DECL;
+}
+
+// AssignmentExpression branch dispatcher. mirrors `planVariableDeclarator`'s shape:
+// non-empty short-circuits to insertBefore; empty falls through host-shape decisions.
+// bodyless host gate sits ABOVE the SE-deferral branch because `deferSideEffect` would
+// hoist the SE past the unbraced slot to the enclosing array-bodied parent
+function planAssignmentExpression({ isEmpty, isBodyless, isStaticValue, hasSideEffects }) {
+  if (!isEmpty) return STRATEGIES.INSERT_BEFORE_ASSIGNMENT;
+  if (isBodyless && isStaticValue && hasSideEffects) return STRATEGIES.WRAP_BODYLESS_SE_ASSIGN;
+  return isStaticValue ? STRATEGIES.DEFER_SE_AND_REPLACE_ASSIGN : STRATEGIES.REPLACE_ASSIGNMENT;
 }
