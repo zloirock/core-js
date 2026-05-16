@@ -85,8 +85,16 @@ function resolveHint(desc, meta) {
   }
   if (rest === null) return first;
 
-  // multi-variant: merge dependencies into a single set, then build filter groups.
-  // AND across groups (any unfiltered variant -> drop all filters)
+  // 2+ type-specific variants matched (`typeof === 'object'` against a method with
+  // `array` + `domcollection` etc.): merging per-variant deps and picking the first by
+  // caller would drop the others (e.g., NodeList receiver hits the array-only dispatcher
+  // `_entriesMaybeArray`, fails on IE11 without DOM-collection coverage). desc's `common`
+  // dispatcher is type-aware (Array.isArray / instanceof gates at runtime) and covers
+  // every variant uniformly - prefer it over the merge when present
+  if (hasOwn(desc, 'common')) return desc.common;
+
+  // multi-variant without `common`: merge dependencies into a single set, build filter
+  // groups. AND across groups (any unfiltered variant -> drop all filters)
   const depSet = new Set();
   for (const d of rest) {
     const deps = getDependencies(d);
