@@ -148,9 +148,25 @@ export default class ImportInjectorState {
   // entry path so `arr = from('hi'); arr.at(-1)` narrows to `_atMaybeArray`. registering
   // the alias in `#importInfoByName` lets `getPolyfillBindingEntry` return `array/from`
   // for `from`. does NOT touch `existingPureImports` / `pureImports` - dedup target
-  // stays the original polyfill UID (`_Array$from`)
-  registerBodyExtractAlias(name, entry) {
+  // stays the original polyfill UID (`_Array$from`).
+  // `sourceBinding`: the destructure target's scope binding BEFORE the rewrite. when it
+  // shows `constantViolations` we redirect to the reassignment set instead of registering
+  // the alias - the alias map would carry a stale `from -> array/from` association for a
+  // value that's no longer guaranteed to be `Array.from`, and downstream return-type
+  // narrowing through the polyfill UID's alias would dispatch Array-specific instance
+  // polyfills incorrectly. babel post-AST-mutation scope loses `constantViolations` so
+  // the resolver can't re-derive the flag at use site; capture pre-mutation here
+  registerBodyExtractAlias(name, entry, sourceBinding = null) {
+    if (sourceBinding && sourceBinding.kind !== 'const' && sourceBinding.constantViolations?.length) {
+      this.#reassignedBindings.add(name);
+      return;
+    }
     this.#recordImportInfo(name, entry);
+  }
+
+  #reassignedBindings = new Set();
+  isReassignedBinding(name) {
+    return this.#reassignedBindings.has(name);
   }
 
   // binding-name -> { source, hint } for super-import back-mapping (see `resolveSuperImportName`
