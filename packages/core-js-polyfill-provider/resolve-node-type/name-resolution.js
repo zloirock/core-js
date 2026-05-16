@@ -59,9 +59,10 @@ export function createNameResolution({ t }) {
 
   // walk enclosing statement lists collecting ambient declaration paths matching `name`.
   // `firstMatch=true` short-circuits at the first hit (legacy single-result path);
-  // `firstMatch=false` collects ALL matches across the scope chain (used for multi-overload
-  // disambiguation - e.g. `isStr(x: number): boolean; isStr(x): asserts x is string;` where
-  // only one sibling carries the predicate of interest)
+  // `firstMatch=false` collects ALL matches AT THE FIRST scope that has matches and stops,
+  // respecting TS lexical shadowing. without the early stop, an inner-scope `declare function
+  // fn` would be polluted by outer-scope siblings - `pickLastAmbientOverload.at(-1)` would
+  // return an outer overload while TS would have used the inner shadow exclusively
   function walkAmbientDeclarationPath({ name, scope, matchType, firstMatch = true }) {
     const out = firstMatch ? null : [];
     for (let cur = scope; cur; cur = cur.parent) {
@@ -79,6 +80,7 @@ export function createNameResolution({ t }) {
         bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
       }
       if (!Array.isArray(bodyPaths)) continue;
+      const before = out?.length;
       for (const stmtPath of bodyPaths) {
         const { type } = stmtPath.node ?? {};
         const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
@@ -88,8 +90,13 @@ export function createNameResolution({ t }) {
         if (firstMatch) return declPath;
         out.push(declPath);
       }
+      // collect-mode: stop at the innermost scope that produced any matches so outer-scope
+      // overloads don't bleed past a shadow. mirrors `walkScopesForDecl`'s collect-then-stop.
+      // `out?.length` short-circuits to undefined for firstMatch (we never reach here when
+      // firstMatch returns early inside the loop); comparison `undefined > undefined` is false
+      if (out && out.length > before) return out;
     }
-    return firstMatch ? null : out;
+    return out;
   }
 
   // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
@@ -207,7 +214,11 @@ export function createNameResolution({ t }) {
     for (let cur = scope; cur; cur = cur.parent) {
       const block = cur.block ?? cur.path?.node;
       if (!block) continue;
-      const body = block.type === 'Program' ? block.body : block.body?.body;
+      // Program / BlockStatement / TSModuleBlock / StaticBlock host statements directly at
+      // `.body`; Function / method scopes wrap in a BlockStatement, so drill once more.
+      // pre-fix `block.type === 'Program' ? block.body : block.body?.body` missed block-scoped
+      // type declarations because `block.body` was already the statement array
+      const body = Array.isArray(block.body) ? block.body : block.body?.body;
       const before = collect?.length;
       const result = walkStatementsForDecl({ segments, statements: body, collect, leafMatch });
       if (!collect && result) return result;
@@ -231,8 +242,8 @@ export function createNameResolution({ t }) {
   // per-scope cache. serialize multi-segment / array inputs to a dotted string so qualified
   // references (`NS.Type`) and array-form callsites share the cache slot with their string form
   let typeDeclCache = new WeakMap();
-  function findTypeDeclaration(name, scope) {
-    if (!scope) return null;
+
+  function lookupTypeDeclInScope(name, scope) {
     const key = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : null;
     if (key === null) return walkScopesForDecl({ name, scope, collect: null });
     const byName = getOrInitMap(typeDeclCache, scope);
@@ -240,6 +251,51 @@ export function createNameResolution({ t }) {
     const decl = walkScopesForDecl({ name, scope, collect: null });
     byName.set(key, decl);
     return decl;
+  }
+
+  // when scope-chain lookup misses AND a lookup-path anchor is on the stack, fall back to
+  // walking that path's ancestors for enclosing namespace bodies. activates for parsers
+  // (estree-toolkit) that don't expose TSModuleDeclaration / TSModuleBlock as scope levels.
+  // babel parsers create scopes for namespaces so scope-chain hits first and the fallback
+  // is a no-op there
+  function findTypeDeclaration(name, scope) {
+    if (!scope) return null;
+    return lookupTypeDeclInScope(name, scope)
+      ?? findTypeDeclInLookupPath(name);
+  }
+
+  // execute `fn` with `path` registered as the current lookup-path anchor. used by
+  // binding-driven resolution sites (e.g. `pattern-bindings`) that have access to the
+  // binding's NodePath - threading the path through the resolver chain explicitly would
+  // touch dozens of call sites, but resolution is strictly synchronous and reentrant
+  // calls compose naturally on the stack, so an instance-level stack avoids the churn
+  const lookupPathStack = [];
+  function withLookupPath(path, fn) {
+    if (!path) return fn();
+    lookupPathStack.push(path);
+    try {
+      return fn();
+    } finally {
+      lookupPathStack.pop();
+    }
+  }
+
+  // walk the current lookup-path anchor's ancestors for enclosing TSModuleBlock bodies
+  // (the inner `{}` of a namespace) and check each one's direct statements for the type
+  // decl. respects TS lexical scoping: only namespaces that ENCLOSE the lookup site are
+  // checked, not siblings. mirrors `findTSRuntimeBindingInPath` for runtime-binding lookups
+  function findTypeDeclInLookupPath(name) {
+    const path = lookupPathStack.at(-1);
+    if (!path) return null;
+    const segments = typeof name === 'string' ? name.split('.') : name;
+    for (let cur = path; cur; cur = cur.parentPath) {
+      if (cur.node?.type !== 'TSModuleBlock') continue;
+      const result = walkStatementsForDecl({
+        segments, statements: cur.node.body, collect: null, leafMatch: isTypeBearingDeclaration,
+      });
+      if (result) return result;
+    }
+    return null;
   }
 
   // narrow `findTypeDeclaration` to TSEnumDeclaration. callers care about the enum-decl
@@ -334,6 +390,7 @@ export function createNameResolution({ t }) {
   // `isTypeBearingDeclaration` stays cluster-private (default `leafMatch` for
   // `walkStatementsForDecl` / `walkScopesForDecl`)
   return {
+    withLookupPath,
     isFunctionLike,
     isFunctionOrClassDeclaration,
     isClassLikeDeclaration,
