@@ -103,6 +103,7 @@ export default function createPlugin(options) {
   const estreeAdapter = createEstreeAdapter(() => currentInjector);
   const typeResolvers = createResolveNodeType(nodeType, types, {
     getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
+    isReassignedBinding: name => currentInjector?.isReassignedBinding?.(name) ?? false,
   });
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling
