@@ -155,6 +155,14 @@ export function createCallResolution({
   function staticPairFromDestructure(scope, name) {
     const binding = scope?.getBinding(name);
     if (!binding?.path) return null;
+    // reassigned bindings (`let { from } = Array; from = other`) lose their pattern-init
+    // association at the call site - the destructure pair describes the FIRST value, not
+    // necessarily the CURRENT one. without this guard, `from(arr)` infers Array.from's
+    // return shape and narrows downstream instance polyfills to Array-only, missing the
+    // String / other-type branches that the reassigned function could legitimately produce.
+    // mirrors `walkStaticReceiverChain`'s INIT-side guard (detect-usage/destructure.js) and
+    // `resolvePath`'s reassignment walk
+    if (binding.constantViolations?.length) return null;
     let declarator = binding.path;
     while (declarator && !t.isVariableDeclarator(declarator.node)) declarator = declarator.parentPath;
     if (!declarator) return null;

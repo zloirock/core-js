@@ -159,7 +159,7 @@ export default function createDestructureEmitter({
     // tracker may keep the original ObjectProperty binding stale post-AST-mutation, so the
     // structural `staticPairFromDestructure` extractor can't re-derive (Constructor, method)
     // from the renamed `_unused` value - injector alias is the authoritative path
-    injector.registerBodyExtractAlias(valueNode.name, entry);
+    injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
     // `let` (not `const`): the original was a function parameter binding, which is
     // reassignable. swapping in `const` would silently reject downstream `from = newValue`
     // assignments in the body that were valid pre-rewrite.
@@ -289,7 +289,7 @@ export default function createDestructureEmitter({
     }
     const id = injectPureImport(entry, hintName);
     // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
-    injector.registerBodyExtractAlias(valueNode.name, entry);
+    injector.registerBodyExtractAlias(valueNode.name, entry, assignPath.scope.getBinding(valueNode.name));
     // skip the orphaned prop subtree before mutation so re-entered visitors don't fire on
     // a removed-from-parent node. receiver tail stays visible so its proxy-global Identifier
     // (`globalThis`) can substitute via the normal visitor pass
@@ -396,7 +396,7 @@ export default function createDestructureEmitter({
     const declCount = declaration.node?.declarations?.length ?? 1;
     const id = injectPureImport(entry, hintName);
     // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
-    injector.registerBodyExtractAlias(valueNode.name, entry);
+    injector.registerBodyExtractAlias(valueNode.name, entry, declarator.scope.getBinding(valueNode.name));
     const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id));
     // cascade: each level removes its property when the inner pattern has no siblings.
     // `willRemoveDeclarator` iff EVERY level's pattern had this as its sole property
@@ -552,7 +552,7 @@ export default function createDestructureEmitter({
     // canonical entry path, so `arr = from('hi'); arr.at(-1)` narrows correctly post-mutation
     if (kind === 'static') {
       const localName = patternBindingName(prop.node.value);
-      if (localName) injector.registerBodyExtractAlias(localName, entry);
+      if (localName) injector.registerBodyExtractAlias(localName, entry, prop.scope.getBinding(localName));
     }
     // mark property as handled - rest-rename triggers re-traversal which must be skipped
     skippedNodes.add(prop.node);
