@@ -38,6 +38,7 @@ export function createNarrowByGuards({
   findSwitchCaseGuards,
   findEarlyExitGuards,
   getStatementSiblings,
+  canFallThrough,
 }) {
   function matchesTypeofValue(resolved, value) {
     if (value === 'object') return (!resolved.primitive && resolved.constructor !== 'Function') || resolved.type === 'null';
@@ -80,19 +81,31 @@ export function createNarrowByGuards({
     return result;
   }
 
-  // check whether any reassignment of binding could execute between a guard check and usagePath
+  // check whether any reassignment of binding could execute between a guard check and usagePath.
+  // soundness rule: if the guard checked a value, the runtime branch that follows must observe
+  // THAT same value. ANY mutation that reaches the usage after the check invalidates the narrow.
+  // three reachability paths the walker must inspect, beyond plain "mutation descendant of current":
+  //   (a) ambient mutation in the guard's OWN test slot - fires after the guard expression but
+  //       before the consequent (`if (typeof x === 'string' && (x = 5, true))`)
+  //   (b) preceding fall-through case bodies feed mutations into the current SwitchCase via
+  //       absence of `break` (`case 'a': x = 5; case 'b': use(x)`)
+  //   (c) early-exit sibling's OWN test slot when the OR-side runs but the return doesn't fire
+  //       (`if (typeof x !== 'string' || (x = 5, false)) return;` - LHS=false, RHS runs, !return)
   function hasMutationAfterGuards(binding, usagePath, varName) {
     const { constantViolations } = binding;
+    if (!constantViolations.length) return false;
     const usageStart = usagePath.node.start;
-    function isDescendantOf(path, scope) {
-      for (let p = path; p; p = p.parentPath) if (p === scope) return true;
-      return false;
+    function hasStart(node) {
+      return node?.start !== null && node?.start !== undefined;
     }
     // missing source positions (synthetic AST nodes) - conservatively assume mutation
     // is positionally before usage so narrowing drops rather than over-keeps
     function isBefore(v) {
-      return v.node.start === null || v.node.start === undefined
-        || usageStart === null || usageStart === undefined || v.node.start < usageStart;
+      return !hasStart(v.node) || !hasStart(usagePath.node) || v.node.start < usageStart;
+    }
+    function isDescendantOf(path, scope) {
+      for (let p = path; p; p = p.parentPath) if (p === scope) return true;
+      return false;
     }
     function violates(scope) {
       return constantViolations.some(v => isDescendantOf(v, scope));
@@ -100,11 +113,49 @@ export function createNarrowByGuards({
     function violatesBefore(scope) {
       return constantViolations.some(v => isDescendantOf(v, scope) && isBefore(v));
     }
+    // positional containment: mutation's byte range fits inside the node's byte range. used
+    // for sibling-relative scopes the parentPath walker can't reach via descendant traversal
+    function violatesInsideNode(node) {
+      if (!hasStart(node) || node.end === null || node.end === undefined) return false;
+      const { start, end } = node;
+      return constantViolations.some(v => {
+        const n = v.node;
+        return hasStart(n) && n.end !== null && n.end !== undefined && n.start >= start && n.end <= end;
+      });
+    }
+    // (a) test slot of the conditional/logical guard host. for IfStatement/Conditional the
+    // host's `test` is the guard expression; for LogicalExpression where guards came from the
+    // LHS, the LHS itself spans the guard - RHS mutations live in `current` (the right
+    // operand) and `violatesBefore(current)` already covers them
+    function conditionalTestNode(current) {
+      const parent = current.parentPath;
+      if (!parent) return null;
+      const pnode = parent.node;
+      if (t.isIfStatement(pnode) || t.isConditionalExpression(pnode)) return pnode.test;
+      if (t.isLogicalExpression(pnode)) return pnode.left;
+      return null;
+    }
+    // (b) preceding fall-through cases feed mutations into the current SwitchCase. walks
+    // back until a case with a runtime exit (return/throw/break) - that case can't fall
+    // through, so anything earlier won't reach us
+    function fallThroughCaseViolates(current) {
+      const switchCase = current.parentPath;
+      const switchStmt = switchCase?.parentPath;
+      if (!t.isSwitchStatement(switchStmt?.node)) return false;
+      const { cases } = switchStmt.node;
+      const idx = cases.indexOf(switchCase.node);
+      for (let i = idx - 1; i >= 0; i--) {
+        if (violatesInsideNode(cases[i])) return true;
+        if (!canFallThrough(cases[i])) break;
+      }
+      return false;
+    }
     // early-exit-guard invalidation: only the NEAREST guard to usage matters - closer
-    // guards re-narrow the binding independently of older guards' invalidation, and the
-    // mutation window `(nearestIdx, current.key]` (incl. prefix of current sibling before
-    // usage) is the only window that can invalidate runtime narrowing. older guards are
-    // subsumed; their invalidation by mutations BEFORE the nearest guard is irrelevant
+    // guards re-narrow the binding independently of older guards. mutation windows to check:
+    //   - intermediate sibling bodies between nearest and current (`violates(siblings[j])`)
+    //   - prefix of current's own sibling before usage (`violatesBefore(current)`)
+    //   - (c) the nearest guard sibling's OWN test slot (e.g. `|| (x = 5, false)` running
+    //     after the typeof check)
     function earlyExitInvalidates(current, siblings) {
       let nearestIdx = -1;
       for (let i = current.key - 1; i >= 0; i--) {
@@ -114,22 +165,28 @@ export function createNarrowByGuards({
         }
       }
       if (nearestIdx < 0) return false;
+      const nearestNode = siblings[nearestIdx]?.node;
+      if (t.isIfStatement(nearestNode) && violatesInsideNode(nearestNode.test)) return true;
       for (let j = nearestIdx + 1; j < current.key; j++) if (violates(siblings[j])) return true;
       return violatesBefore(siblings[current.key]);
     }
     // a fresh inner conditional whose guard has no mutations between it and the usage
     // re-narrows at runtime regardless of outer-scope mutations - the inner guard's
     // condition re-evaluates after any outer-scope reassignment. once seen, outer-level
-    // mutations don't invalidate narrowing
+    // mutations don't invalidate narrowing. "fresh" requires no mutation in the consequent
+    // path AND no mutation in the inner guard's own test slot
     let innerFreshConditional = false;
     for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
       if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
       if (findConditionalGuards(current, varName).length) {
-        if (!violatesBefore(current)) innerFreshConditional = true;
+        const fresh = !violatesBefore(current) && !violatesInsideNode(conditionalTestNode(current));
+        if (fresh) innerFreshConditional = true;
         else if (!innerFreshConditional) return true;
       }
-      if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent) && !innerFreshConditional) return true;
-      if (findEarlyExitGuards(current, varName).length && !innerFreshConditional
+      if (innerFreshConditional) continue;
+      if (findSwitchCaseGuards(current, varName).length
+        && (violatesBefore(parent) || fallThroughCaseViolates(current))) return true;
+      if (findEarlyExitGuards(current, varName).length
         && earlyExitInvalidates(current, getStatementSiblings(current))) return true;
     }
     return false;
