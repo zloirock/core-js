@@ -1590,6 +1590,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     findSwitchCaseGuards,
     findEarlyExitGuards,
     getStatementSiblings,
+    canFallThrough,
   });
   const {
     resolveGuardType,
