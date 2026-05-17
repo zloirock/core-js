@@ -27,27 +27,57 @@ import { IIFE_CALL_PATH_WRAPPERS, NESTED_BINDING_INTRODUCERS, TS_EXPR_WRAPPERS }
 // always-eval but rare in IIFE wrap patterns - omitted to keep the contract minimal
 const STRAIGHT_LINE_WRAPPER_TYPES = new Set([...IIFE_CALL_PATH_WRAPPERS, ...TS_EXPR_WRAPPERS]);
 
-// control-flow exits that, when reachable in a preceding sibling of the candidate
-// assignment, mean the assignment may NOT run: function-exit (return / throw), loop-exit
-// (break), iteration-skip (continue). nested function / class bodies do NOT propagate
-// (their exits escape their OWN scope) - the `NESTED_BINDING_INTRODUCERS` boundary in
-// `subtreeContainsExit` stops descent there
-const EXIT_STATEMENT_TYPES = new Set([
-  'BreakStatement',
-  'ContinueStatement',
-  'ReturnStatement',
-  'ThrowStatement',
+// statement-level wrappers that don't introduce conditional control flow - the only
+// node types `reachesStraightLine` is willing to walk through from a candidate
+// assignment up to the binding's var-scope (outer check) or the IIFE body (inner check).
+// LabeledStatement is forward-transparent: a labeled `break`/`continue` targeting it is
+// caught by `precedingSiblingsExitFree`'s scan of the labeled body's siblings
+const STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES = new Set([
+  'BlockStatement',
+  'Program',
+  'StaticBlock',
+  'LabeledStatement',
 ]);
 
-function subtreeContainsExit(node) {
+// control-flow exits that, when reachable in a preceding sibling of the candidate
+// assignment, mean the assignment may NOT run: function-exit (`return` / `throw`),
+// loop/switch-exit (`break`), iteration-skip (`continue`). nested function / class bodies
+// do NOT propagate (their exits escape their OWN scope) - the `NESTED_BINDING_INTRODUCERS`
+// boundary in `subtreeContainsExit` stops descent there.
+//
+// loop/switch shadow unlabeled `break`/`continue`: those forms target the innermost
+// enclosing loop/switch, so they don't propagate past it. LabeledStatement adds its label
+// to the visible scope so a labeled `break`/`continue` targeting it is also local
+const LOOP_LIKE_TYPES = new Set([
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+  'SwitchStatement',
+]);
+
+function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
-  if (EXIT_STATEMENT_TYPES.has(node.type)) return true;
+  if (node.type === 'BreakStatement' || node.type === 'ContinueStatement') {
+    // unlabeled inside loop/switch is local; labeled targets a scope above - local
+    // when the label is in our descent path (LabeledStatement we walked through)
+    if (!node.label) return !inLoopOrSwitch;
+    return !labels?.has(node.label.name);
+  }
+  if (node.type === 'ReturnStatement' || node.type === 'ThrowStatement') return true;
   if (NESTED_BINDING_INTRODUCERS.has(node.type)) return false;
+  const nextInLoop = inLoopOrSwitch || LOOP_LIKE_TYPES.has(node.type);
+  let nextLabels = labels;
+  if (node.type === 'LabeledStatement' && node.label) {
+    nextLabels = new Set(labels);
+    nextLabels.add(node.label.name);
+  }
   for (const key of Object.keys(node)) {
     const value = node[key];
     if (Array.isArray(value)) {
-      if (value.some(subtreeContainsExit)) return true;
-    } else if (subtreeContainsExit(value)) return true;
+      if (value.some(v => subtreeContainsExit(v, nextInLoop, nextLabels))) return true;
+    } else if (subtreeContainsExit(value, nextInLoop, nextLabels)) return true;
   }
   return false;
 }
@@ -104,15 +134,14 @@ function findEnclosingStatement(path, stmtType) {
   return p;
 }
 
-// every wrapping statement from startPath up to endNode is a plain BlockStatement /
-// Program / StaticBlock - reject if / switch / loop / try / etc. that make execution
-// conditional. endNode is either the binding's var-scope body (outer check) or an
-// IIFE function body (inner check during the lift loop)
+// every wrapping statement from startPath up to endNode is in the passthrough set -
+// reject if / switch / loop / try / etc. that make execution conditional. endNode is
+// either the binding's var-scope body (outer check) or an IIFE function body (inner
+// check during the lift loop)
 function reachesStraightLine(startPath, endNode) {
   for (let p = startPath; p; p = p.parentPath) {
     if (p.node === endNode) return true;
-    const { type } = p.node;
-    if (type !== 'BlockStatement' && type !== 'Program' && type !== 'StaticBlock') return false;
+    if (!STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES.has(p.node.type)) return false;
   }
   return false;
 }
@@ -164,8 +193,14 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       const call = callee.parentPath;
       if (!call || call.node.callee !== callee.node) return null;
       if (call.node.type !== 'CallExpression' && call.node.type !== 'OptionalCallExpression') return null;
+      // body-side peel mirrors the callee-side wrapper handling above: `() => ((x = 1) as
+      // any)` parses the body as a TSAsExpression around the assignment; without peeling,
+      // the assignment-is-the-body trivial case wouldn't recognise the TS-cast shape and
+      // would fall through to the inner straight-line check that has no enclosing statement
       let fnBody = cur.node.body;
-      while (fnBody?.type === 'ParenthesizedExpression') fnBody = fnBody.expression;
+      while (fnBody && (fnBody.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(fnBody.type))) {
+        fnBody = fnBody.expression;
+      }
       return { call, fnBody };
     }
     return null;
@@ -183,31 +218,6 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return false;
   }
 
-  // lift `ap` through nested synchronous IIFE wrappers until it lands in binding's
-  // var-scope. each lift step verifies (a) ancestor chain to IIFE body is plain blocks
-  // (no if / switch / loop / try around the assignment) AND (b) no preceding sibling at
-  // any block level may exit before reaching the assignment - `if (c) return;` ahead of
-  // `x = 'hello'` makes the assignment conditionally unreachable even when the ancestor
-  // chain is straight-line. returns the lifted path on success, null on bail
-  function liftThroughIIFEs(ap, wrapStmtType, bindingScope) {
-    let effectiveAp = ap;
-    while (effectiveAp && !isInBindingVarScope(effectiveAp.scope, bindingScope)) {
-      const { call, fnBody } = findEnclosingIIFE(effectiveAp, bindingScope) ?? {};
-      if (!call) return null;
-      // arrow-with-expression-body: assignment IS the body, trivially straight-line
-      if (effectiveAp.node !== fnBody) {
-        const innerStmt = findEnclosingStatement(effectiveAp, wrapStmtType);
-        if (!innerStmt || !reachesStraightLine(innerStmt.parentPath, fnBody)) return null;
-        if (!precedingSiblingsExitFree(innerStmt, fnBody)) return null;
-      }
-      effectiveAp = call;
-    }
-    return effectiveAp;
-  }
-
-  // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched per query
-  let sortedAssignmentCache = new WeakMap();
-
   // walk from `path` UP to `stmt` (exclusive), requiring every intermediate node to be
   // an always-evaluating wrapper. catches both IIFE-lifted shapes (`false && iife()`,
   // `cond ? iife() : 0`) and bare assignment shapes (`false && (x = 'hello')`,
@@ -219,6 +229,46 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     }
     return true;
   }
+
+  // unified straight-line reachability check from `effectiveAp` up to `endNode`. three
+  // layers must all pass:
+  //   1. ancestor chain `enclosingStmt.parentPath -> endNode` is all passthrough types
+  //   2. expression chain `effectiveAp -> enclosingStmt` is all always-evaluating wrappers
+  //   3. no preceding sibling at any block level exits before `enclosingStmt`
+  // the sibling check matters at BOTH layers but for different exits:
+  //   - inner (IIFE): any preceding return/throw/break/continue inside the IIFE body
+  //     skips the assignment, yet the call still returns and `effectiveAp` pretends the
+  //     assignment ran at the call's position
+  //   - outer (var-scope): labeled break/continue targeting a LabeledStatement that wraps
+  //     the assignment but NOT the use can exit the wrapper, skipping the assignment
+  //     while the use still runs (`outer: { if (c) break outer; x = "hi"; } x.at(0)`).
+  //     return/throw at the outer level fire ONLY when the use also doesn't run, so the
+  //     "if the use runs, the assignment ran" implication still holds for those - the
+  //     check is conservative but rarely matters since outer-level early-exit patterns
+  //     before a binding-mutating prefix are uncommon
+  function passesStraightLineCheck(effectiveAp, endNode, wrapStmtType) {
+    const stmt = findEnclosingStatement(effectiveAp, wrapStmtType);
+    if (!stmt || !reachesStraightLine(stmt.parentPath, endNode)) return false;
+    if (!precedingSiblingsExitFree(stmt, endNode)) return false;
+    return isStraightLineExpressionChain(effectiveAp, stmt);
+  }
+
+  // lift `ap` through nested synchronous IIFE wrappers until it lands in binding's
+  // var-scope. arrow-with-expression-body short-circuits since the assignment IS the body
+  function liftThroughIIFEs(ap, wrapStmtType, bindingScope) {
+    let effectiveAp = ap;
+    while (effectiveAp && !isInBindingVarScope(effectiveAp.scope, bindingScope)) {
+      const { call, fnBody } = findEnclosingIIFE(effectiveAp, bindingScope) ?? {};
+      if (!call) return null;
+      if (effectiveAp.node !== fnBody
+        && !passesStraightLineCheck(effectiveAp, fnBody, wrapStmtType)) return null;
+      effectiveAp = call;
+    }
+    return effectiveAp;
+  }
+
+  // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched per query
+  let sortedAssignmentCache = new WeakMap();
 
   function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
@@ -242,15 +292,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       // no IIFE lift -> ap is wrapped in its native wrapStmtType. lifted -> effectiveAp is
       // a CallExpression which always lives inside an ExpressionStatement
       const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
-      const stmt = findEnclosingStatement(effectiveAp, outerWrapType);
-      if (!stmt || !reachesStraightLine(stmt.parentPath, varScopeBody)) continue;
-      // validate the expression chain from the assignment (or lifted-IIFE call) up to
-      // its enclosing statement. statement-level `reachesStraightLine` above only checks
-      // BlockStatement / Program / StaticBlock ancestors of `stmt`; the chain BELOW
-      // `stmt` may pass through LogicalExpression / ConditionalExpression / `||=`-style
-      // AssignmentExpression that make the inner write conditional. covers both
-      // `false && (x = 'hello')` (bare) and `false && (() => { x = 'hello' })()` (IIFE)
-      if (!isStraightLineExpressionChain(effectiveAp, stmt)) continue;
+      if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerWrapType)) continue;
       out.push({ ap, pos });
     }
     out.sort((a, b) => a.pos - b.pos);

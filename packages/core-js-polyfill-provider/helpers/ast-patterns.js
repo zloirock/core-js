@@ -693,6 +693,12 @@ export const NESTED_BINDING_INTRODUCERS = new Set([
   'FunctionDeclaration',
   'ClassExpression',
   'ClassDeclaration',
+  // babel-only AST node for `{ foo() {} }` shorthand methods. carries its own scope and
+  // body; descent into the inline-literal must stop here so an inner `return` doesn't
+  // get treated as a propagating exit. estree-toolkit normalises to Property + FnExpr,
+  // which already terminate via FunctionExpression. ClassMethod / ClassPrivateMethod live
+  // inside ClassExpression / ClassDeclaration which already terminate descent above
+  'ObjectMethod',
 ]);
 
 // peel a transparent IIFE call to its underlying receiver expression. covers three
