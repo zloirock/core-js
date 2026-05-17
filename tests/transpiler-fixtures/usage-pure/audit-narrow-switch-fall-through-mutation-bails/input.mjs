@@ -1,0 +1,15 @@
+// switch fall-through guard: `case 'a': x = ...; case 'b': use(x);` - `findSwitchCaseGuards`
+// merges fall-through predecessors into a typeof-or guard for the body of `case 'b'`. but the
+// reassignment in `case 'a'` reaches the use through fall-through; the walker only looks at
+// the current SwitchCase's descendants and misses the preceding case's mutation
+function probe(arg: string | number[]) {
+  let x: string | number[] = arg;
+  switch (typeof x) {
+    case "string":
+      x = [1, 2, 3];
+    case "object":
+      return x.includes(1);
+  }
+  return false;
+}
+probe("hi");
