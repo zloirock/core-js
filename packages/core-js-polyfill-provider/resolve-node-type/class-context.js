@@ -24,6 +24,16 @@ import { isAmbientClassNode } from './name-resolution.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
 import { getSuperTypeArgs } from '../helpers/ast-patterns.js';
 
+// ESTree Property / babel ObjectProperty - both shapes wrap an object/class method's
+// function-value via the `.value` slot. unified set covers both parser dialects
+const OBJECT_PROPERTY_TYPES = new Set(['Property', 'ObjectProperty']);
+
+// declaration shapes that describe an ambient parent class for type-flow purposes -
+// TS `declare class` parses to `ClassDeclaration{declare:true}`, Flow `declare class X`
+// to a dedicated `DeclareClass` node. both convey the parent's surface without a runtime
+// binding so `resolveSuperClassPath`'s ambient fallback accepts either
+const AMBIENT_CLASS_DECL_TYPES = new Set(['ClassDeclaration', 'DeclareClass']);
+
 export function createClassContext({
   t,
   resolveRuntimeExpression,
@@ -45,8 +55,12 @@ export function createClassContext({
   // MethodDefinition (ESTree class-method wrapper, continue to ClassBody), Property nested
   // in ClassBody (some adapters - continue), anything else (function rebinds `this`)
   function resolveThisAnchor(path) {
-    let current = path;
-    while (current = current.parentPath) {
+    for (let current = path.parentPath; current; current = current.parentPath) {
+      // Decorator's argument evaluates at class-definition time in the OUTER scope, NOT in
+      // the decorated class/method's `this`. crossing a Decorator on the way up means the
+      // original `this` lives in the outer scope - returning null here lets the resolver
+      // fall back to outer-scope handling instead of binding to the inner class context
+      if (current.node.type === 'Decorator') return null;
       if (t.isClassBody(current.parentPath?.node)) {
         const classPath = current.parentPath.parentPath;
         if (!t.isClass(classPath?.node)) return null;
@@ -58,10 +72,10 @@ export function createClassContext({
       if (t.isObjectMethod?.(current.node) && t.isObjectExpression(parent)) {
         return { kind: 'object', objectPath: current.parentPath };
       }
-      // ESTree Property / ObjectProperty wrapping a FunctionExpression: could be an object
+      // ESTree Property/ObjectProperty wrapping a FunctionExpression: could be an object
       // method (parent ObjectExpression) or a class method (parent ClassBody) - dispatch
       // on grandparent shape; for class methods continue to the ClassBody check next iter
-      if ((parent?.type === 'Property' || parent?.type === 'ObjectProperty') && parent.value === current.node) {
+      if (OBJECT_PROPERTY_TYPES.has(parent?.type) && parent.value === current.node) {
         const grand = current.parentPath?.parentPath?.node;
         if (t.isObjectExpression(grand)) return { kind: 'object', objectPath: current.parentPath.parentPath };
         continue;
@@ -98,48 +112,49 @@ export function createClassContext({
     if (!superClass.node) return null;
     const resolved = resolveRuntimeExpression(superClass);
     if (t.isClass(resolved.node)) return resolved;
-    if (t.isIdentifier(superClass.node)) {
-      // accept both TS `declare class` (ClassDeclaration{declare:true}) and Flow
-      // `declare class X {...}` (DeclareClass node) - both describe the parent's surface
-      // for type-flow analysis, even though only the TS form is currently common
-      const ambient = findAmbientDeclarationPath(superClass.node.name, superClass.scope, isAmbientClassNode);
-      if (ambient?.node.type === 'ClassDeclaration' || ambient?.node.type === 'DeclareClass') return ambient;
-      return null;
+    // every downstream shape check reads from the PEELED node so a TS wrapper
+    // (`extends (Base as typeof Base)`) doesn't break Identifier / qualified-segment
+    // dispatch. raw `superClass.node` is the unpeeled wrapper; `resolved.node` is the
+    // semantic expression `resolveRuntimeExpression` already unwrapped
+    if (t.isIdentifier(resolved.node)) {
+      const ambient = findAmbientDeclarationPath(resolved.node.name, resolved.scope, isAmbientClassNode);
+      return AMBIENT_CLASS_DECL_TYPES.has(ambient?.node.type) ? ambient : null;
     }
     // qualified shapes (`NS.Base`, `Outer.Inner.Base`) reach here as MemberExpression /
     // TSQualifiedName / QualifiedTypeIdentifier. `collectQualifiedSegments` peels the
     // chain into a segment list; non-identifier links (computed member, call expressions,
     // etc.) yield null so `findDeclPathBySegments` short-circuits without descent
-    const segments = collectQualifiedSegments(superClass.node);
+    const segments = collectQualifiedSegments(resolved.node);
     if (!segments?.length) return null;
-    return findDeclPathBySegments(segments, superClass.scope, isClassLikeDeclaration);
+    return findDeclPathBySegments(segments, resolved.scope, isClassLikeDeclaration);
   }
 
   function resolveClassContext(objectPath) {
+    const { node } = objectPath;
     // Foo.staticProp - object is the class itself
-    if (t.isClass(objectPath.node)) return { classPath: objectPath, isStatic: true };
+    if (t.isClass(node)) return { classPath: objectPath, isStatic: true };
     // new Foo().prop - object is a class instance
-    if (t.isNewExpression(objectPath.node)) {
+    if (t.isNewExpression(node)) {
       const classPath = resolveRuntimeExpression(objectPath.get('callee'));
       if (t.isClass(classPath.node)) return { classPath, isStatic: false };
     }
     // `Reflect.construct(C, args)` is structurally equivalent to `new C(...args)` -
     // returns an instance of C. callee shape: bare `Reflect.construct` (no local shadow)
     // or post-rewrite alias. recognising it lets `inst.X` on the result reach the same
-    // class-context resolution as the new-expression path
-    if ((t.isCallExpression(objectPath.node) || t.isOptionalCallExpression(objectPath.node))
-      && isReflectConstructCallee(objectPath.node.callee, objectPath.scope)
-      && objectPath.node.arguments?.[0]) {
-      // dotted child-key (`'arguments.0'`) works in babel but not estree-toolkit; the
-      // array-form `get('arguments')[0]` is universal across both adapters
+    // class-context resolution as the new-expression path. `get('arguments')[0]` is the
+    // parser-agnostic form (the dotted child-key `'arguments.0'` works in babel but not
+    // estree-toolkit)
+    if ((t.isCallExpression(node) || t.isOptionalCallExpression(node))
+      && isReflectConstructCallee(node.callee, objectPath.scope)
+      && node.arguments?.[0]) {
       const classPath = resolveRuntimeExpression(objectPath.get('arguments')[0]);
       if (t.isClass(classPath.node)) return { classPath, isStatic: false };
     }
     // this.prop inside a class member
-    if (t.isThisExpression(objectPath.node)) return resolveThisClass(objectPath);
+    if (t.isThisExpression(node)) return resolveThisClass(objectPath);
     // super.prop inside a class member - resolve to parent class; isStatic inherits the
     // enclosing method's context (`static m() { super.x }` -> parent static; instance -> instance)
-    if (objectPath.node?.type === 'Super') {
+    if (node?.type === 'Super') {
       const thisCtx = resolveThisClass(objectPath);
       const parentPath = thisCtx && resolveSuperClassPath(thisCtx.classPath);
       return parentPath ? { classPath: parentPath, isStatic: thisCtx.isStatic } : null;
