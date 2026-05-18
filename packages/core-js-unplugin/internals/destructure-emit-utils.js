@@ -2,6 +2,7 @@
 // helpers from polyfill-provider, no file-scope state - callers pass paths / nodes directly
 import {
   findIifeArgForParam,
+  peelParenAndTSParentPath,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -67,9 +68,11 @@ export function canTransformDestructuring(metaPath) {
     grandParentType: declaratorPath.parentPath?.parentPath?.node?.type,
   })) return false;
   if (declaratorPath.node.type === 'AssignmentExpression') {
-    let exprParent = declaratorPath.parentPath;
-    while (exprParent?.node?.type === 'ParenthesizedExpression') exprParent = exprParent.parentPath;
-    if (exprParent?.node?.type !== 'ExpressionStatement') return false;
+    // walk past Paren AND TS expression wrappers to the host. without TS peel
+    // `({from} = Array) as any;` would parse as ExpressionStatement > TSAsExpression >
+    // AssignmentExpression and the destructure rewrite silently bails
+    const host = peelParenAndTSParentPath(declaratorPath);
+    if (host?.node?.type !== 'ExpressionStatement') return false;
   }
   return true;
 }
