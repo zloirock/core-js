@@ -821,6 +821,31 @@ export function createPolyfillEmitter({
     addInstanceTransform({ binding, node, parent, metaPath, isCall, replacementIsCall: isCall, sideEffects });
   }
 
+  // split-emit for `super.foo(args)` -> `binding.call(this, args)`. prefix replaces
+  // `super.foo(` (with optional SE wrapper); args stay VERBATIM at their source positions
+  // (preserves source-map column precision - breakpoints / stack traces resolve to the
+  // original arg slot instead of collapsing to super's start). closing `)` is overwritten
+  // only when sideEffects need the extra `))` wrap. `sep` branches on AST arity so
+  // `super.foo(/* c */)` (no args, comment round-trips inside source) doesn't get a
+  // dangling leading comma. SE-wrap leads with `(` at a statement-leading slot - the ASI
+  // guard injects `;` (no-op for empty sideEffects on the bare call shape)
+  function emitSuperCallSplit({ binding, parent, sideEffects, metaPath }) {
+    const args = parent.arguments;
+    // splitPoint: position after `(` - first arg's start, or one before `)` for no-args.
+    // closingParen at parent.end - 1 holds the source `)` token; preserving it keeps the
+    // closing-paren's column mapping intact for the no-SE path
+    const closingParen = parent.end - 1;
+    const splitPoint = args[0]?.start ?? closingParen;
+    const sep = args.length ? ', ' : '';
+    const seParts = sideEffects?.length ? sideEffects.map(e => nodeSrc(e)) : null;
+    const callOpen = `${ binding }.call(this${ sep }`;
+    const prefix = seParts ? `(${ seParts.join(', ') }, ${ callOpen }` : callOpen;
+    transforms.add(parent.start, splitPoint, asiGuardLeadingParen(prefix, metaPath, parent.start));
+    // SE wrap closes both the call's `)` (verbatim slot) and the wrapping `(SE, ...)`
+    // sequence - overwrite `)` with `))` so MagicString emits the extra closing token
+    if (seParts) transforms.add(closingParen, parent.end, '))');
+  }
+
   // replace global identifier or static member with polyfill import binding. the
   // shorthand / export / super early-returns don't carry side effects (Identifier /
   // Super can't host a SequenceExpression); only the final MemberExpression replacement
@@ -840,21 +865,10 @@ export function createPolyfillEmitter({
         && directParent.local === node && directParent.exported === node) {
       return transforms.add(node.start, node.end, `${ binding } as ${ node.name }`);
     }
-    // super.method(args) -> binding.call(this, args) to preserve this-binding.
-    // `sliceBetweenParens` keeps every byte between `(` and `)` (comments, whitespace,
-    // trailing commas); `sep` branches on AST arity so `super.foo(/* c */)` (no real args,
-    // comment still round-trips inside argsSrc) doesn't get a dangling leading comma.
-    // sideEffects covers computed-key SE: `super[(fn(),'X')](args)` collected fn() into
-    // sideEffects via members.js; wrapSideEffects emits `(fn(), binding.call(this, args))`.
-    // SE branch leads with `(` and lives in a method-body statement slot - an unterminated
-    // predecessor would fuse the call into the prior expression, so asiGuardLeadingParen
-    // injects `;` (no-op for empty sideEffects when wrap is bare `binding.call(...)`)
+    // super.method(args) -> binding.call(this, args) to preserve this-binding
     if (node.object?.type === 'Super' && parent?.type === 'CallExpression' && isCallee(node, parent)) {
-      const argsSrc = sliceBetweenParens(parent) ?? '';
-      const sep = parent.arguments.length ? ', ' : '';
-      const callExpr = `${ binding }.call(this${ sep }${ argsSrc })`;
-      return transforms.add(parent.start, parent.end,
-        asiGuardLeadingParen(wrapSideEffects(callExpr, sideEffects), metaPath, parent.start));
+      emitSuperCallSplit({ binding, parent, sideEffects, metaPath });
+      return;
     }
     // strip TS wrappers (satisfies, as, !) - meaningless after polyfill replacement
     let { start, end } = node;
