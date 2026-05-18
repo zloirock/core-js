@@ -1,5 +1,6 @@
 import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
+import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
@@ -481,6 +482,130 @@ function checkSourceMapFileField() {
   check('sourceMap/sources[0] preserves full id', result?.map?.sources?.[0], '/src/sm-file.js');
 }
 checkSourceMapFileField();
+
+// `storeName: true` on generateMap populates `map.names` with the original token text
+// for each overwrite that supplied an explicit name. without it the names array stays
+// empty and devtools can't reverse-resolve renamed bindings (`_Array$from` -> `Array.from`)
+// for stack traces / scope panels. tests that the option is actually set in plugin.js
+function checkSourceMapStoreName() {
+  const source = 'const x = Array.from([1]);';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, '/src/sm-names.js');
+  // names array must exist and be a (possibly empty) array - presence alone confirms
+  // storeName: true was passed; pre-fix this was undefined per MagicString defaults
+  check('sourceMap/names is array', Array.isArray(result?.map?.names), true);
+}
+checkSourceMapStoreName();
+
+// super.X(args) static-dispatch emits as a SPLIT transform: prefix replaces `super.X(`,
+// args stay verbatim at their source positions. test traces the source-map mapping for a
+// column INSIDE the arg range and confirms it resolves to the original arg's source
+// column - the single-chunk emission collapsed every col inside super.X(args) to super.start.
+// `Symbol.iterator` access on parent class hits the static-dispatch super branch since
+// `Symbol.iterator` is a polyfilled property accessor
+function checkSuperCallArgColPrecision() {
+  // `super.all(myArg)` -> `_Promise$all.call(this, myArg)`. with split-emit `myArg` keeps
+  // its source position (line 3 col 22); single-chunk emission would collapse to super's
+  // start (line 3 col 11). probes the OUTPUT `myArg` column and confirms reverse-mapping
+  const source = 'class C extends Promise {\n  static m(myArg) {\n    return super.all(myArg);\n  }\n}\n';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, '/src/super-col.js');
+  if (!result?.map) {
+    check('superCall/transform emitted map', false, true);
+    return;
+  }
+  const tm = new TraceMap(result.map);
+  const outLines = result.code.split('\n');
+  // find the ARGUMENT `myArg` occurrence (preceded by `, ` in `.call(this, myArg)`), NOT
+  // the parameter (preceded by `(` in `static m(myArg)`). substring `, myArg` is unique
+  let outLine = -1;
+  let outCol = -1;
+  for (let i = 0; i < outLines.length; i++) {
+    const idx = outLines[i].indexOf(', myArg');
+    if (idx !== -1) {
+      outLine = i + 1;
+      outCol = idx + 2;
+      break;
+    }
+  }
+  if (outLine === -1) {
+    check('superCall/myArg argument present', false, true);
+    return;
+  }
+  const probe = originalPositionFor(tm, { line: outLine, column: outCol });
+  // source `myArg` argument lives at line 3, col 21 (after `    return super.all(`).
+  // split-emit preserves col precision; single-chunk emission would land at col 11 (`super`)
+  check('superCall/arg col maps to original source pos', probe.line === 3 && probe.column === 21, true);
+}
+checkSuperCallArgColPrecision();
+
+// no-args super-call: `super.foo()`. split-point falls back to `closingParen`, the
+// transform covers `super.foo(` and the original `)` stays verbatim at its source col
+function checkSuperCallNoArgsClosingParen() {
+  const source = 'class C extends Promise {\n  static m() {\n    return super.race();\n  }\n}\n';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, '/src/super-noargs.js');
+  if (!result?.map) {
+    check('superCall/no-args transform emitted map', false, true);
+    return;
+  }
+  const tm = new TraceMap(result.map);
+  const outLines = result.code.split('\n');
+  // find the closing `)` of the polyfill call: `_Promise$race.call(this)` ends with `)`
+  let outLine = -1;
+  let outCol = -1;
+  for (let i = 0; i < outLines.length; i++) {
+    const idx = outLines[i].indexOf('.call(this)');
+    if (idx !== -1) {
+      outLine = i + 1;
+      outCol = idx + '.call(this'.length;
+      break;
+    }
+  }
+  if (outLine === -1) {
+    check('superCall/no-args output present', false, true);
+    return;
+  }
+  const probe = originalPositionFor(tm, { line: outLine, column: outCol });
+  // source closing `)` lives at line 3, col 22 (after `    return super.race(`)
+  check('superCall/no-args closing-paren col preserved', probe.line === 3 && probe.column === 22, true);
+}
+checkSuperCallNoArgsClosingParen();
+
+// multi-args super-call: `super.foo(a, b, c)`. each arg lives at its own source position;
+// split-emit preserves all of them. probes the THIRD argument to confirm the verbatim
+// range covers everything inside the call's parens (not just the first arg)
+function checkSuperCallMultiArgColPrecision() {
+  const source = 'class C extends Promise {\n  static m(a, b, c) {\n    return super.race(a, b, c);\n  }\n}\n';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, '/src/super-multi.js');
+  if (!result?.map) {
+    check('superCall/multi-arg transform emitted map', false, true);
+    return;
+  }
+  const tm = new TraceMap(result.map);
+  const outLines = result.code.split('\n');
+  // find the line containing the polyfill .call(this, ...) - the args are on THAT line.
+  // matching `.call(this, a` anchors to the polyfilled invocation (not the param list)
+  let outLine = -1;
+  let outCol = -1;
+  for (let i = 0; i < outLines.length; i++) {
+    const idx = outLines[i].indexOf('.call(this, a, b, c)');
+    if (idx !== -1) {
+      outLine = i + 1;
+      outCol = idx + '.call(this, a, b, '.length;
+      break;
+    }
+  }
+  if (outLine === -1) {
+    check('superCall/multi-arg third-arg present', false, true);
+    return;
+  }
+  const probe = originalPositionFor(tm, { line: outLine, column: outCol });
+  // source third arg `c` lives at line 3, col 28 (after `    return super.race(a, b, `)
+  check('superCall/multi-arg third-arg col preserved', probe.line === 3 && probe.column === 28, true);
+}
+checkSuperCallMultiArgColPrecision();
 
 // --- directivePrologueEnd ---
 // scans leading directive-shaped statements ('use strict', 'use asm', etc.) and returns the
