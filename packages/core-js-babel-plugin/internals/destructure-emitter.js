@@ -20,6 +20,7 @@ import {
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
   peelNestedSequenceExpressions,
+  peelParenAndTSParentPath,
   peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiverPath,
@@ -72,7 +73,13 @@ export default function createDestructureEmitter({
       parentInit: parent?.node?.init,
       grandParentType: parent?.parentPath?.parentPath?.node?.type,
     })) return false;
-    if (parent?.isAssignmentExpression() && !parent.parentPath?.isExpressionStatement()) return false;
+    if (parent?.isAssignmentExpression()) {
+      // walk past Paren / TS wrappers between Assignment and its ExpressionStatement host.
+      // without TS peel `({from} = Array) as any;` parses as ExprStmt > TSAsExpression >
+      // Assignment and the rewrite silently bails; mirror of unplugin's emit-utils peel
+      const host = peelParenAndTSParentPath(parent);
+      if (host?.node?.type !== 'ExpressionStatement') return false;
+    }
     return true;
   }
 
