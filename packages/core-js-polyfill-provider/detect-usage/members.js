@@ -12,6 +12,7 @@ import {
   isTransparentWrapper,
   MAX_KEY_DEPTH,
   peelChainAssignment,
+  peelReceiverSequenceTail,
   resolveKey,
   resolveObjectName,
   unwrapParens,
@@ -179,8 +180,12 @@ export function resolveSymbolIteratorEntry(node, parent) {
 export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAvailable, path }) {
   if (node.operator !== 'in') return null;
   const left = unwrapParens(node.left);
+  // peel SequenceExpression-tail on the receiver: `(fn(), Symbol).iterator in obj`
+  // should resolve to the symbol-in polyfill path same as bare `Symbol.iterator in obj`.
+  // SE preceding-elements are preserved at emit time via `visitSymbolInLhsSe` walking
+  // the original LHS subtree, so peeling here doesn't drop side-effects
   const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
-    ? asSymbolRef({ node: left.object, scope, adapter, path }) : null;
+    ? asSymbolRef({ node: peelReceiverSequenceTail(left.object), scope, adapter, path }) : null;
   if (ref) {
     const name = resolveKey({ node: left.property, computed: left.computed, scope, adapter, path });
     // nested `Symbol[Symbol.X]` - `resolveKey` already returns `Symbol.X`; double-prefixing

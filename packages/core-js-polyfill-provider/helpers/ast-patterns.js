@@ -682,6 +682,34 @@ export function peelFallbackReceiver(node) {
   return node;
 }
 
+// walk a symbol-sourced `X in Y` LHS subtree, invoking `visit(seExprNode)` for each
+// SE-bearing leading expression discovered in any nested SequenceExpression. handles
+// wrapped receivers (`(fn(), Symbol).iterator`), computed-key SE (`Symbol[(fn(), 'k')]`),
+// and TS/Paren/Chain wrappers around either. shared between babel-plugin and unplugin
+// `handleInExpression`: babel passes `e => arr.push(t.cloneNode(e))`, unplugin passes
+// `e => arr.push(nodeSrc(e))` - the walk + SE detection lives here so both emit paths
+// preserve the same shapes byte-for-byte without diverging implementations
+export function visitSymbolInLhsSe(node, visit) {
+  function walk(n) {
+    while (n && (TRANSPARENT_EXPR_WRAPPER_TYPES.has(n.type) || n.type === 'ChainExpression')) {
+      n = n.expression;
+    }
+    if (!n) return;
+    if (n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression') {
+      walk(n.object);
+      if (n.computed) walk(n.property);
+      return;
+    }
+    if (n.type === 'SequenceExpression') {
+      const { expressions } = n;
+      if (!expressions?.length || expressions.length < 2) return;
+      const prefix = expressions.slice(0, -1);
+      if (prefix.some(mayHaveSideEffects)) for (const e of prefix) visit(e);
+    }
+  }
+  walk(node);
+}
+
 // nodes that introduce their own scope and may shadow outer bindings - subtree walkers
 // stop at these boundaries: `bodyHasParamReference` / `prefixStmtRebindsParam` treat them
 // as opaque (can't reason about inner bindings statically), `subtreeContainsExit` (in
