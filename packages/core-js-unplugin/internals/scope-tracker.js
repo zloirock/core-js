@@ -6,7 +6,7 @@
 // destructure parts) go straight to `injector.generateLocalRef` with `hoisted: false` to
 // avoid a duplicate bare `var X;`
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
-import { varScopeAnchor } from './plugin-helpers.js';
+import { skipDirectivePrologue, varScopeAnchor } from './plugin-helpers.js';
 
 // arrow expression body wraps to `{ var ...; return expr; }` (host is Expression);
 // bodyless control-statement body wraps to `{ var ...; stmt }` (host is Statement). same
@@ -36,21 +36,6 @@ export default class ScopeTracker {
   constructor({ code, injector }) {
     this.#code = code;
     this.#injector = injector;
-  }
-
-  // advance past `{` and any directive prologue (`"use strict"`, etc.) so that
-  // inserted `var _ref;` does not split the directive off from being first in body
-  // and silently flip the function to sloppy mode. empty-string `""` directive is
-  // parser-emitable but not a valid prologue - reject for symmetry with the
-  // `directivePrologueEnd` Program-level helper (plugin-helpers.js)
-  static skipDirectives(statements, startPos) {
-    let end = startPos;
-    for (const stmt of statements ?? []) {
-      if (stmt.type !== 'ExpressionStatement' || typeof stmt.directive !== 'string'
-        || stmt.directive.length === 0) break;
-      end = stmt.end;
-    }
-    return end;
   }
 
   setScope(metaPath) {
@@ -86,7 +71,7 @@ export default class ScopeTracker {
       }
       const anchor = varScopeAnchor(p.node, this.#code);
       if (anchor) {
-        this.scope = ScopeTracker.skipDirectives(anchor.statements, anchor.insertPos);
+        this.scope = skipDirectivePrologue(anchor.statements, anchor.insertPos);
         break;
       }
     }
