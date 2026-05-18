@@ -9,6 +9,7 @@ import {
   hasSideEffectfulSequencePrefix,
   mayHaveSideEffects,
   TS_EXPR_WRAPPERS,
+  visitSymbolInLhsSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -640,9 +641,32 @@ export function createPolyfillEmitter({
     // would carry `globalThis?.X` etc. verbatim into every `null == ...` slot of the
     // template. direct-Identifier polyfill is intentionally NOT folded in here -
     // existing OR-chain semantics for bare globals stay verbatim
+    // resolve the chain receiver to substituted text BEFORE template construction:
+    // the OR-chain template references the receiver text in multiple slots (`null == X`,
+    // `null == (_ref = inner(X))`, `_ref.call(X, ...)`). leaving the receiver raw lets
+    // visitor-driven Identifier substitution patch only the AST-anchored occurrence (the
+    // direct identifier), stranding the duplicated text-only occurrences. also covers
+    // bare-Identifier proxy-globals (`globalThis.flat?.()...`) which the chain resolver
+    // alone rejects since it requires a MemberExpression receiver
     const chainSubst = resolveProxyGlobalChainSrc(innerCallee.object, metaPath);
-    const receiver = chainSubst?.src ?? unwrapParensSrc(innerCallee.object);
-    if (chainSubst) skippedNodes.add(chainSubst.leafNode);
+    // direct-Identifier substitution only fires for BARE proxy-globals (no wrappers).
+    // wrapped receivers (`(X as any)`, `(X)`, `X!`) stay verbatim to match babel-compat
+    // memo semantics (`(_ref = X as any)` keeps the cast in source) - babel-side
+    // `replaceInstanceChainCombined` doesn't substitute through the wrapper either
+    const directLeaf = !chainSubst && innerCallee.object?.type === 'Identifier' ? innerCallee.object : null;
+    const directSubst = directLeaf ? resolveReceiverPolyfill(directLeaf, metaPath) : null;
+    let receiver;
+    let substLeafNode = null;
+    if (chainSubst) {
+      receiver = chainSubst.src;
+      substLeafNode = chainSubst.leafNode;
+    } else if (directSubst) {
+      receiver = injectPureImport(directSubst.entry, directSubst.hintName);
+      substLeafNode = directLeaf;
+    } else {
+      receiver = unwrapParensSrc(innerCallee.object);
+    }
+    if (substLeafNode) skippedNodes.add(substLeafNode);
     // mirror babel-compat.js `memoize` (`isSafeToReuse`): a side-effect-free Identifier /
     // ThisExpression receiver can appear verbatim in every slot without `_ref = X` capture.
     // skipping the redundant memo aligns the chain-combined emit byte-for-byte with the
@@ -790,11 +814,20 @@ export function createPolyfillEmitter({
     const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
     if (symbolIn && isEntryNeeded(symbolIn.entry)) {
       const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
+      // preserve SE that the rewrite would otherwise drop - computed-key SequenceExpression
+      // (`Symbol[(fn(), 'iterator')]`) or wrapped receiver SE
+      const lhsSe = [];
+      visitSymbolInLhsSe(node.left, e => lhsSe.push(nodeSrc(e)));
       if (meta.key === 'Symbol.iterator') {
-        transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.right) })`);
+        const call = `${ binding }(${ nodeSrc(node.right) })`;
+        const replacement = lhsSe.length ? `(${ lhsSe.join(', ') }, ${ call })` : call;
+        transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
         skipWrappedNode(node.left);
       } else {
-        transforms.add(node.left.start, node.left.end, binding);
+        const tail = `${ binding } in ${ nodeSrc(node.right) }`;
+        const replacement = lhsSe.length ? `(${ lhsSe.join(', ') }, ${ tail })` : tail;
+        transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
+        skipWrappedNode(node.left);
       }
     } else if (meta.object) {
       // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable.
@@ -823,11 +856,16 @@ export function createPolyfillEmitter({
         // previous unterminated line into the new `(...)` as a call. `'true'` bare path
         // is no-op for the guard
         transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
-        // marking only `node.right` leaves nested identifiers (`foo.bar.baz` -> `foo`)
-        // visible to child visitors, which would emit spurious polyfill imports for
-        // code the `'true'` replacement has already discarded
-        walkAstNodes({ root: node.right, visit: n => skippedNodes.add(n) });
-        skipProxyGlobal(node.right);
+        // marking nested identifiers (`foo.bar.baz` -> `foo`) as skipped prevents child
+        // visitors from emitting spurious polyfill imports for code the `'true'` replacement
+        // has discarded. EXCEPT when RHS is an AssignmentExpression rescue: the entire RHS
+        // text is preserved verbatim in the replacement (`(y = Map, true)`), so inner
+        // polyfills there must still emit (`Map` -> `_Map`). skipping the RHS subtree in
+        // that case strands raw proxy-globals in the replacement
+        if (rhs?.type !== 'AssignmentExpression') {
+          walkAstNodes({ root: node.right, visit: n => skippedNodes.add(n) });
+          skipProxyGlobal(node.right);
+        }
       }
     }
   }

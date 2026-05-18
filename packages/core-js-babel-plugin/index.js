@@ -11,6 +11,7 @@ import {
   isTaggedTemplateTag,
   mayHaveSideEffects,
   TS_EXPR_WRAPPERS,
+  visitSymbolInLhsSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -291,13 +292,19 @@ export default function plugin(api, options) {
         const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
         if (symbolIn && isEntryNeeded(symbolIn.entry)) {
           const id = injectPureImport(symbolIn.entry, symbolIn.hint);
+          // LHS may carry SE (computed-key SequenceExpression / wrapped receiver SE) that
+          // the symbol-in rewrite would otherwise drop. harvest and prepend as a sequence
+          const lhsSe = [];
+          visitSymbolInLhsSe(path.node.left, e => lhsSe.push(t.cloneNode(e)));
           if (meta.key === 'Symbol.iterator') {
             // cloneNode avoids sharing the original node between the replaced BinaryExpression
             // subtree and the new CallExpression arg - defensive against sibling plugins that
             // might hold a reference to the old tree
-            path.replaceWith(t.callExpression(id, [t.cloneNode(path.node.right)]));
+            const call = t.callExpression(id, [t.cloneNode(path.node.right)]);
+            path.replaceWith(lhsSe.length ? t.sequenceExpression([...lhsSe, call]) : call);
           } else {
             path.get('left').replaceWith(id);
+            if (lhsSe.length) path.replaceWith(t.sequenceExpression([...lhsSe, path.node]));
           }
           return;
         }
