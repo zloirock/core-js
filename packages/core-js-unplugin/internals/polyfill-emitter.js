@@ -388,7 +388,10 @@ export function createPolyfillEmitter({
     // SequenceExpression-receiver double-emit guard - `classifyReceiverSE` (shared with
     // babel-compat) decides between peel + prepend (non-optional) and SE-in-memoize +
     // suppress prepend (optional). detects SE through transparent wrappers so oxc's
-    // ParenthesizedExpression(SE) shape resolves identically to babel's bare SE
+    // ParenthesizedExpression(SE) shape resolves identically to babel's bare SE.
+    // `node.object?.type === 'ChainExpression'` is defensive for non-oxc AST shapes -
+    // oxc-parser never emits a ChainExpression in receiver position (it inlines optional
+    // markers), but estree-style trees do; the check stays for parser-agnostic robustness
     const isOptional = node.optional || parent?.optional || node.object?.type === 'ChainExpression';
     const seMode = classifyReceiverSE(node.object, isOptional, sideEffects);
     const receiverObj = seMode === 'peel' ? peelReceiverSequenceTail(node.object) : node.object;
@@ -598,6 +601,26 @@ export function createPolyfillEmitter({
       skipNode: chain.leafNode,
       substituted: true,
     };
+    // SE-tail proxy-global: `(0, globalThis).flat?.(...)` - receiver is a
+    // SequenceExpression whose DIRECT tail is a polyfillable Identifier. resolve the
+    // tail via the same Identifier-polyfill path and rebuild src preserving the SE
+    // wrapping. checking `expressions.at(-1)` directly (not peeling recursively) keeps
+    // nested-SE shapes `(a, (b, X))` out of scope - reconstruction would otherwise drop
+    // the inner SE's prefix and lose side-effects
+    if (unwrapped?.type === 'SequenceExpression' && unwrapped.expressions?.length >= 2) {
+      const tailNode = unwrapped.expressions.at(-1);
+      const tailDirect = resolveReceiverPolyfill(tailNode, metaPath);
+      if (tailDirect) {
+        const tailSrc = injectPureImport(tailDirect.entry, tailDirect.hintName);
+        const prefixSrcs = unwrapped.expressions.slice(0, -1).map(e => nodeSrc(e));
+        return {
+          src: `(${ [...prefixSrcs, tailSrc].join(', ') })`,
+          isNonIdent: true,
+          skipNode: tailNode,
+          substituted: true,
+        };
+      }
+    }
     return {
       src: unwrapParensSrc(receiverObj),
       isNonIdent: !NO_REF_NEEDED.has(unwrapNodeForMemoize(receiverObj).type),
@@ -628,6 +651,11 @@ export function createPolyfillEmitter({
     const { callee } = current;
     if (callee?.type !== 'MemberExpression' || callee.computed) return null;
     if (callee.property?.type !== 'Identifier') return null;
+    // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
+    // OR-chain template, but `super` is not a primary expression and the codegen
+    // produces invalid JS. let `super` chains fall through to addInstanceTransform's
+    // dedicated super-call handling instead
+    if (callee.object?.type === 'Super') return null;
     const meta = { kind: 'property', object: null, key: callee.property.name, placement: 'prototype' };
     const { result } = resolvePureOrGlobalFallback(meta, metaPath.get('object').get('callee'));
     if (result?.kind !== 'instance') return null;
