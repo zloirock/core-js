@@ -417,6 +417,17 @@ export function peelTransparentExprWrappers(startPath, onSequencePrefix) {
   return null;
 }
 
+// narrower companion to `peelTransparentExprWrappers`: walks parentPath up through Paren
+// AND TS expression wrappers ONLY (no SequenceExpression-tail peel). callers that need
+// to FIND the enclosing non-wrapper ancestor but want SE-tail to terminate the walk
+// (e.g. `({...} = X) as any` -> ExpressionStatement, but `((0, {...} = X))` -> stays at SE
+// because SE-tail semantics aren't always desired in the caller's context)
+export function peelParenAndTSParentPath(startPath) {
+  let path = startPath?.parentPath ?? null;
+  while (path?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(path.node.type)) path = path.parentPath;
+  return path;
+}
+
 // destructure-host slot specifically for nested-proxy flatten (`{Array:{from}} = G` ->
 // `from = _Array$from`). narrower than `destructureReceiverSlot`: AssignmentExpression
 // is accepted ONLY when the surrounding context is an ExpressionStatement (value is

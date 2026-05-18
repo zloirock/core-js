@@ -21,6 +21,7 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   peelFallbackWrappers,
   peelNestedSequenceExpressions,
+  peelParenAndTSParentPath,
   peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiver,
@@ -1152,10 +1153,10 @@ export function createDestructureEmitter({
     }
     const { kind, binding } = resolveDestructureEntry({ isSymbolIterator, isSymbolKeyPassthrough, pureResult });
     const isAssignment = !isCatchClause && declaratorPath?.node?.type === 'AssignmentExpression';
-    let declPath = isCatchClause ? declaratorPath : declaratorPath?.parentPath;
-    if (isAssignment) {
-      while (declPath?.node?.type === 'ParenthesizedExpression') declPath = declPath.parentPath;
-    }
+    // peel Paren / TS wrappers up to the enclosing ExpressionStatement so transforms.add's
+    // range owns the statement's trailing `;` (otherwise leftover `;` produces `from = _X;;`)
+    const declPath = isCatchClause ? declaratorPath
+      : isAssignment ? peelParenAndTSParentPath(declaratorPath) : declaratorPath?.parentPath;
     const initNode = isCatchClause ? null
         : isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
 
