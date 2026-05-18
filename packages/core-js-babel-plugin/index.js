@@ -249,6 +249,11 @@ export default function plugin(api, options) {
         const calleeNode = callee.node;
         if (calleeNode?.type !== 'MemberExpression' && calleeNode?.type !== 'OptionalMemberExpression') return null;
         if (calleeNode.computed || calleeNode.property?.type !== 'Identifier') return null;
+        // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
+        // OR-chain template, but `super` is not a primary expression and the codegen
+        // throws at parse time. let `super` chains fall through to addInstanceTransform's
+        // dedicated super-call handling instead
+        if (calleeNode.object?.type === 'Super') return null;
         const meta = { kind: 'property', object: null, key: calleeNode.property.name, placement: 'prototype' };
         const { result } = resolvePureOrGlobalFallback(meta, callee);
         if (result?.kind !== 'instance') return null;
