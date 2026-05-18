@@ -9,6 +9,16 @@ import {
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
+// runtime-transparent wrappers for optional-chain detection: TS expression wrappers +
+// ParenthesizedExpression + ChainExpression. ChainExpression is ESTree's wrapper around
+// optional chains (oxc / acorn shape); babel-parser inlines optionals via the `optional`
+// flag and never emits ChainExpression itself, but accepting it here keeps the helpers
+// parser-agnostic for cross-AST tooling
+const OPTIONAL_CHAIN_TRANSPARENT_TYPES = new Set([
+  ...TRANSPARENT_EXPR_WRAPPER_TYPES,
+  'ChainExpression',
+]);
+
 export default function (t, { getInjector, typeResolvers } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
 
@@ -22,10 +32,13 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // peeled here - keeping them in the check keeps babel's `_ref` emission in sync with
   // unplugin's source-text regex, especially inside optional chains.
   // ParenthesizedExpression IS peeled so `(arr)?.(0)` under `createParenthesizedExpressions:
-  // true` aligns with unplugin's NO_REF_NEEDED set - both pipelines avoid `_ref` allocation
-  // for paren-wrapped Identifier / ThisExpression
+  // true` aligns with unplugin's NO_REF_NEEDED set; ChainExpression is also peeled for
+  // ESTree-shape inputs that wrap optional chains in a ChainExpression node - both
+  // pipelines avoid `_ref` allocation for wrapper-only nestings around Identifier / `this`
   function isSafeToReuse(node) {
-    while (node?.type === 'ParenthesizedExpression') node = node.expression;
+    while (node?.type === 'ParenthesizedExpression' || node?.type === 'ChainExpression') {
+      node = node.expression;
+    }
     return t.isIdentifier(node) || t.isThisExpression(node);
   }
 
@@ -113,12 +126,12 @@ export default function (t, { getInjector, typeResolvers } = {}) {
 
   function normalizeOptionalChain(path, stripFirstOptional) {
     let { parentPath } = path;
-    // walk past TS wrappers (satisfies, as, !) AND ParenthesizedExpression (preserved by
-    // parser when `createParenthesizedExpressions: true`) between the replaced node and the
-    // optional chain. without paren-walk, `(arr.includes)?.(1)` under that parser config
-    // wouldn't deopt the chain. shared `TRANSPARENT_EXPR_WRAPPER_TYPES` keeps the parent-walk
-    // symmetric with `extractCheck`'s child-walk below
-    while (parentPath && TRANSPARENT_EXPR_WRAPPER_TYPES.has(parentPath.node?.type)) ({ parentPath } = parentPath);
+    // walk past TS / Paren / Chain wrappers between the replaced node and the optional
+    // chain. without these peels, `(arr.includes)?.(1)` / ESTree-wrapped chains wouldn't
+    // deopt. symmetric with `peelTransparentChildPath` (extractCheck's child-walk)
+    while (parentPath && OPTIONAL_CHAIN_TRANSPARENT_TYPES.has(parentPath.node?.type)) {
+      ({ parentPath } = parentPath);
+    }
     if (!parentPath || !isOptionalOperand(path, parentPath)) return null;
     let topPath = null;
     let seenOptional = false;
@@ -135,28 +148,46 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return topPath;
   }
 
+  // peel transparent wrappers (TS / Paren / Chain) from an immediate child path.
+  // returns the peeled path; callers that need the boolean "did we peel anything" can
+  // compare against the original. extracted so the chain-descent loop can re-peel at
+  // every hop (TS `!` mid-chain between optional links would otherwise abort detection)
+  function peelTransparentChildPath(p) {
+    let cur = p;
+    while (cur.node && OPTIONAL_CHAIN_TRANSPARENT_TYPES.has(cur.node.type)) {
+      cur = cur.get('expression');
+    }
+    return cur;
+  }
+
   function extractCheck(path, skipOptional) {
     const { node } = path;
     if (node.optional) {
-      if (skipOptional?.(node, path.scope)) return [null, node.object];
-      return memoize(node.object, path.scope);
+      if (skipOptional?.(node, path.scope)) return [null, node.object, false];
+      const [memoCheck, memoRef] = memoize(node.object, path.scope);
+      return [memoCheck, memoRef, false];
     }
-    if (!path.isOptionalMemberExpression()) return [null, node.object];
+    if (!path.isOptionalMemberExpression()) return [null, node.object, false];
     let chainStart = null;
+    // symmetric with `normalizeOptionalChain`'s parent-walk above. `throughTS` flag tracks
+    // whether the INITIAL receiver was wrapped - signals `replaceAndWrap` to embed the
+    // guard directly (path references would otherwise go stale on the two-step replace)
     let current = path.get('object');
-    // skip TS wrappers (as, satisfies, !) AND ParenthesizedExpression between the member
-    // and the inner chain. symmetric with `normalizeOptionalChain`'s parent-walk above -
-    // a paren wrapping `(arr?.b)` would otherwise leave the chain detection one hop short
     const throughTS = current.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(current.node.type);
-    while (current.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(current.node.type)) current = current.get('expression');
+    current = peelTransparentChildPath(current);
     while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
       if (current.node.optional) {
         chainStart = current;
         break;
       }
-      current = current.isOptionalMemberExpression() ? current.get('object') : current.get('callee');
+      const next = current.isOptionalMemberExpression() ? current.get('object') : current.get('callee');
+      // re-peel transparent wrappers at every hop. mid-chain `!` (TSNonNullExpression)
+      // between optional links (`arr?.b!.c.d.includes(2)`) would otherwise abort the
+      // chain detection, emit without the null-check guard, and throw TypeError on null
+      // arr where native short-circuits the entire chain to undefined
+      current = peelTransparentChildPath(next);
     }
-    if (!chainStart) return [null, node.object];
+    if (!chainStart) return [null, node.object, throughTS];
     const key = chainStart.isOptionalMemberExpression() ? 'object' : 'callee';
     // skip null-check when the optional is on a polyfillable expression (replacement consumes `?.`).
     // reassigning `chainStart.node[key]` swaps the receiver / callee with the memoized ref -
@@ -175,7 +206,10 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       // identifier has no source-start position, so `findLastStraightLineAssignment` bails
       // on the ordering check and enhanceMeta falls through to the generic `common` variant
       const refClone = t.cloneNode(ref);
-      if (memoType) resolvedType.set(refClone, memoType);
+      // `resolvedType` may be undefined when factory wired without `typeResolvers` (raw
+      // AST-rewrite tooling); symmetric with `pathType`'s null-fallback so the cache
+      // write doesn't TypeError on the optional dependency
+      if (memoType) resolvedType?.set(refClone, memoType);
       chainStart.node[key] = refClone;
     }
     deoptionalizeNode(chainStart);
