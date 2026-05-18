@@ -15,6 +15,28 @@ import { skipDirectivePrologue, varScopeAnchor } from './plugin-helpers.js';
 const WRAP_KIND_ARROW = 'arrow';
 const WRAP_KIND_STMT = 'stmt';
 
+// pure helper: from a list of `[body, entry]` wraps, return those NOT enclosed by any
+// other wrap in the same list. shared by `consumeRefBindingsInRange` (outermost wraps in
+// the drained range) and `#composeBodyWrapText` (direct descendants within a body slice).
+// O(N log N): sort by start asc + end desc, then sweep tracking the max end seen so far.
+// after sort, all prior wraps have start <= current.start, so a current wrap is enclosed
+// iff max_end_seen >= current.end (some prior wrap's range covers it). minified single-
+// expression bundles can pile thousands of arrow body-wraps under one flatten host, so
+// quadratic enclosure-check turns destructure-flatten into a quadratic-in-AST hotspot
+function findOutermostWraps(wraps) {
+  if (wraps.length <= 1) return wraps.slice();
+  const sorted = [...wraps].sort(
+    (a, b) => a[0].start - b[0].start || b[0].end - a[0].end);
+  const result = [];
+  let maxEnd = -1;
+  for (const wrap of sorted) {
+    if (maxEnd >= wrap[0].end) continue;
+    result.push(wrap);
+    maxEnd = wrap[0].end;
+  }
+  return result;
+}
+
 export default class ScopeTracker {
   // insertion position for `var _ref;` inside enclosing block (-1 = file scope)
   scope = -1;
@@ -146,6 +168,12 @@ export default class ScopeTracker {
   // replacement text directly. without consume-and-bake, `applyTransforms` queues an
   // insert at a position INSIDE the parent overwrite, MagicString `_split`s an already-
   // edited chunk and throws "Cannot split a chunk that has already been edited"
+  // nested body-wraps (`() => [1].at(0) + ((() => [2].at(0))())`) are pre-composed: the
+  // outer's slice captures original source including the inner body, and a flat `spliceInRange`
+  // pass would have the OUTER splice (applied second by ascending-position iteration)
+  // overwrite the INNER splice with raw original text. compose inner content INTO outer's
+  // body slice before emitting the outermost splice; the inner entries are dropped from
+  // the returned list (and the map) since their effect is now baked into the outer
   consumeRefBindingsInRange(start, end) {
     const splices = [];
     for (const [insertPos, names] of this.#scopedVars) {
@@ -154,13 +182,37 @@ export default class ScopeTracker {
         this.#scopedVars.delete(insertPos);
       }
     }
+    const wrapsInRange = [];
     for (const [body, entry] of this.#bodyWraps) {
-      if (body.start >= start && body.end <= end) {
-        splices.push({ start: body.start, end: body.end, content: this.#bodyWrapText(body, entry) });
-        this.#bodyWraps.delete(body);
-      }
+      if (body.start >= start && body.end <= end) wrapsInRange.push([body, entry]);
+    }
+    // inner wraps are absorbed into outer's composed content rather than emitted as
+    // separate splices - drop ALL wraps from the map but only emit outermost splices
+    for (const [body] of wrapsInRange) this.#bodyWraps.delete(body);
+    for (const [body, entry] of findOutermostWraps(wrapsInRange)) {
+      splices.push({ start: body.start, end: body.end, content: this.#composeBodyWrapText(body, entry, wrapsInRange) });
     }
     return splices;
+  }
+
+  // build body-wrap text with any DIRECT descendant body-wraps composed into the slice.
+  // recursion handles deeper levels - each level composes only its immediate children, and
+  // each child's own compose handles its grandchildren. splicing iterates descendants in
+  // descending start order so earlier-position splices don't shift later-position offsets
+  #composeBodyWrapText(body, entry, allWrapsInRange) {
+    const inside = allWrapsInRange.filter(([other]) => other !== body
+      && other.start >= body.start && other.end <= body.end);
+    const direct = findOutermostWraps(inside).sort((a, b) => b[0].start - a[0].start);
+    let slice = this.#code.slice(body.start, body.end);
+    for (const [innerBody, innerEntry] of direct) {
+      const innerText = this.#composeBodyWrapText(innerBody, innerEntry, allWrapsInRange);
+      const localStart = innerBody.start - body.start;
+      const localEnd = innerBody.end - body.start;
+      slice = slice.slice(0, localStart) + innerText + slice.slice(localEnd);
+    }
+    return entry.kind === WRAP_KIND_ARROW
+      ? `{ var ${ entry.names.join(', ') }; return ${ slice }; }`
+      : `{ var ${ entry.names.join(', ') }; ${ slice } }`;
   }
 
   applyTransforms(queue) {
