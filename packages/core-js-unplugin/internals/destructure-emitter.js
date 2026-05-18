@@ -287,15 +287,21 @@ export function createDestructureEmitter({
     }
   }
 
-  // tail expression for the sink declarator on a full-consume init: prefer the polyfill
-  // binding when the receiver is a known proxy-global (avoids re-evaluating the global
-  // alongside the polyfill import), otherwise the receiver's source with ref-binding
-  // splices baked in
+  // tail expression for the SE-sink declarator on a for-init init (`_unused = (SE, <tail>)`).
+  // shares dispatch semantics with `receiverEmitSrc` in `rewriteDeclarator`: aliased Identifier
+  // tail keeps user binding (matches babel byte-for-byte; alias decl's own init was polyfilled
+  // by the natural visitor outside the flatten range), everything else swaps to polyfill
+  // binding when the receiver resolves. ref-binding splices bake into the tail source on the
+  // non-polyfill path (typical for static-object / aliased / MemberExpression receivers that
+  // host inner `var _ref;` inserts)
   function resolveSinkTailSrc(decl, receiverTail, refSplices) {
-    const receiverPure = decl.receiver ? resolveGlobalPolyfill(decl.receiver) : null;
+    const tailSrc = bakeRefSplicesInRange(receiverTail, refSplices);
+    const isAliasedIdentifier = receiverTail?.type === 'Identifier' && tailSrc !== decl.receiver;
+    const receiverPure = !isAliasedIdentifier && decl.receiver
+      ? resolveGlobalPolyfill(decl.receiver) : null;
     return receiverPure
       ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-      : bakeRefSplicesInRange(receiverTail, refSplices);
+      : tailSrc;
   }
 
   function tryFlattenNestedProxy(metaPath) {
@@ -462,6 +468,17 @@ export function createDestructureEmitter({
     for (let i = 0; i < perDecl.length; i++) {
       if (!perDecl[i].extractions.length) continue;
       const decl = declaration.declarations[i];
+      // skip the WHOLE pattern subtree: the rebuilt flatten text comes from `nodeSrc`
+      // for preserved outer props and synth strings for consumed ones, so original
+      // Identifier visits inside any part of the pattern would queue transforms that
+      // overlap the flatten's overwrite range (MagicString chunk-split). this drops
+      // polyfills for refs inside preserved-sibling computed keys (`[Symbol.iterator]:
+      // iter` next to a flatten extraction won't emit `_Symbol$iterator`) - acceptable
+      // trade-off: `handleDestructuringPure` for that sibling bails on the
+      // already-flattened host (see `if (flattenedNestedDecls.has(...))` guard) so the
+      // pattern stays verbatim. covering this miss requires splice-rebuild infrastructure
+      // similar to `polyfillSiblingReceiverRefs` to merge inner substitutions into
+      // preservedSrc - deferred architectural change
       walkAstNodes({ root: decl.id, visit: n => skippedNodes.add(n) });
       skipReceiverTailSubtree(decl.init);
       if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
@@ -605,13 +622,57 @@ export function createDestructureEmitter({
     }));
   }
 
-  // proxy-global outer prop: four shapes
+  // structural check: outerProp is a Property with computed `[Symbol.iterator]` key. Symbol
+  // shadow not tracked here - matches `handleDestructuringPure`'s shadowing trust. true for
+  // both extractable shape (`[Symbol.iterator]: ident`) and non-extractable shape
+  // (`[Symbol.iterator]: {nestedPattern}` / spread / etc.) - caller decides what to do
+  function isSymbolIteratorComputedKey(outerProp) {
+    if (outerProp?.type !== 'Property' || !outerProp.computed) return false;
+    const { key } = outerProp;
+    if (key?.type !== 'MemberExpression' || key.computed) return false;
+    if (key.object?.type !== 'Identifier' || key.object.name !== 'Symbol') return false;
+    if (key.property?.type !== 'Identifier' || key.property.name !== 'iterator') return false;
+    return true;
+  }
+
+  // narrowed to extractable shape: value must reduce to a binding Identifier
+  // (`propBindingIdentifier` peels AssignmentPattern defaults - user default fires only
+  // when receiver[Symbol.iterator] is undefined, dead under polyfill-always-wins). returns
+  // the local binding name when extractable, null otherwise
+  function symbolIteratorLocalName(outerProp) {
+    if (!isSymbolIteratorComputedKey(outerProp)) return null;
+    return propBindingIdentifier(outerProp.value)?.name ?? null;
+  }
+
+  // proxy-global outer prop: five shapes
   //   - `{ Foo: { bar, ... } }` where Foo is a real global - inner pattern holds static methods
   //   - `{ Self: { ... } }` where Self is itself a proxy-global - alias hop, recurse keeping
   //     the chain transparent. enables N-level nests like `{ self: { window: { Array: { from } } } } = globalThis`
   //   - `{ Foo }` shorthand - polyfill Foo as a global
   //   - `{ Foo: alias }` aliased - same, different local name
+  //   - `{ [Symbol.iterator]: ident }` computed Symbol.iterator key - synth extraction
+  //     `ident = _getIteratorMethod(receiver)` (mirror of `handleDestructuringPure`'s
+  //     standalone path; in flatten host we absorb it so the rebuilt declaration carries
+  //     the polyfilled call instead of leaking native `Symbol.iterator` to the residual)
   function planOuterProp(outerProp) {
+    const symbolIterLocal = symbolIteratorLocalName(outerProp);
+    if (symbolIterLocal !== null) {
+      return {
+        extractions: [{ synth: 'symbol-iterator', localName: symbolIterLocal }],
+        preservedSrc: null,
+      };
+    }
+    // `[Symbol.iterator]` key with non-binding value (nested ObjectPattern, ArrayPattern,
+    // etc.). natural visitor would polyfill `Symbol.iterator -> _Symbol$iterator` on the
+    // standalone key, but flatten's blanket `walkAstNodes`-skip in `seedSkipped` suppresses
+    // it. emit the polyfilled key directly so the rebuilt residual carries
+    // `[_Symbol$iterator]: <value>` instead of leaking native `Symbol.iterator` (which
+    // would TypeError on old runtimes without `Symbol`). value source stays verbatim - any
+    // polyfillable refs inside (e.g. `{next}` binding name) aren't polyfillable themselves
+    if (isSymbolIteratorComputedKey(outerProp)) {
+      const symBinding = injectPureImport('symbol/iterator', 'Symbol$iterator');
+      return { preservedSrc: `[${ symBinding }]: ${ nodeSrc(outerProp.value) }` };
+    }
     if (outerProp.type !== 'Property' || outerProp.computed
       || outerProp.key?.type !== 'Identifier') {
       return { preservedSrc: nodeSrc(outerProp) };
@@ -689,6 +750,43 @@ export function createDestructureEmitter({
     };
   }
 
+  // emit one extracted-declarator decl text for an outer-prop extraction record. dispatches
+  // on `synth` discriminator: regular static-method extractions resolve via the polyfill
+  // entry/hint pair; `symbol-iterator` synth wraps the receiver in `_getIteratorMethod(...)`
+  // (mirror of babel-plugin's AST mutation for the same shape). receiver source is supplied
+  // by the caller's thunk so it's only evaluated when needed (avoids spurious imports on
+  // declarators with only entry-based extractions)
+  function emitOuterExtraction(e, scope, getReceiverSrc) {
+    if (e.synth === 'symbol-iterator') {
+      const binding = injectPureImport('get-iterator-method', 'getIteratorMethod');
+      return { decl: `${ e.localName } = ${ binding }(${ getReceiverSrc() })` };
+    }
+    const binding = injectPureImport(e.entry, e.hint);
+    // register the body-extract alias so receiver-narrowing through this binding
+    // (`xs = from('hi'); xs.at(0)`) finds the polyfill entry path. matches babel's
+    // body-extract paths so multi-method narrowing works on extracted `from` / `of`
+    // / etc. (without it, `at` / `includes` fall to generic `_at` / `_includes`)
+    injector.registerBodyExtractAlias(e.localName, e.entry, scope?.getBinding(e.localName));
+    return { decl: `${ e.localName } = ${ binding }` };
+  }
+
+  // build the residual destructure sentinel for a fully-consumed outer prop when the
+  // pattern has a `...rest` sibling. without the sentinel `rest` would include the
+  // consumed key, changing semantics. two shapes:
+  //   - `Foo: _unused` for non-computed Identifier keys (plain proxy-global static-method case)
+  //   - `[_Symbol$iterator]: _unused` for synth Symbol.iterator extractions - polyfilled
+  //     iterator symbol so old runtimes without native Symbol can still parse the pattern.
+  //     directly mirrors babel-plugin's `[_Symbol$iterator]: _unused2` rest-sentinel emit
+  // returns null when the prop has no extractable key shape (caller skips push)
+  function emitRestSentinel(outer, sourceProp) {
+    if (outer.extractions?.[0]?.synth === 'symbol-iterator') {
+      const symBinding = injectPureImport('symbol/iterator', 'Symbol$iterator');
+      return `[${ symBinding }]: ${ injector.generateUnusedName() }`;
+    }
+    const keyName = sourceProp?.key?.name;
+    return keyName ? `${ keyName }: ${ injector.generateUnusedName() }` : null;
+  }
+
   // execute the plan: inject polyfill imports, emit extractions. returns
   // `{ extractions: [{ decl }], preservedSrc }` where `preservedSrc` is null when the
   // declarator is fully consumed, raw src when there's no plan to touch, or a rebuilt
@@ -698,6 +796,33 @@ export function createDestructureEmitter({
     if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator), receiver: null };
     const extractions = [];
     const preservedOuter = [];
+    // receiver source for rebuilt-text slots inside the flatten's overwrite range. used by
+    // both synth Symbol.iterator extraction RHS (`_getIteratorMethod(<receiver>)`) and the
+    // partial-consume residual destructure init (`{ ... } = <receiver>`). same semantics
+    // for both - `skipReceiverTailSubtree` suppresses the natural visitor on the init tail,
+    // so leaking native global references would break old runtimes. dispatch:
+    //   - aliased Identifier tail (`= obj` where `obj = globalThis`): keep user binding
+    //     - matches babel-plugin byte-for-byte; alias decl's own init was polyfilled by
+    //     the natural visitor outside the flatten range
+    //   - everything else (direct proxy-global Identifier, MemberExpression chains, calls,
+    //     etc.): swap to polyfill binding when the receiver resolves to a known global,
+    //     else fall back to the raw tail source (static-object receivers)
+    // SE prefix is peeled off the init tail upfront - prefix lifts standalone via
+    // `liftExtractedSEPrefixes` (VariableDeclaration), `cascadeAssignmentExpression`
+    // (AssignmentExpression), or `injectForInitSESinks` re-embed (for-init). embedding the
+    // original `(se(), wrapper)` slice here would re-execute every prefix expression
+    let cachedReceiverEmitSrc;
+    function receiverEmitSrc() {
+      if (cachedReceiverEmitSrc !== undefined) return cachedReceiverEmitSrc;
+      const { tail } = peelNestedSequenceExpressions(declarator.init);
+      const tailSrc = nodeSrc(tail);
+      const isAliasedIdentifier = tail?.type === 'Identifier' && tailSrc !== plan.receiver;
+      const receiverPure = isAliasedIdentifier ? null : resolveGlobalPolyfill(plan.receiver);
+      cachedReceiverEmitSrc = receiverPure
+        ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+        : tailSrc;
+      return cachedReceiverEmitSrc;
+    }
     // RestElement in outer pattern - rest gathers all OTHER own keys, so dropping a
     // fully-consumed key from `{Array: {from}, ...rest} = globalThis` would change
     // runtime semantics (`rest.Array` becomes defined, original excluded it). keep
@@ -708,35 +833,17 @@ export function createDestructureEmitter({
     for (let i = 0; i < plan.outerProps.length; i++) {
       const outer = plan.outerProps[i];
       for (const e of outer.extractions ?? []) {
-        const binding = injectPureImport(e.entry, e.hint);
-        // register the body-extract alias so receiver-narrowing through this binding
-        // (`xs = from('hi'); xs.at(0)`) finds the polyfill entry path. matches babel's
-        // body-extract paths so multi-method narrowing works on extracted `from` / `of`
-        // / etc. (without it, `at` / `includes` fall to generic `_at` / `_includes`)
-        injector.registerBodyExtractAlias(e.localName, e.entry, scope?.getBinding(e.localName));
-        extractions.push({ decl: `${ e.localName } = ${ binding }` });
+        extractions.push(emitOuterExtraction(e, scope, receiverEmitSrc));
       }
       if (outer.preservedSrc !== null) {
         preservedOuter.push(outer.preservedSrc);
       } else if (hasRest) {
-        const sourceProp = plan.pattern.properties[i];
-        const keyName = sourceProp?.key?.name;
-        if (keyName) preservedOuter.push(`${ keyName }: ${ injector.generateUnusedName() }`);
+        const sentinel = emitRestSentinel(outer, plan.pattern.properties[i]);
+        if (sentinel) preservedOuter.push(sentinel);
       }
     }
     if (!preservedOuter.length) return { extractions, preservedSrc: null, receiver: plan.receiver };
-    // partial flatten: preserved declarator still destructures from the receiver,
-    // so polyfill it - old runtimes without `globalThis` / `self` would crash otherwise.
-    // peel SE prefix off the embedded init: prefix lifts standalone via
-    // `liftExtractedSEPrefixes` (VariableDeclaration) or the segments loop in
-    // `cascadeAssignmentExpression` (AssignmentExpression). embedding the original
-    // `(se(), wrapper)` slice here would re-execute every prefix expression alongside
-    // the lift - the babel-plugin counterpart mutates `init` to the tail and avoids
-    // this; text-only mode must peel at emit time
-    const receiverPure = resolveGlobalPolyfill(plan.receiver);
-    const initSrc = receiverPure
-      ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-      : nodeSrc(peelNestedSequenceExpressions(declarator.init).tail);
+    const initSrc = receiverEmitSrc();
     return {
       extractions,
       preservedSrc: `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`,
