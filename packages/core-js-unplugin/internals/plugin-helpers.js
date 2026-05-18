@@ -27,8 +27,17 @@ export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none
 export function directivePrologueEnd(ast) {
-  let end = 0;
-  for (const stmt of ast.body) {
+  return skipDirectivePrologue(ast.body, 0);
+}
+
+// generic walker: advance past directive prologue in `statements`, starting from `fallback`.
+// returns end-of-last-directive when present, else `fallback`. used by Program-level emit
+// (fallback=0), ScopeTracker scope walker (fallback=scope's open-brace+1), and
+// body-extract param insert (fallback=fn body open-brace+1) so an inserted statement
+// doesn't split the directive off the prologue and silently flip to sloppy mode
+export function skipDirectivePrologue(statements, fallback) {
+  let end = fallback;
+  for (const stmt of statements ?? []) {
     if (!isDirectiveStatement(stmt)) break;
     end = stmt.end;
   }
