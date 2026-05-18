@@ -11,19 +11,25 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 
-// intermediate slots permitted on the walk from an inner Property up to the enclosing
-// VariableDeclaration. any other shape -> foreign wrapper, bail safely.
+// intermediate slots permitted on the walk from an inner Property up to a destructure host.
 // AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) - proxy-global
 // receivers are always defined so the default never fires; ArrayPattern allowed for
 // single-element wrappers (`[{...}] = [globalThis]`) - walker drops the whole declaration
 // and the wrapper / its array literal init together
-const NESTED_DESTRUCTURE_WALK_TYPES = new Set([
+const NESTED_PATTERN_INTERMEDIATES = new Set([
   'ObjectPattern',
   'Property',
-  'VariableDeclarator',
   'AssignmentPattern',
   'ArrayPattern',
 ]);
+
+// declaration walker passes through one extra `VariableDeclarator` slot before reaching
+// the terminus VariableDeclaration. AssignmentExpression hosts have no analogous
+// intermediate (the outer ObjectPattern sits directly on `.left`), so the assignment
+// walker uses the bare INTERMEDIATES set
+function isDeclarationWalkIntermediate(type) {
+  return NESTED_PATTERN_INTERMEDIATES.has(type) || type === 'VariableDeclarator';
+}
 
 // walk Property/ObjectPattern pairs up to the enclosing VariableDeclaration. 2-level
 // nest is 5 hops, every additional alias-hop adds 2. returns the declaration's path
@@ -31,7 +37,7 @@ const NESTED_DESTRUCTURE_WALK_TYPES = new Set([
 export function walkUpNestedDestructureToDeclaration(startPath) {
   let current = startPath;
   while (current && current.node?.type !== 'VariableDeclaration') {
-    if (!NESTED_DESTRUCTURE_WALK_TYPES.has(current.node?.type)) return null;
+    if (!isDeclarationWalkIntermediate(current.node?.type)) return null;
     current = current.parentPath;
   }
   return current;
@@ -43,7 +49,7 @@ export function walkUpNestedDestructureToDeclaration(startPath) {
 export function walkUpNestedDestructureToAssignment(startPath) {
   let current = startPath;
   while (current && current.node?.type !== 'AssignmentExpression') {
-    if (!NESTED_DESTRUCTURE_WALK_TYPES.has(current.node?.type)) return null;
+    if (!NESTED_PATTERN_INTERMEDIATES.has(current.node?.type)) return null;
     current = current.parentPath;
   }
   return current;
@@ -77,17 +83,13 @@ export function canTransformDestructuring(metaPath) {
   return true;
 }
 
-// find the call-arg node a bare-ObjectPattern IIFE param resolves to. accepts both
-// ArrowFunctionExpression and FunctionExpression: arrow lacks `arguments`, function has
-// its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
-// via `arguments[0]` only when body reads it (niche pattern). polyfill-always-wins contract
-// for usage-pure mode wins the trade-off vs preserving original arg in `arguments`. expands
-// inline-array spreads (`...[R]`) the same way `resolveCallArgument` does; non-literal
-// spread returns null (static index unknown). SE-tail peel (`(0, (1, R))` -> `R`) so
-// nested + flat SequenceExpression args classify identically
-export function detectIifeArgReceiver(wrapperPath, objectPattern) {
-  const t = wrapperPath?.node?.type;
-  if (t !== 'ArrowFunctionExpression' && t !== 'FunctionExpression') return null;
+// find the call-arg node a bare-ObjectPattern IIFE param resolves to. `findIifeArgForParam`
+// itself gates on `FN_NODE_TYPES` (ArrowFunctionExpression / FunctionExpression) and returns
+// null for foreign wrapper types - no separate type guard needed here. expands inline-array
+// spreads (`...[R]`) via `resolveCallArgument`; non-literal spread returns null (static
+// index unknown). SE-tail peel (`(0, (1, R))` -> `R`) so nested + flat SequenceExpression
+// args classify identically. internal-only - no external callers, kept un-exported
+function detectIifeArgReceiver(wrapperPath, objectPattern) {
   const arg = findIifeArgForParam(wrapperPath, objectPattern);
   return arg ? unwrapSafeSequenceTail(arg) : arg;
 }
