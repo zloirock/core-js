@@ -662,6 +662,64 @@ export function createPolyfillEmitter({
     return { chainStart: current, innerCallee: callee, innerResult: result };
   }
 
+  // suppress the inner proxy-global of a TS / Paren wrapped chain receiver. chain emit
+  // keeps the wrapper verbatim (mirroring babel's `_ref = X as any` memo shape) so the
+  // Identifier visitor would otherwise queue a parallel global-rewrite whose needle range
+  // (the wrapped Paren / TS form) wouldn't compose into the verbatim text - silent throw
+  function markWrappedProxyGlobalSkipped(receiverObj, metaPath) {
+    let n = receiverObj;
+    while (n && (n.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(n.type))) {
+      n = n.expression;
+    }
+    if (n?.type === 'Identifier' && resolveReceiverPolyfill(n, metaPath)) skippedNodes.add(n);
+  }
+
+  // mark every intermediate hop between the outer callee's receiver and `chainStart` as
+  // skipped. visitor walks each polyfilled MemberExpression along the chain (`.map`
+  // between `.filter` and `.flat?.()` in `arr.flat?.().map(x=>x).filter?.().some(...)`);
+  // without this seed each intermediate re-matches findInnerPolyChain with the SAME inner
+  // `.flat?.()` and queues a duplicate chain emit. overlapping chain emits collide in
+  // compose (different shapes share the same inner-source range)
+  function markIntermediateChainHops(start, chainStart) {
+    for (let hop = start; hop && hop !== chainStart; hop = chainHopChild(hop)) {
+      skippedNodes.add(hop);
+    }
+  }
+
+  // descend one level along the inner-receiver chain. MemberExpression carries the next
+  // step on `.object`; CallExpression / OptionalCallExpression on `.callee`. anything else
+  // terminates the walk
+  function chainHopChild(node) {
+    if (node.type === 'MemberExpression') return node.object;
+    if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') return node.callee;
+    return null;
+  }
+
+  // chain emit needs paren-wrap when (a) parent context demands grouping (BinaryExpression
+  // / UnaryExpression / etc. via `guardNeedsParens`), or (b) `.X` / `[X]` trails the chain
+  // emit - the conditional `cond ? a : b` would otherwise bind the access to the success
+  // branch only, stranding `void 0` in the null path. babel emits the wrap so trailing
+  // accesses target the ternary result (restoring native TypeError semantics). discriminator
+  // checks `.` (not `..` for rest/spread) and `[` for computed-member access
+  function chainEmitNeedsWrap(metaPath, parent) {
+    if (guardNeedsParens({ metaPath, isCall: true, start: parent.start, end: parent.end })) return true;
+    if (transforms.containsRange(parent.start, parent.end)) return false;
+    const after = skipGap(code, parent.end);
+    const c = code[after];
+    return (c === '.' && code[after + 1] !== '.') || c === '[';
+  }
+
+  // peel Paren wrappers to the inner Identifier for chain receiver substitution. Paren is
+  // transparent for proxy-global substitution (`(globalThis)` is semantically equivalent
+  // to bare `globalThis`); TS wrappers (`as` / `satisfies` / `!`) stay opaque since babel
+  // preserves them in the memo source `_ref = X as any`. returns null when no bare or
+  // Paren-wrapped Identifier is found
+  function peelParenForDirectSubst(node) {
+    let n = node;
+    while (n?.type === 'ParenthesizedExpression') n = n.expression;
+    return n?.type === 'Identifier' ? n : null;
+  }
+
   function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain }) {
     const { chainStart, innerCallee, innerResult } = chain;
     const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
@@ -677,11 +735,12 @@ export function createPolyfillEmitter({
     // bare-Identifier proxy-globals (`globalThis.flat?.()...`) which the chain resolver
     // alone rejects since it requires a MemberExpression receiver
     const chainSubst = resolveProxyGlobalChainSrc(innerCallee.object, metaPath);
-    // direct-Identifier substitution only fires for BARE proxy-globals (no wrappers).
-    // wrapped receivers (`(X as any)`, `(X)`, `X!`) stay verbatim to match babel-compat
-    // memo semantics (`(_ref = X as any)` keeps the cast in source) - babel-side
-    // `replaceInstanceChainCombined` doesn't substitute through the wrapper either
-    const directLeaf = !chainSubst && innerCallee.object?.type === 'Identifier' ? innerCallee.object : null;
+    // direct-Identifier substitution fires for bare AND Paren-wrapped proxy-globals
+    // (`(globalThis)` is semantically transparent). TS / non-null casts stay opaque to
+    // match babel's `_ref = X as any` memo shape - babel substitutes through Paren but
+    // preserves TS wrappers in the source. peeled-to-Identifier shapes get full receiver
+    // substitution; wrapped shapes fall through to verbatim emission
+    const directLeaf = !chainSubst ? peelParenForDirectSubst(innerCallee.object) : null;
     const directSubst = directLeaf ? resolveReceiverPolyfill(directLeaf, metaPath) : null;
     let receiver;
     let substLeafNode = null;
@@ -695,6 +754,7 @@ export function createPolyfillEmitter({
       receiver = unwrapParensSrc(innerCallee.object);
     }
     if (substLeafNode) skippedNodes.add(substLeafNode);
+    else markWrappedProxyGlobalSkipped(innerCallee.object, metaPath);
     // mirror babel-compat.js `memoize` (`isSafeToReuse`): a side-effect-free Identifier /
     // ThisExpression receiver can appear verbatim in every slot without `_ref = X` capture.
     // skipping the redundant memo aligns the chain-combined emit byte-for-byte with the
@@ -723,11 +783,7 @@ export function createPolyfillEmitter({
     const dot = parent.optional ? '?.' : '.';
     const suffix = outerArgs ? `, ${ outerArgs }` : '';
     let replacement = `${ tests.join(' || ') } ? void 0 : ${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`;
-    // paren-wrap when context demands grouping (BinaryExpression/UnaryExpression/etc.).
-    // also guard against ASI fusion: a `(`-leading replacement at a statement-leading slot
-    // can fuse with the preceding statement (`prev\n(_at(...)...)` -> `prev(...)`),
-    // triggering a TypeError at runtime. mirrors `addInstanceTransform`'s ASI guard
-    if (guardNeedsParens({ metaPath, isCall: true, start: parent.start, end: parent.end })) {
+    if (chainEmitNeedsWrap(metaPath, parent)) {
       replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, parent.start);
     }
 
@@ -735,6 +791,7 @@ export function createPolyfillEmitter({
     skippedNodes.add(innerCallee);
     skippedNodes.add(parent);
     skipProxyGlobal(node);
+    markIntermediateChainHops(node.object, chainStart);
   }
 
   // parenthesized optional member followed by NON-optional outer call: `(arr?.includes)(1)`,
@@ -746,6 +803,7 @@ export function createPolyfillEmitter({
   // via `.call` access on undefined; success path preserves `this`. parity with babel-side
   // requires walking the chain (not just `node.optional` flag) since ESTree continuation
   // members carry optional=false even within an optional chain
+
   function replaceInstance({ binding, node, parent, metaPath, sideEffects }) {
     const wrappedInParen = isCalleeWrappedInParens(parent, node);
     const optionalInsideChain = node.optional || hasOptionalChainSegment(node);
