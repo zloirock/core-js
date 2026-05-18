@@ -46,7 +46,7 @@ import {
   walkUpNestedDestructureToAssignment,
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
-import { walkAstNodes } from './plugin-helpers.js';
+import { skipDirectivePrologue, walkAstNodes } from './plugin-helpers.js';
 
 // scope-walker constants for `polyfillSiblingReceiverRefs`. hoisted module-level so each
 // call doesn't re-allocate the Sets. SwitchStatement creates one shared block scope per
@@ -343,15 +343,12 @@ export function createDestructureEmitter({
   // discarded init. those splices typically anchor inside an SE-prefix IIFE's arrow body
   // and get baked into the lifted SE text here so the `_ref` declaration survives next to its uses
   function liftExtractedSEPrefixesByIdx(declaration, perDecl) {
-    const byIdx = [];
-    for (let i = 0; i < declaration.declarations.length; i++) {
-      byIdx.push([]);
-      if (!perDecl[i].extractions.length) continue;
-      const { prefix } = peelNestedSequenceExpressions(declaration.declarations[i].init);
+    return declaration.declarations.map((decl, i) => {
+      if (!perDecl[i].extractions.length) return [];
+      const { prefix } = peelNestedSequenceExpressions(decl.init);
       const refSplices = perDecl[i].drainedRefs ?? [];
-      for (const seExpr of prefix) byIdx[i].push(bakeRefSplicesInRange(seExpr, refSplices));
-    }
-    return byIdx;
+      return prefix.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
+    });
   }
 
   // bake per-decl splices into preservedSrc using original-source coordinates. two splice
@@ -379,39 +376,68 @@ export function createDestructureEmitter({
       // applyTransforms surface emit a confusing chunk-split error far from the cause
       for (const s of splices) {
         if (s.start < decl.start || s.end > decl.end) {
-          throw new RangeError(`bakePendingSplicesIntoPreserved: splice [${ s.start },${ s.end }) outside decl [${ decl.start },${ decl.end })`);
+          throw new RangeError(`[core-js] destructure-emitter: splice [${ s.start },${ s.end }) outside declarator [${ decl.start },${ decl.end })`);
         }
       }
       perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
     }
   }
 
-  // post-traverse render: drain scope-tracker once per declarator, then fork between
-  // for-init SE re-embed (refs baked into the SE-wrapped init via `bakeRefSplicesInRange`)
-  // and non-for-init SE lift (refs baked into lifted SE text by `liftExtractedSEPrefixesByIdx`).
-  // draining here also keeps applyTransforms from queueing an insert INSIDE the parent
-  // overwrite range (MagicString would split-an-edited-chunk). drained refs attach to
+  // drain scope-tracker `var _ref;` inserts once per declarator. attaches to
   // `perDecl[i].drainedRefs` so all three consumers (inject / bake / lift) read from a
-  // single channel
+  // single channel. draining BEFORE the render also keeps applyTransforms from queueing
+  // an insert INSIDE the parent overwrite range (MagicString would split-an-edited-chunk)
+  function drainRefBindingsByDeclarator(declaration, perDecl) {
+    for (let i = 0; i < perDecl.length; i++) {
+      const decl = declaration.declarations[i];
+      perDecl[i].drainedRefs = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
+    }
+  }
+
+  // post-traverse render: dispatches on host shape. for-init folds extractions + SE-embedded
+  // preserved declarators into a comma-joined single declaration (for-loop header forbids
+  // newlines between declarators); block-level emits one statement per slot with SE
+  // prefixes lifted as standalone statements between extracted lines
   function flushPendingFlatten() {
-    for (const { declaration, declPath, perDecl, isForInit } of pendingFlatten) {
-      for (let i = 0; i < perDecl.length; i++) {
-        const decl = declaration.declarations[i];
-        perDecl[i].drainedRefs = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
-      }
-      if (isForInit) injectForInitSESinks(declaration, perDecl);
-      bakePendingSplicesIntoPreserved(declaration, perDecl);
-      let replacement;
-      if (isForInit) {
-        replacement = renderFlattened(perDecl, declaration.kind, isForInit);
-      } else {
-        const sePrefixesByIdx = liftExtractedSEPrefixesByIdx(declaration, perDecl);
-        replacement = renderFlattened(perDecl, declaration.kind, isForInit, sePrefixesByIdx);
-        replacement = wrapBodylessIfMulti(replacement, replacement.includes('\n'), declPath);
-      }
+    for (const entry of pendingFlatten) {
+      const { declaration, declPath, perDecl, isForInit } = entry;
+      drainRefBindingsByDeclarator(declaration, perDecl);
+      const replacement = isForInit
+        ? renderForInitFlatten(declaration, perDecl)
+        : renderBlockFlatten(declaration, declPath, perDecl);
       transforms.add(declaration.start, declaration.end, replacement);
     }
     pendingFlatten.length = 0;
+  }
+
+  // for-init: SE prefix re-embeds into preservedSrc receiver slot via `injectForInitSESinks`
+  // (loop header forbids preceding statements). `bakePendingSplicesIntoPreserved` runs
+  // after on non-extracted siblings to substitute receiver-name refs (`globalThis ->
+  // _globalThis`) into their preservedSrc. single-declaration emit: `kind d1, d2, d3` -
+  // newline-separated declarators would parse the middle as the for-test slot, syntax error
+  function renderForInitFlatten(declaration, perDecl) {
+    injectForInitSESinks(declaration, perDecl);
+    bakePendingSplicesIntoPreserved(declaration, perDecl);
+    const parts = [];
+    for (const r of perDecl) {
+      for (const e of r.extractions) parts.push(e.decl);
+      if (r.preservedSrc !== null) parts.push(r.preservedSrc);
+    }
+    return `${ declaration.kind } ${ parts.join(', ') }`;
+  }
+
+  // block-level: emit one statement per declarator (matches babel's `splitDeclarators`).
+  // walk in original declarator order, flush buffered preserved declarators (consecutive
+  // pre-siblings collapse into one `kind` statement) when crossing an extracted slot.
+  // each slot's SE prefixes land between flushed pre-buffer and the extracted lines so
+  // pre-siblings between declarators evaluate BEFORE the SE of a later slot (observable
+  // when both halves call log()). bodyless control parent (`if (cond) <decl>`) needs
+  // `{ ... }` wrap when more than one statement is emitted
+  function renderBlockFlatten(declaration, declPath, perDecl) {
+    bakePendingSplicesIntoPreserved(declaration, perDecl);
+    const sePrefixesByIdx = liftExtractedSEPrefixesByIdx(declaration, perDecl);
+    const replacement = renderBlockStatements(perDecl, declaration.kind, sePrefixesByIdx);
+    return wrapBodylessIfMulti(replacement, replacement.includes('\n'), declPath);
   }
 
   // seed skippedNodes ONLY for the consumed parts: the ObjectPattern (id) and the
@@ -449,28 +475,15 @@ export function createDestructureEmitter({
     }
   }
 
-  // for-init: single `kind d1, d2, d3` - `\n`-separated statements parse as for-init-test-
-  // update with the middle declaration as test, a syntax error. block-level: walk in
-  // original declarator order, flush buffered preserved declarators (consecutive
-  // pre-siblings collapse into one `kind` statement) when crossing an extracted slot;
-  // SE prefixes for the slot land between flushed pre-buffer and the extracted lines
-  function renderFlattened(perDecl, kind, isForInit, sePrefixesByIdx) {
-    if (isForInit) {
-      const parts = [];
-      for (const r of perDecl) {
-        for (const e of r.extractions) parts.push(e.decl);
-        // for-init SE prefix is re-embedded into preservedSrc by `injectForInitSESinks`
-        // (full-consume synths `_unused = (SE, tail)`; partial-consume rewrites
-        // `{...} = tail` into `{...} = (SE, tail)`). no separate sink slot needed
-        if (r.preservedSrc !== null) parts.push(r.preservedSrc);
-      }
-      return `${ kind } ${ parts.join(', ') }`;
-    }
+  // block-level emit: walk declarators in order, buffer consecutive preserved-only slots
+  // and flush as `kind <decl>;` statements (matches babel's `splitDeclarators` per-decl
+  // shape) when crossing an extracted slot. each extracted slot emits its lifted SE prefix
+  // statements first, then the extracted bindings. rest case (same declarator carries BOTH
+  // extractions AND a preserved residue) pushes preservedSrc unconditionally
+  function renderBlockStatements(perDecl, kind, sePrefixesByIdx) {
     const lines = [];
     let preserveBuffer = [];
     function flushPreserveBuffer() {
-      // emit one statement per declarator to match babel's `splitDeclarators` shape -
-      // grouped `kind a, b, c;` is also valid but diverges textually from babel output
       for (const p of preserveBuffer) lines.push(`${ kind } ${ p };`);
       preserveBuffer = [];
     }
@@ -482,9 +495,6 @@ export function createDestructureEmitter({
         if (slotSEPrefixes) for (const p of slotSEPrefixes) lines.push(`${ p };`);
         for (const e of r.extractions) lines.push(`${ kind } ${ e.decl };`);
       }
-      // rest case: same declarator carries BOTH extractions (e.g. `from = _Array$from`)
-      // AND a preserved residue (the rebuilt pattern with `from: _unused` + ...rest), so
-      // preservedSrc is pushed unconditionally - independent of the extractions branch
       if (r.preservedSrc !== null) preserveBuffer.push(r.preservedSrc);
     }
     flushPreserveBuffer();
@@ -1055,11 +1065,19 @@ export function createDestructureEmitter({
   // always-wins). preserves "polyfill always wins" at the cost of caller-passed
   // `{from: customFrom}` being ignored
   function tryBodyExtractFromParamDestructurePure({ propPath, propNode, binding, objectPattern, entry }) {
+    // re-entry guard: a previous call's `skippedNodes.add(propNode)` at the bottom signals
+    // already-extracted. without it, a second dispatch (e.g. Symbol.iterator + regular prop
+    // meta on the same Property) would re-emit `transforms.add` + duplicate `let from = ...`
+    // insert. return true to signal "already handled" so the caller suppresses its fallback
+    if (skippedNodes.has(propNode)) return true;
     const localId = propBindingIdentifier(propNode.value);
     if (!localId) return false;
     const fnPath = findEnclosingFunctionLikePath(propPath);
     if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return false;
-    const bodyOpenAfter = fnPath.node.body.start + 1;
+    // place `let X = _polyfill;` AFTER any leading directive prologue (`"use strict"`,
+    // `"use asm"`, custom directives) - inserting at body.start+1 would push the
+    // directive past position 0 and silently flip the function to sloppy mode
+    const bodyOpenAfter = skipDirectivePrologue(fnPath.node.body.body, fnPath.node.body.start + 1);
     const props = objectPattern.properties;
     if (hasRestSiblingExcept(props, propNode)) {
       transforms.add(propNode.start, propNode.end, `${ propNode.key.name }: ${ injector.generateUnusedName() }`);
@@ -1118,7 +1136,14 @@ export function createDestructureEmitter({
       p => p.type === 'RestElement' || p.type === 'SpreadElement');
     if (patternHasRest && metaPath.parentPath?.parentPath?.parentPath?.parentPath?.node?.type
         === 'ExportNamedDeclaration') return;
-    if (propNode.computed && meta.key === 'Symbol.iterator') {
+    const { value } = propNode;
+    // bail BEFORE seeding `skippedNodes` below: a nested ObjectPattern value
+    // (`{[Symbol.iterator]: {next}}`) fails `propBindingIdentifier` and exits here. seeding the
+    // `Symbol.iterator` key earlier would suppress the standalone Symbol-Identifier visitor
+    // from emitting `_Symbol$iterator`, dropping the polyfill entirely
+    if (value && !propBindingIdentifier(value)) return;
+    const isSymbolIterator = propNode.computed && meta.key === 'Symbol.iterator';
+    if (isSymbolIterator) {
       const patternProps = metaPath.parent?.properties;
       const hasRest = patternProps?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
       if (!hasRest) {
@@ -1126,9 +1151,6 @@ export function createDestructureEmitter({
         if (propNode.key.object) skippedNodes.add(propNode.key.object);
       }
     }
-    const { value } = propNode;
-    if (value && !propBindingIdentifier(value)) return;
-    const isSymbolIterator = propNode.computed && meta.key === 'Symbol.iterator';
     const pureResult = isSymbolIterator ? null : resolvePure(meta, metaPath);
     // catch + rest with computed `Symbol.X` polyfillable key: handleDestructuringPure normally
     // bails on null pureResult (the meta has no object/placement to resolve), but we need
