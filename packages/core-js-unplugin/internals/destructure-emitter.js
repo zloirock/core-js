@@ -52,13 +52,19 @@ import { skipDirectivePrologue, walkAstNodes } from './plugin-helpers.js';
 // call doesn't re-allocate the Sets. SwitchStatement creates one shared block scope per
 // ES spec; `using` / `await using` are TC39 stage-4 lexical kinds (block-scoped, treated
 // like let/const for shadow detection)
-const SIBLING_BLOCK_SCOPE_TYPES = new Set([
+const SIBLING_LEXICAL_SCOPE_OWNERS = new Set([
   'BlockStatement',
   'CatchClause',
   'ForStatement',
   'ForOfStatement',
   'ForInStatement',
   'SwitchStatement',
+  // class*: id is bound in the class's own body scope (always for ClassExpression, also
+  // for ClassDeclaration so methods see the class's own name). without this branch a
+  // sibling like `class globalThis { m() { return globalThis; } }` would substitute the
+  // inner reference to `_globalThis` even though it semantically points at the class
+  'ClassExpression',
+  'ClassDeclaration',
 ]);
 
 const SIBLING_LEXICAL_DECL_KINDS = new Set([
@@ -883,7 +889,7 @@ export function createDestructureEmitter({
     const matches = [];
     const scopeStack = [];
 
-    // own lexical-scope owners are SIBLING_BLOCK_SCOPE_TYPES (hoisted module-level).
+    // own lexical-scope owners are SIBLING_LEXICAL_SCOPE_OWNERS (hoisted module-level).
     // StaticBlock is BOTH a var-scope (per ES2022) AND a lexical-scope owner; treated
     // jointly via `isVarScopeBoundary` (collectFunctionVars bails) + explicit `pushScope`
     // branch (collects both bands of bindings)
@@ -892,7 +898,7 @@ export function createDestructureEmitter({
     }
 
     function isScopeOwner(type) {
-      return isVarScopeBoundary(type) || SIBLING_BLOCK_SCOPE_TYPES.has(type);
+      return isVarScopeBoundary(type) || SIBLING_LEXICAL_SCOPE_OWNERS.has(type);
     }
 
     // walk body for `var` declarations, stopping at nested own-var-scope owners (their
@@ -957,6 +963,14 @@ export function createDestructureEmitter({
         case 'ForOfStatement':
         case 'ForInStatement':
           collectLexicalBinding(node.left, locals);
+          break;
+        case 'ClassExpression':
+        case 'ClassDeclaration':
+          // class id binds inside the class body (always for ClassExpression, also for
+          // ClassDeclaration). property keys and method names don't shadow - they're keys
+          // not bindings. PropertyDefinition value runs in this scope too, so initializer
+          // references to the class id resolve here
+          if (node.id?.name) locals.add(node.id.name);
           break;
         case 'SwitchStatement':
           // ES spec: switch creates one block scope shared across all cases. lexical
