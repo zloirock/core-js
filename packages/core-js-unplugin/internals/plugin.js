@@ -396,7 +396,11 @@ export default function createPlugin(options) {
         // before basename extraction; otherwise devtools show the filename with the full
         // query string attached, which is noise rather than signal for the user
         const fileName = stripQueryHash(id).split(/[/\\]/).pop() || id;
-        const map = ms.generateMap({ source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary' });
+        // `storeName: true` populates `map.names` with the original identifier text at each
+        // mapping that has a renamed segment (MagicString tracks renames via overwrite calls).
+        // without it, devtools can't reverse-resolve `_at(arr)` back to `arr.at` for symbol
+        // names in stack traces / breakpoints
+        const map = ms.generateMap({ source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary', storeName: true });
         // restore BOM in sourcesContent so devtools show the file with its on-disk byte
         // count. MagicString's `prepend` updates the output but the original source it
         // captured for `sourcesContent` is the BOM-stripped slice we passed in
