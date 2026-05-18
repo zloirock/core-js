@@ -357,23 +357,19 @@ export function createDestructureEmitter({
     });
   }
 
-  // bake per-decl splices into preservedSrc using original-source coordinates. two splice
-  // sources both at original positions:
-  //   - `siblingSubstSplices` (`globalThis -> _globalThis` from `polyfillSiblingReceiverRefs`,
-  //     populated during traverse for non-extracted siblings)
-  //   - `perDecl[i].drainedRefs` (scope-tracker `var _ref;` inserts, drained once in
-  //     `flushPendingFlatten` and attached to each entry)
-  // skip extracted declarators: their preservedSrc was rebuilt with seExpr-local text by
-  // `injectForInitSESinks` (for-init) or remains null pending the `liftExtractedSEPrefixes`
-  // lift (non-for-init); neither is position-aligned with the original source any more.
-  // refSplices for extracted decls were already baked into those rebuilds via
-  // `bakeRefSplicesInRange` from `drainedRefs`
+  // bake `var _ref;` ref-binding splices (from scope-tracker, drained per-declarator into
+  // `perDecl[i].drainedRefs` in `flushPendingFlatten`) into preservedSrc at original-source
+  // positions. extracted declarators take separate paths: their preservedSrc was rebuilt
+  // with seExpr-local text by `injectForInitSESinks` (for-init) or remains null pending the
+  // `liftExtractedSEPrefixes` lift (non-for-init); refSplices for them were already baked
+  // into those rebuilds via `bakeRefSplicesInRange`. sibling-receiver-name substitutions
+  // (`globalThis -> _globalThis`) are NOT baked here - they're queued on transform-queue
+  // by `polyfillSiblingReceiverRefs` so compose handles nested body-wraps correctly
   function bakePendingSplicesIntoPreserved(declaration, perDecl) {
     for (let i = 0; i < perDecl.length; i++) {
       if (perDecl[i].extractions.length) continue;
       const decl = declaration.declarations[i];
-      const substSplices = perDecl[i].siblingSubstSplices ?? [];
-      const splices = [...substSplices, ...perDecl[i].drainedRefs];
+      const splices = perDecl[i].drainedRefs;
       if (!splices.length) continue;
       // invariant: every splice must fall within [decl.start, decl.end). spliceInRange
       // anchors at decl.start and indexes into preservedSrc; an out-of-range splice would
@@ -486,7 +482,7 @@ export function createDestructureEmitter({
     if (flattenedReceivers.size) {
       for (let i = 0; i < perDecl.length; i++) {
         if (!perDecl[i].extractions.length) {
-          perDecl[i].siblingSubstSplices = polyfillSiblingReceiverRefs(declaration.declarations[i], flattenedReceivers);
+          polyfillSiblingReceiverRefs(declaration.declarations[i], flattenedReceivers);
         }
       }
     }
@@ -1014,6 +1010,15 @@ export function createDestructureEmitter({
         matches.push(node);
       }
       for (const key of Object.keys(node)) {
+        // skip the `init` slot of a nested VariableDeclarator with ObjectPattern id
+        // (potentially flatten-eligible inner destructure). its own inner flatten consumes
+        // the receiver via the inner-flatten's overwrite, OR the natural visitor handles
+        // the inner Identifier substitution normally. queueing a transform from THIS
+        // outer walk for an Identifier consumed by inner-flatten would survive past the
+        // inner-flatten's overwrite and trigger transform-queue compose's "needle missing"
+        // invariant (inner flatten's rebuilt text drops the receiver entirely)
+        if (key === 'init' && node.type === 'VariableDeclarator'
+          && node.id?.type === 'ObjectPattern') continue;
         const value = node[key];
         if (Array.isArray(value)) for (const item of value) walk(item, node);
         else walk(value, node);
@@ -1022,26 +1027,24 @@ export function createDestructureEmitter({
     }
 
     walk(declarator, null);
-    if (!matches.length) return [];
-    // collect splices at ORIGINAL source positions; defer apply to `flushPendingFlatten`
-    // so post-traverse scope-tracker ref-binding splices (`var _ref;` insertions inside
-    // the sibling decl's nested function bodies) can be merged into a single spliceInRange
-    // pass. applying substitutions inline here would shift positions in `preservedSrc`,
-    // and subsequent ref-binding splices computed from original positions would land at
-    // the wrong offset (corruption shape: `var _ref;` sliced into the middle of an
-    // identifier when nested-function body anchor sits AFTER a substitution site)
-    const splices = [];
+    if (!matches.length) return;
+    // queue substitutions on the transform queue (NOT as preservedSrc splices). text-splicing
+    // preservedSrc earlier broke transform-queue compose for nested transforms within the
+    // sibling: a body-wrap (e.g. instance-method `.values()` on the matched Identifier's
+    // ancestor) captures its needle from ORIGINAL source. if preservedSrc already had the
+    // substitution baked in, the body-wrap's `globalThis` needle wouldn't match the now-
+    // `_globalThis`-substituted preservedSrc, dropping the wrap composition and emitting
+    // trailing-paren corruption. queuing transforms here lets compose nest them naturally
+    // - the substitution composes into body-wrap content via needle match (mirroring how
+    // the standalone non-flatten case works). also skip the natural Identifier visitor on
+    // these matches: bespoke shadow tracking here handles nested-function scopes that
+    // scope-tracker's setScope walk doesn't always reach
     for (const match of matches) {
       const pure = resolveGlobalPolyfill(match.name);
       if (!pure) continue;
       skippedNodes.add(match);
-      splices.push({
-        start: match.start,
-        end: match.end,
-        content: injectPureImport(pure.entry, pure.hintName),
-      });
+      transforms.add(match.start, match.end, injectPureImport(pure.entry, pure.hintName));
     }
-    return splices;
   }
 
   // ---------- destructure rewrite pipeline ----------
