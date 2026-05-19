@@ -517,6 +517,7 @@ export default function createPlugin(options) {
           nodeSrc,
           replaceGlobalOrStatic,
           replaceInstance,
+          replaceStaticFallback,
           skipProxyGlobal,
         } = emitter;
 
@@ -610,8 +611,11 @@ export default function createPlugin(options) {
             // even though `_Promise` is always defined post-import - parity with babel-plugin's
             // emit (`_Promise?.foo` rather than `_Promise.foo`) keeps the user-written deopt
             // shape intact. proxy-global path (replaceGlobalOrStatic) does strip `?.` since the
-            // polyfill renames the proxy itself, the user-visible chain has no surface there
-            transforms.add(node.object.start, node.object.end, binding);
+            // polyfill renames the proxy itself, the user-visible chain has no surface there.
+            // `replaceStaticFallback` mirrors babel-plugin's `withSideEffects(id, allEffects)`
+            // shape: preserves receiver `meta.sideEffects` + chain-assignment so
+            // `(called++, Promise).noSuchStatic` keeps the `called++` rather than dropping it
+            replaceStaticFallback({ binding, node, metaPath, sideEffects: meta.sideEffects });
             // outer text-emit absorbs the whole receiver: any inner Identifier whose name
             // matches the polyfill's substitution would compose into the emit (`_Map` substring
             // inside the outer's `_Map` -> `__Map`). peel through wrappers + IIFE shells to find
