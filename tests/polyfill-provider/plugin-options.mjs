@@ -105,9 +105,20 @@ for (const key of ['absoluteImports', 'debug', 'ignoreBrowserslistConfig', 'ship
     () => validateOptions({ ...validBase, [key]: true }));
   doesNotThrow(`validateOptions/${ key } false OK`,
     () => validateOptions({ ...validBase, [key]: false }));
+  // `isEmpty` treats null and undefined symmetrically so conditional-spread
+  // (`{ debug: cond ? true : null }`) clears the option without crashing
+  doesNotThrow(`validateOptions/${ key } null OK`,
+    () => validateOptions({ ...validBase, [key]: null }));
+  doesNotThrow(`validateOptions/${ key } undefined OK`,
+    () => validateOptions({ ...validBase, [key]: undefined }));
   throwsWith(`validateOptions/${ key } non-boolean`,
     () => validateOptions({ ...validBase, [key]: 'yes' }),
     `\`${ key }\``);
+  // error message reflects nullish acceptance (`null, or undefined`) - users see
+  // the actual contract not a half-truth
+  throwsWith(`validateOptions/${ key } error message mentions null`,
+    () => validateOptions({ ...validBase, [key]: 42 }),
+    'null, or undefined');
 }
 
 // --- validateOptions: string options ---
@@ -115,10 +126,21 @@ for (const key of ['absoluteImports', 'debug', 'ignoreBrowserslistConfig', 'ship
 for (const key of ['configPath', 'browserslistEnv', 'version']) {
   doesNotThrow(`validateOptions/${ key } string OK`,
     () => validateOptions({ ...validBase, [key]: 'value' }));
+  doesNotThrow(`validateOptions/${ key } null OK`,
+    () => validateOptions({ ...validBase, [key]: null }));
   throwsWith(`validateOptions/${ key } non-string`,
     () => validateOptions({ ...validBase, [key]: 42 }),
     `\`${ key }\``);
 }
+
+// `configPath` / `browserslistEnv` intentionally accept `''` (build tools commonly
+// pipe `process.env.VAR || ''`); `targets` rejects empty as suspicious. asymmetric
+// by design - documented in validate.js. see `audit-config-path-empty-string` /
+// `audit-browserslist-env-empty` for the integration-level contract
+doesNotThrow('validateOptions/configPath empty string OK (env-var passthrough)',
+  () => validateOptions({ ...validBase, configPath: '' }));
+doesNotThrow('validateOptions/browserslistEnv empty string OK (env-var passthrough)',
+  () => validateOptions({ ...validBase, browserslistEnv: '' }));
 
 // --- validateOptions: shouldInjectPolyfill ---
 
@@ -221,6 +243,51 @@ throwsWith('validateOptions/targets empty string',
 throwsWith('validateOptions/targets empty array',
   () => validateOptions({ ...validBase, targets: [] }),
   '`targets`');
+
+// --- validateOptions: adversarial input hardening ---
+
+// `formatReceived` calls `isPlainObject` which reads `Object.getPrototypeOf(value)`.
+// that operation fires the `getPrototypeOf` trap on Proxy; an adversarial trap
+// that throws must not mask the primary option-type error with a secondary
+// diagnostic. validator should still emit a clean `[core-js]`-prefixed TypeError
+// for the option's actual type mismatch (here: `debug` expects boolean, got Proxy)
+{
+  const adversarialProxy = new Proxy({}, {
+    getPrototypeOf() { throw new Error('adversarial trap'); },
+  });
+  throwsWith('validateOptions/Proxy with throwing getPrototypeOf as debug value',
+    () => validateOptions({ ...validBase, debug: adversarialProxy }),
+    '`debug`');
+}
+
+// `resolveTargets` wraps upstream errors with `[core-js] failed to resolve targets:`.
+// when the thrown value's `.message` getter or `String(error)` throws (adversarial
+// Proxy as the thrown payload), the wrapping must still emit a readable diagnostic
+// - mirrors the same hardening in `buildShouldInjectPolyfill`
+{
+  // targetsParser walks own enumerable keys on the targets object - a Proxy with
+  // a throwing `ownKeys` trap forces it to throw an adversarial error, hitting
+  // resolveTargets's catch block. the catch's `.message` extraction itself runs
+  // against an adversarial error payload (its own `message` getter throws)
+  const adversarialError = new Proxy(new Error(), {
+    get(target, prop) {
+      if (prop === 'message') throw new Error('inner from message getter');
+      return target[prop];
+    },
+  });
+  const targetsThatThrows = new Proxy({}, {
+    ownKeys() { throw adversarialError; },
+  });
+  throwsWith('resolveTargets/wraps adversarial-message error without crashing',
+    () => resolveTargets({
+      targets: targetsThatThrows,
+      configPath: undefined,
+      ignoreBrowserslistConfig: false,
+      browserslistEnv: undefined,
+      getBabelTargets: undefined,
+    }),
+    '[core-js] failed to resolve targets:');
+}
 
 // --- polyfillOrderComparator ---
 
