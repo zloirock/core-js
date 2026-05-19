@@ -139,6 +139,23 @@ export function createClassFields({
       : collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate });
   }
 
+  // class binding escapes externally when its closure (relaxed classifier: trivial for
+  // member-access / new / extends / instanceof / type-position / known-non-mutating call
+  // arg) returns null. covers ALL outbound mutation channels in one check:
+  //   - decl-as-export `export class C` / `export const C = class {}`
+  //   - separate-spec `export { C }` / destructure-rename `export const { C: D } = ...`
+  //   - bare default `export default C`
+  //   - function-arg leak `f(C)`
+  //   - object-property value `const wrapper = { C }`
+  //   - array element `const arr = [C]`
+  // any of these means external code can do `C.prototype.X = Y` / install a setter /
+  // replace a method, which affects instance reads downstream. broader than
+  // `isClassExported` (binding-name-only) - the export-name check stays as a cheap
+  // earlyBail short-circuit; this is the comprehensive fallback
+  function classBindingEscapes(classPath, program) {
+    return getClassBindingClosure(classPath, program) === null;
+  }
+
   // static field flow: writes via `<class-binding>.<field> = Y` from anywhere in the module,
   // plus `this.<field> = Y` writes inside static methods AND static blocks (`this` there is
   // the class itself). class-binding closure includes the class identifier and any
@@ -170,7 +187,10 @@ export function createClassFields({
   // of the class OR any subclass (transitively), plus `this.<field> = Y` writes inside
   // non-static methods of base + subclasses. instance closure now includes subclass `new
   // Sub()` bindings to fix the case where `class Sub extends Base; const s = new Sub();
-  // s.x = "string"` was missed by the base-only closure check
+  // s.x = "string"` was missed by the base-only closure check.
+  // class-binding-escape gate fires BEFORE instance closure build: any escape channel
+  // means external `C.prototype.<field>` install can affect instance reads (see
+  // `classBindingEscapes` doc for the channel list)
   function collectInstanceFieldCandidates({ member, fieldName, classPath, isPrivate }) {
     let closure = null;
     let descendant = null;
@@ -182,6 +202,7 @@ export function createClassFields({
       anchor: classPath,
       programGate: program => {
         if (isPrivate) return false;
+        if (classBindingEscapes(classPath, program)) return true;
         descendant = collectClassDescendantPaths(classPath, program);
         if (!descendant) return true;
         closure = getClassInstanceClosure(classPath, program);
