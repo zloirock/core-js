@@ -112,13 +112,16 @@ export function createDiscriminantNarrow({
 
   // narrowing-context: snapshot of varPath's binding-identity + reassignment history that
   // each candidate guard must clear before contributing. extracted into a single record so
-  // both walk-up and preceding-exit collectors share one signature
+  // both walk-up and preceding-exit collectors share one signature. `this` receivers are
+  // not lexically bound - skip the scope lookup and seed empty violations rather than
+  // re-resolving across each guard check
   function buildDiscriminantContext(varPath, targetKey) {
     const [rootName] = targetKey.split('.', 1);
+    const objectBinding = rootName === 'this' ? null : varPath.scope?.getBinding(rootName);
     return {
       rootName,
-      objectBinding: rootName === 'this' ? null : varPath.scope?.getBinding(rootName),
-      violations: rootName === 'this' ? [] : varPath.scope?.getBinding(rootName)?.constantViolations ?? [],
+      objectBinding,
+      violations: objectBinding?.constantViolations ?? [],
       objectStart: varPath.node?.start,
     };
   }
