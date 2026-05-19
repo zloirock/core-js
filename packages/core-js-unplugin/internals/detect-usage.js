@@ -160,7 +160,7 @@ export function createEstreeAdapter(getInjector = () => null) {
       return hasRuntimeBinding(scope, name, path);
     },
     getBinding(scope, name) {
-      const b = scope?.getBinding(name);
+      const b = scope?.getBinding?.(name);
       if (!b) return null;
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
@@ -385,7 +385,9 @@ export function createUsageVisitors({
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
   const skipUpdateTargets = method === 'usage-pure';
   const handledObjects = new WeakSet();
-  // estree-toolkit doesn't expose `binding.kind` - walk up to the enclosing VariableDeclaration
+  // read `kind` off the parent VariableDeclaration via the binding path - works across
+  // estree-toolkit shapes (`.path.parent` for one host, `.path.parentPath?.node` for
+  // another). babel's `binding.kind` is read directly via the babel adapter's own getter
   const isSelfRefVarBinding = createSelfRefVarGuard(
     b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
   );

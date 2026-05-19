@@ -81,7 +81,7 @@ export default class ImportInjector extends ImportInjectorState {
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
   // (dev-server HMR, --force, double pre). `suffixState` carries the per-prefix counter
   // so post's `uniqueName` resumes at the next free slot instead of re-probing pre's N names.
-  // deliberately SKIPS per-callback state (ScopeTracker `scopedVars` / `arrowVars`,
+  // deliberately SKIPS per-callback state (ScopeTracker `scopedVars` / `bodyWraps`,
   // destructure-emitter `pendingDestructuring` / `pendingSynthSwaps`) - those track
   // in-flight rewrites that applied in pre and whose resulting text is already in the
   // source post re-parses. re-instating them in post would double-apply
@@ -140,16 +140,17 @@ export default class ImportInjector extends ImportInjectorState {
     let maxSuffix = 1;
     for (const ref of orphanRefs) {
       if (this.#flushedRefs.has(ref)) continue;
+      // validate ORPHAN_REF_PATTERN BEFORE mutating refs/usedNames - the API contract
+      // (line 130 above) only accepts generator-shaped names (`_ref`, `_ref2..N`). a non-
+      // conforming `weirdName` slipping through would join `#refs` and `flush` would
+      // emit `var weirdName;` from a stale snapshot, polluting output
+      const match = ORPHAN_REF_PATTERN.exec(ref);
+      if (!match) continue;
       this.#refs.add(ref);
       this.usedNames.add(ref);
-      // extract numeric suffix via the canonical orphan-ref pattern (captures `[2-9]` or
-      // `[1-9]\d+`; bare `_ref` falls under slot 1). user-shaped `_ref0`/`_ref01` reject
-      // here too - we only seed the cache from slots our generator could have produced
-      const match = ORPHAN_REF_PATTERN.exec(ref);
-      if (match) {
-        const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
-        if (n > maxSuffix) maxSuffix = n;
-      }
+      // extract numeric suffix (captures `[2-9]` or `[1-9]\d+`; bare `_ref` -> slot 1)
+      const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
+      if (n > maxSuffix) maxSuffix = n;
     }
     if (maxSuffix > 1) this.rehydrateSuffixState(new Map([['_ref', maxSuffix + 1]]));
   }
