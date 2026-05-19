@@ -10,24 +10,65 @@ import { createChecker } from './harness.mjs';
 
 const { fail, finish, pass } = createChecker('cross-parser-equivalence');
 
-// extract sorted set of core-js polyfill imports from emitted code. matches both ESM
-// (`import "..."`) and CJS (`require("...")`) shapes, dedupes via Set
+// extract sorted set of core-js polyfill paths from emitted code. matches any quoted
+// `core-js/...`, `core-js-pure/...`, or `@core-js/<scope>/...` literal regardless of
+// surrounding syntax. earlier shape (`import "..."` / `require(...)`) missed
+// usage-pure default imports (`import _Name from "@core-js/pure/..."`) AND scoped
+// package paths entirely, leaving every usage-pure scenario vacuously green
 function extractPolyfillImports(code) {
   if (!code) return [];
   const imports = new Set();
-  const re = /(?:import\s+["']|require\s*\(\s*["'])(?<source>core-js(?:-pure)?\/[^"']+)["']/g;
+  const re = /["'](?<source>(?:@core-js\/[^"'/]+|core-js(?:-pure)?)\/[^"']+)["']/g;
   let match;
   while ((match = re.exec(code)) !== null) imports.add(match.groups.source);
   return [...imports].sort();
 }
 
-async function runEquivalence(label, source, pluginOptions, parserPlugins = ['typescript']) {
+// file extension drives oxc's parser-language detection in the unplugin, so derive
+// it from the selected parser plugins rather than hardcoding `.ts` / `.mjs`. JSX
+// needs `.jsx` (or `.tsx` if TS is also on); Flow needs `.flow.js` for oxc to
+// switch modes. the babel side uses the same id as `filename` so its error frames
+// point at a consistent location across scenarios
+function inferTestId(parserPlugins) {
+  const hasTS = parserPlugins.includes('typescript');
+  const hasJSX = parserPlugins.includes('jsx');
+  if (hasJSX) return hasTS ? 'input.tsx' : 'input.jsx';
+  if (parserPlugins.includes('flow')) return 'input.flow.js';
+  return hasTS ? 'input.ts' : 'input.mjs';
+}
+
+// sorted-list equality avoids the per-element `[].every` shape inline. inputs are
+// guaranteed sorted by `extractPolyfillImports`, so identical-set test reduces to
+// length + position-wise compare
+function importsAgree(a, b) {
+  return a.length === b.length && a.every((s, i) => s === b[i]);
+}
+
+// symmetric-diff failure reporter. `Set.prototype.difference` would be cleaner but
+// lands in newer Node; manual filter keeps the harness portable. highlights what's
+// UNIQUE to each side rather than dumping two full lists - for a 12-module
+// mismatch where only 1 module differs, the diff shows the one offender immediately
+function reportMismatch(label, babelImports, unpluginImports) {
+  const babelSet = new Set(babelImports);
+  const unpluginSet = new Set(unpluginImports);
+  const babelOnly = babelImports.filter(s => !unpluginSet.has(s));
+  const unpluginOnly = unpluginImports.filter(s => !babelSet.has(s));
+  fail(label, `babel-only: [${ babelOnly.join(', ') }] / unplugin-only: [${ unpluginOnly.join(', ') }]`);
+}
+
+async function runEquivalence(label, source, pluginOptions, {
+  parserPlugins = ['typescript'],
+  // forwarded to babel's parser to let scenarios opt in to `createParenthesizedExpressions:true`
+  // and other parse-time controls that the unplugin (oxc) doesn't have a switch for. oxc keeps
+  // its native node shape regardless; the asymmetry IS the point - both walkers must agree
+  parserOpts = {},
+} = {}) {
+  const testId = inferTestId(parserPlugins);
   // babel side: full pipeline with `@core-js/babel-plugin`. TS parser plugin enabled
   // by default since most parser-sensitive cases involve TS shapes
-  const testId = parserPlugins.includes('typescript') ? 'input.ts' : 'input.mjs';
   const babelOptions = {
     plugins: [['@core-js', pluginOptions]],
-    parserOpts: { plugins: parserPlugins },
+    parserOpts: { plugins: parserPlugins, ...parserOpts },
     filename: testId,
   };
   let babelImports, unpluginImports;
@@ -43,9 +84,8 @@ async function runEquivalence(label, source, pluginOptions, parserPlugins = ['ty
   } catch (error) {
     return fail(label, `unplugin threw: ${ error.message }`);
   }
-  if (babelImports.length === unpluginImports.length
-      && babelImports.every((s, i) => s === unpluginImports[i])) return pass();
-  fail(label, `babel: [${ babelImports.join(', ') }] vs unplugin: [${ unpluginImports.join(', ') }]`);
+  if (importsAgree(babelImports, unpluginImports)) return pass();
+  reportMismatch(label, babelImports, unpluginImports);
 }
 
 // --- equivalence scenarios ---
@@ -75,8 +115,13 @@ await runEquivalence('optional chain at()', 'arr?.at(0);', USAGE_GLOBAL_IE11);
 await runEquivalence('optional chain instance', 'maybe?.values?.()?.next?.();', USAGE_GLOBAL_IE11);
 
 // ParenthesizedExpression: babel preserves with `createParenthesizedExpressions:true`,
-// oxc never emits this node - both should still detect the inner call
-await runEquivalence('wrapped paren static', '(Array.from)([1]);', USAGE_GLOBAL_IE11);
+// oxc never emits this node - both should still detect the inner call. the default
+// babel parse strips parens at parse time, so the test would be a no-op without
+// explicitly enabling that option here. the unplugin side reads source through oxc
+// regardless, which never produces ParenthesizedExpression nodes - so the parity
+// assertion is "babel WITH paren node === unplugin WITHOUT paren node"
+await runEquivalence('wrapped paren static', '(Array.from)([1]);', USAGE_GLOBAL_IE11,
+  { parserOpts: { createParenthesizedExpressions: true } });
 
 // Spread / iteration shape - triggers Symbol.iterator
 await runEquivalence('Spread in array', 'const xs = [...src];', USAGE_GLOBAL_IE11);
@@ -110,5 +155,38 @@ await runEquivalence('TS type annotation Promise<T>', 'const p: Promise<number> 
 
 // optional call on instance: receiver type resolution must agree
 await runEquivalence('optional instance call', '(maybe ?? [])?.at(0);', USAGE_GLOBAL_IE11);
+
+// --- non-TS parser plugin parity ---
+
+// JSX: a JSXExpression-wrapped polyfill call must be detected by both walkers.
+// the `parserPlugins` argument used to be dead - default `['typescript']` made every
+// scenario flow through TS-only parsing. JSX-specific dispatch (JSXElement /
+// JSXExpressionContainer node traversal) needs explicit coverage
+await runEquivalence(
+  'JSX expression containing polyfill call',
+  'const el = <div>{Array.from(xs).at(0)}</div>;',
+  USAGE_GLOBAL_IE11,
+  { parserPlugins: ['typescript', 'jsx'] },
+);
+
+// decorators: class with a decorator that wraps a method - polyfill detection must
+// survive the Decorator wrapper node both parsers emit. `decorators-legacy` is the
+// stage-1 form most widely deployed; `decorators` (stage-3) has different AST shape
+// but both should parse here uniformly via TS parser baseline
+await runEquivalence(
+  'decorator on class method body',
+  '@d class C { m() { return [1].at(0); } }',
+  USAGE_GLOBAL_IE11,
+  { parserPlugins: ['typescript', 'decorators-legacy'] },
+);
+
+// Flow: mutually exclusive with TS at the babel parser level. covers the
+// FunctionTypeAnnotation / GenericTypeAnnotation dispatch on oxc's Flow mode
+await runEquivalence(
+  'Flow type annotation Promise<T>',
+  'const p/*: Promise<number> */ = null;',
+  USAGE_GLOBAL_IE11,
+  { parserPlugins: ['flow'] },
+);
 
 finish();
