@@ -30,8 +30,10 @@
 import { REBIND_ASSIGNMENT_OPERATORS } from './base.js';
 import {
   isBindingPosition,
+  isNonReferencePosition,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
+  walkPatternIdentifiers,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 
@@ -45,10 +47,13 @@ export function createBindingAnalysis({
   KNOWN_STATIC_METHOD_RETURN_TYPES,
 }) {
   // every module-level export name as a Set: covers `export const X`, `export class X`,
-  // `export function X`, `export default class X`, `export default function X`, and the
-  // separate-specifier forms `export { X }` / `export { X as Y }`. cached per program node.
-  // used by closure builders to bail on any closure binding whose name is exported - an
-  // importer with `import { X }` then `X.field = Y` mutates state we can't enumerate
+  // `export function X`, `export default class X`, `export default function X`,
+  // `export const {a, b: {c}, d = 1, ...rest} = src` destructured forms, `export default <Ident>`
+  // bare-identifier form, and the separate-specifier forms `export { X }` / `export { X as Y }`.
+  // cached per program node. used by closure builders to bail on any closure binding whose
+  // name is exported - an importer with `import { X }` then `X.field = Y` mutates state we
+  // can't enumerate. re-export specifiers `export { X } from 'mod'` don't bind locally and
+  // are skipped via the `stmt.source` filter
   let exportedNamesCache = new WeakMap();
   function getExportedNames(programPath) {
     if (!programPath) return null;
@@ -56,19 +61,33 @@ export function createBindingAnalysis({
       const names = new Set();
       for (const stmt of programPath.node.body) {
         if (stmt.type === 'ExportNamedDeclaration') {
-          if (stmt.specifiers) {
-            for (const spec of stmt.specifiers) if (spec.local?.name) names.add(spec.local.name);
+          // re-export (`export { X } from 'mod'`) doesn't reference a local binding;
+          // `spec.local` points at the source module's name. skip to avoid false-positive
+          // export marks on coincidentally-named locals
+          if (stmt.specifiers && !stmt.source) {
+            for (const spec of stmt.specifiers) {
+              // local is Identifier for in-module specs; defensive `?.type` check handles
+              // any future parser shapes where the field is StringLiteral or missing
+              if (spec.local?.type === 'Identifier') names.add(spec.local.name);
+            }
           }
           const decl = stmt.declaration;
           if (decl?.type === 'VariableDeclaration') {
-            for (const d of decl.declarations ?? []) if (d.id?.type === 'Identifier') names.add(d.id.name);
+            // destructured exports: `export const {a, b: {c}, d = 1, ...rest} = src` -
+            // `walkPatternIdentifiers` enumerates EVERY binding leaf the pattern introduces
+            // so closure-analyzer sees all exported names, not just the trivial Identifier form
+            for (const d of decl.declarations ?? []) walkPatternIdentifiers(d.id, id => names.add(id.name));
           } else if (decl?.id?.name) names.add(decl.id.name);  // ClassDeclaration / FunctionDeclaration
-        } else if (stmt.type === 'ExportDefaultDeclaration' && stmt.declaration?.id?.name) {
+        } else if (stmt.type === 'ExportDefaultDeclaration') {
+          const exported = stmt.declaration;
           // `export default class X {}` / `export default function X() {}` - the named form
           // both exposes `default` to importers AND retains the local binding `X`. anonymous
           // default declarations (`export default {...}`) carry no in-module name, so caller
-          // already had no enumerable name to track
-          names.add(stmt.declaration.id.name);
+          // already had no enumerable name to track. bare `export default X;` re-exports the
+          // existing local binding `X` under the `default` name - the local IS reachable
+          // externally via `import D from 'mod'` followed by `D.field = Y`
+          if (exported?.id?.name) names.add(exported.id.name);
+          else if (exported?.type === 'Identifier') names.add(exported.name);
         } else if (stmt.type === 'TSExportAssignment' && stmt.expression?.type === 'Identifier') {
           // TS CJS interop: `export = X` makes X module.exports. just like named export,
           // X is reachable externally - any importer can mutate its public fields, so
@@ -243,8 +262,15 @@ export function createBindingAnalysis({
       }
       programPath.traverse({
         Identifier(p) {
-          // declaration-id slots are NOT references (mirrors babel's `referencePaths`)
+          // declaration-id slots are NOT references (mirrors babel's `referencePaths`).
+          // estree-toolkit also walks identifier-shaped name positions that babel's reference
+          // walker skips: object property keys, class method names, import / export specifier
+          // ident-slots, member-property names, label-statement labels. without
+          // `isNonReferencePosition`, those would slip through as false references against a
+          // closure-binding of the same name and force `defaultAliasRefClassifier` to fall
+          // through to `'leak'`, disabling the narrow
           if (isBindingPosition(p.parent, p.node)) return;
+          if (isNonReferencePosition(p.parent, p.node)) return;
           const binding = p.scope?.getBinding(p.node.name);
           if (!binding) return;
           pushByKey(identifierByBinding, binding, p);
@@ -353,33 +379,51 @@ export function createBindingAnalysis({
       || parentType === 'TypeParameterInstantiation';
   }
 
-  // build the alias closure starting from `(rootBinding, rootName)`: every name reachable
-  // via `const alias = <existing-name-in-closure>` chains. returns Map<name, binding> on
+  // build the alias closure starting from `(rootBinding, rootName)`: every binding reachable
+  // via `const alias = <existing-name-in-closure>` chains. returns Map<binding, name> on
   // success or null when a leak is detected (any reference of a closure name that isn't a
   // member-access AND isn't an alias-creation AND isn't a rebinding-to-the-binding-itself -
   // call args, returns, spread, `x[name]`, ... open mutation channels we can't enumerate)
   // OR when any closure name is module-exported (importer can mutate from outside).
   // `classifier` parametrizes what counts as trivial / alias / leak so class binding (relaxed
   // for `new C()` / `extends C` / `instanceof C` / TS types) and object-literal / instance
-  // binding (strict) share the same walker
+  // binding (strict) share the same walker.
+  // binding identity (not name) is the cycle-guard and merge key: two sibling scopes both
+  // declaring `const c = obj` would collide on name but each gets its own binding, so the
+  // closure tracks both. shadow-loss avoided
   function computeAliasClosureFromBinding({ rootBinding, rootName, anchorPath, classifier = defaultAliasRefClassifier }) {
     if (!rootBinding) return null;
-    const closure = new Map([[rootName, rootBinding]]);
+    const closure = new Map([[rootBinding, rootName]]);
     const queue = [{ name: rootName, binding: rootBinding }];
     while (queue.length) {
       const { name, binding } = queue.shift();
       const refs = collectBindingReferences(binding, name, anchorPath);
       if (!refs) return null;
       for (const ref of refs) {
-        const { parent } = ref;
-        const kind = classifier(parent, ref.node, ref);
+        // peel TS expression wrappers AND ParenthesizedExpression between the ref and its
+        // semantic context. for `(c as any).x`, ref.parent is TSAsExpression but the
+        // SEMANTIC parent (which decides member-receiver / alias-init / leak) is the
+        // outer MemberExpression; oxc additionally preserves the outer parens as
+        // ParenthesizedExpression. walk upward through both runtime-transparent shapes
+        // so the classifier sees the post-peel (parent, refNode) pair regardless of
+        // wrapper choice, and TS-wrapped receivers / alias-inits don't fall through to 'leak'
+        let refNode = ref.node;
+        let refContext = ref;
+        let { parent } = refContext;
+        while (parent && (TS_EXPR_WRAPPERS.has(parent.type) || parent.type === 'ParenthesizedExpression')) {
+          refNode = parent;
+          refContext = refContext.parentPath;
+          if (!refContext) break;
+          parent = refContext.parent;
+        }
+        const kind = classifier(parent, refNode, refContext);
         if (kind === 'trivial') continue;
         if (kind === 'alias') {
           const aliasName = parent.id.name;
-          if (closure.has(aliasName)) continue;
-          const aliasBinding = ref.scope?.getBinding(aliasName);
+          const aliasBinding = refContext.scope?.getBinding(aliasName);
           if (!aliasBinding) return null;
-          closure.set(aliasName, aliasBinding);
+          if (closure.has(aliasBinding)) continue;
+          closure.set(aliasBinding, aliasName);
           queue.push({ name: aliasName, binding: aliasBinding });
           continue;
         }
@@ -394,7 +438,7 @@ export function createBindingAnalysis({
     // contract: any export -> bail to no-narrow rather than emit unsound polyfill
     const exported = getExportedNames(findProgramPath(anchorPath));
     if (exported) {
-      for (const name of closure.keys()) if (exported.has(name)) return null;
+      for (const name of closure.values()) if (exported.has(name)) return null;
     }
     return closure;
   }
