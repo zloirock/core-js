@@ -82,3 +82,29 @@ QUnit.test('Symbol.iterator call on Map', assert => {
   const iter = map[Symbol.iterator]();
   assert.deepEqual(iter.next().value, ['x', 1]);
 });
+
+// well-known Symbols beyond `iterator` - runtime DISPATCH protocols.
+//
+// `Symbol.hasInstance` / `Symbol.toStringTag` / `Symbol.toPrimitive` are
+// intentionally NOT covered here: their mechanics rely on the runtime's NATIVE
+// abstract operations (`instanceof` operator, `Object.prototype.toString`,
+// `ToPrimitive`) reading the NATIVE well-known Symbol off the target. The pure
+// polyfill exposes the Symbol VALUE but doesn't modify either operation; on
+// engines without native Symbol support (the audience that needs the polyfill)
+// the user-defined override never activates regardless of what key was used.
+// Testing them in pure mode would just exercise the host runtime, not the
+// polyfill - leaving polyfill-specific surfaces for the remaining tests
+QUnit.test('Symbol.asyncIterator: AsyncIterator.prototype exposes the key', assert => {
+  const async = assert.async();
+  // `AsyncIterator.from([...])` returns an AsyncIterator whose prototype defines
+  // `[Symbol.asyncIterator]` (returns the iterator itself). exercising the
+  // polyfilled Symbol via the AsyncIterator entry point keeps the source
+  // compatible with the e2e lint policy (no `async function*` syntax)
+  const asyncIt = AsyncIterator.from(['first', 'second']);
+  const reAccessed = asyncIt[Symbol.asyncIterator]();
+  reAccessed.next().then(step => {
+    assert.same(step.value, 'first');
+    assert.false(step.done);
+    async();
+  });
+});
