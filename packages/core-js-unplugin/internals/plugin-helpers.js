@@ -118,7 +118,10 @@ export function liftSfcLangSuffix(id, baseId) {
 // invoked as fn, TypeError) and division operator (`a / b\n(c)` -> `a / (b(c))` - silent
 // arithmetic shift). postfix `++` / `--` deliberately omitted: spec disallows
 // `UpdateExpression Arguments`, so the parser ASIs the boundary unconditionally
-const FUSES_WITH_OPEN_PAREN = /[\w"$')/\]`}]/;
+// Unicode-aware: `\w` matches only ASCII `[A-Za-z0-9_]`, missing ID_Continue chars in
+// identifiers ending the previous statement (`Mapα\n(x)` would skip the ASI guard).
+// `$` already listed explicitly because it's not in ID_Continue but IS a valid ident char
+const FUSES_WITH_OPEN_PAREN = /[\p{ID_Continue}"$')/\]`}]/u;
 
 // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). per-char check for
 // hot loops where a regex-per-test would allocate the match array
@@ -151,10 +154,7 @@ export function skipGap(src, pos) {
       continue;
     }
     if (ch === '/' && src[p + 1] === '*') {
-      p += 2;
-      while (p + 1 < src.length && !(src[p] === '*' && src[p + 1] === '/')) p++;
-      if (p + 1 < src.length) p += 2;
-      else return src.length;
+      p = skipBlockComment(src, p);
       continue;
     }
     break;
@@ -191,9 +191,12 @@ export function varScopeAnchor(node, code) {
 // occurring at or before `until`. raw `src.indexOf('//', lineStart)` mis-detects `//`
 // inside string / template literals (`var x = 'https://...'`); scan forward tracking
 // the active quote (null in JS context, the quote-char while inside a literal) and only
-// return a `//` that sits in JS context. -1 when none. regex literals (`/.../`) are NOT
-// tracked - their lexical context is ambiguous without a full tokenizer, and the entry-
-// global / pre-import shapes this serves rarely place regex on the same line as a comment
+// return a `//` that sits in JS context. block comments `/* ... */` are also skipped so
+// an apostrophe inside `/* don't */` doesn't flip quote-state and `//` inside a block
+// comment (`/* http:// */`) isn't mistaken for a line-comment start. regex literals
+// (`/.../`) are NOT tracked - their lexical context is ambiguous without a full tokenizer,
+// and the entry-global / pre-import shapes this serves rarely place regex on the same
+// line as a comment
 function realLineCommentStart(src, lineStart, until) {
   let quote = null;
   for (let p = lineStart; p <= until; p++) {
@@ -203,34 +206,53 @@ function realLineCommentStart(src, lineStart, until) {
       else if (ch === quote) quote = null;
       continue;
     }
+    if (ch === '/' && src[p + 1] === '*') {
+      // unterminated block comment or one that extends past `until` swallows the rest
+      // of the line - no line comment possible within `[lineStart, until]`. for the
+      // in-range case, `skipBlockComment` returns position after `*/`; back off by 1
+      // so the for-loop's `p++` resumes there
+      const after = skipBlockComment(src, p);
+      if (after > until + 1) return -1;
+      p = after - 1;
+      continue;
+    }
     if (ch === "'" || ch === '"' || ch === '`') quote = ch;
     else if (ch === '/' && src[p + 1] === '/' && p + 1 <= until) return p;
   }
   return -1;
 }
 
-// scan backwards past whitespace and comments; -1 if we walked off the start.
-// ES line-terminators include U+2028 / U+2029 in addition to LF / CR
+// JS WhiteSpace + LineTerminator per spec - `\s` covers NBSP, FF, VT, BOM,
+// ogham / Mongolian / EM / punctuation / ideographic separators, LF, CR, LS, PS.
+// previously a 6-char explicit allowlist (space/tab/LF/CR/LS/PS) missed the rest -
+// `foo()<NBSP>\n(` got NBSP treated as significant, blocking the ASI guard
+const WS_OR_LT_RE = /\s/;
+
+// scan backwards past whitespace and comments; -1 if we walked off the start
 export function prevSignificantPos(src, pos) {
   let i = pos - 1;
   while (i >= 0) {
     const ch = src[i];
-    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r'
-      || ch === '\u2028' || ch === '\u2029') {
+    if (WS_OR_LT_RE.test(ch)) {
       i--;
       continue;
     }
     if (ch === '/' && src[i - 1] === '*') {
+      // `*/` could be a block-comment closer OR the tail of a regex literal like
+      // `/a*/`. block-comment requires a matching `/*` opener earlier; without one,
+      // the `/` is a regex closer (or other significant char) and IS significant.
+      // returning -1 here would silently drop ASI-fuse detection and emit
+      // `var rx = /a*/(arr)()` - regex called as function, TypeError at runtime
       const start = src.lastIndexOf('/*', i - 2);
-      if (start === -1) return -1;
+      if (start === -1) return i;
       i = start - 1;
       continue;
     }
-    // line comment: if a real `//` lives earlier on the same line, current char is inside it.
-    // ES spec LineTerminator includes LS (U+2028) and PS (U+2029) alongside LF / CR -
-    // `isLineTerminator` covers all four so current-line scan stops at the right boundary.
-    // `realLineCommentStart` filters out `//` inside string / template literals so the
-    // backward walk doesn't mistake `'https://...'` content for a comment-prefixed line
+    // line comment: if a real `//` lives earlier on the same line, current char is inside
+    // it. `isLineTerminator` covers LF/CR/LS/PS so the current-line scan stops at the right
+    // boundary. `realLineCommentStart` filters out `//` inside string / template literals
+    // AND inside block comments so the backward walk doesn't mistake `'https://...'`
+    // content or `/* http:// */` for a comment-prefixed line
     let lineStart = i;
     while (lineStart > 0 && !isLineTerminator(src[lineStart - 1])) lineStart--;
     const slash = realLineCommentStart(src, lineStart, i);
