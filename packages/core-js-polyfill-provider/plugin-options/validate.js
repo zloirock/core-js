@@ -51,11 +51,20 @@ function isEmpty(v) {
   return v === null || v === undefined;
 }
 
-// accepts `Object.create(null)` alongside `Object.prototype`-backed objects
+// accepts `Object.create(null)` alongside `Object.prototype`-backed objects.
+// `Object.getPrototypeOf` triggers the `getPrototypeOf` trap on Proxy values - an
+// adversarial trap can throw, masking the primary option-type error with a
+// secondary diagnostic. mirrors the defensive `.constructor?.name` / `.name`
+// try/catches in `formatReceived`. a Proxy that throws is conservatively NOT a
+// plain object (caller falls through to the "constructor-named" formatting path)
 function isPlainObject(value) {
   if (typeof value !== 'object' || value === null) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === null || proto === Object.prototype;
+  try {
+    const proto = Object.getPrototypeOf(value);
+    return proto === null || proto === Object.prototype;
+  } catch {
+    return false;
+  }
 }
 
 export const VALID_METHODS = new Set(['entry-global', 'usage-global', 'usage-pure']);
@@ -66,12 +75,30 @@ function formatOptions(set) {
 }
 
 function expectOptional(name, type, value) {
-  if (!isEmpty(value) && typeof value !== type) throw optionTypeError(name, `a ${ type }, or undefined`, value);
+  // `isEmpty` treats null and undefined symmetrically (conditional-spread clear);
+  // the expected description must reflect that or users see "or undefined" when
+  // null is also accepted
+  if (!isEmpty(value) && typeof value !== type) throw optionTypeError(name, `a ${ type }, null, or undefined`, value);
 }
 
 function expectEnum(name, set, value, { required = true } = {}) {
   if (required ? !set.has(value) : !isEmpty(value) && !set.has(value)) {
     throw optionTypeError(name, formatOptions(set), value);
+  }
+}
+
+// pure-slash strings (`/`, `///`) strip to `''` via `createPolyfillContext`'s
+// `stripTrailingSlashes`, making `getCoreJSEntry` treat any `/`-prefixed user
+// import as a core-js entry. shared by `expectPackageName` for both the
+// top-level `package` option and per-item `additionalPackages[*]` validation
+const PURE_SLASH_RE = /^\/+$/;
+
+// reject non-string / empty / pure-slash package names. `label` is the diagnostic
+// path (`'package'` for the single option, `'additionalPackages[*]'` for items)
+function expectPackageName(label, value) {
+  if (typeof value !== 'string') throw optionTypeError(label, 'a string', value);
+  if (value === '' || PURE_SLASH_RE.test(value)) {
+    throw optionTypeError(label, 'a non-empty, non-slash-only string', value);
   }
 }
 
@@ -113,6 +140,12 @@ export function validateOptions({
   expectOptional('debug', 'boolean', debug);
   expectOptional('ignoreBrowserslistConfig', 'boolean', ignoreBrowserslistConfig);
   expectOptional('shippedProposals', 'boolean', shippedProposals);
+  // intentional asymmetry with `targets` (below): build tools commonly pipe env-var
+  // values (`process.env.BROWSERSLIST_ENV || ''`) where unset reads as `''` after
+  // string coercion - rejecting empty here would crash builds with no explicit user
+  // misconfiguration. `targets` is a config option (not env-var passthrough), so
+  // empty there IS suspicious and gets rejected. see `audit-config-path-empty-string`
+  // / `audit-browserslist-env-empty` for the accepted-empty contract
   expectOptional('configPath', 'string', configPath);
   expectOptional('browserslistEnv', 'string', browserslistEnv);
   // semver-shape validated downstream in `normalizeCoreJSVersion`; here only verify the
@@ -120,7 +153,7 @@ export function validateOptions({
   // (number / boolean / null) BEFORE `createPolyfillContext` sees it
   expectOptional('version', 'string', version);
   if (!isEmpty(shouldInjectPolyfill) && typeof shouldInjectPolyfill !== 'function') {
-    throw optionTypeError('shouldInjectPolyfill', 'a function, or undefined', shouldInjectPolyfill);
+    throw optionTypeError('shouldInjectPolyfill', 'a function, null, or undefined', shouldInjectPolyfill);
   }
   // shape-validate include/exclude before the conflict check below. otherwise a config
   // like `{ include: [42n], shouldInjectPolyfill: fn }` surfaces "conflict with shouldInjectPolyfill"
@@ -131,33 +164,22 @@ export function validateOptions({
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
     throw new TypeError('[core-js] `include` and `exclude` are not supported when using `shouldInjectPolyfill`');
   }
-  // `undefined` takes the default downstream; `null` (e.g. `{ package: cond ? 'x' : null }`)
-  // is a real mis-configuration and should surface as a type error, not a late TypeError
-  // pure-slash strings (`/`, `///`) are stripped to `''` by `createPolyfillContext.stripTrailingSlashes`,
-  // making `getCoreJSEntry` treat any `/`-prefixed user import as a core-js entry. reject up
-  // front so the misconfiguration surfaces as a clean type error
-  function isPureSlash($pkg) {
-    return /^\/+$/.test($pkg);
-  }
-
-  if (pkg !== undefined) {
-    if (typeof pkg !== 'string') throw optionTypeError('package', 'a string', pkg);
-    if (pkg === '' || isPureSlash(pkg)) throw optionTypeError('package', 'a non-empty, non-slash-only string', pkg);
-  }
-  if (additionalPackages !== undefined && additionalPackages !== null) {
+  // `package` and `additionalPackages` differ on null handling, intentionally:
+  //   - `package` is a single-value option with no array default to fall back to,
+  //     so `null` (`{ package: cond ? 'x' : null }`) is a real mis-configuration -
+  //     reject up front rather than as a late TypeError inside createPolyfillContext
+  //   - `additionalPackages` defaults to `[]` (empty array), so `null` cleanly
+  //     means "no extras" and matches the conditional-spread pattern other options
+  //     share via `isEmpty`. accepting it keeps the array-shape options uniform
+  if (pkg !== undefined) expectPackageName('package', pkg);
+  if (!isEmpty(additionalPackages)) {
     if (!Array.isArray(additionalPackages)) {
-      throw optionTypeError('additionalPackages', 'an array, or undefined', additionalPackages);
+      throw optionTypeError('additionalPackages', 'an array, null, or undefined', additionalPackages);
     }
-    // `.find(...)` collides with the sentinel: `additionalPackages: ['ok', undefined]`
-    // matches on the `undefined` item but returns `undefined`, so `!== undefined` skips
-    // the throw and crashes later at `p.toLowerCase()` inside `createPolyfillContext`.
-    // `findIndex` disambiguates: `-1` is not-found, `>= 0` is a real hit
-    const badIndex = additionalPackages.findIndex($pkg => typeof $pkg !== 'string');
-    if (badIndex !== -1) throw optionTypeError('additionalPackages[*]', 'a string', additionalPackages[badIndex]);
-    const emptyOrSlashIndex = additionalPackages.findIndex($pkg => $pkg === '' || isPureSlash($pkg));
-    if (emptyOrSlashIndex !== -1) {
-      throw optionTypeError('additionalPackages[*]', 'a non-empty, non-slash-only string', additionalPackages[emptyOrSlashIndex]);
-    }
+    // per-item validation walks once via `expectPackageName`; the throw on the
+    // first bad item matches the legacy `findIndex` + branch-per-error semantics
+    // but avoids two passes over the array
+    for (const item of additionalPackages) expectPackageName('additionalPackages[*]', item);
     // note: duplicates (including case-variants) silently dedup in `createPolyfillContext`
     // - documented design, see `audit-additional-packages-dedup`
   }
