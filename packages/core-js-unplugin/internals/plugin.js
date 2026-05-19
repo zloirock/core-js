@@ -14,6 +14,7 @@ import {
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
+import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { buildOffsetToLine, mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -39,6 +40,7 @@ import {
   directivePrologueEnd,
   hasCoreJSPureImport,
   isBodylessStatementBody,
+  isChunkLoaderBundler,
   isDirectiveStatement,
   KNOWN_BUNDLERS,
   lastUserImportEnd,
@@ -46,6 +48,7 @@ import {
   NEEDS_GUARD_PARENS,
   NO_REF_NEEDED,
   startsEnclosingStatement,
+  stripLeadingBOMs,
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
 
@@ -98,7 +101,11 @@ export default function createPlugin(options) {
   // `currentInjector` is the active per-transform injector, owned by this plugin instance
   // (not module-global). runTransformInner save/restore the slot via try/finally so a
   // re-entrant inner transform leaves the outer's injector intact. adapter and typeResolvers
-  // share the same getter so they always see the same per-transform binding state
+  // share the same getter so they always see the same per-transform binding state.
+  // contract: the save/restore (`previousInjector = currentInjector; ...; finally
+  // { currentInjector = previousInjector; }`) is sync-only. async visitor callbacks would
+  // observe the WRONG injector after their await point if introduced later - oxc is sync,
+  // MagicString is sync, all current visitors are sync. enforce by inspection
   let currentInjector = null;
   const estreeAdapter = createEstreeAdapter(() => currentInjector);
   const typeResolvers = createResolveNodeType(nodeType, types, {
@@ -135,23 +142,9 @@ export default function createPlugin(options) {
     mode, pkg, packages, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
     resolveUsage, resolvePure, resolvePureGeneric, resolvePureOrGlobalFallback,
   } = resolver;
-  const isWebpack = bundler === 'webpack' || bundler === 'rspack';
-
-  // augment uncaught errors with file context. composition-bug throws via
-  // `TransformQueue.#invariant` already carry `[id]` (skip those); user-callback throws
-  // already start with `[core-js]` prefix (skip those - re-augmenting would double-prefix).
-  // other errors (parser, internal invariants in helpers, sibling-plugin races) reach
-  // here bare and benefit from the file marker. preserve original stack via in-place mutate
-  function tagErrorWithFile(error, id) {
-    const msg = error?.message;
-    if (typeof id !== 'string' || !msg) return;
-    if (msg.startsWith('[core-js]') || msg.includes(`[${ id }]`)) return;
-    // in-place mutate preserves stack traces, but sibling-plugin frozen Error instances
-    // (`Object.freeze(err)` after construction) throw TypeError in strict mode and would
-    // shadow the original error with a confusing assignment failure. swallow assign failure
-    // so the original error still propagates with its un-tagged message
-    try { error.message = `[core-js] [${ id }] ${ msg }`; } catch { /* frozen error */ }
-  }
+  // `isWebpack` here is a behavior flag for the chunk-loader contract (see
+  // `isChunkLoaderBundler` for the bundler set + rationale)
+  const isWebpack = isChunkLoaderBundler(bundler);
 
   function runTransform(code, id, pass = 'single') {
     try {
@@ -161,7 +154,7 @@ export default function createPlugin(options) {
       // its installation point don't disturb a re-entrant outer transform's slot
       return runTransformInner.call(this, code, id, pass);
     } catch (error) {
-      tagErrorWithFile(error, id);
+      tagError(error, id);
       throw error;
     }
   }
@@ -176,10 +169,6 @@ export default function createPlugin(options) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
-    // per-file reset of AST-keyed caches: WeakMap would GC eventually, this makes the
-    // memory bound explicit under long-running dev-server / HMR. `createClassHelpers`
-    // is created fresh per transform below; only the persistent resolver needs clearing
-    typeResolvers.reset();
     // entry-global resolves `import 'core-js'` once per file; neither defer-imports nor
     // snapshot inheritance apply. wrapper only dispatches pass='single' for this method,
     // but defensively pin it here so direct callers (tests, bespoke integrations) can't
@@ -198,13 +187,15 @@ export default function createPlugin(options) {
     const cleanId = liftSfcLangSuffix(id, stripQueryHash(id));
     // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
     const isCJSFile = /\.c[jt]s$/.test(cleanId);
-    // strip a leading BOM before parsing AND from the MagicString source - oxc rejects
+    // strip leading BOM(s) before parsing AND from the MagicString source - oxc rejects
     // BOM-prefixed shebangs, and offsetting positions by 1 would corrupt every transform.
-    // the BOM is re-prepended to the final output. Reassign `code` so the rest of the
-    // function (TransformQueue, skipGap, slice helpers, ...) AND the post-pass cache
-    // comparison use the BOM-stripped source (stored `postInput` is always BOM-stripped)
+    // a single BOM is re-prepended to the final output. Reassign `code` so the rest of
+    // the function (TransformQueue, skipGap, slice helpers, ...) AND the post-pass cache
+    // comparison use the BOM-stripped source (stored `postInput` is always BOM-stripped).
+    // `stripLeadingBOMs` drops the whole leading run so a sibling plugin's per-pass
+    // re-prepend on top of ours doesn't leave residual BOM bytes mid-prefix
     const hasBOM = code.charCodeAt(0) === 0xFEFF;
-    if (hasBOM) code = code.slice(1);
+    code = stripLeadingBOMs(code);
 
     // read + clear snapshot up-front so a later parse/traverse error in post still frees
     // the entry (otherwise a one-off failure leaks until the next buildEnd reset).
@@ -222,6 +213,12 @@ export default function createPlugin(options) {
       ast = cachedAst;
       comments = cachedComments;
     } else {
+      // reset `typeResolvers`' AST-keyed WeakMap caches only when we're about to parse
+      // a FRESH AST. when the pre-pass cached the AST for post-reuse, its WeakMap
+      // entries are still valid - clearing them wastes a per-file warm-up. `createClassHelpers`
+      // is per-transform-fresh below; only the persistent resolver needs clearing here.
+      // moved below `cachedAst` resolution so the reset is gated correctly
+      typeResolvers.reset();
       // parse with oxc-parser (sync is the only available API)
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
       const parsed = parseSync(cleanId, code, { sourceType: isCJSFile ? 'script' : 'module' });
@@ -304,11 +301,14 @@ export default function createPlugin(options) {
         for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
         injector.adoptOrphanRefs(adoptable);
       }
-      // post WITH inherit already has user imports dedup'd via the pre-pass snapshot;
-      // post WITHOUT inherit (single `phase: 'post'` or dropped snapshot) still needs to
-      // scan so user `import 'core-js/...'` isn't duplicated alongside plugin-injected ones.
-      // entry-global handles re-emit via detectEntries
-      if (!(pass === 'post' && inherit) && method !== 'entry-global') {
+      // entry-global handles re-emit via detectEntries - skip there. otherwise scan
+      // unconditionally: post-with-inherit ALSO needs this because a sibling plugin
+      // may have INJECTED new core-js imports between our pre and post (sibling preset
+      // adding `import 'core-js/modules/X'` for a transform it generated). pre's snapshot
+      // captured user imports as of pre-time; sibling-inserted ones arrive AFTER and
+      // would slip past dedup if we trusted inherit alone. re-running scan re-registers
+      // them safely - the injector's dedup filter ignores already-registered entries
+      if (method !== 'entry-global') {
         const removed = new Set();
         scanExistingCoreJSImports(ast, {
           adapter: estreeAdapter,
@@ -359,7 +359,12 @@ export default function createPlugin(options) {
 
       function finalize() {
         injector.flush();
-        outputDebug();
+        // `outputDebug` prints the debug report to stdout. in `phase: 'pre+post'` mode
+        // `finalize` fires twice per file - emitting the report from both passes would
+        // double-print every diagnostic. only post / single / entry-global emits; pre
+        // stores its work in the snapshot and the post phase carries the union. parity
+        // with babel-plugin's `outputDebug` deferral to `postHook`
+        if (pass !== 'pre') outputDebug();
         if (pass === 'pre') {
         // reuse the parse in post only when pre didn't rewrite the source (usage-global
         // leaves `code` untouched; usage-pure mutates via TransformQueue so positions
@@ -372,8 +377,10 @@ export default function createPlugin(options) {
             postInput: canReuseParse ? code : null,
           });
         }
-        // post's snapshot delete happens at the top of runTransform so it runs even on
-        // early-return paths (parse error, isCoreJSFile, disabled directive)
+        // post's snapshot delete happens at the top of runTransform (via `takeWithParse`)
+        // so it runs even on early-return paths (parse error, disabled directive). the
+        // `isCoreJSFile` check runs BEFORE the snapshot is taken, so its early-return
+        // doesn't need cleanup - the snapshot was never claimed
         if (!ms.hasChanged()) return null;
         // re-prepend BOM through MagicString so the sourcemap's output columns on line 0
         // account for the extra char (external string concat would leave mappings claiming
@@ -399,11 +406,19 @@ export default function createPlugin(options) {
         // `storeName: true` populates `map.names` with the original identifier text at each
         // mapping that has a renamed segment (MagicString tracks renames via overwrite calls).
         // without it, devtools can't reverse-resolve `_at(arr)` back to `arr.at` for symbol
-        // names in stack traces / breakpoints
-        const map = ms.generateMap({ source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary', storeName: true });
+        // names in stack traces / breakpoints.
+        // `source` keeps the FULL `id` (including SFC `?vue&type=...` query / hash): each
+        // SFC sub-block is its own virtual module with a distinct id and downstream
+        // bundler chaining must see them as separate sources. stripping the query would
+        // collapse sibling blocks to the same path and lose block identity in the chain
+        const map = ms.generateMap({
+          source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary', storeName: true,
+        });
         // restore BOM in sourcesContent so devtools show the file with its on-disk byte
         // count. MagicString's `prepend` updates the output but the original source it
-        // captured for `sourcesContent` is the BOM-stripped slice we passed in
+        // captured for `sourcesContent` is the BOM-stripped slice we passed in. only ONE
+        // BOM is restored - even if the source had multi-BOM (rare / malformed), the
+        // canonical on-disk form has a single BOM
         if (hasBOM && map?.sourcesContent?.[0] && map.sourcesContent[0].charCodeAt(0) !== 0xFEFF) {
           map.sourcesContent[0] = `\uFEFF${ map.sourcesContent[0] }`;
         }
