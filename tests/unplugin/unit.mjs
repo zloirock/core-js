@@ -8,7 +8,6 @@ import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helper
 import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import {
   canFuseWithOpenParen,
@@ -21,6 +20,7 @@ import {
   liftSfcLangSuffix,
   NO_REF_NEEDED,
   skipBlockComment,
+  skipDirectivePrologue,
   skipGap,
   varScopeAnchor,
   walkAstNodes,
@@ -339,6 +339,119 @@ function checkNonConsecutivePartialOverlapThrows() {
   }
 }
 checkNonConsecutivePartialOverlapThrows();
+
+// `#assertNoInsertInsideOverwrite` must catch inserts that land inside ANY enclosing
+// overwrite range, not just the largest-start one. binary search alone returned the
+// inner [5,7) for pos=8 (whose end < pos), missing outer [0,10) - MagicString then
+// threw an opaque "Cannot split a chunk that has already been edited" instead of our
+// clear assertion. prefix-max-end scan picks up the enclosing range
+function checkInsertInsideEnclosingOuterThrows() {
+  const code = '0123456789';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms, 'fixture-file');
+  q.add(0, 10, 'PRE23456POST'); // outer with valid needle for compose
+  q.add(2, 7, 'YY'); // inner with smaller-end than insert pos
+  q.insert(8, 'X'); // pos=8 is inside outer [0,10) but past inner [2,7)
+  try {
+    q.apply();
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside enclosing outer') } :: expected throw`;
+  } catch (error) {
+    if (/insert at 8 lands inside overwrite \[0,10\)/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside enclosing outer') } :: got ${ error.message }`;
+    }
+  }
+}
+checkInsertInsideEnclosingOuterThrows();
+
+// Unicode-aware identifier-boundary check: ASCII `\w` misses `α` and other ID_Continue
+// chars, so `Map` substring inside `Mapα` slipped past the boundary check and got
+// substituted, corrupting the source identifier. fix: `/[\p{ID_Continue}$]/u`
+function checkUnicodeIdentifierBoundary() {
+  const code = 'Mapα()';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  // outer wraps the whole call; inner uses raw "Map" as needle (would substitute substring
+  // inside Mapα without Unicode-aware boundary). simulate via guard'd compose path
+  q.add(0, 6, 'Mapα()'); // outer (identical to source — degenerate but valid)
+  q.add(0, 3, '_Map'); // inner needle = "Map", substr of "Mapα" - must NOT substitute
+  // expect throw on "needle missing" (or substitute happens correctly with boundary check)
+  try {
+    q.apply();
+    // with proper boundary check, the inner can't find a standalone "Map" in outer content
+    // -> hits phantom-skip path (substring exists but only inside identifier).
+    // result: outer content emitted as-is, "Map" inside "Mapα" stays intact
+    check('TransformQueue/unicode ident-boundary phantom-skip', ms.toString(), 'Mapα()');
+  } catch (error) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/unicode ident-boundary') } :: ${ error.message }`;
+  }
+}
+checkUnicodeIdentifierBoundary();
+
+// phantom-skip with identifier-boundary check: `content.includes(needle)` alone could
+// mask legitimate misses where needle appears as a TRUE standalone token in content (a
+// real bug that should throw). fix scans all occurrences and only skips when every
+// match sits inside a larger identifier
+function checkPhantomSkipBoundaryGuard() {
+  const code = 'Map foo';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  // outer wraps the whole code, content keeps a STANDALONE `Map` (not inside another ident).
+  // inner has range [4,7) which is `foo` - its needle is `foo`. compose substitutes
+  // `foo` -> `bar` inside outer's content. since `Map` is standalone in outer's content,
+  // the phantom-skip path doesn't trigger for an unrelated needle. sanity: succeeds
+  q.add(0, 7, 'Map foo');
+  q.add(4, 7, 'bar');
+  q.apply();
+  check('TransformQueue/phantom-skip sanity', ms.toString(), 'Map bar');
+}
+checkPhantomSkipBoundaryGuard();
+
+// `mergeEqualRange` invariant errors must carry the `[core-js] transform-queue: [fileId]`
+// prefix matching the rest of the queue's diagnostics. mergeEqualRange is module-scope -
+// fileId/range flow through params from the calling instance method
+function checkMergeEqualRangePrefix() {
+  const code = 'abcdef';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms, 'fixture-mer');
+  // construct two equal-range transforms where neither contains the original needle
+  // (`abcdef`). mergeEqualRange should throw with the prefix
+  q.add(0, 6, 'XX');
+  q.add(0, 6, 'YY');
+  try {
+    q.apply();
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/mergeEqualRange prefix') } :: expected throw`;
+  } catch (error) {
+    if (/\[core-js\] transform-queue: \[fixture-mer\] mergeEqualRange invariant/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan('TransformQueue/mergeEqualRange prefix') } :: got ${ error.message }`;
+    }
+  }
+}
+checkMergeEqualRangePrefix();
+
+// `extractContent` on a split-pair half must remove BOTH halves. orphaning the peer
+// would emit it alone at apply time, corrupting output (peer covers only half the
+// logical range)
+function checkExtractSplitRemovesPeer() {
+  const code = '0123456789';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
+  // extract prefix; peer (suffix) must also leave the queue so apply doesn't emit
+  // the orphan suffix alone
+  const extracted = q.extractContent(0, 5);
+  check('TransformQueue/extractContent returns prefix content', extracted, 'PREFIX');
+  // queue should be empty now - apply should leave the source untouched
+  q.apply();
+  check('TransformQueue/extractContent drops peer half', ms.toString(), code);
+}
+checkExtractSplitRemovesPeer();
 
 // --- ImportInjector.snapshot() ---
 // snapshot must hand the post-pass an immutable view; mutating the pre injector after
@@ -1096,34 +1209,34 @@ function checkSnapshotFileLocalhost() {
 }
 checkSnapshotFileLocalhost();
 
-// --- ScopeTracker.skipDirectives: empty-string directive rejected ---
+// --- skipDirectivePrologue: empty-string directive rejected ---
 // parser-emitable but not a valid prologue: `""` directive should NOT count as the end of
 // the directive prologue. otherwise the `var _ref;` insertion point would skip past the
 // empty statement that the parser produced from `"";` and split it from any real prologue
 // preceding it. shares the same length-0 guard with `directivePrologueEnd` (Program-level)
-function checkSkipDirectivesEmpty() {
+function checkSkipDirectivePrologueEmpty() {
   const empty = { type: 'ExpressionStatement', directive: '', end: 5 };
   const real = { type: 'ExpressionStatement', directive: 'use strict', end: 16 };
   const expr = { type: 'ExpressionStatement', expression: { type: 'Identifier' }, end: 20 };
-  // empty `""` doesn't advance past startPos; real prologue advances to its end; non-directive
-  // breaks the scan and returns the last advanced end (or startPos if none seen yet)
-  check('skipDirectives/empty directive does not advance startPos',
-    ScopeTracker.skipDirectives([empty], 0), 0);
-  check('skipDirectives/use strict advances to its end',
-    ScopeTracker.skipDirectives([real], 0), 16);
-  check('skipDirectives/non-directive breaks scan',
-    ScopeTracker.skipDirectives([expr], 0), 0);
+  // empty `""` doesn't advance past fallback; real prologue advances to its end; non-directive
+  // breaks the scan and returns the last advanced end (or fallback if none seen yet)
+  check('skipDirectivePrologue/empty directive does not advance fallback',
+    skipDirectivePrologue([empty], 0), 0);
+  check('skipDirectivePrologue/use strict advances to its end',
+    skipDirectivePrologue([real], 0), 16);
+  check('skipDirectivePrologue/non-directive breaks scan',
+    skipDirectivePrologue([expr], 0), 0);
   // mixed: real prologue first, then empty `""` should NOT keep advancing
-  check('skipDirectives/real then empty stops at real',
-    ScopeTracker.skipDirectives([real, empty], 0), 16);
+  check('skipDirectivePrologue/real then empty stops at real',
+    skipDirectivePrologue([real, empty], 0), 16);
   // mixed: real prologue first, then non-directive expression
-  check('skipDirectives/real then expression stops at real',
-    ScopeTracker.skipDirectives([real, expr], 0), 16);
+  check('skipDirectivePrologue/real then expression stops at real',
+    skipDirectivePrologue([real, expr], 0), 16);
   // null/undefined statements list (defensive guard via `?? []`)
-  check('skipDirectives/missing statements list returns startPos',
-    ScopeTracker.skipDirectives(null, 7), 7);
+  check('skipDirectivePrologue/missing statements list returns fallback',
+    skipDirectivePrologue(null, 7), 7);
 }
-checkSkipDirectivesEmpty();
+checkSkipDirectivePrologueEmpty();
 
 // --- phase: pre+post pipeline pass-through ---
 // for `pass: 'pre'` the plugin processes and stores snapshot for the next pass. for

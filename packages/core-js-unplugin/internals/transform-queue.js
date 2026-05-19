@@ -88,10 +88,16 @@ function createNeedleScanner(haystack) {
 // substituted `_Promise` token in the outer's content - that double-substitution would
 // produce `__Promise` (extra underscore, ReferenceError). when needle starts or ends
 // with an identifier char, require the neighbour chars on the surrounding sides of
-// each candidate match to be non-identifier (or absent at string boundaries)
-const IDENT_CHAR_RE = /[\w$]/;
+// each candidate match to be non-identifier (or absent at string boundaries).
+// Unicode-aware: ASCII `\w` (= `[A-Za-z0-9_]`) misses ID_Continue chars (`α`, `_x`-suffix
+// chars with non-ASCII letters), causing `Map` substring inside `Mapα` to slip through
+// the boundary check as a standalone match - then needle substitution corrupts the
+// `Mapα` identifier into `_Mapα`. `$` is explicitly listed because it's not in
+// `ID_Continue` but IS a valid identifier char per JS spec
+const IDENT_CHAR_RE = /[\p{ID_Continue}$]/u;
 
 function isIdentifierEdge(needle, edge) {
+  if (!needle?.length) return false;
   return edge === 'start' ? IDENT_CHAR_RE.test(needle[0])
     : IDENT_CHAR_RE.test(needle.at(-1));
 }
@@ -266,27 +272,37 @@ function upperBound(ranges, target) {
 // containing the needle multiple times would silently ignore later occurrences here -
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
-export function mergeEqualRange({ a, b, originalNeedle, range = null }) {
+export function mergeEqualRange({ a, b, originalNeedle, range = null, fileId = null }) {
   const aFirst = a.indexOf(originalNeedle);
   const wrapper = aFirst !== -1 ? a : b;
   const inner = aFirst !== -1 ? b : a;
   const first = aFirst !== -1 ? aFirst : wrapper.indexOf(originalNeedle);
-  // file/range context lets callers report "[fileId] at offsets [s,e)" instead of just the
-  // raw needle - the latter is useless for users trying to pinpoint the conflicting source
+  // canonical `[core-js] transform-queue: [<fileId>] ` prefix matches the rest of the
+  // queue's diagnostics so users can grep failures consistently. mergeEqualRange is
+  // module-scope (no class instance, can't reach `this.#invariant`); both context bits
+  // flow through params from the calling method
+  const filePart = fileId ? `[${ fileId }] ` : '';
   const rangeStr = range ? ` at [${ range.start },${ range.end })` : '';
   // contract: at least one side wraps the original source. a regression that breaks this
   // invariant would silently drop the wrapper text and emit only the inner replacement.
   // production callers (synth-swap, arrow-body wrap) always preserve the needle in exactly
   // one slot - the throw makes a future callsite that drops both copies fail loudly
   if (first === -1) {
-    throw new Error(`mergeEqualRange invariant${ rangeStr }: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
+    throw new Error(`[core-js] transform-queue: ${ filePart }mergeEqualRange invariant${ rangeStr }: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
   }
-  // assert single-occurrence invariant: if a new outer-transform shape emits the needle
-  // twice, only the first slot would be swapped in silently; flag the regression loudly
-  // instead of shipping corrupt output. slice+includes allocates once on the assert path
-  // (rare miss) instead of pulling in a second `indexOf` with a start position
+  // assert single-occurrence invariant on BOTH sides:
+  //   - wrapper-side: if a new outer-transform shape emits the needle twice, only the
+  //     first slot would be swapped in silently; flag the regression loudly
+  //   - inner-side: contract is "exactly one side wraps the original source". if inner
+  //     also contains the needle, both sides are wrappers - picking `a` as wrapper is
+  //     arbitrary and produces asymmetric output. fail loudly
+  // slice+includes allocates once on the assert path (rare miss) instead of pulling in
+  // a second `indexOf` with a start position
   if (wrapper.slice(first + originalNeedle.length).includes(originalNeedle)) {
-    throw new Error(`mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
+    throw new Error(`[core-js] transform-queue: ${ filePart }mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
+  }
+  if (inner.includes(originalNeedle)) {
+    throw new Error(`[core-js] transform-queue: ${ filePart }mergeEqualRange invariant${ rangeStr }: both sides contain needle - ambiguous wrapper (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
   // `$n` interpretation if `inner` contains those tokens (user source with `$&` or polyfill
@@ -591,14 +607,31 @@ export default class TransformQueue {
     return isStrictlyContained({ ranges: this.#sorted, start, end, prefixMaxEnd: this.#prefixMaxEnd });
   }
 
-  // O(log n) via indexed lookup + sorted binary search; was 3 x O(n) linear scans
+  // O(log n) via indexed lookup + sorted binary search; was 3 x O(n) linear scans.
+  // split-pair handling: extracting just one half (prefix OR suffix) leaves the peer in
+  // the queue as an orphan with a now-invalid splitInfo cycle. apply() would emit the
+  // peer alone and corrupt output (peer covers only half the logical range). drop BOTH
+  // halves together when caller extracts either side
   extractContent(start, end) {
     const rKey = rangeKey(start, end);
     const rList = this.#byRange.get(rKey);
     if (!rList?.length) return null;
     const entry = rList.shift();
     if (!rList.length) this.#byRange.delete(rKey);
+    this.#removeEntry(entry);
+    if (entry.splitInfo?.peer) this.#removeEntry(entry.splitInfo.peer);
+    return entry.content;
+  }
+
+  #removeEntry(entry) {
     this.#transforms.delete(entry);
+    const rKey = rangeKey(entry.start, entry.end);
+    const rList = this.#byRange.get(rKey);
+    if (rList) {
+      const idx = rList.indexOf(entry);
+      if (idx !== -1) rList.splice(idx, 1);
+      if (!rList.length) this.#byRange.delete(rKey);
+    }
     if (entry.guardedRoot) {
       removeFrom(this.#byGuardedRoot, entry.guardedRoot, entry);
       // drop the maxEnd cache entry when the guarded root is fully drained - otherwise
@@ -607,13 +640,12 @@ export default class TransformQueue {
     }
     const sorted = this.#sorted;
     // binary search by start, then walk the equal-start run for entry identity
-    let si = lowerBound(sorted, start);
-    while (si < sorted.length && sorted[si].start === start && sorted[si] !== entry) si++;
+    let si = lowerBound(sorted, entry.start);
+    while (si < sorted.length && sorted[si].start === entry.start && sorted[si] !== entry) si++;
     if (si < sorted.length && sorted[si] === entry) {
       sorted.splice(si, 1);
       updatePrefixMaxOnRemove({ sorted, prefixMaxEnd: this.#prefixMaxEnd, si, removedEnd: entryLogicalEnd(entry) });
     }
-    return entry.content;
   }
 
   // compose nested transforms and apply to magic-string. inserts MUST drain AFTER overwrites:
@@ -638,19 +670,30 @@ export default class TransformQueue {
     for (const { pos, content } of this.#inserts) this.#ms.appendRight(pos, content);
   }
 
+  // binary-searching for just the largest-start range with start <= pos misses ENCLOSING
+  // ranges with smaller starts (outer [0,10) containing inner [5,7) - search for pos=8
+  // returns [5,7) and passes). reuse the already-maintained `#sorted` + `#prefixMaxEnd`
+  // (incrementally updated by add/remove) instead of re-sorting per apply. `entryLogicalEnd`
+  // is the correct upper bound: split prefix physically ends at mid but its logicalEnd
+  // covers the full [start, end] that apply() composes/overwrites as a single chunk
   #assertNoInsertInsideOverwrite() {
-    const ranges = [...this.#transforms].map(t => [t.start, t.end]).sort((a, b) => a[0] - b[0]);
+    const sorted = this.#sorted;
+    const prefMax = this.#prefixMaxEnd;
     for (const { pos } of this.#inserts) {
-      // binary search: largest range whose start <= pos
       let lo = 0;
-      let hi = ranges.length;
+      let hi = sorted.length;
       while (lo < hi) {
         const mid = (lo + hi) >>> 1;
-        if (ranges[mid][0] <= pos) lo = mid + 1; else hi = mid;
+        if (sorted[mid].start <= pos) lo = mid + 1; else hi = mid;
       }
-      if (lo > 0 && pos > ranges[lo - 1][0] && pos < ranges[lo - 1][1]) {
-        const [start, end] = ranges[lo - 1];
-        throw new RangeError(`[core-js] transform-queue: insert at ${ pos } lands inside overwrite [${ start },${ end })`);
+      if (lo === 0 || prefMax[lo - 1] <= pos) continue;
+      // scan back for the actual enclosing entry. rare hit path - linear is fine since
+      // the prefMax gate already short-circuits the common no-overlap case
+      for (let i = lo - 1; i >= 0; i--) {
+        const end = entryLogicalEnd(sorted[i]);
+        if (pos > sorted[i].start && pos < end) {
+          throw new RangeError(`[core-js] transform-queue: insert at ${ pos } lands inside overwrite [${ sorted[i].start },${ end })`);
+        }
       }
     }
   }
@@ -738,7 +781,10 @@ export default class TransformQueue {
         const dupContent = isSplit(dup)
           ? splitInnerContent(dup, composedContent)
           : composedContent.get(dup) ?? dup.content;
-        content = mergeEqualRange({ a: content, b: dupContent, originalNeedle: originalSlice, range: { start, end: logicalEnd } });
+        content = mergeEqualRange({
+          a: content, b: dupContent, originalNeedle: originalSlice,
+          range: { start, end: logicalEnd }, fileId: this.#fileId,
+        });
       }
     }
     sortInnersInnermostLast(inners);
@@ -832,12 +878,22 @@ export default class TransformQueue {
       if (!result.found) {
         // inner was already swallowed by an enclosing inner we processed earlier
         if (processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
-        // identifier-boundary rejection: outer's content has substring matches for `needle`
-        // but ALL of them sit inside larger identifier tokens (e.g. needle `Promise` finds
-        // only `_Promise`-style substrings, never standalone). this means the outer transform
-        // already substituted the global at every reachable position - inner's transform is
-        // a phantom whose effect is already encoded by outer. silently skip rather than throw
-        if (content.includes(needle)) {
+        // identifier-boundary rejection: scan ALL occurrences of needle in content. if a
+        // STANDALONE one exists (identifier boundary on both sides), the inner SHOULD have
+        // matched it - nth count is off, this is a real bug. if all occurrences sit inside
+        // larger identifier tokens (e.g. needle `Map` finds only `_MapPrime`-style substring),
+        // outer already substituted at every reachable position and inner's transform is a
+        // phantom (its effect is already encoded by outer). skip phantoms silently
+        let hasStandaloneMatch = false;
+        let hasAnyMatch = false;
+        for (let idx = content.indexOf(needle); idx !== -1; idx = content.indexOf(needle, idx + 1)) {
+          hasAnyMatch = true;
+          if (hasIdentifierBoundary(content, idx, needle)) {
+            hasStandaloneMatch = true;
+            break;
+          }
+        }
+        if (hasAnyMatch && !hasStandaloneMatch) {
           processedRanges.push(innerRange);
           continue;
         }
@@ -846,6 +902,15 @@ export default class TransformQueue {
           + 'this is a composition bug - please report with a reproducer.');
       }
       content = result.content;
+      // drop any already-processed ranges enclosed by this new range. without pruning,
+      // a later inner whose nth subtraction loops over processedRanges would count needles
+      // in the enclosed-range positions TWICE - once via the enclosed inner's own range,
+      // once via this enclosing range. processed ranges must stay non-overlapping for
+      // `countInRange` accumulation across `r.end <= inner.start` filter to be correct
+      for (let i = processedRanges.length - 1; i >= 0; i--) {
+        const r = processedRanges[i];
+        if (r.start >= innerRange.start && r.end <= innerRange.end) processedRanges.splice(i, 1);
+      }
       processedRanges.push(innerRange);
     }
     return content;
