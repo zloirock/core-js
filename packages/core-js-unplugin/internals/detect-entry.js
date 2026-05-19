@@ -1,6 +1,6 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage/entries';
 import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isLineTerminator, prevSignificantPos, skipBlockComment } from './plugin-helpers.js';
+import { consumeOneLineEnding, prevSignificantPos, skipGap } from './plugin-helpers.js';
 
 // detect and transform core-js entry imports (entry-global mode). `adapter` is the
 // plugin-instance estree adapter (`getEntrySource` only consults `isStringLiteral` and
@@ -26,29 +26,20 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   return toRemove.length > 0;
 }
 
-// chars that, when starting the next statement, force a call/index/divide/concat/tag
-// interpretation against the previous expression - ASI doesn't fire between them
-const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`']);
-
-// advance past whitespace and line/block comments; returns the first significant char index.
-// without comment-skip, a `/` starting a line comment would trip the ASI_HAZARD check (`/` is
-// also the hazard char for division/regex), emitting a spurious `;` before a comment
-function skipWhitespaceAndComments(src, pos) {
-  let p = pos;
-  for (;;) {
-    while (p < src.length && /\s/.test(src[p])) p++;
-    if (src[p] === '/' && src[p + 1] === '/') {
-      while (p < src.length && src[p] !== '\n' && src[p] !== '\r') p++;
-      continue;
-    }
-    if (src[p] === '/' && src[p + 1] === '*') {
-      p = skipBlockComment(src, p);
-      if (p === src.length) return p;
-      continue;
-    }
-    return p;
-  }
-}
+// chars that, when starting the next statement, force a call/index/divide/concat/tag/
+// type-assertion interpretation against the previous expression - ASI doesn't fire
+// between them. `<` covers TypeScript `<T>foo` TypeAssertion AND JSX top-level elements:
+// both could fuse the previous statement as `prev < T > foo` (comparison) when the
+// removal collapses the LT separator. spurious `;` before a real less-than comparison
+// is harmless (`a; <b` parses as empty-statement + less-than, same semantics).
+//
+// the inverse predicate is `FUSES_WITH_OPEN_PAREN` (plugin-helpers.js): that one asks
+// "does the previous char fuse with an OPEN `(` from the next statement". the two sets
+// are deliberately ASYMMETRIC - this set lists STARTING chars that fuse with any
+// fusion-capable prev; `FUSES_WITH_OPEN_PAREN` lists ENDING chars that fuse only with
+// `(` (the broadest single hazard). over-injecting `;` on non-hazard prev (e.g. when
+// prev was `;` already) is filtered downstream by `guardAsiAtBoundary`'s prev-char check
+const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
 
 // factory: returns a `remove(node)` closure that drops a top-level statement (including its
 // trailing newline so it doesn't leave a blank gap) and guards against ASI fusion across the
@@ -90,8 +81,14 @@ export function createTopLevelStatementRemover(ms) {
     return -1;
   }
 
+  // `skipGap` (shared with usage-* pipelines) advances forward past whitespace and
+  // line / block comments. without comment-skip, a `/` starting a line comment would
+  // trip the ASI_HAZARD check (`/` is also the regex / division hazard char) and emit
+  // a spurious `;` before a comment. line-comment terminator inside `skipGap` is the
+  // full ES-spec LineTerminator set (LF/CR/LS/PS) so a U+2028-terminated comment
+  // doesn't overshoot into the next line's hazard
   function guardAsiAtBoundary(start, end) {
-    const nextIdx = skipWhitespaceAndComments(src, end);
+    const nextIdx = skipGap(src, end);
     if (!ASI_HAZARD_STARTS.has(src[nextIdx])) return;
     const prevIdx = findPrevSignificantChar(start - 1);
     if (prevIdx < 0 || src[prevIdx] === ';') return;
@@ -101,11 +98,7 @@ export function createTopLevelStatementRemover(ms) {
   return function remove(node) {
     let { end } = node;
     while (end < src.length && (src[end] === ' ' || src[end] === '\t')) end++;
-    // ES spec LineTerminator covers LF / CR / CRLF / LS (U+2028) / PS (U+2029). without LS/PS
-    // handling, a bundler-emitted separator between the removed import and the following line
-    // would stay behind and confuse downstream tooling
-    if (src[end] === '\r' && src[end + 1] === '\n') end += 2;
-    else if (isLineTerminator(src[end])) end++;
+    end = consumeOneLineEnding(src, end);
     ms.remove(node.start, end);
     guardAsiAtBoundary(node.start, end);
     removedRanges.push([node.start, end]);
