@@ -146,6 +146,11 @@ const shouldTransformCases = [
   // worker sub-form must match exactly one [-_][a-z]+ segment - a second hyphen breaks
   // the match (Vite never emits `?worker-foo-bar` so this stays a no-op gate)
   ['/src/foo.js?worker-module-extra', true, 'worker- with second hyphen escapes asset gate'],
+  // SFC query case-insensitivity: tooling normally lowercases keys/values but some pipelines
+  // preserve author-cased `lang="TS"` / `type="SCRIPT"`. `/i` flag on SFC regexes catches them
+  ['/src/App.vue?vue&type=script&lang=TS', true, 'SFC mixed-case lang=TS'],
+  ['/src/App.vue?vue&type=SCRIPT&lang=ts', true, 'SFC mixed-case type=SCRIPT'],
+  ['/src/App.vue?vue&type=STYLE&lang=ts', false, 'SFC mixed-case type=STYLE excluded'],
 ];
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
@@ -494,6 +499,25 @@ function checkAdoptOrphanRespectsFlushed() {
   check('adoptOrphan/flushed carried', snap.flushedRefs.includes('_ref'), true);
 }
 checkAdoptOrphanRespectsFlushed();
+
+// adoptOrphanRefs must reject non-`ORPHAN_REF_PATTERN`-conforming names BEFORE mutating
+// refs / usedNames. without the upfront validation, a stale snapshot carrying a user-
+// written `_user_ref` or `myRef` slipped past the regex-only seed-cache check and joined
+// refs - flush later emits `var <bad-name>;` polluting output
+function checkAdoptOrphanRejectsNonConforming() {
+  const ms = new MagicString('');
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
+  inj.adoptOrphanRefs(['_ref', '_ref2', 'weirdName', '_user_var']);
+  const snap = inj.snapshot();
+  check('adoptOrphan/rejects non-conforming weirdName', snap.refs.includes('weirdName'), false);
+  check('adoptOrphan/rejects non-conforming _user_var', snap.refs.includes('_user_var'), false);
+  check('adoptOrphan/keeps conforming _ref', snap.refs.includes('_ref'), true);
+  check('adoptOrphan/keeps conforming _ref2', snap.refs.includes('_ref2'), true);
+  // usedNames mirror - same filter
+  check('adoptOrphan/usedNames excludes non-conforming',
+    snap.usedNames.has('weirdName') || snap.usedNames.has('_user_var'), false);
+}
+checkAdoptOrphanRejectsNonConforming();
 
 // sequential transforms via one plugin instance must not bleed state between them.
 // runTransformInner installs `currentInjector` AFTER its early-return guards and the

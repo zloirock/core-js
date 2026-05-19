@@ -138,14 +138,18 @@ export function skipBlockComment(src, p) {
   return end === -1 ? src.length : end + 2;
 }
 
-// scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char.
-// `\s` covers the ES spec's WhiteSpace + LineTerminator sets (including U+2028/U+2029,
-// NBSP, mid-file BOM, ogham/Mongolian separators) - engines treat all of them as gaps
+// JS WhiteSpace + LineTerminator per spec - `\s` covers space / tab / NBSP / FF / VT / BOM /
+// ogham / Mongolian / EM / punctuation / ideographic separators / LF / CR / LS (U+2028) /
+// PS (U+2029). shared by `skipGap` (forward) and `prevSignificantPos` (backward) - a 6-char
+// explicit allowlist previously missed NBSP / BOM / FF / VT etc, treating them as significant
+const WS_OR_LT_RE = /\s/;
+
+// scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char
 export function skipGap(src, pos) {
   let p = pos;
   while (p < src.length) {
     const ch = src[p];
-    if (/\s/.test(ch)) {
+    if (WS_OR_LT_RE.test(ch)) {
       p++;
       continue;
     }
@@ -221,12 +225,6 @@ function realLineCommentStart(src, lineStart, until) {
   }
   return -1;
 }
-
-// JS WhiteSpace + LineTerminator per spec - `\s` covers NBSP, FF, VT, BOM,
-// ogham / Mongolian / EM / punctuation / ideographic separators, LF, CR, LS, PS.
-// previously a 6-char explicit allowlist (space/tab/LF/CR/LS/PS) missed the rest -
-// `foo()<NBSP>\n(` got NBSP treated as significant, blocking the ASI guard
-const WS_OR_LT_RE = /\s/;
 
 // scan backwards past whitespace and comments; -1 if we walked off the start
 export function prevSignificantPos(src, pos) {
