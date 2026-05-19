@@ -130,14 +130,22 @@ export function createDiscriminantNarrow({
   // nodes without source ranges are conservatively assumed to potentially violate, so the
   // guard drops rather than over-keeps. without the symmetry, discriminant narrowing would
   // SILENTLY survive synthetic violations while typeof / instanceof guards correctly drop
-  function discriminantGuardApplies(scope, testEnd, ctx) {
+  function discriminantGuardApplies(scope, testNode, ctx) {
     const { rootName, objectBinding, violations, objectStart } = ctx;
     if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
+    const testStart = testNode?.start;
+    const testEnd = testNode?.end;
     if (testEnd === undefined || objectStart === undefined) return false;
     return !violations.some(v => {
       const start = v.node?.start;
       if (start === undefined || start === null) return true;
-      return start > testEnd && start < objectStart;
+      // (a) reassignment between testEnd and use site (`if (kind==='a') { x = other; x.method() }`)
+      // (b) reassignment INSIDE the discriminant expression itself - SE in the test
+      //     (`if ((x = other, x.kind === 'a'))`) invalidates narrow because the binding
+      //     evaluated at the use site is the post-SE value, not the pre-test one
+      if (start > testEnd && start < objectStart) return true;
+      if (testStart !== undefined && start >= testStart && start <= testEnd) return true;
+      return false;
     });
   }
 
@@ -164,7 +172,7 @@ export function createDiscriminantNarrow({
       const sibling = siblings[i];
       const exitCond = resolveExitCondition(sibling);
       if (exitCond === null) continue;
-      if (!discriminantGuardApplies(sibling.scope, sibling.node.test?.end, ctx)) continue;
+      if (!discriminantGuardApplies(sibling.scope, sibling.node.test, ctx)) continue;
       pushDiscriminantClauses({ test: sibling.node.test, conditionTrue: exitCond, targetKey, out, scope: sibling.scope });
     }
   }
@@ -177,11 +185,18 @@ export function createDiscriminantNarrow({
   function collectSwitchCaseDiscriminants({ current, targetKey, out, ctx }) {
     const switchCase = current.parentPath;
     if (!t.isSwitchCase(switchCase?.node)) return;
+    // gate on consequent slot - mirror of the `if (current.key !== 'consequent' &&
+    // current.key !== 'alternate') continue;` gate in `findDiscriminantGuards`'s
+    // IfStatement / ConditionalExpression branches. a use INSIDE the case's `test`
+    // expression hasn't entered the narrowed body yet; applying the case's narrow there
+    // is wrong (`case w.val.at(-1):` shouldn't see `w` as already-narrowed). consequent
+    // items are array entries (numeric `current.key`, `listKey === 'consequent'`)
+    if (current.listKey !== 'consequent') return;
     const switchStmt = switchCase.parentPath;
     if (!t.isSwitchStatement(switchStmt?.node)) return;
     const field = matchTargetField(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey);
     if (field === null) return;
-    if (!discriminantGuardApplies(switchStmt.scope, switchStmt.node.discriminant?.end, ctx)) return;
+    if (!discriminantGuardApplies(switchStmt.scope, switchStmt.node.discriminant, ctx)) return;
     const { cases } = switchStmt.node;
     const { scope } = switchCase;
     const caseIndex = cases.indexOf(switchCase.node);
@@ -230,7 +245,7 @@ export function createDiscriminantNarrow({
         collectPrecedingExitDiscriminants({ current, targetKey, out: guards, ctx });
         continue;
       }
-      if (!discriminantGuardApplies(parent.scope, test?.end, ctx)) continue;
+      if (!discriminantGuardApplies(parent.scope, test, ctx)) continue;
       pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, scope: parent.scope });
     }
     return guards;
@@ -265,6 +280,38 @@ export function createDiscriminantNarrow({
     return !!findPatternKeyPath(left, targetName, scope);
   }
 
+  // scan preceding ExpressionStatement siblings within a block-child parent, returning the
+  // path of the first AssignmentExpression that re-binds `targetName`. ObjectPattern
+  // destructure-assignment is only parseable as `({...} = R)` - the parens become an AST node
+  // in oxc-parser (ESTree preserves ParenthesizedExpression), unwrap so the AssignmentExpression
+  // is reachable. babel strips parens at parse, so the unwrap is a no-op there
+  function findPrecedingSiblingAssignment(parent, currentKey, targetName) {
+    const siblings = parent.get('body');
+    for (let i = currentKey - 1; i >= 0; i--) {
+      const sib = siblings[i];
+      if (sib?.node?.type !== 'ExpressionStatement') continue;
+      let expr = sib.node.expression;
+      let exprPath = sib.get('expression');
+      while (expr?.type === 'ParenthesizedExpression') {
+        expr = expr.expression;
+        exprPath = exprPath.get('expression');
+      }
+      if (assignmentBindsTarget(expr, targetName, sib.scope)) return exprPath;
+    }
+    return null;
+  }
+
+  // `for (x = R; ...) { use x; }` - the init slot's AssignmentExpression runs before ANY
+  // iteration body, so a use inside the body is preceded by the init assignment. sibling-scan
+  // only covers block bodies; without this branch, for-init reassignments slip past and the
+  // narrow-by-assignment falls back to the unrefined declared type
+  function findForInitAssignment(parent, currentKey, targetName) {
+    if (!t.isForStatement(parent.node) || currentKey !== 'body') return null;
+    const { init } = parent.node;
+    if (!init || !t.isAssignmentExpression(init)) return null;
+    return assignmentBindsTarget(init, targetName, parent.scope) ? parent.get('init') : null;
+  }
+
   // walk varPath's ancestors looking for an `=` assignment at a preceding-sibling statement
   // that's GUARANTEED to have run before varPath. unlike `findLastStraightLineAssignment`,
   // which insists on straight-line reachability all the way to the binding's var-scope, this
@@ -283,23 +330,11 @@ export function createDiscriminantNarrow({
       // reassignments. binding rebindable was already gated above
       if (t.isFunction(parent.node)) return null;
       if (isBlockChildPath(parent, current)) {
-        const siblings = parent.get('body');
-        for (let i = current.key - 1; i >= 0; i--) {
-          const sib = siblings[i];
-          if (sib?.node?.type !== 'ExpressionStatement') continue;
-          // ObjectPattern destructure-assignment is only parseable as `({...} = R)` - the
-          // parens become an AST node in oxc-parser (ESTree preserves ParenthesizedExpression),
-          // unwrap so the AssignmentExpression is reachable. babel strips parens at parse,
-          // so the unwrap is a no-op there
-          let expr = sib.node.expression;
-          let exprPath = sib.get('expression');
-          while (expr?.type === 'ParenthesizedExpression') {
-            expr = expr.expression;
-            exprPath = exprPath.get('expression');
-          }
-          if (assignmentBindsTarget(expr, targetName, sib.scope)) return exprPath;
-        }
+        const hit = findPrecedingSiblingAssignment(parent, current.key, targetName);
+        if (hit) return hit;
       }
+      const forInit = findForInitAssignment(parent, current.key, targetName);
+      if (forInit) return forInit;
       if (parent.node === limit) return null;
     }
     return null;
@@ -307,11 +342,15 @@ export function createDiscriminantNarrow({
 
   // collect own non-computed Identifier/StringLiteral-keyed properties whose value is a
   // primitive literal (string / number) - the RHS projection used to discriminate which
-  // union branch the assignment shape commits to
+  // union branch the assignment shape commits to. returns null when a SpreadElement is
+  // present anywhere - spread can override any literal key at runtime (`{kind:'a', ...x}`
+  // where `x.kind === 'b'`), so narrowing to the literal-side branch would be unsound
   function collectObjectLiteralProps(rhs) {
     const literals = new Map();
     for (const p of rhs.properties) {
-      if (!p || p.computed || (p.type !== 'ObjectProperty' && p.type !== 'Property')) continue;
+      if (!p) continue;
+      if (p.type === 'SpreadElement' || p.type === 'ExperimentalSpreadProperty') return null;
+      if (p.computed || (p.type !== 'ObjectProperty' && p.type !== 'Property')) continue;
       const keyName = getKeyName(p.key);
       const literalValue = literalKeyValue(p.value);
       if (keyName !== null && literalValue !== null) literals.set(keyName, literalValue);
@@ -319,12 +358,22 @@ export function createDiscriminantNarrow({
     return literals;
   }
 
-  // post-filter union assembly: drop on no-narrow / all-pass, unwrap when single branch,
-  // otherwise rebuild the union. shared by both narrowing paths (discriminant-guard +
-  // assignment-literal) so they emit identical-shape annotations
-  function buildNarrowedUnion(filtered, aliased) {
-    if (!filtered.length || filtered.length === aliased.types.length) return null;
-    return filtered.length === 1 ? unwrapTypeAnnotation(filtered[0]) : { type: aliased.type, types: filtered };
+  // shared narrowing pipeline: flatten nested-union branches first so `type Outer = (X|Y)`
+  // aliases surface inner branches at the top level; filter by `predicate`; assemble.
+  // baseline for the all-pass check is the FLATTENED branch count - using `aliased.types.length`
+  // (the pre-flatten outer-union count) would false-positive `type Outer = (X|Y) | (Z|W)`
+  // (outer length 2) when 2 of 4 inner branches survive. preserves accumulated type-param
+  // substitutions through the narrowed result - without applying subst, `T[]` inside a
+  // surviving branch of `type Foo<T> = { kind: 'a'; val: T[] } | ...` would stay unresolved
+  // and downstream dispatch would see Array(null) instead of Array<string>
+  function narrowUnionWithPredicate(aliased, subst, scope, predicate) {
+    const flattened = flattenUnionBranches(aliased.types, scope);
+    const filtered = flattened.filter(predicate);
+    if (!filtered.length || filtered.length === flattened.length) return null;
+    const narrowed = filtered.length === 1
+      ? unwrapTypeAnnotation(filtered[0])
+      : { type: aliased.type, types: filtered };
+    return applySubst(narrowed, subst);
   }
 
   // narrow a union annotation by inspecting the variable's last preceding `=` assignment:
@@ -339,12 +388,11 @@ export function createDiscriminantNarrow({
     const lastAssign = findPrecedingBlockAssignment(binding, varPath);
     const rhs = lastAssign?.node?.right;
     if (rhs?.type !== 'ObjectExpression') return null;
-    const { node: aliased } = followTypeAliasChain(unwrapTypeAnnotation(annotation), scope);
+    const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(annotation), scope);
     if (!isUnionType(aliased)) return null;
     const rhsLiterals = collectObjectLiteralProps(rhs);
-    if (rhsLiterals.size === 0) return null;
-    const filtered = aliased.types.filter(branch => branchMatchesLiterals(branch, rhsLiterals, scope));
-    return buildNarrowedUnion(filtered, aliased);
+    if (rhsLiterals === null || rhsLiterals.size === 0) return null;
+    return narrowUnionWithPredicate(aliased, subst, scope, branch => branchMatchesLiterals(branch, rhsLiterals, scope));
   }
 
   // a union branch survives if every literal-typed member with a key present in `rhsLiterals`
@@ -373,21 +421,8 @@ export function createDiscriminantNarrow({
     if (!isUnionType(aliased)) return null;
     const guards = findDiscriminantGuards(objectPath, targetKey);
     if (!guards.length) return null;
-    // flatten nested-union branches (`type Outer = DiscUnion | null` -> walk DiscUnion's
-    // body so each individual `{kind:'a',...}` / `{kind:'b',...}` branch is visible to the
-    // discriminant filter). without this, `aliased.types` for `DiscUnion | null` is
-    // [DiscUnion, null] -- the filter checks `findTypeMember(DiscUnion, 'kind')` which
-    // returns a union of all `kind` literals, no single value to compare, branch passes
-    // permissively and narrowing degrades to identity
-    const flattened = flattenUnionBranches(aliased.types, scope);
     // permissive: branches with unresolvable discriminant members pass through
-    const filtered = flattened.filter(branch => branchMatchesGuards(branch, guards, scope));
-    const narrowed = buildNarrowedUnion(filtered, aliased);
-    if (!narrowed) return null;
-    // preserve accumulated type-param substitutions through the narrowed result - without
-    // applying subst, `T[]` inside a surviving branch of `type Foo<T> = { kind: 'a'; val: T[] } | ...`
-    // would stay unresolved and downstream dispatch would see Array(null) instead of Array<string>
-    return applySubst(narrowed, subst);
+    return narrowUnionWithPredicate(aliased, subst, scope, branch => branchMatchesGuards(branch, guards, scope));
   }
 
   // recursively expand alias chains that resolve to unions so each inner branch appears

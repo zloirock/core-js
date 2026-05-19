@@ -86,6 +86,7 @@ export const types = {
   isSwitchCase: n => n?.type === 'SwitchCase',
   isForOfStatement: n => n?.type === 'ForOfStatement',
   isForInStatement: n => n?.type === 'ForInStatement',
+  isForStatement: n => n?.type === 'ForStatement',
   isNewExpression: n => n?.type === 'NewExpression',
   isThisExpression: n => n?.type === 'ThisExpression',
   isConditionalExpression: n => n?.type === 'ConditionalExpression',
