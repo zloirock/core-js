@@ -191,71 +191,170 @@ export function varScopeAnchor(node, code) {
   return null;
 }
 
-// find the position of a real line-comment `//` on the line starting at `lineStart`,
-// occurring at or before `until`. raw `src.indexOf('//', lineStart)` mis-detects `//`
-// inside string / template literals (`var x = 'https://...'`); scan forward tracking
-// the active quote (null in JS context, the quote-char while inside a literal) and only
-// return a `//` that sits in JS context. block comments `/* ... */` are also skipped so
-// an apostrophe inside `/* don't */` doesn't flip quote-state and `//` inside a block
-// comment (`/* http:// */`) isn't mistaken for a line-comment start. regex literals
-// (`/.../`) are NOT tracked - their lexical context is ambiguous without a full tokenizer,
-// and the entry-global / pre-import shapes this serves rarely place regex on the same
-// line as a comment
-function realLineCommentStart(src, lineStart, until) {
-  let quote = null;
-  for (let p = lineStart; p <= until; p++) {
-    const ch = src[p];
-    if (quote !== null) {
-      if (ch === '\\') p++;
-      else if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === '/' && src[p + 1] === '*') {
-      // unterminated block comment or one that extends past `until` swallows the rest
-      // of the line - no line comment possible within `[lineStart, until]`. for the
-      // in-range case, `skipBlockComment` returns position after `*/`; back off by 1
-      // so the for-loop's `p++` resumes there
-      const after = skipBlockComment(src, p);
-      if (after > until + 1) return -1;
-      p = after - 1;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') quote = ch;
-    else if (ch === '/' && src[p + 1] === '/' && p + 1 <= until) return p;
+// one-pass lexer-like scan: classify every char of `src` into literal regions (strings,
+// templates, comments) so backward walks (`prevSignificantPos`) can skip past them with
+// a single binary-search lookup instead of re-scanning per char. each region is a half-
+// open `[start, end)` range carrying `kind`:
+//   - 'string'        - `'...'` / `"..."` (with `\` escapes + `\<LineTerminator>` continuation)
+//   - 'template'      - `` `...` `` text-content portions (split around `${...}` expressions
+//     so expression bodies remain JS context where `//` IS a real line comment)
+//   - 'block-comment' - `/* ... */`
+//   - 'line-comment'  - `// ...` up to (not including) line terminator
+// regex literals `/.../` are NOT tracked - regex vs division disambiguation requires
+// prior-token analysis that this raw-text scanner doesn't perform. covered by the
+// `prevSignificantPos` regex-closer escape hatch (the `/` is significant whether regex
+// closer or unknown)
+function scanLiteralRegions(src) {
+  const regions = [];
+  let i = 0;
+  while (i < src.length) {
+    const after = tryScanLiteralAt(src, i, regions);
+    i = after !== null ? after : i + 1;
   }
-  return -1;
+  return regions;
 }
 
-// scan backwards past whitespace and comments; -1 if we walked off the start
+// scan ONE literal starting at `p` - string, template, block comment, line comment - and
+// push its region(s) to `regions`. returns the position past the literal, or null when `p`
+// isn't a literal opener (caller advances by 1). shared by the top-level scan and the
+// template `${...}` expression body so both apply identical literal classification
+function tryScanLiteralAt(src, p, regions) {
+  const ch = src[p];
+  if (ch === '"' || ch === "'") return scanStringRegion(src, p, ch, regions);
+  if (ch === '`') return scanTemplateRegion(src, p, regions);
+  if (ch === '/' && src[p + 1] === '*') {
+    const end = skipBlockComment(src, p);
+    regions.push({ start: p, end, kind: 'block-comment' });
+    return end;
+  }
+  if (ch === '/' && src[p + 1] === '/') {
+    let q = p;
+    while (q < src.length && !isLineTerminator(src[q])) q++;
+    regions.push({ start: p, end: q, kind: 'line-comment' });
+    return q;
+  }
+  return null;
+}
+
+function scanStringRegion(src, start, quote, regions) {
+  let p = start + 1;
+  while (p < src.length) {
+    const c = src[p];
+    if (c === '\\') {
+      // line continuation `\<LineTerminator>` extends the string. `\r\n` consumes both
+      // chars. any other `\X` escape consumes 2 chars
+      if (p + 1 < src.length && src[p + 1] === '\r' && src[p + 2] === '\n') {
+        p += 3;
+        continue;
+      }
+      p += 2;
+      continue;
+    }
+    if (c === quote) {
+      p++;
+      break;
+    }
+    // unescaped line terminator ends the string (spec: SyntaxError, but we bail at the
+    // line break to keep the scanner robust against malformed input)
+    if (isLineTerminator(c)) break;
+    p++;
+  }
+  regions.push({ start, end: p, kind: 'string' });
+  return p;
+}
+
+function scanTemplateRegion(src, start, regions) {
+  let chunkStart = start;
+  let p = start + 1;
+  while (p < src.length) {
+    const c = src[p];
+    if (c === '\\') {
+      p += 2;
+      continue;
+    }
+    if (c === '`') {
+      p++;
+      regions.push({ start: chunkStart, end: p, kind: 'template' });
+      return p;
+    }
+    if (c === '$' && src[p + 1] === '{') {
+      // close current text-content chunk; `${...}` body is JS context (not a region here),
+      // so a `//` or `/*` inside it gets recorded as a real comment via `tryScanLiteralAt`.
+      // brace-depth tracking with recursive literal scan inside the expression
+      regions.push({ start: chunkStart, end: p, kind: 'template' });
+      p += 2;
+      let depth = 1;
+      while (p < src.length && depth > 0) {
+        const ec = src[p];
+        if (ec === '{') depth++;
+        else if (ec === '}') depth--;
+        if (ec === '{' || ec === '}') {
+          p++;
+          continue;
+        }
+        const after = tryScanLiteralAt(src, p, regions);
+        p = after !== null ? after : p + 1;
+      }
+      chunkStart = p;
+      continue;
+    }
+    p++;
+  }
+  // unterminated template - record final chunk extending to end of source
+  regions.push({ start: chunkStart, end: p, kind: 'template' });
+  return p;
+}
+
+// single-entry memoization keyed on source-string identity. each transform processes one
+// source; helper functions on that source share the same `src` reference, so reads after
+// the first hit the cache. between transforms `src` changes - cache miss invalidates the
+// stale region map. string keys can't go in WeakMap; identity-equality + 1-slot bound
+// avoids unbounded growth without LRU bookkeeping
+let cachedRegionsSrc = null;
+let cachedRegions = null;
+function literalRegionsOf(src) {
+  if (src === cachedRegionsSrc) return cachedRegions;
+  cachedRegions = scanLiteralRegions(src);
+  cachedRegionsSrc = src;
+  return cachedRegions;
+}
+
+// binary search for the region containing `pos` (start <= pos < end). null when no region
+// matches - pos is in JS context
+function findRegionContaining(regions, pos) {
+  let lo = 0;
+  let hi = regions.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (regions[mid].start <= pos) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo === 0) return null;
+  const cand = regions[lo - 1];
+  return pos >= cand.start && pos < cand.end ? cand : null;
+}
+
+// scan backwards past whitespace and comments; -1 if we walked off the start. queries the
+// pre-computed literal-region map: positions inside string / template literals return the
+// closing quote (significant - fuses with `(`); positions inside comments skip to before
+// the opener and continue. regex literals fall through to the "non-region" branch where
+// the `/` reads as significant (correct - regex closer fuses with `(`)
 export function prevSignificantPos(src, pos) {
+  const regions = literalRegionsOf(src);
   let i = pos - 1;
   while (i >= 0) {
-    const ch = src[i];
-    if (WS_OR_LT_RE.test(ch)) {
+    const region = findRegionContaining(regions, i);
+    if (region) {
+      if (region.kind === 'string' || region.kind === 'template') {
+        // closing quote / backtick IS the significant boundary - fuses with `(`
+        return region.end - 1;
+      }
+      // block/line comment - skip past the opener
+      i = region.start - 1;
+      continue;
+    }
+    if (WS_OR_LT_RE.test(src[i])) {
       i--;
-      continue;
-    }
-    if (ch === '/' && src[i - 1] === '*') {
-      // `*/` could be a block-comment closer OR the tail of a regex literal like
-      // `/a*/`. block-comment requires a matching `/*` opener earlier; without one,
-      // the `/` is a regex closer (or other significant char) and IS significant.
-      // returning -1 here would silently drop ASI-fuse detection and emit
-      // `var rx = /a*/(arr)()` - regex called as function, TypeError at runtime
-      const start = src.lastIndexOf('/*', i - 2);
-      if (start === -1) return i;
-      i = start - 1;
-      continue;
-    }
-    // line comment: if a real `//` lives earlier on the same line, current char is inside
-    // it. `isLineTerminator` covers LF/CR/LS/PS so the current-line scan stops at the right
-    // boundary. `realLineCommentStart` filters out `//` inside string / template literals
-    // AND inside block comments so the backward walk doesn't mistake `'https://...'`
-    // content or `/* http:// */` for a comment-prefixed line
-    let lineStart = i;
-    while (lineStart > 0 && !isLineTerminator(src[lineStart - 1])) lineStart--;
-    const slash = realLineCommentStart(src, lineStart, i);
-    if (slash !== -1) {
-      i = slash - 1;
       continue;
     }
     return i;
