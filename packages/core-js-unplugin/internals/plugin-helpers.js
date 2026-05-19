@@ -628,6 +628,35 @@ export const KNOWN_BUNDLERS = new Set([
   'webpack',
 ]);
 
+// dynamic `import()` chunk-loader contract: bundlers in this set implement `import(...)`
+// as `Promise.all([...])` of chunk fetches, so the resolved value is itself a Promise.all
+// result rather than a bare module promise. detect-syntax adds `es.promise.all` polyfill
+// only for these bundlers. rspack mirrors webpack semantics by design; farm + unloader
+// share the same Promise.all chunk envelope (per their upstream loader runtime).
+// rolldown / vite / rollup return a bare module Promise for dynamic import and do NOT
+// need the extra polyfill. unknown bundler value already drops to `false` upstream
+const CHUNK_LOADER_BUNDLERS = new Set([
+  'farm',
+  'rspack',
+  'unloader',
+  'webpack',
+]);
+
+export function isChunkLoaderBundler(bundler) {
+  return CHUNK_LOADER_BUNDLERS.has(bundler);
+}
+
+// strip ALL leading U+FEFF (Byte Order Mark) characters. a single-strip would leave
+// residual BOM bytes mid-prefix when a sibling plugin's per-pass BOM re-prepend stacks
+// on top of ours, or when source is malformed multi-BOM. returns the BOM-free string;
+// callers track whether a BOM was present (via a separate `charCodeAt(0)` check before
+// stripping) to decide whether to re-prepend a single BOM on output
+export function stripLeadingBOMs(code) {
+  let i = 0;
+  while (code.charCodeAt(i) === 0xFEFF) i++;
+  return i === 0 ? code : code.slice(i);
+}
+
 // is `path` the unbraced body slot of an if/loop/with/label/arrow?
 // thin path-aware wrapper around the parser-agnostic `isBodylessStatementSlot` so callers
 // pass an estree-toolkit path while the underlying check stays shared with babel-plugin
