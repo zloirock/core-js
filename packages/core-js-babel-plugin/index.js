@@ -99,8 +99,12 @@ export default function plugin(api, options) {
   // per-plugin-instance adapter - closure reads current `injector` without module-level state
   const adapter = createBabelAdapter(() => injector);
 
-  function skipPolyfillableOptional(node, scope) {
-    return isPolyfillableOptional({ node, scope, adapter, resolve: resolveBuiltIn });
+  // third arg `path` (when supplied by `extractCheck`) anchors `adapter.hasBinding` at
+  // the reference site so TS-runtime shadows (`enum`, `namespace`, `import X = require()`)
+  // mask polyfill replacement correctly. without it, the lookup defaults to the path's
+  // outer scope and misses nested TS-runtime bindings
+  function skipPolyfillableOptional(node, scope, path) {
+    return isPolyfillableOptional({ node, scope, path, adapter, resolve: resolveBuiltIn });
   }
 
   return {
@@ -137,7 +141,7 @@ export default function plugin(api, options) {
         return injector.addPureImport(entry, hint);
       }
 
-      function handleSymbolIterator(path) {
+      function handleSymbolIterator(path, sideEffects) {
         // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
         if (t.isSuper(path.node.object)) return;
@@ -160,8 +164,12 @@ export default function plugin(api, options) {
         if (!isEntryNeeded(entry)) return;
         const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
         const id = injectPureImport(entry, hint);
-        if (entry === 'get-iterator') replaceCallWithSimple(path, id, skipPolyfillableOptional);
-        else replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional });
+        // thread `meta.sideEffects` through to the replacement helpers. detect-usage
+        // captures SE during dispatch (e.g. inline-call receiver `(() => arr)()[Symbol.iterator]()`
+        // where the SE-bearing receiver is the MemberExpression object); without forwarding,
+        // those effects silently dropped when the parent call gets rewritten
+        if (entry === 'get-iterator') replaceCallWithSimple(path, id, skipPolyfillableOptional, sideEffects);
+        else replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional, sideEffects });
       }
 
       // destructure rewrite pipeline (parameter-default synth-swap entry, top-level extraction,
@@ -210,9 +218,16 @@ export default function plugin(api, options) {
         // root: a sibling plugin may have installed a new Program (`file.ast.program = clone`)
         // while keeping the old tree reachable through our cached paths. the slot-check above
         // never hit Program because it has no parentPath. compare against the file's current
-        // program node - stale roots produce orphan emission into a detached AST
-        const currentProgram = path.hub?.file?.ast?.program;
-        return currentProgram ? cur?.node !== currentProgram : false;
+        // program node - stale roots produce orphan emission into a detached AST. the
+        // previous `currentProgram ? ... : false` ternary defaulted to "not orphan" whenever
+        // the hub / file / ast / program chain was undefined - missing the case where the
+        // sibling plugin REMOVED `file.ast.program` outright (rare but plausible in test
+        // harnesses or aggressive AST swaps). dropping the ternary so the inequality runs
+        // anyway: an absent program slot won't match our cur.node, flagging orphan correctly.
+        // when the path itself is `cur === null` (parentPath walk exhausted), `cur?.node` is
+        // undefined and matches a likewise-undefined program, returning false - still treats
+        // truly synthetic root-less paths as live to avoid suppressing legitimate emissions
+        return cur?.node !== path.hub?.file?.ast?.program;
       }
 
       function shouldSkipPath(path) {
@@ -401,7 +416,7 @@ export default function plugin(api, options) {
             if (inheritedStatic) meta = remapInheritedStaticMeta(injector, meta, inheritedMeta);
             if (inheritedStatic && !meta) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
-            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
+            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, meta.sideEffects);
           }
         }
 
@@ -415,7 +430,14 @@ export default function plugin(api, options) {
         if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())
           && !t.isSuper(path.node.object)) {
           const id = injectPureImport(fallback.entry, fallback.hintName);
-          path.get('object').replaceWith(id);
+          // mirror the main static-rewrite branch (`replacePath.replaceWith(withSideEffects(
+          // id, allEffects))` below): preserve `meta.sideEffects` (computed-key SE in the
+          // original member access) AND `prependChainAssignmentEffect` over the receiver
+          // (chain-assignment `(a = X).noStatic` writes to `a` are observable; the receiver
+          // replacement drops them). without this, `(called++, Promise).noSuchStatic`
+          // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`
+          const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects);
+          path.get('object').replaceWith(withSideEffects(id, allEffects));
           normalizeOptionalChain(path, true);
           return;
         }
@@ -448,7 +470,11 @@ export default function plugin(api, options) {
               // extractCheck even after the callee itself is marked. traverseFast covers
               // arbitrary depth (parens, `foo as any`, nested member chains)
               t.traverseFast(innerChain.innerCallee, node => { skippedNodes.add(node); });
-              replaceInstanceChainCombined(path, id, { ...innerChain, innerId });
+              // pass `meta.sideEffects` through: outer-key computed SE (e.g.
+              // `(arr?.at?.(0))[(fn(), 'map')](x => x)`) was captured by detect-usage but
+              // dropped when the inner-chain rewrite replaced the parent expression with a
+              // conditional. SequenceExpression wrap preserves the SE in source order
+              replaceInstanceChainCombined(path, id, { ...innerChain, innerId, sideEffects: meta.sideEffects });
               return;
             }
             // capture pre-mutation Type object for the parent CallExpression and re-attach
@@ -482,8 +508,19 @@ export default function plugin(api, options) {
             const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects);
             replacePath.replaceWith(withSideEffects(id, allEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
-            if (wasOptional && replacePath.parentPath?.node?.optional) {
-              deoptionalizeNode(replacePath.parentPath);
+            if (wasOptional) {
+              // walk through ParenthesizedExpression / ChainExpression / TS wrappers when
+              // searching the dangling optional parent. without the peel, ESTree-mode chain
+              // shapes (`ChainExpression(OptionalMemberExpression(...))`) and TS wrappers
+              // hide the actual user-written `?.` from the immediate parent check, leaving
+              // grandparent .optional dangling against a now-non-optional left side
+              let p = replacePath.parentPath;
+              while (p?.node && (TS_EXPR_WRAPPERS.has(p.node.type)
+                  || p.node.type === 'ParenthesizedExpression'
+                  || p.node.type === 'ChainExpression')) {
+                p = p.parentPath;
+              }
+              if (p?.node?.optional) deoptionalizeNode(p);
             }
           }
         }
@@ -501,6 +538,13 @@ export default function plugin(api, options) {
           debugOutput?.warn(`skipped location-less entry import "${ source }" (likely sibling-plugin synthesized)`);
           return;
         }
+        // sibling plugin may have detached the path between detect-entries scanning the
+        // body and our callback firing (rare race: another entry-detector running ahead
+        // and removing siblings invalidates path indices). `path.remove()` on a stale
+        // path throws "We can't replace this node, we've already been removed". the
+        // orphan guard mirrors `shouldSkipPath`'s `isOrphaned` check used by the
+        // usage-* visitors, applied here so entry-global has equivalent staleness handling
+        if (isOrphaned(path)) return;
         // `createEntryVisitors` hands us every specifier-less import; mark only actual
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
@@ -572,9 +616,16 @@ export default function plugin(api, options) {
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
-        // `directives === true` signals `disable-file` - collapse both skip sources into one write
+        // `directives === true` signals `disable-file` - collapse both skip sources into one write.
+        // body[0] may be a sibling-plugin-synthesized node WITHOUT `.start` (helper class
+        // declaration, generator helper, etc.); using its undefined start would trip
+        // `parseDisableDirectives`'s "no firstStmtStart -> file-wide disable" branch on any
+        // top-of-file directive comment, producing a false-positive whole-file skip. scan
+        // for the first body node that carries a real `.start` so the boundary check stays
+        // anchored at user code
+        const firstStmtStart = path.node.body.find(n => n?.start !== undefined)?.start;
         const directives = isInternalCoreJS ? null : parseDisableDirectives({
-          comments, offsetToLine: undefined, firstStmtStart: path.node.body[0]?.start, ast: path.node,
+          comments, offsetToLine: undefined, firstStmtStart, ast: path.node,
         });
         const fileDisabled = directives === true;
         skipFile = isInternalCoreJS || fileDisabled;
@@ -611,6 +662,10 @@ export default function plugin(api, options) {
       // loop until the queue stays empty so nothing is silently dropped; termination is
       // guaranteed by bounded AST depth - each iteration processes a deeper level
       function processDeferredSideEffects(path) {
+        // postHook nulls `destructureEmit`; subsequent unexpected callers (sibling plugin
+        // re-entering programExit, multi-file batch where preTraverse early-returned
+        // before initFile re-allocated the emitter) would otherwise destructure-crash on null
+        if (!destructureEmit) return;
         const { deferredSideEffects } = destructureEmit;
         while (deferredSideEffects.length) {
           const batch = deferredSideEffects.splice(0).sort(batchOrder);
@@ -639,16 +694,10 @@ export default function plugin(api, options) {
 
       function preTraverse(path, visitors) {
         // defensive - sibling plugin may have destroyed Program before our pre fires.
-        // when this guard hits we'd skip initFile and `skipFile` / `disabledLines` /
-        // `importStyle` would retain values from the PREVIOUS file (postHook only nulls
-        // the receiver-typed allocations); the next `programExit` reads stale skipFile
-        // and may bail to the disabled-file branch on a perfectly valid input. reset the
-        // primitive state HERE before any early-return so a missing initFile leaves the
-        // plugin in a known-clean shape rather than carrying state across files
-        skipFile = false;
-        disabledLines = null;
-        importStyle = null;
-        originalBodyNodes = null;
+        // primitive-state reset BEFORE any early-return so a missing initFile leaves the
+        // plugin in a known-clean shape rather than carrying state across files (see
+        // `resetPerFilePrimitives` docstring for the full rationale)
+        resetPerFilePrimitives();
         if (!path?.node) return;
         initFile(path);
         if (skipFile) return;
@@ -732,6 +781,12 @@ export default function plugin(api, options) {
 
       function programExit(path) {
         if (!helperVisitors) return;
+        // postHook nulls `injector` after a clean pre/programExit/post cycle; a SECOND
+        // Program.exit firing on the same file (sibling plugin re-walking, or a multi-file
+        // batch where this file's pre() bailed early but Program.exit still fires)
+        // would crash inside `injector?.flush()` / `reorderImportRegion()` etc. on the
+        // method calls of a null receiver. symmetric with postHook's own `if (!injector) return`
+        if (!injector) return;
         // skipFile (`core-js-disable-file` directive or internal core-js source) means
         // pre() early-returned without a snapshot; running the postHook walk would
         // re-traverse helper bodies that the primary pass intentionally skipped, queue
@@ -751,18 +806,7 @@ export default function plugin(api, options) {
         // factory-time conditional that may leave `synthSwap` undefined
         synthSwap?.apply(path);
         injector?.flush();
-        // canonical-sort the polyfill import region across all flushes (pre + post-synth)
-        // so the union order matches compat-data canonical order regardless of which
-        // batch each module was registered in. cosmetic but keeps cross-file output
-        // deterministic when timing of sibling registrations differs
-        injector?.reorderImportRegion();
-        // ordering: normalize THEN prune. normalize converts arrow-expression-body to block
-        // and lifts trailing-`_ref` params into `var _ref;`. prune then walks scope bindings -
-        // which now reflect the normalized layout - to drop unused ones. swapping order would
-        // leave dead refs as arrow params (prune ignores params; only block-scoped vars qualify)
-        injector?.normalizeArrowRefParams();
-        injector?.pruneUnusedRefs();
-        injector?.reorderRefsAfterImports();
+        finalizeInjector();
         // outputDebug() + closure-captured state cleanup deferred to postHook so the
         // late-CJS detection (`postHook`'s markersGone check + diagnostic warn) can add to
         // debug output before format(). siblings' programExit + post may run AFTER ours;
@@ -793,20 +837,83 @@ export default function plugin(api, options) {
         injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
       }
 
+      // per-file primitive-state reset: skipFile / disabledLines / importStyle /
+      // originalBodyNodes / skippedNodes. postHook nulls heap-allocated members
+      // (injector, synthSwap, destructureEmit, debugOutput) explicitly but leaves
+      // primitives intact across files - reset here before any early-return so a
+      // multi-file batch where `initFile` skips (path.node missing) doesn't carry
+      // the PREVIOUS file's `skipFile=true` into the next file's programExit
+      function resetPerFilePrimitives() {
+        skipFile = false;
+        disabledLines = null;
+        importStyle = null;
+        originalBodyNodes = null;
+        skippedNodes = new WeakSet();
+      }
+
+      // post-flush import-region housekeeping: canonical-sort the union of all flushed
+      // polyfill imports (across pre + post-synth batches) into compat-data order;
+      // normalize arrow-expression-body to block + lift trailing-`_ref` params into
+      // `var _ref;`; drop refs that no remaining body site reads; re-anchor ref
+      // declarations below the import region. ORDER MATTERS: normalize THEN prune so
+      // prune walks the post-normalize scope bindings (arrow params are still params
+      // pre-normalize; prune only sees block-scoped vars). shared between the main
+      // `programExit` and entry-global's `post()` so both modes produce the same
+      // canonical layout regardless of sibling-plugin import-injection timing
+      function finalizeInjector() {
+        if (!injector) return;
+        injector.reorderImportRegion();
+        injector.normalizeArrowRefParams();
+        injector.pruneUnusedRefs();
+        injector.reorderRefsAfterImports();
+      }
+
+      // augment uncaught errors with file context for cross-file triage. mirrors
+      // `tagErrorWithFile` in `core-js-unplugin/internals/plugin.js`. user-callback throws
+      // already start with `[core-js]` prefix - skip those to avoid double-prefixing.
+      // preserve original stack via in-place mutate; sibling-plugin frozen Error instances
+      // (`Object.freeze(err)` after construction) throw TypeError in strict mode and would
+      // shadow the original error - swallow the assign failure so the original error still
+      // propagates with its un-tagged message. babel itself decorates errors with file
+      // context at top-level transform boundary, but messages emitted from pre/post +
+      // programExit-deep helper calls round-trip without it; this wrapper closes that gap
+      function tagBabelError(error, file) {
+        const msg = error?.message;
+        if (typeof msg !== 'string') return;
+        if (msg.startsWith('[core-js]')) return;
+        const filename = file?.opts?.filename;
+        if (typeof filename !== 'string') return;
+        try { error.message = `[core-js] [${ filename }] ${ msg }`; } catch { /* frozen error */ }
+      }
+
+      // wrap a plugin-lifecycle handler (pre / post / programExit / Program.exit visitor)
+      // so any thrown error picks up the current file's id before re-propagation.
+      // visitor handlers receive `this === pluginPass` from babel just like pre/post,
+      // so the same wrapper covers all four call shapes
+      function withFileTag(fn) {
+        return function wrappedHandler(...args) {
+          try {
+            return fn.apply(this, args);
+          } catch (error) {
+            tagBabelError(error, this?.file);
+            throw error;
+          }
+        };
+      }
+
       // --- mode-specific plugin objects ---
+
+      /* eslint-disable prefer-arrow-callback -- pre/post handlers need babel's `this`
+         (`this === pluginPass` with `.file.opts.filename` for `withFileTag` to read);
+         arrow would inherit the enclosing IIFE-scope `this` and drop the file context */
 
       if (method === 'entry-global') {
         return {
-          pre() {
-            // mirror `preTraverse`'s defensive primitive reset: without this, a sibling
-            // plugin destroying Program before our pre fires would leave `skipFile` /
-            // `disabledLines` / `importStyle` from the PREVIOUS file in a multi-file batch.
-            // `initFile` only sets these when path.node is non-null; bare reset here
-            // guarantees a known-clean shape regardless of init's outcome
-            skipFile = false;
-            disabledLines = null;
-            importStyle = null;
-            originalBodyNodes = null;
+          pre: withFileTag(function entryGlobalPre() {
+            // mirror `preTraverse`'s defensive primitive reset before initFile (see
+            // `resetPerFilePrimitives` docstring). guarantees known-clean shape
+            // regardless of whether `initFile` sets these when path.node is non-null
+            resetPerFilePrimitives();
             initFile(this.file.path);
             if (!skipFile) {
               // `runEntryDetection` unifies the dual dispatch (ExpressionStatement body
@@ -815,17 +922,22 @@ export default function plugin(api, options) {
               runEntryDetection(this.file.path, entryGlobalCallback);
             }
             injector?.flush();
-          },
+          }),
           visitor: {},
-          post() {
+          post: withFileTag(function entryGlobalPost() {
             injector?.flush();
+            // shared with the main `programExit` tail (`finalizeInjector`): canonical-sort
+            // the import region across all flushes and lift trailing arrow-`_ref` params
+            // so sibling-plugin imports inserted between our flushes don't leak above the
+            // sorted polyfill region
+            finalizeInjector();
             outputDebug();
             // mirror `postHook`'s closure-captured state cleanup so multi-file batch GC
             // bound is deterministic - without nulling, FILE A's injector + AST refs survive
             // until next `initFile` reassigns. entry-global doesn't use synthSwap /
             // destructureEmit / skippedNodes, so only `injector` + `debugOutput` apply
             injector = debugOutput = null;
-          },
+          }),
         };
       }
 
@@ -834,22 +946,25 @@ export default function plugin(api, options) {
           injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
         });
         return {
-          pre() { preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors)); },
-          visitor: { Program: { exit: programExit } },
-          post: postHook,
+          pre: withFileTag(function usageGlobalPre() {
+            preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors));
+          }),
+          visitor: { Program: { exit: withFileTag(programExit) } },
+          post: withFileTag(postHook),
         };
       }
 
       return {
-        pre() {
+        pre: withFileTag(function usagePurePre() {
           preTraverse(this.file.path, {
             ...usageVisitors,
             CatchClause: path => destructureEmit.extractCatchClause(path),
           });
-        },
-        visitor: { Program: { exit: programExit } },
-        post: postHook,
+        }),
+        visitor: { Program: { exit: withFileTag(programExit) } },
+        post: withFileTag(postHook),
       };
+      /* eslint-enable prefer-arrow-callback -- restore at end of plugin-return block */
     })(),
     /* eslint-enable max-statements -- close defer-block opened above */
   };
