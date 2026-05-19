@@ -163,7 +163,9 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   function extractCheck(path, skipOptional) {
     const { node } = path;
     if (node.optional) {
-      if (skipOptional?.(node, path.scope)) return [null, node.object, false];
+      // pass `path` as third arg so `skipPolyfillableOptional` can anchor TS-runtime
+      // shadow detection at the reference site (path-aware `adapter.hasBinding`)
+      if (skipOptional?.(node, path.scope, path)) return [null, node.object, false];
       const [memoCheck, memoRef] = memoize(node.object, path.scope);
       return [memoCheck, memoRef, false];
     }
@@ -194,7 +196,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // computed property nodes (`.property`) and call arguments (`.arguments`) on the same chainStart
     // remain untouched, so computed-property bootstrapping isn't disturbed
     let check = null;
-    if (!skipOptional?.(chainStart.node, path.scope)) {
+    if (!skipOptional?.(chainStart.node, path.scope, chainStart)) {
       const memoType = pathType(chainStart.get(key));
       let ref;
       [check, ref] = memoize(chainStart.node[key], path.scope);
@@ -340,13 +342,15 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     });
   }
 
-  function replaceCallWithSimple(path, id, skipOptional) {
+  function replaceCallWithSimple(path, id, skipOptional, sideEffects) {
     const [check, object, embed] = extractCheck(path, skipOptional);
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const callerPath = unwrapTSExpressionParent(path);
     replaceAndWrap({
       replacePath: callerPath.parentPath,
-      result: t.callExpression(id, [t.cloneNode(object)]),
+      // wrap with the caller's accumulated `sideEffects` (e.g. computed-key SE from
+      // detect-usage) so they don't drop when the original call is fully replaced
+      result: withSideEffects(t.callExpression(id, [t.cloneNode(object)]), sideEffects),
       check, embedGuard: embed,
     });
   }
@@ -357,7 +361,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // caller (findInnerPolyChain) guarantees outer is a call expression.
   // unplugin duplicates this as a text-level rewrite (see plugin.js `replaceInstanceChainCombined`);
   // unification blocked by AST vs text emission asymmetry - the output shape must match bit-for-bit
-  function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId }) {
+  function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId, sideEffects }) {
     const callerPath = unwrapTSExpressionParent(outerPath);
     const outerCall = callerPath.parent;
     const { scope } = outerPath;
@@ -394,7 +398,10 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // `annotateCallReturnType` stamp onto the wrapping conditional so they still resolve
     const outerCallType = resolvedType?.get(outerCall);
     if (outerCallType) resolvedType.set(conditional, outerCallType);
-    callerPath.parentPath.replaceWith(conditional);
+    // outer-key computed SE (e.g. `(arr?.at?.(0))[(fn(), 'map')](x => x)`) attaches to
+    // `meta.sideEffects` during detection; wrap so the SE fires before the conditional
+    // evaluates the polyfill chain. without this the SE silently drops on chain combine
+    callerPath.parentPath.replaceWith(withSideEffects(conditional, sideEffects));
   }
 
   return {
