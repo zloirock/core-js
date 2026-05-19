@@ -66,6 +66,12 @@ export const GENERATOR_LIKE_NAMES = new Set([
   // TS 5.6+ stdlib base for iterator-helper chains - `declare const x: IteratorObject<T>`
   'IteratorObject',
   'AsyncIteratorObject',
+  // generator functions structurally conform to `Iterable<T>` / `AsyncIterable<T>`;
+  // an `Iterable<T>` annotation on a generator function declares its yield type.
+  // `Iterable<T>.[Symbol.iterator]()` returns `Iterator<T>` so param-0 IS the yield
+  // type, matching the rest of the set's contract
+  'Iterable',
+  'AsyncIterable',
 ]);
 
 // collection types whose first type parameter is the element type
@@ -74,8 +80,6 @@ export const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'ReadonlyArray',
   'Set',
   'ReadonlySet',
-  'Iterable',
-  'AsyncIterable',
   ...GENERATOR_LIKE_NAMES,
 ]);
 

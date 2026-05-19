@@ -688,6 +688,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     classSubstInner: (...args) => classSubstInner(...args),
     isNullableOrNever,
     commonType,
+    // pattern-bindings cluster instantiates later in this factory; thunk through so the
+    // closure picks up the populated reference at call time (TDZ otherwise)
+    findPatternKeyPath: (...args) => findPatternKeyPath(...args),
+    resolveDestructuredMember: (...args) => resolveDestructuredMember(...args),
+    resolveObjectMemberPath: (...args) => resolveObjectMemberPath(...args),
   });
   const { resolveReturnType, resolveBodyReturnType, collectReturnPaths } = returnTypeCluster;
 
@@ -1246,6 +1251,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     resolveAnnotatedMemberPath,
     resolveForOfResolvedElement,
     resolveObjectMemberPath,
+    resolveDestructuredMember,
     collectPatternKeyPath,
     resolveBindingType,
   } = patternBindingsCluster;

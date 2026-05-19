@@ -541,8 +541,8 @@ export function createPatternBindings({
   // cluster-private (consumed only by other cluster functions, not by factory or other
   // clusters): `resolveDestructuringDefault` / `resolveDestructuredType` /
   // `resolveArrayPatternBinding` / `findPatternIndex` / `resolveRuntimeIterableElement` /
-  // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveDestructuredMember` /
-  // `resolveObjectBinding` / `findBindingPattern`
+  // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
+  // `findBindingPattern`
   return {
     findArrayPatternKeyPath,
     findDestructuredKeyPath,
@@ -555,6 +555,7 @@ export function createPatternBindings({
     unwrapPromiseAnnotation,
     resolveForOfResolvedElement,
     resolveObjectMemberPath,
+    resolveDestructuredMember,
     collectPatternKeyPath,
     resolveBindingType,
   };
