@@ -163,3 +163,48 @@ QUnit.test('esnext: Map.groupBy with object keys, Array.from over result Map', a
   const sums = Array.from(g, ([, xs]) => xs.reduce((a, b) => a + b.v, 0));
   assert.deepEqual(sums.toSorted(), [2, 4]);
 });
+
+// Array.fromAsync direct call. existing tests (chaining.js / destructuring.js)
+// exercise it through destructured aliases; this covers the full-qualified
+// `Array.fromAsync(...)` static-call path AND the async-iterable input branch
+QUnit.test('esnext: Array.fromAsync over sync iterable', assert => {
+  const async = assert.async();
+  Array.fromAsync([1, 2, 3]).then(arr => {
+    assert.deepEqual(arr, [1, 2, 3]);
+    async();
+  });
+});
+
+QUnit.test('esnext: Array.fromAsync over async iterable with map callback', assert => {
+  const async = assert.async();
+  // async-iterable input via `AsyncIterator.from([...])` (pure-mode entry to the
+  // async-helper pipeline; wraps a sync iterable so each value resolves through
+  // Promise.resolve per spec). avoids `async function*` syntax that the e2e
+  // lint policy forbids. each yielded value awaits through iteration before the
+  // map callback applies
+  const asyncIt = AsyncIterator.from([1, 2, 3]);
+  Array.fromAsync(asyncIt, x => x * 10).then(arr => {
+    assert.deepEqual(arr, [10, 20, 30]);
+    async();
+  });
+});
+
+// AggregateError + cause: covers the polyfilled AggregateError constructor's
+// cause-wrapper (`wrap-error-constructor-with-cause`). `Error.cause` itself is
+// NOT injected in pure mode - the `Error` entry in `built-in-definitions.mjs` is
+// `{ global: ... }`, meaning it only triggers under usage-global; in pure mode
+// `new Error('msg', { cause })` falls back to the native runtime. `instanceof
+// AggregateError` IS reliable here because both sides resolve to the same
+// polyfilled default-import; `instanceof Error` would cross the polyfill /
+// native constructor boundary and is intentionally omitted
+QUnit.test('esnext: AggregateError with cause option', assert => {
+  const a = new Error('a');
+  const b = new Error('b');
+  const root = new Error('root');
+  const aggregate = new AggregateError([a, b], 'multi', { cause: root });
+  assert.true(aggregate instanceof AggregateError);
+  assert.same(aggregate.cause, root);
+  assert.same(aggregate.errors.length, 2);
+  assert.same(aggregate.errors[0], a);
+});
+
