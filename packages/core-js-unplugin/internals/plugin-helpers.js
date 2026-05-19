@@ -109,7 +109,16 @@ export function liftSfcLangSuffix(id, baseId) {
 }
 
 // chars that, as the previous statement's last token, fuse with a leading `(` on the
-// next line into a call expression (parser continues without ASI).
+// next line into a call expression (parser continues without ASI). this is the
+// inverse-direction predicate to `ASI_HAZARD_STARTS` in `detect-entry.js`: that one
+// lists STARTING chars (`(`, `[`, `/`, `+`, `-`, ``, `<`) that fuse with any
+// fusion-capable prev; this one lists ENDING chars that fuse with `(` specifically
+// (the broadest single hazard - covers all the IIFE-wrapped emission shapes the
+// usage-* pipelines emit). the two sets are deliberately asymmetric: usage-* paths
+// emit `(...)` wrappers around polyfilled receivers and only need to guard against
+// the prev-char direction; entry-* paths remove arbitrary statements and need to
+// guard against the next-char direction (broader, since the next statement's first
+// char is unconstrained by emission shape).
 // `}` included conservatively: FunctionDeclaration / BlockStatement terminate without ASI
 // concern, but FunctionExpression in an incomplete statement (`let x = function(){}\n(1,2)`
 // - parser treats as `x = (function(){})(1,2)`) fuses. we can't distinguish the two from
@@ -127,6 +136,21 @@ const FUSES_WITH_OPEN_PAREN = /[\p{ID_Continue}"$')/\]`}]/u;
 // hot loops where a regex-per-test would allocate the match array
 export function isLineTerminator(ch) {
   return ch === '\n' || ch === '\r' || ch === '\u2028' || ch === '\u2029';
+}
+
+// consume ONE logical line ending starting at `pos`: a CRLF or LFCR pair (2 chars), or
+// a single LF / CR / LS (U+2028) / PS (U+2029) (1 char). returns the position AFTER the
+// terminator, or `pos` unchanged if `src[pos]` is not a LineTerminator. callers use this
+// to drop the trailing newline of a removed top-level statement without erasing the
+// user's intentional vertical gaps - multi-LT runs beyond the first pair survive by
+// design so blank-line layout between import block and code body is preserved.
+// LFCR mirrors CRLF: a mis-configured tool may emit LF before CR; without pair handling
+// only LF would be consumed and the stray CR would print as an extra blank line
+export function consumeOneLineEnding(src, pos) {
+  if ((src[pos] === '\r' && src[pos + 1] === '\n')
+    || (src[pos] === '\n' && src[pos + 1] === '\r')) return pos + 2;
+  if (isLineTerminator(src[pos])) return pos + 1;
+  return pos;
 }
 
 // forward-scan past a block comment whose opener is at `p` (caller has verified

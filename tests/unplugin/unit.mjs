@@ -9,9 +9,11 @@ import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unpl
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
+import { createTopLevelStatementRemover } from '../../packages/core-js-unplugin/internals/detect-entry.js';
 import {
   canFuseWithOpenParen,
   collectAllBindingNames,
+  consumeOneLineEnding,
   directivePrologueEnd,
   hasCoreJSPureImport,
   isBodylessStatementBody,
@@ -2241,6 +2243,122 @@ function checkStripLeadingBOMs() {
   check('stripLeadingBOMs/lone BOM', stripLeadingBOMs('﻿'), '');
 }
 checkStripLeadingBOMs();
+
+// --- consumeOneLineEnding ---
+// LS / PS via fromCharCode keeps file bytes pure ASCII: a literal LineTerminator in a
+// surrounding line comment would split the comment at the LT and crash the parser.
+// inside template-literal interpolation it's safe (string literals allow LS/PS since ES2019)
+const LS = String.fromCharCode(0x2028);
+const PS = String.fromCharCode(0x2029);
+
+// each case: starting position 0 in the input. helper consumes the leading LineTerminator
+// run (one logical pair OR one single char) and returns the new position. the spec-shaped
+// "one logical pair" is CRLF (Windows) or LFCR (mis-configured tool inverse). single LTs
+// covered: LF, CR, U+2028 LINE SEPARATOR, U+2029 PARAGRAPH SEPARATOR
+check('consumeOneLineEnding/no LT returns same pos', consumeOneLineEnding('abc', 0), 0);
+check('consumeOneLineEnding/single LF', consumeOneLineEnding('\nfoo', 0), 1);
+check('consumeOneLineEnding/single CR', consumeOneLineEnding('\rfoo', 0), 1);
+check('consumeOneLineEnding/CRLF pair', consumeOneLineEnding('\r\nfoo', 0), 2);
+check('consumeOneLineEnding/LFCR pair', consumeOneLineEnding('\n\rfoo', 0), 2);
+check('consumeOneLineEnding/U+2028', consumeOneLineEnding(`${ LS }foo`, 0), 1);
+check('consumeOneLineEnding/U+2029', consumeOneLineEnding(`${ PS }foo`, 0), 1);
+// multi-LT run beyond first logical pair: only one LT consumed (preserves blank gap)
+check('consumeOneLineEnding/double LF stops after one', consumeOneLineEnding('\n\nfoo', 0), 1);
+check('consumeOneLineEnding/CRLF + LF stops after pair',
+  consumeOneLineEnding('\r\n\nfoo', 0), 2);
+// pos at end of string: no-op
+check('consumeOneLineEnding/EOF', consumeOneLineEnding('foo', 3), 3);
+// non-zero starting pos: relative to that pos, not absolute
+check('consumeOneLineEnding/non-zero start', consumeOneLineEnding('abc\nfoo', 3), 4);
+
+// --- createTopLevelStatementRemover ---
+const IMPORT_X = "import 'x';";
+
+// stub-node driver: caller passes source + byte length of the leading `import ...;`
+// segment; the stub node mirrors what oxc would emit (end at `;` byte + 1). exercises
+// trailing-LT consumption and ASI guard injection without spinning up a full AST
+function applyRemove(source, importEnd) {
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  remove({ start: 0, end: importEnd });
+  return ms.toString();
+}
+
+// single LF: consumed alongside the statement so the output joins cleanly
+check('remove/single LF consumed',
+  applyRemove(`${ IMPORT_X }\nfoo();`, IMPORT_X.length), 'foo();');
+
+// CRLF pair: both chars consumed as one logical line ending (no stray LF / CR left)
+check('remove/CRLF pair consumed',
+  applyRemove(`${ IMPORT_X }\r\nfoo();`, IMPORT_X.length), 'foo();');
+
+// LFCR pair: rare-but-valid inverse of CRLF that a mis-configured tool may emit. without
+// pair handling, only the LF would be consumed and the stray CR would print as an extra
+// blank line. pair handling parallels CRLF
+check('remove/LFCR pair consumed',
+  applyRemove(`${ IMPORT_X }\n\rfoo();`, IMPORT_X.length), 'foo();');
+
+// U+2028 LINE SEPARATOR: single LT char per ES spec, consumed via isLineTerminator
+check('remove/U+2028 consumed',
+  applyRemove(`${ IMPORT_X }${ LS }foo();`, IMPORT_X.length), 'foo();');
+
+// U+2029 PARAGRAPH SEPARATOR: same shape as U+2028
+check('remove/U+2029 consumed',
+  applyRemove(`${ IMPORT_X }${ PS }foo();`, IMPORT_X.length), 'foo();');
+
+// multi-LT run beyond the first logical pair: user's intentional blank line between
+// import block and code body MUST survive (only one LT belongs to the statement's row)
+check('remove/double LF preserves blank line',
+  applyRemove(`${ IMPORT_X }\n\nfoo();`, IMPORT_X.length), '\nfoo();');
+
+// ASI hazard: TS TypeAssertion `<MyType>foo` after a no-semi prev statement needs a `;`
+// injection on removal. previously `<` was NOT in ASI_HAZARD_STARTS so the fuse risk
+// `prev < MyType > foo` slipped through silently
+function checkRemoveAsiGuardTypeAssertion() {
+  const source = `var x = 1\n${ IMPORT_X }\n<MyType>raw`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  remove({ start: 10, end: 10 + IMPORT_X.length });
+  check('remove/TS type assertion triggers ASI guard',
+    ms.toString(), 'var x = 1\n;<MyType>raw');
+}
+checkRemoveAsiGuardTypeAssertion();
+
+// ASI hazard hidden behind a line comment terminated by U+2028. the comment scan must
+// stop AT the separator, then continue past it as whitespace, landing on the hazard
+// char `(`. previously the scan only stopped at LF / CR and ran to EOF, missing the
+// hazard and skipping the `;` injection
+function checkRemoveAsiGuardLineCommentLsTerminator() {
+  const source = `var x = 1\n${ IMPORT_X }//c${ LS }(foo)();`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  remove({ start: 10, end: 10 + IMPORT_X.length });
+  check('remove/line-comment U+2028 terminator surfaces hazard',
+    ms.toString(), `var x = 1\n;//c${ LS }(foo)();`);
+}
+checkRemoveAsiGuardLineCommentLsTerminator();
+
+// batch removal: two adjacent imports between a no-semi prev and a hazard char. each
+// closure instance owns a `removedRanges` log; the second `remove()` call's backward
+// ASI scan must SKIP past the first removed range, else the prev statement's `;` (now
+// gone with the imports) appears to still be there and `;` injection gets suppressed.
+// regression lock on the `findPrevSignificantChar` loop that re-enters when
+// `prevSignificantPos` lands inside an earlier removed range
+function checkRemoveBatchSkipsPriorRange() {
+  const a = "import 'a';";
+  const b = "import 'b';";
+  const source = `var x = 1\n${ a }\n${ b }\n(foo)();`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  // first import starts after `var x = 1\n` (10 bytes); second after first + LT (11+1)
+  remove({ start: 10, end: 10 + a.length });
+  remove({ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length });
+  // semicolon must appear ONCE at the second removal's boundary (the first removal had
+  // a non-hazard next char, the second sees `(`)
+  check('remove/batch skips prior removed range',
+    ms.toString(), 'var x = 1\n;(foo)();');
+}
+checkRemoveBatchSkipsPriorRange();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
