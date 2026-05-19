@@ -16,6 +16,10 @@ import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.iterator.chunks";
+import "core-js/modules/esnext.iterator.includes";
+import "core-js/modules/esnext.iterator.join";
+import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // chain-assignment containing an IIFE: `x = (() => cond ? Array : Iterator)()`. the
 // destructure receiver is a chain-assign whose RHS is an IIFE wrapping the conditional.
