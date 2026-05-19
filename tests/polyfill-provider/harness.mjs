@@ -148,6 +148,34 @@ export function createChecker(name) {
     }
   }
 
+  // run `extract(adapter, programPath)` against both parsers AND assert results agree
+  // across adapters. `extract` returns the value to compare (deep-equal via
+  // JSON.stringify - sufficient for the resolver's `{primitive, type, ctor, inner}`
+  // Type shape and for primitives / null). designed for tolerant smoke tests where
+  // per-adapter `runBoth` would let one adapter return null while the other returns a
+  // Type, hiding cross-parser regressions. throws inside `extract` are caught and
+  // reported as failures - same contract as runBoth
+  function runBothAndAgree(label, code, extract, extraPlugins) {
+    const results = [];
+    for (const adapter of adapters) {
+      try {
+        const programPath = adapter.parseAndScope(code, extraPlugins);
+        results.push({ adapter, value: extract(adapter, programPath) });
+      } catch (error) {
+        return fail(`${ label } [${ adapter.name }]`, `threw: ${ error.message }`);
+      }
+    }
+    const [first, ...rest] = results;
+    const firstSerialized = JSON.stringify(first.value);
+    for (const { adapter, value } of rest) {
+      const serialized = JSON.stringify(value);
+      if (serialized !== firstSerialized) {
+        return fail(label, `[${ first.adapter.name }] ${ firstSerialized } vs [${ adapter.name }] ${ serialized }`);
+      }
+    }
+    pass();
+  }
+
   // print summary; throw if any failures. consolidated boilerplate so suites don't repeat
   // the same `summary(name) + if (failed) throw new Error(...)` two-liner at every tail
   function finish() {
@@ -155,5 +183,5 @@ export function createChecker(name) {
     if (counts.failed) throw new Error(`${ name }: ${ counts.failed } failed`);
   }
 
-  return { check, checkDeep, checkTruthy, doesNotThrow, fail, finish, pass, runBoth, throwsWith };
+  return { check, checkDeep, checkTruthy, doesNotThrow, fail, finish, pass, runBoth, runBothAndAgree, throwsWith };
 }
