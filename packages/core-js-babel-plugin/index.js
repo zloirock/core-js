@@ -14,6 +14,7 @@ import {
   visitSymbolInLhsSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
+import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -868,34 +869,18 @@ export default function plugin(api, options) {
         injector.reorderRefsAfterImports();
       }
 
-      // augment uncaught errors with file context for cross-file triage. mirrors
-      // `tagErrorWithFile` in `core-js-unplugin/internals/plugin.js`. user-callback throws
-      // already start with `[core-js]` prefix - skip those to avoid double-prefixing.
-      // preserve original stack via in-place mutate; sibling-plugin frozen Error instances
-      // (`Object.freeze(err)` after construction) throw TypeError in strict mode and would
-      // shadow the original error - swallow the assign failure so the original error still
-      // propagates with its un-tagged message. babel itself decorates errors with file
-      // context at top-level transform boundary, but messages emitted from pre/post +
-      // programExit-deep helper calls round-trip without it; this wrapper closes that gap
-      function tagBabelError(error, file) {
-        const msg = error?.message;
-        if (typeof msg !== 'string') return;
-        if (msg.startsWith('[core-js]')) return;
-        const filename = file?.opts?.filename;
-        if (typeof filename !== 'string') return;
-        try { error.message = `[core-js] [${ filename }] ${ msg }`; } catch { /* frozen error */ }
-      }
-
       // wrap a plugin-lifecycle handler (pre / post / programExit / Program.exit visitor)
-      // so any thrown error picks up the current file's id before re-propagation.
-      // visitor handlers receive `this === pluginPass` from babel just like pre/post,
-      // so the same wrapper covers all four call shapes
+      // so any thrown error picks up the current file's id before re-propagation. babel
+      // itself decorates errors with file context at top-level transform boundary, but
+      // messages emitted from pre/post + programExit-deep helper calls round-trip without
+      // it; this wrapper closes that gap. visitor handlers receive `this === pluginPass`
+      // from babel just like pre/post, so the same wrapper covers all four call shapes
       function withFileTag(fn) {
         return function wrappedHandler(...args) {
           try {
             return fn.apply(this, args);
           } catch (error) {
-            tagBabelError(error, this?.file);
+            tagError(error, this?.file?.opts?.filename);
             throw error;
           }
         };
