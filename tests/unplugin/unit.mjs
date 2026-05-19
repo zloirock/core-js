@@ -15,6 +15,7 @@ import {
   directivePrologueEnd,
   hasCoreJSPureImport,
   isBodylessStatementBody,
+  isChunkLoaderBundler,
   isLineTerminator,
   lastUserImportEnd,
   liftSfcLangSuffix,
@@ -22,6 +23,7 @@ import {
   skipBlockComment,
   skipDirectivePrologue,
   skipGap,
+  stripLeadingBOMs,
   varScopeAnchor,
   walkAstNodes,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
@@ -2193,6 +2195,52 @@ function checkSnapshotTakeWithParseMismatch() {
   check('takeWithParse/mismatch comments invalidated', result.comments, null);
 }
 checkSnapshotTakeWithParseMismatch();
+
+// --- isChunkLoaderBundler ---
+// dynamic-import chunk-loader semantics: webpack-family bundlers wrap `import()`
+// in `Promise.all([...])` of chunk fetches. detect-syntax adds `es.promise.all`
+// polyfill only when this predicate fires, so a regression here either loses the
+// polyfill on the chunk-loader bundlers or leaks it onto roll-family ones
+function checkChunkLoaderBundler() {
+  // chunk-loader bundlers: dynamic import wraps in Promise.all([chunks])
+  check('chunk-loader/webpack', isChunkLoaderBundler('webpack'), true);
+  check('chunk-loader/rspack', isChunkLoaderBundler('rspack'), true);
+  check('chunk-loader/farm', isChunkLoaderBundler('farm'), true);
+  check('chunk-loader/unloader', isChunkLoaderBundler('unloader'), true);
+  // roll-family / esbuild / native: dynamic import returns bare module Promise
+  check('chunk-loader/rollup', isChunkLoaderBundler('rollup'), false);
+  check('chunk-loader/rolldown', isChunkLoaderBundler('rolldown'), false);
+  check('chunk-loader/vite', isChunkLoaderBundler('vite'), false);
+  check('chunk-loader/esbuild', isChunkLoaderBundler('esbuild'), false);
+  check('chunk-loader/bun', isChunkLoaderBundler('bun'), false);
+  // unknown / missing bundler: dropped to false (warn already emitted at plugin construction)
+  check('chunk-loader/undefined', isChunkLoaderBundler(undefined), false);
+  check('chunk-loader/null', isChunkLoaderBundler(null), false);
+  check('chunk-loader/turbopack typo', isChunkLoaderBundler('turbopack'), false);
+}
+checkChunkLoaderBundler();
+
+// --- stripLeadingBOMs ---
+// oxc rejects BOM-prefixed shebangs; the plugin strips ALL leading U+FEFF before parsing
+// and re-prepends a single one to the final output. multi-BOM survives malformed source
+// or a sibling plugin's per-pass re-prepend stacking on top of ours
+function checkStripLeadingBOMs() {
+  // no BOM: returns same instance (cheap fast path)
+  const plain = 'export var x = 1;';
+  check('stripLeadingBOMs/no BOM returns same instance', stripLeadingBOMs(plain), plain);
+  // single BOM: stripped
+  check('stripLeadingBOMs/single BOM', stripLeadingBOMs('﻿foo'), 'foo');
+  // multi-BOM: ALL leading FEFFs stripped (single-strip would leave residual mid-prefix)
+  check('stripLeadingBOMs/double BOM', stripLeadingBOMs('﻿﻿foo'), 'foo');
+  check('stripLeadingBOMs/triple BOM', stripLeadingBOMs('﻿﻿﻿foo'), 'foo');
+  // BOM only mid-string is NOT stripped (only the leading run)
+  check('stripLeadingBOMs/inline BOM untouched', stripLeadingBOMs('foo﻿bar'), 'foo﻿bar');
+  // empty string: no crash
+  check('stripLeadingBOMs/empty string', stripLeadingBOMs(''), '');
+  // lone BOM: stripped to empty
+  check('stripLeadingBOMs/lone BOM', stripLeadingBOMs('﻿'), '');
+}
+checkStripLeadingBOMs();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
