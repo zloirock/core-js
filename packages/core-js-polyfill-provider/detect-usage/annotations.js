@@ -213,10 +213,15 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 
 // the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
 // ESTree (oxc) preserves ParenthesizedExpression around the object (`(globalThis)?.Array`),
-// which babel strips - unwrap here so the optimization fires for both parsers
-export function isPolyfillableOptional({ node, scope, adapter, resolve }) {
+// which babel strips - unwrap here so the optimization fires for both parsers.
+// `path` (when provided) anchors the `adapter.hasBinding` lookup at the reference site,
+// catching TS-runtime shadows (`enum`, `namespace`, `import X = require()`) that babel's
+// raw scope index misses. extractCheck/replaceInstanceLike pass it through their
+// `skipOptional` callback hop; legacy callers without a path-aware adapter still work
+// because the third argument is optional on `hasBinding`
+export function isPolyfillableOptional({ node, scope, adapter, resolve, path }) {
   const obj = unwrapParens(node.object);
-  if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name)) return false;
+  if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name, path)) return false;
   if (resolve({ kind: 'global', name: obj.name })) return true;
   const key = !node.computed && node.property?.type === 'Identifier' && node.property.name;
   const resolved = key && resolve({ kind: 'property', object: obj.name, key, placement: 'static' });
