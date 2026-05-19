@@ -8,6 +8,19 @@ import { patternToRegExp } from '../helpers/pattern-matching.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
+// safe `.message ?? String(error)` extraction for diagnostic wrapping. adversarial
+// Proxy on the thrown payload can make `.message` access AND `String(error)`
+// re-throw - swallow secondary errors so the user's primary diagnostic still
+// renders with a readable wrapper. shared by `resolveTargets` and
+// `buildShouldInjectPolyfill` user-callback catch
+function safeErrorMessage(error) {
+  try {
+    return error?.message ?? String(error);
+  } catch {
+    return '<unreadable>';
+  }
+}
+
 export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets }) {
   // wrap all upstream calls so errors surface with `[core-js]` prefix. without this,
   // `targetsParser` thrown TypeError / `getBabelTargets()` throw (adversarial input
@@ -26,9 +39,9 @@ export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, 
     const parsed = targetsParser({ configPath, ignoreBrowserslistConfig, browserslistEnv });
     return parsed.size ? parsed : null;
   } catch (error) {
-    // non-Error throw (`throw 'str'` / `throw 42`): `.message` undefined renders as
-    // "undefined". consistency with `buildShouldInjectPolyfill` below which uses same pattern
-    throw new Error(`[core-js] failed to resolve targets: ${ error?.message ?? String(error) }`, { cause: error });
+    const wrapped = new Error(`[core-js] failed to resolve targets: ${ safeErrorMessage(error) }`);
+    wrapped.cause = error;
+    throw wrapped;
   }
 }
 
@@ -75,16 +88,9 @@ export function buildShouldInjectPolyfill({ include, exclude, parsedTargets, use
     } catch (error) {
       // wrap in a fresh Error so readonly `.message`, frozen Error, or primitive throw
       // (`throw 'str'`/`throw 42`/`throw null`) can't swallow the diagnostic via a TypeError
-      // on reassignment. both `.message` access and `String(error)` may re-throw on adversarial
-      // Proxy objects - guard each step so the wrapper never masks the user bug with a secondary
-      // diagnostic. `cause` preserves the original for debuggers
-      let originalMessage;
-      try {
-        originalMessage = error?.message ?? String(error);
-      } catch {
-        originalMessage = '<unreadable>';
-      }
-      const wrapped = new Error(`[core-js] shouldInjectPolyfill(${ JSON.stringify(mod) }) threw: ${ originalMessage }`);
+      // on reassignment. `safeErrorMessage` guards both `.message` access and `String(error)`
+      // against adversarial Proxy traps. `cause` preserves the original for debuggers
+      const wrapped = new Error(`[core-js] shouldInjectPolyfill(${ JSON.stringify(mod) }) threw: ${ safeErrorMessage(error) }`);
       wrapped.cause = error;
       throw wrapped;
     }
