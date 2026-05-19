@@ -1673,6 +1673,33 @@ check('canFuseWithOpenParen/skips block comment',
   canFuseWithOpenParen('foo /* tail */(', 14), true);
 check('canFuseWithOpenParen/block comment hides fuse',
   canFuseWithOpenParen('; /* foo */ (', 12), false);
+// regex literal `/a*/`: the `*/` looks like a block-comment closer at first glance,
+// but `lastIndexOf('/*')` from BEFORE the `*` returns -1 (no matching opener); the `/`
+// is then a regex literal terminator (fuses with `(`). without the fix, the backward
+// scan returned -1 and ASI guard was skipped, parsing `/a*/(arr)()` as a regex call
+check('canFuseWithOpenParen/regex closer not block comment',
+  canFuseWithOpenParen('var rx = /a*/\n(', 14), true);
+// apostrophe inside `/* don't */` previously flipped quote-state inside
+// `realLineCommentStart`, causing the real `//` after it to NOT be detected and the
+// backward walk to land inside the "comment" text. block-comment skip in the forward
+// scan fixes the quote-state contamination - prev significant = `)` of `x()`
+check('canFuseWithOpenParen/apostrophe in block comment',
+  canFuseWithOpenParen("x() /* don't */ // c\n", 21), true);
+// `//` INSIDE a block comment isn't a real line comment; without block-comment skip in
+// `realLineCommentStart`, the backward walk lands inside the block-comment body
+// (`a` of `/* a // b */`). with the skip, prev significant = `r` of `bar`
+check('canFuseWithOpenParen/double-slash inside block comment',
+  canFuseWithOpenParen('foo /* a // b */ bar\n', 20), true);
+// Unicode ID_Continue chars (`α`) end an identifier; ASCII `\w` missed them and the
+// `(` would fuse silently into a CallExpression
+check('canFuseWithOpenParen/unicode identifier end',
+  canFuseWithOpenParen('var Mapα\n(', 9), true);
+// NBSP / FF / VT / BOM / ogham / mongolian / em-quad - JS WhiteSpace beyond ASCII space
+// and tab. previous 6-char allowlist missed them, treating them as significant chars
+check('canFuseWithOpenParen/NBSP between token and paren',
+  canFuseWithOpenParen('foo() \n(', 7), true);
+check('canFuseWithOpenParen/BOM mid-file as whitespace',
+  canFuseWithOpenParen('foo()﻿\n(', 7), true);
 
 // --- hasCoreJSPureImport: fingerprint pre-pass against configured packages ---
 function checkHasPureImport(label, src, packages, expected) {
