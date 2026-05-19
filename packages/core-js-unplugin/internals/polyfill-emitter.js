@@ -887,13 +887,36 @@ export function createPolyfillEmitter({
       end = afterOptional(parent.object.end, !parent.computed);
     }
     // chain-assignment receiver `(a = Array).from(args)` / `(a = b = Array).from(args)`:
-    // outermost assignment would be lost when receiver is dropped. unwrap parens / TS /
-    // ChainExpression via `unwrapNode`, then shared `prependChainAssignmentEffect` peels
-    // `=` chain and prepends the outermost assignment to side effects so emit becomes
-    // `(a = Array, _Array$from)(args)`. instance dispatch never reaches here (routes
-    // through replaceInstance), so no risk of duplicating with memoize-captured form
-    const allEffects = prependChainAssignmentEffect(unwrapNode(node.object), sideEffects);
-    transforms.add(start, end, asiGuardLeadingParen(wrapSideEffects(binding, allEffects), metaPath, start));
+    // outermost assignment would be lost when receiver is dropped. shared composer below
+    // peels `=` chain via `prependChainAssignmentEffect` and prepends the outermost
+    // assignment to side effects so emit becomes `(a = Array, _Array$from)(args)`.
+    // instance dispatch never reaches here (routes through replaceInstance), so no risk of
+    // duplicating with memoize-captured form
+    transforms.add(start, end,
+      composeBindingReplacement({ binding, receiverObj: node.object, sideEffects, metaPath, start }));
+  }
+
+  // compose the binding's text replacement with receiver-side effects + ASI guard.
+  // `start` anchors the ASI-fuse heuristic against the source position the replacement
+  // takes over from. shared by `replaceGlobalOrStatic` (whole-MemberExpression rewrite)
+  // and `replaceStaticFallback` (object-slot-only rewrite) - both compute
+  // `prependChainAssignmentEffect(unwrapNode(receiverObj), sideEffects)` to absorb
+  // chain-assignment receivers + the `meta.sideEffects` captured by detect-usage
+  function composeBindingReplacement({ binding, receiverObj, sideEffects, metaPath, start }) {
+    const allEffects = prependChainAssignmentEffect(unwrapNode(receiverObj), sideEffects);
+    return asiGuardLeadingParen(wrapSideEffects(binding, allEffects), metaPath, start);
+  }
+
+  // fallback static-rewrite (member name not in the known statics whitelist): the rewrite
+  // replaces just the `.object` text with the polyfill identifier rather than the whole
+  // MemberExpression. preserves the original `?.` (the polyfill id never null, but parity
+  // with babel-plugin's `_Promise?.foo` emit shape is intentional). mirrors the babel-plugin
+  // `replaceWith(withSideEffects(id, allEffects))` shape: receiver chain-assignment +
+  // `meta.sideEffects` (computed-key SE captured by detect-usage) compose into the
+  // replacement so `called++` in `(called++, Promise).noSuchStatic` doesn't drop
+  function replaceStaticFallback({ binding, node, metaPath, sideEffects }) {
+    transforms.add(node.object.start, node.object.end,
+      composeBindingReplacement({ binding, receiverObj: node.object, sideEffects, metaPath, start: node.object.start }));
   }
 
   // peel a SequenceExpression's preceding elements when at least one carries an observable
@@ -980,6 +1003,7 @@ export function createPolyfillEmitter({
     replaceGlobalOrStatic,
     replaceInstance,
     replaceInstanceChainCombined,
+    replaceStaticFallback,
     resolveReceiverPolyfill,
     skipProxyGlobal,
     skipWrappedNode,
