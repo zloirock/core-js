@@ -17,16 +17,22 @@ const polyfillOrder = new Map(keys(compatData).map((k, i) => [k, i]));
 // without round-tripping through `sortByPolyfillOrder`'s array materialisation.
 //
 // CROSS-PACKAGE CONTRACT: this comparator is imported by both `@core-js/babel-plugin` and
-// `@core-js/unplugin` import-injectors AND by `@core-js/builder`'s debug output. callers
+// `@core-js/unplugin` import-injectors plus this package's own `debug-output`. callers
 // rely on the SAME canonical compat-data order so concatenated bundles from mixed plugin
 // stacks (babel-plugin + unplugin in same monorepo) produce byte-identical import-region
 // layouts. version-pin via shared `@core-js/compat` workspace dependency in package.json
-// of all three consumers; do NOT branch the comparator per call site without bumping the
+// of all consumers; do NOT branch the comparator per call site without bumping the
 // peer-version requirement on the shared compat-data sibling
 export function polyfillOrderComparator(a, b) {
   const oa = polyfillOrder.get(a) ?? Infinity;
   const ob = polyfillOrder.get(b) ?? Infinity;
-  if (oa !== ob && Number.isFinite(oa - ob)) return oa - ob;
+  // both ranks finite (both known and distinct): numeric subtraction. ranks are
+  // unique per module name (Map from registry keys to their index), so equal-rank
+  // only happens when a === b - lex tiebreak below returns 0 for that case too.
+  // mixed known/unknown produces +/-Infinity (not finite); unknown/unknown yields
+  // NaN. both fall through to lex so the registry's omission can't make the
+  // relative order non-deterministic
+  if (Number.isFinite(oa - ob)) return oa - ob;
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
