@@ -122,7 +122,7 @@ import {
   symbolKeyToEntry,
 } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 
-const { check, checkTruthy, fail, finish, pass, runBoth } = createChecker('resolve-node-type');
+const { check, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree } = createChecker('resolve-node-type');
 
 // NOTE: `constructor` as a destructured key reads via prototype chain
 // (`Object.prototype.constructor` = the Object function), so a missing slot would
@@ -775,18 +775,18 @@ runBoth('utility: Pick<{x: string, y: number}, "x"> -> object',
 
 // --- Symbol-keyed access on instance ---
 
-runBoth('Symbol.iterator access on Array instance does not crash resolver',
+// the resolver should at least handle the chained call without throwing -
+// result may be null (Symbol.iterator return-type isn't statically tabulated).
+// `runBothAndAgree` ensures the parsers don't DIVERGE: previously each adapter
+// independently accepted null, so one returning null and the other returning a
+// Type would still pass. now both must produce the same shape, catching the
+// cross-parser regression class
+runBothAndAgree('Symbol.iterator access on Array instance agrees across parsers',
   'const a = [1, 2]; const it = a[Symbol.iterator]();',
-  (adapter, prog, lbl) => {
-    // the resolver should at least handle the chained call without throwing -
-    // result may be null (Symbol.iterator return-type isn't statically tabulated)
-    // but we verify no exception escapes
+  (adapter, prog) => {
     const call = adapter.pickPath(prog, 'CallExpression');
     const resolver = adapter.makeResolver();
-    try {
-      resolver.resolveNodeType(call);
-      pass();
-    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
+    return resolver.resolveNodeType(call);
   });
 
 // --- globalThis member access ---
