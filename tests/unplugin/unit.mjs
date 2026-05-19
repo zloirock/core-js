@@ -1724,6 +1724,63 @@ check('canFuseWithOpenParen/NBSP between token and paren',
   canFuseWithOpenParen('foo() \n(', 7), true);
 check('canFuseWithOpenParen/BOM mid-file as whitespace',
   canFuseWithOpenParen('foo()﻿\n(', 7), true);
+// multi-line string via `\<LineTerminator>` continuation: line 2 starts INSIDE the string,
+// so a `//` there is content, not a line comment. closing `"` IS the significant boundary
+check('canFuseWithOpenParen/line-continuation string',
+  canFuseWithOpenParen('var s = "foo\\\n//bar"\n', 20), true);
+// multi-line template literal: `\n` inside backticks doesn't break the template; `//`
+// inside is content. closing `` ` `` IS significant
+check('canFuseWithOpenParen/multi-line template',
+  canFuseWithOpenParen('var t = `a\n//b`\n', 15), true);
+// `${...}` template expression - chunk before and after `${...}` are template regions;
+// the expression body is JS context. closing `` ` `` IS significant
+check('canFuseWithOpenParen/template with expression',
+  // eslint-disable-next-line no-template-curly-in-string -- intentional template literal as plain string for the source-under-test
+  canFuseWithOpenParen('var t = `a${1}b`\n', 16), true);
+// `/*` substring inside a string literal - lastIndexOf-based block-comment back-scan
+// previously matched it as a real opener. with the literal-region scanner, the `/` at end
+// (an unrelated `*/` shape) is correctly significant since it sits OUTSIDE any region
+check('canFuseWithOpenParen/asterisk-slash with /* in earlier string',
+  canFuseWithOpenParen('var s = "/* x"; */', 18), true);
+// nested template inside `${...}` expression: scanner must recursively classify the inner
+// template's content too. inner closing `` ` `` is the significant boundary
+check('canFuseWithOpenParen/nested template in expression',
+  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
+  canFuseWithOpenParen('var t = `a${`b`}c`', 18), true);
+// triple-nested template (`${`${`x`}`}`) - exercises depth-N recursion in tryScanLiteralAt
+check('canFuseWithOpenParen/triple-nested template',
+  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
+  canFuseWithOpenParen('var t = `a${`b${`c`}b`}a`', 25), true);
+// string literal inside `${...}` body must classify as JS context's literal (not as
+// part of template). closing `` ` `` of outer template IS the significant boundary
+check('canFuseWithOpenParen/string in template expression',
+  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
+  canFuseWithOpenParen('var t = `${"hi"}`', 17), true);
+// block comment inside `${...}` body: `//` is a real comment in JS context, not template
+// content. tested via no-shadow case - presence of comment doesn't change classification
+check('canFuseWithOpenParen/block comment in template expression',
+  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
+  canFuseWithOpenParen('var t = `${/* c */1}`', 21), true);
+// escaped quote inside string - `\\"` doesn't close the string; closing `"` IS the one
+// after the escape
+check('canFuseWithOpenParen/escaped quote in string',
+  canFuseWithOpenParen('var s = "a\\"b"', 14), true);
+// unescaped line terminator ends a string (spec SyntaxError but scanner stays robust).
+// scanner bails at the LT; the LT itself is whitespace, the `'` opener is significant
+check('canFuseWithOpenParen/unterminated string at newline',
+  canFuseWithOpenParen("var s = 'foo\n", 13), true);
+// unterminated template extends to end of source. closing `` ` `` is missing; the LAST
+// char of the source (still inside the template region) is reported as significant
+check('canFuseWithOpenParen/unterminated template',
+  canFuseWithOpenParen('var t = `foo', 12), true);
+// CRLF inside `\<CR><LF>` line continuation - both chars consumed by the escape
+check('canFuseWithOpenParen/CRLF line continuation in string',
+  canFuseWithOpenParen('var s = "a\\\r\nb"', 16), true);
+// mixed quote styles - each closes only on its own opening char
+check('canFuseWithOpenParen/single quotes inside double',
+  canFuseWithOpenParen('var s = "a\'b\'c"', 15), true);
+check('canFuseWithOpenParen/double quotes inside single',
+  canFuseWithOpenParen('var s = \'a"b"c\'', 15), true);
 
 // --- hasCoreJSPureImport: fingerprint pre-pass against configured packages ---
 function checkHasPureImport(label, src, packages, expected) {
