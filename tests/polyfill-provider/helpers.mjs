@@ -24,6 +24,7 @@ import {
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
+import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkTruthy, finish, throwsWith } = createChecker('helpers');
@@ -499,6 +500,72 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
   });
   checkTruthy('parseDisableDirectives/JSDoc continuation directive recognised',
     result instanceof Set && result.size > 0);
+}
+
+// --- tagError ---
+
+// happy path: stamps `[core-js] [tag] ` prefix on string `.message`
+{
+  const error = new Error('boom');
+  tagError(error, 'input.ts');
+  check('tagError/stamps prefix', error.message, '[core-js] [input.ts] boom');
+}
+
+// idempotent: already-tagged messages are not double-stamped
+{
+  const error = new Error('[core-js] [input.ts] already tagged');
+  tagError(error, 'input.ts');
+  check('tagError/idempotent on same tag', error.message, '[core-js] [input.ts] already tagged');
+}
+
+// bare `[core-js]` (no `[tag]`) does NOT block re-tagging: file marker still useful
+{
+  const error = new Error('[core-js] inner callback failed');
+  tagError(error, 'input.ts');
+  check('tagError/re-tags bare core-js prefix', error.message,
+    '[core-js] [input.ts] [core-js] inner callback failed');
+}
+
+// non-string tag: defensive short-circuit (caller plumbing typo would otherwise stringify)
+{
+  const error = new Error('boom');
+  tagError(error, undefined);
+  check('tagError/undefined tag skips', error.message, 'boom');
+  tagError(error, null);
+  check('tagError/null tag skips', error.message, 'boom');
+  tagError(error, 42);
+  check('tagError/number tag skips', error.message, 'boom');
+}
+
+// non-string `.message`: user Error subclass with object message, missing-message object
+{
+  const error = { message: { code: 'EBUSY' } };
+  tagError(error, 'input.ts');
+  check('tagError/object message skips', JSON.stringify(error.message), '{"code":"EBUSY"}');
+  // a primitive `throw 'oops'` arrives at catch as the string itself; `.message`
+  // on a String / Number / plain object lookup is `undefined`, which hits the same
+  // typeof short-circuit
+  const noMessage = {};
+  tagError(noMessage, 'input.ts');
+  check('tagError/undefined message skips', noMessage.message, undefined);
+}
+
+// null / undefined error: no crash (defensive)
+{
+  let crashed = false;
+  try {
+    tagError(null, 'input.ts');
+    tagError(undefined, 'input.ts');
+  } catch { crashed = true; }
+  check('tagError/null/undefined error survives', crashed, false);
+}
+
+// frozen Error instance: TypeError on assignment swallowed, original message preserved
+{
+  const error = new Error('frozen original');
+  Object.freeze(error);
+  tagError(error, 'input.ts');
+  check('tagError/frozen error preserves message', error.message, 'frozen original');
 }
 
 finish();
