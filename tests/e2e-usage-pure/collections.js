@@ -115,6 +115,32 @@ QUnit.test('Map: getOrInsertComputed', assert => {
   assert.same(v2, 3);
 });
 
+// Map.getOrInsert - value-insert variant of getOrInsertComputed. existing-key
+// short-circuit must return the stored value without overwriting
+QUnit.test('Map: getOrInsert', assert => {
+  const m = new Map();
+  assert.same(m.getOrInsert('key', 42), 42);
+  assert.same(m.getOrInsert('key', 99), 42);
+  assert.same(m.get('key'), 42);
+});
+
+// WeakMap.getOrInsertComputed - callback variant for WeakMap. callback runs once
+// per fresh key; subsequent calls return the FIRST inserted value without
+// re-invoking. complement to existing `WeakMap: getOrInsert` test above
+QUnit.test('WeakMap: getOrInsertComputed', assert => {
+  const wm = new WeakMap();
+  const key = { id: 7 };
+  let invocations = 0;
+  const v1 = wm.getOrInsertComputed(key, k => {
+    invocations += 1;
+    return k.id * 10;
+  });
+  assert.same(v1, 70);
+  const v2 = wm.getOrInsertComputed(key, () => 999);
+  assert.same(v2, 70);
+  assert.same(invocations, 1);
+});
+
 QUnit.test('WeakMap: keys derived from Array.from-built array of objects', assert => {
   const data = new WeakMap();
   const keys = Array.from({ length: 3 }, () => ({}));

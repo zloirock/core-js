@@ -101,3 +101,36 @@ QUnit.test('Iterator.from: map + filter + drop + take chain', assert => {
     .toArray();
   assert.deepEqual(result, [16, 25, 36]);
 });
+
+// AsyncIterator helpers - mirror of the sync `Iterator.from + Iterator#X` set
+// against the async-iterator pipeline. existence-only check in globals.js
+// (`isFunction(AsyncIterator.from)`) doesn't exercise runtime dispatch through
+// `.next()`-await chains. source via `AsyncIterator.from([...])` - wraps a sync
+// iterable into an async iterator (each value resolved through `Promise.resolve`
+// per spec). this is the pure-mode entry to the async-helper pipeline;
+// `Iterator.from(arr).toAsync()` lives on the sync iterator class and isn't the
+// surface that exercises AsyncIterator's own prototype methods
+QUnit.test('AsyncIterator#map', assert => {
+  const async = assert.async();
+  AsyncIterator.from([1, 2, 3]).map(x => x * 10).toArray().then(arr => {
+    assert.deepEqual(arr, [10, 20, 30]);
+    async();
+  });
+});
+
+QUnit.test('AsyncIterator#filter + take chain', assert => {
+  const async = assert.async();
+  AsyncIterator.from([1, 2, 3, 4, 5]).filter(x => x % 2).take(2).toArray().then(arr => {
+    assert.deepEqual(arr, [1, 3]);
+    async();
+  });
+});
+
+QUnit.test('AsyncIterator#forEach', assert => {
+  const async = assert.async();
+  const collected = [];
+  AsyncIterator.from([1, 2, 3]).forEach(x => collected.push(x)).then(() => {
+    assert.deepEqual(collected, [1, 2, 3]);
+    async();
+  });
+});

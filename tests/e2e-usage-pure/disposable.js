@@ -1,5 +1,9 @@
 // DisposableStack / AsyncDisposableStack / SuppressedError / Symbol.dispose
 
+/* eslint-disable es/no-async-functions -- async function declarations exercise
+   the AsyncDisposableStack / `await using` runtime; babel-loader transpiles
+   them before reaching the test harness so old-engine compat lives downstream */
+
 QUnit.test('DisposableStack: defer', assert => {
   const log = [];
   const stack = new DisposableStack();
@@ -89,4 +93,32 @@ QUnit.test('using: Symbol.dispose class returning polyfill-built data', assert =
     assert.deepEqual(lock.names(), ['a', 'b']);
   }
   assert.same(disposed, 1);
+});
+
+// `await using` runtime: companion to the sync `using` test above. async-dispose
+// resource must run on block exit AND be awaited before control resumes past the
+// enclosing async function. `Symbol.asyncDispose` returns a thenable; the runtime
+// awaits it implicitly. existence-only check in `Symbol.asyncDispose exists`
+// above doesn't exercise the await-on-exit semantics
+QUnit.test('await using: Symbol.asyncDispose awaits on block exit', assert => {
+  const async = assert.async();
+  const log = [];
+  class AsyncLock {
+    async [Symbol.asyncDispose]() {
+      await Promise.resolve();
+      log.push('disposed');
+    }
+  }
+  async function run() {
+    await using lock = new AsyncLock();
+    // touch `lock` so the binding isn't flagged unused while keeping the test's
+    // focus on the implicit-disposal sequencing rather than method calls
+    log.push(lock instanceof AsyncLock ? 'body' : 'body-mismatch');
+  }
+  run().then(() => {
+    // disposal ran AFTER the body and BEFORE the .then() callback - log order
+    // pins the await-on-exit contract
+    assert.deepEqual(log, ['body', 'disposed']);
+    async();
+  });
 });

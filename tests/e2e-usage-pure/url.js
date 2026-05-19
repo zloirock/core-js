@@ -55,3 +55,17 @@ QUnit.test('URLSearchParams: entries/keys/values', assert => {
   assert.deepEqual(Array.from(params.keys()), ['a', 'b']);
   assert.deepEqual(Array.from(params.values()), ['1', '2']);
 });
+
+// `size` getter (separate polyfill module from constructor + mutators). counts
+// entries INCLUDING duplicates - `a=1&a=2` is size 2, not 1. mutation through
+// append / delete must update the count without explicit re-sync
+QUnit.test('URLSearchParams: size getter', assert => {
+  assert.same(new URLSearchParams('').size, 0);
+  assert.same(new URLSearchParams('a=1').size, 1);
+  assert.same(new URLSearchParams('a=1&b=2&a=3').size, 3);
+  const params = new URLSearchParams('x=1');
+  params.append('y', '2');
+  assert.same(params.size, 2);
+  params.delete('x');
+  assert.same(params.size, 1);
+});
