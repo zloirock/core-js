@@ -21,7 +21,7 @@
 // `walkStaticReceiverChain` for `extends NS.Inner.Class` lookups
 import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
 import { createMemberWriteShape, memberWriteTargetPath } from './class-member-shapes.js';
-import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { unwrapExpressionChain, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
@@ -53,16 +53,16 @@ export function createClosureAnalysis({
     });
   }
 
-  // does the write's receiver Identifier resolve (via scope-binding identity) to a name in
-  // the alias closure? matches `o.x = ...`, `alias.x = ...` etc. for any `alias` in the
-  // closure (`Map<name, binding>` from `computeObjectAliasClosure` / `collectClassInstanceClosure`).
-  // shadowed same-name bindings in nested scopes are rejected by the scope-binding identity
-  // check. shared between object-literal and class-instance write filters
+  // does the write's receiver Identifier resolve (via scope-binding identity) to a binding
+  // in the alias closure? matches `o.x = ...`, `alias.x = ...` etc. for any `alias` in
+  // the closure (`Map<binding, name>` from `computeObjectAliasClosure` / `collectClassInstanceClosure` -
+  // see structure rationale at `computeAliasClosureFromBinding`). TS expression wrappers
+  // (`(c as any).x = Y`) peeled so the inner Identifier identity-checks against the closure
   function isReceiverInClosure(objPath, closure) {
-    if (!t.isIdentifier(objPath.node)) return false;
-    const trackedBinding = closure.get(objPath.node.name);
-    if (!trackedBinding) return false;
-    return objPath.scope?.getBinding(objPath.node.name) === trackedBinding;
+    const node = unwrapRuntimeExpr(objPath.node);
+    if (!t.isIdentifier(node)) return false;
+    const binding = objPath.scope?.getBinding(node.name);
+    return !!binding && closure.has(binding);
   }
 
   // classify a closure-binding-name reference's contribution to temporal-flow bounding:
@@ -140,7 +140,7 @@ export function createClosureAnalysis({
     return memoize(closureTemporalBoundCache, closure, () => {
       const { classifiedByBinding } = buildProgramClosureIndex(programPath);
       let latestCallStart = -Infinity;
-      for (const binding of closure.values()) {
+      for (const binding of closure.keys()) {
         const refs = classifiedByBinding.get(binding);
         if (!refs) continue;
         for (const cls of refs) {
@@ -210,8 +210,10 @@ export function createClosureAnalysis({
   // (destructured ids, etc.) and direct `new C()` in unsafe positions (function arg /
   // return / spread / ...) signal "unmonitored channel" and the entire closure bails to null.
   // anonymous classes (no `className`) bail unconditionally - external writes via instance
-  // are unenumerable without a stable name. returned `Map<name, binding>` plugs into
-  // `isReceiverInClosure` and `getClosureTemporalBound` the same way the object closure does
+  // are unenumerable without a stable name. returned `Map<binding, name>` plugs into
+  // `isReceiverInClosure` and `getClosureTemporalBound` the same way the object closure does -
+  // binding identity is the unique key so a shadowed name (`const c = new C()` in two
+  // sibling scopes) keeps both bindings instead of overwriting one
   function collectClassInstanceClosure(classPath, programPath) {
     const desc = collectClassDescendantPaths(classPath, programPath);
     if (!desc) return null;
@@ -229,7 +231,7 @@ export function createClosureAnalysis({
         const binding = declarator.scope?.getBinding(id.name);
         const sub = computeAliasClosureFromBinding({ rootBinding: binding, rootName: id.name, anchorPath: declarator });
         if (sub === null) return null;
-        for (const [k, b] of sub) closure.set(k, b);
+        for (const [b, k] of sub) closure.set(b, k);
       }
     }
     return closure;
@@ -267,29 +269,39 @@ export function createClosureAnalysis({
     });
   }
 
-  // canonical name for an `extends` clause node. Identifier returns its name; non-computed
-  // MemberExpression resolves through proxy-global walk (`globalThis.X.Foo` chains) OR
-  // walkStaticReceiverChain (const-bound `NS.Inner.Foo` chains, with class-leaf accept).
-  // walks the member chain into root + walkPath, so multi-hop user namespaces work the
-  // same as single-hop. returns null for any unsupported shape - registering under a wrong
-  // name would WIDEN the base's field-type fold with non-subclass writes, so safe miss
-  // preferred over false-positive
-  function extendsClauseName(superClass, scope) {
-    if (superClass?.type === 'Identifier') {
-      // walk const-alias chain: `class Sub extends Alias` with `const Alias = Base` must
-      // register under canonical 'Base' name so subclass writes reach Base's flow tracker.
-      // single-hop Identifier inits only (TS cast peeled); member-shape inits fall through
-      // to the existing globalProxyMemberName / walkStaticReceiverChain paths above
-      let { name } = superClass;
-      const seen = new Set();
-      while (!seen.has(name)) {
-        seen.add(name);
-        const init = unwrapRuntimeExpr(scope?.getBinding?.(name)?.path?.node?.init);
-        if (init?.type !== 'Identifier') break;
-        name = init.name;
-      }
-      return name;
+  // walk an Identifier's const-alias chain to its canonical root name. follows
+  // `const Alias = Source` chains until init is non-Identifier (root reached) or a
+  // terminating condition triggers null:
+  //   - cycle (`let A = B; let B = A;`): mutual aliases have no canonical anchor
+  //   - `constantViolations` (`let A = X; A = Y;`): runtime value unknown at use site
+  // `unwrapExpressionChain` peels Paren / SE / TS / ChainExpression on each init step
+  // so `const Alias = (side(), Base as any)` resolves through to the inner Identifier.
+  // returns the canonical name on Identifier-init terminal, the start name on missing
+  // binding or non-Identifier init, null on cycle / let-rebind
+  function aliasChainCanonicalName(name, scope) {
+    const seen = new Set();
+    while (!seen.has(name)) {
+      seen.add(name);
+      const binding = scope?.getBinding?.(name);
+      if (binding?.constantViolations?.length) return null;
+      const init = unwrapExpressionChain(binding?.path?.node?.init);
+      if (init?.type !== 'Identifier') return name;
+      name = init.name;
     }
+    return null;
+  }
+
+  // canonical name for an `extends` clause node. Identifier dispatches to the alias-chain
+  // walker; non-computed MemberExpression resolves through proxy-global walk
+  // (`globalThis.X.Foo` chains) OR `walkStaticReceiverChain` (const-bound `NS.Inner.Foo`
+  // chains, with class-leaf accept). walks the member chain into root + walkPath, so
+  // multi-hop user namespaces work the same as single-hop. returns null for any
+  // unsupported shape - registering under a wrong name would WIDEN the base's field-type
+  // fold with non-subclass writes, so safe miss preferred over false-positive.
+  // entry-level TS peel handles `class Child extends (Base as typeof Base) {}` etc.
+  function extendsClauseName(superClass, scope) {
+    superClass = unwrapRuntimeExpr(superClass);
+    if (superClass?.type === 'Identifier') return aliasChainCanonicalName(superClass.name, scope);
     if (superClass?.type !== 'MemberExpression' || superClass.computed) return null;
     const proxy = globalProxyMemberName({ node: superClass, scope, adapter: babelBindingAdapter, path: null });
     if (proxy) return proxy;
@@ -338,10 +350,14 @@ export function createClosureAnalysis({
   // `predicate(objPath)` that decides whether this write's receiver belongs to the field's
   // monitored set. `this.<fieldName> = ...` writes are scanned separately by the per-owner
   // this-writes index (`getInstanceMethodThisWrites` / `getStaticMethodThisWrites`), so
-  // they're skipped here to avoid double-counting
+  // they're skipped here to avoid double-counting.
+  // TS expression wrappers (`(this as any).x = Y`, `(c as any).x = Y`) peeled before the
+  // `this` discriminator so wrapped this-writes don't escape the dedicated index and
+  // wrapped receiver Identifiers reach the closure-membership check via isReceiverInClosure
   function pushIfWriteMatches(writePath, predicate, out) {
     const objPath = memberWriteTargetPath(writePath).get('object');
-    if (t.isThisExpression(objPath.node)) return;
+    const peeled = unwrapRuntimeExpr(objPath.node);
+    if (t.isThisExpression(peeled)) return;
     if (!predicate(objPath)) return;
     const contributed = writePathContributedType(writePath);
     if (contributed) out.push(contributed);
