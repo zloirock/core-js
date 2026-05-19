@@ -37,6 +37,26 @@ QUnit.test('Promise.try', assert => {
   });
 });
 
+// rejection paths - happy path covers callback returning a value; the other two
+// branches (synchronous throw inside callback, callback returning a rejected
+// thenable) must funnel through the returned promise's catch handler rather
+// than surface synchronously
+QUnit.test('Promise.try with synchronous throw', assert => {
+  const async = assert.async();
+  Promise.try(() => { throw new Error('sync-throw'); }).catch(error => {
+    assert.same(error.message, 'sync-throw');
+    async();
+  });
+});
+
+QUnit.test('Promise.try with rejecting thenable result', assert => {
+  const async = assert.async();
+  Promise.try(() => Promise.reject(new Error('async-reject'))).catch(error => {
+    assert.same(error.message, 'async-reject');
+    async();
+  });
+});
+
 QUnit.test('Promise.withResolvers', assert => {
   const { promise, resolve } = Promise.withResolvers();
   const async = assert.async();
@@ -81,6 +101,28 @@ QUnit.test('Promise.any', assert => {
     Promise.resolve(3),
   ]).then(value => {
     assert.same(value, 2);
+    async();
+  });
+});
+
+// rejection path - when ALL promises reject, `Promise.any` rejects with an
+// AggregateError-shaped value whose `.errors` array preserves each input
+// rejection in order. structural check only: `instanceof AggregateError` is
+// runtime-dependent in pure mode (a native rejection from `Promise.any` may not
+// share identity with the polyfilled `AggregateError` constructor when both
+// exist). only-success path is covered above; this validates the `.errors`
+// shape + reason propagation specific to the all-rejected branch
+QUnit.test('Promise.any all-rejected returns AggregateError-shaped reason', assert => {
+  const async = assert.async();
+  Promise.any([
+    Promise.reject(new Error('a')),
+    Promise.reject(new Error('b')),
+    Promise.reject(new Error('c')),
+  ]).catch(error => {
+    assert.same(error.name, 'AggregateError');
+    assert.same(error.errors.length, 3);
+    assert.same(error.errors[0].message, 'a');
+    assert.same(error.errors[2].message, 'c');
     async();
   });
 });
