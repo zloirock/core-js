@@ -262,6 +262,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (depth > MAX_DEPTH) return null;
     const literal = literalKeyValue(key);
     if (literal !== null) return literal;
+    // single-quasi TemplateLiteral (`` `foo` `` with no interpolations) resolves to its
+    // cooked text. matches `getMemberProperty`'s template handling so `box.kind === \`A\``
+    // (and identifier chains pointing at such templates) classify the same as `'A'`
+    const quasi = singleQuasiString(key);
+    if (quasi !== null) return quasi;
     if (!scope) return null;
     if (key?.type === 'Identifier') {
       const binding = scope.getBinding?.(key.name);
