@@ -253,17 +253,20 @@ export function createCallResolution({
   }
 
   // shared member-by-name lookup against a single (non-union) type's structural members.
-  // returns annotation + scope on hit, null on miss (no members / no matching key)
+  // returns annotation + scope on hit, null on miss (no members / no matching key).
+  // TSMethodSignature non-getter members yield the SIGNATURE node itself (a function-shaped
+  // annotation) instead of its `typeAnnotation` slot - the slot IS the return type, but
+  // `obj.method` as an expression evaluates to the FUNCTION value, not its return. callers
+  // calling the result (`obj.method()`) extract the return via `functionTypeReturnAnnotation`
+  // downstream; callers using the bare member (`const fn = obj.method`) see the function
+  // type and can dispatch via `fn()` later. getters and plain properties stay value-typed
   function resolveMemberInTypeMembers({ typeNode, propName, scope, subst }) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
-      // getters are TSMethodSignature with kind:'get' but semantically read the return
-      // type, not a function. regular methods fall through to the method-signature node
-      // so downstream sees a function type for `const fn = obj.method`
       const isMethodProper = m.type === 'TSMethodSignature' && m.kind !== 'get';
-      const raw = m.typeAnnotation ?? m.returnType ?? (isMethodProper ? m : null);
+      const raw = isMethodProper ? m : (m.typeAnnotation ?? m.returnType);
       if (!raw) continue;
       return { annotation: applySubst(raw, subst), scope };
     }
@@ -341,21 +344,27 @@ export function createCallResolution({
         // defaults via `buildCallSiteSubst`. inferred path bridges the gap babel itself
         // covers via TS's structural inference - without it, `function makeBox<T>(t: T): {value: T}`
         // returned `{value: T}` unsubstituted, dropping array narrowing on `b.value.at(0)`
+        // symmetric unwrap: both branches return the post-`unwrapTypeAnnotation` value so
+        // downstream consumers don't have to peel TSTypeAnnotation differently depending on
+        // whether type-args were applied
         const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node);
-        const annotation = subst
-          ? applyAliasSubstDeep(unwrapTypeAnnotation(fnPath.node.returnType), subst)
-          : fnPath.node.returnType;
+        const rawReturn = unwrapTypeAnnotation(fnPath.node.returnType);
+        const annotation = subst ? applyAliasSubstDeep(rawReturn, subst) : rawReturn;
         return { annotation, scope: fnPath.scope };
       }
-      // typed method call: w.inner.value() - resolve callee's annotation, extract return type
+      // typed method call: w.inner.value() - resolve callee's annotation, extract return type.
+      // ONLY function-shaped annotations (TSFunctionType / TSMethodSignature / etc.) produce
+      // a return type; non-function property annotations (`{ value: string }`) bail here
+      // rather than leak as a fake return type. previously a `?? unwrappedMember` fallback
+      // used the property annotation itself as the call's return value, mis-narrowing
+      // downstream chains - `w.value().X` would see `string` as the receiver of `.X`
+      // even though `value()` is a TypeError at runtime
       const callee = path.get('callee');
       if (callee.node.type === 'MemberExpression' || callee.node.type === 'OptionalMemberExpression') {
         const memberInfo = findExpressionAnnotation(callee, depth + 1);
         if (memberInfo) {
           const unwrappedMember = unwrapTypeAnnotation(memberInfo.annotation);
-          // TSFunctionType -> extract return type; TSMethodSignature's typeAnnotation
-          // is already the return type (not a function wrapper), use it directly
-          const ret = functionTypeReturnAnnotation(unwrappedMember) ?? unwrappedMember;
+          const ret = functionTypeReturnAnnotation(unwrappedMember);
           if (ret) return { annotation: ret, scope: memberInfo.scope };
         }
       }
@@ -382,13 +391,17 @@ export function createCallResolution({
   // annotation onto T). limited to direct `T` param shapes (not container wrappers like
   // `T[]` / `Array<T>` / `Promise<T>`) so this stays cheap and doesn't rebuild
   // `buildTypeParamMap`'s full container-aware inference. depth threading prevents
-  // recursion blowup when the arg's annotation lookup recurses through chained calls
+  // recursion blowup when the arg's annotation lookup recurses through chained calls.
+  // SpreadElement bails the whole inference - spread expands into unknown count of
+  // positional args at runtime, so positional param-to-arg mapping breaks (the spread
+  // may consume the T-typed param and `args[i]` lands on a later, unrelated arg)
   function inferCallSiteSubst(fnNode, callPath, depth) {
     if (getTypeArgs(callPath.node)?.params?.length) return null;
     const fnTypeParams = fnNode.typeParameters?.params;
     if (!fnTypeParams?.length) return null;
     const paramNames = new Set(fnTypeParams.map(typeParamName).filter(Boolean));
     const args = callPath.get('arguments');
+    if (args.some(a => a.node?.type === 'SpreadElement')) return null;
     const { params } = fnNode;
     const subst = new Map();
     const limit = Math.min(params.length, args.length);

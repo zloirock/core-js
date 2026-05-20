@@ -19,7 +19,7 @@
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH } from './base.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { getSuperTypeArgs } from '../helpers/ast-patterns.js';
+import { getSuperTypeArgs, isAmbientBindingShape } from '../helpers/ast-patterns.js';
 
 export function createGlobalResolve({
   t,
@@ -31,6 +31,16 @@ export function createGlobalResolve({
   resolveKnownContainerType,
   resolveTypeAnnotation,
 }) {
+  // TS-runtime shadow filter: raw `scope.getBinding(name)` returns a binding for `declare
+  // const X` / `import type { X }` / TSEnumDeclaration / TSInterfaceDeclaration / etc.,
+  // but at RUNTIME those declarations are elided by tsc and `name` falls through to the
+  // global. without the filter, `declare const Map: any; new Map()` reads as
+  // "Map shadowed locally -> not global" and the polyfill emit suppression breaks
+  function hasRuntimeBinding(scope, name) {
+    const binding = scope?.getBinding(name);
+    if (!binding) return false;
+    return !isAmbientBindingShape(binding.path?.node, binding.path?.parent);
+  }
   function isGlobalThis(path) {
     let current = path;
     while (current = current.parentPath) {
@@ -45,7 +55,7 @@ export function createGlobalResolve({
 
   function isGlobalProxy(objectPath) {
     if (t.isIdentifier(objectPath.node)) {
-      return POSSIBLE_GLOBAL_OBJECTS.has(objectPath.node.name) && !objectPath.scope?.getBinding(objectPath.node.name);
+      return POSSIBLE_GLOBAL_OBJECTS.has(objectPath.node.name) && !hasRuntimeBinding(objectPath.scope, objectPath.node.name);
     }
     // top-level `this` (not inside any non-arrow function or class) is a global proxy
     return t.isThisExpression(objectPath.node) && isGlobalThis(objectPath);
@@ -64,13 +74,13 @@ export function createGlobalResolve({
     const walked = resolveRuntimeExpression(path);
     const node = walked?.node;
     if (!node || node === path.node || !t.isIdentifier(node)) return null;
-    if (walked.scope?.getBinding(node.name)) return null;
+    if (hasRuntimeBinding(walked.scope, node.name)) return null;
     return resolveKnownConstructor(node.name) ? node.name : null;
   }
 
   function resolveGlobalName(path) {
     if (t.isIdentifier(path.node)) {
-      return path.scope?.getBinding(path.node.name)
+      return hasRuntimeBinding(path.scope, path.node.name)
         ? resolveAliasedGlobalName(path)
         : path.node.name;
     }
