@@ -98,12 +98,18 @@ export function createMemberResolve({
     let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
     const scopeRef = binding.path.scope;
     // props collected leaf-first; consume from the end to walk root-down. last entry stays
-    // for the leaf-member lookup below (its raw signature is what callers need)
+    // for the leaf-member lookup below (its raw signature is what callers need).
+    // intermediate-hop TSMethodSignature bails - `obj.fn.x` accesses `.x` on the FUNCTION
+    // value (Function.prototype.x or undefined), not on the method's return type. previous
+    // auto-call shortcut (read m.typeAnnotation as if `obj.fn()` was invoked) silently
+    // narrowed downstream chains through the return type even though no call happened
     for (let i = props.length - 1; i > 0; i--) {
       if (!annotation) return null;
       const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
       const m = members?.find(mm => keyMatchesName(mm.key, props[i]));
-      annotation = m ? unwrapTypeAnnotation(m.typeAnnotation ?? m.returnType) : null;
+      if (!m) return null;
+      if (m.type === 'TSMethodSignature' && m.kind !== 'get') return null;
+      annotation = unwrapTypeAnnotation(m.typeAnnotation ?? m.returnType);
     }
     if (!annotation) return null;
     const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
@@ -411,10 +417,18 @@ export function createMemberResolve({
   // collect runtime member-expression segments: bare `E` -> ['E'], non-computed dotted chain
   // `N.E` -> ['N', 'E'], deeper `N.M.E` -> ['N', 'M', 'E']. computed / non-Identifier links
   // bail to null. parallel to type-level `collectQualifiedSegments` (which walks
-  // TSQualifiedName) - this one walks runtime MemberExpression chains
+  // TSQualifiedName) - this one walks runtime MemberExpression chains.
+  // `unwrapRuntimeExpr` peels ChainExpression / ParenthesizedExpression / TS_EXPR_WRAPPERS
+  // so optional-chained (`N?.E.A`) and cast-wrapped (`(N as typeof N).E.A`) shapes resolve
+  // through the enum lookup. OptionalMemberExpression (babel-typed optional chain shape)
+  // handled alongside MemberExpression below. without the peels,
+  // `resolveEnumMemberAccess` for `N?.E.A` bails on the first hop because `path.node.object`
+  // is a ChainExpression / OptionalMember wrapping the chain
   function collectMemberSegments(node) {
+    node = unwrapRuntimeExpr(node);
     if (node?.type === 'Identifier') return [node.name];
-    if (node?.type !== 'MemberExpression' || node.computed) return null;
+    if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+    if (node.computed) return null;
     const left = collectMemberSegments(node.object);
     if (!left || node.property?.type !== 'Identifier') return null;
     left.push(node.property.name);
