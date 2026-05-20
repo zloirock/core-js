@@ -23,6 +23,7 @@ import {
   createMemberWriteShape,
   memberWriteTargetPath,
 } from './class-member-shapes.js';
+import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 
 export function createClassFields({
   t,
@@ -127,12 +128,26 @@ export function createClassFields({
   // module-field index and is consumed by both the class-fields flow scan and the
   // class-instance closure builder)
 
+  // private class members ARE scope-closed: `#foo` is only reachable from inside the class
+  // body, so external write tracking can be skipped. covers all three private shapes:
+  //   - `#foo = init;` (ClassPrivateProperty in babel, PropertyDefinition with
+  //     PrivateIdentifier key in ESTree)
+  //   - `#foo() {}` (private method - not used as field)
+  //   - `accessor #foo = init;` (TC39 stage-3 ClassAccessorProperty with PrivateIdentifier
+  //     key in babel; ESTree shape varies). `t.isClassPrivateProperty` matches only the
+  //     babel ClassPrivateProperty shape, so the PrivateIdentifier-key check catches the
+  //     accessor variant + the ESTree PropertyDefinition shape uniformly
+  function isPrivateMember(node) {
+    if (t.isClassPrivateProperty?.(node)) return true;
+    return node?.key?.type === 'PrivateIdentifier';
+  }
+
   // dispatch to static-vs-instance pipeline. static fields are mutated via the class
   // binding (`C.x = Y`); instance fields are mutated via instance bindings (`<inst>.x = Y`)
   // including subclass instances. private fields skip external scan entirely
   function collectClassFieldCandidates(member, fieldName) {
     const classPath = member.parentPath.parentPath;
-    const isPrivate = t.isClassPrivateProperty?.(member.node);
+    const isPrivate = isPrivateMember(member.node);
     if (!isPrivate && !classBindingName(classPath)) return null;
     return member.node.static
       ? collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate })
@@ -289,12 +304,17 @@ export function createClassFields({
   // lookups instead of O(N field) full method walks. caller passes the BODY container
   // path (not the method path) so the traversal root is the body and adapters that visit
   // roots don't fire the FunctionExpression / ClassMethod skip rule on the entry point.
-  // StaticBlock has `body: Statement[]` directly on the node and is traversed in-place
+  // StaticBlock has `body: Statement[]` directly on the node and is traversed in-place.
+  // `this`-receiver check peels Paren / TS_EXPR_WRAPPERS so `(this).x = Y` and
+  // `(this as any).x = Y` resolve identically to bare `this.x = Y`. arrow expression-body
+  // class fields (`class C { f = () => this.x = "y" }`) need explicit root-visit because
+  // `path.traverse` only walks descendants - the body IS the AssignmentExpression and
+  // would be skipped without the post-traverse root handle
   function buildThisWritesIndex(methodPaths) {
     const index = new Map();
     const handle = p => {
       const target = memberWriteTargetPath(p).node;
-      if (!t.isThisExpression(target?.object)) return;
+      if (!t.isThisExpression(unwrapRuntimeExpr(target?.object))) return;
       const fieldName = memberWriteFieldName(target);
       if (!fieldName) return;
       let types = index.get(fieldName);
@@ -302,6 +322,12 @@ export function createClassFields({
       const contributed = writePathContributedType(p);
       if (contributed) types.push(contributed);
     };
+    // skip ANY function-shaped sub-tree whose body rebinds `this`: FunctionDeclaration /
+    // Expression / ObjectMethod / class wrappers. nested ClassMethod / ClassPrivateMethod /
+    // MethodDefinition are reached only through their enclosing Class node, which is
+    // already in the skip set, so they don't need explicit entries (and adding babel-
+    // incompatible ESTree names like `MethodDefinition` crashes babel-traverse).
+    // Arrow functions inherit outer `this`, so they're NOT skipped
     const visitors = {
       'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
         p.skip();
@@ -314,6 +340,11 @@ export function createClassFields({
       const target = path.node.type === 'StaticBlock' ? path : path.get('body');
       if (!target?.node) continue;
       target.traverse(visitors);
+      // arrow expression-body root: body IS the AssignmentExpression / UpdateExpression
+      // and isn't visited by path.traverse (which walks descendants only)
+      if (target.node.type === 'AssignmentExpression' || target.node.type === 'UpdateExpression') {
+        handle(target);
+      }
     }
     return index;
   }
@@ -409,13 +440,16 @@ export function createClassFields({
       for (const propPath of ownerPath.get('properties')) {
         const propNode = propPath.node;
         if (!propNode || t.isSpreadElement(propNode)) continue;
+        // getters DO contribute writes to OTHER fields: `get foo() { this.bar = "x"; ... }`
+        // reads `foo` but side-effects `bar`. previously skipped getters lost these writes,
+        // narrowing `bar` on stale init type. mirror class-side which includes getters via
+        // `isMethodMember`. only setter ARGUMENT-named field doesn't matter for THIS-write
+        // detection (setter body still scans `this.<other> = Y` writes the same way)
         if (t.isObjectMethod?.(propNode)) {
-          if (propNode.kind === 'get') continue;
           methodFns.push(methodFnPath(propPath));
           continue;
         }
-        if (t.isObjectProperty?.(propNode) && propNode.kind !== 'get'
-          && t.isFunctionExpression?.(propNode.value)) {
+        if (t.isObjectProperty?.(propNode) && t.isFunctionExpression?.(propNode.value)) {
           methodFns.push(propPath.get('value'));
         }
       }
