@@ -36,6 +36,14 @@ export function getEntrySource(node, adapter, scope) {
   if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0) {
     return extractStaticString(node.source, adapter);
   }
+  // TS `import X = require('core-js/...')` - tsc/esbuild emit this as CJS-style entry.
+  // moduleReference is TSExternalModuleReference wrapping the string literal; value-mode
+  // (no `type` modifier) is a runtime side-effect import. accept identically to bare
+  // `import 'core-js/...'` so config that targets TS-source projects registers the entry
+  if (node.type === 'TSImportEqualsDeclaration' && !node.isExport && node.importKind !== 'type'
+    && node.moduleReference?.type === 'TSExternalModuleReference') {
+    return extractStaticString(node.moduleReference.expression, adapter);
+  }
   if (node.type !== 'ExpressionStatement') return null;
   // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
