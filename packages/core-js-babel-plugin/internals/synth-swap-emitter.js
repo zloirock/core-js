@@ -191,7 +191,7 @@ export default function createSynthSwapEmitter({
       const branchPath = peelTransparentPath(innerPath.get(slot));
       if (!branchPath?.node) continue;
       const branch = branchPath.node;
-      const pure = isViableBranchForKey({ branch, key, scope: branchPath.scope, adapter, resolvePure });
+      const pure = isViableBranchForKey({ branch, key, scope: branchPath.scope, adapter, resolvePure, path: branchPath });
       if (!pure) continue;
       registerPolyfill({ targetPath: branchPath, objectPatternPath: objectPattern, key, entry: pure.entry, hintName: pure.hintName });
       registered = true;
