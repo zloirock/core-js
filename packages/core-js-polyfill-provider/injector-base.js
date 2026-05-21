@@ -245,10 +245,17 @@ export default class ImportInjectorState {
     return name;
   }
 
-  // handoff for phase: 'pre+post' so post's `uniqueName` doesn't re-probe pre's N names
+  // handoff for phase: 'pre+post' so post's `uniqueName` doesn't re-probe pre's N names.
+  // max-guard on rehydrate: rebuild from a captured snapshot must NEVER decrease the next-
+  // suffix counter. local allocations between capture and rehydrate (or a second rehydrate
+  // path) could otherwise regress numbering and produce collisions
   captureSuffixState() { return new Map(this.#nextSuffixByPrefix); }
   rehydrateSuffixState(captured) {
-    if (captured) for (const [prefix, next] of captured) this.#nextSuffixByPrefix.set(prefix, next);
+    if (!captured) return;
+    for (const [prefix, next] of captured) {
+      const current = this.#nextSuffixByPrefix.get(prefix);
+      this.#nextSuffixByPrefix.set(prefix, current === undefined ? next : Math.max(current, next));
+    }
   }
 
   // handoff for phase: 'pre+post' so post's `getPureImport(name)` resolves to the same
@@ -258,6 +265,15 @@ export default class ImportInjectorState {
   captureImportInfoByName() { return new Map(this.#importInfoByName); }
   rehydrateImportInfoByName(captured) {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
+  }
+
+  // symmetric handoff for `#reassignedBindings`: pre populates the Set via
+  // `registerBodyExtractAlias` (it sees pre-mutation `constantViolations`), post needs the
+  // same flags so `isReassignedBinding(name)` short-circuits the resolver's alias walk.
+  // without the snapshot post's Set is fresh-empty - body-extract alias detection regresses
+  captureReassignedBindings() { return new Set(this.#reassignedBindings); }
+  rehydrateReassignedBindings(captured) {
+    if (captured) for (const name of captured) this.#reassignedBindings.add(name);
   }
 
   isNameTaken(name) { return this.usedNames.has(name); }

@@ -1,5 +1,5 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage/entries';
-import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { declaresRequireBinding, wouldPromoteDirectiveAfterRemoval } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { consumeOneLineEnding, prevSignificantPos, skipGap } from './plugin-helpers.js';
 
 // detect and transform core-js entry imports (entry-global mode). `adapter` is the
@@ -7,23 +7,31 @@ import { consumeOneLineEnding, prevSignificantPos, skipGap } from './plugin-help
 // the stub `hasBinding('require')` - no polyfillHint dependency, but threading the
 // per-instance adapter keeps the call symmetric with usage-pipeline detection)
 export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
+  // toRemove: nodes to drop entirely (the common case).
+  // toReplaceWithNoop: directive-promotion guard - replace with `0;` instead of removing.
+  // when an entry sits between a real directive and a not-yet-directive string literal,
+  // bare removal would let the engine re-parse the second literal as a directive on re-parse
   const toRemove = [];
+  const toReplaceWithNoop = [];
   // stub scope: getEntrySource only consults `hasBinding('require')` to skip shadowed calls
   const shadowScope = declaresRequireBinding(ast.body) ? { hasBinding: () => true } : null;
 
-  for (const node of ast.body) {
+  for (let idx = 0; idx < ast.body.length; idx++) {
+    const node = ast.body[idx];
     const source = getEntrySource(node, adapter, shadowScope);
     if (source === null) continue;
     if (isDisabled(node)) continue;
     const entry = getCoreJSEntry(source);
     if (entry === null) continue;
     injectModulesForEntry(entry);
-    toRemove.push(node);
+    if (wouldPromoteDirectiveAfterRemoval(ast.body, idx)) toReplaceWithNoop.push(node);
+    else toRemove.push(node);
   }
 
   const removeStatement = createTopLevelStatementRemover(ms);
   for (const node of toRemove) removeStatement(node);
-  return toRemove.length > 0;
+  for (const node of toReplaceWithNoop) ms.overwrite(node.start, node.end, '0;');
+  return toRemove.length + toReplaceWithNoop.length > 0;
 }
 
 // chars that, when starting the next statement, force a call/index/divide/concat/tag/

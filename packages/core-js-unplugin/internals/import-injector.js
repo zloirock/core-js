@@ -76,6 +76,7 @@ export default class ImportInjector extends ImportInjectorState {
     for (const r of snap.flushedRefs ?? snap.refs ?? EMPTY_ARR) this.#flushedRefs.add(r);
     this.rehydrateSuffixState(snap.suffixState);
     this.rehydrateImportInfoByName(snap.importInfoByName);
+    this.rehydrateReassignedBindings(snap.reassignedBindings);
   }
 
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
@@ -97,6 +98,7 @@ export default class ImportInjector extends ImportInjectorState {
       existingPure: new Map(this.existingPureImports),
       suffixState: this.captureSuffixState(),
       importInfoByName: this.captureImportInfoByName(),
+      reassignedBindings: this.captureReassignedBindings(),
     };
   }
 
