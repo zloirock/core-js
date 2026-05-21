@@ -118,7 +118,11 @@ export default function createSynthSwapEmitter({
       // `({from: customFn})` still beats the synth-emitted default (default fires only
       // when caller-arg is undefined), preserving caller-passed values
       const rightPath = unwrapSequenceTail(wrapper.get('right'));
-      if (!t.isIdentifier(rightPath.node) && !t.isMemberExpression(rightPath.node)) return null;
+      // accept OptionalMemberExpression too (`{from} = globalThis?.Array`) - symmetric with
+      // `isExpandedClassifiableReceiver`'s `globalProxyMemberName` walk which already handles
+      // optional-chain shapes. without OME the OME-default silently bails to inline-default
+      if (!t.isIdentifier(rightPath.node) && !t.isMemberExpression(rightPath.node)
+        && !t.isOptionalMemberExpression(rightPath.node)) return null;
       // IIFE caller-arg overrides only when the default is an Identifier (resolution layer
       // requires a classifiable name); MemberExpression default has no caller-arg path,
       // falls straight through to rightPath
@@ -199,13 +203,15 @@ export default function createSynthSwapEmitter({
     return registered;
   }
 
-  // accept Identifier (`Array`) and MemberExpression (`window.Array`) receivers. for
-  // MemberExpression, unpolyfilled keys still re-read through the chain (`window.Array
-  // .other`) - each clone re-evaluates the receiver expression. trade-off: lifting the
-  // chain to a temp would change AST shape (require IIFE wrap or explicit binding) and
-  // for usage-pure mode the typical pattern is all-polyfilled keys, single re-evaluation
+  // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
+  // `globalThis?.Array`) receivers. for member-chain shapes, unpolyfilled keys still re-read
+  // through the chain (`window.Array.other`) - each clone re-evaluates the receiver expression.
+  // trade-off: lifting the chain to a temp would change AST shape (require IIFE wrap or
+  // explicit binding) and for usage-pure mode the typical pattern is all-polyfilled keys,
+  // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
+  // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
   function isReplaceableReceiver(node) {
-    return t.isIdentifier(node) || t.isMemberExpression(node);
+    return t.isIdentifier(node) || t.isMemberExpression(node) || t.isOptionalMemberExpression(node);
   }
 
   // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the
@@ -215,7 +221,12 @@ export default function createSynthSwapEmitter({
   // polyfillable global, raw Identifier otherwise. all-polyfilled cases never call
   // `getReceiverRef`, keeping the import set clean
   function buildSynthLiteral(receiver, { objectPatternNode, polyfills }) {
-    const receiverPure = resolvePure({ kind: 'global', name: receiver.name });
+    // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
+    // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
+    // probing `resolvePure` against; MemberExpression receivers fall through to the as-is
+    // member-access fallback below without spending a polyfill lookup on `undefined`
+    const receiverPure = receiver.type === 'Identifier'
+      ? resolvePure({ kind: 'global', name: receiver.name }) : null;
     const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
     let receiverRef = null;
 

@@ -1,5 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
+import { markAndPeelSkippableWrappers, singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
 
 // declaration-init peel: strip parens + TS wrappers (`unwrapRuntimeExpr`) AND the tail of
 // SequenceExpression (`(se(), receiver)` -> `receiver` at runtime). combined walks the
@@ -103,20 +103,12 @@ export function markSynthReceiverSkipped(receiver, skippedNodes) {
   while (cur) {
     skippedNodes.add(cur);
     if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
-      // walk through paren / chain / TS wrappers on `.object` adding EACH to skippedNodes.
-      // `unwrapRuntimeExpr` peels to the underlying expression but loses the wrapper
-      // identities; if the Identifier visitor inspects a paren-wrapped global LATER
-      // (`(globalThis as any).Map`), the paren / TS wrapper itself isn't in skippedNodes
-      // and the inner Identifier still fires its own polyfill, leaving an orphan import
-      let next = cur.object;
-      while (next && (next.type === 'ParenthesizedExpression' || next.type === 'ChainExpression'
-        || next.type === 'TSAsExpression' || next.type === 'TSSatisfiesExpression'
-        || next.type === 'TSTypeAssertion' || next.type === 'TSNonNullExpression'
-        || next.type === 'TSInstantiationExpression' || next.type === 'TypeCastExpression')) {
-        skippedNodes.add(next);
-        next = next.expression;
-      }
-      cur = next;
+      // walk through paren / chain / TS wrappers on `.object` adding EACH to skippedNodes
+      // via the shared `markAndPeelSkippableWrappers`. without marking the wrappers, an
+      // Identifier visitor inspecting a wrapped global LATER (`(globalThis as any).Map`)
+      // would still fire its own polyfill - leaving an orphan import (babel) or a transform-
+      // queue overlap composition error (unplugin)
+      cur = markAndPeelSkippableWrappers(cur.object, skippedNodes);
     } else break;
   }
 }

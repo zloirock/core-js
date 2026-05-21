@@ -169,16 +169,20 @@ export function createEstreeAdapter(getInjector = () => null) {
       // `polyfillHint` enables proxy-global recognition for user-imported polyfill UIDs
       // (`_Promise` -> 'Promise') so `_Promise.resolve(1)` rewrites to `_Promise$resolve(1)`
       // matching babel-plugin's behavior - constructor module typically doesn't expose
-      // statics, so the rewrite avoids a runtime undefined-call crash
-      let importSource = null;
-      if (IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)) {
-        importSource = b.path.parent?.source?.value ?? null;
-      }
+      // statics, so the rewrite avoids a runtime undefined-call crash.
+      // shadow guard (symmetric with babel-plugin): `info.source !== null` means a
+      // registered pure import - only attach `polyfillHint` when the actual scope binding
+      // IS an import too. `info.source === null` is a destructure-alias (synthetic, no
+      // standalone import) and attaches unconditionally
+      const info = getInjector()?.getBindingInfo?.(name) ?? null;
+      const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
+      const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
+      const polyfillHint = info ? (info.source === null || isImportBinding ? info.hint : null) : null;
       return {
         node: b.path.node,
         constantViolations: b.constantViolations,
         importSource,
-        polyfillHint: getInjector()?.getBindingInfo?.(name)?.hint ?? null,
+        polyfillHint,
       };
     },
     getBindingNodeType(scope, name) {

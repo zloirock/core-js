@@ -1,0 +1,9 @@
+// TS-cast around an OptionalMemberExpression branch: `cond ? Array : (globalThis?.Array as any)`.
+// `peelFallbackWrappers` strips both the TS wrapper AND the inner ChainExpression so per-branch
+// synth-swap sees the bare OME shape on both adapters. without ChainExpression in the wrapper
+// set, oxc's `ChainExpression(OME)` falls through the type check and the branch goes raw
+declare const cond: boolean;
+function f({ from } = cond ? Array : (globalThis?.Array as any)) {
+  return from([1, 2, 3]);
+}
+f();
