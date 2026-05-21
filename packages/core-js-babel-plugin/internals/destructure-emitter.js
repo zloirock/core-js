@@ -287,13 +287,16 @@ export default function createDestructureEmitter({
   // / etc.) in a BlockStatement and return the in-block path. babel's `path.insertAfter` on
   // such a slot internally wraps the slot but DOES NOT update the original path's listKey/
   // key; subsequent `path.remove()` then targets the stale slot key and silently removes
-  // the whole synthetic block. wrapping up-front and re-resolving via parent.get(key) keeps
-  // listKey/key correct for downstream insertAfter / insertBefore / remove operations
+  // the whole synthetic block. wrap via `path.replaceWith(BlockStatement)` so babel updates
+  // the slot's path state, then re-resolve to the inner body[0] path. avoids the direct
+  // `parent.node[key] = ...` AST write previously used here - replaceWith keeps the path
+  // API contract intact while still wrapping the slot atomically
   function ensureExprStmtInBlock(exprStmt) {
     const parent = exprStmt.parentPath;
     if (!isBodylessStatementSlot(parent?.node, exprStmt.node)) return exprStmt;
-    parent.node[exprStmt.key] = t.blockStatement([exprStmt.node]);
-    return parent.get(exprStmt.key).get('body')[0];
+    const innerNode = exprStmt.node;
+    exprStmt.replaceWith(t.blockStatement([innerNode]));
+    return exprStmt.get('body.0');
   }
 
   function cascadeAssignmentExpressionDestructure({ assignPath, valueNode, prop, chain, entry, hintName, peeled = null }) {
