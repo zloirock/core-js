@@ -1,13 +1,12 @@
 import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.array.at";
-// User type-predicate called via optional-member chain (`obj?.isStr(input)`). babel
-// encodes the callee as `OptionalMemberExpression`; the old `predicateCandidates` filter
-// accepted only `MemberExpression`, dropping the narrow. unplugin's ChainExpression
-// shape was handled - asymmetric behaviour between plugins. fix peels `ChainExpression`
-// and adds `OptionalMemberExpression` to both `predicateCandidates` and
-// `resolveMemberCallChain`'s walk. distinct methods per branch (.repeat vs .at) pin
-// emission: string branch -> es.string.repeat, array branch -> es.array.at; without the
-// fix both branches kept the input union and over-emitted the cross-type polyfills
+// User-defined type predicates invoked through an optional-call chain
+// (`obj?.isStr(input)`, `obj?.isArr(input)`) must still narrow the argument
+// inside the guarded branch. With `input: string | number[]`, the string branch
+// uses `.repeat(2)` and should emit only `es.string.repeat`; the array branch
+// uses `.at(-1)` and should emit only `es.array.at`. Distinct methods per branch
+// pin which guard succeeded. Same narrowing must hold whether the predicate is
+// invoked through `obj.isX(...)` or `obj?.isX(...)`.
 interface Predicates {
   isStr(x: unknown): x is string;
   isArr(x: unknown): x is number[];
