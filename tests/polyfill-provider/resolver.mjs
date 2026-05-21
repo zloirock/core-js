@@ -89,12 +89,18 @@ check('entryToGlobalHint/array/from returns null (multi-seg non-constructor)',
 // instance-only method (`array/instance/at`): rest=['instance','at'], non-constructor, null
 check('entryToGlobalHint/array/instance/at returns null',
   entryToGlobalHint('array/instance/at'), null);
-// API quirk: `entryToGlobalHint('any-uppercase-able-string')` derives a PascalCase hint
-// for ANY single-segment entry whose first kebab→Pascal char is uppercase. doesn't actually
-// validate against registry - intentional: callers that need binding-resolution use
-// `resolvePure`'s `hasOwn(desc, 'pure')` gate as last line of defence
-check('entryToGlobalHint/single-segment kebab derives hint regardless of registry',
-  entryToGlobalHint('not-a-real-thing-xyz'), 'NotARealThingXyz');
+// kebab-derived hint validates against KNOWN_GLOBAL_NAMES (globals + statics in
+// built-in-definitions). single-segment entries like `get-iterator`, `is-iterable`,
+// `not-a-real-thing-xyz` derive a plausible PascalCase but bail when the result isn't
+// a registered global - prevents downstream resolveSuperImportName from over-injecting
+// against fabricated names
+check('entryToGlobalHint/single-segment kebab bails on unknown global',
+  entryToGlobalHint('not-a-real-thing-xyz'), null);
+// `eval-error` -> `EvalError`: kebab-derived AND registered as a global with pure ctor.
+// `entryHintIndex` already covers it via the constructor-deps scan; this checks the
+// fallback path stays sound for entries whose registry registration could lapse
+check('entryToGlobalHint/single-segment kebab returns registered global',
+  entryToGlobalHint('eval-error'), 'EvalError');
 // digit-leading: kebab→Pascal first char fails uppercase check → null
 check('entryToGlobalHint/digit-leading returns null',
   entryToGlobalHint('42foo'), null);

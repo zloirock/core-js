@@ -13,6 +13,24 @@ export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.ty
 export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
   && typeof node.directive === 'string' && node.directive.length > 0;
 
+// any ExpressionStatement whose expression peels to a StringLiteral - includes already-promoted
+// directives AND raw string-literal expressions that would BECOME directives if their position
+// in the body reached the prologue
+const isStringLiteralExpressionStatement = node => node?.type === 'ExpressionStatement'
+  && (node.expression?.type === 'StringLiteral'
+    || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
+
+// would removing `body[entryIndex]` cause `body[entryIndex + 1]` (a string-literal expression)
+// to be promoted into the directive prologue on re-parse? promotion happens when every body
+// statement BEFORE the entry is itself a directive AND the next statement is a string-literal
+// expression. without protection, `"use strict"; require('core-js'); "use asm"; foo();` becomes
+// `"use strict"; "use asm"; foo();` after removal - the engine reads `"use asm"` as a directive
+// and silently activates asm.js validation that the source code didn't request
+export function wouldPromoteDirectiveAfterRemoval(body, entryIndex) {
+  for (let i = 0; i < entryIndex; i++) if (!isDirectiveStatement(body[i])) return false;
+  return isStringLiteralExpressionStatement(body[entryIndex + 1]);
+}
+
 // `\`foo\`` - TemplateLiteral with no interpolations, used as a static string key. returns
 // the cooked text; null when interpolations present, node isn't a template literal, or
 // the cooked form is unavailable (post-ES2018 invalid-escape tagged template - `cooked` is
@@ -240,6 +258,23 @@ export function resolveCallArgument(args, index) {
   return null;
 }
 
+// effective argument count after expanding inline-array spreads (`...[a, b, c]` -> 3).
+// returns null when a non-inline-array spread is present - the length is undecidable
+// at static-analysis time. used by IIFE-identity callers to validate `params.length ===
+// effective args.length` symmetric with `resolveCallArgument`'s expansion semantics
+export function effectiveArgsLength(args) {
+  let length = 0;
+  for (const arg of args) {
+    if (arg?.type === 'SpreadElement') {
+      if (arg.argument?.type !== 'ArrayExpression') return null;
+      length += arg.argument.elements?.length ?? 0;
+      continue;
+    }
+    length++;
+  }
+  return length;
+}
+
 // for `(({p} = D) => body)(R)` or plain `(({p}) => body)(R)`, locate the IIFE call site
 // invoking THIS function. adapter-agnostic: works on babel paths and estree-toolkit paths
 // since both expose `.node` and `.parentPath`. callee-identity check rejects `dec(arrow)`
@@ -259,7 +294,10 @@ export function findIifeCallSite(fnParentPath, paramNode) {
   const callNode = callPath?.node;
   // OptionalCallExpression: babel emits a distinct node for `(...)?.(args)`; unplugin (oxc)
   // wraps a CallExpression with `optional: true` in ChainExpression which the wrapper-peel
-  // above handles. accept both shapes so IIFE detection fires symmetrically across parsers
+  // above handles. accept both shapes so IIFE detection fires symmetrically across parsers.
+  // NewExpression intentionally accepted: even though `new (() => {})()` throws TypeError
+  // at runtime (arrows aren't constructible), the receiver-substitution still wires the
+  // polyfill into the call-arg slot - keeps the detection symmetric with CallExpression
   if (callNode?.type !== 'CallExpression' && callNode?.type !== 'NewExpression'
     && callNode?.type !== 'OptionalCallExpression') return null;
   if (peelIifeCallee(callNode.callee, fnNode) !== fnNode) return null;
@@ -290,8 +328,14 @@ export function isTypeOnlyImportEquals(node) {
 // register the specifier identifier as a binding regardless, so polyfill shadow detection
 // must filter via this predicate. accepts the binding's `node` + `parent` (ImportDeclaration)
 export function isTypeOnlyImportBinding(node, parent) {
-  if (parent?.type === 'ImportDeclaration' && parent.importKind === 'type') return true;
-  if (node?.type === 'ImportSpecifier' && node.importKind === 'type') return true;
+  // accept both TS `type` and Flow legacy `typeof` import-kinds. Flow's `import typeof X
+  // from 'm'` is parsed with importKind='typeof' on the ImportDeclaration / ImportSpecifier
+  // and is a TYPE-ONLY runtime artifact (Flow strips at compile time), so polyfill shadow
+  // detection must filter it identically to TS `type`
+  if (parent?.type === 'ImportDeclaration'
+    && (parent.importKind === 'type' || parent.importKind === 'typeof')) return true;
+  if (node?.type === 'ImportSpecifier'
+    && (node.importKind === 'type' || node.importKind === 'typeof')) return true;
   return false;
 }
 
@@ -461,6 +505,13 @@ export function peelToExpressionStatement(startPath) {
 // excluded here. ESTree uses 'Property' for object-pattern slots; babel uses 'ObjectProperty'
 export function isMemberWriteOnlyContext(member, parent, grandparent) {
   if (!member || !parent) return false;
+  // oxc preserves `(obj.at) = X` as `AssignmentExpression{left: ParenthesizedExpression{
+  // expression: MemberExpression}}` - direct `parent` is the paren wrapper, not the
+  // AssignmentExpression. peel one paren-layer up so the LHS-context check fires through
+  // user-applied parens regardless of parser (babel strips them, oxc preserves)
+  if (parent.type === 'ParenthesizedExpression' && parent.expression === member && grandparent) {
+    return isMemberWriteOnlyContext(parent, grandparent, null);
+  }
   if (parent.type === 'AssignmentExpression' && parent.left === member && parent.operator === '=') return true;
   if (parent.type === 'AssignmentPattern' && parent.left === member) return true;
   if ((parent.type === 'ObjectProperty' || parent.type === 'Property')
@@ -755,21 +806,36 @@ export const NESTED_BINDING_INTRODUCERS = new Set([
 // matching the identity shape
 export function peelZeroArgIifeReturn(node) {
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
-  const callee = peelFallbackWrappers(node.callee);
+  // peel paren / TS-wrappers + SequenceExpression tail off the callee. `peelFallbackWrappers`
+  // stops at SE; `(0, () => Array)()` (comma-sequence prefix on the callee) is a common
+  // wrapper shape that should still recognise as IIFE. mirror `peelIifeCallee` which
+  // already accepts SE-prefixed callees for the IIFE-identity gate
+  let callee = peelFallbackWrappers(node.callee);
+  while (callee?.type === 'SequenceExpression' && callee.expressions?.length) {
+    callee = peelFallbackWrappers(callee.expressions.at(-1));
+  }
   if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return null;
   if (callee.async || callee.generator) return null;
   const args = node.arguments ?? [];
-  if (args.some(a => a?.type === 'SpreadElement')) return null;
+  // non-inline-array spread bails - positional arg-to-param matching is undecidable when
+  // a `...arr` carries unknown length. inline-array spread (`...[a, b]`) is fine; both
+  // `effectiveArgsLength` (counting) and `resolveCallArgument` (lifting) apply the same
+  // expansion so counts can't drift
+  const effectiveLength = effectiveArgsLength(args);
+  if (effectiveLength === null) return null;
   const params = callee.params ?? [];
   const paramNames = collectParamBindingNames(params);
   if (paramNames === null) return null;
   const body = iifeBodyReturn(callee, paramNames);
   if (body === null) return null;
   // identity IIFE: body is a bare param Identifier - lift the matching arg by position.
-  // requires args.length === params.length so positional match is unambiguous
-  if (body.type === 'Identifier' && params.length === args.length && paramNames.has(body.name)) {
+  // requires effective args count === params.length so positional match is unambiguous
+  if (body.type === 'Identifier' && paramNames.has(body.name) && effectiveLength === params.length) {
     const i = params.findIndex(p => p?.type === 'Identifier' && p.name === body.name);
-    if (i !== -1) return args[i];
+    if (i !== -1) {
+      const lifted = resolveCallArgument(args, i);
+      if (lifted) return lifted;
+    }
   }
   // zero-arg/zero-param OR param-free body: lift the body verbatim (resolver-side
   // classification ignores arg side effects since it only needs receiver shape)
@@ -1144,6 +1210,11 @@ export function isForXWriteTarget(path) {
   for (let current = path.parentPath; current; current = current.parentPath) {
     const parent = current.node;
     if (!parent) break;
+    // function-like boundary: a `for-of/in` enclosing a nested function isn't writing to
+    // the inner function's bindings - bail when we cross a fn body upward. without this
+    // guard `for (obj.x of arr) { function nested() { obj.x } }` would false-positive
+    // mark inner reads as part of the for-write set (different lexical scope)
+    if (FUNCTION_LIKE_NODE_TYPES.has(parent.type)) return false;
     if (parent.type !== 'ForOfStatement' && parent.type !== 'ForInStatement') continue;
     const writes = getForXWrites(parent.left);
     if (writes.some(m => m === node || memberShapeEqual(m, node))) return true;
@@ -1253,7 +1324,7 @@ export function singleReturnBodyExpression(body) {
 // body's return expression. callee must be a sync, non-generator, zero-param arrow / fn
 // expression; call-site args are ignored (zero params drop them at runtime). mirrors the
 // inline contract `inlineCallReturnExpression` uses for receiver-name resolution
-function peelIIFEReturn(node) {
+export function peelIIFEReturn(node) {
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
   const callee = unwrapInitValue(unwrapRuntimeExpr(node.callee));
   if ((callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression')
@@ -1300,11 +1371,15 @@ export function unwrapExportedDeclaration(stmt) {
   return stmt;
 }
 
-// peel transparent wrappers so `0, module.exports = ...` / `(module.exports = ...)` still match
+// peel transparent wrappers so `0, module.exports = ...` / `(module.exports = ...)` /
+// `(Object.defineProperty as any)(...)` still match the CJS shape probes. TS expression
+// wrappers (`as`/`satisfies`/`<T>cast`/`!`) are runtime no-ops; without the peel they
+// shadow the CJS recognition and downstream rewrites bail
 function unwrapExpr(node) {
   while (node) {
     if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression') node = node.expression;
     else if (node.type === 'SequenceExpression') node = node.expressions.at(-1);
+    else if (TS_EXPR_WRAPPERS.has(node.type)) node = node.expression;
     else break;
   }
   return node;
@@ -1625,6 +1700,12 @@ export function walkPatternIdentifiers(node, visit) {
     case 'RestElement':
     case 'SpreadElement':
       walkPatternIdentifiers(node.argument, visit);
+      break;
+    // TS `constructor(public x: number)` parameter-property shorthand. parser wraps the
+    // param's identifier in TSParameterProperty (with access modifier on the wrapper);
+    // descend into .parameter so the identifier scan recognises the binding
+    case 'TSParameterProperty':
+      walkPatternIdentifiers(node.parameter, visit);
       break;
   }
 }
