@@ -1781,6 +1781,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     classFieldsCluster.reset();
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();
+    callResolutionCluster.resetExpressionAnnotationCache();
     resolveCache = new WeakMap();
     resolvedTypeCache = new WeakMap();
     resetTypeSubst();
