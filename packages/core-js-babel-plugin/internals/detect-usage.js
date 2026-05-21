@@ -251,7 +251,7 @@ export function createUsageVisitors({
       if (!key) return;
       const argNode = findIifeArgForParam(parent.parentPath, parent.node);
       const receiverNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
-      const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter });
+      const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
       onUsage(meta, path);
       return;
     } else if (parent.isAssignmentPattern() && parent.parentPath?.isObjectProperty()
@@ -288,14 +288,14 @@ export function createUsageVisitors({
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
       const argNode = resolveCallArgument(site.callPath.node.arguments, site.paramIndex);
-      const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: site.callPath.scope, adapter });
+      const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path });
       onUsage(meta, path);
       return;
     } else return;
     if (!initPath?.node) return;
     const key = resolveKey(path.get('key'), path.node.computed);
     if (!key) return;
-    let meta = buildDestructuringInitMeta({ initNode: initPath.node, key, scope: initPath.scope, adapter });
+    let meta = buildDestructuringInitMeta({ initNode: initPath.node, key, scope: initPath.scope, adapter, path });
     // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization).
     // spread instead of in-place mutation: contract with buildDestructuringInitMeta
     // doesn't promise mutable meta, and a fresh object is cheap here
