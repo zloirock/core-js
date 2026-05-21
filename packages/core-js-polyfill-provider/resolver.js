@@ -172,9 +172,21 @@ export function createPolyfillResolver(options, {
     // don't reject - conservative over-inject beats a crash or silent dead-code strip
     if (!path) return false;
     const { node } = path;
-    // walk through ParenthesizedExpression wrappers (ESTree/oxc-parser preserves them; Babel strips them)
+    // walk through ParenthesizedExpression / TS expression wrappers (as / satisfies /
+    // non-null `!` / TSTypeAssertion / TypeCastExpression). oxc preserves parens; both
+    // parsers preserve TS wrappers. without the full peel `JSON.parse!(s, reviver)` and
+    // `(JSON.parse as any)(s, reviver)` bypass the arg-count / arg-shape filters and
+    // emit a polyfill for shapes the runtime would reject
     let callPath = path.parentPath;
-    while (callPath?.node?.type === 'ParenthesizedExpression') callPath = callPath.parentPath;
+    while (callPath?.node && (callPath.node.type === 'ParenthesizedExpression'
+      || callPath.node.type === 'TSAsExpression'
+      || callPath.node.type === 'TSSatisfiesExpression'
+      || callPath.node.type === 'TSTypeAssertion'
+      || callPath.node.type === 'TSNonNullExpression'
+      || callPath.node.type === 'TSInstantiationExpression'
+      || callPath.node.type === 'TypeCastExpression')) {
+      callPath = callPath.parentPath;
+    }
     const parent = callPath?.node ?? path.parent;
     if (!isCallee(node, parent)) return false;
     switch (name) {
@@ -195,7 +207,13 @@ export function createPolyfillResolver(options, {
       // instead of silent over-injection via default-false fall-through: caller treats
       // "filter didn't reject" as accept, so unknown filter name would bypass its intended
       // narrowing gate
-      default: throw new Error(`[core-js] unknown filter name: ${ name }`);
+      default: {
+        // data-shape drift from `built-in-definitions.mjs`. fail loudly with a path-anchored
+        // codeframe when the caller exposes one - babel's `buildCodeFrameError` highlights the
+        // offending call site, helping authors locate the bad filter entry without grep
+        const msg = `[core-js] unknown filter name: ${ name }`;
+        throw typeof path?.buildCodeFrameError === 'function' ? path.buildCodeFrameError(msg) : new Error(msg);
+      }
     }
   }
 

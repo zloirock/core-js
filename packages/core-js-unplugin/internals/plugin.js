@@ -608,7 +608,9 @@ export default function createPlugin(options) {
               if (!meta) return;
             }
             if (isTaggedTemplateTag(parent, node, meta.placement)) return;
-            if (meta.key === 'Symbol.iterator') return handleSymbolIterator({ node, parent, metaPath });
+            if (meta.key === 'Symbol.iterator') return handleSymbolIterator({
+              node, parent, metaPath, sideEffects: meta.sideEffects,
+            });
           }
 
           let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
