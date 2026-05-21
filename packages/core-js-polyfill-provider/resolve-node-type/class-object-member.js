@@ -52,6 +52,19 @@ export function createClassObjectMember({
   // collapses both shapes so `resolveClassMemberNode` doesn't miss private members
   const { isMethodMember, isPropertyMember } = createClassMemberShape({ t });
 
+  // does the class body own a getter / setter for `name` matching `isStatic`? used to
+  // gate `resolveMergedNamespaceStatic` fallback - setter-only members own the slot even
+  // though `findClassMember` skips them
+  function hasOwnAccessor({ classPath, name, isStatic }) {
+    for (const member of classPath.get('body').get('body')) {
+      const { node } = member;
+      if (!node || !!node.static !== isStatic) continue;
+      if (node.kind !== 'get' && node.kind !== 'set') continue;
+      if (keyMatchesName(node.key, name)) return true;
+    }
+    return false;
+  }
+
   function findClassMember({ classPath, name, isStatic, classSubst, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
     // walk in reverse: in JS, duplicate method names are legal and the runtime uses the last definition
@@ -113,8 +126,14 @@ export function createClassObjectMember({
     // function bar(): T {} }` merges with `class Foo {}`, `Foo.bar` is a runtime callable
     // but doesn't appear in the class body. without this branch the resolver falls through
     // and the call's return type stays unknown, costing instance-method polyfill narrowing
-    // on downstream chains like `Foo.bar([...]).map(...)`
-    if (isStatic) return resolveMergedNamespaceStatic({ classPath, name, callPath });
+    // on downstream chains like `Foo.bar([...]).map(...)`.
+    // setter-only (`static set foo(v)` with no getter) own the name even though
+    // `findClassMember` skips them - falling through to namespace lookup would resolve a
+    // same-named merged function and emit a polyfill for a value that's actually a setter
+    if (isStatic && !hasOwnAccessor({ classPath, name, isStatic })) {
+      return resolveMergedNamespaceStatic({ classPath, name, callPath });
+    }
+    if (isStatic) return null;
     // body chain exhausted - delegate annotation-only fallback to `getTypeMembers`, which
     // walks the super chain merging interface members at each hop with proper per-hop
     // type-arg propagation. real class-body methods always win on collision (handled above)
