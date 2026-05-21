@@ -1,10 +1,9 @@
 import "core-js/modules/es.string.at";
-// IIFE with a TS-cast callee `((arrow) as any)()`. the IIFE recogniser must peel TS
-// expression wrappers (and ChainExpression) on the callee side - matches the wrapper
-// set used by detect-usage / synth-swap / findIifeCallSite. without the peel, the
-// straight-line lift doesn't recognise this as an IIFE and the assignment stays
-// classified as outer-scope mutable, leading to over-injection of both array.at and
-// string.at instead of just string.at.
+// IIFE whose callee is an arrow function wrapped in a TS `as any` cast:
+// `((() => { x = 'hello' }) as any)()`. The IIFE assigns a string literal to `x`,
+// so after the call site `x.at(-1)` is known to be a string and only
+// `es.string.at` should be emitted - not the cross-type Array+String fallback.
+// Exercises that TS cast wrappers around the callee don't disguise the IIFE.
 let x = [];
 ((() => {
   x = 'hello';

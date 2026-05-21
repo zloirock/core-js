@@ -1,16 +1,16 @@
-// when `Symbol` is shadowed by a user binding, well-known symbol detection must bail.
-// `asSymbolRef` requires either bare unbound `Symbol` Identifier (filter via hasBinding),
-// or a capitalised const-alias whose chain resolves to global `Symbol`.
-// here the user binds `Symbol` to a non-Symbol value - the `Symbol.iterator` member access
-// reads a property on the user's value, NOT the well-known symbol. polyfill must not fire
+// User shadows global `Symbol` with a local binding inside a function. Inside the
+// function, `Symbol.iterator` reads a plain property of the user's value, not the
+// well-known symbol, so no symbol-related polyfill should be emitted there.
+// In the outer module scope `Symbol` is unbound and resolves to the real global,
+// so `Symbol.iterator in {}` still seeds the iterable polyfill.
 function f() {
   const Symbol = { iterator: 'shadowed' };
-  // user lookup, not well-known. should not seed `is-iterable` polyfill
+  // Property access on the user's object, not the well-known symbol.
   const probe = Symbol.iterator in {};
-  // no polyfill substitution for `obj[Symbol.iterator]`
+  // Computed member access on the user's value - no polyfill substitution.
   const sample = ({})[Symbol.iterator];
   return [probe, sample];
 }
-// outer scope has unbound Symbol - real well-known shape. WILL polyfill
+// Outer scope: real well-known `Symbol.iterator`, must polyfill.
 const a = Symbol.iterator in {};
 export { f, a };
