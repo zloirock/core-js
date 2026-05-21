@@ -71,9 +71,10 @@ export default class ImportInjector extends ImportInjectorState {
     for (const g of snap.existingGlobals ?? EMPTY_ARR) this.existingGlobalImports.add(g);
     for (const [k, v] of snap.existingPure ?? EMPTY_MAP) this.existingPureImports.set(k, v);
     for (const r of snap.refs ?? EMPTY_ARR) this.#refs.add(r);
-    // pre's `var X;` is already in post's input - don't re-emit. older snapshots
-    // without `flushedRefs` fall back to all refs (over-conservative, never wrong)
-    for (const r of snap.flushedRefs ?? snap.refs ?? EMPTY_ARR) this.#flushedRefs.add(r);
+    // pre's `var X;` is already in post's input - don't re-emit. snapshot() always emits
+    // `flushedRefs` (may be empty array but never undefined); EMPTY_ARR fallback covers the
+    // snapshot-absent path only
+    for (const r of snap.flushedRefs ?? EMPTY_ARR) this.#flushedRefs.add(r);
     this.rehydrateSuffixState(snap.suffixState);
     this.rehydrateImportInfoByName(snap.importInfoByName);
     this.rehydrateReassignedBindings(snap.reassignedBindings);
@@ -190,21 +191,53 @@ export default class ImportInjector extends ImportInjectorState {
     // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
     // position can re-order vs prepend semantics
     if (importPos === refPos) return this.#emit(lead + blockify([...imports, ...refs]), importPos);
-    if (imports.length) this.#emit(lead + blockify(imports), importPos);
+    const importsBlock = imports.length ? lead + blockify(imports) : '';
     // refPos lands right after the trailing user import. when that import omits its `;`
     // (ASI), refPos sits on whatever token followed - we must prefix our `var _ref;` block
     // with `\n` to terminate the prior statement. otherwise `import x from "y"var _ref;`
-    // bombs the next parse pass with SyntaxError
-    if (refs.length) this.#emit(needsRefLeadingNewlineAt(src, refPos) ? `\n${ blockify(refs) }` : blockify(refs), refPos);
+    // bombs the next parse pass with SyntaxError. additionally, when the next char at refPos
+    // is itself a line terminator (e.g. ASI-ended import + trailing newline), `blockify`'s
+    // trailing `\n` would double-stack against the existing terminator and produce a cosmetic
+    // blank line between our injection and the next user line - trim it in that case
+    let refsBlock = '';
+    if (refs.length) {
+      const needsLead = needsRefLeadingNewlineAt(src, refPos);
+      const nextIsTerminator = refPos < src.length && isLineTerminator(src[refPos]);
+      const block = nextIsTerminator ? refs.join('\n') : blockify(refs);
+      refsBlock = needsLead ? `\n${ block }` : block;
+    }
+    // ordered fallback: when individual `appendRight` fails AND we have to `prepend`, the
+    // emission order must stay `imports -> refs`. multiple `prepend` calls reverse insertion
+    // order (later prepend wins position), so a naive per-call fallback would emit `var _ref;`
+    // BEFORE `import 'x';`. accumulate failed blocks into a single prepend that preserves
+    // source order. successful appendRight paths already land at correct positions
+    let pendingPrepend = '';
+    if (importsBlock) pendingPrepend = this.#emitOrDefer(importsBlock, importPos, pendingPrepend);
+    if (refsBlock) pendingPrepend = this.#emitOrDefer(refsBlock, refPos, pendingPrepend);
+    if (pendingPrepend) this.#ms.prepend(pendingPrepend);
   }
 
   // sibling plugin may overwrite a range that contains the insert position, leaving no
-  // chunk boundary for appendRight to attach to. fall through to prepend so imports still
-  // emit (loses the post-shebang/post-directive position but keeps the build alive).
-  // throwing here would surface as opaque "already edited" deep in MagicString without
-  // naming the cause - log the recovery so users can correlate a fallback prepend with
-  // sibling-plugin range conflicts. MagicString can't source-map appended content, so the
-  // block is synthetic in the map regardless of which path runs
+  // chunk boundary for appendRight to attach to. instead of immediately prepending (which
+  // would reverse `[imports, refs]` order when both legs fall back), accumulate the failed
+  // block into the caller's `pendingPrepend` buffer; the caller emits a single ordered
+  // prepend at the end. logs the fallback so users can correlate with sibling-plugin range
+  // conflicts. MagicString can't source-map appended content, so the block is synthetic
+  // in the map regardless of which path runs
+  #emitOrDefer(block, insertPos, pendingPrepend) {
+    if (insertPos > 0) {
+      try {
+        this.#ms.appendRight(insertPos, block);
+        return pendingPrepend;
+      } catch (error) {
+        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ error.message }); deferring to ordered prepend`);
+      }
+    }
+    return pendingPrepend + block;
+  }
+
+  // single-emission appendRight + prepend fallback. used for the same-anchor combined-block
+  // path where ordering is intrinsic to the block content (one call, one position)
   #emit(block, insertPos) {
     if (insertPos > 0) {
       try {
@@ -289,7 +322,10 @@ function needsLeadingNewlineAt(src, pos) {
 // ref-block emission lands at `refPos` (right after the trailing user import). when that
 // user import ends without `;` (ASI), refPos sits on whatever token came next - inserting
 // `var _ref;` here would fuse the prior statement into `import x from "y"var _ref;` and
-// crash the next parse pass. detection: prev char is neither `;` nor a line terminator
+// crash the next parse pass. detection: prev char is neither `;` nor a line terminator.
+// blank-line trade-off accepted: when next char is already `\n`, the inserted leading `\n`
+// produces a stylistic blank line BEFORE the block, but the terminator is still required -
+// removing it would let `import "y"<block>` fuse the import into our `var _ref` declaration
 function needsRefLeadingNewlineAt(src, pos) {
   if (pos <= 0) return false;
   const prev = src[pos - 1];

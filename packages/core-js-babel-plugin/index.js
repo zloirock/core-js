@@ -7,6 +7,8 @@ import {
   isForXWriteTarget,
   isInUpdateOperand,
   isThisReceiver,
+  collectMutatedStaticMembers,
+  isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
   mayHaveSideEffects,
@@ -121,6 +123,12 @@ export default function plugin(api, options) {
       let originalBodyNodes = new WeakSet();
       let disabledLines = null;
       let skipFile;
+      // pre-pass result: set of `"ObjectName.keyName"` strings the user mutated somewhere in
+      // this file (`Array.from = X`, `[Array.from] = X`, `delete Array.from`, ...). substitution
+      // for matching reads must bail because the polyfill import is a `const` binding -
+      // user's mutation reaches the original global but not the import, so swapping
+      // `Array.from(...)` for `_Array$from(...)` silently diverges from un-transformed source
+      let mutatedStatics = null;
       // synth-swap pipeline: receivers accumulated as the visitor walks, drained at
       // programExit. factory in `internals/synth-swap-emitter.js`. instantiated per-file
       // in `initFile` so closure-captured `skippedNodes` ref stays in sync with the
@@ -374,6 +382,12 @@ export default function plugin(api, options) {
         // Identifier, and `<_Map/>` would call the polyfill as a React component at runtime
         if (path.node.type === 'JSXIdentifier') return;
 
+        // user monkey-patches `Object.key` in this file - substituting reads with the
+        // `const`-bound polyfill import would silently bypass the user's mutation (unlike
+        // usage-global which shares the global slot). pre-pass collected the mutated keys;
+        // bail substitution + emission for matching property reads
+        if (isMutatedStaticMeta(meta, mutatedStatics)) return;
+
         if (meta.kind === 'in') return handleInExpression(meta, path);
 
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
@@ -595,6 +609,10 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        // pre-walk for monkey-patches. cheap single AST traversal; result consulted by
+        // `usagePureCallback` before substituting `Object.key` reads. internal core-js
+        // files don't need the gate (they manage their own globals)
+        mutatedStatics = isInternalCoreJS ? null : collectMutatedStaticMembers(path.node);
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)

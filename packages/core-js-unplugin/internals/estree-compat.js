@@ -13,14 +13,20 @@ export function nodeType(node) {
   // ESTree Property -> Babel ObjectProperty / ObjectMethod
   // getters/setters in ESTree have method: false but kind: get / set - in Babel they're ObjectMethod
   if (type === 'Property') return node.method || node.kind === 'get' || node.kind === 'set' ? 'ObjectMethod' : 'ObjectProperty';
-  // ESTree MethodDefinition -> Babel ClassMethod
-  if (type === 'MethodDefinition') return 'ClassMethod';
-  // ESTree PropertyDefinition -> Babel ClassProperty
-  if (type === 'PropertyDefinition') return 'ClassProperty';
-  // ESTree AccessorProperty (TC39 auto-accessor) -> Babel ClassAccessorProperty.
-  // resolve-node-type's class-member switch keys on the babel name; without the
-  // translation `accessor x = ...` slots fall through to the default branch
-  if (type === 'AccessorProperty') return 'ClassAccessorProperty';
+  // ESTree MethodDefinition / TS abstract methods -> Babel ClassMethod. `TSAbstractMethodDefinition`
+  // is the oxc shape for `abstract m()` - structurally identical to MethodDefinition at runtime
+  // (abstract is type-only, stripped before emit), so resolve-node-type treats them as the same
+  // class-member kind for shadow / member-key indexing
+  if (type === 'MethodDefinition' || type === 'TSAbstractMethodDefinition') return 'ClassMethod';
+  // ESTree PropertyDefinition / TS abstract properties -> Babel ClassProperty. same rationale -
+  // `abstract x: T` carries no runtime declaration but the field-narrowing index still needs
+  // to register the shadow slot so subclass writes don't get type-mixed
+  if (type === 'PropertyDefinition' || type === 'TSAbstractPropertyDefinition') return 'ClassProperty';
+  // ESTree AccessorProperty (TC39 auto-accessor) / TS abstract accessor -> Babel
+  // ClassAccessorProperty. resolve-node-type's class-member switch keys on the babel name;
+  // without the translation `accessor x = ...` / `abstract accessor x` slots fall through to
+  // the default branch and member resolution breaks
+  if (type === 'AccessorProperty' || type === 'TSAbstractAccessorProperty') return 'ClassAccessorProperty';
   // ESTree optional member/call -> Babel OptionalMemberExpression/OptionalCallExpression
   if (type === 'MemberExpression' && node.optional) return 'OptionalMemberExpression';
   if (type === 'CallExpression' && node.optional) return 'OptionalCallExpression';
