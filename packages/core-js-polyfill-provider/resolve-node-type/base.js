@@ -219,12 +219,12 @@ export function nodePathInScope(targetNode, scope, types) {
 }
 
 // intrinsic TS string transformers (`Uppercase<S>` / `Capitalize<S>` / ...)
-export const INTRINSIC_STRING_TRANSFORMERS = {
+export const INTRINSIC_STRING_TRANSFORMERS = Object.assign(Object.create(null), {
   Uppercase: s => s.toUpperCase(),
   Lowercase: s => s.toLowerCase(),
   Capitalize: s => s.charAt(0).toUpperCase() + s.slice(1),
   Uncapitalize: s => s.charAt(0).toLowerCase() + s.slice(1),
-};
+});
 
 // cooked text of a TemplateElement quasi; raw fallback covers post-ES2018 invalid escapes
 // where cooked is null (rare in type-level templates but cheap to handle)
