@@ -361,10 +361,18 @@ export default class ImportInjector extends ImportInjectorState {
   // node-identity match (== check on `body[i] === entry.node`) avoids touching user-side
   // imports or sibling-plugin emissions interleaved in the same region
   reorderImportRegion() {
-    this.#importRegionSorted = true;
-    if (this.#emittedKeyByNode.size < 2) return;
+    // set the precondition flag at the end so a caller-side guard (`#assertSorted` in
+    // `reorderRefsAfterImports`) reflects "this method ran" rather than "we entered and may
+    // have early-returned". flag is observed by downstream methods that REQUIRE the sort to
+    // have completed before they walk the import region; sort-no-op cases (fewer than 2
+    // entries, empty body) still satisfy the precondition trivially - the import region
+    // can't be out of order if there's nothing to sort
     const { body } = this.#programPath.node;
-    if (!body?.length) return;
+    const hasWork = this.#emittedKeyByNode.size >= 2 && body?.length;
+    if (!hasWork) {
+      this.#importRegionSorted = true;
+      return;
+    }
     // collect indices + sort keys of emitted slots IN-ORDER. non-emitted statements
     // (sibling helper vars, comments-as-statements, ...) keep their original positions,
     // so the sort only permutes emitted entries among the slots they already occupy
@@ -373,14 +381,16 @@ export default class ImportInjector extends ImportInjectorState {
       const key = this.#emittedKeyByNode.get(body[i]);
       if (key !== undefined) slots.push({ index: i, key, node: body[i] });
     }
-    if (slots.length < 2) return;
-    // sort by the canonical comparator: compat-data order with lex-fallback for unknown
-    // keys (pure-import sources land in the lex tail). emitted nodes have unique node
-    // identity so unique-by-node holds even if two pure imports share a source string
-    const sorted = [...slots].sort((a, b) => polyfillOrderComparator(a.key, b.key));
-    for (let i = 0; i < slots.length; i++) {
-      body[slots[i].index] = sorted[i].node;
+    if (slots.length >= 2) {
+      // sort by the canonical comparator: compat-data order with lex-fallback for unknown
+      // keys (pure-import sources land in the lex tail). emitted nodes have unique node
+      // identity so unique-by-node holds even if two pure imports share a source string
+      const sorted = [...slots].sort((a, b) => polyfillOrderComparator(a.key, b.key));
+      for (let i = 0; i < slots.length; i++) {
+        body[slots[i].index] = sorted[i].node;
+      }
     }
+    this.#importRegionSorted = true;
   }
 
   flush() {
@@ -426,21 +436,47 @@ export default class ImportInjector extends ImportInjectorState {
     // marker). bare `'foo';` non-directive statements should NOT qualify - otherwise they
     // would extend the import-region and `var _ref;` would merge past them
     function isStringDirective(stmt) {
-      return stmt.type === 'ExpressionStatement'
-        && (stmt.expression?.type === 'StringLiteral' || stmt.expression?.type === 'Literal')
-        && (stmt.directive !== null && stmt.directive !== undefined
-          || stmt.expression?.directive !== null && stmt.expression?.directive !== undefined);
+      if (stmt.type !== 'ExpressionStatement') return false;
+      const expr = stmt.expression;
+      if (expr?.type !== 'StringLiteral' && expr?.type !== 'Literal') return false;
+      // empty-string directive (`""`) is parser-emittable but not a valid prologue token -
+      // shared `isDirectiveStatement` rejects it; mirror that gate here so a bare empty-string
+      // expression statement doesn't extend the import region. truthy non-empty directive
+      // tag on either the ExpressionStatement (babel) or the inner StringLiteral (oxc) qualifies
+      return typeof stmt.directive === 'string' && stmt.directive.length > 0
+        || typeof expr.directive === 'string' && expr.directive.length > 0;
+    }
+
+    // peel `(0, require)('m')` SequenceExpression-wrapped callee + `require('m').default`
+    // MemberExpression-tail so webpack / esbuild-style indirect-require shapes still register
+    // as import-region statements. matches `getEntrySource` callee peel for symmetry
+    function isRequireCall(expr) {
+      let cur = expr;
+      if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
+      if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
+      let { callee } = cur;
+      if (callee?.type === 'SequenceExpression') callee = callee.expressions?.at(-1);
+      return callee?.type === 'Identifier' && callee.name === 'require';
     }
 
     function isImportRegion(stmt) {
       return stmt.type === 'ImportDeclaration'
         || (stmt.type === 'ExportNamedDeclaration' && stmt.source)
         || stmt.type === 'ExportAllDeclaration'
-        || (stmt.type === 'ExpressionStatement'
-          && stmt.expression?.type === 'CallExpression' && stmt.expression.callee?.name === 'require')
+        || (stmt.type === 'ExpressionStatement' && isRequireCall(stmt.expression))
         || isStringDirective(stmt)
         || (stmt.type === 'VariableDeclaration'
-          && stmt.declarations.some(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
+          && stmt.declarations.some(d => isRequireCall(d.init)));
+    }
+
+    // sibling-plugin vars with no init (`var x;` injected by transform-* plugins) are hoisted
+    // at runtime regardless of source position - safe to scan past them so OUR refs that
+    // land AFTER such a sibling-split still get collected into the merged declaration. only
+    // var declarations WITHOUT init qualify (init-bearing decls run in source order and
+    // mustn't be reordered past). non-decl statements halt the scan as before
+    function isInitlessVarDecl(stmt) {
+      return stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
+        && stmt.declarations.every(d => !d.init);
     }
 
     const refs = [];
@@ -456,6 +492,8 @@ export default class ImportInjector extends ImportInjectorState {
         importEnd = i + 1;
         continue;
       }
+      // sibling-injected initless var: scan past without extending the import region
+      if (isInitlessVarDecl(body[i])) continue;
       break;
     }
     if (!refs.length || importEnd === 0) return;
