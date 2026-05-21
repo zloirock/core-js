@@ -338,7 +338,12 @@ export function patternBindingName(node) {
 }
 
 // walks a chain of proxy-global links (`globalThis.self.window.X`) to its root identifier;
-// returns true when the root is a proxy global and every intermediate link is also one
+// returns true when the root is a proxy global and every intermediate link is also one.
+// IIFE-at-root (`(() => globalThis).Array.from(x)`) is inlined via `inlineCallReturnExpression`
+// so the chain bottoms out on the proxy-global identifier inside the IIFE body. caller is
+// responsible for marking the inner proxy-global identifier (`markReceiverChainHandled`) so
+// unplugin's text-emit doesn't queue a parallel `globalThis -> _globalThis` rewrite that
+// would overlap the outer polyfill replacement
 function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
   // peel chain-assign at every step: `((a = globalThis).Array).from(x)` buries the
   // assignment inside .object's .object, so a flat unwrapParens loses the proxy-global
@@ -352,6 +357,10 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
       : obj.property?.name;
     if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
     obj = peelChainAssignmentDeep(unwrapParens(obj.object));
+  }
+  if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
+    const inlined = inlineCallReturnExpression({ callNode: obj, scope, adapter, seen, path });
+    if (inlined) return resolveProxyGlobalRoot({ receiver: inlined, scope, adapter, seen, path });
   }
   return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path });
 }
@@ -433,7 +442,7 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
 // isn't inlineable or the body has multiple returns / local bindings (see
 // `singleReturnBodyExpression`). prefix ExpressionStatements ARE allowed - their effects
 // are preserved at the call site via `inlineCallHasObservableEffects` + `meta.sideEffects`
-function inlineCallReturnExpression({ callNode, scope, adapter, seen, path }) {
+export function inlineCallReturnExpression({ callNode, scope, adapter, seen, path }) {
   const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen });
   return callee ? singleReturnBodyExpression(callee.body) : null;
 }

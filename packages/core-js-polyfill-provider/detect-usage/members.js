@@ -8,6 +8,7 @@ import {
   enterIdentifierBindingFollow,
   findProxyGlobal,
   inlineCallHasObservableEffects,
+  inlineCallReturnExpression,
   isStaticPlacement,
   isTransparentWrapper,
   MAX_KEY_DEPTH,
@@ -27,6 +28,19 @@ function tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) {
   if (resolveKey({ node: obj.property, computed: obj.computed, scope, adapter, path }) !== 'prototype') return null;
   const protoName = resolveObjectName({ objectNode: obj.object, scope, adapter, path });
   return protoName ? { kind: 'property', object: protoName, key, placement: 'prototype' } : null;
+}
+
+// walk a chain root to its underlying CallExpression. direct call (`f().X`) returns the
+// call node; MemberExpression chain (`(() => globalThis)().Array`, `globalThis.self.Array`)
+// descends through `.object` peeling parens until either a CallExpression surfaces or the
+// chain bottoms on a non-call (Identifier / proxy-global / etc.). returns null otherwise -
+// caller uses it to probe `inlineCallHasObservableEffects` for SE-preservation
+function findChainRootCallExpression(node) {
+  let cur = node;
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    cur = unwrapParens(cur.object);
+  }
+  return cur?.type === 'CallExpression' || cur?.type === 'OptionalCallExpression' ? cur : null;
 }
 
 function buildMemberMeta({ node, scope, adapter, path }) {
@@ -74,9 +88,16 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // would replace `k().resolve(3)` with `_Promise$resolve(3)` and silently drop `calls++`.
     // the original call node is pushed to sideEffects so the SequenceExpression wrap re-emits
     // it: `(k(), _Promise$resolve(3))`. only fires when objectName resolved (i.e. the receiver
-    // really is a recognised constructor); unresolved calls fall through unchanged
-    if (objectName && (classifyTarget.type === 'CallExpression' || classifyTarget.type === 'OptionalCallExpression')
-      && inlineCallHasObservableEffects({ callNode: classifyTarget, scope, adapter, path })) sideEffects.push(classifyTarget);
+    // really is a recognised constructor); unresolved calls fall through unchanged.
+    // IIFE-rooted MemberExpression chain (`(() => globalThis)().Array.from(x)`): walk the
+    // chain down to the root CallExpression and probe its prefix-SE the same way - without
+    // the chain walk, IIFE-with-prefix inside a proxy-global chain silently drops its setup
+    if (objectName) {
+      const rootCall = findChainRootCallExpression(classifyTarget);
+      if (rootCall && inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path })) {
+        sideEffects.push(rootCall);
+      }
+    }
   }
   if (sideEffects.length) meta.sideEffects = sideEffects;
   return meta;
@@ -98,13 +119,19 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // already walked the `unwrapParens` chain and confirmed the binding guard
     handledObjects.add(symbolKey.ref.raw);
     handledObjects.add(symbolKey.ref.unwrapped);
-    return { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
+    // computed-key side effects (`recv[Symbol[(fn(), 'iterator')]]`) propagate through meta.
+    // recv side effects survive naturally - the polyfill rewrite uses `node.object` as the
+    // `_getIterator(...)` argument, so the SE wrapping the receiver evaluates at call time.
+    // attaching them here would double-emit
+    const meta = { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
+    if (symbolKey.sideEffects.length) meta.sideEffects = symbolKey.sideEffects;
+    return meta;
   }
   const meta = buildMemberMeta({ node, scope, adapter, path });
   // only mark when we actually resolved a receiver: meta.object === null means
   // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
   // and the receiver identifier-visitor may still need to polyfill it as a standalone global
-  if (meta?.object) markHandledObjects(node, handledObjects, suppressProxyGlobals);
+  if (meta?.object) markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path);
   return meta;
 }
 
@@ -206,7 +233,7 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
         // rewrite subsumes the entire chain, so the leaf `globalThis` identifier must not
         // trigger its own polyfill. without this, unplugin's transform-queue fails to compose
         // the inner `globalThis`-replacement into the outer's eliminated-needle content
-        markSubsumedProxyChain(ref.unwrapped, handledObjects, scope);
+        markSubsumedProxyChain(ref.unwrapped, handledObjects, scope, adapter, path);
       }
       return { kind: 'in', key, object: null, placement: null, symbolSourced: true };
     }
@@ -233,16 +260,22 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
   return null;
 }
 
-// returns { key: 'Symbol.xxx', ref: { raw, unwrapped } } so the caller can mark handledObjects
-// without re-walking the unwrap chain
+// returns { key: 'Symbol.xxx', ref: { raw, unwrapped }, sideEffects } so the caller can mark
+// handledObjects without re-walking the unwrap chain. `sideEffects` aggregates SE-preceding
+// elements peeled from `node.property` outer wrappers and the Symbol[X] computed-key argument -
+// without that channel `recv[(fn(), Symbol)[(g(), 'iterator')]]` would silently drop both calls
+// after the polyfill rewrite subsumes the member expression
 function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   if (!node.computed) return null;
-  const prop = unwrapParens(node.property);
+  const sideEffects = [];
+  const prop = unwrapParensCollectingEffects(node.property, sideEffects);
   if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
   const ref = asSymbolRef({ node: prop.object, scope, adapter, path });
   if (!ref) return null;
-  const name = resolveKey({ node: prop.property, computed: prop.computed, scope, adapter, path });
-  return name ? { key: `Symbol.${ name }`, ref } : null;
+  const keyNode = prop.computed
+    ? unwrapParensCollectingEffects(prop.property, sideEffects) : prop.property;
+  const name = resolveKey({ node: keyNode, computed: prop.computed, scope, adapter, path });
+  return name ? { key: `Symbol.${ name }`, ref, sideEffects } : null;
 }
 
 // walk the proxy-global chain at `node`, seeding every intermediate MemberExpression AND the
@@ -267,14 +300,59 @@ function peelMarkedWrappers(node, handledObjects) {
 // scope-aware leaf check: a user binding that shadows a known global (`function f(globalThis)
 // { globalThis.Symbol.iterator in arr }`) must NOT be marked as handled - the local binding
 // has its own value, and suppressing the polyfill here would silently drop a legitimate emit
-function markSubsumedProxyChain(node, handledObjects, scope) {
+function markSubsumedProxyChain(node, handledObjects, scope, adapter, path) {
   let current = peelMarkedWrappers(node, handledObjects);
   while (current && (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')) {
     handledObjects.add(current);
     current = peelMarkedWrappers(current.object, handledObjects);
   }
-  if (current?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name) && !scope?.getBinding?.(current.name)) {
+  // shadow detection through `adapter.hasBinding(scope, name, path)` matches the rest of
+  // members.js - raw `scope.getBinding` misses TS-runtime bindings (declare const X /
+  // namespace X) that estree-toolkit's scope tracker doesn't register but the polyfill
+  // shadow rule still needs to honor. without it, `declare const globalThis: any;
+  // globalThis.Symbol.iterator in x` would still mark the leaf as handled-global and
+  // suppress the legitimate user-shadow emit
+  if (current?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name)
+    && !(adapter ? adapter.hasBinding(scope, current.name, path) : scope?.getBinding?.(current.name))) {
     handledObjects.add(current);
+  }
+}
+
+// walk a proxy-global MemberExpression chain down to its leaf identifier, marking every
+// link AND the leaf so unplugin's text-emit doesn't queue parallel rewrites that overlap
+// an outer polyfill replacement. returns the unwalked node (typically a CallExpression
+// for IIFE-rooted chains, terminator otherwise) so callers can chain further marking
+function markChainLinksAndProxyLeaf(node, handledObjects) {
+  let cur = unwrapParens(node);
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    handledObjects.add(cur);
+    cur = unwrapParens(cur.object);
+  }
+  if (cur?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) handledObjects.add(cur);
+  return cur;
+}
+
+// IIFE-rooted receiver - mark the call node and the inner proxy-global identifier so
+// unplugin's text-emit doesn't queue a parallel `globalThis -> _globalThis` rewrite that
+// overlaps the outer polyfill replacement (`_Array$from([...])`). babel-plugin's AST
+// mutation tolerates the overlap; the symmetric fix suppresses the inner visit on both
+// adapters. fresh `seen` Set is required by `resolveInlineCalleeFunction` for cycle
+// protection even though no recursion is possible at this call site.
+// observable-SE bail: when the IIFE has prefix statements (`() => { setup++; return X; }`),
+// `buildMemberMeta` pushes the IIFE call into `meta.sideEffects` and the outer polyfill
+// emit re-emits the call source via a SequenceExpression wrap. the inner identifier
+// SURVIVES in the output text, so its own polyfill (e.g. `globalThis -> _globalThis`)
+// must still fire. skip marking in this case so the Identifier visit goes through.
+// loop unrolls nested IIFE (`(() => (() => globalThis)())()`): when the inlined return is
+// itself a CallExpression, continue marking the inner IIFE the same way
+function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObjects }) {
+  let current = callNode;
+  while (current?.type === 'CallExpression' || current?.type === 'OptionalCallExpression') {
+    if (inlineCallHasObservableEffects({ callNode: current, scope, adapter, path })) return;
+    const inlined = inlineCallReturnExpression({ callNode: current, scope, adapter, path, seen: new Set() });
+    if (!inlined) return;
+    handledObjects.add(current);
+    current = markChainLinksAndProxyLeaf(inlined, handledObjects);
   }
 }
 
@@ -284,7 +362,7 @@ function markSubsumedProxyChain(node, handledObjects, scope) {
 // `meta.object === null` (receiver Identifier didn't match `isStaticPlacement` - bound local
 // variable), marking the receiver is correct: a local binding shouldn't produce a polyfill
 // import via the identifier visitor, so suppression is the right behaviour
-function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
+function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path) {
   const obj = unwrapParens(node.object);
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
     handledObjects.add(obj);
@@ -302,5 +380,25 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
     && findProxyGlobal(current)) {
     handledObjects.add(current);
     current = unwrapParens(current.object);
+  }
+  // IIFE-rooted chain (`(() => globalThis)().self.Map.prototype.has`): the chain bottoms
+  // out on a CallExpression that `resolveProxyGlobalRoot` inlines to a proxy-global identifier.
+  // `findProxyGlobal` returns null for IIFE roots (it only validates bare-Identifier roots),
+  // so the loop above doesn't enter. walk down the remaining MemberExpression links, marking
+  // each whose property is a proxy-global key (`.self`, `.window`) - those intermediate hops
+  // would otherwise queue parallel substitutions overlapping the outer constructor rewrite.
+  // non-proxy keys (`.Map`, `.prototype`) deliberately stay unmarked so the constructor
+  // member visit fires its own substitution and stays the single source of the receiver
+  // replacement. then delegate to `markInlinedProxyGlobalRoot` for the IIFE + inner identifier
+  if (scope && adapter) {
+    while (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
+      const propName = current.computed ? null : current.property?.name;
+      if (!propName || !POSSIBLE_GLOBAL_OBJECTS.has(propName)) break;
+      handledObjects.add(current);
+      current = unwrapParens(current.object);
+    }
+    if (current?.type === 'CallExpression' || current?.type === 'OptionalCallExpression') {
+      markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects });
+    }
   }
 }
