@@ -15,6 +15,7 @@
 // Service object collects factory helpers + the two `type-expansion` cluster outputs
 // (`unwrapMappedTypePassthrough`, `evaluateConditionalType`) the handlers call into.
 import { $Object, MAX_DEPTH } from './base.js';
+import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeResolveDispatch({
   typeRefSegments,
@@ -48,7 +49,9 @@ export function createTypeResolveDispatch({
     const segments = typeRefSegments(node);
     if (!segments?.length) return null;
     const name = segments.join('.');
-    if (segments.length === 1 && typeParamMap.has(name)) return typeParamMap.get(name);
+    if (segments.length === 1 && typeParamMap.has(name)) {
+      return applyHigherKindedArgs({ bound: typeParamMap.get(name), node, typeParamMap, scope, depth, seen });
+    }
     const ctor = resolveKnownConstructor(name);
     const known = resolveKnownContainerType({
       name, base: ctor, node, innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
@@ -56,6 +59,19 @@ export function createTypeResolveDispatch({
     if (known) return known;
     return resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen })
       ?? resolveNamedType({ name, node, scope, depth, typeParamMap, seen });
+  }
+
+  // higher-kinded apply for typeparam-bound containers: `Wrap<F, X> = F<X>` with F=Array,
+  // X=string would otherwise return F (`$Object('Array', null)`) and silently drop X.
+  // gated to bindings shaped as empty-inner named containers - non-container ($Primitive,
+  // bare $Object(null)) and already-applied ($Object('Array', T)) bindings pass through
+  // unchanged. parity with the AST-side `substTypeReference` -> `withSubstitutedTypeArgs`
+  // path so the two dispatch lanes give matching element-precision
+  function applyHigherKindedArgs({ bound, node, typeParamMap, scope, depth, seen }) {
+    const typeArgs = getTypeArgs(node)?.params;
+    if (!typeArgs?.length || !(bound instanceof $Object) || !bound.name || bound.inner !== null) return bound;
+    const inner = substRecurse({ node: typeArgs[0], typeParamMap, scope, depth, seen });
+    return new $Object(bound.name, inner && !isNullableOrNever(inner) ? inner : null);
   }
 
   // T[] / Array<T> → $Object('Array', inner) with substituted element type
