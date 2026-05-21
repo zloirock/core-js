@@ -104,6 +104,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function literalKeyValue(node) {
     if (isLiteralOf(node, 'String')) return node.value;
     if (isLiteralOf(node, 'Numeric')) return String(node.value);
+    // negative numeric literals (`-1`, `-0`) parse as UnaryExpression { operator: '-',
+    // argument: NumericLiteral } - the raw `value` slot is undefined on the wrapper,
+    // so callers that compare against stringified numeric keys (`K extends -1 ? ...`)
+    // would otherwise see `null` from the wrapper and bail
+    if (node?.type === 'UnaryExpression' && node.operator === '-' && isLiteralOf(node.argument, 'Numeric')) {
+      return String(-node.argument.value);
+    }
     return null;
   }
 
@@ -139,24 +146,69 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   // unified TSIndexedAccessType dispatcher under generic substitution. walks down the
   // chain to the root TSTypeReference, collecting raw indexType nodes outer-first;
-  // length-1 = direct `T[k]` / `T[number]`, length-N = chained `T[k1]...[kN]`. order
-  // of resolution: T[number] inner, argPath descend, single-step constraint fallback,
-  // generic resolveTypeAnnotation. extracted from substituteTypeParams for max-statements
-  // lint compliance. without this thread, chained generic indexed access loses the map
+  // length-1 = direct `T[k]` / `T[number]`, length-N = chained `T[k1]...[kN]`. resolves
+  // through (in order): T[number] inner, argPath descend, single-step constraint
+  // fallback (root-is-typeparam path) - then call-site arg-literal rewrite for the
+  // `NamedType[K]` shape, finally plain resolveTypeAnnotation
   function resolveIndexedAccessSubst(node, typeParamMap, scope, depth) {
     const indexNodes = [];
-    let cur = node;
-    while (cur?.type === 'TSIndexedAccessType') {
-      indexNodes.unshift(cur.indexType);
-      cur = cur.objectType;
+    let root = node;
+    while (root?.type === 'TSIndexedAccessType') {
+      indexNodes.unshift(root.indexType);
+      root = root.objectType;
     }
-    const rootName = cur && typeRefName(cur);
-    const mapped = rootName && typeParamMap.has(rootName);
-    if (mapped) {
+    const rootName = root && typeRefName(root);
+    if (rootName && typeParamMap.has(rootName)) {
       const direct = resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth });
       if (direct !== null) return direct;
     }
+    // `NamedType[K]` shape: K is out of scope at the call site, so `isKeyofTargeting`'s
+    // constraint walk can't find K - rewrite each typeparam indexNode to the literal
+    // bound to it at the call site (recorded on the side via `getTypeParamArgPath`) and
+    // hand the synthetic literal-indexed chain to the standard dispatcher. covers
+    // `pick<K extends keyof Items>(k: K): Items[K]` called as `pick('a')` / `pick(0)` /
+    // ``pick(`a`)`` / chained `T[K1][K2]` with multiple typeparam slots
+    const concrete = indexNodes.map(idx => indexFromArgLiteral(idx, typeParamMap));
+    if (concrete.some((c, i) => c !== indexNodes[i])) {
+      const resolved = resolveTypeAnnotation(rebuildIndexedAccess(root, concrete), scope, depth);
+      if (resolved !== null) return resolved;
+    }
     return resolveTypeAnnotation(node, scope, depth);
+  }
+
+  // re-fold the unfolded `(root, indexNodes)` pair back into a chained TSIndexedAccessType.
+  // outer-most index applied last so the resulting AST matches the structure the unfold
+  // loop originally walked
+  function rebuildIndexedAccess(root, indexNodes) {
+    let node = root;
+    for (const idx of indexNodes) node = { type: 'TSIndexedAccessType', objectType: node, indexType: idx };
+    return node;
+  }
+
+  // map a typeparam-bound indexType to its concrete literal indexType using the call-
+  // site argPath. returns the original indexType when the rewrite doesn't apply (not a
+  // typeparam ref, no recorded argPath, or arg isn't a static literal) - the caller's
+  // `some((c, i) => c !== indexNodes[i])` guard then sees no change and falls through.
+  // accepted arg shapes: bare String/Numeric literal, runtime-peeled `as const`, and
+  // single-quasi TemplateLiteral - the same shapes `indexedAccessKey` recognises on
+  // the type side. shape is re-emitted with babel-named TSLiteralType slots since the
+  // downstream consumers walk through `isLiteralOf` (parser-agnostic)
+  function indexFromArgLiteral(indexType, typeParamMap) {
+    if (indexType?.type !== 'TSTypeReference') return indexType;
+    const name = typeRefName(indexType);
+    if (!name || !typeParamMap.has(name)) return indexType;
+    const argPath = returnTypeCluster.getTypeParamArgPath(typeParamMap, name);
+    if (!argPath?.node) return indexType;
+    const peeled = resolveRuntimeExpression(argPath)?.node ?? argPath.node;
+    if (isLiteralOf(peeled, 'String')) return synthLiteralIndex('StringLiteral', peeled.value);
+    if (isLiteralOf(peeled, 'Numeric')) return synthLiteralIndex('NumericLiteral', peeled.value);
+    const quasi = singleQuasiString(peeled);
+    if (quasi !== null) return synthLiteralIndex('StringLiteral', quasi);
+    return indexType;
+  }
+
+  function synthLiteralIndex(literalType, value) {
+    return { type: 'TSLiteralType', literal: { type: literalType, value } };
   }
 
   // single resolution attempt against a known-mapped typeparam: T[number] inner,
@@ -630,7 +682,6 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   const {
     resolveUserDefinedType,
     buildSubstMap,
-    buildParentSubst,
     buildDefaultTypeParamMap,
   } = createUserTypeResolve({
     typeParamName,
@@ -1362,6 +1413,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     MAX_DEPTH,
     isAmbientClassNode,
     typeRefSegmentsEqual,
+    typeRefName,
+    findTypeParameter,
     collectQualifiedSegments,
     unwrapTypeAnnotation,
     isNullableOrNever,
@@ -1412,6 +1465,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `getTypeMembers` populate via destructure assignment below
   const typeMembersCluster = createTypeMembers({
     unwrapTypeAnnotation,
+    peelTSParenthesized,
     isNullableOrNeverAnnotation,
     isClassLikeDeclaration,
     keyMatchesName,
@@ -1422,7 +1476,6 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     findTypeDeclaration,
     extendsClauseName,
     buildSubstMap,
-    buildParentSubst,
     buildParentClassSubstFromNodes,
     substMembers,
     applySubst,
@@ -1529,7 +1582,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // / `evaluateConditionalType` from the `type-expansion` cluster; the rest are factory
   // function declarations passed through closure
   ({ substituteTypeParams } = createTypeResolveDispatch({
-    typeRefName,
+    typeRefSegments,
     resolveKnownConstructor,
     resolveKnownContainerType,
     resolveUserDefinedType,
