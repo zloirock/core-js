@@ -172,10 +172,13 @@ export function createUserTypeResolve({
     typeParamMap = resolveTypeArgs({ decl: declaration, node, typeParamMap, scope, depth, seen: visited });
     // thread `visited` into the body-resolution closure so self-recursive aliases
     // (`type Rec<T> = Rec<T[]>`) hit the decl-set guard on re-entry instead of
-    // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn
+    // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn.
+    // no-typeParamMap branch passes `visited` to `resolveTypeAnnotation` so the
+    // typeParamMap-free recursion (`type Rec = { next: Rec }`) hits the same guard
+    // when the body re-references the alias through a bare TSTypeReference
     const resolve = typeParamMap
       ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1, visited)
-      : p => resolveTypeAnnotation(p, scope, depth + 1);
+      : p => resolveTypeAnnotation(p, scope, depth + 1, visited);
     if (isTypeAlias(declaration)) return resolve(typeAliasBody(declaration));
     if (declaration.type === 'TSEnumDeclaration') return resolveEnumType(declaration);
     if (isInterfaceDeclaration(declaration)) {
