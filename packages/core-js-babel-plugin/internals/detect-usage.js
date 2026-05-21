@@ -89,13 +89,28 @@ export function createBabelAdapter(getInjector = () => null) {
       // rewrite; (b) globalAlias table - user destructure aliases (`{Symbol: S} = globalThis`
       // -> `S`) whose mutated binding shape `resolveBindingToGlobal` can't walk on its own.
       // hint-only fallback handles babel scope-tracker lag after `replaceWith` during
-      // traversal (scope.getBinding empty even though the AST has the declaration)
+      // traversal (scope.getBinding empty even though the AST has the declaration).
+      // shadow guard: only attach the injector's `polyfillHint` when the scope binding is
+      // itself the polyfill import (or a destructure-alias from `registerGlobalAlias`).
+      // a user-side declaration with a matching name (`function MyPromise() {}` shadowing
+      // an `import MyPromise from "@core-js/pure/.../promise"` in an outer scope) would
+      // otherwise pick up `polyfillHint='Promise'` cross-shadow, and downstream
+      // `resolveBindingToGlobal` would dispatch `super.try` on `class extends MyPromise`
+      // as the Promise polyfill - silently miswiring user code
       const info = getInjector()?.getBindingInfo(name) ?? null;
       const b = scope.getBinding(name);
       if (b) {
-        const importSource = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)
-          ? b.path.parent?.source?.value ?? null : null;
-        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint: info?.hint ?? null };
+        const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
+        const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
+        // `info.source !== null` means a registered pure import (from
+        // `registerUserPureImport` or `addPureImport`). only attach the hint when the
+        // actual scope binding IS that import - a user-side function / var with a matching
+        // name shadowing an outer scope's polyfill import would otherwise cross-pollute.
+        // `info.source === null` is a destructure-alias from `registerGlobalAlias` whose
+        // binding shape is intentionally a non-import VariableDeclarator (babel rewrites
+        // `const {Promise} = globalThis` in place) - attach unconditionally for this case
+        const polyfillHint = info ? (info.source === null || isImportBinding ? info.hint : null) : null;
+        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint };
       }
       if (!info) return null;
       return { node: null, constantViolations: null, importSource: info.source, polyfillHint: info.hint };
@@ -359,8 +374,13 @@ export function createUsageVisitors({
     ReferencedIdentifier: handleIdentifier,
     Identifier(path) {
       if (onWarning === undefined || !path.parent) return;
+      // `adapter.hasBinding` folds in TS-runtime shadows (`enum Map {}`, `namespace Map {}`,
+      // value-mode `import Map = require()`) AND injector-managed alias bindings. raw
+      // `getBindingIdentifier` only sees babel scope-tracker bindings - enum/namespace
+      // shadows would fall through and the warning would fire false-positive on `Map ||= Y`
+      // even though the local enum makes the assignment legal at runtime
       const warning = checkLogicalAssignLhsGlobal(path.node, path.parent,
-        !!path.scope.getBindingIdentifier(path.node.name));
+        adapter.hasBinding(path.scope, path.node.name, path));
       if (warning) onWarning(warning);
     },
     'MemberExpression|OptionalMemberExpression': handleMemberExpression,

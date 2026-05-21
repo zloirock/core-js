@@ -126,6 +126,27 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
   'ParenthesizedExpression',
 ]);
 
+// extended set including `ChainExpression` for callers that need to skip / mark optional-
+// chain wrappers too. used by skip-mark walkers (`markSynthReceiverSkipped` /
+// destructure-emitter's per-branch peel) and by `peelFallbackWrappers`. ChainExpression
+// is the oxc-side wrapper for optional chains (babel folds the marker into
+// OptionalMemberExpression directly) - both adapters see the same flat shape after peel
+export const SKIPPABLE_WRAPPER_TYPES = new Set([
+  ...TRANSPARENT_EXPR_WRAPPER_TYPES,
+  'ChainExpression',
+]);
+
+// walk down `SKIPPABLE_WRAPPER_TYPES` wrappers marking each in `skippedNodes`; returns the
+// inner non-wrapper node. shared between `markSynthReceiverSkipped` (class-walk) and
+// per-branch synth-swap peel (destructure-emitter) so the wrapper-set stays in lockstep
+export function markAndPeelSkippableWrappers(node, skippedNodes) {
+  while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) {
+    skippedNodes.add(node);
+    node = node.expression;
+  }
+  return node;
+}
+
 // transparent wrappers between a CallExpression's `.callee` and the actual invoked node.
 // narrower than IIFE_CALL_PATH_WRAPPERS - Unary changes what's invoked. SequenceExpression
 // is peeled unconditionally below: the tail is the invoked function regardless of preceding
@@ -693,13 +714,15 @@ function isUpdateOperandWrapper(node) {
   return !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
 }
 
-// peel ParenthesizedExpression + TS expression wrappers. oxc-parser preserves both;
-// babel-parser strips parens by default. used in fallback-receiver / computed-key /
-// branch-slot resolution where the underlying shape is what matters and wrappers are
-// transparent at runtime. distinct from `unwrapParens` (in detect-usage) which also
-// peels SequenceExpression tails - that's mode-specific
+// peel ParenthesizedExpression + TS expression wrappers + ChainExpression. oxc-parser
+// preserves parens AND wraps optional chains in ChainExpression (babel emits OptionalMember
+// directly without the wrapper); babel-parser strips parens by default. used in fallback-
+// receiver / computed-key / branch-slot resolution where the underlying shape is what
+// matters and wrappers are transparent at runtime. distinct from `unwrapParens` (in
+// detect-usage) which also peels SequenceExpression tails - that's mode-specific
 export function peelFallbackWrappers(node) {
-  while (node && (node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
+  while (node && (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(node.type))) {
     node = node.expression;
   }
   return node;
