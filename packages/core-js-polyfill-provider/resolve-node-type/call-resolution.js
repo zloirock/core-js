@@ -161,17 +161,43 @@ export function createCallResolution({
     // return shape and narrows downstream instance polyfills to Array-only, missing the
     // String / other-type branches that the reassigned function could legitimately produce.
     // mirrors `walkStaticReceiverChain`'s INIT-side guard (detect-usage/destructure.js) and
-    // `resolvePath`'s reassignment walk
-    if (binding.constantViolations?.length) return null;
+    // `resolvePath`'s reassignment walk.
+    // single-violation `let x; ({x} = Source)` shape is a different beast: the binding has
+    // no init at declaration time, the assignment provides the value once. delegate that
+    // case to `pairFromAssignmentDestructure` so the destructure-host-only restriction
+    // doesn't lose static-pair tracking for the assignment-style aliasing
+    if (binding.constantViolations?.length) {
+      return binding.constantViolations.length === 1 && !binding.path.node?.init
+        ? pairFromAssignmentDestructure(binding.constantViolations[0], name, binding.scope)
+        : null;
+    }
+    return pairFromDeclaratorDestructure(binding, name);
+  }
+
+  function pairFromDeclaratorDestructure(binding, name) {
     let declarator = binding.path;
     while (declarator && !t.isVariableDeclarator(declarator.node)) declarator = declarator.parentPath;
     if (!declarator) return null;
     const { id, init } = declarator.node;
     if (id?.type !== 'ObjectPattern' || !init) return null;
-    const keyPath = findDestructuredKeyPath(id, name, declarator.scope);
+    return pairFromPatternAndSource({ pattern: id, source: init, name, scope: declarator.scope });
+  }
+
+  // `let x; ({x} = Source)` style: violationPath is the AssignmentExpression containing
+  // the destructure pattern. only `=` operator counts (`x ??= ...` / `x ||= ...` would
+  // narrow only when Source matches the operator's discharge condition - skip for safety)
+  function pairFromAssignmentDestructure(violationPath, name, scope) {
+    const node = violationPath?.node;
+    if (node?.type !== 'AssignmentExpression' || node.operator !== '=') return null;
+    if (node.left?.type !== 'ObjectPattern' || !node.right) return null;
+    return pairFromPatternAndSource({ pattern: node.left, source: node.right, name, scope });
+  }
+
+  function pairFromPatternAndSource({ pattern, source, name, scope }) {
+    const keyPath = findDestructuredKeyPath(pattern, name, scope);
     if (!keyPath?.length) return null;
     const constructor = walkStaticReceiverChain({
-      receiverNode: init, walkPath: keyPath.slice(0, -1), scope: declarator.scope, adapter: babelBindingAdapter,
+      receiverNode: source, walkPath: keyPath.slice(0, -1), scope, adapter: babelBindingAdapter,
     });
     if (!constructor || !hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
     return { constructor, method: keyPath.at(-1) };
@@ -285,12 +311,28 @@ export function createCallResolution({
     return null;
   }
 
-  // find the raw type annotation of an expression (follows bindings and const chains)
+  // find the raw type annotation of an expression (follows bindings and const chains).
+  // memoized by path.node identity - `resolveFromMemberExpression` invokes this twice when
+  // the resolved and original object paths differ, and recursive descents revisit common
+  // ancestors; cache amortises the per-call O(chain-length) walk to a single pass per node
+  let expressionAnnotationCache = new WeakMap();
   function findExpressionAnnotation(path, depth = 0) {
     if (depth > MAX_DEPTH) return null;
+    if (!path?.node) return null;
+    const cached = expressionAnnotationCache.get(path.node);
+    if (cached !== undefined) return cached;
+    const result = computeExpressionAnnotation(path, depth);
+    expressionAnnotationCache.set(path.node, result);
+    return result;
+  }
+
+  function resetExpressionAnnotationCache() {
+    expressionAnnotationCache = new WeakMap();
+  }
+
+  function computeExpressionAnnotation(path, depth) {
     // path.node may be null on orphaned paths or stub slots - bail safely instead of
     // crashing on `.type` access. matches the defensive shape used elsewhere
-    if (!path?.node) return null;
     // ESTree preserves ParenthesizedExpression - unwrap
     if (path.node.type === 'ParenthesizedExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
     // ESTree wraps optional chains in ChainExpression (babel inlines); peel so the
@@ -429,5 +471,6 @@ export function createCallResolution({
     findExpressionAnnotation,
     resolveIndexSignatureValue,
     buildCallSiteSubst,
+    resetExpressionAnnotationCache,
   };
 }
