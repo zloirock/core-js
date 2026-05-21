@@ -393,6 +393,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         || type === 'ParenthesizedExpression'
         || type === 'ChainExpression') {
         path = path.get('expression');
+      // chain-AssignmentExpression `(a = init)` evaluates to its right operand at runtime.
+      // common shape: `const x = a = init` / `const x = a = b = init`. peel here so the
+      // alias walker reaches the rightmost value through nested assignment chains
+      } else if (type === 'AssignmentExpression' && path.node.operator === '=') {
+        path = path.get('right');
       } else break;
     }
     return path;
@@ -906,10 +911,45 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!t.isVariableDeclarator(bindingPath.node)) return null;
     const { id } = bindingPath.node;
     if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') return null;
-    const initPath = bindingPath.get('init');
+    let initPath = bindingPath.get('init');
     if (!initPath?.node) return null;
     if (id?.typeAnnotation && isNullishInit(initPath.node)) return null;
+    // zero-arg IIFE on init (`const x = (() => RHS)()`) evaluates to the function body's
+    // sole expression at runtime. peel one IIFE layer when the body is an expression-only
+    // arrow / FE with no params - downstream alias-walker then reaches RHS just like
+    // `const x = RHS`. multi-statement bodies / param'd IIFEs stay opaque (side effects /
+    // arg binding can't be statically inlined)
+    const iifeBody = zeroArgIifeBodyPath(initPath);
+    if (iifeBody) initPath = iifeBody;
     return initPath;
+  }
+
+  // returns the inner expression Path when `initPath` wraps a zero-arg arrow / FunctionExpression
+  // call with an expression-only body, otherwise null
+  function zeroArgIifeBodyPath(initPath) {
+    const { node } = initPath;
+    if (node?.type !== 'CallExpression' || node.arguments?.length) return null;
+    // peel paren / chain / TS-wrappers off the callee: oxc preserves `(() => x)()` as
+    // `CallExpression { callee: ParenthesizedExpression { ArrowFunctionExpression } }`,
+    // babel strips the paren on parse. without this both parsers must agree on the IIFE
+    // shape or the unplugin path silently misses the alias-walk's chain-narrow downstream
+    const arrow = unwrapRuntimeExpr(node.callee);
+    if (arrow?.type !== 'ArrowFunctionExpression' || arrow.params?.length) return null;
+    if (arrow.body?.type === 'BlockStatement') return null;
+    const arrowPath = walkPathToNode(initPath.get('callee'), arrow);
+    return arrowPath?.get('body') ?? null;
+  }
+
+  // walk a wrapped path through `.get('expression')` until its node matches `target`.
+  // mirrors `unwrapRuntimeExpr` on the node side - paths produced by callee-side peels
+  // (ParenthesizedExpression / ChainExpression / TS expression wrappers) all expose
+  // their inner shape through the `expression` slot, so a single walker covers every
+  // combination. returns null when the walk overshoots (defensive against mismatched
+  // wrapper depth between node and path)
+  function walkPathToNode(pathStart, target) {
+    let walker = pathStart;
+    while (walker?.node && walker.node !== target) walker = walker.get('expression');
+    return walker?.node === target ? walker : null;
   }
 
   // `null` / `undefined` literal or `void <expr>` - placeholders that don't reflect runtime
@@ -956,8 +996,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       if (params?.[paramIndex]) return resolveTypeAnnotation(params[paramIndex], info.scope);
       return null;
     }
-    // call expression: resolve callee function's return type annotation
-    const resolved = resolveRuntimeExpression(exprPath);
+    // call expression: resolve callee function's return type annotation. async-generator
+    // `yield* await inner()` parses the delegate as AwaitExpression wrapping the call -
+    // peel one level so the call's return-type signature reaches the dispatch (Awaited<>
+    // on a Generator return is the same Generator shape, so unwrap is sound here)
+    let resolved = resolveRuntimeExpression(exprPath);
+    if (t.isAwaitExpression(resolved.node)) resolved = resolveRuntimeExpression(resolved.get('argument'));
     if (t.isCallExpression(resolved.node) || t.isNewExpression(resolved.node)) {
       const callee = resolveRuntimeExpression(resolved.get('callee'));
       if (t.isFunction(callee.node) && callee.node.returnType) {
@@ -1229,7 +1273,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const segments = entry.split('/');
     if (segments.length < 2) return null;
     const constructor = entryToGlobalHint(segments[0]);
-    return constructor ? { constructor, method: kebabToCamel(segments.at(-1)) } : null;
+    if (!constructor) return null;
+    // gate on KNOWN_STATIC_METHOD_RETURN_TYPES the same as `staticPairFromDestructure`
+    // does - asymmetric acceptance otherwise resurfaces stale entries for unknown
+    // constructors (`reflect/xxx` shimmed but not tracked structurally) and downstream
+    // call-return inference reads garbage
+    if (!hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
+    return { constructor, method: kebabToCamel(segments.at(-1)) };
   }
 
   // `resolveCallReturnType` + `resolveCallReturnTypeFromAnnotation` +
@@ -1318,6 +1368,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     t,
     constantBindingPath,
     findEnumDeclaration,
+    findDeclPathBySegments,
     resolveEnumMemberType,
     isFunctionOrClassDeclaration,
     isFunctionLike,

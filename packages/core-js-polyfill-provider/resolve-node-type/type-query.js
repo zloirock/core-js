@@ -24,6 +24,7 @@ export function createTypeQuery({
   t,
   constantBindingPath,
   findEnumDeclaration,
+  findDeclPathBySegments,
   resolveEnumMemberType,
   isFunctionOrClassDeclaration,
   isFunctionLike,
@@ -81,6 +82,16 @@ export function createTypeQuery({
       const enumDecl = findEnumDeclaration(objectName, scope);
       if (enumDecl) {
         const type = resolveEnumMemberType(enumDecl, memberPath[0]);
+        if (type) return type;
+      }
+    } else if (memberPath.length > 1) {
+      // namespaced `typeof NS.E.Member` - traverse namespace segments to the enum decl
+      // then map the trailing segment as enum member. `findDeclPathBySegments` returns
+      // a NodePath; `.node` carries the TSEnumDeclaration shape
+      const enumSegments = [objectName, ...memberPath.slice(0, -1)];
+      const declPath = findDeclPathBySegments(enumSegments, scope, decl => decl.type === 'TSEnumDeclaration');
+      if (declPath?.node) {
+        const type = resolveEnumMemberType(declPath.node, memberPath.at(-1));
         if (type) return type;
       }
     }
