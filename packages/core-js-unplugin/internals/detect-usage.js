@@ -475,7 +475,7 @@ export function createUsageVisitors({
 
     const key = extractPropertyKey(propNode, scope);
     if (!key) return null;
-    return buildDestructuringInitMeta({ initNode, key, scope, adapter });
+    return buildDestructuringInitMeta({ initNode, key, scope, adapter, path: parent });
   }
 
   function annotationGlobal(path) {
