@@ -1,8 +1,8 @@
-// multiple merged namespace declarations on one class - each block exports a
-// different fn. resolver must walk past namespace #1 when looking up `create`
-// (only in namespace #2). without the multi-namespace walk, `create` lookup would
-// bail on namespace #1's body and `.at(0)` would fall to common (over-injecting
-// array.at + string.at). both fns return the user class -> no polyfills emitted
+// Two separate `namespace MyContainer { ... }` blocks merge onto the same class,
+// each exporting a different function. Lookup of `build` (only in the first
+// namespace) and `create` (only in the second) must both succeed. Both functions
+// return `MyContainer<T>`, so `.at(0)` on each result must NOT emit Array#at or
+// String#at - both call sites narrow to the user class.
 class MyContainer<T> {}
 namespace MyContainer {
   export function build<T>(arr: T[]): MyContainer<T> {

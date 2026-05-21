@@ -1,8 +1,8 @@
 // `class Child extends Base` inherits Base's static members at runtime, including
-// those contributed by `namespace Base`. resolver walks the super chain (visited-set
-// gated) so `Child.build()` correctly resolves via Base's merged namespace export.
-// without the parent-walk, `Child.build()` would fall to common dispatch and
-// over-inject array.at + string.at on the returned instance
+// those contributed by a merged `namespace Base`. `Child.build([1,2,3])` must
+// resolve via Base's namespace export and return a `Base<T>` instance, so
+// `.at(0)` on that result must NOT emit Array#at or String#at - the user's class
+// has no `at`.
 class Base<T> {}
 namespace Base {
   export function build<T>(arr: T[]): Base<T> {
