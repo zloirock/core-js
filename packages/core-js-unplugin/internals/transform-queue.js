@@ -541,10 +541,13 @@ export default class TransformQueue {
     }
     // validate BOTH content args upfront - throwing inside the second `add` call after
     // the first succeeded would leave an orphan prefix entry in the queue. typeof check
-    // mirrors `add`'s implicit string requirement (RawTransformContent template);
-    // catches future call sites passing undefined / non-string suffix
-    if (typeof prefixContent !== 'string' || typeof suffixContent !== 'string') {
-      throw new TypeError(`[core-js] transform-queue: addSplit content args must be strings; received prefix=${ typeof prefixContent }, suffix=${ typeof suffixContent }`);
+    // mirrors `add`'s implicit string requirement (RawTransformContent template); also
+    // reject empty strings - a split represents one logical rewrite emitted as two halves,
+    // each must carry non-empty replacement text. empty halves indicate caller bug
+    // (would emit zero-length chunk at sourcemap-distinct position)
+    if (typeof prefixContent !== 'string' || typeof suffixContent !== 'string'
+        || prefixContent.length === 0 || suffixContent.length === 0) {
+      throw new TypeError(`[core-js] transform-queue: addSplit content args must be non-empty strings; received prefix=${ typeof prefixContent === 'string' ? `'${ prefixContent }'` : typeof prefixContent }, suffix=${ typeof suffixContent === 'string' ? `'${ suffixContent }'` : typeof suffixContent }`);
     }
     const groupId = Symbol('split');
     const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
