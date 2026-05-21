@@ -198,13 +198,30 @@ export function createUserTypeResolve({
     // as a concrete type and suppresses the generic polyfill plugin emits for unknowable
     // receivers. mirrors the interface-branch cycle handling above
     if (isClassLikeDeclaration(declaration)) {
-      const superClass = declaration.superClass ?? declaration.extends?.[0]?.id;
-      const superName = extendsClauseName(superClass, scope);
+      const flowExtend = declaration.extends?.[0];
+      const superClass = declaration.superClass ?? flowExtend?.id;
+      let superName = extendsClauseName(superClass, scope);
+      // `class Sub extends NS.Base` - `extendsClauseName` walks `walkStaticReceiverChain`
+      // (runtime-binding lookup) which misses TS-only `namespace NS { class Base {} }`
+      // (no runtime binding for the module). fall back to namespace-aware type lookup
+      // via segments + `findTypeDeclaration`, mirroring the interface-branch behaviour.
+      // `collectQualifiedSegments` accepts both type-position (TSQualifiedName) and
+      // value-position (MemberExpression in heritage clause) qualified names
+      if (!superName) {
+        const segments = collectQualifiedSegments(superClass);
+        if (segments?.length > 1 && findTypeDeclaration(segments, scope)) {
+          superName = segments.join('.');
+        }
+      }
       if (!superName) return new $Object('Object');
+      // Flow `DeclareClass extends Base<T>` carries typeArgs on the heritage clause
+      // (`extends[0].typeParameters`), not on the declaration itself - `getSuperTypeArgs`
+      // probes both class-side slots and would otherwise return undefined here, dropping
+      // T from the parent ref and losing element-precision through Base<T>
       const parentRef = {
         type: 'TSTypeReference',
-        typeName: { type: 'Identifier', name: superName },
-        typeParameters: getSuperTypeArgs(declaration),
+        typeName: typeNameFromName(superName),
+        typeParameters: flowExtend?.typeParameters ?? getSuperTypeArgs(declaration),
       };
       const ctor = resolveKnownConstructor(superName);
       if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
@@ -217,6 +234,19 @@ export function createUserTypeResolve({
       return new $Object('Object');
     }
     return null;
+  }
+
+  // canonical typeName slot for a synthetic TSTypeReference: single names stay as
+  // Identifier, dotted names fold into a left-recursive TSQualifiedName chain. downstream
+  // `typeRefSegments` / `collectQualifiedSegments` walk both shapes identically
+  function typeNameFromName(name) {
+    if (!name.includes('.')) return { type: 'Identifier', name };
+    const parts = name.split('.');
+    let typeName = { type: 'Identifier', name: parts[0] };
+    for (let i = 1; i < parts.length; i++) {
+      typeName = { type: 'TSQualifiedName', left: typeName, right: { type: 'Identifier', name: parts[i] } };
+    }
+    return typeName;
   }
 
   // build {paramName -> argNode} from explicit usage args, falling back to decl param defaults
