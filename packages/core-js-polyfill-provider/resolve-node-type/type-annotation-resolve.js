@@ -393,7 +393,7 @@ export function createTypeAnnotationResolve({
     return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
   }
 
-  function resolveTypeAnnotation(node, scope, depth = 0) {
+  function resolveTypeAnnotation(node, scope, depth = 0, seen = null) {
     if (depth > MAX_DEPTH) return null;
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
@@ -468,31 +468,33 @@ export function createTypeAnnotationResolve({
       // through to T directly; everything else is structurally opaque
       case 'TSMappedType': {
         const passthrough = unwrapMappedTypePassthrough(node);
-        return passthrough ? resolveTypeAnnotation(passthrough, scope, depth + 1) : null;
+        return passthrough ? resolveTypeAnnotation(passthrough, scope, depth + 1, seen) : null;
       }
       case 'TSArrayType':
       case 'ArrayTypeAnnotation':
-        return new $Object('Array', resolveNonNullableAnnotation({ node: node.elementType, scope, depth }));
+        return new $Object('Array', resolveNonNullableAnnotation({ node: node.elementType, scope, depth, seen }));
       case 'TSTupleType':
       case 'TupleTypeAnnotation':
-        return tupleAsArrayType(node, e => resolveTypeAnnotation(e, scope, depth + 1));
+        return tupleAsArrayType(node, e => resolveTypeAnnotation(e, scope, depth + 1, seen));
       // TS / Flow named types - only well-known built-ins and utility types.
       // handle dotted refs (`NS.Data`) by joining segments so resolveNamedType /
-      // findTypeDeclaration can split them back into a path-walk
+      // findTypeDeclaration can split them back into a path-walk. `seen` propagates so
+      // `resolveUserDefinedType`'s decl-cycle short-circuit observes ancestor visits
+      // when re-entering through an alias body (`type Rec = { next: Rec }`)
       case 'TSTypeReference':
       case 'GenericTypeAnnotation': {
         const segments = typeRefSegments(node);
         if (!segments) return null;
-        return resolveNamedType({ name: segments.join('.'), node, scope, depth });
+        return resolveNamedType({ name: segments.join('.'), node, scope, depth, seen });
       }
       // transparent wrappers - unwrap and resolve the inner type
       case 'TSOptionalType':
       case 'TSParenthesizedType':
       case 'NullableTypeAnnotation':
-        return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
+        return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
       // TS type operator: `readonly T[]`, `unique symbol` - but NOT `keyof T`
       case 'TSTypeOperator':
-        return node.operator === 'keyof' ? null : resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
+        return node.operator === 'keyof' ? null : resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
       // TS typeof in type position: `typeof variable`
       case 'TSTypeQuery':
         return resolveTypeQuery(node, scope);
@@ -509,13 +511,13 @@ export function createTypeAnnotationResolve({
       case 'UnionTypeAnnotation': {
         const { types } = node;
         if (!types || !types.length) return null;
-        return foldUnionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1));
+        return foldUnionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1, seen));
       }
       case 'TSIntersectionType':
       case 'IntersectionTypeAnnotation': {
         const { types } = node;
         if (!types || !types.length) return null;
-        return foldIntersectionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1));
+        return foldIntersectionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1, seen));
       }
       case 'TSLiteralType':
         return resolveLiteralType(node);
