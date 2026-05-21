@@ -4,6 +4,7 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
+import { collectMutatedStaticMembers } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
@@ -254,14 +255,30 @@ function checkAddSplitContentTypeGuard() {
     counts.failed++;
     echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit suffix type guard') } :: expected throw`;
   } catch (error) {
-    /content args must be strings/.test(error.message) ? counts.passed++ : counts.failed++;
+    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
   }
   try {
     q.addSplit(2, 5, 8, 42, 'SUFFIX');
     counts.failed++;
     echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit prefix type guard') } :: expected throw`;
   } catch (error) {
-    /content args must be strings/.test(error.message) ? counts.passed++ : counts.failed++;
+    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
+  }
+  // empty-string content is a caller bug too - a split represents one logical rewrite emitted
+  // as two halves, each must carry non-empty replacement text
+  try {
+    q.addSplit(2, 5, 8, '', 'SUFFIX');
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit empty prefix guard') } :: expected throw`;
+  } catch (error) {
+    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
+  }
+  try {
+    q.addSplit(2, 5, 8, 'PREFIX', '');
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit empty suffix guard') } :: expected throw`;
+  } catch (error) {
+    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
   }
   // valid call should still work after rejected ones - no orphan state from earlier throws
   q.addSplit(2, 5, 8, 'PREFIX', 'SUFFIX');
@@ -983,6 +1000,29 @@ function checkSnapshotKeyNormalization() {
   cache.store('/foo.js?Y=2', { tag: 'hmr-tail' });
   check('SnapshotCache/HMR strip first-token + & tail',
     cache.take('/foo.js?t=1&Y=2')?.tag, 'hmr-tail');
+  // SFC sub-block query-parameter order normalization: `?vue&type=script&lang=ts` and
+  // `?vue&lang=ts&type=script` describe the same block; cache key must match regardless of
+  // bundler-emitted parameter order
+  cache.store('/src/Sort.vue?vue&type=script&lang=ts', { tag: 'sfc-sort' });
+  check('SnapshotCache/sfc tail param-order canonical',
+    cache.take('/src/Sort.vue?vue&lang=ts&type=script')?.tag, 'sfc-sort');
+  // invalidate fanout: changing an SFC source file drops the bare-path snapshot AND every
+  // sub-block entry (script / template / style) so a stale post-pass can't pick them up
+  cache.store('/src/Fan.vue', { tag: 'fan-bare' });
+  cache.store('/src/Fan.vue?vue&type=script', { tag: 'fan-script' });
+  cache.store('/src/Fan.vue?vue&type=template', { tag: 'fan-template' });
+  cache.invalidate('/src/Fan.vue');
+  check('SnapshotCache/invalidate fanout bare', cache.take('/src/Fan.vue'), null);
+  check('SnapshotCache/invalidate fanout script', cache.take('/src/Fan.vue?vue&type=script'), null);
+  check('SnapshotCache/invalidate fanout template', cache.take('/src/Fan.vue?vue&type=template'), null);
+  // peekWithParse leaves the snapshot intact: callers (post pass with disable-file detection)
+  // can inspect cached AST before committing to `take()`. bail paths leave the entry so a
+  // subsequent retry can still consume it
+  cache.store('/src/Peek.js', { postInput: 'X', ast: { type: 'Program' }, comments: [], snapshot: { tag: 'peeked' } });
+  const peek1 = cache.peekWithParse('/src/Peek.js', 'X');
+  check('SnapshotCache/peek returns snapshot', peek1.snapshot?.tag, 'peeked');
+  check('SnapshotCache/peek non-destructive', cache.take('/src/Peek.js')?.snapshot?.tag, 'peeked');
+  check('SnapshotCache/peek then take consumes', cache.take('/src/Peek.js'), null);
 }
 checkSnapshotKeyNormalization();
 
@@ -2201,6 +2241,90 @@ function checkSnapshotTakeWithParseMismatch() {
   check('takeWithParse/mismatch comments invalidated', result.comments, null);
 }
 checkSnapshotTakeWithParseMismatch();
+
+// pre intentionally stores `ast: null` (e.g. mode rewrote pre's output) - post must still
+// see the snapshot but cannot reuse parse. shared `#withParseShape` must collapse a stored
+// null ast into the empty-parse shape regardless of postInput byte match
+function checkSnapshotTakeWithParseNullAst() {
+  const cache = new SnapshotCache();
+  const snap = { signal: 'ok' };
+  cache.store('/a.js', { snapshot: snap, ast: null, comments: null, postInput: 'foo();' });
+  const result = cache.takeWithParse('/a.js', 'foo();');
+  check('takeWithParse/null ast - snapshot returned', result.snapshot, snap);
+  check('takeWithParse/null ast - ast stays null', result.ast, null);
+  check('takeWithParse/null ast - comments stay null', result.comments, null);
+}
+checkSnapshotTakeWithParseNullAst();
+
+// peekWithParse byte-mismatch must invalidate the parse-cache fields (same as takeWithParse)
+// while keeping the snapshot. the refactor extracts a shared `#withParseShape` helper - both
+// public methods must produce identical shape; this is the regression guard
+function checkSnapshotPeekWithParseMismatch() {
+  const cache = new SnapshotCache();
+  const snap = { signal: 'peek-mismatch' };
+  cache.store('/a.js', { snapshot: snap, ast: { type: 'Program' }, comments: [], postInput: 'before' });
+  const result = cache.peekWithParse('/a.js', 'after');
+  check('peekWithParse/mismatch snapshot kept', result.snapshot, snap);
+  check('peekWithParse/mismatch ast invalidated', result.ast, null);
+  check('peekWithParse/mismatch comments invalidated', result.comments, null);
+  // entry survives - bail path can retry
+  check('peekWithParse/mismatch non-destructive', cache.take('/a.js')?.snapshot?.signal, 'peek-mismatch');
+}
+checkSnapshotPeekWithParseMismatch();
+
+function checkSnapshotPeekWithParseMiss() {
+  const cache = new SnapshotCache();
+  const result = cache.peekWithParse('/missing.js', 'anything');
+  check('peekWithParse/miss snapshot null', result.snapshot, null);
+  check('peekWithParse/miss ast null', result.ast, null);
+  check('peekWithParse/miss comments null', result.comments, null);
+}
+checkSnapshotPeekWithParseMiss();
+
+// --- collectMutatedStaticMembers ---
+// pre-pass scan that backs the usage-pure substitution gate. detects every shape of
+// `Object.key` mutation - direct `=`, compound `+=`, update `++`, `delete`, and
+// destructure-LHS / pattern-target slots - so reads later in the file bail to preserve
+// the user's monkey-patch (polyfill import is `const`, can't see the mutation)
+function checkCollectMutatedStaticMembers() {
+  function collect(src) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    return collectMutatedStaticMembers(parseSync('unit.js', src).program);
+  }
+  // direct `=` assignment
+  check('collectMutatedStaticMembers/direct assign',
+    collect('Array.from = () => [];').has('Array.from'), true);
+  // array-destructure LHS - `[Array.from] = X`
+  check('collectMutatedStaticMembers/array-destructure LHS',
+    collect('[Array.from] = [];').has('Array.from'), true);
+  // compound `+=`
+  check('collectMutatedStaticMembers/compound assign',
+    collect('Array.from += "x";').has('Array.from'), true);
+  // update `++`
+  check('collectMutatedStaticMembers/update postfix',
+    collect('Array.from++;').has('Array.from'), true);
+  // `delete`
+  check('collectMutatedStaticMembers/delete',
+    collect('delete Array.from;').has('Array.from'), true);
+  // pure read - NO mutation
+  check('collectMutatedStaticMembers/read only',
+    collect('Array.from([1, 2, 3]);').has('Array.from'), false);
+  // mutation of different member doesn't leak across keys
+  const mixed = collect('Array.of = X; Array.from([1, 2, 3]);');
+  check('collectMutatedStaticMembers/mixed - mutated key tracked',
+    mixed.has('Array.of'), true);
+  check('collectMutatedStaticMembers/mixed - read-only key not tracked',
+    mixed.has('Array.from'), false);
+  // proxy-global chain (`globalThis.Array.from`) NOT detected - out of scope, requires
+  // full receiver resolution; pre-pass intentionally fast-and-direct
+  check('collectMutatedStaticMembers/proxy-global chain not tracked',
+    collect('globalThis.Array.from = X;').has('Array.from'), false);
+  // computed key (`Array["from"] = X`) NOT detected - resolving computed keys is out of
+  // scope for the fast pre-walk
+  check('collectMutatedStaticMembers/computed key not tracked',
+    collect('Array["from"] = X;').has('Array.from'), false);
+}
+checkCollectMutatedStaticMembers();
 
 // --- isChunkLoaderBundler ---
 // dynamic-import chunk-loader semantics: webpack-family bundlers wrap `import()`
