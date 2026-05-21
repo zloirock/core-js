@@ -22,7 +22,7 @@ import {
   AMBIENT_FUNCTION_TYPES,
   getOrInitMap,
 } from './base.js';
-import { isInterfaceDeclaration, isTypeAlias } from './ast-shapes.js';
+import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias } from './ast-shapes.js';
 import { unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
 
 // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass.
@@ -179,6 +179,20 @@ export function createNameResolution({ t }) {
         collect.push(decl);
         continue;
       }
+      // TS `import IE = NS;` / `import IE = NS.Inner;` namespace alias - redirect head
+      // segment through the moduleReference's segments and re-walk. external-module form
+      // (`import X = require('m')`) has TSExternalModuleReference which `collectQualified
+      // Segments` rejects (non-Identifier slot), so it correctly bails without misrouting
+      if (decl.type === 'TSImportEqualsDeclaration' && decl.id?.name === head && rest.length) {
+        const refSegments = collectQualifiedSegments(decl.moduleReference);
+        if (refSegments?.length) {
+          const inner = walkStatementsForDecl({
+            segments: [...refSegments, ...rest], statements, collect, leafMatch,
+          });
+          if (inner && !collect) return inner;
+        }
+        continue;
+      }
       if (decl.type !== 'TSModuleDeclaration') continue;
       const moduleSegs = moduleNameSegments(decl.id);
       if (!moduleSegs) continue;
@@ -281,30 +295,39 @@ export function createNameResolution({ t }) {
     }
   }
 
-  // walk the current lookup-path anchor's ancestors for enclosing TSModuleBlock bodies
-  // (the inner `{}` of a namespace) and check each one's direct statements for the type
-  // decl. respects TS lexical scoping: only namespaces that ENCLOSE the lookup site are
-  // checked, not siblings. mirrors `findTSRuntimeBindingInPath` for runtime-binding lookups
+  // walk the current lookup-path anchor's ancestors for enclosing block-like containers
+  // (TSModuleBlock / Program / BlockStatement / StaticBlock) and check each one's direct
+  // statements for the type decl. respects TS lexical scoping: only containers that
+  // ENCLOSE the lookup site are checked, not siblings. mirrors `findTSRuntimeBindingInPath`.
+  // cache keyed on (path-anchor, name): each missed scope-chain lookup re-walks the same
+  // O(pathDepth) ancestors per call site - WeakMap per anchor amortises to O(unique-names).
+  // negative results cached too so repeat misses don't keep re-walking
+  let lookupPathDeclCache = new WeakMap();
   function findTypeDeclInLookupPath(name) {
     const path = lookupPathStack.at(-1);
     if (!path) return null;
+    const cacheKey = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : '';
+    let perPath = lookupPathDeclCache.get(path);
+    if (perPath?.has(cacheKey)) return perPath.get(cacheKey);
     const segments = typeof name === 'string' ? name.split('.') : name;
+    let result = null;
     for (let cur = path; cur; cur = cur.parentPath) {
-      // any block-like container with a statement list can host a type decl: TSModuleBlock
-      // (`namespace X {}`), Program (top-level), BlockStatement (`function f() { type T = ... }`),
-      // StaticBlock (`static { ... }`). without these arms the lookup stack misses local-scope
-      // decls and falls through to module-scope walk, conflating shadow-rebinding
       const { node } = cur;
       const statements = node?.type === 'TSModuleBlock' || node?.type === 'Program'
         || node?.type === 'BlockStatement' || node?.type === 'StaticBlock'
         ? node.body : null;
       if (!statements) continue;
-      const result = walkStatementsForDecl({
+      const found = walkStatementsForDecl({
         segments, statements, collect: null, leafMatch: isTypeBearingDeclaration,
       });
-      if (result) return result;
+      if (found) {
+        result = found;
+        break;
+      }
     }
-    return null;
+    if (!perPath) lookupPathDeclCache.set(path, perPath = new Map());
+    perPath.set(cacheKey, result);
+    return result;
   }
 
   // narrow `findTypeDeclaration` to TSEnumDeclaration. callers care about the enum-decl
@@ -359,6 +382,7 @@ export function createNameResolution({ t }) {
     ambientDeclCache = new WeakMap();
     typeDeclCache = new WeakMap();
     allTypeDeclCache = new WeakMap();
+    lookupPathDeclCache = new WeakMap();
   }
 
   // path-aware variant of `walkScopesForDecl` for qualified names. mirrors the
