@@ -488,7 +488,7 @@ export function createPolyfillEmitter({
     if (!recv.substituted) skipProxyGlobal(node);
   }
 
-  function handleSymbolIterator({ node, parent, metaPath }) {
+  function handleSymbolIterator({ node, parent, metaPath, sideEffects = null }) {
     if (node.object?.type === 'Super') return;
     if (node.computed && hasSideEffectfulSequencePrefix(node.property)) return;
     const isCallParent = isCallee(node, parent);
@@ -497,9 +497,14 @@ export function createPolyfillEmitter({
         ? 'get-iterator' : 'get-iterator-method';
     if (!isEntryNeeded(entry)) return;
     const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
+    // `sideEffects` carries computed-key SE prefixes peeled by `resolveComputedSymbolKey`
+    // (`recv[Symbol[(fn(), 'iterator')]]`). without the carry, the rewrite would discard the
+    // whole `Symbol[...]` subtree and silently drop `fn()`. `addInstanceTransform` re-emits
+    // via SequenceExpression wrap; outer paren and ASI guards already handle the wrap shape
     addInstanceTransform({
       binding, node, parent, metaPath, isCall: isCallParent,
       replacementIsCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
+      sideEffects,
     });
     if (node.property) skipWrappedNode(node.property);
   }

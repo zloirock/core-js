@@ -103,7 +103,20 @@ export function markSynthReceiverSkipped(receiver, skippedNodes) {
   while (cur) {
     skippedNodes.add(cur);
     if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
-      cur = unwrapRuntimeExpr(cur.object);
+      // walk through paren / chain / TS wrappers on `.object` adding EACH to skippedNodes.
+      // `unwrapRuntimeExpr` peels to the underlying expression but loses the wrapper
+      // identities; if the Identifier visitor inspects a paren-wrapped global LATER
+      // (`(globalThis as any).Map`), the paren / TS wrapper itself isn't in skippedNodes
+      // and the inner Identifier still fires its own polyfill, leaving an orphan import
+      let next = cur.object;
+      while (next && (next.type === 'ParenthesizedExpression' || next.type === 'ChainExpression'
+        || next.type === 'TSAsExpression' || next.type === 'TSSatisfiesExpression'
+        || next.type === 'TSTypeAssertion' || next.type === 'TSNonNullExpression'
+        || next.type === 'TSInstantiationExpression' || next.type === 'TypeCastExpression')) {
+        skippedNodes.add(next);
+        next = next.expression;
+      }
+      cur = next;
     } else break;
   }
 }
@@ -191,19 +204,35 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
 
   function findEnclosingClassMember(path) {
     const visited = [];
+    let prev = path;
     for (let cur = path.parentPath; cur; cur = cur.parentPath) {
       const { node } = cur;
       if (enclosingCache.has(node)) return backfill(visited, enclosingCache.get(node));
       visited.push(node);
-      if (isClassMember(node) || t.isStaticBlock(node)) return backfill(visited, {
-        classBodyNode: cur.parentPath?.node,
-        classNode: cur.parentPath?.parentPath?.node,
-        isStatic: !!node.static || t.isStaticBlock(node),
-      });
+      if (isClassMember(node) || t.isStaticBlock(node)) {
+        // computed-key slot is OUTSIDE the member's runtime scope - `this` / closure refs
+        // there evaluate at class-def time in the OUTER scope. when prev's node IS the
+        // member's computed key, skip this member and keep walking up. without the gate
+        // `class C { [this.X]() {} }` would resolve `this.X` against C's instance/static
+        // surface instead of the enclosing scope's this
+        if (prev && node.computed && node.key === prev.node) {
+          prev = cur;
+          continue;
+        }
+        return backfill(visited, {
+          classBodyNode: cur.parentPath?.node,
+          classNode: cur.parentPath?.parentPath?.node,
+          isStatic: !!node.static || t.isStaticBlock(node),
+        });
+      }
       if (t.isFunction(node) && !t.isArrowFunctionExpression(node)) {
-        if (t.isClassMethod(cur.parentPath?.node)) continue; // ESTree wrapper
+        if (t.isClassMethod(cur.parentPath?.node)) { // ESTree wrapper
+          prev = cur;
+          continue;
+        }
         return backfill(visited, null);
       }
+      prev = cur;
     }
     return backfill(visited, null);
   }
@@ -234,7 +263,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // `resolveBindingToGlobalName` (which re-enters this function) - without shared state,
   // mutually-recursive namespace aliases (`const A = NS.P; const NS = { P: A }`) would
   // bounce between the two resolvers with a fresh Set each hop and stack-overflow
-  function resolveSuperClassName(startName, scope, seen = new Set()) {
+  function resolveSuperClassName(startName, scope, seen = new Set(), path = null) {
     let name = startName;
     while (!seen.has(name)) {
       seen.add(name);
@@ -247,7 +276,16 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       const hint = adapter.getBinding?.(scope, name)?.polyfillHint;
       if (hint) return hint;
       const binding = scope?.getBinding?.(name);
-      if (!binding) return name;
+      // no binding in raw scope: check TS-runtime fallback (`enum X` / `namespace X` /
+      // value-mode `TSImportEqualsDeclaration`) anchored on caller `path`. estree-toolkit's
+      // scope tracker doesn't see those names from inside nested TSModuleBlocks, but
+      // `findTSRuntimeBindingInPath` walks up the AST and catches them. without the gate
+      // `namespace M { enum Promise { A }; class C extends Promise { static run() {
+      // super.try() }}}` would treat `Promise` as the global and inject the polyfill
+      if (!binding) {
+        if (path && adapter.hasBinding?.(scope, name, path)) return null;
+        return name;
+      }
       if (binding.constantViolations?.length) return null;
       const decl = binding.path?.node;
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
@@ -277,14 +315,14 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       if (decl.id?.type === 'ObjectPattern') {
         const keyName = findDestructureKeyForBinding(decl.id, name);
         if (!keyName) return null;
-        if (isProxyGlobalIdentifierNode({ node: init, scope, adapter })
-            || globalProxyMemberName({ node: init, scope, adapter }) !== null) return keyName;
+        if (isProxyGlobalIdentifierNode({ node: init, scope, adapter, path })
+            || globalProxyMemberName({ node: init, scope, adapter, path }) !== null) return keyName;
         return resolveBindingToGlobalName({
           type: 'MemberExpression',
           object: init,
           property: { type: 'Identifier', name: keyName },
           computed: false,
-        }, scope, seen);
+        }, scope, seen, path);
       }
       if (init?.type === 'Identifier') {
         name = init.name;
@@ -294,7 +332,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       // chains AND user-namespace object-literal members. `const A = globalThis.Promise`
       // / `const A = NS.Promise` both resolve to 'Promise' through the same path.
       // thread `seen` so cycles via namespace-member recursion are detected
-      return resolveBindingToGlobalName(init, scope, seen);
+      return resolveBindingToGlobalName(init, scope, seen, path);
     }
     return null;
   }
@@ -372,18 +410,22 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   //  - any composition / N-level nesting through the above
   // returns the canonical global name or null. `seen` threads through `resolveSuperClassName`
   // and `resolveToContainer` so mutually-recursive aliases (`const A = NS.P; const NS = {P:A}`)
-  // share one cycle-detection Set across all hops
-  function resolveBindingToGlobalName(node, scope, seen = new Set()) {
+  // share one cycle-detection Set across all hops. `path` (optional) anchors TS-runtime shadow
+  // detection (`declare const Promise; class C extends Promise`) for adapters whose scope
+  // tracker can't see those declarations
+  function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null) {
     const peeled = unwrapRuntimeExpr(node);
-    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen);
+    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen, path);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
-    // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key
-    const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter });
+    // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key.
+    // `path` threads through so TS-runtime shadows on the root (`declare const globalThis`)
+    // bail before the polyfill-ish dispatch
+    const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter, path });
     if (proxyKey !== null) return proxyKey;
     // namespace-member chain - feed leaf value back through self so deeper namespaces /
     // alias chains / proxy-globals compose naturally
     const value = resolveMemberAccess(peeled, scope, seen);
-    return value ? resolveBindingToGlobalName(value, scope, seen) : null;
+    return value ? resolveBindingToGlobalName(value, scope, seen, path) : null;
   }
 
   // common path for `super.X` and `this.X` in static context - both resolve to the same
@@ -398,7 +440,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
     return buildSuperStaticMeta(info.classNode, key,
-      superClass => resolveBindingToGlobalName(superClass, path.scope));
+      superClass => resolveBindingToGlobalName(superClass, path.scope, new Set(), path));
   }
 
   let ownNamesCache = new WeakMap();
