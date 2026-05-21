@@ -5,5 +5,4 @@ import _at from "@core-js/pure/actual/instance/at";
 // `import "y"var _ref;` and bails with SyntaxError on the next parse pass.
 import "y"
 var _ref;
-
 _at(_ref = foo())?.call(_ref, -1);

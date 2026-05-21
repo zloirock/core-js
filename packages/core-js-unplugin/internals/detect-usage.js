@@ -310,8 +310,16 @@ function collectFunctionLocals(fnNode) {
       for (const d of node.declarations) {
         walkPatternIdentifiers(d.id, id => locals.set(id.name, { constant, node: d }));
       }
-    } else if (node.type === 'ClassDeclaration' && node.id?.name) {
-      locals.set(node.id.name, { constant: true, node });
+    } else if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+      // register the class binding (declarations only - expressions emit nothing), then
+      // STOP - class body opens its own scope. method bodies, static blocks, instance fields
+      // all live in their own scope chains; descending into them would conflate inner
+      // declarations (`class C { static { var X } }` -> X inside f's locals) with outer
+      // function locals, breaking shadow detection
+      if (node.type === 'ClassDeclaration' && node.id?.name) {
+        locals.set(node.id.name, { constant: true, node });
+      }
+      return;
     } else if (node.type === 'CatchClause' && node.param) {
       // catch-binding is block-scoped but close enough: flat frame-locals only need
       // "does this name shadow the global" for polyfill-lookup suppression

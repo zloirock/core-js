@@ -2,11 +2,14 @@ import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
+  collectMutatedStaticMembers,
   createTypeAnnotationChecker,
   detectCommonJS,
   hasTopLevelESM,
   isDeleteTarget,
   isForXWriteTarget,
+  isMemberWriteOnlyContext,
+  isMutatedStaticMeta,
   isTaggedTemplateTag,
   isThisReceiver,
   isUpdateTarget,
@@ -197,12 +200,14 @@ export default function createPlugin(options) {
     const hasBOM = code.charCodeAt(0) === 0xFEFF;
     code = stripLeadingBOMs(code);
 
-    // read + clear snapshot up-front so a later parse/traverse error in post still frees
-    // the entry (otherwise a one-off failure leaks until the next buildEnd reset).
-    // `takeWithParse` encapsulates parse-cache reuse gating (sibling between passes may
-    // have mutated text - only `postInput === code` guarantees AST position fidelity)
+    // peek-then-commit: read snapshot WITHOUT removing it so a sibling-plugin-injected
+    // `// core-js-disable-file` directive between pre and post (detected at line 257) can
+    // bail without leaking pre's deferred imports. `take()` below commits the snapshot
+    // only AFTER the disable check passes - bail paths leave the snapshot intact for a
+    // subsequent retry. `peekWithParse` encapsulates parse-cache reuse gating (sibling
+    // text mutation requires `postInput === code` byte-equality for AST position fidelity)
     if (pass === 'post') {
-      const stored = snapshots.takeWithParse(id, code);
+      const stored = snapshots.peekWithParse(id, code);
       inherit = stored.snapshot;
       cachedAst = stored.ast;
       cachedComments = stored.comments;
@@ -254,12 +259,24 @@ export default function createPlugin(options) {
     const firstNonDirective = ast.body.find(s => !isDirectiveStatement(s));
     const disabledLines = parseDisableDirectives({ comments, offsetToLine, firstStmtStart: firstNonDirective?.start, ast });
     if (disabledLines === true) return null; // entire file disabled
+    // commit the peeked snapshot now that disable-check passed. on the entire-file-disabled
+    // bail above, the snapshot stays in cache so a retry (sibling-plugin re-emit, watchChange
+    // re-run) can still consume it. parse-fail bails earlier (line 234+) are similarly safe
+    if (pass === 'post') snapshots.take(id);
 
     function isDisabled(node) {
       if (!disabledLines) return false;
       if (node.start === undefined) return false;
       return disabledLines.has(offsetToLine(node.start));
     }
+
+    // pre-walk for `Object.key` monkey-patches. cheap single AST traversal; result consulted
+    // by `usagePureCallback` before substituting matching property reads. the polyfill import
+    // is a `const` binding - user's mutation reaches the original global but not the import,
+    // so substituting reads after a `[Array.from] = X` / `Array.from = X` would silently
+    // diverge from the un-transformed source's behavior. usage-global is unaffected (polyfill
+    // installs on the same global slot, user's mutation overlays cleanly)
+    const mutatedStatics = method === 'usage-pure' ? collectMutatedStaticMembers(ast) : null;
 
     const ms = new MagicString(code, { filename: id });
     // late-bound: debugOutput is constructed below (after createPolyfillResolver) but the
@@ -564,11 +581,15 @@ export default function createPlugin(options) {
         const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
         const usagePureCallback = (meta, metaPath) => {
-          if (isDisabled(metaPath.node)) return;
-          if (skippedNodes.has(metaPath.node)) return;
-          // see babel-plugin `usagePureCallback` - `<_Map/>` would invoke polyfill as a component
-          if (metaPath.node?.type === 'JSXIdentifier') return;
-          if (isInTypeAnnotation(metaPath)) return;
+          // bundle early-return gates: disable directives + already-handled nodes + JSX
+          // identifiers (`<_Map/>` would call the polyfill as a React component) +
+          // type-annotation positions + monkey-patched statics. the last gate consults the
+          // pre-pass mutation set: substituting reads with the `const`-bound polyfill import
+          // would silently bypass user's `Array.from = X` / `[Array.from] = X` (unlike
+          // usage-global which shares the global slot - mutation overlays the polyfill there)
+          if (isDisabled(metaPath.node) || skippedNodes.has(metaPath.node)
+            || metaPath.node?.type === 'JSXIdentifier'
+            || isInTypeAnnotation(metaPath) || isMutatedStaticMeta(meta, mutatedStatics)) return;
           scopeTracker.setScope(metaPath);
           const { node } = metaPath;
           // walk past parens, chain expressions, and TS wrappers - they all forward to
@@ -594,7 +615,16 @@ export default function createPlugin(options) {
             if (node.type !== 'MemberExpression') return;
             if (isUpdateTarget(parent)) return;
             if (isForXWriteTarget(metaPath)) return;
+            // any AssignmentExpression LHS - including compound (`obj.at += X`, `obj.at ||= X`).
+            // compound reads the LHS too, so the read could be polyfilled, but the write would
+            // hit the const polyfill binding. bail conservatively to keep both halves consistent
             if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
+            // shared write-context check: covers default-pattern destructure (`{a: obj.at = 1}`),
+            // array-pattern destructure (`[obj.at] = src`), AND the assignment-target shape
+            // parsers emit as ArrayExpression (`[super.from] = src`). without this gate,
+            // `[super.from] = [...]` would rewrite `super.from` to the polyfill import (a frozen
+            // binding), causing "Assignment to constant variable" at runtime
+            if (isMemberWriteOnlyContext(node, parent, metaPath.parentPath?.parent)) return;
             // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
             // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
             if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
