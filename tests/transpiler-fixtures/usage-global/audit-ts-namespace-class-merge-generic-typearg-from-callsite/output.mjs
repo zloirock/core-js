@@ -1,9 +1,9 @@
 import "core-js/modules/es.string.at";
-// generic namespace function `identity<T>(item: T): T` - return type `T` must be bound
-// from the call-site argument's inferred type. resolver routes the merged namespace
-// match through `resolveReturnType` so type-param subst from call args propagates
-// through the annotation. previously `resolveTypeAnnotation` was called directly,
-// leaving T unbound -> dispatch fell to common, over-injecting array.at + string.at
+// Generic function in a merged namespace: `identity<T>(item: T): T`. The return
+// type `T` must be bound from the call-site argument. `Box.identity('hello')`
+// passes a string literal, so the return narrows to `string` and `.at(0)` must
+// emit only `es.string.at` - not the cross-type Array+String fallback that would
+// appear if `T` stayed unbound.
 class Box {}
 namespace Box {
   export function identity<T>(item: T): T {

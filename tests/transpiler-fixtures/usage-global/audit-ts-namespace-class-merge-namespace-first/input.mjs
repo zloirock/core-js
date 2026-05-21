@@ -1,6 +1,7 @@
-// namespace declared BEFORE the class - declaration order doesn't matter, scope walk
-// finds the merged namespace regardless. resolver narrows `Container.build()` to
-// user's Container instance type, so `.at(0)` doesn't get a polyfill
+// Declaration order doesn't matter for declaration merging: `namespace Container`
+// is declared BEFORE `class Container`, but `Container.build()` must still
+// resolve via the merged namespace and narrow to the user's class instance.
+// `.at(0)` on the result must NOT emit Array#at or String#at.
 namespace Container {
   export function build(): Container {
     return new Container();
