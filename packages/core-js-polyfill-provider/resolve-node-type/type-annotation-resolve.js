@@ -32,6 +32,8 @@ export function createTypeAnnotationResolve({
   MAX_DEPTH,
   isAmbientClassNode,
   typeRefSegmentsEqual,
+  typeRefName,
+  findTypeParameter,
   collectQualifiedSegments,
   unwrapTypeAnnotation,
   isNullableOrNever,
@@ -200,6 +202,17 @@ export function createTypeAnnotationResolve({
       case 'Uncapitalize':
       case '$Keys':
         return new $Primitive('string');
+      // intent collapse for the TS-built-in `this`-utility names: ThisParameterType<F>
+      // -> arbitrary object, OmitThisParameter<F> -> callable. precision-only - all
+      // Object/Function instance methods are stable in our supported targets so no
+      // polyfill path currently distinguishes these from a null fall-through to
+      // resolveUserDefinedType. case retained so future polyfills on Object.prototype /
+      // Function.prototype don't silently route through resolveUserDefinedType (which
+      // returns null for built-in names with no in-scope decl)
+      case 'ThisParameterType':
+        return new $Object('Object');
+      case 'OmitThisParameter':
+        return new $Object('Function');
       // TS lib alias for `string | number | symbol`; no shared polyfill API, null lets
       // downstream fall back to generic-instance emission
       case 'PropertyKey':
@@ -293,15 +306,28 @@ export function createTypeAnnotationResolve({
       resolveTypeAnnotation(node.falseType, scope, depth + 1));
   }
 
-  // TS indexed access type: Config["items"], [string, number[]][1], Items[number], or Dict[string]
-  // `T[keyof T]` shape: index references its own object. fold each property's value
-  // annotation into a union (mirrors TS evaluation). returns:
-  //   - resolved Type / null on hit (handled by foldUnionTypes)
-  //   - undefined when shape doesn't match (caller falls through to other dispatch)
+  // does `idx` (the indexType of `T[idx]`) collapse to `keyof T` against `target`?
+  //   - direct `keyof T` operator
+  //   - generic-constrained ref `K` where K's TypeParameter declaration constrains to
+  //     `keyof T` on the same target. `function f<T, K extends keyof T>(o: T, k: K)
+  //     { return o[k]; }` routes through this second branch
+  function isKeyofTargeting(idx, target, scope) {
+    if (idx?.type === 'TSTypeOperator' && idx.operator === 'keyof'
+      && typeRefSegmentsEqual(idx.typeAnnotation, target)) return true;
+    if (idx?.type !== 'TSTypeReference') return false;
+    const name = typeRefName(idx);
+    if (!name) return false;
+    const param = findTypeParameter(name, scope);
+    return param?.constraint?.type === 'TSTypeOperator'
+      && param.constraint.operator === 'keyof'
+      && typeRefSegmentsEqual(param.constraint.typeAnnotation, target);
+  }
+
+  // TS indexed access type: Config["items"], [string, number[]][1], Items[number], Dict[string]
+  // `T[keyof T]` shape: fold each property's value annotation into a union (mirrors TS
+  // evaluation). returns resolved Type / null on hit, undefined when shape doesn't match
   function resolveKeyofSelfValueUnion(node, scope, depth) {
-    const idx = node.indexType;
-    if (idx?.type !== 'TSTypeOperator' || idx.operator !== 'keyof'
-      || !typeRefSegmentsEqual(idx.typeAnnotation, node.objectType)) return undefined;
+    if (!isKeyofTargeting(node.indexType, node.objectType, scope)) return undefined;
     const members = getTypeMembers({ objectType: node.objectType, scope });
     if (!members) return null;
     const valueAnnotations = members
@@ -354,7 +380,16 @@ export function createTypeAnnotationResolve({
     const { literal } = node.indexType;
     let member;
     if (isLiteralOf(literal, 'String')) member = findTypeMember({ objectType: node.objectType, key: literal.value, scope });
-    else if (isLiteralOf(literal, 'Numeric')) member = findTupleElement(node.objectType, literal.value, scope);
+    else if (isLiteralOf(literal, 'Numeric')) {
+      // tuple positional lookup first - findTupleElement is the only path that handles
+      // rest-element extension and Parameters / ConstructorParameters dispatch. fall back
+      // to findTypeMember for object literals with numeric-literal keys (`{0: T; 1: U}[0]`),
+      // which findTupleElement rejects since they're TSTypeLiteral not TSTupleType.
+      // findTypeMember matches via `getKeyName` which stringifies numeric literal keys
+      // (`{0: T}.key` -> `'0'`); coerce here so the comparison hits the string side
+      member = findTupleElement(node.objectType, literal.value, scope)
+        ?? findTypeMember({ objectType: node.objectType, key: String(literal.value), scope });
+    }
     return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
   }
 

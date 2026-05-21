@@ -25,6 +25,7 @@ import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
   unwrapTypeAnnotation,
+  peelTSParenthesized,
   isNullableOrNeverAnnotation,
   isClassLikeDeclaration,
   keyMatchesName,
@@ -35,7 +36,6 @@ export function createTypeMembers({
   findTypeDeclaration,
   extendsClauseName,
   buildSubstMap,
-  buildParentSubst,
   buildParentClassSubstFromNodes,
   substMembers,
   applySubst,
@@ -103,11 +103,15 @@ export function createTypeMembers({
       if (own) for (const m of own) all.push(m);
       for (const parent of decl.extends ?? []) {
         // synth wraps both bare-Identifier and qualified-name extends; non-name shapes
-        // fall back to raw expr so getTypeMembers's defensive null-on-unknown bails
+        // fall back to raw expr so getTypeMembers's defensive null-on-unknown bails.
+        // recursive `getTypeMembers` for the parentRef internally builds parent's subst
+        // (declParam <- extendsArgs) and applies it to parent's body before returning;
+        // pushing the result straight into `all` lets parent + grandparent typeparam
+        // names share string keys (`T` in both A and B) without double-application -
+        // each generation's subst is consumed exactly once by its own getTypeMembers hop
         const parentRef = synthInterfaceExtendsRef(parent) ?? extendsId(parent);
         const parentMembers = getTypeMembers({ objectType: parentRef, scope, depth: depth + 1, visited: seen });
-        if (!parentMembers) continue;
-        all.push(...substMembers(parentMembers, buildParentSubst(parentRef, scope)));
+        if (parentMembers) all.push(...parentMembers);
       }
     }
     return all.length ? all : null;
@@ -117,7 +121,10 @@ export function createTypeMembers({
     if (depth > MAX_DEPTH) return null;
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
-    if (objectType.type === 'TSIndexedAccessType') return resolveIndexedAccessMembers(objectType, scope, depth);
+    // both TS `T[K]` and Flow `T[K]` (IndexedAccessType) route through the same resolver
+    if (objectType.type === 'TSIndexedAccessType' || objectType.type === 'IndexedAccessType') {
+      return resolveIndexedAccessMembers(objectType, scope, depth);
+    }
     // mapped type: trivial passthrough delegates to the source's members; `as`-rename
     // expands per-key with statically-evaluated rename templates so `r._a` on
     // `{ [K in keyof T as `_${K}`]: T[K] }` resolves through to the source field type
@@ -126,13 +133,21 @@ export function createTypeMembers({
       if (passthrough) return getTypeMembers({ objectType: unwrapTypeAnnotation(passthrough), scope, depth: depth + 1, visited });
       return expandMappedTypeMembers({ node: objectType, scope, depth, visited });
     }
-    // intersection: collect members from all parts
+    // intersection: collect members from all parts. nested union branches (`A & (B | C)`)
+    // expand recursively - without the expansion `getTypeMembers` would receive the bare
+    // union node and return null, dropping every member reachable through B or C
     if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
       const all = [];
-      for (const member of objectType.types) {
-        const members = getTypeMembers({ objectType: unwrapTypeAnnotation(member), scope, depth: depth + 1, visited });
+      function pushIntersectionPart(node) {
+        const inner = unwrapTypeAnnotation(node);
+        if (inner?.type === 'TSUnionType' || inner?.type === 'UnionTypeAnnotation') {
+          for (const branch of inner.types) pushIntersectionPart(branch);
+          return;
+        }
+        const members = getTypeMembers({ objectType: inner, scope, depth: depth + 1, visited });
         if (members) for (const m of members) all.push(m);
       }
+      for (const part of objectType.types) pushIntersectionPart(part);
       return all.length ? all : null;
     }
     // handle dotted refs (`NS.Data`) by passing the segment path through
@@ -224,13 +239,20 @@ export function createTypeMembers({
   // building its own subst against ITS type-param names from `receiverArgs`. covers renamed
   // params on the interface side of class+interface merging. walks `extends A, B` parents
   // of every matched iface too
-  function appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs }) {
+  function appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs, visited }) {
     if (!segments) return;
+    const seen = visited ?? new Set();
     for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
+      // cycle guard: an interface extending itself transitively (`interface A extends B`,
+      // `interface B extends A`) would re-enter without `seen.has(iface)` short-circuit.
+      // shared with the `getTypeMembers` interface dispatch so cross-dispatcher recursion
+      // observes the same visited set
+      if (seen.has(iface)) continue;
+      seen.add(iface);
       const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
       const ifaceBody = iface.body?.body ?? iface.body?.properties ?? [];
       out.push(...substMembers(ifaceBody, ifaceSubst));
-      appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst });
+      appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst, visited: seen });
     }
   }
 
@@ -268,17 +290,22 @@ export function createTypeMembers({
   // (when present) is applied to parentRef's args first, so `extends Base<U>` with
   // iface `U -> string` becomes `Base<string>` before descending - parent subst then
   // sees the substituted slot
-  function appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst }) {
+  function appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst, visited }) {
     for (const parent of iface.extends ?? []) {
       // synthInterfaceExtendsRef builds a TSTypeReference wrapping parent's id + args
       // for both bare Identifier and qualified-name shapes; raw `expr` lacks args
-      // (those live on `parent`), so qualified extends previously dropped the typeArgs slot
+      // (those live on `parent`), so qualified extends previously dropped the typeArgs slot.
+      // recursive `getTypeMembers` for `expanded` applies parent's subst (declParam <-
+      // expanded-args) once - pushing the result straight into `out` avoids re-applying
+      // the same subst from the outer scope and triggering name-collision double-subst
+      // (e.g. interface A<T> extends B<T[]>; interface B<T> { b: T }; A<string>.b was
+      // resolving to string[][] instead of string[] because `T` matched both A and B's
+      // param name). cycle guard `visited` flows through so circular extends bail safely
       const parentRef = synthInterfaceExtendsRef(parent);
       if (!parentRef) continue;
       const expanded = ifaceSubst ? applySubstToTypeRefArgs(parentRef, ifaceSubst) : parentRef;
-      const parentMembers = getTypeMembers({ objectType: expanded, scope, depth: depth + 1 });
-      if (!parentMembers) continue;
-      out.push(...substMembers(parentMembers, buildParentSubst(expanded, scope)));
+      const parentMembers = getTypeMembers({ objectType: expanded, scope, depth: depth + 1, visited });
+      if (parentMembers) out.push(...parentMembers);
     }
   }
 
@@ -335,14 +362,17 @@ export function createTypeMembers({
   }
 
   // mixed `{[k:number]:A; [k:string]:B}` index signatures resolve per-lookup: numeric keys ->
-  // number sig, string keys -> string sig (permissive fallback when only one sig is declared)
+  // number sig, string keys -> string sig (permissive fallback when only one sig is declared).
+  // unwrap the TSTypeAnnotation wrapper THEN peel TSParenthesizedType - oxc preserves
+  // `(string)` as TSParenthesizedType, and the discriminator check below compares against
+  // bare keyword types
   function pickIndexSignature(members, key) {
     let numberSig = null;
     let stringSig = null;
     let symbolSig = null;
     for (const member of members) {
       if (member.type !== 'TSIndexSignature' || !member.typeAnnotation) continue;
-      const keyType = member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type;
+      const keyType = peelTSParenthesized(unwrapTypeAnnotation(member.parameters?.[0]?.typeAnnotation))?.type;
       if (keyType === 'TSNumberKeyword') numberSig ??= member.typeAnnotation;
       else if (keyType === 'TSSymbolKeyword') symbolSig ??= member.typeAnnotation;
       else stringSig ??= member.typeAnnotation;
@@ -378,8 +408,16 @@ export function createTypeMembers({
     if (branch !== null) {
       return findTypeMember({ objectType: withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
     }
+    // structural-eval may return a Type Object ($Primitive / $Object) that findTypeMember
+    // can occasionally lookup via known-constructor stubs (`$Object('Array')`). when the
+    // Type Object DOESN'T dispatch (most non-container shapes), don't short-circuit -
+    // fall through to per-branch AST fallback below so neither branch's member set is
+    // silently dropped
     const resolved = evaluateConditionalType(applySubst(aliased, subst), null, scope, depth + 1, null);
-    if (resolved) return findTypeMember({ objectType: resolved, key, scope, depth: depth + 1 });
+    if (resolved) {
+      const direct = findTypeMember({ objectType: resolved, key, scope, depth: depth + 1 });
+      if (direct) return direct;
+    }
     const trueResult = findTypeMember({ objectType: withSubst(aliased.trueType), key, scope, depth: depth + 1 });
     const falseResult = findTypeMember({ objectType: withSubst(aliased.falseType), key, scope, depth: depth + 1 });
     // strip nullable/never branches symmetric with `resolveConditionalBranches` - otherwise
@@ -515,21 +553,15 @@ export function createTypeMembers({
     }
     const indexSig = pickIndexSignature(members, key);
     if (indexSig) return withSubst(indexSig);
-    // Flow: ObjectTypeIndexer stored separately in the type node, not in properties
-    // resolve through type aliases since getTypeMembers follows aliases but returns only properties
-    let resolvedType = objectType;
-    let flowSubst = null;
-    if (resolvedType.type !== 'ObjectTypeAnnotation') {
-      const followed = followTypeAliasChain(resolvedType, scope);
-      if (followed.node) {
-        resolvedType = followed.node;
-        flowSubst = followed.subst;
-      }
-    }
-    if (resolvedType.type === 'ObjectTypeAnnotation' && resolvedType.indexers?.length) {
-      const indexerValue = resolvedType.indexers[0].value;
+    // Flow: ObjectTypeIndexer is stored separately on the type node, not in properties.
+    // reuse the `aliased`/`subst` from the top-of-function `followTypeAliasChain` instead of
+    // re-walking the alias chain - the chain is identity-stable and the two walks would
+    // hit the same memoized cache, so a second call is pure overhead
+    const flowType = aliased ?? objectType;
+    if (flowType?.type === 'ObjectTypeAnnotation' && flowType.indexers?.length) {
+      const indexerValue = flowType.indexers[0].value;
       // deep subst - Flow indexer value can be a wrapped generic (`{[K]: T[]}`)
-      return flowSubst ? applyAliasSubstDeep(indexerValue, flowSubst) : indexerValue;
+      return subst ? applyAliasSubstDeep(indexerValue, subst) : indexerValue;
     }
     return null;
   }
