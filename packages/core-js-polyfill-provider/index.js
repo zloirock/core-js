@@ -303,6 +303,17 @@ function buildEntryHintIndex({ globals, statics }) {
 
 const entryHintIndex = buildEntryHintIndex(builtInDefinitions);
 
+// known global / static-owner name set drives the kebab-fallback validation. without the
+// gate, single-segment helper entries (`get-iterator`, `is-iterable`, `set-immediate`)
+// would map to fabricated `GetIterator` / `IsIterable` / `SetImmediate` "globals" that
+// downstream resolveSuperImportName uses as keys and over-injects polyfills for, even
+// though no such global exists. derived names live in either `globals` (with pure ctor)
+// or `statics` (Math, Array, ...), so the union is the authoritative whitelist
+const KNOWN_GLOBAL_NAMES = new Set([
+  ...Object.keys(builtInDefinitions.globals ?? {}),
+  ...Object.keys(builtInDefinitions.statics ?? {}),
+]);
+
 // kebab-style derivation for entries the index intentionally skips: globals that host
 // pure static methods but have no pure constructor in `built-in-definitions` (Array,
 // JSON, Math, Number, Object, Reflect, RegExp, String, all Error subclasses). their
@@ -311,13 +322,20 @@ const entryHintIndex = buildEntryHintIndex(builtInDefinitions);
 // `array/instance/at`, ...) return null: the user's binding is the function, not the
 // class, so mapping to a global would make `super.X` on `class extends MyMethod` get
 // polyfilled as if MyMethod were the class - silently "fixing" broken user code the
-// plugin has no business touching. numeric-leading segments (`42`) can't be real global
-// identifiers; the uppercase-first guard rejects them
+// plugin has no business touching. single-segment helper entries (`get-iterator`,
+// `is-iterable`) are filtered through `KNOWN_GLOBAL_NAMES` - the kebab form would derive
+// a plausible-looking PascalCase but downstream over-injects against the fabricated
+// global. numeric-leading segments (`42`) can't be real global identifiers; the
+// uppercase-first guard rejects them
 function deriveHintFromKebab(entry) {
   const [head, ...rest] = entry.split('/');
-  if (rest.length && rest.at(-1) !== 'constructor') return null;
+  // multi-segment entries are method / instance / helper paths (`array/from`,
+  // `array/instance/at`) - user binding is the function, not the class. caller's
+  // `entryToGlobalHint` already strips trailing `/constructor` so we never see it here
+  if (rest.length) return null;
   const hint = kebabToPascal(head);
-  return hint && hint[0] >= 'A' && hint[0] <= 'Z' ? hint : null;
+  if (!hint || hint[0] < 'A' || hint[0] > 'Z') return null;
+  return KNOWN_GLOBAL_NAMES.has(hint) ? hint : null;
 }
 
 // data-driven primary lookup via `entryHintIndex` covers acronym globals (`URL`,
