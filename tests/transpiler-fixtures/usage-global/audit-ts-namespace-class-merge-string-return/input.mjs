@@ -1,6 +1,7 @@
-// symmetric to array-return: namespace exports a fn returning `string`. downstream
-// `.at(0)` must narrow to string-receiver dispatch -> es.string.at polyfill (not
-// array.at). exercises non-array primitive narrowing through the namespace lookup
+// Symmetric primitive-return variant of the array-return case: the merged
+// namespace's function returns `string`. `StrWrapper.make().at(0)` must emit
+// only `es.string.at` (not Array#at) - non-array primitive narrowing through a
+// merged namespace.
 class StrWrapper {}
 namespace StrWrapper {
   export function make(): string {
