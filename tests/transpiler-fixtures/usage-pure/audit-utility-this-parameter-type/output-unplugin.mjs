@@ -6,6 +6,6 @@
 // lock: lookup must NOT fall through to resolveUserDefinedType (no in-scope decl exists)
 declare function withThis(this: { x: number }, y: number): string;
 declare const tp: ThisParameterType<typeof withThis>;
-declare const ot: OmitThisParameter<typeof withThis>;
+declare const omitted: OmitThisParameter<typeof withThis>;
 tp.toString();
-ot.bind(null, 1).toString();
+omitted.bind(null, 1).toString();
