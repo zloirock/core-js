@@ -307,10 +307,20 @@ export function createNameResolution({ t }) {
     return decl?.type === 'TSEnumDeclaration' ? decl : null;
   }
 
-  // all `interface X {}` siblings at the first scope level that contains one
+  // all `interface X {}` siblings at the first scope level that contains one. cached per-
+  // (scope, name): a class with N inherited interfaces previously triggered N scope-chain
+  // walks per ancestor; the cache amortises them to O(unique-names-per-scope). WeakMap
+  // keyed on scope so the per-scope Map collects when its AST does
+  let allTypeDeclCache = new WeakMap();
   function findAllTypeDeclarations(name, scope) {
+    if (!scope) return [];
+    const cacheKey = typeof name === 'string' ? name : name?.join('.') ?? '';
+    let perScope = allTypeDeclCache.get(scope);
+    if (perScope?.has(cacheKey)) return perScope.get(cacheKey);
     const collected = [];
     walkScopesForDecl({ name, scope, collect: collected });
+    if (!perScope) allTypeDeclCache.set(scope, perScope = new Map());
+    perScope.set(cacheKey, collected);
     return collected;
   }
 
@@ -339,6 +349,7 @@ export function createNameResolution({ t }) {
   function reset() {
     ambientDeclCache = new WeakMap();
     typeDeclCache = new WeakMap();
+    allTypeDeclCache = new WeakMap();
   }
 
   // path-aware variant of `walkScopesForDecl` for qualified names. mirrors the
