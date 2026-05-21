@@ -1,9 +1,9 @@
-// JSX inside decorator expressions (`@(<Map/>) class C {}`). unplugin's decorator
-// walker previously had no JSXIdentifier visitor, so embedded JSX tag-names did not
-// trigger global polyfill emission. fix shares `jsxIdentifierVisitor` between the
-// top-level visitor map and `decoratorVisitors` so both shapes find the same global
-// runtime references. distinct decorator targets per class (simple JSXIdentifier
-// `<Map/>` vs JSXMemberExpression root `<Set.X/>`) pin emission to each global.
+// JSX elements used inside a decorator position (`@(<Map />)` and `@(<Set.X />)`)
+// must still trigger global polyfill detection on the JSX tag root. The first
+// decorator references the global `Map` directly, the second references `Set` as
+// the root of a member-expression JSX tag. Each class should emit its respective
+// global polyfill (`es.map` / `es.set`), proving JSX inside decorators is scanned
+// identically to JSX at expression position.
 @(<Map />)
 class WithMap {}
 @(<Set.X />)
