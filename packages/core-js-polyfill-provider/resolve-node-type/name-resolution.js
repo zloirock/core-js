@@ -182,20 +182,21 @@ export function createNameResolution({ t }) {
       if (decl.type !== 'TSModuleDeclaration') continue;
       const moduleSegs = moduleNameSegments(decl.id);
       if (!moduleSegs) continue;
+      // `declare global { ... }` augments program scope - its body's bindings are visible
+      // at every depth. descend regardless of segment count so both `Box` (bare) and
+      // `NS.Foo` (qualified via `declare global { namespace NS {} }`) resolve through it
+      if (decl.global) {
+        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch });
+        if (inner && !collect) return inner;
+        continue;
+      }
       // bare-name lookup (`rest.length === 0`) MUST NOT descend into nested
       // TSModuleDeclaration bodies - that would violate TS lexical scoping:
       // `namespace N { interface Box {} }; declare const x: Box;` - top-level `Box`
       // is undefined, the bare name must not promiscuously pick up `N.Box`. scope-
       // chain climbing is handled by `walkScopesForDecl`; each scope checks its OWN
-      // direct statements only. EXCEPTION: `declare global { ... }` (`decl.global`)
-      // augments the global scope - its body's bindings ARE visible at program scope,
-      // so descend into them
-      if (rest.length === 0) {
-        if (!decl.global) continue;
-        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch });
-        if (inner && !collect) return inner;
-        continue;
-      }
+      // direct statements only
+      if (rest.length === 0) continue;
       if (!startsWithSegments(segments, moduleSegs)) continue;
       const inner = walkStatementsForDecl({
         segments: segments.slice(moduleSegs.length), statements: moduleStatements(decl), collect, leafMatch,
@@ -289,9 +290,17 @@ export function createNameResolution({ t }) {
     if (!path) return null;
     const segments = typeof name === 'string' ? name.split('.') : name;
     for (let cur = path; cur; cur = cur.parentPath) {
-      if (cur.node?.type !== 'TSModuleBlock') continue;
+      // any block-like container with a statement list can host a type decl: TSModuleBlock
+      // (`namespace X {}`), Program (top-level), BlockStatement (`function f() { type T = ... }`),
+      // StaticBlock (`static { ... }`). without these arms the lookup stack misses local-scope
+      // decls and falls through to module-scope walk, conflating shadow-rebinding
+      const { node } = cur;
+      const statements = node?.type === 'TSModuleBlock' || node?.type === 'Program'
+        || node?.type === 'BlockStatement' || node?.type === 'StaticBlock'
+        ? node.body : null;
+      if (!statements) continue;
       const result = walkStatementsForDecl({
-        segments, statements: cur.node.body, collect: null, leafMatch: isTypeBearingDeclaration,
+        segments, statements, collect: null, leafMatch: isTypeBearingDeclaration,
       });
       if (result) return result;
     }
@@ -381,6 +390,19 @@ export function createNameResolution({ t }) {
       if (!decl) continue;
       if (rest.length === 0 && decl.id?.name === head && matchType(decl)) return declPath;
       if (decl.type !== 'TSModuleDeclaration') continue;
+      // `declare global { ... }` augments program scope: descend its body for any segment
+      // depth, mirrors `walkStatementsForDecl`. without this branch the NodePath-walking
+      // variant misses globally-augmented decls that the node-walking variant finds
+      if (decl.global) {
+        const bodyPath = declPath.get('body');
+        const innerPaths = bodyPath?.node?.type === 'TSModuleDeclaration'
+          ? [bodyPath]
+          : bodyPath?.get?.('body');
+        if (!Array.isArray(innerPaths)) continue;
+        const found = walkDeclPathsBySegments(segments, innerPaths, matchType);
+        if (found) return found;
+        continue;
+      }
       const moduleSegs = moduleNameSegments(decl.id);
       if (!moduleSegs || !startsWithSegments(segments, moduleSegs)) continue;
       // babel nested form (`namespace A.B {}` -> A.body is TSModuleDeclaration B):
