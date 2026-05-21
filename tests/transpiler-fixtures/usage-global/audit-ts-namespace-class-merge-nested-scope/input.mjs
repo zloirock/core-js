@@ -1,6 +1,7 @@
-// merged namespace + class declared inside a function body (not module-level).
-// scope walk traverses up through the function's BlockStatement -> the merged
-// namespace is found at the function's scope. mirrors module-level behaviour
+// Class + merged namespace declared inside a function body rather than at module
+// scope. `Local.build()` inside the function must still resolve via the local
+// namespace and narrow to the user's class instance, so `.at(0)` on the result
+// must NOT emit Array#at - declaration-merging behaves the same in nested scopes.
 function makeIt() {
   class Local {}
   namespace Local {

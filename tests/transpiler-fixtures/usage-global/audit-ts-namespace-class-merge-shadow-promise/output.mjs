@@ -1,9 +1,8 @@
-// user-local `class Promise + namespace Promise` shadows the global Promise. two
-// layers of protection compose: (1) shadow check on `Promise` identifier suppresses
-// global Promise polyfills via the static-Promise route; (2) merged namespace lookup
-// resolves `Promise.allWait()` to user's `Promise<T>` so downstream `.at(0)` on the
-// result bails (no .at on the user class). without (2), `result` type stays unknown
-// and `.at(0)` would over-inject array.at + string.at via common dispatch
+// User-local `class Promise` + `namespace Promise` shadow the global `Promise`.
+// No global Promise polyfills should be emitted for any reference to this local
+// `Promise`. Additionally, `Promise.allWait([1,2,3])` must resolve via the merged
+// namespace to the user's `Promise<T>` instance, so `.at(0)` on the result must
+// NOT emit Array#at or String#at - the user class has no `at`.
 class Promise<T> {
   then<U>(cb: (v: T) => U): Promise<U> {
     return new Promise<U>();

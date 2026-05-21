@@ -1,8 +1,8 @@
-// negative control: mutation BETWEEN the nearest guard and usage correctly invalidates
-// narrowing. `assertString(x); x = ...; x.at(0)` - nearest guard is at slot 0, mutation
-// at slot 1 sits in the (0, 2] window. hasMutationAfterGuards returns true -> narrowing
-// dropped -> generic `_at` emitted (not string-specific). confirms the nearest-guard fix
-// is gated correctly: the simplification doesn't over-keep narrowing across mutations
+// Negative control: an `asserts x is string` predicate followed by a reassignment
+// of `x` before use must drop the narrowing. `x.at(0)` after the reassignment is
+// called on `unknown`, so emission falls back to the generic Array#at polyfill
+// rather than the string-specific path. Confirms a stale assert-narrow is not
+// kept across an intervening mutation.
 function assertString(x: unknown): asserts x is string {}
 declare function readAnything(): unknown;
 function probe(x: unknown) {
