@@ -19,7 +19,7 @@
 // already-extracted cluster, and the `KNOWN_STATIC_TYPE_GUARDS` table for built-in
 // predicate hint lookup
 import { getOrInitMap } from './base.js';
-import { unwrapParens, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { unwrapExpressionChain, unwrapParens, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { guardFromHint, instanceofGuard, isTypeofVar, typeofGuard } from './guard-shapes.js';
 
@@ -38,7 +38,11 @@ export function createTypeofGuards({
 }) {
   function parseTypeGuard(testNode, varName, scope) {
     const peeled = peelNegation(testNode);
-    const { test } = peeled;
+    // unwrapExpressionChain alternates paren / chain / TS-wrapper / SequenceExpression-tail
+    // peels until stable. peelNegation only strips unary `!`; without this, mixed wrappers
+    // (`(side(), (typeof x === 'string'))` or `((typeof x === 'string') as boolean)`)
+    // leak past the BinaryExpression dispatch and the narrow drops
+    const test = unwrapExpressionChain(peeled.test);
     let { negated } = peeled;
     if (test.type === 'BinaryExpression') {
       const { operator } = test;
@@ -94,7 +98,11 @@ export function createTypeofGuards({
       const { callee } = test;
       const propName = getMemberProperty(callee);
       if (propName !== null && callee.object?.type === 'Identifier') {
-        const arg0 = unwrapParens(test.arguments[0]);
+        // `unwrapExpressionChain` peels paren + ChainExpression + TS expression wrappers
+        // (`as`, `satisfies`, `<T>cast`, `!`) AND SequenceExpression tail. parity with
+        // the user-predicate path so `Array.isArray((0, x as any))` (any mix of side
+        // effects + TS wrappers) narrows same as bare `Array.isArray(x)`
+        const arg0 = unwrapExpressionChain(test.arguments[0]);
         if (arg0.type === 'Identifier' && arg0.name === varName) {
           const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, propName);
           if (hint) return guardFromHint(hint, negated);
@@ -194,7 +202,10 @@ export function createTypeofGuards({
     const switchCase = current.parentPath;
     const switchStmt = switchCase.parentPath;
     if (!t.isSwitchStatement(switchStmt?.node)) return [];
-    if (!isTypeofVar(switchStmt.node.discriminant, varName)) return [];
+    // peel paren / TS-wrapper / SE-tail from discriminant. oxc preserves `switch
+    // ((typeof x))` / `switch ((typeof x) as 'string' | 'number')`; `unwrapExpressionChain`
+    // also handles `switch ((side(), typeof x))` where SE prefix is runtime-irrelevant
+    if (!isTypeofVar(unwrapExpressionChain(switchStmt.node.discriminant), varName)) return [];
     const { cases } = switchStmt.node;
     const { scope } = switchCase;
     const caseIndex = cases.indexOf(switchCase.node);
@@ -240,8 +251,14 @@ export function createTypeofGuards({
   //   - condition-bearing `if (typeof x === 'string') return;` -> guards from condition
   //   - assertion-statement `assertString(x);` -> single asserts guard
   // callers either count length (`siblingGuardsBinding` presence check) or accumulate
-  // (`findPrecedingExitGuards` collection)
+  // (`findPrecedingExitGuards` collection). LabeledStatement (`outer: if (...) break outer;`)
+  // is unwrapped to its body before dispatching - the label itself is irrelevant to the
+  // guard's polarity, only the wrapped if / expression matters
   function parseSiblingGuards(sibling, varName) {
+    // peel nested LabeledStatement wrappers - `outer: inner: if (...) return;` walks two
+    // layers. each label is irrelevant to guard polarity, only the wrapped if / expression
+    // statement matters for `resolveExitCondition` / `parseAssertionStatementGuard`
+    while (t.isLabeledStatement(sibling.node)) sibling = sibling.get('body');
     const conditionTrue = resolveExitCondition(sibling);
     if (conditionTrue !== null) {
       return parseGuardsFromCondition({ testNode: sibling.node.test, conditionTrue, varName, scope: sibling.scope });
@@ -264,11 +281,16 @@ export function createTypeofGuards({
     return guards;
   }
 
-  // get the statement list containing `current` if it's a numbered member of a block-like parent
+  // get the statement list containing `current` if it's a numbered member of a block-like parent.
+  // StaticBlock (`class C { static { stmts } }`) holds its statements in the same `body` slot
+  // as a regular BlockStatement - sibling early-exit guards should propagate the same way
   function getStatementSiblings(current) {
     if (typeof current.key !== 'number') return null;
     const parent = current.parentPath;
-    if (current.listKey === 'body' && (t.isBlockStatement(parent.node) || t.isProgram(parent.node))) return parent.get('body');
+    if (current.listKey === 'body'
+      && (t.isBlockStatement(parent.node) || t.isProgram(parent.node) || t.isStaticBlock(parent.node))) {
+      return parent.get('body');
+    }
     if (current.listKey === 'consequent' && t.isSwitchCase(parent.node)) return parent.get('consequent');
     return null;
   }
