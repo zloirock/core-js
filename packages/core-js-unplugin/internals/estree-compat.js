@@ -59,6 +59,7 @@ export const types = {
     && n.key?.type === 'PrivateIdentifier',
   isStaticBlock: n => n?.type === 'StaticBlock',
   isLabeledStatement: n => n?.type === 'LabeledStatement',
+  isAwaitExpression: n => n?.type === 'AwaitExpression',
   // oxc's raw `type` on string literals is `'Literal'`; `nodeType()` above translates that
   // to `'StringLiteral'` for babel parity. callers use either this predicate OR
   // `nodeType(n) === 'StringLiteral'` - NOT `n.type === 'StringLiteral'` directly

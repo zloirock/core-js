@@ -1,0 +1,13 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+// `class Sub extends NS.Base` resolved as a TYPE (not via member-access). extendsClauseName
+// walks runtime bindings only - TS-only `namespace NS { export class Base extends Array<X> }`
+// has no runtime binding and the chain to Array<X> was lost when resolving Sub through
+// substituteTypeParams (Wrap<T>=T pass-through). added segments + findTypeDeclaration
+// fallback so Sub -> NS.Base -> Array<string> chain reaches the array polyfill dispatch
+namespace NS {
+  export class Base extends Array<string> {}
+}
+class Sub extends NS.Base {}
+type Wrap<T> = T;
+declare const r: Wrap<Sub>;
+_atMaybeArray(r).call(r, 0);
