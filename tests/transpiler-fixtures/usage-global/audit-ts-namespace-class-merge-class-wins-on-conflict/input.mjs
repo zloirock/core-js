@@ -1,7 +1,8 @@
-// when class has a real `static method` AND merged namespace exports a fn with the
-// same name, the class member takes precedence (matches TS semantics). probe: class's
-// `make` returns `string` (would trigger string.at), namespace's `make` returns `number[]`
-// (would trigger array.at). only string.at appears -> class won the precedence race
+// Conflict between a real `static make()` on the class and an exported `make()` in
+// the merged namespace: the class member must win, matching TS semantics. The two
+// return types are deliberately distinct - class's `make` returns `string`,
+// namespace's returns `number[]` - so the emitted polyfill (only `es.string.at`)
+// pins which declaration was used to resolve `Container.make()`.
 class Container {
   static make(): string {
     return '';

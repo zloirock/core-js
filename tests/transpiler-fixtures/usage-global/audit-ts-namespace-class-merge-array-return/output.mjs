@@ -1,7 +1,8 @@
 import "core-js/modules/es.array.at";
-// merged namespace exports a fn returning real `number[]` - downstream .at must
-// polyfill (Array.prototype.at). symmetric to the narrowing case: now the result type
-// IS array, so dispatch correctly routes to es.array.at
+// Declaration-merged class + namespace where the namespace's exported function
+// returns a real `number[]`. `Wrapper.getItems().at(0)` must therefore emit the
+// Array#at polyfill. Symmetric positive control to the user-class-narrowing
+// case: when the merged-namespace return type IS Array, the polyfill fires.
 class Wrapper {}
 namespace Wrapper {
   export function getItems(): number[] {
