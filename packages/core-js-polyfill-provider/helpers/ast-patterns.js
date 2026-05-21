@@ -542,7 +542,85 @@ export function isMemberWriteOnlyContext(member, parent, grandparent) {
   // helper authoritative for callers that bypass that check (decorator subtree walks etc.)
   if (parent.type === 'ArrayPattern' && parent.elements?.includes(member)) return true;
   if (parent.type === 'RestElement' && parent.argument === member) return true;
+  // assignment-target shape that parsers emit as ArrayExpression rather than ArrayPattern:
+  // `[obj.at] = src`. MemberExpression appears as element because it's a valid LHS but NOT
+  // a valid binding pattern. detect via the AssignmentExpression grandparent with `.left`
+  // pointing at the array container. ObjectExpression-LHS shape (`({a: obj.at} = src)`)
+  // would need great-grandparent inspection - intentionally not handled here; callers with
+  // path access (unplugin's destructure-LHS check) walk the path directly
+  if (parent.type === 'ArrayExpression' && parent.elements?.includes(member)
+      && grandparent?.type === 'AssignmentExpression' && grandparent.left === parent
+      && grandparent.operator === '=') return true;
   return false;
+}
+
+// generic AST child-walker. covers single-child slots (`MemberExpression.object`) and
+// array-child slots (`ArrayExpression.elements`); reads `.type` on each candidate so
+// position metadata (`.start`, `.loc`, `.scope`) is ignored. parser-agnostic - both babel
+// and oxc shapes carry the same `.type` string on AST nodes
+function walkAstChildren(node, visit) {
+  if (!node || typeof node !== 'object') return;
+  for (const key of Object.keys(node)) {
+    const value = node[key];
+    if (Array.isArray(value)) {
+      for (const el of value) if (el && typeof el === 'object' && typeof el.type === 'string') visit(el);
+    } else if (value && typeof value === 'object' && typeof value.type === 'string') visit(value);
+  }
+}
+
+// every position where a MemberExpression's slot value changes at runtime. union of:
+//   - write-only via `=` LHS / destructure-LHS / pattern-target (via `isMemberWriteOnlyContext`)
+//   - compound assignment LHS (`Array.from += X` - reads then writes)
+//   - update operand (`Array.from++` - reads then writes)
+//   - delete target (`delete Array.from` - removes slot)
+// callers that need to know "would the value of `node` differ after this position" check
+// this predicate; the three non-write-only forms are not caught by `isMemberWriteOnlyContext`
+// because they also READ the slot (so polyfill substitution of the read is wrong-but-not-
+// crash-causing, separate from the mutation-bypass divergence this predicate guards)
+export function isMemberMutationContext(node, parent, grandparent) {
+  if (isMemberWriteOnlyContext(node, parent, grandparent)) return true;
+  if (!parent) return false;
+  if (parent.type === 'AssignmentExpression' && parent.left === node && parent.operator !== '=') return true;
+  if (isUpdateTarget(parent) && parent.argument === node) return true;
+  if (isDeleteTarget(parent) && parent.argument === node) return true;
+  return false;
+}
+
+// scan AST for `Object.key = X` / `[Object.key] = X` / `({foo: Object.key} = X)` /
+// `Object.key++` / `Object.key += X` / `delete Object.key` and similar mutation positions.
+// returns a Set of `"ObjectName.keyName"` strings. used as a pre-pass before the main usage
+// visitor so substitution of `Array.from(...)` reads can bail when the same file mutates
+// `Array.from = X` somewhere - the polyfill import binding is `const`, the user's mutation
+// only reaches reads through the original global, so substituting reads with the polyfill
+// import silently diverges from the un-transformed source's behavior.
+// only matches statically-resolvable receivers (top-level Identifier object); proxy globals
+// like `globalThis.Array.from` would require full receiver resolution and stay out of scope
+// for this fast pre-walk - the cases worth catching here are direct `Builtin.method = X`
+// monkey-patches which always have an Identifier object
+export function collectMutatedStaticMembers(programNode) {
+  const mutated = new Set();
+  function visit(node, parent, grandparent) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'MemberExpression'
+      && node.object?.type === 'Identifier'
+      && node.property?.type === 'Identifier'
+      && !node.computed
+      && isMemberMutationContext(node, parent, grandparent)) {
+      mutated.add(`${ node.object.name }.${ node.property.name }`);
+    }
+    walkAstChildren(node, child => visit(child, node, parent));
+  }
+  visit(programNode, null, null);
+  return mutated;
+}
+
+// shape gate for the per-callback consultation against a `collectMutatedStaticMembers` set.
+// shared between babel-plugin and unplugin so the (object, key) string formation stays in
+// lockstep with the pre-pass that built the set - any divergence (different separator, case,
+// proto-vs-static handling) would cause silent misses on one adapter and not the other
+export function isMutatedStaticMeta(meta, mutatedSet) {
+  return meta.kind === 'property' && meta.object && meta.key
+    && mutatedSet?.has(`${ meta.object }.${ meta.key }`);
 }
 
 // ambient declarations (`declare class X`, `declare function X`, `declare const X`,
