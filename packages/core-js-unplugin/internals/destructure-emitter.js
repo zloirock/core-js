@@ -1069,7 +1069,7 @@ export function createDestructureEmitter({
   function tryFromFallbackPerBranchSynth(metaPath, propNode) {
     const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
     if (!desc) return;
-    tryRegisterPerBranchSynth({ rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope });
+    tryRegisterPerBranchSynth({ rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope, path: metaPath });
   }
 
   // ConditionalExpression / LogicalExpression in destructure-receiver position
@@ -1080,7 +1080,7 @@ export function createDestructureEmitter({
   // `{key: _Branch$key, ...}` literal. branches without viable polyfill are left raw -
   // the constructor identifier visitor still emits `_Set` etc. for shadow-correct globals.
   // returns true when at least one branch was registered
-  function tryRegisterPerBranchSynth({ rhs, propNode, objectPattern, scope }) {
+  function tryRegisterPerBranchSynth({ rhs, propNode, objectPattern, scope, path = null }) {
     if (!rhs || !propNode || !objectPattern) return false;
     if (!isSynthSimpleObjectPattern(objectPattern)) return false;
     if (propNode.computed || propNode.key?.type !== 'Identifier') return false;
@@ -1095,7 +1095,7 @@ export function createDestructureEmitter({
     let registered = false;
     for (const slot of slots) {
       const branch = inner[slot];
-      const pure = isViableBranchForKey({ branch, key, scope, adapter: estreeAdapter, resolvePure });
+      const pure = isViableBranchForKey({ branch, key, scope, adapter: estreeAdapter, resolvePure, path });
       if (!pure) continue;
       const binding = injectPureImport(pure.entry, pure.hintName);
       // skip the wrapper chain (ParenthesizedExpression / TS expression) AND the inner
