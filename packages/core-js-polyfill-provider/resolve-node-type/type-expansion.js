@@ -216,11 +216,22 @@ export function createTypeExpansion({
   // `K extends any | unknown ? ... : ...` - always true (top types match any literal).
   // `K extends `${...}` ? ... : ...` - pattern-match keyValue against the template literal.
   // `K extends 'a' | 'b' ? ... : ...` - any-branch match.
-  // returns null when the pattern can't be statically decided (caller bails)
+  // returns null when the pattern can't be statically decided (caller bails).
+  // peel TSParenthesizedType on both sides - oxc preserves `(K) extends ('a') ? ...`
+  // and the leading typeReference check would otherwise drop the wrapped form
   function matchesConditionalPattern({ checkType, extendsType, paramName, keyValue }) {
+    checkType = peelTSParenthesized(checkType);
+    extendsType = peelTSParenthesized(extendsType);
     if (checkType?.type !== 'TSTypeReference' || checkType.typeName?.name !== paramName) return null;
     if (extendsType?.type === 'TSAnyKeyword' || extendsType?.type === 'TSUnknownKeyword') return true;
-    if (extendsType?.type === 'TSStringKeyword') return typeof keyValue === 'string';
+    if (extendsType?.type === 'TSStringKeyword') {
+      if (typeof keyValue !== 'string') return false;
+      // upstream coerces numeric-literal mapped sources (`[K in 0 | 1]`) to string repr
+      // before reaching here, so a stringified numeric `'0'` is indistinguishable from a
+      // real string key. per TS spec `0 extends string` is false; signal undecidable so
+      // the caller folds both branches rather than over-returning true
+      return isNumericKeyShape(keyValue) ? null : true;
+    }
     // expand-mapped pipeline coerces numeric-literal sources to string keys before reaching
     // here; `isNumericKeyShape` matches numeric-string keys as well as actual numbers,
     // preserving `K extends number` precision. edge `'0' | 1` conflated to number - over-emit
@@ -362,12 +373,17 @@ export function createTypeExpansion({
   // --- Conditional types ---
 
   // local binding. walks structurally without entering nested TSConditionalType bodies -
-  // those nest their own infer scope and shouldn't leak into the outer collector
+  // those nest their own infer scope and shouldn't leak into the outer collector.
+  // TSInferType records its OWN name then recurses into its constraint so nested
+  // `infer U extends Array<infer V>` (TS 4.7+ infer-with-constraint) registers both
+  // `U` and `V` in the same scope - the constraint sits BESIDE the binding, sharing
+  // the conditional's binding scope rather than introducing a new one
   function collectInferredNames(node, into = new Set(), depth = 0) {
     if (!node || typeof node !== 'object' || depth > MAX_DEPTH) return into;
     if (node.type === 'TSInferType') {
       const name = node.typeParameter?.name?.name ?? node.typeParameter?.name;
       if (typeof name === 'string') into.add(name);
+      if (node.typeParameter?.constraint) collectInferredNames(node.typeParameter.constraint, into, depth + 1);
       return into;
     }
     // nested conditional binds its own infer scope - stop the walk so its trueType-only
@@ -414,6 +430,11 @@ export function createTypeExpansion({
     if (!check || !extend) return null;
     check = peelTSParenthesized(check);
     extend = peelTSParenthesized(extend);
+    // template-literal extends (`prefix_${string}`): can't statically decide without a
+    // concrete check side. resolveTypeAnnotation maps both check and extend to $Primitive
+    // ('string'), so the Type-Object equality below would over-return true. signal
+    // undecidable so the caller falls back to union-fold of both branches
+    if (extend?.type === 'TSTemplateLiteralType' || check?.type === 'TSTemplateLiteralType') return null;
     // both literal types: compare values (the precision case `'narrow' extends 'narrow'`).
     // negative numeric literals (`-1`, `-0`) are parsed as UnaryExpression { operator: '-',
     // argument: NumericLiteral { value: 1 }} - `literal.value` is undefined, so the naive
@@ -505,6 +526,11 @@ export function createTypeExpansion({
   // substitution map. all 3 conditional-branch sites (`findConditionalTypeMember`,
   // `evaluateConditionalType`, `pickAwaitedConditionalBranch`) flow through this helper
   function pickConditionalBranchVia({ checkAST, extendsAST, resolveOne, isUnconstrained }) {
+    // resolveOne collapses TSTemplateLiteralType to $Primitive('string') - downstream
+    // pickConditionalBranch then sees string-vs-string and returns true. short-circuit
+    // to undecidable on either side so the caller folds both branches instead of
+    // over-picking through a stripped template
+    if (isTemplateLiteralExtend(checkAST) || isTemplateLiteralExtend(extendsAST)) return null;
     const astPick = pickConditionalBranchByAST(checkAST, extendsAST);
     if (astPick !== null) return astPick;
     return pickConditionalBranch({
@@ -513,6 +539,10 @@ export function createTypeExpansion({
       extendIsUnconstrained: isUnconstrained,
       extendIsConcreteEmpty: isConcreteEmptyShape(extendsAST),
     });
+  }
+
+  function isTemplateLiteralExtend(node) {
+    return peelTSParenthesized(node)?.type === 'TSTemplateLiteralType';
   }
 
   // raw AST shape predicate: `Array` / `Promise` / `Set` ... without `<...>` typeArguments
@@ -617,7 +647,15 @@ export function createTypeExpansion({
     // resolveTypeAnnotation first; `substituteTypeParams` inserts the value as-is, and
     // downstream consumers expect the internal `$Primitive` / `$Object` shape rather than
     // a raw AST keyword node
-    const fromConstraint = match.constraint ? resolveTypeAnnotation(match.constraint, scope) : null;
+    // constraint may reference outer typeparam names bound in `typeParamMap` (caller's
+    // generic context) - `substituteTypeParams` carries the map through so `infer U
+    // extends V` resolves V via the outer binding instead of seeing it as an unresolved
+    // user type. fall back to bare `resolveTypeAnnotation` when no map (recursive entry)
+    const fromConstraint = match.constraint
+      ? (typeParamMap
+        ? substituteTypeParams(match.constraint, typeParamMap, scope, depth + 1, seen)
+        : resolveTypeAnnotation(match.constraint, scope))
+      : null;
     const inner = resolveInnerType(checkType) ?? fromConstraint;
     if (!inner) return null;
     const inferMap = typeParamMap ? new Map(typeParamMap) : new Map();

@@ -17,7 +17,7 @@
 import { $Object, MAX_DEPTH } from './base.js';
 
 export function createTypeResolveDispatch({
-  typeRefName,
+  typeRefSegments,
   resolveKnownConstructor,
   resolveKnownContainerType,
   resolveUserDefinedType,
@@ -40,11 +40,15 @@ export function createTypeResolveDispatch({
 
   // direct typeparam ref: `T` → map.get('T'). non-typeparam ref: container substitution
   // (Array<T>, Promise<T>, etc.) via `resolveKnownContainerType`, then user-alias /
-  // utility-type chain through `resolveUserDefinedType` / `resolveNamedType`
+  // utility-type chain through `resolveUserDefinedType` / `resolveNamedType`.
+  // dotted refs (`NS.Foo<T>` / TSQualifiedName) keep the segment path joined - downstream
+  // resolveNamedType / findTypeDeclaration re-split on dispatch. typeparam binding gates
+  // on single-segment refs since `NS.T` is never a typeparam binding key
   function substTypeRefAsType(node, typeParamMap, scope, depth, seen) {
-    const name = typeRefName(node);
-    if (!name) return null;
-    if (typeParamMap.has(name)) return typeParamMap.get(name);
+    const segments = typeRefSegments(node);
+    if (!segments?.length) return null;
+    const name = segments.join('.');
+    if (segments.length === 1 && typeParamMap.has(name)) return typeParamMap.get(name);
     const ctor = resolveKnownConstructor(name);
     const known = resolveKnownContainerType({
       name, base: ctor, node, innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
