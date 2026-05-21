@@ -101,7 +101,7 @@ export function findUniqueName(prefix, startSuffix, isTaken) {
   let name = `${ prefix }${ counter }`;
   const limit = counter + (1 << 20);
   while (isTaken(name)) {
-    if (++counter > limit) throw new Error(`findUniqueName: collision space exhausted at \`${ prefix }${ counter }\` (isTaken always returns true?)`);
+    if (++counter > limit) throw new Error(`[core-js] findUniqueName: collision space exhausted at \`${ prefix }${ counter }\` (isTaken always returns true?)`);
     name = `${ prefix }${ counter }`;
   }
   return name;
