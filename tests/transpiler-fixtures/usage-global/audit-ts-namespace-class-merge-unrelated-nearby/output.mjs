@@ -1,7 +1,8 @@
-// unrelated `namespace Bar` adjacent to `namespace Foo + class Foo` must not bleed.
-// scope walk's name matching keys on `TSModuleDeclaration.id.name === 'Foo'`, so
-// `namespace Bar { ... }` is skipped during `Foo.build` lookup. positive control:
-// `Foo.build()` correctly narrows to user-class type -> no .at polyfill
+// An unrelated `namespace Bar` sits next to the `class Foo` + `namespace Foo`
+// pair. Lookup of `Foo.build` must not pick up `Bar.build` (which would point at
+// `number[]`). `Foo.build()` must narrow to the user's `Foo` instance, so
+// `.at(0)` on the result must NOT emit Array#at - sibling namespace names with
+// different identifiers do not bleed into each other.
 class Foo {}
 namespace Foo {
   export function build(): Foo {
