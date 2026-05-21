@@ -17,6 +17,7 @@ import {
   isIdentifierPropValue,
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
+  markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
   peelFallbackWrappers,
@@ -1098,17 +1099,12 @@ export function createDestructureEmitter({
       const pure = isViableBranchForKey({ branch, key, scope, adapter: estreeAdapter, resolvePure, path });
       if (!pure) continue;
       const binding = injectPureImport(pure.entry, pure.hintName);
-      // skip the wrapper chain (ParenthesizedExpression / TS expression) AND the inner
-      // resolved receiver (Identifier or proxy-global MemberExpression chain) - otherwise
+      // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
+      // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
       // the inner Identifier visitor fires on `Iterator` / `globalThis` and emits a parallel
-      // polyfill that conflicts with the synth-swap emit (`{from: _Iterator$from}`).
-      // wrappers walked inline; MemberExpression hop delegated to `markSynthReceiverSkipped`
-      // so `globalThis.Array` -> skip `globalThis` Identifier too
-      let cur = branch;
-      while (cur && (cur.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(cur.type))) {
-        skippedNodes.add(cur);
-        cur = cur.expression;
-      }
+      // polyfill that conflicts with the synth-swap emit. shared `markAndPeelSkippableWrappers`
+      // covers the same wrapper set used by `markSynthReceiverSkipped`'s inner walk
+      const cur = markAndPeelSkippableWrappers(branch, skippedNodes);
       markSynthReceiverSkipped(cur, skippedNodes);
       let pending = pendingSynthSwaps.get(branch);
       if (!pending) {
@@ -1475,12 +1471,14 @@ export function createDestructureEmitter({
     for (const [, { receiver, objectPattern, polyfills }] of pendingSynthSwaps) {
       if (objectPattern?.type !== 'ObjectPattern') continue;
       const inner = peelFallbackWrappers(receiver);
-      // accept Identifier (`Array`) and MemberExpression (`window.Array`) receivers. for
-      // MemberExpression, unpolyfilled keys still re-read through the chain (`window.Array
-      // .other`) - each `${ src }.${ key }` reference re-evaluates the receiver expression.
-      // typical pattern is all-polyfilled keys (no re-read needed); accept the side-effect
-      // re-evaluation trade-off for partial-polyfill cases
-      if (inner?.type !== 'Identifier' && inner?.type !== 'MemberExpression') continue;
+      // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
+      // `globalThis?.Array`) receivers - mirrors `isViableBranchForKey` so `tryRegisterPerBranchSynth`
+      // -> `applySynthSwaps` round-trip stays in sync. for member-chain shapes, unpolyfilled
+      // keys still re-read through the chain (`window.Array.other`) - each `${ src }.${ key }`
+      // reference re-evaluates the receiver expression. typical pattern is all-polyfilled
+      // keys (no re-read needed); accept the side-effect re-evaluation trade-off
+      if (inner?.type !== 'Identifier' && inner?.type !== 'MemberExpression'
+          && inner?.type !== 'OptionalMemberExpression') continue;
       const receiverPure = inner.type === 'Identifier' ? resolveGlobalPolyfill(inner.name) : null;
       let receiverSrc = null;
       const getReceiverSrc = () => receiverSrc ??= receiverPure
@@ -1494,7 +1492,11 @@ export function createDestructureEmitter({
           ? `${ p.key.name }: ${ polyfill }`
           : `${ p.key.name }: ${ getReceiverSrc() }.${ p.key.name }`);
       }
-      transforms.add(receiver.start, receiver.end, `{ ${ entries.join(', ') } }`);
+      // overwrite the INNER (peeled) range so outer TS / paren / chain wrappers survive
+      // intact - mirrors babel's AST mutation which replaces only the inner MemberExpression
+      // and leaves the wrapper around the synth object. without using `inner.start/.end`,
+      // `(globalThis?.Array as any)` would lose its `as any` cast on text emit
+      transforms.add(inner.start, inner.end, `{ ${ entries.join(', ') } }`);
     }
   }
 
