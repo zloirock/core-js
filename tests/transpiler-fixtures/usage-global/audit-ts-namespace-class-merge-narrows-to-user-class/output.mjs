@@ -1,7 +1,8 @@
-// TS declaration merging: `class MyContainer` + `namespace MyContainer { export
-// function build }`. resolver must walk the merged namespace to determine the static
-// `build`'s return type. result narrows to user's MyContainer<T> - call .at(0) on it
-// must NOT inject array.at polyfill (user's class has no `at`, no global Array dispatch)
+// Baseline declaration-merging case: `class MyContainer<T>` merged with
+// `namespace MyContainer { export function build<T>(arr: T[]): MyContainer<T> }`.
+// `MyContainer.build([1,2,3])` must narrow to the user's `MyContainer<T>`
+// instance type, so `.at(0)` on the result must NOT emit Array#at - the user's
+// class has no `at` method.
 class MyContainer<T> {
   data: T[] = [];
 }
