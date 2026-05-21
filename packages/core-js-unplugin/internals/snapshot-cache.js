@@ -82,6 +82,20 @@ function stripHMRTimestamp(id) {
     .replace(/[&?]$/, '');
 }
 
+// SFC sub-block tail (`?vue&type=script&lang=ts`) identifies the block but parameter order
+// is bundler-dependent (vite vs farm vs custom). canonicalise by sorting `&`-separated tokens
+// so `?vue&type=script&lang=ts` and `?vue&lang=ts&type=script` hash to the same cache entry.
+// hash suffix `#x` is preserved at the end (always lex-last; doesn't participate in the
+// sort). empty token segments (`&&` collapse) are filtered out
+function normalizeSFCQueryTail(tail) {
+  if (!tail) return tail;
+  const hashIdx = tail.indexOf('#');
+  const querySrc = hashIdx === -1 ? tail.slice(1) : tail.slice(1, hashIdx);
+  const hash = hashIdx === -1 ? '' : tail.slice(hashIdx);
+  const tokens = querySrc.split('&').filter(Boolean).sort();
+  return `?${ tokens.join('&') }${ hash }`;
+}
+
 function normalizeKey(id) {
   const cleanId = stripHMRTimestamp(id);
   if (SFC_QUERY_MARKER_RE.test(cleanId)) {
@@ -90,10 +104,12 @@ function normalizeKey(id) {
     // 2 instead of the SFC `?vue&type=...` boundary. without this, pre-on-Windows-UNC and
     // post-on-canonical-form keys diverge, snapshot miss for the same logical SFC sub-block
     const uncStripped = cleanId.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
-    // preserve the query since it identifies the sub-block; still normalize the path prefix
+    // preserve + canonicalise the query since it identifies the sub-block; still normalize
+    // the path prefix. sort query params so `?vue&type=script&lang=ts` and `?vue&lang=ts&
+    // type=script` resolve to the same cache key
     const queryStart = uncStripped.search(QUERY_OR_HASH_RE);
     const pathPart = queryStart === -1 ? uncStripped : uncStripped.slice(0, queryStart);
-    const tail = queryStart === -1 ? '' : uncStripped.slice(queryStart);
+    const tail = queryStart === -1 ? '' : normalizeSFCQueryTail(uncStripped.slice(queryStart));
     return normalizePath(pathPart) + tail;
   }
   return normalizePath(stripQueryHash(cleanId));
@@ -127,13 +143,12 @@ export default class SnapshotCache {
     return entry ?? null;
   }
 
-  // post-pass entry: take + decide whether pre's cached parse can be reused. parse reuse
-  // requires `postInput` byte-equality with current code - sibling plugins may have
-  // mutated text between passes, and only matching bytes guarantee AST position fidelity.
-  // returns `{ snapshot, ast, comments }` with ast/comments null when parse can't reuse
-  // (mismatched bytes, mode that rewrote pre's output, or pre stored nulls intentionally)
-  takeWithParse(id, code) {
-    const stored = this.take(id);
+  // parse reuse requires `postInput` byte-equality with current code - sibling plugins may
+  // have mutated text between passes, and only matching bytes guarantee AST position fidelity.
+  // null `stored` (cache miss) and null `stored.ast` (pre stored nulls intentionally) both
+  // collapse to the same empty shape; non-null ast with mismatched bytes nulls the ast/comments
+  // but still surfaces the snapshot so callers can use the bag-of-globals without reparse
+  static #withParseShape(stored, code) {
     if (!stored) return { snapshot: null, ast: null, comments: null };
     const canReuse = stored.ast && stored.postInput === code;
     return {
@@ -143,12 +158,38 @@ export default class SnapshotCache {
     };
   }
 
-  // per-file invalidation hook for Vite/Rollup `watchChange`. drops a single snapshot
-  // when its source file changes - prevents unbounded growth in long-running dev servers
-  // where a pre-pass ran but the matching post was skipped (tree-shake, sibling bail).
-  // returns true if the entry existed and was removed (callsite can short-circuit further work)
+  // post-pass entry: take + decide whether pre's cached parse can be reused
+  takeWithParse(id, code) {
+    return SnapshotCache.#withParseShape(this.take(id), code);
+  }
+
+  // non-destructive variant: returns the same shape as `takeWithParse` but leaves the
+  // snapshot in place. used by callers that need to inspect the cached AST (disable-directive
+  // scan) before deciding whether to commit to the snapshot. on the commit path, callers
+  // follow up with `take(id)` to drop the entry; on bail paths the snapshot survives so a
+  // subsequent retry can still consume it
+  peekWithParse(id, code) {
+    return SnapshotCache.#withParseShape(this.#snapshots.get(normalizeKey(id)), code);
+  }
+
+  // per-file invalidation hook for Vite/Rollup `watchChange`. drops the bare-path snapshot
+  // AND any SFC sub-block entries (`/abs/App.vue?vue&type=script&lang=ts`, `?vue&type=template`
+  // etc.) that share the same source file. without sub-block fanout, edits to an SFC would
+  // leave the script/template/style snapshots stale in cache until cap eviction. prevents
+  // unbounded growth in long-running dev servers where a pre-pass ran but the matching post
+  // was skipped (tree-shake, sibling bail). returns true when any entry was removed
   invalidate(id) {
-    return this.#snapshots.delete(normalizeKey(id));
+    const key = normalizeKey(id);
+    let removed = this.#snapshots.delete(key);
+    // sub-block keys have the bare path as a `?`-suffix prefix - sweep them too
+    const prefix = `${ key }?`;
+    for (const k of this.#snapshots.keys()) {
+      if (k.startsWith(prefix)) {
+        this.#snapshots.delete(k);
+        removed = true;
+      }
+    }
+    return removed;
   }
 
   size() { return this.#snapshots.size; }

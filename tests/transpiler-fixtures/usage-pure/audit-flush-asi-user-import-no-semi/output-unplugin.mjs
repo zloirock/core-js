@@ -6,5 +6,4 @@ import _at from "@core-js/pure/actual/instance/at";
 // `reorderRefsAfterImports` which lands `var _ref;` on its own line via AST insertion.
 import x from "y"
 var _ref;
-
 _at(_ref = foo()).call(_ref, -1)
