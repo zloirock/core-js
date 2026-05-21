@@ -12,6 +12,7 @@ import {
   mayHaveSideEffects,
   TS_EXPR_WRAPPERS,
   visitSymbolInLhsSe,
+  wouldPromoteDirectiveAfterRemoval,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
@@ -550,6 +551,18 @@ export default function plugin(api, options) {
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
         injectModulesForEntry(entry);
+        // directive-promotion guard: removing an entry that immediately precedes a string-
+        // literal expression statement (with only directives before it) would let the engine
+        // re-parse the next literal as a directive. swap in `0;` instead of `path.remove()`
+        // so the prologue stays terminated. injection-side stmts may also defend (`require()`
+        // call, ImportDeclaration breaks prologue continuity), but compat-data may produce
+        // an empty module list for modern targets - then removal alone is the corruption
+        const body = path.parentPath?.node?.body;
+        const idx = typeof path.key === 'number' ? path.key : body?.indexOf(path.node);
+        if (body && idx >= 0 && wouldPromoteDirectiveAfterRemoval(body, idx)) {
+          path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
+          return;
+        }
         path.remove();
       }
 

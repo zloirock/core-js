@@ -19,7 +19,7 @@
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH } from './base.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { getSuperTypeArgs, isAmbientBindingShape } from '../helpers/ast-patterns.js';
+import { getSuperTypeArgs, isAmbientBindingShape, peelIIFEReturn } from '../helpers/ast-patterns.js';
 
 export function createGlobalResolve({
   t,
@@ -53,12 +53,61 @@ export function createGlobalResolve({
     return false;
   }
 
+  // proxy-global chain link: `globalThis.self`, `globalThis.window`, etc. - each link's
+  // property name is in `POSSIBLE_GLOBAL_OBJECTS` AND the chain root is a proxy global.
+  // mirror `globalProxyMemberName`'s walk but stays in resolve-node-type's path-based API
+  function isProxyGlobalChainLink(objectPath) {
+    if (!t.isMemberExpression(objectPath.node) && !t.isOptionalMemberExpression(objectPath.node)) return false;
+    if (objectPath.node.computed) return false;
+    const propName = objectPath.node.property?.name;
+    return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName) && isGlobalProxy(objectPath.get('object'));
+  }
+
+  // IIFE returning a proxy-global: `(() => globalThis)()` / `(function(){ return self; })()`.
+  // `peelIIFEReturn` returns the body's single ReturnStatement / expression-body argument
+  // when callee is a sync zero-param arrow / fn-expression. mirrors `resolveProxyGlobalRoot`
+  // in the polyfill resolver so type-inference for `(() => globalThis)().Array.from(x)`
+  // (return type Array) stays symmetric with the polyfill-side detection
+  function isProxyGlobalIifeReturn(callPath) {
+    const ret = peelIIFEReturn(callPath.node);
+    if (!ret) return false;
+    // resolve the return expression as a path. oxc preserves `ParenthesizedExpression` on
+    // the callee; babel strips it. peel the wrapper to reach the function-like node, then
+    // dive into its body. expression-body arrows have callee.body === ret directly;
+    // block-bodied functions need `findReturnPath` to locate the single ReturnStatement
+    let fnPath = callPath.get('callee');
+    while (fnPath?.node?.type === 'ParenthesizedExpression') fnPath = fnPath.get('expression');
+    if (!fnPath?.node) return false;
+    const fnBody = fnPath.get('body');
+    const retPath = fnBody?.node === ret ? fnBody : findReturnPath(fnBody, ret);
+    return retPath ? isGlobalProxy(retPath) : false;
+  }
+
   function isGlobalProxy(objectPath) {
     if (t.isIdentifier(objectPath.node)) {
       return POSSIBLE_GLOBAL_OBJECTS.has(objectPath.node.name) && !hasRuntimeBinding(objectPath.scope, objectPath.node.name);
     }
     // top-level `this` (not inside any non-arrow function or class) is a global proxy
-    return t.isThisExpression(objectPath.node) && isGlobalThis(objectPath);
+    if (t.isThisExpression(objectPath.node) && isGlobalThis(objectPath)) return true;
+    if (isProxyGlobalChainLink(objectPath)) return true;
+    if (t.isCallExpression(objectPath.node) || t.isOptionalCallExpression(objectPath.node)) {
+      return isProxyGlobalIifeReturn(objectPath);
+    }
+    return false;
+  }
+
+  // locate the path for an IIFE return expression inside a BlockStatement body. walks
+  // top-level statements until the matching ReturnStatement.argument node is found.
+  // narrow scan (top-level only) matches `singleReturnBodyExpression`'s contract: nested
+  // control-flow / declarations already bailed before reaching here
+  function findReturnPath(bodyPath, retNode) {
+    if (!bodyPath.node || bodyPath.node.type !== 'BlockStatement') return null;
+    for (const stmtPath of bodyPath.get('body')) {
+      if (stmtPath.node?.type === 'ReturnStatement' && stmtPath.node.argument === retNode) {
+        return stmtPath.get('argument');
+      }
+    }
+    return null;
   }
 
   // user-aliased global: `const A = Array; new A(...)` / `A(...)` / etc.

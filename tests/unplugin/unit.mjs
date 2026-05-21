@@ -200,7 +200,11 @@ for (const [id, baseId, want] of liftSfcLangCases) {
 check('entryToGlobalHint/single segment', entryToGlobalHint('promise'), 'Promise');
 check('entryToGlobalHint/subpath constructor', entryToGlobalHint('promise/constructor'), 'Promise');
 check('entryToGlobalHint/kebab single word', entryToGlobalHint('weak-map'), 'WeakMap');
-check('entryToGlobalHint/non-class helper', entryToGlobalHint('is-iterable'), 'IsIterable');
+// single-segment helper entries (`is-iterable`, `get-iterator`, `set-immediate`) bail -
+// the kebab form would derive a plausible PascalCase but the result isn't a real global,
+// and downstream `resolveSuperImportName` would over-inject against the fabricated name.
+// filter through `KNOWN_GLOBAL_NAMES` (globals + statics in built-in-definitions)
+check('entryToGlobalHint/non-class helper bails', entryToGlobalHint('is-iterable'), null);
 check('entryToGlobalHint/empty string', entryToGlobalHint(''), null);
 // method / instance entries: user's pure import is a function, not the class — no hint
 check('entryToGlobalHint/static method', entryToGlobalHint('promise/try'), null);
