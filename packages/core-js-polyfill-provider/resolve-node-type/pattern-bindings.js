@@ -66,6 +66,18 @@ export function createPatternBindings({
       // rest: [...x] is always Array - signal via negative index so callers know
       if (el.type === 'RestElement') {
         if (el.argument?.type === 'Identifier' && el.argument.name === name) return [-1];
+        // nested ArrayPattern inside rest (`[a, ...[head]] = arr`). the rest slice has
+        // the same element type as the source; an inner positional access at `j` then maps
+        // to source index `i + j` (rest starts at outer position `i`). only positional
+        // inner hits are mappable - ObjectPattern in rest or nested-rest inside rest yields
+        // a non-positional first segment which can't be statically offset; bail to null
+        // there so callers fall back to broader inference instead of returning a wrong path
+        if (el.argument?.type === 'ArrayPattern') {
+          const inner = findArrayPatternKeyPath(el.argument, name, scope);
+          if (inner && typeof inner[0] === 'number' && inner[0] >= 0) {
+            return [i + inner[0], ...inner.slice(1)];
+          }
+        }
         continue;
       }
       const unwrapped = el.type === 'AssignmentPattern' ? el.left : el;
