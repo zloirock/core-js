@@ -99,19 +99,19 @@ export function createMemberResolve({
     const scopeRef = binding.path.scope;
     // props collected leaf-first; consume from the end to walk root-down. last entry stays
     // for the leaf-member lookup below (its raw signature is what callers need).
-    // intermediate-hop TSMethodSignature bails - `obj.fn.x` accesses `.x` on the FUNCTION
-    // value (Function.prototype.x or undefined), not on the method's return type. previous
-    // auto-call shortcut (read m.typeAnnotation as if `obj.fn()` was invoked) silently
-    // narrowed downstream chains through the return type even though no call happened
+    // intermediate hops delegate to `findTypeMember` which handles alias-chain follow,
+    // union/intersection per-branch fold, mapped-type passthrough, and method-vs-property
+    // unwrap in one dispatch. methods surface as a synthetic Function-stub annotation -
+    // next iteration's lookup on Function returns null, matching the prior bail behavior
+    // (`obj.fn.x` reads `.x` on the function value, not on the method's return type)
     for (let i = props.length - 1; i > 0; i--) {
       if (!annotation) return null;
-      const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
-      const m = members?.find(mm => keyMatchesName(mm.key, props[i]));
-      if (!m) return null;
-      if (m.type === 'TSMethodSignature' && m.kind !== 'get') return null;
-      annotation = unwrapTypeAnnotation(m.typeAnnotation ?? m.returnType);
+      annotation = unwrapTypeAnnotation(findTypeMember({ objectType: annotation, key: props[i], scope: scopeRef }));
     }
     if (!annotation) return null;
+    // leaf: need the RAW member node (caller inspects signature shape - method vs property
+    // vs getter - to decide call-vs-read dispatch). `findTypeMember` returns the resolved
+    // annotation only, which loses the signature shape, so leaf stays at members+find
     const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
     const member = members?.find(m => keyMatchesName(m.key, props[0]));
     return member ? { member, scope: scopeRef } : null;
