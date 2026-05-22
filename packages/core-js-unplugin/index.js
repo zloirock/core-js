@@ -53,6 +53,15 @@ export function shouldTransform(id) {
 
 const VALID_PHASES = ['pre', 'post', 'pre+post'];
 
+// bundlers where `phase: 'pre+post'` doesn't reliably enforce pre-then-post ordering against
+// sibling plugins. upstream unplugin's `enforce` field is dropped silently on bun (no
+// priority concept; bun processes Bun.plugin() registrations in declaration order without
+// inter-plugin interleaving slots). on farm `enforce` IS honored via priority mapping
+// (pre→102 / post→98), so sibling default-priority 100 lands BETWEEN our pre and post -
+// that's the design intent for pre+post. fall back to single-mode 'post' only where the
+// ordering truly breaks; user gets the safer behavior with a one-time warn
+const PRE_POST_UNSAFE_BUNDLERS = new Set(['bun']);
+
 // `phase` controls when the plugin runs. See index.d.ts for the full trade-off matrix.
 // `entry-global` is pinned to pre so `import 'core-js'` is seen before siblings transform it.
 const unplugin = createUnplugin((options, meta) => {
@@ -73,7 +82,21 @@ const unplugin = createUnplugin((options, meta) => {
     throw new TypeError(`[core-js] invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`);
   }
 
-  const plugin = createPlugin({ ...rest, bundler: meta?.framework });
+  // bundler-specific phase fallback. on bun the upstream sibling-ordering machinery doesn't
+  // honor `enforce` (no priority concept; Bun.plugin hosts process transformHooks in array
+  // order without inter-plugin interleaving slots). configured `pre+post` would silently
+  // produce single-host concatenation without sibling intervention - downgrade to single-mode
+  // 'post' (safer: runs after all siblings, sees their helper output) and surface a one-time
+  // warn so user can correlate the cadence shift. entry-global is pinned to 'pre' upstream
+  // regardless of bundler - this fallback only affects the explicit `pre+post` opt-in
+  const bundler = meta?.framework;
+  const fallbackToPost = effective === 'pre+post' && PRE_POST_UNSAFE_BUNDLERS.has(bundler);
+  if (fallbackToPost) {
+    // eslint-disable-next-line no-console -- one-time bundler-specific cadence warning
+    console.warn(`[core-js] \`phase: 'pre+post'\` is not reliably honored on \`${ bundler }\` (upstream sibling-ordering gap); falling back to single-mode 'post'`);
+  }
+  const resolvedPhase = fallbackToPost ? 'post' : effective;
+  const plugin = createPlugin({ ...rest, bundler });
 
   function stage(enforce, pass) {
     return {
@@ -101,9 +124,9 @@ const unplugin = createUnplugin((options, meta) => {
   // (see plugin.js: `trackReferences = pass === 'post'`). standalone `phase: 'pre'` stays
   // at `pass='single'` - 'pre' would enable `deferImports` expecting a follow-up post pass
   // that never comes
-  const subs = effective === 'pre+post'
+  const subs = resolvedPhase === 'pre+post'
     ? [stage('pre', 'pre'), stage('post', 'post')]
-    : [stage(effective, effective === 'post' ? 'post' : 'single')];
+    : [stage(resolvedPhase, resolvedPhase === 'post' ? 'post' : 'single')];
   Object.assign(subs.at(-1), {
     buildEnd() { plugin.reset(); },
     watchChange(id) { plugin.invalidateSnapshot(id); },
