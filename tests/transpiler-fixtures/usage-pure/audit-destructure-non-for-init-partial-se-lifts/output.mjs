@@ -1,10 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// non-for-init partial-consume + SE prefix: VariableDeclaration at statement scope (NOT
-// inside for-init). SE prefix lifts to a standalone statement BEFORE the preserved
-// declarator via `liftExtractedSEPrefixes` - the for-init sink-declarator path doesn't
-// fire here. ensures `injectForInitSESinks` is properly gated on isForInit and doesn't
-// double-emit SE when the lift path already handles it
+// Statement-scope `const { Array: { from }, ...rest } = (logCall(), globalThis)`:
+// `Array.from` is extracted as a polyfill, the side-effecting `logCall()` runs exactly
+// once as a lifted statement before the preserved rest-destructure.
 declare const logCall: () => any;
 logCall();
 const from = _Array$from;

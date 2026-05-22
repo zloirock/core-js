@@ -220,6 +220,20 @@ export function createReturnType({
     return result ?? nullableFallback ?? new $Primitive('undefined');
   }
 
+  // probe a function-like param's annotation for a type-param reference. handles plain
+  // Identifier params (`x: T`) and RestElement (`...args: T[]`) - babel nests the annotation
+  // on `.argument.typeAnnotation`, oxc hoists it to the RestElement itself. AssignmentPattern
+  // default (`x: T = v`) carries its annotation on `.left.typeAnnotation`
+  function hasParamTypeRef(param, typeParamNames, depth) {
+    if (!param) return false;
+    if (hasTypeParamReference(param.typeAnnotation, typeParamNames, depth)) return true;
+    if (param.type === 'RestElement' && param.argument
+      && hasTypeParamReference(param.argument.typeAnnotation, typeParamNames, depth)) return true;
+    if (param.type === 'AssignmentPattern' && param.left
+      && hasTypeParamReference(param.left.typeAnnotation, typeParamNames, depth)) return true;
+    return false;
+  }
+
   // check whether a type annotation AST node references any type parameter from the given set
   function hasTypeParamReference(node, typeParamNames, depth) {
     if (depth > MAX_DEPTH) return false;
@@ -274,11 +288,23 @@ export function createReturnType({
         for (const member of node.members) {
           if (hasTypeParamReference(member.typeAnnotation, typeParamNames, depth + 1)) return true;
           if (hasTypeParamReference(member.returnType, typeParamNames, depth + 1)) return true;
+          // method signatures carry params (`{ foo(x: T): U }`); a T in param must propagate
+          // so call-site subst captures it. property signatures lack `parameters`, skipped
+          if (member.parameters) for (const param of member.parameters) {
+            if (hasParamTypeRef(param, typeParamNames, depth + 1)) return true;
+          }
         }
         return false;
       case 'TSFunctionType':
       case 'TSConstructorType':
       case 'FunctionTypeAnnotation':
+        // function-type params (`(x: T) => U`) - T in param slot or `...rest: T[]` must
+        // count as referenced so outer-fn subst captures it. each param's annotation is
+        // walked (RestElement carries it via `.argument.typeAnnotation` on babel; oxc
+        // hoists to top-level - `hasParamTypeRef` handles both shapes)
+        if (node.params) for (const param of node.params) {
+          if (hasParamTypeRef(param, typeParamNames, depth + 1)) return true;
+        }
         return hasTypeParamReference(node.returnType ?? node.typeAnnotation, typeParamNames, depth + 1);
       // mapped type carries the constraint (`K in keyof T`) and body (`T[K]`); both can
       // reference type params. without this branch an outer function returning a raw
@@ -426,21 +452,55 @@ export function createReturnType({
     // node (or null) used for both method-level subst and direct annotation resolution
     const returnInner = classSubstInner(fnPath.node.returnType, classSubst);
     const isAsync = fnPath.node.async;
+    // async functions always return a Promise even when the inner type is unresolvable -
+    // use this as the bottom-of-funnel fallback for every path that can land in null
+    const asyncFallback = isAsync ? new $Object('Promise') : null;
     // infer generic type parameters and substitute into return type
     if (returnInner && callPath) {
       const substituted = applyCallSiteSubst(returnInner, fnPath, callPath);
       if (substituted) return wrapAsyncPromise(substituted, isAsync);
     }
-    // try return type annotation
     if (returnInner) {
       const resolved = resolveTypeAnnotation(returnInner, fnPath.scope);
       if (resolved) return wrapAsyncPromise(resolved, isAsync);
+      // structural annotations (`TSTypeLiteral` / `ObjectTypeAnnotation` / `TSIntersectionType`
+      // / `TSImportType`) have no scalar Type representation - `resolveTypeAnnotation` returns
+      // null for them. body inference would poison the result (`function f(): { foo(): T[] }
+      // { return null as any }` body returns `$Primitive('null')` which `isNullableOrNever`
+      // kills, dropping every narrow on the receiver chain). bail so callers route through
+      // the annotation-level path (`findExpressionAnnotation`) that preserves the structural
+      // shape for member lookups
+      if (isStructuralAnnotation(returnInner)) return asyncFallback;
     }
     // fallback: analyze return statements in the function body
-    const bodyType = resolveBodyReturnType(fnPath, callPath);
-    // async functions always return a Promise, even if body return type is unresolvable
-    if (isAsync) return wrapAsyncPromise(bodyType, isAsync) ?? new $Object('Promise');
-    return bodyType;
+    return wrapAsyncPromise(resolveBodyReturnType(fnPath, callPath), isAsync) ?? asyncFallback;
+  }
+
+  // structural type annotations whose value-level shape requires annotation-level member
+  // lookup. body inference would clobber the declared structure with a scalar Type that
+  // loses the members the call site needs (e.g. `function f(): { foo(): T[] } { return null
+  // as any }` body returns `$Primitive('null')` which `isNullableOrNever` kills, dropping
+  // every narrow on the receiver chain). bail to null so callers route through the
+  // annotation-level path (`findExpressionAnnotation`) that preserves the structural shape.
+  // intersection reaches this branch only when ALL branches are structural (any scalar
+  // branch would have made `resolveTypeAnnotation` return non-null upstream via the fold).
+  // `TSImportType` is opaque (cross-module structural) - body inference can't produce
+  // anything better. EXCLUDES TSUnionType - union of structurals folds to null but body
+  // inference for `T | null` bodies returns `$Primitive('null')` which the polyfill detector
+  // treats as "definitely null receiver, no polyfill needed" (correct under-injection);
+  // bailing here would over-inject Maybe-* variants on a receiver that's actually null.
+  // also excludes wide-open keywords (`any` / `unknown` / `mixed`) - body inference is
+  // strictly better than `unknown` for those
+  const STRUCTURAL_ANNOTATION_TYPES = new Set([
+    'TSTypeLiteral',
+    'ObjectTypeAnnotation',
+    'TSIntersectionType',
+    'IntersectionTypeAnnotation',
+    'TSImportType',
+  ]);
+
+  function isStructuralAnnotation(annotation) {
+    return STRUCTURAL_ANNOTATION_TYPES.has(annotation?.type);
   }
 
   return {

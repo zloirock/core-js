@@ -13,6 +13,7 @@ import {
   peelFallbackReceiver,
   peelFallbackWrappers,
   peelZeroArgIifeReturn,
+  resolveFallbackReceiver,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
@@ -198,14 +199,46 @@ function flattenFallbackBranches({ node, key, scope, adapter, path }) {
 // API (uses .parentPath / .node / .scope) so both babel and estree-toolkit paths work
 export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   if (!meta?.fromFallback || !path) return null;
-  const wrapperParent = path.parentPath?.parentPath?.node;
-  const slot = destructureReceiverSlot(wrapperParent);
-  if (!slot) return null;
+  const objectPattern = path.parentPath?.node;
+  // ObjectPattern's parent can be:
+  //   - direct host (VariableDeclarator / AssignmentExpression) - read slot
+  //   - AssignmentPattern default-wrapper - read 'right' (default) UNLESS the AP is itself
+  //     an IIFE param, in which case the call-arg supersedes the default
+  //   - function-like (IIFE-param without default) - lift the call-arg via `findIifeCallSite`
+  // shared `resolveFallbackReceiver` handles AssignmentPattern + IIFE-param uniformly so
+  // both wrapper-default and IIFE call-arg can drive per-branch synth-swap
+  const wrapperPath = path.parentPath?.parentPath;
+  const wrapperNode = wrapperPath?.node;
+  let receiverNode = null;
+  if (wrapperNode?.type === 'AssignmentPattern' && wrapperPath.parentPath?.node
+      && FN_TYPES_FOR_IIFE.has(wrapperPath.parentPath.node.type)) {
+    // AssignmentPattern is an IIFE param wrapper - prefer call-arg over default
+    const desc = resolveFallbackReceiver(wrapperPath.parentPath, wrapperNode);
+    receiverNode = desc?.rhsNode ?? wrapperNode.right;
+  } else {
+    const slot = destructureReceiverSlot(wrapperNode);
+    if (slot) receiverNode = wrapperNode[slot];
+    else if (wrapperNode && objectPattern) {
+      // IIFE-param wrapper without default (`(({p}) => body)(R)`): wrapper is the function;
+      // `findIifeCallSite` walks to the call, lifts call-arg at this param's index
+      const desc = resolveFallbackReceiver(wrapperPath, objectPattern);
+      receiverNode = desc?.rhsNode ?? null;
+    }
+  }
+  if (!receiverNode) return null;
   const out = flattenFallbackBranches({
-    node: wrapperParent[slot], key: meta.key, scope: path.scope, adapter, path,
+    node: receiverNode, key: meta.key, scope: path.scope, adapter, path,
   });
   return out.length ? out : null;
 }
+
+// IIFE-callable shapes (arrow / FunctionExpression) - the only function shapes that can
+// appear as the callee of an immediately-invoked expression. mirrors `FN_NODE_TYPES` in
+// helpers; declarations / methods can't sit at the callee position so they're excluded
+const FN_TYPES_FOR_IIFE = new Set([
+  'ArrowFunctionExpression',
+  'FunctionExpression',
+]);
 
 export function canTransformDestructuring({ parentType, parentInit, grandParentType }) {
   if (parentType === 'VariableDeclarator') {
@@ -425,6 +458,12 @@ function descendArrayWrapperInit(receiverNode, depth) {
 export function resolveNestedDestructureReceiver(outerProp, adapter) {
   const keys = [];
   let cur = outerProp;
+  // arrayDepth accumulates across iterations - ArrayPattern wrappers between
+  // intermediate Property hops contribute to the host-level descent. without accumulation,
+  // an inner-iteration ArrayPattern wrapper would be silently dropped when `cur = parent`
+  // advances to the next outer Property, and the host descent would lie about the
+  // runtime structure
+  let totalArrayDepth = 0;
   for (;;) {
     const pattern = cur.parentPath;
     if (pattern?.node?.type !== 'ObjectPattern') return null;
@@ -432,11 +471,12 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
     if (!key) return null;
     keys.unshift(key);
     const { parent, arrayDepth } = peelDestructureWrappers(pattern);
+    totalArrayDepth += arrayDepth;
     // shared `flattenableHostSlot` returns 'init' for VariableDeclarator,
     // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise
     const slot = flattenableHostSlot(parent?.node, parent);
     const slotNode = slot ? parent.node[slot] : null;
-    const receiverNode = arrayDepth ? descendArrayWrapperInit(slotNode, arrayDepth) : slotNode;
+    const receiverNode = totalArrayDepth ? descendArrayWrapperInit(slotNode, totalArrayDepth) : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested combinations like `(se(), (R as any))`) all reach the receiver. without

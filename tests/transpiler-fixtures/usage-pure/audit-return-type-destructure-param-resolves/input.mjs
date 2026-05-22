@@ -1,12 +1,6 @@
-// destructure-pattern parameter: `function f({a, b}) { return a; }`. babel sets
-// `binding.path.node` to the param's ObjectPattern container (not the inner
-// Identifier), so identity equality conflated direct vs destructured params and
-// `resolveNodeType(args[0])` returned the outer object type instead of the
-// destructured slot. `resolveParamType` now dispatches by param SHAPE: direct
-// named param matches by name; pattern params walk `findPatternKeyPath` to
-// locate the binding's key path, then project from the call arg via
-// `resolveDestructuredMember`. without this branch the body fold returns the
-// wrong type for `a` and `.at(-1)` on the result dispatches the generic polyfill
+// Destructured object param `function f({ a, b }) { return a; }` invoked with a
+// literal `{ a: [1, 2, 3], b: 'foo' }`: the destructured slot `a` carries the array
+// literal type through the return, so `x.at(-1)` emits the array-instance polyfill.
 function f({ a, b }) {
   return a;
 }

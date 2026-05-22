@@ -1,5 +1,4 @@
 import "core-js/modules/es.array.at";
-import "core-js/modules/es.string.at";
 // TS constructor type with type parameters as a type-only reference: must not trigger
 // runtime polyfill emission.
 type Wrapper<T> = {
