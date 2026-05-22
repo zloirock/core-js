@@ -2,6 +2,7 @@ import {
   stripQueryHash,
   WINDOWS_UNC_PREFIX_RE,
 } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { SFC_FRAMEWORK_GROUP } from './sfc-shapes.js';
 
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
 // output emits `_ref = ...` free assignments; post lands the matching `var _ref;` via
@@ -25,11 +26,12 @@ import {
 const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/(?:localhost)?|\/@fs(?=\/|$)|\/@id\/)/i;
 const REPEATED_SLASHES_RE = /\/{2,}/g;
 // only framework SFC markers count as sub-block identifiers. pairing `type=`/`lang=`/`setup`
-// with a framework key (`vue` / `astro` / `svelte`) avoids matching generic `?type=module` or
-// `?lang=en` on non-SFC bundlers that would otherwise get a stray `?type=...` tail kept in
-// the snapshot key - causing pre/post lookups to miss when the same file is visited under
-// slightly different queries in an unrelated transform pipeline
-const SFC_QUERY_MARKER_RE = /[&?](?:astro|svelte|vue)(?:[&=?]|$)/;
+// with a framework key avoids matching generic `?type=module` or `?lang=en` on non-SFC
+// bundlers that would otherwise get a stray `?type=...` tail kept in the snapshot key -
+// causing pre/post lookups to miss when the same file is visited under slightly different
+// queries in an unrelated transform pipeline. `/i` flag keeps mixed-case `?VUE` admissible
+// (consistent with the rest of the SFC stack)
+const SFC_QUERY_MARKER_RE = new RegExp(`[&?]${ SFC_FRAMEWORK_GROUP }(?:[&=?]|$)`, 'i');
 const QUERY_OR_HASH_RE = /[#?]/;
 // `WINDOWS_UNC_PREFIX_RE` (shared) matches `//?/` long-path AND `//./` device-path forms.
 // strip to canonical `C:/...` so SnapshotCache lookups align across path-mangling stages
