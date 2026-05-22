@@ -4,10 +4,8 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// Array-destructure reassign with annotated RHS must narrow the element type the same
-// way ObjectPattern reassign does. `resolveBindingType` used to route ArrayPattern only
-// through the runtime-literal walker; without a literal RHS the annotation fallback never
-// fired and downstream emitted both array and string variants for `.at`.
+// Array-destructure reassign from a typed RHS: `let x; [x] = data` where `data: string[]`
+// narrows `x` to string, so `x.at(0)` emits only the string-instance polyfill.
 declare const data: string[];
 let x;
 [x] = data;

@@ -1,7 +1,6 @@
-// resolveBindingType for var declared with annotation but no init: the binding then
-// receives a runtime assignment in straight-line flow. findBindingAnnotation returns the
-// declared annotation; ?.resolveTypeAnnotation locks the array kind. methods are distinct
-// to confirm each emit ties to its line via the same source binding
+// `var arr: string[]` declared without init, then assigned: the declared annotation
+// narrows the binding to array. Distinct array-instance methods on each line, so each
+// emitted polyfill maps to its source call.
 var arr: string[];
 arr = ['x', 'y', 'z'];
 arr.findLast(s => s);

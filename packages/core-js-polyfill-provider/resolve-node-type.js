@@ -1675,6 +1675,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     blockAlwaysExits,
     canFallThrough,
     KNOWN_STATIC_TYPE_GUARDS,
+    babelBindingAdapter: BABEL_BINDING_ADAPTER,
   });
   const {
     findEnclosingTypeGuards,
