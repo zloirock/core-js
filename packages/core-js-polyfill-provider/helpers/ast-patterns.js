@@ -20,15 +20,57 @@ const isStringLiteralExpressionStatement = node => node?.type === 'ExpressionSta
   && (node.expression?.type === 'StringLiteral'
     || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
 
-// would removing `body[entryIndex]` cause `body[entryIndex + 1]` (a string-literal expression)
-// to be promoted into the directive prologue on re-parse? promotion happens when every body
-// statement BEFORE the entry is itself a directive AND the next statement is a string-literal
-// expression. without protection, `"use strict"; require('core-js'); "use asm"; foo();` becomes
-// `"use strict"; "use asm"; foo();` after removal - the engine reads `"use asm"` as a directive
-// and silently activates asm.js validation that the source code didn't request
-export function wouldPromoteDirectiveAfterRemoval(body, entryIndex) {
-  for (let i = 0; i < entryIndex; i++) if (!isDirectiveStatement(body[i])) return false;
-  return isStringLiteralExpressionStatement(body[entryIndex + 1]);
+// would removing `body[entryIndex]` silently extend an EXISTING directive prologue with the
+// next surviving string-literal sibling? `"use strict"; require('core-js'); "use asm"; foo()`
+// -> removal promotes `"use asm"` and activates asm.js. fires only when SOME prologue exists
+// AND every surviving prior is a directive AND the next surviving sibling is a string-literal.
+// no-prologue case (string-literal lands at body[0] as the source's new first statement) is
+// an accepted transform consequence - the source had no directive context to disturb.
+// `hasPriorDirective`: babel parses module-level directives into `program.directives[]`,
+// lifted OUT of `program.body[]`. callers there pass `true` when `directives.length > 0` so
+// the prologue check still sees the implicit prefix. oxc keeps directives in body, so
+// callers there leave it at the default `false`.
+// `pendingRemovals` (optional index Set) treats queued siblings as gone for prefix scan and
+// next-sibling lookup. babel-plugin removes per-callback (live body reflects prior removals);
+// unplugin defers commit until after the whole batch decides, feeding the simulated state in
+export function wouldPromoteDirectiveAfterRemoval({ body, entryIndex, pendingRemovals, hasPriorDirective = false }) {
+  let hasSurvivingDirective = hasPriorDirective;
+  for (let i = 0; i < entryIndex; i++) {
+    if (pendingRemovals?.has(i)) continue;
+    if (!isDirectiveStatement(body[i])) return false;
+    hasSurvivingDirective = true;
+  }
+  if (!hasSurvivingDirective) return false;
+  let next = entryIndex + 1;
+  while (pendingRemovals?.has(next)) next++;
+  return isStringLiteralExpressionStatement(body[next]);
+}
+
+// partition `candidateIndices` (ascending body indices) into removable nodes vs nodes left as
+// `0;`. right-to-left walk: each decision sees later candidates' fates already resolved -
+// a later `0;` blocks promotion for earlier ones (the `0;` is a non-directive surviving in
+// the prefix), a later removal lets promotion bleed through to the next surviving sibling.
+// `pendingRemovals` reproduces, by simulation, the live-body shape babel-plugin sees on its
+// per-callback path (where prior removals are already physical). returns AST nodes in walk
+// order (descending body position) so callers don't re-sort before emit
+export function resolveBatchDirectivePromotionPolicy({ body, candidateIndices, hasPriorDirective = false }) {
+  const toRemove = [];
+  const toReplaceWithNoop = [];
+  // seed with every candidate so the first iteration sees them all as queued, then peel each
+  // one back in turn: `delete` -> ask wouldPromote (with the rest still pending) -> on miss
+  // re-add (so earlier candidates still see this slot as queued-removed)
+  const pendingRemovals = new Set(candidateIndices);
+  for (let i = candidateIndices.length - 1; i >= 0; i--) {
+    const idx = candidateIndices[i];
+    pendingRemovals.delete(idx);
+    if (wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, pendingRemovals, hasPriorDirective })) {
+      toReplaceWithNoop.push(body[idx]);
+    } else {
+      pendingRemovals.add(idx);
+      toRemove.push(body[idx]);
+    }
+  }
+  return { toRemove, toReplaceWithNoop };
 }
 
 // `\`foo\`` - TemplateLiteral with no interpolations, used as a static string key. returns

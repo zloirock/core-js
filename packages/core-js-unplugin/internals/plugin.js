@@ -187,7 +187,7 @@ export default function createPlugin(options) {
     // and reject the TypeScript syntax silently. SFC virtual ids embed the language hint
     // INSIDE the query (`?vue&type=script&lang=ts`); `liftSfcLangSuffix` recovers it onto
     // the post-strip id so the right parser fires
-    const cleanId = liftSfcLangSuffix(id, stripQueryHash(id));
+    const cleanId = liftSfcLangSuffix(id);
     // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
     const isCJSFile = /\.c[jt]s$/.test(cleanId);
     // strip leading BOM(s) before parsing AND from the MagicString source - oxc rejects
