@@ -1,10 +1,10 @@
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// resolveBindingType handles ArrayPattern destructure with the annotation living on the
-// init expression rather than the pattern. resolveArrayBinding walks the init's
-// findExpressionAnnotation path. Each binding then resolves to a string-typed entry
-// from the tuple and the chained call narrows to string-specific instance method
+// Array-destructure `const [first, mid, last] = tup` from a typed tuple
+// `[string, string[], string]`: each binding picks up its slot type, so `.includes` on
+// the string slots emits the string polyfill and `.findLast` on the array slot emits
+// the array polyfill.
 declare const tup: [string, string[], string];
 const [first, mid, last] = tup;
 _includesMaybeString(first).call(first, 'a');
