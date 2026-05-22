@@ -1,9 +1,12 @@
 import "core-js/modules/es.promise.try";
-// adjacent IIFE-style `} (` boundary across two top-level statements: the plugin must
-// not misread it as a single call expression and break the polyfill rewrite.
-
+// removing the entry import must not fuse the `}` of the prev function-expression
+// initializer onto the `(` of the next IIFE call - without an injected `;`, the parser
+// sees `let x = function () { return 42; }(function () { ... })()` which calls the prev
+// function with the IIFE as arg instead of two separate statements. `}` does not end
+// with `;` so the backward scan must trigger the ASI hazard guard
 let x = function () {
   return 42;
-}(function () {
+};
+(function () {
   Promise.try(() => 1);
 })();
