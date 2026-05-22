@@ -1,7 +1,5 @@
-// `usage-global` mode but source contains a top-level umbrella entry import.
-// `entry-global` mode would expand it; `usage-global` does not run entry visitors.
-// `scanExistingCoreJSImports` only matches `core-js/modules/*` and `@core-js/pure/*`,
-// so the bare `core-js` import is left untouched (passes through to bundler).
+// Bare `import 'core-js'` umbrella in usage-global mode: detected API usage still emits
+// individual polyfill imports, and the original bare import is left untouched in source.
 import 'core-js';
 const arr = [1, 2];
 const v = arr.at(-1);

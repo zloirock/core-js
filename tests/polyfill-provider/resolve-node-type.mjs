@@ -2113,6 +2113,52 @@ runBoth('class method declared return -> Map',
       consequent: { type: 'NumericLiteral' },
       alternate: { type: 'NumericLiteral' },
     }), false);
+  // babel ObjectMethod with non-computed Identifier key -> pure (method body deferred)
+  check('ast-patterns: mayHaveSideEffects ObjectMethod ident key',
+    mayHaveSideEffects({
+      type: 'ObjectExpression',
+      properties: [{
+        type: 'ObjectMethod',
+        kind: 'method',
+        computed: false,
+        key: { type: 'Identifier', name: 'foo' },
+        params: [],
+        body: { type: 'BlockStatement', body: [] },
+      }],
+    }), false);
+  // babel ObjectMethod with SE computed key -> SE: `{ [fn()]() {} }`. body stays deferred,
+  // but the key is evaluated at object-literal-eval time
+  checkTruthy('ast-patterns: mayHaveSideEffects ObjectMethod computed call key',
+    mayHaveSideEffects({
+      type: 'ObjectExpression',
+      properties: [{
+        type: 'ObjectMethod',
+        kind: 'method',
+        computed: true,
+        key: { type: 'CallExpression', callee: { type: 'Identifier', name: 'fn' }, arguments: [] },
+        params: [],
+        body: { type: 'BlockStatement', body: [] },
+      }],
+    }));
+  // ESTree shorthand-method shape `Property { method: true }` mirrors the same gate -
+  // the existing Property/ObjectProperty branch already covers computed-key SE
+  checkTruthy('ast-patterns: mayHaveSideEffects ESTree shorthand method computed call key',
+    mayHaveSideEffects({
+      type: 'ObjectExpression',
+      properties: [{
+        type: 'Property',
+        method: true,
+        kind: 'init',
+        computed: true,
+        key: { type: 'CallExpression', callee: { type: 'Identifier', name: 'fn' }, arguments: [] },
+        value: {
+          type: 'FunctionExpression',
+          params: [],
+          body: { type: 'BlockStatement', body: [] },
+        },
+        shorthand: false,
+      }],
+    }));
 
   // walkPatternIdentifiers: visit each Identifier leaf
   const idsCollected = [];
@@ -2215,6 +2261,10 @@ runBoth('class method declared return -> Map',
     FUNCTION_LIKE_NODE_TYPES.has('ClassMethod'));
   checkTruthy('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES has ObjectMethod',
     FUNCTION_LIKE_NODE_TYPES.has('ObjectMethod'));
+  // babel-only private-method shape - own param-binding scope + block body, body-extract
+  // must stop here instead of walking up into the enclosing class
+  checkTruthy('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES has ClassPrivateMethod',
+    FUNCTION_LIKE_NODE_TYPES.has('ClassPrivateMethod'));
   check('ast-patterns sets: FUNCTION_LIKE_NODE_TYPES no Identifier',
     FUNCTION_LIKE_NODE_TYPES.has('Identifier'), false);
 
