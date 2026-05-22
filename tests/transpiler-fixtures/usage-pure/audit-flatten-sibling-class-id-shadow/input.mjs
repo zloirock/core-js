@@ -1,9 +1,6 @@
-// flatten on decl[0] + sibling decl[1] class expression named `globalThis`. inside the
-// class body, references to `globalThis` resolve to the CLASS (not the global). previously
-// `polyfillSiblingReceiverRefs.pushScope` didn't treat ClassExpression / ClassDeclaration
-// as scope owners - the class id wasn't added to the locals set, so inner method refs
-// to `globalThis` got substituted to `_globalThis` (wrong: changes semantics from
-// "return class self" to "return polyfilled global"). fix: register both class shapes as
-// scope owners and add `node.id?.name` to their locals
+// Single declaration with two declarators: outer flattens `{Array:{from}} = globalThis`,
+// sibling is a class expression named `globalThis`. The class id shadows the global
+// inside its body, so the method's `globalThis` reference stays as the class self
+// (no polyfill substitution); only the outer `Array.from` becomes a polyfill.
 const { Array: { from } } = globalThis, klass = class globalThis { method() { return globalThis; } };
 console.log(from, klass);

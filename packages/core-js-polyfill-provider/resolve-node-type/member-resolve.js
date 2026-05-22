@@ -90,7 +90,11 @@ export function createMemberResolve({
     while ((node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
       && !node.computed && node.property?.type === 'Identifier') {
       props.push(node.property.name);
-      node = node.object;
+      // peel after each step so intermediate ChainExpression / paren / TS wrappers
+      // (`(a?.b).at(0)` - ESTree wraps optional-tail in ChainExpression on `.object`) don't
+      // bail the walk. babel's OptionalMemberExpression keeps the chain flat at this slot,
+      // oxc embeds the ChainExpression; peel symmetrically across parsers
+      node = unwrapRuntimeExpr(node.object);
     }
     if (node?.type !== 'Identifier' || !props.length) return null;
     const binding = scope.getBinding(node.name);
@@ -250,6 +254,17 @@ export function createMemberResolve({
       if (!binding) return null;
       annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
       scope = binding.path.scope;
+      // identifier without explicit annotation: route through findExpressionAnnotation so
+      // binding init chains get traversed (`const obj = wrap('a')` -> wrap's substituted
+      // return -> TSTypeLiteral). without this, `obj.foo()` where obj has no `: T` annotation
+      // bails even though the init resolves to a member-bearing type
+      if (!annotation) {
+        const info = findExpressionAnnotation(objectPath);
+        if (info) {
+          annotation = unwrapTypeAnnotation(info.annotation);
+          scope = info.scope;
+        }
+      }
     } else {
       // delegate to findExpressionAnnotation for non-identifier shapes so that
       // TS wrappers, call expressions with return annotations, and chain expressions
