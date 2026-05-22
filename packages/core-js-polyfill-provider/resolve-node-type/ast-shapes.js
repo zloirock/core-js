@@ -81,3 +81,20 @@ export function synthInterfaceExtendsRef(parent) {
   if (!expr || (expr.type !== 'Identifier' && !isQualifiedNameNode(expr))) return null;
   return { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) };
 }
+
+// peel transparent paren wrappers from a TYPE annotation. oxc preserves `(T)` shape as
+// `TSParenthesizedType` AST node (babel parser drops it during parsing). callers that
+// pattern-match on the inner type's discriminator (`TSUnionType`, `TSIntersectionType`,
+// `TSTypeQuery`, etc.) MUST peel first or the wrapped shapes leak past the dispatch
+// branch on the oxc parser path while behaving correctly on babel
+export function peelTSParenthesized(node) {
+  while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
+  return node;
+}
+
+// `typeof import('x').Bar` parses as TSTypeQuery wrapping TSImportType. the outer
+// TSTypeQuery hides the structurally-opaque inner from a flat type-discriminator check,
+// so callers that want to treat `typeof import(...)` as opaque must look one level in
+export function isTypeQueryOverImportType(node) {
+  return node?.type === 'TSTypeQuery' && node.exprName?.type === 'TSImportType';
+}
