@@ -1,9 +1,8 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.find-last";
 import "core-js/modules/es.global-this";
-// Source already imports the global `globalThis` polyfill side-effect module.
-// `scanExistingCoreJSImports` should call `addGlobalImport` and dedup the import,
-// so primary-pass globalThis usage detection doesn't re-emit the same module.
+// Source already imports the `es.global-this` polyfill module: when usage detection
+// finds `globalThis`, the existing import is deduped (one polyfill import in output).
 
 const w = globalThis;
 const arr = [1, 2];

@@ -187,6 +187,10 @@ export const FUNCTION_LIKE_NODE_TYPES = new Set([
   'ArrowFunctionExpression',
   'ObjectMethod',
   'ClassMethod',
+  // babel-only shape: `class C { #foo() {...} }` has its own param-binding scope + block
+  // body. without this, body-extract / param-default resolution walks past the private
+  // method to the enclosing class, landing the body-extract decl outside the method body
+  'ClassPrivateMethod',
 ]);
 
 // walk parentPath chain (inclusive) to the nearest enclosing function-like. used by
@@ -1698,6 +1702,13 @@ function computeSideEffects(node, depth) {
   }
   if (type === 'Property' || type === 'ObjectProperty') {
     return (node.computed && recurse(node.key, depth)) || recurse(node.value, depth);
+  }
+  // babel-only ObjectMethod (`{ [fn()]() {} }` / `{ get [fn()]() {} }`): computed key is
+  // evaluated at object-literal-eval time, method body / params are deferred. without this
+  // case the node falls through to `return false`, silently eliding SE in the computed key
+  // and unblocking unsafe receiver-drop rewrites that consumed `Array[(fn(), 'from')]`-shape
+  if (type === 'ObjectMethod') {
+    return node.computed && recurse(node.key, depth);
   }
   if (type === 'AssignmentPattern') return recurse(node.right, depth);
   if (JSX_NODE_TYPES.has(type)) return jsxHasSideEffects(node, type, depth);

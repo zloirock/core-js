@@ -286,6 +286,12 @@ export function createClosureAnalysis({
       if (binding?.constantViolations?.length) return null;
       const init = unwrapExpressionChain(binding?.path?.node?.init);
       if (init?.type !== 'Identifier') return name;
+      // advance scope to the binding's declaration scope so the next hop's `getBinding`
+      // resolves the next-hop name in its OWN lexical context. without this, the original
+      // call-site scope leaks across the entire chain and inner shadows (`const P = Promise`
+      // outer, then `function f() { const P = SomethingElse; ... }`) mis-resolve through to
+      // the wrong binding
+      scope = binding.path?.scope ?? scope;
       name = init.name;
     }
     return null;

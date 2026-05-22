@@ -1,8 +1,6 @@
-// chained-optional assertion `obj?.api?.assertStr(x)`: any nullish hop in the chain
-// short-circuits and skips the assertion. walk-up in `hasOptionalChainInCall` must catch
-// the deeper OptionalMemberExpression / MemberExpression(optional) hops, not just the
-// outermost one. lock against the historical bug where only the immediate parent was
-// inspected and inner `?.` segments leaked through to grant unsound narrowing
+// Type-assertion call reached through an optional chain (`obj?.api?.assertStr(input)`):
+// any nullish hop short-circuits, so the assertion is not guaranteed and `input` is not
+// narrowed. `input.at(0)` emits the generic instance polyfill.
 declare const obj: {
   api?: { assertStr(x: unknown): asserts x is string };
 } | undefined;
