@@ -591,6 +591,16 @@ export function createUsageVisitors({
     checkTypeAnnotations(path.node, annotationGlobal(path));
   }
 
+  // class-field shapes carry their typeAnnotation on the field-level node, NOT on a nested
+  // function - the FunctionExpression walk (method param/return types) doesn't reach field
+  // types. when annotation walking is enabled (usage-global), pair the decorator walk with
+  // a direct typeAnnotation sweep so `Map` / `Set` polyfills emit for `x: Map<T>` etc.
+  // abstract variants get the same treatment - their type-only declarations are still signal
+  function visitClassMember(path) {
+    visitDecorators(path);
+    if (walkAnnotations) checkTypeAnnotation(path);
+  }
+
   return {
     ...walkAnnotations ? {
       FunctionDeclaration: checkTypeAnnotation,
@@ -620,8 +630,10 @@ export function createUsageVisitors({
     ClassDeclaration: visitDecorators,
     ClassExpression: visitDecorators,
     MethodDefinition: visitDecorators,
-    PropertyDefinition: visitDecorators,
-    AccessorProperty: visitDecorators,
+    PropertyDefinition: visitClassMember,
+    AccessorProperty: visitClassMember,
+    TSAbstractPropertyDefinition: visitClassMember,
+    TSAbstractAccessorProperty: visitClassMember,
   };
 }
 
