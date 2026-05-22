@@ -41,7 +41,7 @@ import {
   canFuseWithOpenParen,
   collectAllBindingNames,
   directivePrologueEnd,
-  hasCoreJSPureImport,
+  hasCoreJSImport,
   isBodylessStatementBody,
   isChunkLoaderBundler,
   isDirectiveStatement,
@@ -313,7 +313,7 @@ export default function createPlugin(options) {
       // filter against `declaredNames` (decls + non-orphan assignments only) - `bindingNames`
       // also includes Identifier reads, which always contains the orphan target itself and
       // would make the filter dead code (every plugin-emitted `_ref` reads its own slot)
-      if (pass === 'post' && !inherit && hasCoreJSPureImport(ast, packages)) {
+      if (pass === 'post' && !inherit && hasCoreJSImport(ast, packages)) {
         const adoptable = new Set();
         for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
         injector.adoptOrphanRefs(adoptable);
