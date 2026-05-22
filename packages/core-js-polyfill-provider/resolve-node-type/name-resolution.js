@@ -242,16 +242,51 @@ export function createNameResolution({ t }) {
     return null;
   }
 
+  // single-hit wrapper: short-circuit on first leaf match, walk parent scopes for shadowing
+  function findFirstDecl({ name, scope, leafMatch }) {
+    return scope ? walkScopesForDecl({ name, scope, collect: null, leafMatch }) : null;
+  }
+
+  // collect-mode wrapper: gather every leaf match at the first containing scope, stopping
+  // before parent scopes can bleed siblings past a shadow (mirrors `walkAmbientDeclarationPath`)
+  function findAllDecls({ name, scope, leafMatch }) {
+    if (!scope) return [];
+    const collected = [];
+    walkScopesForDecl({ name, scope, collect: collected, leafMatch });
+    return collected;
+  }
+
   // resolve `typeof NS.Inner.fn` namespaced lookups: babel doesn't bind TS `namespace`
-  // declarations as scope values, so `constantBindingPath` returns null. delegate to
-  // `walkScopesForDecl` with the function/class leaf-match, and surface the result as a
-  // {node, scope}-shape - resolveReturnType only consumes those two properties (not full
-  // NodePath methods). passes the input scope as the result scope: babel doesn't create
-  // separate scopes for TSModuleDeclaration anyway, so type names referenced in the
-  // function's signature resolve through the same outer scope chain
+  // declarations as scope values, so `constantBindingPath` returns null. surfaces the
+  // first leaf as a {node, scope}-shape - resolveReturnType only consumes those two
+  // properties (not full NodePath methods). passes the input scope as the result scope:
+  // babel doesn't create separate scopes for TSModuleDeclaration anyway, so type names
+  // referenced in the function's signature resolve through the same outer scope chain
   function findNamespacedFunctionPath(segments, scope) {
-    const node = scope && walkScopesForDecl({ name: segments, scope, collect: null, leafMatch: isFunctionOrClassDeclaration });
+    const node = findFirstDecl({ name: segments, scope, leafMatch: isFunctionOrClassDeclaration });
     return node ? { node, scope } : null;
+  }
+
+  // multi-result variant: collect ALL ambient function decls matching the qualified path.
+  // limits to `isAmbientFunctionNode` so a runtime implementation body
+  // (`namespace NS { export function fn(...) { ... } }`) doesn't displace the canonical
+  // overload signature at the tail. `findAllDecls`'s collect-then-stop semantics keep
+  // outer-scope overloads from bleeding past a namespace shadow
+  function findNamespacedFunctionPaths(segments, scope) {
+    return findAllDecls({ name: segments, scope, leafMatch: isAmbientFunctionNode })
+      .map(node => ({ node, scope }));
+  }
+
+  // single shared overload collector for `typeof X` / `typeof NS.X.Y`: bare names route
+  // through the cached flat-scope ambient walker, qualified names through the namespaced
+  // walker. both return ambient-function paths in source order so overload-resolution
+  // callers (e.g. `pickLastAmbientOverload`) can pick the trailing canonical signature
+  // without branching on segment count at the call site
+  function findOverloadsForName(segments, scope) {
+    if (!segments?.length || !scope) return [];
+    return segments.length === 1
+      ? findAmbientFunctionPaths(segments[0], scope)
+      : findNamespacedFunctionPaths(segments, scope);
   }
 
   // per-scope cache. serialize multi-segment / array inputs to a dotted string so qualified
@@ -260,10 +295,10 @@ export function createNameResolution({ t }) {
 
   function lookupTypeDeclInScope(name, scope) {
     const key = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : null;
-    if (key === null) return walkScopesForDecl({ name, scope, collect: null });
+    if (key === null) return findFirstDecl({ name, scope, leafMatch: isTypeBearingDeclaration });
     const byName = getOrInitMap(typeDeclCache, scope);
     if (byName.has(key)) return byName.get(key);
-    const decl = walkScopesForDecl({ name, scope, collect: null });
+    const decl = findFirstDecl({ name, scope, leafMatch: isTypeBearingDeclaration });
     byName.set(key, decl);
     return decl;
   }
@@ -349,8 +384,7 @@ export function createNameResolution({ t }) {
     const cacheKey = typeof name === 'string' ? name : name?.join('.') ?? '';
     let perScope = allTypeDeclCache.get(scope);
     if (perScope?.has(cacheKey)) return perScope.get(cacheKey);
-    const collected = [];
-    walkScopesForDecl({ name, scope, collect: collected });
+    const collected = findAllDecls({ name, scope, leafMatch: isTypeBearingDeclaration });
     if (!perScope) allTypeDeclCache.set(scope, perScope = new Map());
     perScope.set(cacheKey, collected);
     return collected;
@@ -456,6 +490,7 @@ export function createNameResolution({ t }) {
     findAmbientFunctionPath,
     findAmbientClassPath,
     findNamespacedFunctionPath,
+    findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
     findEnumDeclaration,

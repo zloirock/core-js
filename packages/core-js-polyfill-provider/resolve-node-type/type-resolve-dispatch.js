@@ -17,13 +17,21 @@
 import { $Object, MAX_DEPTH } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
+// shared accessor for the first type-arg slot on a TS/Flow ref node. `getTypeArgs` returns
+// a wrapper carrying `.params` or null when the ref carries no `<...>`; `firstTypeArg`
+// folds the wrapper + array indexing into one call so the dispatch handlers can read
+// position-0 without re-typing the optional-chain pattern at each site
+function firstTypeArg(node) {
+  return getTypeArgs(node)?.params?.[0] ?? null;
+}
+
 export function createTypeResolveDispatch({
   typeRefSegments,
   resolveKnownConstructor,
   resolveKnownContainerType,
   resolveUserDefinedType,
   resolveNamedType,
-  isNullableOrNever,
+  safeInnerType,
   tupleAsArrayType,
   foldUnionTypes,
   foldIntersectionTypes,
@@ -61,23 +69,21 @@ export function createTypeResolveDispatch({
       ?? resolveNamedType({ name, node, scope, depth, typeParamMap, seen });
   }
 
-  // higher-kinded apply for typeparam-bound containers: `Wrap<F, X> = F<X>` with F=Array,
-  // X=string would otherwise return F (`$Object('Array', null)`) and silently drop X.
-  // gated to bindings shaped as empty-inner named containers - non-container ($Primitive,
-  // bare $Object(null)) and already-applied ($Object('Array', T)) bindings pass through
-  // unchanged. parity with the AST-side `substTypeReference` -> `withSubstitutedTypeArgs`
-  // path so the two dispatch lanes give matching element-precision
+  // HKT apply for typeparam-bound named containers (`Wrap<F, X> = F<X>` with F=Array,
+  // X=string). gate skips non-container ($Primitive, bare $Object(null)) and already-
+  // applied bindings - mirrors the AST-side `withSubstitutedTypeArgs` path so both
+  // dispatch lanes give matching element-precision
   function applyHigherKindedArgs({ bound, node, typeParamMap, scope, depth, seen }) {
-    const typeArgs = getTypeArgs(node)?.params;
-    if (!typeArgs?.length || !(bound instanceof $Object) || !bound.name || bound.inner !== null) return bound;
-    const inner = substRecurse({ node: typeArgs[0], typeParamMap, scope, depth, seen });
-    return new $Object(bound.name, inner && !isNullableOrNever(inner) ? inner : null);
+    const firstArg = firstTypeArg(node);
+    if (!firstArg || !(bound instanceof $Object) || !bound.constructor || bound.inner !== null) return bound;
+    const inner = substRecurse({ node: firstArg, typeParamMap, scope, depth, seen });
+    return new $Object(bound.constructor, safeInnerType(inner));
   }
 
   // T[] / Array<T> → $Object('Array', inner) with substituted element type
   function substArrayAsType(node, typeParamMap, scope, depth, seen) {
     const inner = substRecurse({ node: node.elementType, typeParamMap, scope, depth, seen });
-    return new $Object('Array', inner && !isNullableOrNever(inner) ? inner : null);
+    return new $Object('Array', safeInnerType(inner));
   }
 
   // [T, U] → Array<commonInner> per-element folded via shared `tupleAsArrayType`

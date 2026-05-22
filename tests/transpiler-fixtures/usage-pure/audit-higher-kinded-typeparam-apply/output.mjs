@@ -1,5 +1,4 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _at from "@core-js/pure/actual/instance/at";
 var _ref;
 // `Wrap<F, X> = F<X>` - typeparam F applied to typeparam X (HKT-style). substTypeRefAsType
 // returned the bound F (`Array` -> `$Object('Array', null)`) as-is and dropped typeArgs.
@@ -10,4 +9,4 @@ var _ref;
 // on that array. without the apply the inner is null and the second hop bails to generic
 type Wrap<F, X> = F<X>;
 declare const r: Wrap<Array, string[]>;
-null == (_ref = _atMaybeArray(r).call(r, 0)) ? void 0 : _at(_ref).call(_ref, 0);
+null == (_ref = _atMaybeArray(r).call(r, 0)) ? void 0 : _atMaybeArray(_ref).call(_ref, 0);

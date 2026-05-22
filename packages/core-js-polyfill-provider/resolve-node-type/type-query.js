@@ -29,8 +29,8 @@ export function createTypeQuery({
   isFunctionOrClassDeclaration,
   isFunctionLike,
   findAmbientDeclarationPath,
-  findAmbientFunctionPaths,
   findNamespacedFunctionPath,
+  findOverloadsForName,
   findTypeMember,
   findBindingAnnotation,
   findObjectMember,
@@ -158,19 +158,18 @@ export function createTypeQuery({
     return null;
   }
 
-  // resolve TSTypeQuery (typeof x or typeof x.y) to the runtime path of the target.
-  // falls back to ambient `declare function/class` when the name isn't in scope.bindings
-  // resolve a bare `typeof X` (no member chain) to its declaring path: const-bound value
-  // (function/class decl, var declarator with init), runtime-init expression, or ambient
-  // (`declare function` / `declare class` not in scope.bindings)
-  // shared root-binding lookup for `typeof X` chains: scope binding first, ambient
-  // `declare class/function` walk as fallback (tsc-elided declarations aren't registered
-  // in scope.bindings by either parser's tracker)
+  // root binding for `typeof X` chains: scope binding first, then ambient
+  // `declare class/function` (not registered in `scope.bindings` by either parser).
+  // shared by the annotation-walk path (`findTypeQueryFunctionType`) and the runtime-path
+  // resolver (`resolveBareTypeQueryBinding`)
   function resolveTypeQueryRoot(name, scope) {
     return constantBindingPath(name, scope)
       ?? findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
   }
 
+  // bare `typeof X` runtime path: function/class decl returns the binding directly,
+  // var declarator drills into its init through `resolveRuntimeExpression` so wrappers
+  // (`as` / `satisfies` / `!`) peel and chained references re-bind to their actual value
   function resolveBareTypeQueryBinding(name, scope) {
     const bindingPath = constantBindingPath(name, scope);
     if (!bindingPath) return findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
@@ -242,12 +241,14 @@ export function createTypeQuery({
   // ambient with multiple `declare function` headers; earlier headers are specialized cases,
   // the last is canonical (mirrors `infer R` over an intersection-of-call-signatures, which
   // picks the rightmost). retarget the binding here. runtime `FunctionDeclaration` can't
-  // overload, so non-ambient bindings stay as-is
+  // overload, so non-ambient bindings stay as-is. covers both bare (`typeof fn`) and
+  // qualified (`typeof NS.fn`) shapes via `findOverloadsForName` which dispatches to the
+  // bare-name (cached) or namespaced walker depending on segment count
   function pickLastAmbientOverload(resolved, param, scope) {
     if (!resolved || !isAmbientFunctionNode(resolved.node)) return resolved;
-    if (param.type !== 'TSTypeQuery' || param.exprName?.type !== 'Identifier') return resolved;
-    const ambients = findAmbientFunctionPaths(param.exprName.name, scope);
-    return ambients.length > 1 ? ambients.at(-1) : resolved;
+    if (param.type !== 'TSTypeQuery') return resolved;
+    const overloads = findOverloadsForName(collectQualifiedSegments(param.exprName), scope);
+    return overloads.length > 1 ? overloads.at(-1) : resolved;
   }
 
   function resolveReturnTypeFromTypeQuery(param, scope) {
