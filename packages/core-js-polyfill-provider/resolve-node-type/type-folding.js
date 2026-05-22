@@ -248,7 +248,16 @@ export function createTypeFolding({
   function resolveNonNullableAnnotation({ node, scope, depth, typeParamMap, seen }) {
     if (!node) return null;
     const resolved = resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
-    return resolved && !isNullableOrNever(resolved) ? resolved : null;
+    return safeInnerType(resolved);
+  }
+
+  // collapse a resolved inner-Type to null when it is nullable / never / falsy. used at
+  // `new $Object(ctor, inner)` build sites where carrying a nullable inner would mis-narrow
+  // downstream member dispatch (a `Promise<null>` shape leaks the `null` into element-narrow
+  // queries that expect a useful inner). single source of truth so the three legitimate
+  // build sites (HKT apply, array-as-type, generator return-type) can't drift in subtlety
+  function safeInnerType(inner) {
+    return inner && !isNullableOrNever(inner) ? inner : null;
   }
 
   // cluster-private: `foldTypes` (generic fold engine; only `foldUnionTypes` /
@@ -271,5 +280,6 @@ export function createTypeFolding({
     foldIntersectionTypes,
     resolveTupleInner,
     resolveNonNullableAnnotation,
+    safeInnerType,
   };
 }

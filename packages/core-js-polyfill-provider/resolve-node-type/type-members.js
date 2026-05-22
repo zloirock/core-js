@@ -14,7 +14,6 @@
 // pick from `resolveIndexSignatureMember`).
 import { KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
 import {
-  extendsId,
   isInterfaceDeclaration,
   isTypeAlias,
   synthInterfaceExtendsRef,
@@ -86,35 +85,28 @@ export function createTypeMembers({
     return element ? getTypeMembers({ objectType: unwrapTypeAnnotation(element), scope, depth: depth + 1 }) : null;
   }
 
-  // collect members of an interface declaration (including merged sibling interfaces and
-  // every `extends`'d parent's members). `interface A extends B; interface B extends A` cycle:
-  // MAX_DEPTH bottoms out via 64-frame CPU-burn. visited Set short-circuits at the second
-  // visit - mirrors `resolveTypeAnnotation`'s decl-set guard (type aliases) and
-  // `collectClassLikeMembers`'s `seen` Set (class-extends chains)
-  function collectInterfaceMembers({ declaration, segments, scope, depth, visited }) {
-    const seen = visited ?? new Set();
-    if (seen.has(declaration)) return null;
-    seen.add(declaration);
-    const interfaces = findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration);
-    const all = [];
-    for (const decl of interfaces) {
-      // TS: decl.body.body, Flow: decl.body.properties
-      const own = decl.body?.body ?? decl.body?.properties;
-      if (own) for (const m of own) all.push(m);
-      for (const parent of decl.extends ?? []) {
-        // synth wraps both bare-Identifier and qualified-name extends; non-name shapes
-        // fall back to raw expr so getTypeMembers's defensive null-on-unknown bails.
-        // recursive `getTypeMembers` for the parentRef internally builds parent's subst
-        // (declParam <- extendsArgs) and applies it to parent's body before returning;
-        // pushing the result straight into `all` lets parent + grandparent typeparam
-        // names share string keys (`T` in both A and B) without double-application -
-        // each generation's subst is consumed exactly once by its own getTypeMembers hop
-        const parentRef = synthInterfaceExtendsRef(parent) ?? extendsId(parent);
-        const parentMembers = getTypeMembers({ objectType: parentRef, scope, depth: depth + 1, visited: seen });
-        if (parentMembers) all.push(...parentMembers);
-      }
-    }
-    return all.length ? all : null;
+  // TS allows merged-iface decls with renamed type-params, so each sibling builds its
+  // OWN subst against ITS type-param names; outer subst keyed on entry decl silently
+  // misses renamed siblings. callers MUST NOT layer an outer subst on top
+  function collectInterfaceMembers({ segments, scope, depth, visited, receiverArgs }) {
+    const out = [];
+    appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs, visited: visited ?? new Set() });
+    return out.length ? out : null;
+  }
+
+  // shared accessor for TS/Flow interface body shape: `TSInterfaceBody.body` (TS) vs
+  // `ObjectTypeAnnotation.properties` (Flow's InterfaceDeclaration). always returns an
+  // array - falsy bodies (parse error / empty decl) collapse to empty
+  function interfaceBodyMembers(iface) {
+    return iface.body?.body ?? iface.body?.properties ?? [];
+  }
+
+  // shorthand for the `buildSubstMap(decl.typeParameters?.params, receiverArgs)` pattern
+  // repeated across alias / interface / class collectors. zero-arity decls return null
+  // (buildSubstMap guards on declParams length), so siblings without type-params skip
+  // substitution cleanly
+  function declSubst(decl, receiverArgs) {
+    return buildSubstMap(decl.typeParameters?.params, receiverArgs);
   }
 
   function getTypeMembers({ objectType, scope, depth = 0, visited = undefined }) {
@@ -201,17 +193,12 @@ export function createTypeMembers({
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
     if (!declaration) return null;
-    // class / interface declarations: substitute receiver's type-args into member annotations
-    // so `class C<T> { f(): T[] } interface C<T> { g: T }; declare const x: C<string>; x.f()[0]`
-    // and `x.g` see concrete `string` instead of raw type-param. parent-extends chain (class
-    // superClass / interface extends) carries its own subst per-hop in collectors. for the
-    // class-like branch `collectClassLikeMembers` does per-source subst internally (each iface
-    // gets its own remapped subst for renamed type-params); for the interface-only branch the
-    // outer subst is correct because all merged-iface decls share the same param names per TS
+    // class / interface decls: collectors substitute receiver's type-args per-source
+    // (each sibling / parent-extends hop builds its own subst against ITS type-param names).
+    // members come back already substituted - callers MUST NOT layer an outer subst on top
     const receiverArgs = getTypeArgs(objectType)?.params;
     if (isInterfaceDeclaration(declaration)) {
-      const subst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
-      return substMembers(collectInterfaceMembers({ declaration, segments, scope, depth, visited }), subst);
+      return collectInterfaceMembers({ segments, scope, depth, visited, receiverArgs });
     }
     if (isClassLikeDeclaration(declaration)) {
       return collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs });
@@ -219,56 +206,41 @@ export function createTypeMembers({
     if (isTypeAlias(declaration)) {
       // substitute the alias's type params into member annotations so
       // `type Dict<V> = { [k: string]: V }` + `Dict<number[]>[string]` resolves V to number[]
-      const subst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
       return substMembers(
         getTypeMembers({ objectType: unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth: depth + 1, visited }),
-        subst,
+        declSubst(declaration, receiverArgs),
       );
     }
     return null;
   }
 
-  // class-as-type with TS declaration merging: non-static body entries up the superClass chain
-  // (real and ambient parents) plus every sibling `interface <name>` body + its extends chain.
-  // `receiverArgs` are the receiver's type-args (e.g. `[string[]]` for `C<string[]>`); each
-  // source declaration (class chain / each iface) gets its own subst built from its own
-  // type-param names against the same args - lets renamed params on the interface side
-  // (`class C<T>` + `interface C<U>`) substitute correctly. members are returned already
-  // substituted so callers must NOT apply an outer subst on top
-  // append all merged sibling interface members for a class name into `out`, with each iface
-  // building its own subst against ITS type-param names from `receiverArgs`. covers renamed
-  // params on the interface side of class+interface merging. walks `extends A, B` parents
-  // of every matched iface too
+  // shared between the interface-only dispatch and the class-as-type collector below, so a
+  // class and its merged interface siblings reuse the same walk. cycle guard `visited` is
+  // shared with `getTypeMembers`'s interface dispatch so cross-dispatcher recursion observes
+  // the same Set. members are pushed already substituted - callers MUST NOT layer an outer
+  // subst on top
   function appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs, visited }) {
     if (!segments) return;
     const seen = visited ?? new Set();
     for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
-      // cycle guard: an interface extending itself transitively (`interface A extends B`,
-      // `interface B extends A`) would re-enter without `seen.has(iface)` short-circuit.
-      // shared with the `getTypeMembers` interface dispatch so cross-dispatcher recursion
-      // observes the same visited set
       if (seen.has(iface)) continue;
       seen.add(iface);
-      const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
-      const ifaceBody = iface.body?.body ?? iface.body?.properties ?? [];
-      out.push(...substMembers(ifaceBody, ifaceSubst));
+      const ifaceSubst = declSubst(iface, receiverArgs);
+      out.push(...substMembers(interfaceBodyMembers(iface), ifaceSubst));
       appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst, visited: seen });
     }
   }
 
   function collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs }) {
-    // walk superClass chain with per-class subst derivation: each parent's typeParameters
-    // get bound from the current class's `extends Parent<...>` type-args (with the current
-    // subst already applied). `class Child<Y> extends Parent<Y[]>` correctly maps Parent's
-    // `<X> -> Y[]` then `Y -> string`. on every hop also pull merged sibling interfaces for
-    // the current class - inherited iface members must surface on subclasses (TS declaration
-    // merging). receiver's iface lookup uses the user-passed `segments` (may be multi-segment
-    // qualified name `NS.Foo`); parents are matched by their bare id name. parent receiverArgs
-    // come from the previous class's `extends Parent<...>` slot. seen-set prevents cycles
+    // walk superClass chain with per-class subst derivation. on every hop also pull merged
+    // sibling interfaces for the current class - inherited iface members must surface on
+    // subclasses (TS declaration merging). receiver's iface lookup uses the user-passed
+    // `segments` (may be multi-segment `NS.Foo`); parents are matched by their bare id name.
+    // parent receiverArgs come from the previous class's `extends Parent<...>` slot
     const merged = [];
     const seen = new Set();
     let cur = declaration;
-    let curSubst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
+    let curSubst = declSubst(declaration, receiverArgs);
     let curReceiverArgs = receiverArgs;
     while (cur && !seen.has(cur)) {
       seen.add(cur);
@@ -292,15 +264,10 @@ export function createTypeMembers({
   // sees the substituted slot
   function appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst, visited }) {
     for (const parent of iface.extends ?? []) {
-      // synthInterfaceExtendsRef builds a TSTypeReference wrapping parent's id + args
-      // for both bare Identifier and qualified-name shapes; raw `expr` lacks args
-      // (those live on `parent`), so qualified extends previously dropped the typeArgs slot.
-      // recursive `getTypeMembers` for `expanded` applies parent's subst (declParam <-
-      // expanded-args) once - pushing the result straight into `out` avoids re-applying
-      // the same subst from the outer scope and triggering name-collision double-subst
-      // (e.g. interface A<T> extends B<T[]>; interface B<T> { b: T }; A<string>.b was
-      // resolving to string[][] instead of string[] because `T` matched both A and B's
-      // param name). cycle guard `visited` flows through so circular extends bail safely
+      // recursive `getTypeMembers` on `expanded` applies parent's decl-param subst once.
+      // pushing the result straight into `out` avoids name-collision double-subst from
+      // the outer scope (`interface A<T> extends B<T[]>; interface B<T> { b: T }` would
+      // resolve `A<string>.b` to `string[][]` if outer T subst ran twice)
       const parentRef = synthInterfaceExtendsRef(parent);
       if (!parentRef) continue;
       const expanded = ifaceSubst ? applySubstToTypeRefArgs(parentRef, ifaceSubst) : parentRef;
@@ -309,16 +276,10 @@ export function createTypeMembers({
     }
   }
 
-  // expand `<Wrapper><T, ...>` members for the structure-preserving wrappers set.
-  // transparent wrappers (`Readonly` / `Partial` / etc) pass through to T's members.
-  // key-filtering wrappers (`Pick` / `Omit`) filter T's members when the keys arg is
+  // expand `<Wrapper><T, ...>` members. transparent wrappers (`Readonly` / `Partial`)
+  // pass through to T's members. `Pick` / `Omit` filter T's members when keys arg is
   // statically-evaluable; non-decidable keys-arg falls back to passthrough (over-emit
-  // per §6 accepted - safer to over-resolve member access than under-resolve)
-  // expand `<Wrapper><T, ...>` members for the structure-preserving wrappers set.
-  // transparent wrappers (`Readonly` / `Partial` / etc) pass through to T's members.
-  // key-filtering wrappers (`Pick` / `Omit`) filter T's members when the keys arg is
-  // statically-evaluable; non-decidable keys-arg falls back to passthrough (over-emit
-  // per §6 accepted - safer to over-resolve member access than under-resolve)
+  // safer than under-resolve)
   function resolveStructureWrapperMembers({ wrapperName, objectType, scope, depth, visited }) {
     const args = getTypeArgs(objectType)?.params;
     const arg = args?.[0];

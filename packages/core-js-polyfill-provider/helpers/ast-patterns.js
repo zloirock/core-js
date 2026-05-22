@@ -345,6 +345,20 @@ export function isTypeOnlyImportEquals(node) {
   return node?.type === 'TSImportEqualsDeclaration' && node.importKind === 'type';
 }
 
+// peel nested LabeledStatement wrappers off a raw AST node. `outer: inner: if (...) ...`
+// stacks two layers - guard / mutation detection cares only about the wrapped statement
+export function peelLabeledStatementNode(node) {
+  while (node?.type === 'LabeledStatement') node = node.body;
+  return node;
+}
+
+// path-form companion: walks `.get('body')` until the wrapped path is no longer a label.
+// callers that retain path access (scope / source mutations) need the path, not just node
+export function peelLabeledStatementPath(path) {
+  while (path?.node?.type === 'LabeledStatement') path = path.get('body');
+  return path;
+}
+
 // type-only ESM import bindings (3 forms):
 //   import type X from "x"          - default specifier under type-only ImportDeclaration
 //   import type { X } from "x"      - named specifier under type-only ImportDeclaration
@@ -523,11 +537,24 @@ export function peelToExpressionStatement(startPath) {
   return ctx?.node?.type === 'ExpressionStatement' ? { exprStmt: ctx, sequencePrefix } : null;
 }
 
+// parent types whose `.left` slot is a write target: bare `=` AssignmentExpression,
+// default-bearing AssignmentPattern, for-of / for-in iteration head. compound `+=` and
+// for-await-of fall under separate branches (covered in `isMemberMutationContext`).
+// for-await-of shares the ForOfStatement type with `await: true` flag - the predicate
+// captures it implicitly via the type check
+const WRITE_LEFT_SLOT_TYPES = new Set([
+  'AssignmentPattern',
+  'ForOfStatement',
+  'ForInStatement',
+]);
+
 // MemberExpression in a position where the prototype-method polyfill can be skipped because
 // the receiver method is never read at runtime: pure assignment (`obj.at = v`), destructure-LHS
 // (`({a: obj.at} = src)`, `[obj.at] = src`, `[...obj.at] = src`), destructure-LHS-with-default
-// (`({a: obj.at = 1} = src)`). compound `+=` / `||=` / `??=` and `obj.at++` still read LHS -
-// excluded here. ESTree uses 'Property' for object-pattern slots; babel uses 'ObjectProperty'
+// (`({a: obj.at = 1} = src)`), for-of / for-in LHS (`for (obj.at of arr)`, `for (obj.at in
+// src)` - each iteration rebinds the slot, body reads see the per-iteration value, not the
+// inherited method). compound `+=` / `||=` / `??=` and `obj.at++` still read LHS - excluded
+// here. ESTree uses 'Property' for object-pattern slots; babel uses 'ObjectProperty'
 export function isMemberWriteOnlyContext(member, parent, grandparent) {
   if (!member || !parent) return false;
   // oxc preserves `(obj.at) = X` as `AssignmentExpression{left: ParenthesizedExpression{
@@ -537,8 +564,13 @@ export function isMemberWriteOnlyContext(member, parent, grandparent) {
   if (parent.type === 'ParenthesizedExpression' && parent.expression === member && grandparent) {
     return isMemberWriteOnlyContext(parent, grandparent, null);
   }
+  // `=` AssignmentExpression: compound operators (`+=`, `||=`) read LHS first - excluded
   if (parent.type === 'AssignmentExpression' && parent.left === member && parent.operator === '=') return true;
-  if (parent.type === 'AssignmentPattern' && parent.left === member) return true;
+  // left-slot writers grouped: AssignmentPattern default, for-of / for-in head
+  if (WRITE_LEFT_SLOT_TYPES.has(parent.type) && parent.left === member) return true;
+  // ObjectPattern property value: `({a: obj.at} = src)` - prop key drives `a`, prop value
+  // is the write target. grandparent must be ObjectPattern to distinguish from regular
+  // object literal `{a: obj.at}` (where the member is a read for the prop's value)
   if ((parent.type === 'ObjectProperty' || parent.type === 'Property')
     && parent.value === member && grandparent?.type === 'ObjectPattern') return true;
   // ArrayPattern element / RestElement target: `[obj.at] = src`, `[...obj.at] = src`.
@@ -590,17 +622,105 @@ export function isMemberMutationContext(node, parent, grandparent) {
   return false;
 }
 
+// extract a static string name from a property-key node: bare Identifier (`Object.key`),
+// string-literal under both babel (`StringLiteral`) and oxc (`Literal` with string value).
+// returns null when the key isn't a statically resolvable string - dynamic / computed keys
+// can't be tracked by the pre-pass since their value isn't known at parse time
+function staticStringKey(node) {
+  if (node?.type === 'StringLiteral') return node.value;
+  if (node?.type === 'Literal' && typeof node.value === 'string') return node.value;
+  return null;
+}
+
+// resolve a non-computed property's key to its static string name. accepts both bare
+// Identifier shorthand (`{ from: ... }`) and string-literal keys (`{ 'from': ... }`).
+// returns null for computed keys (`{ [name]: ... }`), numeric / boolean literal keys,
+// and PrivateName slots - none of which can affect a public static slot at runtime
+function propertyKeyName(prop) {
+  if (prop.computed) return null;
+  const { key } = prop;
+  if (key?.type === 'Identifier') return key.name;
+  return staticStringKey(key);
+}
+
+// `Namespace.method(...)` shape probe: returns the method name when `call.callee` matches
+// non-computed `Identifier(namespaceName).Identifier(...)`. null for any other shape -
+// dynamic property, computed access, namespace shadow, etc. shared between the
+// Object.defineProperty[ies] and Reflect.defineProperty / Reflect.deleteProperty walkers
+// so the (callee, namespace) gate stays in lockstep across mutation siblings
+function namespaceStaticCallMethod(call, namespaceName) {
+  if (call?.type !== 'CallExpression') return null;
+  const { callee } = call;
+  if (callee?.type !== 'MemberExpression' || callee.computed) return null;
+  if (callee.object?.type !== 'Identifier' || callee.object.name !== namespaceName) return null;
+  if (callee.property?.type !== 'Identifier') return null;
+  return callee.property.name;
+}
+
+// recognise `Object.defineProperty` / `Object.defineProperties` call shape and add each
+// affected `Identifier.stringLiteralKey` pair to the mutation set. these are semantically
+// equivalent to direct assignment - the descriptor's `value` / accessor overrides the
+// built-in slot at runtime - but emit as CallExpression rather than AssignmentExpression
+// so the MemberExpression-LHS walker above misses them. supported argument shapes:
+//   Object.defineProperty(Identifier, stringLiteral, descriptor)
+//      -> mark `Identifier.stringLiteral`
+//   Object.defineProperties(Identifier, ObjectExpression{ stringLiteralKey: descriptor, ... })
+//      -> mark each non-computed Identifier / string-literal key
+// dynamic targets (`Object.defineProperty(getCtor(), 'from', d)`) and dynamic keys
+// (`Object.defineProperty(Array, name, d)`) stay out of scope - same Identifier-rooted
+// constraint as the MemberExpression-LHS shape: full receiver / key resolution is out of
+// scope for this fast pre-walk
+function collectObjectMutations(call, mutated) {
+  const methodName = namespaceStaticCallMethod(call, 'Object');
+  if (methodName === null) return;
+  const [target, keyOrProps] = call.arguments ?? [];
+  if (target?.type !== 'Identifier') return;
+  const targetName = target.name;
+  if (methodName === 'defineProperty') {
+    const keyName = staticStringKey(keyOrProps);
+    if (keyName !== null) mutated.add(`${ targetName }.${ keyName }`);
+    return;
+  }
+  if (methodName !== 'defineProperties') return;
+  if (keyOrProps?.type !== 'ObjectExpression') return;
+  for (const prop of keyOrProps.properties ?? []) {
+    if (prop.type !== 'ObjectProperty' && prop.type !== 'Property') continue;
+    const keyName = propertyKeyName(prop);
+    if (keyName !== null) mutated.add(`${ targetName }.${ keyName }`);
+  }
+}
+
+// recognise `Reflect.defineProperty(target, key, desc)` and `Reflect.deleteProperty(target,
+// key)` - same monkey-patch semantics as `Object.defineProperty` and `delete target[key]`
+// respectively, only the emit shape differs (returns boolean instead of throwing on failure).
+// argument shape mirrors Object.defineProperty: Identifier target + static-string key.
+// `Reflect.set(target, key, value)` is intentionally NOT here - it writes a value slot but
+// can trigger setter traps and respects [[Set]] prototype-chain semantics, which differs
+// enough from a slot-override to warrant separate treatment if ever needed
+function collectReflectMutations(call, mutated) {
+  const methodName = namespaceStaticCallMethod(call, 'Reflect');
+  if (methodName !== 'defineProperty' && methodName !== 'deleteProperty') return;
+  const [target, key] = call.arguments ?? [];
+  if (target?.type !== 'Identifier') return;
+  const keyName = staticStringKey(key);
+  if (keyName === null) return;
+  mutated.add(`${ target.name }.${ keyName }`);
+}
+
 // scan AST for `Object.key = X` / `[Object.key] = X` / `({foo: Object.key} = X)` /
-// `Object.key++` / `Object.key += X` / `delete Object.key` and similar mutation positions.
-// returns a Set of `"ObjectName.keyName"` strings. used as a pre-pass before the main usage
-// visitor so substitution of `Array.from(...)` reads can bail when the same file mutates
-// `Array.from = X` somewhere - the polyfill import binding is `const`, the user's mutation
-// only reaches reads through the original global, so substituting reads with the polyfill
-// import silently diverges from the un-transformed source's behavior.
+// `Object.key++` / `Object.key += X` / `delete Object.key` / `for (Object.key of arr)` /
+// `Object.defineProperty(Object, 'key', d)` / `Reflect.defineProperty(...)` /
+// `Reflect.deleteProperty(...)` and similar mutation positions. returns a Set
+// of `"ObjectName.keyName"` strings. used as a pre-pass before the main usage visitor so
+// substitution of `Array.from(...)` reads can bail when the same file mutates `Array.from`
+// somewhere - the polyfill import binding is `const`, the user's mutation only reaches
+// reads through the original global, so substituting reads with the polyfill import
+// silently diverges from the un-transformed source's behavior.
 // only matches statically-resolvable receivers (top-level Identifier object); proxy globals
 // like `globalThis.Array.from` would require full receiver resolution and stay out of scope
 // for this fast pre-walk - the cases worth catching here are direct `Builtin.method = X`
-// monkey-patches which always have an Identifier object
+// monkey-patches and `Object.defineProperty(Builtin, 'method', d)` shapes which always have
+// an Identifier root
 export function collectMutatedStaticMembers(programNode) {
   const mutated = new Set();
   function visit(node, parent, grandparent) {
@@ -611,6 +731,10 @@ export function collectMutatedStaticMembers(programNode) {
       && !node.computed
       && isMemberMutationContext(node, parent, grandparent)) {
       mutated.add(`${ node.object.name }.${ node.property.name }`);
+    }
+    if (node.type === 'CallExpression') {
+      collectObjectMutations(node, mutated);
+      collectReflectMutations(node, mutated);
     }
     walkAstChildren(node, child => visit(child, node, parent));
   }

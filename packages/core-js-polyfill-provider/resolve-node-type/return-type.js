@@ -21,7 +21,7 @@
 // `resolveDirectParam`, `resolvePatternParam`, `resolveParamType`, `resolveBodyExpr`,
 // `wrapAsyncPromise`, `applyCallSiteSubst`.
 import { MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive } from './base.js';
-import { typeRefName } from './ast-shapes.js';
+import { isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
@@ -41,6 +41,7 @@ export function createReturnType({
   generatorTypeParams,
   classSubstInner,
   isNullableOrNever,
+  safeInnerType,
   commonType,
   findPatternKeyPath,
   resolveDestructuredMember,
@@ -446,51 +447,41 @@ export function createReturnType({
       const yieldType = classSubstInner(params?.[0], classSubst);
       let inner = yieldType ? resolveTypeAnnotation(yieldType, fnPath.scope) : null;
       if (!inner && yieldType && callPath) inner = applyCallSiteSubst(yieldType, fnPath, callPath);
-      return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', inner && !isNullableOrNever(inner) ? inner : null);
+      return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', safeInnerType(inner));
     }
     // peel TSTypeAnnotation + apply class subst upfront. `returnInner` is the peeled type
     // node (or null) used for both method-level subst and direct annotation resolution
     const returnInner = classSubstInner(fnPath.node.returnType, classSubst);
     const isAsync = fnPath.node.async;
-    // async functions always return a Promise even when the inner type is unresolvable -
-    // use this as the bottom-of-funnel fallback for every path that can land in null
+    // async normalization: wrap non-Promise results, fall back to bare Promise on null
+    function wrap(type) { return wrapAsyncPromise(type, isAsync); }
     const asyncFallback = isAsync ? new $Object('Promise') : null;
     // infer generic type parameters and substitute into return type
     if (returnInner && callPath) {
       const substituted = applyCallSiteSubst(returnInner, fnPath, callPath);
-      if (substituted) return wrapAsyncPromise(substituted, isAsync);
+      if (substituted) return wrap(substituted);
     }
     if (returnInner) {
       const resolved = resolveTypeAnnotation(returnInner, fnPath.scope);
-      if (resolved) return wrapAsyncPromise(resolved, isAsync);
-      // structural annotations (`TSTypeLiteral` / `ObjectTypeAnnotation` / `TSIntersectionType`
-      // / `TSImportType`) have no scalar Type representation - `resolveTypeAnnotation` returns
-      // null for them. body inference would poison the result (`function f(): { foo(): T[] }
-      // { return null as any }` body returns `$Primitive('null')` which `isNullableOrNever`
-      // kills, dropping every narrow on the receiver chain). bail so callers route through
-      // the annotation-level path (`findExpressionAnnotation`) that preserves the structural
-      // shape for member lookups
+      if (resolved) return wrap(resolved);
+      // structural shape - body inference would clobber the declared annotation with a
+      // scalar Type. bail so callers route through `findExpressionAnnotation` which
+      // preserves the structural shape for member lookups. see isStructuralAnnotation
       if (isStructuralAnnotation(returnInner)) return asyncFallback;
     }
     // fallback: analyze return statements in the function body
-    return wrapAsyncPromise(resolveBodyReturnType(fnPath, callPath), isAsync) ?? asyncFallback;
+    return wrap(resolveBodyReturnType(fnPath, callPath)) ?? asyncFallback;
   }
 
-  // structural type annotations whose value-level shape requires annotation-level member
-  // lookup. body inference would clobber the declared structure with a scalar Type that
-  // loses the members the call site needs (e.g. `function f(): { foo(): T[] } { return null
-  // as any }` body returns `$Primitive('null')` which `isNullableOrNever` kills, dropping
-  // every narrow on the receiver chain). bail to null so callers route through the
-  // annotation-level path (`findExpressionAnnotation`) that preserves the structural shape.
-  // intersection reaches this branch only when ALL branches are structural (any scalar
-  // branch would have made `resolveTypeAnnotation` return non-null upstream via the fold).
-  // `TSImportType` is opaque (cross-module structural) - body inference can't produce
-  // anything better. EXCLUDES TSUnionType - union of structurals folds to null but body
-  // inference for `T | null` bodies returns `$Primitive('null')` which the polyfill detector
-  // treats as "definitely null receiver, no polyfill needed" (correct under-injection);
-  // bailing here would over-inject Maybe-* variants on a receiver that's actually null.
-  // also excludes wide-open keywords (`any` / `unknown` / `mixed`) - body inference is
-  // strictly better than `unknown` for those
+  // type annotations whose value-level shape requires annotation-level member lookup -
+  // body inference would clobber them with a scalar `$Primitive('null')` (from
+  // `return null as any` stubs) and drop every narrow on the receiver chain.
+  // intersection enters only when ALL branches are structural (a scalar branch would have
+  // made `resolveTypeAnnotation` non-null via the fold). `TSImportType` is cross-module
+  // opaque. union is INTENTIONALLY excluded: `T | null` body-returning `null` is a correct
+  // narrow that the polyfill detector turns into a no-polyfill emission; bailing would
+  // over-inject Maybe-* variants. wide-open keywords (any / unknown / mixed) similarly
+  // benefit from body inference and are excluded
   const STRUCTURAL_ANNOTATION_TYPES = new Set([
     'TSTypeLiteral',
     'ObjectTypeAnnotation',
@@ -499,8 +490,13 @@ export function createReturnType({
     'TSImportType',
   ]);
 
+  // peel `(T)` first so wrapped structurals on the oxc parser path don't leak; `unwrap-
+  // TypeAnnotation` only strips the outer `TSTypeAnnotation`. `typeof import(...).X` is
+  // an extra nesting (`TSTypeQuery` over `TSImportType`) that the flat set can't express,
+  // routed through the shared `isTypeQueryOverImportType` predicate
   function isStructuralAnnotation(annotation) {
-    return STRUCTURAL_ANNOTATION_TYPES.has(annotation?.type);
+    const peeled = peelTSParenthesized(annotation);
+    return STRUCTURAL_ANNOTATION_TYPES.has(peeled?.type) || isTypeQueryOverImportType(peeled);
   }
 
   return {
