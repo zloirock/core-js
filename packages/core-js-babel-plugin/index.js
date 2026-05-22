@@ -565,15 +565,19 @@ export default function plugin(api, options) {
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
         injectModulesForEntry(entry);
-        // directive-promotion guard: removing an entry that immediately precedes a string-
-        // literal expression statement (with only directives before it) would let the engine
-        // re-parse the next literal as a directive. swap in `0;` instead of `path.remove()`
-        // so the prologue stays terminated. injection-side stmts may also defend (`require()`
-        // call, ImportDeclaration breaks prologue continuity), but compat-data may produce
-        // an empty module list for modern targets - then removal alone is the corruption
-        const body = path.parentPath?.node?.body;
+        // directive-promotion guard: when an EXISTING directive prologue terminates at this
+        // entry and the next sibling is a string-literal expression, removal would silently
+        // promote that literal to a directive (e.g. `"use asm"` enabling asm.js). swap in
+        // `0;` to keep the prologue terminated. compat-data may produce an empty module set
+        // for modern targets - removal alone is the corruption to guard. babel lifts module-
+        // level directives into `program.directives[]` (outside `body[]`), so a non-empty
+        // directives array is the prologue signal here
+        const programNode = path.parentPath?.node;
+        const body = programNode?.body;
         const idx = typeof path.key === 'number' ? path.key : body?.indexOf(path.node);
-        if (body && idx >= 0 && wouldPromoteDirectiveAfterRemoval(body, idx)) {
+        const hasPriorDirective = (programNode?.directives?.length ?? 0) > 0;
+        if (body && idx >= 0
+          && wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, hasPriorDirective })) {
           path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
           return;
         }
