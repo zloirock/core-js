@@ -1,7 +1,6 @@
-// Array pattern nested over an array of objects: `[{ a }] = data` where
-// `data: { a: number[] }[]` should narrow `a` to `number[]` via the element type
-// and the property lookup. Exercises the [index, key] composed keyPath through
-// the shared `resolveDestructuredMember` fallback.
+// Nested array+object reassign from a typed RHS: `[{ a }] = data` where
+// `data: { a: number[] }[]` narrows `a` to `number[]`, so `a.includes(0)` emits the
+// array-instance polyfill.
 declare const data: { a: number[] }[];
 let a;
 [{ a }] = data;

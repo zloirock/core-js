@@ -57,6 +57,14 @@ export function createExpressionDispatch({
     if (name) return resolveConstructorType(name, path) || new $Object(name);
     const resolved = resolveRuntimeExpression(callee);
     if (t.isClass(resolved.node)) return resolveClassInheritance(resolved) || new $Object('Object');
+    // callee resolves to a TSConstructorType signature (or TSFunctionType - they share the
+    // `returnType` slot and `functionTypeReturnAnnotation` treats both identically). example:
+    // `const Ctor = wrap('a')` where `wrap<T>(): new (...) => string[]` - Ctor's annotation
+    // walks through binding init -> call return -> TSConstructorType; `new Ctor(...)` yields
+    // the constructor's return type. without this fallback, `new` on a binding with no
+    // direct class shape produces unknown ($Object(null)) and downstream narrows degrade
+    const ctorReturn = resolveCallReturnType(callee);
+    if (ctorReturn) return ctorReturn;
     return new $Object(null);
   }
 

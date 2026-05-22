@@ -19,7 +19,7 @@
 //   parseAssertionStatementGuard(sibling, varName)
 //     consumed by the preceding-exit sibling scan for `asserts x is T` statement guards
 import { PRIMITIVES } from './base.js';
-import { TS_EXPR_WRAPPERS, unwrapExpressionChain, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { TS_EXPR_WRAPPERS, unwrapExpressionChain, unwrapSafeSequenceTail } from '../helpers/ast-patterns.js';
 
 // guard shape builders - single point of truth for the guard descriptor literal
 export function typeofGuard(value, negated) {
@@ -44,22 +44,22 @@ export function guardFromResolvedType(resolved, negated) {
   return null;
 }
 
-// `typeof varName` peeled through TS wrappers (`as` / `satisfies` / `!`) - shared between
-// the BinaryExpression branch's left/right peel
+// `typeof varName` peeled through TS wrappers (`as` / `satisfies` / `!`), parens, chain,
+// AND SequenceExpression tail (`typeof (0, varName)` evaluates SE prefix for side effects
+// then runs `typeof` on the tail's binding - same shape as bare `typeof varName`)
 export function isTypeofVar(node, varName) {
   if (node?.type !== 'UnaryExpression' || node.operator !== 'typeof') return false;
-  const arg = unwrapRuntimeExpr(node.argument);
+  const arg = unwrapSafeSequenceTail(node.argument);
   return arg?.type === 'Identifier' && arg.name === varName;
 }
 
 // detect `?.` anywhere in a call-expression chain.
 // ESTree wraps any optional segment in `ChainExpression`; babel encodes optionality
 // via dedicated types (`OptionalCallExpression` / `OptionalMemberExpression`).
-// run this BEFORE `unwrapRuntimeExpr` strips ChainExpression - that strip would erase
-// the signal on the ESTree path.
-// Paren + TS wrappers peeled inline (NOT via unwrapRuntimeExpr - that strips
-// ChainExpression and would erase the signal). without this, `((asrt as any)?.(x))`
-// as a statement is recognised as a non-optional call and incorrectly narrows
+// peel ParenthesizedExpression + TS_EXPR_WRAPPERS inline; do NOT use the shared peelers
+// that strip `ChainExpression` - that strip would erase the optional signal on ESTree.
+// without this dedicated walk, `((asrt as any)?.(x))` as a statement is recognised as
+// a non-optional call and incorrectly narrows
 function hasOptionalChainInCall(rawExpr) {
   let cur = rawExpr;
   while (cur) {
@@ -96,8 +96,8 @@ export function createPredicateGuards({
   // for the slot named `parameterName`, then check `args[slot]` is `Identifier{varName}`.
   // without this, `function isStr(opts, x): x is string` paired with `isStr(o, input)` would
   // narrow the wrong arg. babel uses `params`, oxc/TS-ESTree uses `parameters` for method sigs;
-  // probe both. peel TS expression wrappers (`as`, `!`, parens) on the call-arg so wrapped
-  // forms (`isStr(o, input as any)`) still bind.
+  // probe both. peel TS expression wrappers (`as`, `!`, parens, chain) AND SE tail on the
+  // call-arg so `isStr(o, input as any)` / `isStr(o, (0, input))` still bind to `input`.
   // any `SpreadElement` in args breaks positional mapping (spread length is unknown at
   // compile time, may consume one or many param slots): bail rather than narrow the wrong
   // binding. `isStr(...arr, input)` paired with `(opts, x): x is T` would otherwise map
@@ -112,7 +112,7 @@ export function createPredicateGuards({
       if (params[i]?.name !== targetName) continue;
       const arg = args?.[i];
       if (!arg) return false;
-      const unwrapped = unwrapRuntimeExpr(arg);
+      const unwrapped = unwrapSafeSequenceTail(arg);
       return unwrapped?.type === 'Identifier' && unwrapped.name === varName;
     }
     return false;
@@ -124,15 +124,18 @@ export function createPredicateGuards({
   // the runtime binding plus all ambient overload siblings (TSDeclareFunction headers) so
   // multi-overload predicates - where only one header carries `x is T` - are still found.
   // ambient list is filtered against the runtime binding to avoid retesting the same node.
-  // `unwrapRuntimeExpr` peels ESTree's `ChainExpression`, TS expression wrappers, and
-  // parens in one step; the dedicated-shape branch then matches both `MemberExpression`
-  // and babel's `OptionalMemberExpression` (`obj?.isStr`) - both resolve identically
+  // `unwrapSafeSequenceTail` peels ESTree's `ChainExpression`, TS expression wrappers,
+  // parens AND SequenceExpression tail in one step. SE tail is the actual runtime callee
+  // (`(side(), isFoo)(x)` invokes `isFoo` with `this=undefined`); the type predicate lives
+  // on the bound function regardless of SE-prefix side effects. dedicated-shape branch then
+  // matches both `MemberExpression` and babel's `OptionalMemberExpression` (`obj?.isStr`).
+  // SE-prefix expressions stay in the AST - emission preserves them via `meta.sideEffects`
   function predicateCandidates(callee, scope) {
-    const memberNode = unwrapRuntimeExpr(callee);
-    if ((memberNode?.type === 'MemberExpression' || memberNode?.type === 'OptionalMemberExpression')
-      && !memberNode.computed
-      && memberNode.property?.type === 'Identifier') {
-      const result = resolveMemberCallChain(memberNode, scope);
+    const peeled = unwrapSafeSequenceTail(callee);
+    if ((peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression')
+      && !peeled.computed
+      && peeled.property?.type === 'Identifier') {
+      const result = resolveMemberCallChain(peeled, scope);
       if (!result) return [];
       return [{
         fnNode: result.member,
@@ -140,9 +143,9 @@ export function createPredicateGuards({
         scope: result.scope,
       }];
     }
-    if (callee.type !== 'Identifier') return [];
+    if (peeled?.type !== 'Identifier') return [];
     const out = [];
-    const binding = scope.getBinding(callee.name);
+    const binding = scope.getBinding(peeled.name);
     const seen = new Set();
     const push = path => {
       if (seen.has(path)) return;
@@ -151,7 +154,7 @@ export function createPredicateGuards({
       if (info) out.push({ fnNode: info.fnNode, returnType: info.returnType, scope: path.scope });
     };
     if (binding) push(binding.path);
-    for (const ambient of findAmbientFunctionPaths(callee.name, scope)) push(ambient);
+    for (const ambient of findAmbientFunctionPaths(peeled.name, scope)) push(ambient);
     return out;
   }
 
