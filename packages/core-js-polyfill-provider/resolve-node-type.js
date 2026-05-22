@@ -23,6 +23,7 @@ import {
 } from './resolve-node-type/base.js';
 import {
   collectQualifiedSegments,
+  peelTSParenthesized,
   typeRefName,
   typeRefSegments,
 } from './resolve-node-type/ast-shapes.js';
@@ -367,6 +368,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     findAmbientFunctionPath,
     findAmbientClassPath,
     findNamespacedFunctionPath,
+    findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
     findEnumDeclaration,
@@ -415,15 +417,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') return unwrapTypeAnnotation(node.typeAnnotation);
     return node;
   }
-
-  // peel transparent paren wrappers from a TYPE annotation. oxc preserves `(T)` shape as
-  // `TSParenthesizedType` AST node (babel strips it during parsing). callers that pattern-
-  // match on the inner type's discriminator (`TSUnionType` / `TSIntersectionType` / etc.)
-  // must peel first or paren-wrapped shapes leak past the dispatch
-  function peelTSParenthesized(node) {
-    while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
-    return node;
-  }
+  // peelTSParenthesized is imported from ast-shapes and shared with siblings that
+  // pattern-match TSUnionType / TSIntersectionType / TSTypeQuery on the oxc parser path
 
   // `function fn(x = 'a')` - default wraps param in AssignmentPattern; type is on `.left`.
   // `function fn(...xs: T[])` - RestElement carries `T[]` annotation; caller must unwrap one level
@@ -504,6 +499,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     foldIntersectionTypes,
     resolveTupleInner,
     resolveNonNullableAnnotation,
+    safeInnerType,
   } = createTypeFolding({
     t,
     resolveRuntimeExpression,
@@ -743,6 +739,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     generatorTypeParams,
     classSubstInner: (...args) => classSubstInner(...args),
     isNullableOrNever,
+    safeInnerType,
     commonType,
     // pattern-bindings cluster instantiates later in this factory; thunk through so the
     // closure picks up the populated reference at call time (TDZ otherwise)
@@ -1373,8 +1370,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     isFunctionOrClassDeclaration,
     isFunctionLike,
     findAmbientDeclarationPath,
-    findAmbientFunctionPaths,
     findNamespacedFunctionPath,
+    findOverloadsForName,
     findTypeMember: (...args) => findTypeMember(...args),
     findBindingAnnotation,
     findObjectMember,
@@ -1468,7 +1465,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     findTypeParameter,
     collectQualifiedSegments,
     unwrapTypeAnnotation,
-    isNullableOrNever,
+    safeInnerType,
     followTypeAliasChain,
     applySubst,
     resolveKnownConstructor,
@@ -1638,7 +1635,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     resolveKnownContainerType,
     resolveUserDefinedType,
     resolveNamedType,
-    isNullableOrNever,
+    safeInnerType,
     tupleAsArrayType,
     foldUnionTypes,
     foldIntersectionTypes,
