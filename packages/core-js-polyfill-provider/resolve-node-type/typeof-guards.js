@@ -19,7 +19,7 @@
 // already-extracted cluster, and the `KNOWN_STATIC_TYPE_GUARDS` table for built-in
 // predicate hint lookup
 import { getOrInitMap } from './base.js';
-import { unwrapExpressionChain, unwrapParens, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { peelLabeledStatementPath, unwrapExpressionChain, unwrapParens, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { guardFromHint, instanceofGuard, isTypeofVar, typeofGuard } from './guard-shapes.js';
 
@@ -253,18 +253,12 @@ export function createTypeofGuards({
     return null;
   }
 
-  // shared sibling-to-guards parser. unifies both early-exit forms:
-  //   - condition-bearing `if (typeof x === 'string') return;` -> guards from condition
-  //   - assertion-statement `assertString(x);` -> single asserts guard
-  // callers either count length (`siblingGuardsBinding` presence check) or accumulate
-  // (`findPrecedingExitGuards` collection). LabeledStatement (`outer: if (...) break outer;`)
-  // is unwrapped to its body before dispatching - the label itself is irrelevant to the
-  // guard's polarity, only the wrapped if / expression matters
+  // shared sibling-to-guards parser. unifies condition-bearing early-exit
+  // (`if (typeof x === 'string') return;`) and assertion-statement (`assertString(x);`).
+  // LabeledStatement wrappers (`outer: inner: if (...) return;`) peel to the wrapped body
+  // first - the label is irrelevant to guard polarity
   function parseSiblingGuards(sibling, varName) {
-    // peel nested LabeledStatement wrappers - `outer: inner: if (...) return;` walks two
-    // layers. each label is irrelevant to guard polarity, only the wrapped if / expression
-    // statement matters for `resolveExitCondition` / `parseAssertionStatementGuard`
-    while (t.isLabeledStatement(sibling.node)) sibling = sibling.get('body');
+    sibling = peelLabeledStatementPath(sibling);
     const conditionTrue = resolveExitCondition(sibling);
     if (conditionTrue !== null) {
       return parseGuardsFromCondition({ testNode: sibling.node.test, conditionTrue, varName, scope: sibling.scope });
