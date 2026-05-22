@@ -1,9 +1,6 @@
 import "core-js/modules/es.array.at";
-// user's project aliases core-js modules through `my-core-js`. with the same alias
-// listed in `additionalPackages`, `scanExistingCoreJSImports` recognises the user's
-// `my-core-js/modules/es.array.at` import as a core-js polyfill entry and dedups it
-// against the canonical emission - only ONE polyfill import survives in the output.
-// without `additionalPackages` the user's alias import stays in source and a SECOND
-// canonical `core-js/modules/es.array.at` would be added, causing double-load
+// User aliases core-js as `my-core-js` and lists the alias in `additionalPackages`.
+// A pre-existing `my-core-js/modules/es.array.at` import is recognised as a polyfill
+// entry and deduped against the canonical emission, so only ONE polyfill import survives.
 
 [1, 2].at(-1);
