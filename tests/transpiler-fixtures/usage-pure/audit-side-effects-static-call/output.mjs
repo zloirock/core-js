@@ -1,9 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-// inline-call binding alias with observable side-effect prefix: replacement of the
-// static method must preserve the call (k() runs) by wrapping the polyfill binding in
-// a SequenceExpression. distinct static methods per line: Promise.resolve / Array.from
+// Static method called on the result of a side-effecting arrow (`k().resolve(3)`,
+// `m().from('hi')`): the polyfill replacement wraps each binding in a SequenceExpression
+// so the arrow still runs (`calls++` observed). Distinct statics per line.
 let calls = 0;
 const k = () => {
   calls++;

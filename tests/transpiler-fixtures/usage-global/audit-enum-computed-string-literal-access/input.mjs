@@ -1,10 +1,6 @@
-// Computed string-literal access on a string enum (`E['Alpha']`) used to bail in
-// `resolveEnumMemberAccess` - only `E.Alpha` (Identifier property) narrowed; computed
-// branch only handled numeric reverse-map (`E[E.Alpha]`). fix: `enumMemberKeyName` accepts
-// both Identifier (non-computed) and StringLiteral / ESTree Literal (computed) keys.
-// distinct methods per slot (.repeat baseline / .at computed / .includes computed) pin
-// emission to the narrowed string member - without the fix both .at and .includes would
-// over-emit their array siblings since the receiver type stayed unresolved
+// String enum accessed with both identifier (`E.Alpha`) and computed string-literal
+// (`E['Alpha']`) keys: every member resolves to its string value, so `.repeat`,
+// `.at`, `.includes` each emit only the string-instance polyfill.
 enum E { Alpha = 'alpha', Beta = 'beta' }
 function probe() {
   E.Alpha.repeat(2);

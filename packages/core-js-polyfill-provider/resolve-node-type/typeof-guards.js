@@ -35,6 +35,7 @@ export function createTypeofGuards({
   blockAlwaysExits,
   canFallThrough,
   KNOWN_STATIC_TYPE_GUARDS,
+  babelBindingAdapter,
 }) {
   function parseTypeGuard(testNode, varName, scope) {
     const peeled = peelNegation(testNode);
@@ -82,7 +83,12 @@ export function createTypeofGuards({
       }
       if (operator === 'instanceof'
         && left.type === 'Identifier' && left.name === varName) {
-        const constructorName = right.type === 'Identifier' ? right.name : globalProxyMemberName({ node: right });
+        // pass scope + adapter so user-shadowed `globalThis`/`self` are detected and skipped:
+        // without scope, `x instanceof globalThis.Map` would resolve to global Map even when
+        // `globalThis` is locally shadowed (e.g. `function f(globalThis: { Map: any }) {...}`)
+        const constructorName = right.type === 'Identifier'
+          ? right.name
+          : globalProxyMemberName({ node: right, scope, adapter: babelBindingAdapter, path: null });
         if (constructorName) return instanceofGuard(constructorName, negated);
       }
     }
