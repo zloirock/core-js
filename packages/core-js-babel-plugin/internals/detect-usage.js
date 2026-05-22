@@ -129,6 +129,23 @@ export function createBabelAdapter(getInjector = () => null) {
 // no-tracking adapter for detect-entry's `require('core-js/...')` literal check
 export const babelAdapter = createBabelAdapter();
 
+// babel visitor key for nodes whose `typeAnnotation` / `returnType` / params need walking:
+// function-likes (param + return types), object-method shorthand, class-method shapes
+// (`m(x: Foo): Bar`), AND class-field shapes (`x: Map<T>`, `accessor y: Set<T>`) whose
+// typeAnnotation sits on the field-level node itself. babel splits these into distinct
+// node types - listing them all in one `|`-pattern so they share one visitor body
+const TYPE_ANNOTATION_HOSTS = [
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ClassMethod',
+  'ClassPrivateMethod',
+  'ObjectMethod',
+  'ClassProperty',
+  'ClassPrivateProperty',
+  'ClassAccessorProperty',
+].join('|');
+
 // symbol-keyed per-file reset hook on the visitors object - symbol so babel's visitor
 // enumerator (own string keys only) does not mistake it for a node-type visitor
 export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
@@ -348,8 +365,12 @@ export function createUsageVisitors({
       // babel exposes methods as distinct node types (not MethodDefinition wrappers), so
       // their params/returnType/typeAnnotation need explicit visitor entries. otherwise
       // `class C { m(x: Foo): Bar {} }` misses Foo/Bar on babel while unplugin catches them
-      // through the underlying FunctionExpression - parser divergence
-      'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassMethod|ClassPrivateMethod|ObjectMethod'(path) {
+      // through the underlying FunctionExpression - parser divergence.
+      // class-field shapes (`class C { x: Map<T>; accessor y: Set<T> }`) carry their
+      // typeAnnotation on the field-level node, NOT on a nested function, so they need
+      // explicit dispatch too - without it the Map / Set polyfills miss on class-field
+      // annotations even though the same annotation on a function param would emit
+      [TYPE_ANNOTATION_HOSTS](path) {
         checkTypeAnnotations(path.node, annotationGlobal(path));
       },
       VariableDeclarator(path) {
