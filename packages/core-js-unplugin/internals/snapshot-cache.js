@@ -115,6 +115,15 @@ function normalizeKey(id) {
   return normalizePath(stripQueryHash(cleanId));
 }
 
+// LRU-style soft cap on the per-build cache. upstream unplugin doesn't dispatch
+// `watchChange` to bun / esbuild adapters - without per-file invalidation, the cache
+// accumulates orphan snapshots over the lifetime of a `--watch` session. `buildEnd` clears
+// at build boundaries but a long-running watch with many file edits can balloon between
+// builds. cap at this many entries; on overflow, evict in insertion order (Map preserves
+// it, so `keys().next()` is the oldest). 1024 is comfortably above any realistic per-build
+// file count and far below any RAM pressure
+const SNAPSHOT_CAP = 1024;
+
 export default class SnapshotCache {
   #snapshots = new Map();
   #debug;
@@ -133,7 +142,17 @@ export default class SnapshotCache {
       // eslint-disable-next-line no-console -- opt-in diagnostic
       console.warn(`[core-js] pre-pass called twice for ${ id }; latest snapshot wins`);
     }
+    // delete-then-set bumps the key to most-recent slot in Map's insertion order. without
+    // the explicit delete, repeated `store(sameKey, ...)` would keep the original insertion
+    // position and stale keys would always be evicted ahead of recently-touched ones
+    this.#snapshots.delete(key);
     this.#snapshots.set(key, entry);
+    // on overflow, evict in insertion order (Map iterator yields the oldest first). size
+    // strictly > cap means at least one excess entry exists, so `keys().next().value` is
+    // always defined here - no extra guard needed
+    if (this.#snapshots.size > SNAPSHOT_CAP) {
+      this.#snapshots.delete(this.#snapshots.keys().next().value);
+    }
   }
 
   take(id) {
