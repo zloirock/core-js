@@ -16,7 +16,7 @@ import {
   collectAllBindingNames,
   consumeOneLineEnding,
   directivePrologueEnd,
-  hasCoreJSPureImport,
+  hasCoreJSImport,
   isBodylessStatementBody,
   isChunkLoaderBundler,
   isLineTerminator,
@@ -1830,34 +1830,41 @@ check('canFuseWithOpenParen/single quotes inside double',
 check('canFuseWithOpenParen/double quotes inside single',
   canFuseWithOpenParen('var s = \'a"b"c\'', 15), true);
 
-// --- hasCoreJSPureImport: fingerprint pre-pass against configured packages ---
+// --- hasCoreJSImport: fingerprint pre-pass against configured packages ---
 function checkHasPureImport(label, src, packages, expected) {
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
   const ast = parseSync('/x.mjs', src, { sourceType: 'module' }).program;
-  check(label, hasCoreJSPureImport(ast, packages), expected);
+  check(label, hasCoreJSImport(ast, packages), expected);
 }
-checkHasPureImport('hasCoreJSPureImport/match',
+checkHasPureImport('hasCoreJSImport/match',
   'import _ from "@core-js/pure/x";\nfoo();', ['@core-js/pure'], true);
-checkHasPureImport('hasCoreJSPureImport/exact-prefix not enough',
+checkHasPureImport('hasCoreJSImport/exact-prefix not enough',
   'import _ from "@core-js/pure";\nfoo();', ['@core-js/pure'], false);
-checkHasPureImport('hasCoreJSPureImport/no imports', 'foo();', ['@core-js/pure'], false);
-checkHasPureImport('hasCoreJSPureImport/non-matching package',
+checkHasPureImport('hasCoreJSImport/no imports', 'foo();', ['@core-js/pure'], false);
+checkHasPureImport('hasCoreJSImport/non-matching package',
   'import _ from "lodash";\nfoo();', ['@core-js/pure'], false);
-checkHasPureImport('hasCoreJSPureImport/multiple packages',
+checkHasPureImport('hasCoreJSImport/multiple packages',
   'import _ from "vendor-pure/y";\nfoo();', ['@core-js/pure', 'vendor-pure'], true);
-checkHasPureImport('hasCoreJSPureImport/relative path mimicking pkg',
+checkHasPureImport('hasCoreJSImport/relative path mimicking pkg',
   'import _ from "./vendor/@core-js/pure/x";\nfoo();', ['@core-js/pure'], false);
 // re-export with source is NOT detected: `pureImportSource` matches ImportDeclaration /
 // ExpressionStatement(require()) / VariableDeclaration(...=require()), not
 // ExportNamedDeclaration. fingerprint cares about INPUT module record fetches, not
 // re-exports - if user re-exports from `@core-js/pure`, the original importer chain
 // already had a direct import and would have been flagged there
-checkHasPureImport('hasCoreJSPureImport/re-export with source NOT detected',
+checkHasPureImport('hasCoreJSImport/re-export with source NOT detected',
   'export { x } from "@core-js/pure/m";\nfoo();', ['@core-js/pure'], false);
-checkHasPureImport('hasCoreJSPureImport/CJS require shape',
+checkHasPureImport('hasCoreJSImport/CJS require shape',
   'const x = require("@core-js/pure/y");\nfoo();', ['@core-js/pure'], true);
-checkHasPureImport('hasCoreJSPureImport/lowercased package match',
+checkHasPureImport('hasCoreJSImport/lowercased package match',
   'import _ from "@CORE-JS/PURE/x";\nfoo();', ['@core-js/pure'], true);
+// usage-global side-effect imports MUST be detected too - they're the pre-pass output for
+// global mode. without this, webpack persistent-cache + post-fresh in usage-global would
+// fail the orphan-adoption gate even though the source HAS pre's emitted imports
+checkHasPureImport('hasCoreJSImport/usage-global side-effect import',
+  'import "core-js/modules/es.array.from";\nfoo();', ['core-js'], true);
+checkHasPureImport('hasCoreJSImport/usage-global CJS require',
+  'require("core-js/modules/es.array.from");\nfoo();', ['core-js'], true);
 
 // --- entryToGlobalHint: entry name (sans `core-js/<head>/` prefix) -> global hint ---
 // callers pre-strip `core-js/<bucket>/` (`actual/`, `stable/`, `full/`, etc.); the
@@ -2205,6 +2212,26 @@ function checkSnapshotReset() {
   check('SnapshotCache/post-reset take is null', cache.take('/a.js'), null);
 }
 checkSnapshotReset();
+
+// soft cap evicts oldest insertion on overflow. critical for bun / esbuild --watch flows
+// where upstream unplugin doesn't dispatch watchChange and per-file invalidation falls
+// through. exact cap (1024) is internal; test the bump-on-re-store semantic that makes the
+// LRU policy correct - without it, repeated `store(sameKey, ...)` would keep stale keys
+// pinned to their original insertion slot and they'd always be evicted ahead of fresh stores.
+// the invariants: re-store keeps the LATEST value (not the original) AND both entries stay
+// retrievable - re-store doesn't drop the previous slot
+function checkSnapshotStoreBumpsRecency() {
+  const cache = new SnapshotCache();
+  cache.store('/oldest.js', { v: 'oldest' });
+  cache.store('/middle.js', { v: 'middle' });
+  cache.store('/oldest.js', { v: 'oldest-touched' });
+  check('SnapshotCache/size stays 2 on re-store', cache.size(), 2);
+  check('SnapshotCache/re-store preserves latest value',
+    cache.take('/oldest.js')?.v, 'oldest-touched');
+  check('SnapshotCache/re-store doesnt drop other entries',
+    cache.take('/middle.js')?.v, 'middle');
+}
+checkSnapshotStoreBumpsRecency();
 
 // takeWithParse: dev-server fast-path - reuse pre's AST when post-input byte-matches.
 // covers `applyTransforms`' parse-cache check so post avoids re-parsing pre's input

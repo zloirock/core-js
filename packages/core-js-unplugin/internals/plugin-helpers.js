@@ -611,8 +611,13 @@ function pureImportSource(node) {
 // pre-pass fingerprint - any top-level import from one of our configured packages marks the
 // source as our own output, not user code that happens to contain `_ref = ...` assignments.
 // `packages` is the resolver's already-normalised list (pkg + additionalPackages, lowercased);
-// bare-specifier prefix only - a relative `./vendor/` copy wouldn't be emitted by us
-export function hasCoreJSPureImport(ast, packages) {
+// bare-specifier prefix only - a relative `./vendor/` copy wouldn't be emitted by us.
+// covers BOTH modes: usage-pure (`import _Map from "@core-js/pure/..."`) AND usage-global
+// (`import "core-js/modules/..."`). the extractor reads `ImportDeclaration.source.value`
+// regardless of specifier shape, so side-effect-only imports match the same as default /
+// named imports - webpack persistent-cache flow (pre cached + post fresh) re-detects pre's
+// fingerprint in both modes when orphan adoption needs to fire without inherit
+export function hasCoreJSImport(ast, packages) {
   for (const node of ast.body) {
     const source = pureImportSource(node);
     if (!source) continue;
