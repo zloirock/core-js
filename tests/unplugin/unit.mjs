@@ -156,44 +156,115 @@ const shouldTransformCases = [
   ['/src/App.vue?vue&type=script&lang=TS', true, 'SFC mixed-case lang=TS'],
   ['/src/App.vue?vue&type=SCRIPT&lang=ts', true, 'SFC mixed-case type=SCRIPT'],
   ['/src/App.vue?vue&type=STYLE&lang=ts', false, 'SFC mixed-case type=STYLE excluded'],
+  ['/src/App.vue?vue&type=script&lang=Tsx', true, 'SFC mixed-case lang=Tsx'],
+  ['/src/App.vue?vue&type=script&lang=MJS', true, 'SFC mixed-case lang=MJS'],
+  // mixed-case framework marker - `/i` on default-JS regex admits author-cased `?VUE`
+  ['/src/App.vue?VUE&type=script', true, 'SFC mixed-case framework marker'],
+  ['/src/App.vue?Vue&type=module', true, 'SFC capitalised framework marker'],
+  // edge: multiple framework markers (custom loader artifact) admits via lang= path
+  ['/src/App.vue?vue&vue&type=script&lang=ts', true, 'SFC duplicate framework marker'],
+  // edge: whitespace around lang= bails (no real separator before, no valid ext)
+  ['/src/App.vue?vue&type=script&lang= ts', false, 'SFC whitespace around lang value'],
+  ['/src/App.vue? lang=ts', false, 'SFC whitespace before lang'],
+  // edge: empty lang= - SFC_LANG_RE rejects (alphabet needs a `[jt]` char), default-JS
+  // fallback blocked by the explicit `!id.includes('lang=')` gate, so the id bails entirely.
+  // user authoring `lang=""` is a tool-error shape; pinning the deterministic resolution here
+  ['/src/App.vue?vue&type=script&lang=', false, 'SFC empty lang= bails (lang-path rejects, default-JS gate blocks)'],
 ];
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
 
 // --- liftSfcLangSuffix ---
-// regex MUST stay in sync with shouldTransform's SFC_LANG_RE: every shape that
-// shouldTransform admits via the lang= path must produce a matching extension here,
-// otherwise oxc-parser falls back to the bare `.vue` / `.svelte` / `.astro` extension
-// and silently rejects TS / JSX syntax in the script body
+// regex is now shared with shouldTransform via internals/sfc-shapes.js, so every shape that
+// shouldTransform admits via the lang= path produces a matching extension here by construction;
+// drift between admit and lift can't happen now that both consumers import the same regex
 const liftSfcLangCases = [
   // basic JS/TS extensions
-  ['/src/App.vue?vue&type=script&lang=ts', '/src/App.vue', '/src/App.vue.ts'],
-  ['/src/App.vue?vue&type=script&lang=tsx', '/src/App.vue', '/src/App.vue.tsx'],
-  ['/src/App.vue?vue&type=script&lang=js', '/src/App.vue', '/src/App.vue.js'],
-  ['/src/App.vue?vue&type=script&lang=jsx', '/src/App.vue', '/src/App.vue.jsx'],
+  ['/src/App.vue?vue&type=script&lang=ts', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=tsx', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=js', '/src/App.vue.js'],
+  ['/src/App.vue?vue&type=script&lang=jsx', '/src/App.vue.jsx'],
   // module / commonjs extension prefixes (Vue 3 + Astro support these natively)
-  ['/src/App.vue?vue&type=script&lang=mts', '/src/App.vue', '/src/App.vue.mts'],
-  ['/src/App.vue?vue&type=script&lang=cts', '/src/App.vue', '/src/App.vue.cts'],
-  ['/src/App.vue?vue&type=script&lang=mjs', '/src/App.vue', '/src/App.vue.mjs'],
-  ['/src/App.vue?vue&type=script&lang=cjs', '/src/App.vue', '/src/App.vue.cjs'],
+  ['/src/App.vue?vue&type=script&lang=mts', '/src/App.vue.mts'],
+  ['/src/App.vue?vue&type=script&lang=cts', '/src/App.vue.cts'],
+  ['/src/App.vue?vue&type=script&lang=mjs', '/src/App.vue.mjs'],
+  ['/src/App.vue?vue&type=script&lang=cjs', '/src/App.vue.cjs'],
   // hash terminator (sourcemap pipelines append `#L<line>` to the id)
-  ['/src/App.vue?vue&type=script&lang=ts#L10', '/src/App.vue', '/src/App.vue.ts'],
-  ['/src/App.vue?vue&type=script&lang=tsx#hash', '/src/App.vue', '/src/App.vue.tsx'],
-  ['/src/App.vue?vue&type=script&lang=mts#L1', '/src/App.vue', '/src/App.vue.mts'],
+  ['/src/App.vue?vue&type=script&lang=ts#L10', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=tsx#hash', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=mts#L1', '/src/App.vue.mts'],
+  // hash-only terminator on the lang token without trailing `&` - the `(?:[#&]|$)` boundary
+  // accepts `#` so the named group still captures and `#L42` is excluded from `ext`
+  ['/src/App.vue?vue&lang=ts#L42', '/src/App.vue.ts'],
   // lang= position variations
-  ['/src/App.vue?lang=ts', '/src/App.vue', '/src/App.vue.ts'],
-  ['/src/App.vue?lang=ts&type=script', '/src/App.vue', '/src/App.vue.ts'],
-  ['/src/App.vue?foo=bar&lang=ts&baz=qux', '/src/App.vue', '/src/App.vue.ts'],
-  // non-JS lang= or no lang= - return baseId unchanged
-  ['/src/App.vue?vue&type=script&lang=scss', '/src/App.vue', '/src/App.vue'],
-  ['/src/App.vue?vue&type=script&lang=d.ts', '/src/App.vue', '/src/App.vue'],
-  ['/src/App.vue?vue&type=script', '/src/App.vue', '/src/App.vue'],
-  ['/src/App.vue', '/src/App.vue', '/src/App.vue'],
-  // substring guard: `xlang=` must not match
-  ['/src/App.vue?xlang=ts', '/src/App.vue', '/src/App.vue'],
+  ['/src/App.vue?lang=ts', '/src/App.vue.ts'],
+  ['/src/App.vue?lang=ts&type=script', '/src/App.vue.ts'],
+  ['/src/App.vue?foo=bar&lang=ts&baz=qux', '/src/App.vue.ts'],
+  // lang= sandwiched in the middle of the query (between marker and trailing param) - the
+  // `[&?]lang=` prefix accepts either `&` or `?` so middle-position matches identically
+  ['/src/App.vue?vue&lang=ts&type=script', '/src/App.vue.ts'],
+  // multiple lang= tokens - regex stops at the first match (RegExp.exec returns leftmost-
+  // first per spec), so `lang=ts&lang=tsx` lifts to `.ts`. authoring this shape is a user
+  // bug; the test pins the deterministic resolution
+  ['/src/App.vue?vue&lang=ts&lang=tsx', '/src/App.vue.ts'],
+  // non-JS lang= or no lang= - return baseId unchanged (no synthesized extension)
+  ['/src/App.vue?vue&type=script&lang=scss', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang=d.ts', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script', '/src/App.vue'],
+  ['/src/App.vue', '/src/App.vue'],
+  // empty SFC query (`?vue` framework marker only, no lang= at all) returns baseId as-is
+  ['/src/App.vue?vue', '/src/App.vue'],
+  // numeric-suffixed `lang=js2` must NOT match - `[cm]?[jt]sx?` rejects digits at the tail.
+  // the `(?:[#&]|$)` boundary further requires the lang value to end on `&`/`#`/EOL, so
+  // `js2` is rejected by both the alphabet and the boundary
+  ['/src/App.vue?vue&lang=js2', '/src/App.vue'],
+  // non-vue SFC framework (`.svelte`) with lang= - regex is framework-agnostic, only the
+  // `lang=<ext>` shape gates the match, so svelte gets the same lift behaviour as vue
+  ['/src/App.svelte?lang=ts', '/src/App.svelte.ts'],
+  ['/src/App.svelte?svelte&type=script&lang=tsx', '/src/App.svelte.tsx'],
+  // astro SFC with lang= - same framework-agnostic shape applies
+  ['/src/Page.astro?astro&type=script&lang=ts', '/src/Page.astro.ts'],
+  // substring guard: `xlang=` must not match - the `[&?]` prefix class demands a real
+  // separator before `lang=`, so `?xlang=ts` is rejected (no leading `&`/`?` to consume)
+  ['/src/App.vue?xlang=ts', '/src/App.vue'],
+  // author-cased `lang=TS` etc. - SFC_LANG_RE carries `/i` so admission accepts mixed-case
+  // suffixes; lifter matches the same shapes and emits the extension lowercased so oxc-parser's
+  // extension-based language inference resolves canonical `.ts` / `.tsx` parsers. without the
+  // `/i` flag the lifter returned the bare `.vue` baseId and oxc silently rejected TS-only
+  // syntax in the SFC script body
+  ['/src/App.vue?vue&type=script&lang=TS', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=Tsx', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=MTS', '/src/App.vue.mts'],
+  ['/src/App.vue?vue&type=script&lang=JSX', '/src/App.vue.jsx'],
+  ['/src/App.vue?vue&type=script&lang=TS#L10', '/src/App.vue.ts'],
+  // hash-only id (no query) - stripQueryHash drops `#L10`, no lang= match returns baseId
+  ['/src/App.vue#L10', '/src/App.vue'],
+  // repeated framework marker tokens - regex anchors on `lang=` so duplicate `vue&vue` doesn't
+  // affect the match; first `lang=` still wins
+  ['/src/App.vue?vue&vue&type=script&lang=ts', '/src/App.vue.ts'],
+  // whitespace around lang= or its value - regex demands a real separator before `lang=` and
+  // a `[jt]`-rooted alphabet at the value, so spaces always bail to baseId
+  ['/src/App.vue? lang=ts', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang= ts', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang=ts ', '/src/App.vue'],
+  // empty extension `lang=` - alphabet requires at least one `[jt]` char, so bare equals sign
+  // falls through to baseId
+  ['/src/App.vue?vue&type=script&lang=', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang=&type=script', '/src/App.vue'],
+  // multiple extension chars: `mjs` / `cjs` / `mts` already covered above; assert .mjs as the
+  // longest extension form lifts symmetrically
+  ['/src/App.vue?vue&type=script&lang=mjs#L1', '/src/App.vue.mjs'],
+  // Astro variants symmetric with Vue / Svelte coverage
+  ['/src/Page.astro?astro&type=script&lang=tsx', '/src/Page.astro.tsx'],
+  ['/src/Page.astro?astro&type=script&lang=mts', '/src/Page.astro.mts'],
+  ['/src/Page.astro?astro&type=script&lang=TS', '/src/Page.astro.ts'],
+  // Svelte symmetry
+  ['/src/Comp.svelte?svelte&type=script&lang=ts', '/src/Comp.svelte.ts'],
+  ['/src/Comp.svelte?svelte&type=script&lang=mts', '/src/Comp.svelte.mts'],
+  ['/src/Comp.svelte?svelte&type=script&lang=JSX', '/src/Comp.svelte.jsx'],
 ];
-for (const [id, baseId, want] of liftSfcLangCases) {
-  check(`liftSfcLangSuffix/${ id }`, liftSfcLangSuffix(id, baseId), want);
+for (const [id, want] of liftSfcLangCases) {
+  check(`liftSfcLangSuffix/${ id }`, liftSfcLangSuffix(id), want);
 }
 
 // class entries (bare or `/constructor` tail) PascalCase the first segment; method

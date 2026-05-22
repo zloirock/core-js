@@ -1,11 +1,16 @@
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import { isASTNode, isDirectiveStatement, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
+import { liftSfcLangSuffix } from './sfc-shapes.js';
 
 // re-export the shared `isDirectiveStatement` so existing unplugin consumers
 // (`directivePrologueEnd`, `lastUserImportEnd`, `plugin.js`) keep working without
 // refactor; single source of truth for the predicate lives in provider helpers
 export { isDirectiveStatement };
+
+// re-export `liftSfcLangSuffix` so `plugin.js` and the test runner keep their import path
+// stable; canonical impl lives in `sfc-shapes.js` alongside the regexes it consumes
+export { liftSfcLangSuffix };
 
 // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
 // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
@@ -87,26 +92,6 @@ export function lastUserImportEnd(ast) {
 
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
-
-// SFC frameworks (Vue / Svelte / Astro) emit virtual module ids carrying the parser-language
-// hint inside the query string: `Component.vue?vue&type=script&lang=ts` /
-// `App.svelte?svelte&type=script&lang=tsx`. after `stripQueryHash` the bare id loses the
-// hint - oxc-parser would default to plain JS on the unknown `.vue` / `.svelte` extension
-// and silently reject TS / JSX syntax in the script block. lift the lang suffix and
-// synthesize a matching extension so oxc enables the right parser. lives in unplugin
-// (not provider) because the bundler-virtual-id convention is bundler-specific - babel-plugin
-// only sees real file paths. shared between transform pipeline and test runner's output
-// validator so they agree on the parser-language hint.
-// pattern MUST stay in sync with `index.js`'s `SFC_LANG_RE` (shouldTransform gate): the
-// `[cm]?` prefix accepts `mts` / `cts` / `mjs` / `cjs` (Vue 3 + Astro support these natively),
-// and `(?:[#&]|$)` accepts `#hash` terminators (sourcemap pipelines append `#L<line>`).
-// without the sync, shouldTransform admits `App.vue?lang=mts` but liftSfcLangSuffix returns
-// the bare baseId - oxc-parser then rejects the TS body on `.vue` extension
-const SFC_LANG_RE = /[&?]lang=(?<ext>[cm]?[jt]sx?)(?:[#&]|$)/;
-export function liftSfcLangSuffix(id, baseId) {
-  const m = SFC_LANG_RE.exec(id);
-  return m?.groups ? `${ baseId }.${ m.groups.ext }` : baseId;
-}
 
 // chars that, as the previous statement's last token, fuse with a leading `(` on the
 // next line into a call expression (parser continues without ASI). this is the
