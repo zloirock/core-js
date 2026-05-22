@@ -62,6 +62,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   createTypeAnnotationChecker,
+  collectMutatedStaticMembers,
   declaresRequireBinding,
   destructureReceiverSlot,
   detectCommonJS,
@@ -2463,6 +2464,33 @@ runBoth('class method declared return -> Map',
     isMemberWriteOnlyContext(memberNode, null), false);
   check('ast-patterns: isMemberWriteOnlyContext no member',
     isMemberWriteOnlyContext(null, simpleAssign), false);
+  // for-of LHS: `for (Array.from of arr)` - rebinds the static slot per iteration
+  const forOfWrite = {
+    type: 'ForOfStatement',
+    left: memberNode,
+    right: { type: 'Identifier' },
+    body: { type: 'BlockStatement' },
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext for-of LHS',
+    isMemberWriteOnlyContext(memberNode, forOfWrite));
+  // for-in LHS: `for (Array.from in src)` - enumerated property name lands in the slot
+  const forInWrite = {
+    type: 'ForInStatement',
+    left: memberNode,
+    right: { type: 'Identifier' },
+    body: { type: 'BlockStatement' },
+  };
+  checkTruthy('ast-patterns: isMemberWriteOnlyContext for-in LHS',
+    isMemberWriteOnlyContext(memberNode, forInWrite));
+  // member sits on `.right` of a for-of - reading position, not a write
+  const forOfRightRead = {
+    type: 'ForOfStatement',
+    left: { type: 'Identifier' },
+    right: memberNode,
+    body: { type: 'BlockStatement' },
+  };
+  check('ast-patterns: isMemberWriteOnlyContext for-of right (read)',
+    isMemberWriteOnlyContext(memberNode, forOfRightRead), false);
 
   // isSingleNestedProxyChain: `const { X: { y } } = Z` - innerPattern + outerPattern + declaration shape
   const innerPat = {
@@ -2535,6 +2563,264 @@ runBoth('class method declared return -> Map',
   // empty list
   check('ast-patterns: hasRestSiblingExcept empty', hasRestSiblingExcept([], propA), false);
   check('ast-patterns: hasRestSiblingExcept null', hasRestSiblingExcept(null, propA), false);
+}
+
+// --- ast-patterns: collectMutatedStaticMembers ---
+
+{
+  // helper builders to keep node graphs readable
+  function ident(name) {
+    return { type: 'Identifier', name };
+  }
+  function member(objName, propName) {
+    return { type: 'MemberExpression', object: ident(objName), property: ident(propName), computed: false };
+  }
+  function program(stmts) {
+    return { type: 'Program', body: stmts };
+  }
+  function exprStmt(expression) {
+    return { type: 'ExpressionStatement', expression };
+  }
+
+  // baseline: direct assignment surfaces in the mutation set
+  {
+    const stmts = [exprStmt({
+      type: 'AssignmentExpression',
+      operator: '=',
+      left: member('Array', 'from'),
+      right: { type: 'NumericLiteral', value: 1 },
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: direct assignment Array.from',
+      mutated.has('Array.from'));
+  }
+
+  // for-of LHS: `for (Array.from of arr) { ... }`
+  {
+    const stmts = [{
+      type: 'ForOfStatement',
+      left: member('Array', 'from'),
+      right: ident('arr'),
+      body: { type: 'BlockStatement', body: [] },
+    }];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: for-of LHS marks mutation',
+      mutated.has('Array.from'));
+  }
+
+  // for-in LHS: `for (Array.from in src) { ... }`
+  {
+    const stmts = [{
+      type: 'ForInStatement',
+      left: member('Array', 'from'),
+      right: ident('src'),
+      body: { type: 'BlockStatement', body: [] },
+    }];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: for-in LHS marks mutation',
+      mutated.has('Array.from'));
+  }
+
+  // for-of right-hand iterable: member sits in RHS read position, NOT a mutation
+  {
+    const stmts = [{
+      type: 'ForOfStatement',
+      left: ident('x'),
+      right: member('Array', 'from'),
+      body: { type: 'BlockStatement', body: [] },
+    }];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: for-of RHS does not mark',
+      mutated.has('Array.from'), false);
+  }
+
+  // Object.defineProperty(Array, 'from', desc) - babel StringLiteral key
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'defineProperty'),
+      arguments: [
+        ident('Array'),
+        { type: 'StringLiteral', value: 'from' },
+        { type: 'ObjectExpression', properties: [] },
+      ],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: defineProperty babel StringLiteral key',
+      mutated.has('Array.from'));
+  }
+
+  // Object.defineProperty with oxc-style `Literal` string key
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'defineProperty'),
+      arguments: [
+        ident('Array'),
+        { type: 'Literal', value: 'isArray' },
+        { type: 'ObjectExpression', properties: [] },
+      ],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: defineProperty oxc Literal key',
+      mutated.has('Array.isArray'));
+  }
+
+  // dynamic key: `Object.defineProperty(Array, name, desc)` must NOT mark
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'defineProperty'),
+      arguments: [ident('Array'), ident('name'), { type: 'ObjectExpression', properties: [] }],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: defineProperty dynamic key bails',
+      mutated.size, 0);
+  }
+
+  // non-Identifier target: `Object.defineProperty(getCtor(), 'from', d)` must NOT mark
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'defineProperty'),
+      arguments: [
+        { type: 'CallExpression', callee: ident('getCtor'), arguments: [] },
+        { type: 'StringLiteral', value: 'from' },
+        { type: 'ObjectExpression', properties: [] },
+      ],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: defineProperty non-Identifier target bails',
+      mutated.size, 0);
+  }
+
+  // Object.defineProperties(Array, { from: d, isArray: d }) - multi-key shape
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'defineProperties'),
+      arguments: [
+        ident('Array'),
+        {
+          type: 'ObjectExpression',
+          properties: [
+            {
+              type: 'ObjectProperty',
+              key: ident('from'),
+              value: { type: 'ObjectExpression', properties: [] },
+              computed: false,
+            },
+            {
+              type: 'ObjectProperty',
+              key: { type: 'StringLiteral', value: 'isArray' },
+              value: { type: 'ObjectExpression', properties: [] },
+              computed: false,
+            },
+          ],
+        },
+      ],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: defineProperties identifier key',
+      mutated.has('Array.from'));
+    checkTruthy('collectMutatedStaticMembers: defineProperties string-literal key',
+      mutated.has('Array.isArray'));
+  }
+
+  // defineProperties with computed key must NOT mark - dynamic key value
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'defineProperties'),
+      arguments: [
+        ident('Array'),
+        {
+          type: 'ObjectExpression',
+          properties: [{
+            type: 'ObjectProperty',
+            key: ident('name'),
+            value: { type: 'ObjectExpression', properties: [] },
+            computed: true,
+          }],
+        },
+      ],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: defineProperties computed key bails',
+      mutated.size, 0);
+  }
+
+  // Object.something() but NOT defineProperty / defineProperties - no marking
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'keys'),
+      arguments: [ident('Array'), { type: 'StringLiteral', value: 'from' }],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: Object.keys does not mark',
+      mutated.size, 0);
+  }
+
+  // Reflect.defineProperty(Array, 'from', desc) - same monkey-patch semantics as
+  // Object.defineProperty, must mark the target/key pair
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Reflect', 'defineProperty'),
+      arguments: [
+        ident('Array'),
+        { type: 'StringLiteral', value: 'from' },
+        { type: 'ObjectExpression', properties: [] },
+      ],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: Reflect.defineProperty marks',
+      mutated.has('Array.from'));
+  }
+
+  // Reflect.deleteProperty(Array, 'from') - removes the own slot, same effect as
+  // `delete Array.from` for resolver purposes
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Reflect', 'deleteProperty'),
+      arguments: [ident('Array'), { type: 'StringLiteral', value: 'from' }],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    checkTruthy('collectMutatedStaticMembers: Reflect.deleteProperty marks',
+      mutated.has('Array.from'));
+  }
+
+  // Reflect.set / Reflect.get / other Reflect methods - not slot-override semantics
+  // for our pre-pass. negative test: must NOT mark
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Reflect', 'set'),
+      arguments: [
+        ident('Array'),
+        { type: 'StringLiteral', value: 'from' },
+        ident('newFn'),
+      ],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: Reflect.set does not mark',
+      mutated.size, 0);
+  }
+
+  // Object.setPrototypeOf changes [[Prototype]], not any own slot. negative test:
+  // must NOT mark the target identifier even though shape matches Object.X(target, ...)
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Object', 'setPrototypeOf'),
+      arguments: [ident('Array'), ident('Object')],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: Object.setPrototypeOf does not mark',
+      mutated.size, 0);
+  }
 }
 
 // --- ast-patterns: createTypeAnnotationChecker factory ---

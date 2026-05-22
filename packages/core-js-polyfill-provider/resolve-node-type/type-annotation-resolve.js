@@ -36,7 +36,7 @@ export function createTypeAnnotationResolve({
   findTypeParameter,
   collectQualifiedSegments,
   unwrapTypeAnnotation,
-  isNullableOrNever,
+  safeInnerType,
   followTypeAliasChain,
   applySubst,
   resolveKnownConstructor,
@@ -139,10 +139,10 @@ export function createTypeAnnotationResolve({
   function resolveKnownContainerType({ name, base, node, innerResolver }) {
     if (!base) return null;
     if (!SINGLE_ELEMENT_COLLECTIONS.has(name) && name !== 'Promise') return base;
-    const params = getTypeArgs(node)?.params;
-    if (params?.[0]) {
-      const inner = innerResolver(params[0]);
-      if (inner && !isNullableOrNever(inner)) return new $Object(base.constructor, inner);
+    const firstArg = getTypeArgs(node)?.params?.[0];
+    if (firstArg) {
+      const inner = safeInnerType(innerResolver(firstArg));
+      if (inner) return new $Object(base.constructor, inner);
     }
     return base;
   }
@@ -192,8 +192,8 @@ export function createTypeAnnotationResolve({
         const { param, isRest } = effectiveParam(resolveParametersParams(node, scope)?.[0]);
         const resolved = param?.typeAnnotation ? resolveArgInner(param.typeAnnotation) : null;
         // `...xs: T[]` - annotation is `T[]`, the tuple element is T
-        const inner = isRest ? resolveInnerType(resolved) : resolved;
-        return inner && !isNullableOrNever(inner) ? new $Object('Array', inner) : new $Object('Array');
+        const inner = safeInnerType(isRest ? resolveInnerType(resolved) : resolved);
+        return new $Object('Array', inner);
       }
       // Flow: $Keys
       case 'Uppercase':
