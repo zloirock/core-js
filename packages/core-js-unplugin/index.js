@@ -1,6 +1,7 @@
 import { createUnplugin } from 'unplugin';
 import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import createPlugin from './internals/plugin.js';
+import { SFC_DEFAULT_JS_RE, SFC_LANG_RE, SFC_NON_JS_TYPE_RE } from './internals/sfc-shapes.js';
 
 // match JS/TS extensions anchored at end-of-path; `.d.ts` declaration files excluded.
 // Flow (.flow) is not listed - oxc-parser cannot parse Flow syntax.
@@ -8,19 +9,6 @@ import createPlugin from './internals/plugin.js';
 // extensions to upper-case (`.JS` / `.TSX`); lower-case-only match would skip those ids
 const JS_RE = /\.[cm]?[jt]sx?$/i;
 const DTS_RE = /\.d\.[cm]?tsx?$/i;
-// Vue / Svelte / Astro SFC sub-blocks travel as `App.vue?vue&type=script&lang=ts` /
-// `App.svelte?ts` / `App.astro?raw`. pattern accepts the same extension alphabet as JS_RE;
-// declaration-block `lang=d.ts` wouldn't match this pattern anyway (the `[cm]?[jt]sx?`
-// alternation demands a `[jt]` char, which `d.ts` doesn't have)
-// SFC tooling lowercases query keys/values by convention but `<script lang="TS">` mixed-case
-// authoring still produces e.g. `?vue&lang=TS&type=script` in some pipelines. case-insensitive
-// match so `lang=TS` / `type=SCRIPT` still classify correctly
-const SFC_LANG_RE = /[&?]lang=[cm]?[jt]sx?(?:[#&]|$)/i;
-const SFC_DEFAULT_JS_RE = /[&?](?:astro|svelte|vue)&type=(?:module|script)(?:[#&]|$)/i;
-// non-JS SFC sub-blocks: `<style lang="ts">` / `<template lang="ts">` exist but their bodies
-// are CSS / markup, not runnable JS. SFC_LANG_RE would accept them on extension match alone;
-// this gate keeps polyfill injection off the style / template halves of the file
-const SFC_NON_JS_TYPE_RE = /[&?]type=(?:style|template)(?:[#&]|$)/i;
 
 // Vite asset-import queries: `?url`, `?raw`, `?worker`, `?worklet`, `?inline` transform
 // the module into a URL / string / instantiated Worker etc; the resolved body isn't
