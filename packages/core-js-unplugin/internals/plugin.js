@@ -3,6 +3,7 @@ import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
   collectMutatedStaticMembers,
+  getMinifierSequenceDestructureExpressions,
   createTypeAnnotationChecker,
   detectCommonJS,
   hasTopLevelESM,
@@ -19,7 +20,12 @@ import {
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { buildOffsetToLine, mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
+import {
+  buildOffsetToLine,
+  buildOffsetToLineColumn,
+  mergeVisitors,
+  parseDisableDirectives,
+} from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
@@ -93,6 +99,80 @@ function neutralizeTSDeclareFunctions(node) {
     return;
   }
   for (const key of Object.keys(node)) neutralizeTSDeclareFunctions(node[key]);
+}
+
+// 1-based `line:col` from oxc's first label via shared offset->line+column helper.
+// null when label.start is missing or out of range so the caller can skip the location chunk
+export function formatLabelLocation(label, code) {
+  const pos = buildOffsetToLineColumn(code)(label?.start);
+  return pos && `${ pos.line }:${ pos.column }`;
+}
+
+function nonEmptyString(value) {
+  return typeof value === 'string' && value.length ? value : null;
+}
+
+// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R));` collapses a destructure
+// assignment into the SequenceExpression tail. the destructure-emitter gate peels only
+// Paren+TS so this shape silently bails. rewrite the ExpressionStatement's
+// SequenceExpression body as consecutive `;`-terminated statements in source text so
+// the standard destructure flow handles the inner assignment. side-effecting prefix
+// expressions stay in source order as preceding statements
+// shape detection shared with babel-plugin's `splitMinifierSequenceDestructure` pre-pass via
+// `getMinifierSequenceDestructureExpressions`. unplugin can't use babel's AST-level mutation
+// here (oxc AST positions must stay valid for downstream MagicString edits), so we rewrite
+// the text instead and re-parse the result
+function applyMinifierSequenceSplit(code, ast) {
+  let mutated = null;
+  for (const stmt of ast.body) {
+    const expressions = getMinifierSequenceDestructureExpressions(stmt);
+    if (!expressions) continue;
+    const splitText = expressions.map(e => `${ code.slice(e.start, e.end) };`).join('\n');
+    if (!mutated) mutated = new MagicString(code);
+    mutated.overwrite(stmt.start, stmt.end, splitText);
+  }
+  return mutated ? mutated.toString() : null;
+}
+
+// codeframe is preferred (ASCII pointer with line:col baked in); labels are the fallback so
+// a bundler-less caller still sees WHERE the syntax broke. helpMessage tails both paths
+function buildParseErrorBody(error, code) {
+  const tail = nonEmptyString(error.helpMessage);
+  const codeframe = nonEmptyString(error.codeframe);
+  if (codeframe) return tail ? `${ codeframe }\n${ tail }` : codeframe;
+  const label = error.labels?.[0];
+  const chunks = [];
+  if (label) {
+    const loc = formatLabelLocation(label, code);
+    if (loc) chunks.push(`at ${ loc }`);
+    const msg = nonEmptyString(label.message);
+    if (msg) chunks.push(msg);
+  }
+  if (tail) chunks.push(tail);
+  return chunks.join('\n');
+}
+
+function combineHeadAndBody(head, body) {
+  return body ? `${ head }\n${ body }` : head;
+}
+
+// warn-path: bundler's `this.warn` hook receives the message standalone, so the `[core-js]`
+// prefix lives inline
+export function formatParseErrorForWarn({ id, error, code }) {
+  return combineHeadAndBody(`[core-js] could not parse ${ id }: ${ error.message }`, buildParseErrorBody(error, code));
+}
+
+// throw-path: bundler-less callers rely on `runTransform`'s outer catch to stamp
+// `[core-js] [${ id }]` via `tagError`. self-prefixing would double-up the tag
+export function formatParseErrorForThrow({ error, code }) {
+  return combineHeadAndBody(`could not parse: ${ error.message }`, buildParseErrorBody(error, code));
+}
+
+// legacy entry kept for tests that exercise the flag dispatch; new callers pick the named helper
+export function formatParseErrorMessage({ id, error, code, withCoreJSPrefix }) {
+  return withCoreJSPrefix
+    ? formatParseErrorForWarn({ id, error, code })
+    : formatParseErrorForThrow({ error, code });
 }
 
 export default function createPlugin(options) {
@@ -202,11 +282,11 @@ export default function createPlugin(options) {
     code = stripLeadingBOMs(code);
 
     // peek-then-commit: read snapshot WITHOUT removing it so a sibling-plugin-injected
-    // `// core-js-disable-file` directive between pre and post (detected at line 257) can
-    // bail without leaking pre's deferred imports. `take()` below commits the snapshot
-    // only AFTER the disable check passes - bail paths leave the snapshot intact for a
-    // subsequent retry. `peekWithParse` encapsulates parse-cache reuse gating (sibling
-    // text mutation requires `postInput === code` byte-equality for AST position fidelity)
+    // `// core-js-disable-file` directive between pre and post (caught by `parseDisableDirectives`)
+    // can bail without leaking pre's deferred imports. `snapshots.take(id)` commits only AFTER
+    // the disable check passes - bail paths leave the snapshot intact for a subsequent retry.
+    // `peekWithParse` encapsulates parse-cache reuse gating (sibling text mutation requires
+    // `postInput === code` byte-equality for AST position fidelity)
     if (pass === 'post') {
       const stored = snapshots.peekWithParse(id, code);
       inherit = stored.snapshot;
@@ -228,18 +308,37 @@ export default function createPlugin(options) {
       // parse with oxc-parser (sync is the only available API)
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
       const parsed = parseSync(cleanId, code, { sourceType: isCJSFile ? 'script' : 'module' });
-      const fatalErrors = parsed.errors?.filter(e => e.severity === 'Error');
-      if (fatalErrors?.length) {
-        // surface the parse failure rather than silently passing the file through -
-        // bundlers will re-parse and fail, but the warning identifies core-js as the
-        // first thing that saw the issue and helps users locate the source location
-        const [first] = fatalErrors;
-        const message = `[core-js] could not parse ${ id }: ${ first.message }`;
-        if (typeof this?.warn === 'function') this.warn(message);
+      const [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
+      if (fatal) {
+        // emit a tagged breadcrumb so the user knows core-js saw the bad source first.
+        // bundler-less callers (esbuild post-resolve adapter, bun, direct tests) have no
+        // `warn` hook - throw so the breadcrumb propagates instead of silently dropping the file
+        if (typeof this?.warn !== 'function') throw new Error(formatParseErrorForThrow({ error: fatal, code }));
+        this.warn(formatParseErrorForWarn({ id, error: fatal, code }));
         return null;
       }
       ast = parsed.program;
       comments = parsed.comments;
+    }
+
+    // minifier-shape pre-pass: rewrite `(prefix, ..., destructure);` shapes into
+    // `prefix; ... ; destructure;` consecutive statements before any visitor walks the
+    // tree. re-parse so the rewritten text and AST positions line up. failure to reparse
+    // (shouldn't happen given the initial parse already validated the source) falls back
+    // to the original code+ast and the destructure-emitter gate continues to silently bail
+    let preSplitCode = null;
+    const splitCode = applyMinifierSequenceSplit(code, ast);
+    if (splitCode) {
+      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+      const reparsed = parseSync(cleanId, splitCode, { sourceType: isCJSFile ? 'script' : 'module' });
+      const [reparseFatal] = reparsed.errors?.filter(e => e.severity === 'Error') ?? [];
+      if (!reparseFatal) {
+        preSplitCode = code;
+        code = splitCode;
+        ast = reparsed.program;
+        comments = reparsed.comments;
+        typeResolvers.reset();
+      }
     }
 
     // estree-toolkit's scope crawler doesn't recognize `TSDeclareFunction` as a scope owner,
@@ -260,9 +359,9 @@ export default function createPlugin(options) {
     const firstNonDirective = ast.body.find(s => !isDirectiveStatement(s));
     const disabledLines = parseDisableDirectives({ comments, offsetToLine, firstStmtStart: firstNonDirective?.start, ast });
     if (disabledLines === true) return null; // entire file disabled
-    // commit the peeked snapshot now that disable-check passed. on the entire-file-disabled
-    // bail above, the snapshot stays in cache so a retry (sibling-plugin re-emit, watchChange
-    // re-run) can still consume it. parse-fail bails earlier (line 234+) are similarly safe
+    // commit the peeked snapshot now that disable-check passed. the entire-file-disabled bail
+    // and the fatal-parse bail both keep the snapshot in cache so a retry (sibling-plugin re-
+    // emit, watchChange re-run) can still consume it - `take()` only after both checks pass
     if (pass === 'post') snapshots.take(id);
 
     function isDisabled(node) {
@@ -439,6 +538,12 @@ export default function createPlugin(options) {
         // canonical on-disk form has a single BOM
         if (hasBOM && map?.sourcesContent?.[0] && map.sourcesContent[0].charCodeAt(0) !== 0xFEFF) {
           map.sourcesContent[0] = `\uFEFF${ map.sourcesContent[0] }`;
+        }
+        // pre-pass split rewrites the transform input internally; sourcesContent must reflect
+        // the user's ORIGINAL file (before split), not the post-split scratch buffer the rest
+        // of the pipeline operates on. devtools / chain consumers see the file on disk
+        if (preSplitCode !== null && map?.sourcesContent?.[0]) {
+          map.sourcesContent[0] = hasBOM ? `\uFEFF${ preSplitCode }` : preSplitCode;
         }
         return {
           code: ms.toString(),

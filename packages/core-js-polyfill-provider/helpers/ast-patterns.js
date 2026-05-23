@@ -1988,3 +1988,24 @@ export function walkPatternIdentifiers(node, visit) {
       break;
   }
 }
+
+// minifier-shape detection: `ExpressionStatement > [Paren?] > SequenceExpression > [..., last]`
+// where `last` (with optional Paren peel) is `AssignmentExpression` targeting an ObjectPattern
+// or ArrayPattern. shape collapses a destructure assignment into a SequenceExpression tail
+// (`(0, ({pat} = R));` minified form) which the destructure-emitter gate would otherwise miss.
+// returns the SequenceExpression's `expressions` array on match (callers split into per-expr
+// statements via adapter-specific mutation), null otherwise. peels both the outer wrapper and
+// the last expression's wrapper - oxc preserves ParenthesizedExpression on both slots, babel
+// parser drops them, so the peel is required for cross-parser symmetry
+export function getMinifierSequenceDestructureExpressions(stmt) {
+  if (stmt?.type !== 'ExpressionStatement') return null;
+  let expr = stmt.expression;
+  while (expr?.type === 'ParenthesizedExpression') expr = expr.expression;
+  if (expr?.type !== 'SequenceExpression') return null;
+  let last = expr.expressions.at(-1);
+  while (last?.type === 'ParenthesizedExpression') last = last.expression;
+  if (last?.type !== 'AssignmentExpression') return null;
+  const leftType = last.left?.type;
+  if (leftType !== 'ObjectPattern' && leftType !== 'ArrayPattern') return null;
+  return expr.expressions;
+}
