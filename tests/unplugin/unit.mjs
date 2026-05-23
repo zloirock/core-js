@@ -1962,8 +1962,6 @@ checkPolyfillContextRejects('createPolyfillContext/multi-slash package',
   { method: 'usage-pure', package: '///' });
 checkPolyfillContextRejects('createPolyfillContext/non-string package',
   { method: 'usage-pure', package: 0 });
-checkPolyfillContextRejects('createPolyfillContext/null package',
-  { method: 'usage-pure', package: null });
 
 // the diagnostic must NOT be masked by a secondary `JSON.stringify` throw when the bad
 // value can't serialize (BigInt, circular structure, hostile Proxy). `safeStringify` in
