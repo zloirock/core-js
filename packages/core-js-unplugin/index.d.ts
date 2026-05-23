@@ -12,7 +12,7 @@ type Mode = 'es' | 'stable' | 'actual' | 'full';
 type Targets = CompatOptions["targets"];
 
 interface BaseOptions {
-  /** used `core-js` version, by default 'node_modules' (auto-detected from installed core-js). When specified explicitly, the minor component is required, e.g. '4.1' */
+  /** used `core-js` version. Special values: `'node_modules'` (default; auto-detect from installed core-js); `'package.json'` (read from CWD `package.json`'s `dependencies` / `devDependencies` / `peerDependencies`). When specified as an explicit SemVer string, the minor component is required, e.g. `'4.1'` */
   version?: string | null;
   /** entry point layer: 'es', 'stable', 'actual', or 'full', by default 'actual' */
   mode?: Mode | null;
