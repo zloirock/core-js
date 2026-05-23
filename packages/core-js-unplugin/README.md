@@ -37,9 +37,9 @@ export default {
 
 ```js
 // webpack.config.js
-const coreJS = require('@core-js/unplugin/webpack');
+import coreJS from '@core-js/unplugin/webpack';
 
-module.exports = {
+export default {
   plugins: [coreJS({
     method: 'usage-global',
     version: 'node_modules',
@@ -81,9 +81,9 @@ await esbuild.build({
 
 ```js
 // rspack.config.js
-const coreJS = require('@core-js/unplugin/rspack');
+import coreJS from '@core-js/unplugin/rspack';
 
-module.exports = {
+export default {
   plugins: [coreJS({
     method: 'usage-global',
     version: 'node_modules',
