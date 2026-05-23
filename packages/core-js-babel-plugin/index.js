@@ -8,6 +8,7 @@ import {
   isInUpdateOperand,
   isThisReceiver,
   collectMutatedStaticMembers,
+  getMinifierSequenceDestructureExpressions,
   isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
@@ -42,6 +43,17 @@ import {
 import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
+
+// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R));` collapses a destructure
+// assignment into the last slot of a SequenceExpression - the destructure-emitter gate
+// would silently bail without this split. shape detection is shared with unplugin's
+// text-rewrite path via `getMinifierSequenceDestructureExpressions`
+function splitMinifierSequenceDestructure(programPath, t) {
+  for (const bodyPath of programPath.get('body')) {
+    const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
+    if (expressions) bodyPath.replaceWithMultiple(expressions.map(e => t.expressionStatement(e)));
+  }
+}
 
 export default function plugin(api, options) {
   const { types: t, caller } = api;
@@ -617,6 +629,13 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        // minifier-shape `(prefixExpr, ..., ({pat} = R));` collapses to a single
+        // ExpressionStatement-wrapped SequenceExpression. `canTransformDestructuring` peels
+        // only Paren+TS so the destructure rewrite silently bails on this shape. splitting
+        // the SequenceExpression into consecutive ExpressionStatements before any usage /
+        // entry visitor sees the program makes the destructure visible to the standard flow,
+        // and side-effecting prefix expressions stay in source order as preceding statements
+        splitMinifierSequenceDestructure(path, t);
         // pre-walk for monkey-patches. cheap single AST traversal; result consulted by
         // `usagePureCallback` before substituting `Object.key` reads. internal core-js
         // files don't need the gate (they manage their own globals)
