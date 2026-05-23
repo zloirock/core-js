@@ -78,18 +78,30 @@ const SIBLING_LEXICAL_DECL_KINDS = new Set([
 
 // pure helper: text-range covering `propNode` in `props` PLUS its adjacent comma so the
 // resulting source stays a valid ObjectPattern after splicing the range out. shapes:
-//   - first prop with siblings: [propStart, nextSiblingStart)  -> drops trailing `, `
-//   - last/middle prop: [prevSiblingEnd, propEnd)              -> drops leading `, `
-//   - lone prop: [propStart, propEnd)                          -> empties the pattern
-// returns null when prop isn't in the list (orphaned mid-traversal) or the range is empty
+//   - any prop with a NEXT sibling: [propStart, nextSiblingStart)  -> drops trailing `, `
+//   - last prop in a multi-prop list: [prevSiblingEnd, propEnd)    -> drops leading `, `
+//   - lone prop: [propStart, propEnd)                              -> empties the pattern
+// uniform "trailing-comma except last" rule keeps adjacent removals non-overlapping:
+// idx=0 takes [A.start, B.start), idx=1 takes [B.start, C.start), etc. - no two ranges
+// share the same comma. legacy "idx=0 trailing, idx>0 leading" rule fought over the
+// middle comma when two adjacent props were both removed (`{from, of, [SYM]:x}` with
+// from+of both polyfilled), tripping `transform-queue: partial overlap`
 function getPropRemovalRange(props, propNode) {
   const idx = props.indexOf(propNode);
   if (idx === -1) return null;
-  const start = idx === 0 ? propNode.start : props[idx - 1].end;
-  const end = idx === 0 && props.length > 1 ? props[idx + 1].start : propNode.end;
+  if (props.length === 1) return { start: propNode.start, end: propNode.end };
+  const hasNext = idx < props.length - 1;
+  const start = hasNext ? propNode.start : props[idx - 1].end;
+  const end = hasNext ? props[idx + 1].start : propNode.end;
   return start < end ? { start, end } : null;
 }
 
+// destructure-emit factory: orchestrates 20+ helpers across handleDestructuringPure /
+// applyDestructuringTransforms / cascade / synth-swap pipelines, each with their own
+// dedicated state. extracting into sub-factories would split the shared `pendingDestructuring`
+// / `pendingSynthSwaps` / `pendingFlatten` / `pendingCascade` accumulators across module
+// boundaries, which is what the single-factory shape avoids
+/* eslint-disable max-statements -- factory orchestrator, see comment above */
 export function createDestructureEmitter({
   estreeAdapter,
   injectPureImport,
@@ -147,6 +159,13 @@ export function createDestructureEmitter({
   // transforms.add registration until applyDestructuringTransforms - by then scope-tracker
   // has full state for `consumeRefBindingsInRange`
   const pendingFlatten = [];
+  // mirror queue for AssignmentExpression cascade. same rationale: cascade fires DURING
+  // traverse on the first polyfilled prop (must skip-mark before sibling visit), but a
+  // sibling visit on the RHS may later register `var _ref;` inserts inside the SE-prefix
+  // IIFE body that would land inside our [stmtStart, stmtEnd) overwrite. deferring
+  // transforms.add to flush time lets us drain those inserts and bake them into the
+  // pre-segment source first
+  const pendingCascade = [];
   // cascade-rewrite cache for AssignmentExpression hosts: stores `{result, unusedIds}`
   // computed once via `rewriteDeclarator` over a synthetic mock-declarator. unusedIds
   // are captured by tracking `injector.generateUnusedName()` calls during the first plan
@@ -243,15 +262,36 @@ export function createDestructureEmitter({
     walkAstNodes({ root: assignNode.left, visit: node => skippedNodes.add(node) });
     const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
     skipReceiverTailSubtree(receiverTail);
+    // defer render + transforms.add: scope-tracker may register `var _ref;` inside the
+    // SE-prefix IIFE body during sibling visits AFTER this point. flushPendingCascade
+    // drains those inserts and bakes them into per-prefix nodeSrc before adding the
+    // statement-range overwrite, keeping the transform queue overlap-free
+    pendingCascade.push({ stmtNode, stmtPath, outerSequencePrefix, seExprs, unusedIds, result });
+    return true;
+  }
+
+  function renderCascadeSegments({ outerSequencePrefix, seExprs, unusedIds, result }, drainedRefs) {
     const segments = [];
-    for (const expr of outerSequencePrefix) segments.push(`${ nodeSrc(expr) };`);
-    for (const expr of seExprs) segments.push(`${ nodeSrc(expr) };`);
+    // outer SE wrappers (minifier-shape `(prefix, ({...}=R))` lift) AND RHS-internal SE
+    // prefix exprs share the same emit shape: nodeSrc with ref-binding splices baked in.
+    // Iteration order keeps user-visible evaluation order: outer prefix first, then RHS
+    // prefix, then the destructure body, then per-key polyfill assigns
+    for (const expr of outerSequencePrefix) segments.push(`${ bakeRefSplicesInRange(expr, drainedRefs) };`);
+    for (const expr of seExprs) segments.push(`${ bakeRefSplicesInRange(expr, drainedRefs) };`);
     if (unusedIds.length) segments.push(`var ${ unusedIds.join(', ') };`);
     if (result.preservedSrc !== null) segments.push(`(${ result.preservedSrc });`);
     for (const e of result.extractions) segments.push(`${ e.decl };`);
-    transforms.add(stmtNode.start, stmtNode.end,
-      wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, stmtPath));
-    return true;
+    return segments;
+  }
+
+  function flushPendingCascade() {
+    for (const entry of pendingCascade) {
+      const drainedRefs = scopeTracker.consumeRefBindingsInRange(entry.stmtNode.start, entry.stmtNode.end);
+      const segments = renderCascadeSegments(entry, drainedRefs);
+      transforms.add(entry.stmtNode.start, entry.stmtNode.end,
+        wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, entry.stmtPath));
+    }
+    pendingCascade.length = 0;
   }
 
   // bake scope-tracker ref-binding inserts (e.g. `var _ref;` anchored inside an SE-prefix
@@ -1493,10 +1533,12 @@ export function createDestructureEmitter({
   // share `pendingDestructuring` / `pendingSynthSwaps` accumulators; differ only in the
   // shape of the AST anchor being emitted into. final flush via the host's queue.apply()
   function applyDestructuringTransforms() {
-    // drain deferred flatten payloads first - they consume scope-tracker bindings within
-    // each preserved declarator's range, so subsequent scopeTracker.applyTransforms won't
-    // queue inserts that fall inside the flatten overwrite (MagicString chunk-split throw)
+    // drain deferred flatten / cascade payloads first - they consume scope-tracker bindings
+    // within each preserved declarator / statement range, so subsequent
+    // `scopeTracker.applyTransforms` won't queue inserts that fall inside the overwrite
+    // (MagicString chunk-split throw)
     flushPendingFlatten();
+    flushPendingCascade();
     const byStatement = new Map();
     for (const [, info] of pendingDestructuring) {
       if (!info.declPath?.node || !info.declaratorPath?.node) continue;
@@ -1563,6 +1605,18 @@ export function createDestructureEmitter({
         const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
         let initTransformed = (initStart !== undefined && initEnd !== undefined
             ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
+        // drain `var _ref;` ref-binding inserts anchored inside [initStart, initEnd) so the
+        // replaceNode-spanning overwrite below stays queue-safe. inserts come from inner
+        // instance-method polyfills (`[1].at(0)` in an IIFE-bodied init) that landed inside
+        // the init range during sibling traversal. without the bake, `scopeTracker.apply
+        // Transforms` later queues the `_ref` insert inside our [replaceNode.start, end)
+        // overwrite and MagicString rejects it as a chunk-split violation
+        if (initStart !== undefined && initEnd !== undefined) {
+          const refsInInit = scopeTracker.consumeRefBindingsInRange(initStart, initEnd);
+          if (refsInInit.length && initTransformed === initSrc) {
+            initTransformed = spliceInRange(initSrc, initStart, refsInInit);
+          }
+        }
         for (const e of entries) {
           if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
         }

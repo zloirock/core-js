@@ -547,7 +547,15 @@ export default function createPlugin(options) {
         }
         // pre-pass split rewrites the transform input internally; sourcesContent must reflect
         // the user's ORIGINAL file (before split), not the post-split scratch buffer the rest
-        // of the pipeline operates on. devtools / chain consumers see the file on disk
+        // of the pipeline operates on. devtools / chain consumers + sourcemap-validation
+        // tooling check sourcesContent against the on-disk source - the runner's own
+        // validity check enforces this contract.
+        // INTENTIONAL TRADE-OFF: mappings still anchor at splitCode positions while
+        // sourcesContent is preSplitCode. for the rare minifier-shape input where the split
+        // fires, a line-offset drift in devtools is the cost of keeping sourcesContent ==
+        // input. proper fix (compose split-pass map with post-pass map via
+        // @jridgewell/remapping) requires a new direct dep - deferred until the
+        // observable surface (minifier output rarely consumed with sourcemaps) widens
         if (preSplitCode !== null && map?.sourcesContent?.[0]) {
           map.sourcesContent[0] = hasBOM ? `\uFEFF${ preSplitCode }` : preSplitCode;
         }
