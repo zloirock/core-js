@@ -21,6 +21,7 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
 import {
   buildOffsetToLine,
+  buildOffsetToLineColumn,
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
@@ -393,6 +394,58 @@ check('isCoreJSFile/core-js root index', isCoreJSFile('node_modules/core-js/inde
 {
   const offsetToLine = buildOffsetToLine('a\nb\nc\nd');
   check('buildOffsetToLine/line 4', offsetToLine(6), 4);
+}
+
+// --- buildOffsetToLineColumn ---
+
+// 1-based line + column; both reset at every line terminator. shared lineStarts table
+// drives O(log n) lookup, so this is the canonical helper for diagnostic position output
+{
+  const pos = buildOffsetToLineColumn('foo\nbar');
+  check('buildOffsetToLineColumn/LF line 1 col 1', JSON.stringify(pos(0)), '{"line":1,"column":1}');
+  check('buildOffsetToLineColumn/LF line 1 last char', JSON.stringify(pos(2)), '{"line":1,"column":3}');
+  check('buildOffsetToLineColumn/LF line 2 col 1', JSON.stringify(pos(4)), '{"line":2,"column":1}');
+}
+
+// CRLF: column resets after the LF half (CR + LF still counted as one terminator)
+{
+  const pos = buildOffsetToLineColumn('foo\r\nbar');
+  check('buildOffsetToLineColumn/CRLF line 2 col 1', JSON.stringify(pos(5)), '{"line":2,"column":1}');
+}
+
+// U+2028 / U+2029 advance the line just like LF. literal escape sequences in source
+// are forbidden by `es/no-json-superset`; build via `String.fromCharCode` so the file
+// stays ASCII while the runtime string still carries the ES line-terminator code points
+{
+  const ls = String.fromCharCode(0x2028);
+  const ps = String.fromCharCode(0x2029);
+  const pos = buildOffsetToLineColumn(`a${ ls }b${ ps }c`);
+  check('buildOffsetToLineColumn/U+2028 line 2', JSON.stringify(pos(2)), '{"line":2,"column":1}');
+  check('buildOffsetToLineColumn/U+2029 line 3', JSON.stringify(pos(4)), '{"line":3,"column":1}');
+}
+
+// offset === code.length: valid EOF anchor; offset must NOT report past-EOF as out-of-range
+{
+  const pos = buildOffsetToLineColumn('abc');
+  check('buildOffsetToLineColumn/EOF anchor', JSON.stringify(pos(3)), '{"line":1,"column":4}');
+}
+
+// non-integer / out-of-range offsets return null so callers can skip the location chunk
+{
+  const pos = buildOffsetToLineColumn('abc');
+  check('buildOffsetToLineColumn/null offset', pos(null), null);
+  check('buildOffsetToLineColumn/undefined offset', pos(undefined), null);
+  check('buildOffsetToLineColumn/negative offset', pos(-1), null);
+  check('buildOffsetToLineColumn/past-EOF offset', pos(10), null);
+  check('buildOffsetToLineColumn/fractional offset', pos(1.5), null);
+  check('buildOffsetToLineColumn/NaN offset', pos(NaN), null);
+}
+
+// empty source: only offset 0 is in range and maps to line 1 col 1
+{
+  const pos = buildOffsetToLineColumn('');
+  check('buildOffsetToLineColumn/empty offset 0', JSON.stringify(pos(0)), '{"line":1,"column":1}');
+  check('buildOffsetToLineColumn/empty past-EOF', pos(1), null);
 }
 
 // --- mergeVisitors ---
