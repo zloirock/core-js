@@ -41,11 +41,15 @@ QUnit.test('Object.getOwnPropertySymbols', assert => {
   assert.deepEqual(Object.getOwnPropertySymbols(obj), [s]);
 });
 
+// test pins Object.is on NaN,NaN to exercise the Object.is polyfill (Number.isNaN has its
+// own dedicated test); suppress `math/prefer-number-is-nan` rewrite here
+/* eslint-disable math/prefer-number-is-nan -- see above */
 QUnit.test('Object.is', assert => {
-  assert.true(Number.isNaN(NaN));
+  assert.true(Object.is(NaN, NaN));
   assert.false(Object.is(0, -0));
   assert.true(Object.is(1, 1));
 });
+/* eslint-enable math/prefer-number-is-nan -- end of test-pinned block */
 
 QUnit.test('Object.values', assert => {
   assert.deepEqual(Object.values({ a: 1, b: 2 }), [1, 2]);
