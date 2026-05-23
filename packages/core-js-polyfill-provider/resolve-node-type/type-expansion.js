@@ -542,7 +542,10 @@ export function createTypeExpansion({
   }
 
   function isTemplateLiteralExtend(node) {
-    return peelTSParenthesized(node)?.type === 'TSTemplateLiteralType';
+    // cross-parser: oxc emits TSTemplateLiteralType; babel-parser wraps TemplateLiteral
+    // inside TSLiteralType. delegate to the shared `templateLiteralTypeParts` parser
+    // which recognises both shapes - mirrors `matchesConditionalPattern` at line 240
+    return templateLiteralTypeParts(peelTSParenthesized(node)) !== null;
   }
 
   // raw AST shape predicate: `Array` / `Promise` / `Set` ... without `<...>` typeArguments
