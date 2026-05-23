@@ -278,16 +278,35 @@ export function createBindingAnalysis({
         NewExpression(p) {
           const callee = unwrapRuntimeExpr(p.node.callee);
           if (!callee || callee.type !== 'Identifier') return;
-          const { parent } = p;
+          // peel transparent expression wrappers (ParenthesizedExpression in oxc, TS-cast /
+          // non-null / satisfies / as in babel) walking up parentPath so `const c = (new C())`
+          // / `const c = new C() as C` resolve their effective parent to the VariableDeclarator.
+          // without the peel, parent type sees the wrapper, all three flags collapse to false,
+          // and isLeakPosition forces collectClassInstanceClosure to bail, dropping the field-
+          // flow narrow for `c.method()`
+          let effectivePath = p;
+          while (effectivePath.parentPath?.node
+            && (effectivePath.parentPath.node.type === 'ParenthesizedExpression'
+              || TS_EXPR_WRAPPERS.has(effectivePath.parentPath.node.type))
+            && effectivePath.parentPath.node.expression === effectivePath.node) {
+            effectivePath = effectivePath.parentPath;
+          }
+          const effective = effectivePath.node;
+          const parent = effectivePath.parentPath?.node;
           // classify parent context so consumers decide leak / declarator-init / chain
           // semantics without re-walking. `isMemberRecv` carries the parent MemberExpression
           // for `new C().X(...)` chain detection (the temporal-bound consumer needs both
           // the call's start AND that the `.X(...)` follows the new-expression)
-          const isDeclaratorInit = parent?.type === 'VariableDeclarator' && parent.init === p.node;
-          const isExprStmt = parent?.type === 'ExpressionStatement';
-          const isMemberRecv = parent?.type === 'MemberExpression' && parent.object === p.node;
+          const isDeclaratorInit = parent?.type === 'VariableDeclarator' && parent.init === effective;
+          const isExprStmt = parent?.type === 'ExpressionStatement' && parent.expression === effective;
+          const isMemberRecv = parent?.type === 'MemberExpression' && parent.object === effective;
           pushByKey(newExprByName, callee.name, {
             path: p,
+            // wrapperPath is the outermost transparent-wrapper path (or `p` when no wrappers
+            // present). consumers use it to reach the effective declarator/member-receiver
+            // parent without re-walking. `effectivePath !== p` is the only signal that peel
+            // changed the position, but consumers can read `wrapperPath.parentPath` uniformly
+            wrapperPath: effectivePath,
             isDeclaratorInit,
             isLeakPosition: !isDeclaratorInit && !isExprStmt && !isMemberRecv,
             isMemberRecv,

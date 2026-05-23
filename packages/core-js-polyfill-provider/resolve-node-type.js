@@ -1821,6 +1821,22 @@ function createResolveNodeType(babelNodeType, t, {
     return withLookupPath(path, () => resolveNodeTypeInternal(path, node));
   }
 
+  // explicit-annotation override of expression-derived Identifier resolution. fires only
+  // when the init walk produced something AND the binding has a declared annotation:
+  //   - refinesInner: same outer, init lacks inner, annotation supplies it
+  //     (`const s: Set<string> = new Set()`)
+  //   - overridesNullish: init resolved to `$Primitive('null'|'undefined')`, typically from
+  //     `return null as any` / `return undefined as any` body inference on an `any`-returning
+  //     callee. TS treats `const r: T = init` as type T regardless of init's static type;
+  //     the scalar carries no info, so the annotation wins
+  function preferAnnotationOverExpression(result, annotated) {
+    if (!annotated) return result;
+    const refinesInner = !result.inner && annotated.inner && typesEqual(result, annotated);
+    const overridesNullish = annotated.constructor && result.primitive
+      && (result.type === 'null' || result.type === 'undefined');
+    return refinesInner || overridesNullish ? annotated : result;
+  }
+
   function resolveNodeTypeInternal(path, node) {
     let result;
     try {
@@ -1829,12 +1845,8 @@ function createResolveNodeType(babelNodeType, t, {
         // guards win over the raw binding type: for open annotations and unannotated
         // bindings they yield the most specific type, otherwise we fall back.
         result = resolveTypeGuardNarrowing(path) || resolveBindingType(path);
-      } else if (!result.inner && t.isIdentifier(path.node)) {
-        // when runtime resolution determined the outer type but not the inner type (e.g. `new Set()` -> Set),
-        // check if a type annotation provides a richer type with the same outer but known inner
-        // (e.g. `const s: Set<string> = new Set()` -> Set<string>)
-        const annotated = resolveBindingType(path);
-        if (annotated?.inner && typesEqual(result, annotated)) result = annotated;
+      } else if (t.isIdentifier(path.node)) {
+        result = preferAnnotationOverExpression(result, resolveBindingType(path));
       }
       // $Primitive('unknown') (e.g. from `+` with unresolved operands) is truthy but imprecise -
       // allow typeof / instanceof guards to refine it to a concrete type
