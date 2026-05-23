@@ -377,15 +377,22 @@ export function createAwaited({
   // accepted on either side - cb extraction routed through `classThenCbParam` /
   // `interfaceThenCbParam`, both ending in `cbFirstArgAnnotation` for the inner value type
   function peelUserThenable(annotation, scope) {
-    if (annotation?.type !== 'TSTypeReference' || annotation.typeName?.type !== 'Identifier') return null;
+    // accept qualified-name TSTypeReference (`NS.MyThenable<T>`): downstream
+    // `findClassPathForTypeReference` and `getTypeMembers` both resolve qualified
+    // segments via `typeRefSegments`, so the Identifier-only guard was over-restrictive
+    if (annotation?.type !== 'TSTypeReference') return null;
     const classPath = findClassPathForTypeReference(annotation, scope);
     if (classPath) {
       const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
       const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
-      if (!found) return null;
-      const valueAnn = cbFirstArgAnnotation(classThenCbParam(found.member));
-      if (!valueAnn) return null;
-      return resolveTypeAnnotation(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
+      if (found) {
+        const valueAnn = cbFirstArgAnnotation(classThenCbParam(found.member));
+        if (valueAnn) return resolveTypeAnnotation(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
+      }
+      // class body lacks `then` - fall through to interface-path because TS
+      // declaration-merging puts `then` on a merged `interface Foo {}` companion.
+      // `getTypeMembers` (collectClassLikeMembers) includes merged-iface members
+      // alongside class body, so the structural peel catches the merged-only shape
     }
     const members = getTypeMembers({ objectType: annotation, scope });
     const thenMember = members?.find(m => keyMatchesName(m.key, 'then'));
