@@ -207,18 +207,114 @@ doesNotThrow('validateOptions/additionalPackages valid array',
 throwsWith('validateOptions/additionalPackages non-array',
   () => validateOptions({ ...validBase, additionalPackages: 'foo' }),
   '`additionalPackages`');
+// labels point to the failing index so users of long lists get a direct pointer
+// to the bad entry instead of a generic `[*]` wildcard
 throwsWith('validateOptions/additionalPackages contains non-string',
   () => validateOptions({ ...validBase, additionalPackages: ['ok', 42] }),
-  '`additionalPackages[*]`');
+  '`additionalPackages[1]`');
 throwsWith('validateOptions/additionalPackages contains undefined',
   () => validateOptions({ ...validBase, additionalPackages: ['ok', undefined] }),
-  '`additionalPackages[*]`');
+  '`additionalPackages[1]`');
 throwsWith('validateOptions/additionalPackages contains empty string',
   () => validateOptions({ ...validBase, additionalPackages: ['ok', ''] }),
-  '`additionalPackages[*]`');
+  '`additionalPackages[1]`');
 throwsWith('validateOptions/additionalPackages contains pure slash',
   () => validateOptions({ ...validBase, additionalPackages: ['ok', '/'] }),
-  '`additionalPackages[*]`');
+  '`additionalPackages[1]`');
+// first bad entry decides the index; later bad entries are silent until the first is fixed
+throwsWith('validateOptions/additionalPackages first bad item wins index',
+  () => validateOptions({ ...validBase, additionalPackages: [42, ''] }),
+  '`additionalPackages[0]`');
+// index reflects position past valid prefix entries, not the count of bad ones
+throwsWith('validateOptions/additionalPackages index past long prefix',
+  () => validateOptions({ ...validBase, additionalPackages: ['a', 'b', 'c', 'd', 42] }),
+  '`additionalPackages[4]`');
+
+// all-good long list (size > 1) - confirm validator iterates the whole array without bailing
+doesNotThrow('validateOptions/additionalPackages all-good long list', () => validateOptions({
+  ...validBase,
+  additionalPackages: ['@scope/a', '@scope/b', '@scope/c', '@scope/d', '@scope/e'],
+}));
+
+// all-bad array - first-bad-wins behavior holds even when every entry is invalid
+throwsWith('validateOptions/additionalPackages all bad - first wins',
+  () => validateOptions({ ...validBase, additionalPackages: [42, '', '/', null] }),
+  '`additionalPackages[0]`');
+
+// single-element bad array - confirm `[0]` index format (no off-by-one)
+throwsWith('validateOptions/additionalPackages single-element bad',
+  () => validateOptions({ ...validBase, additionalPackages: [42] }),
+  '`additionalPackages[0]`');
+throwsWith('validateOptions/additionalPackages single-element empty string',
+  () => validateOptions({ ...validBase, additionalPackages: [''] }),
+  '`additionalPackages[0]`');
+throwsWith('validateOptions/additionalPackages single-element pure slash',
+  () => validateOptions({ ...validBase, additionalPackages: ['/'] }),
+  '`additionalPackages[0]`');
+
+// non-array shape (number) bails at the outer Array.isArray check, NOT the index-aware
+// per-item loop - the label stays the bare `additionalPackages` without a `[i]` suffix
+throwsWith('validateOptions/additionalPackages non-array number label has no index',
+  () => {
+    try { validateOptions({ ...validBase, additionalPackages: 42 }); } catch (error) {
+      // re-throw if the label has a stray `[` (would mean the inner loop fired)
+      if (/additionalPackages\[/.test(error.message)) throw new Error(`unexpected index label: ${ error.message }`);
+      throw error;
+    }
+  },
+  '`additionalPackages`');
+
+// --- validateOptions: cross-section interactions ---
+
+// each section validates independently; mixing valid + invalid across fields surfaces
+// the first failing field in validation order. include is checked BEFORE additionalPackages,
+// so a bad include element wins over a bad additionalPackages element
+throwsWith('validateOptions/include-bad + additionalPackages-bad - include wins',
+  () => validateOptions({
+    ...validBase,
+    include: [42],
+    additionalPackages: [42],
+  }),
+  '`include[*]`');
+
+// exclude is also checked before additionalPackages
+throwsWith('validateOptions/exclude-bad + additionalPackages-bad - exclude wins',
+  () => validateOptions({
+    ...validBase,
+    exclude: [{}],
+    additionalPackages: [''],
+  }),
+  '`exclude[*]`');
+
+// valid include + valid exclude + valid additionalPackages - no error (all-good integration)
+doesNotThrow('validateOptions/all three list fields valid',
+  () => validateOptions({
+    ...validBase,
+    include: ['es.array.at'],
+    exclude: ['web.url'],
+    additionalPackages: ['@scope/extra'],
+  }));
+
+// valid include + valid additionalPackages + invalid targets - targets is validated last,
+// so it surfaces only when the earlier sections pass
+throwsWith('validateOptions/lists ok + targets bad',
+  () => validateOptions({
+    ...validBase,
+    include: ['es.array.at'],
+    additionalPackages: ['@scope/extra'],
+    targets: () => ({}),
+  }),
+  '`targets`');
+
+// package bad + additionalPackages bad: package is checked first within the package
+// pair so its label wins. confirms isolation of single-vs-array package validators
+throwsWith('validateOptions/package-bad + additionalPackages-bad - package wins',
+  () => validateOptions({
+    ...validBase,
+    package: 42,
+    additionalPackages: [42],
+  }),
+  '`package`');
 
 // --- validateOptions: targets ---
 
@@ -297,10 +393,59 @@ const orderKnownKnown = polyfillOrderComparator('es.array.at', 'web.url.construc
 checkTruthy('polyfillOrderComparator/known < known (registry-driven)', orderKnownKnown < 0,
   `expected es.array.at < web.url.constructor, got ${ orderKnownKnown }`);
 
-// unknown vs unknown: lex comparison fallback (both have Infinity order)
+// unknown vs unknown: lex comparison fallback (both miss the registry)
 check('polyfillOrderComparator/unknown < unknown lex', polyfillOrderComparator('aaa.unknown', 'zzz.unknown'), -1);
 check('polyfillOrderComparator/unknown > unknown lex', polyfillOrderComparator('zzz.unknown', 'aaa.unknown'), 1);
 check('polyfillOrderComparator/unknown === unknown', polyfillOrderComparator('aaa.unknown', 'aaa.unknown'), 0);
+
+// known always precedes unknown regardless of lex order - the split is what keeps the
+// comparator a strict weak order. prior version fell through to lex on any non-finite
+// delta, which let mixed-group lex break transitivity
+check('polyfillOrderComparator/known before lex-smaller unknown',
+  polyfillOrderComparator('web.url.constructor', 'aaa.unknown') < 0, true);
+check('polyfillOrderComparator/lex-smaller unknown after known',
+  polyfillOrderComparator('aaa.unknown', 'web.url.constructor') > 0, true);
+
+// transitivity: a < b, b < c => a < c across mixed known / unknown inputs.
+// the failure mode the fix targets: known `web.url.constructor` < known `es.array.at` (by rank
+// since es.* precedes web.* would actually flip - keep the example direction-agnostic by reading
+// pairwise results). assert the transitive closure holds rather than fixing a literal triple
+{
+  const sample = ['es.array.at', 'web.url.constructor', 'aaa.unknown', 'zzz.unknown'];
+  let transitive = true;
+  let counterExample = null;
+  for (const a of sample) for (const b of sample) for (const c of sample) {
+    const ab = polyfillOrderComparator(a, b);
+    const bc = polyfillOrderComparator(b, c);
+    const ac = polyfillOrderComparator(a, c);
+    if (ab < 0 && bc < 0 && !(ac < 0)) {
+      transitive = false;
+      counterExample = { a, b, c, ab, bc, ac };
+    }
+  }
+  checkTruthy('polyfillOrderComparator/transitive on mixed inputs', transitive,
+    `counter-example: ${ JSON.stringify(counterExample) }`);
+}
+
+// antisymmetry: cmp(a, b) and cmp(b, a) have opposite signs (or both zero)
+{
+  const sample = ['es.array.at', 'web.url.constructor', 'aaa.unknown', 'zzz.unknown', 'es.object.entries'];
+  let antisymmetric = true;
+  for (const a of sample) for (const b of sample) {
+    const ab = polyfillOrderComparator(a, b);
+    const ba = polyfillOrderComparator(b, a);
+    if (Math.sign(ab) !== -Math.sign(ba)) antisymmetric = false;
+  }
+  checkTruthy('polyfillOrderComparator/antisymmetric on mixed inputs', antisymmetric);
+}
+
+// reflexivity: a known entry compared with itself yields 0 (same registry rank)
+check('polyfillOrderComparator/known reflexive zero',
+  polyfillOrderComparator('es.array.at', 'es.array.at'), 0);
+
+// reflexivity for unknown names too - lex fallback's `a === b` branch
+check('polyfillOrderComparator/unknown reflexive zero',
+  polyfillOrderComparator('xyz.unknown', 'xyz.unknown'), 0);
 
 // --- sortByPolyfillOrder ---
 
@@ -310,11 +455,11 @@ check('polyfillOrderComparator/unknown === unknown', polyfillOrderComparator('aa
   check('sortByPolyfillOrder/registry order', sorted[0], 'es.array.at');
 }
 
-// unknown modules: comparator falls through to lex sort vs everything (NaN guard on
-// known-vs-unknown). within unknowns alone, lex order applies; known-vs-unknown can
-// interleave based on lex - documented in `polyfillOrderComparator` comment
+// known modules cluster before unknown ones; within each group internal ordering holds
 {
-  const sorted = sortByPolyfillOrder(['zzz.unknown', 'es.array.at', 'aaa.unknown']);
+  const sorted = sortByPolyfillOrder(['zzz.unknown', 'es.array.at', 'aaa.unknown', 'web.url.constructor']);
+  check('sortByPolyfillOrder/known cluster before unknown',
+    sorted.indexOf('web.url.constructor') < sorted.indexOf('aaa.unknown'), true);
   check('sortByPolyfillOrder/unknown aaa before zzz',
     sorted.indexOf('aaa.unknown') < sorted.indexOf('zzz.unknown'), true);
 }
@@ -331,6 +476,78 @@ check('polyfillOrderComparator/unknown === unknown', polyfillOrderComparator('aa
   const src = ['web.url.constructor', 'es.array.at'];
   sortByPolyfillOrder(src);
   check('sortByPolyfillOrder/non-mutating', JSON.stringify(src), '["web.url.constructor","es.array.at"]');
+}
+
+// empty input passes through unchanged (no-op edge case)
+check('sortByPolyfillOrder/empty array', JSON.stringify(sortByPolyfillOrder([])), '[]');
+
+// single element passes through (no comparator invocation at all)
+check('sortByPolyfillOrder/single element known', JSON.stringify(sortByPolyfillOrder(['es.array.at'])), '["es.array.at"]');
+check('sortByPolyfillOrder/single element unknown', JSON.stringify(sortByPolyfillOrder(['zzz.unknown'])), '["zzz.unknown"]');
+
+// all-unknown input -> pure lexicographic order (every element falls through the
+// known/unknown split into the lex branch)
+{
+  const sorted = sortByPolyfillOrder(['zzz.unknown', 'aaa.unknown', 'mmm.unknown']);
+  check('sortByPolyfillOrder/all unknown pure lex',
+    JSON.stringify(sorted), '["aaa.unknown","mmm.unknown","zzz.unknown"]');
+}
+
+// all-known input -> stable registry-rank order; integration check that idempotence
+// holds across the full pipeline (not just two elements)
+{
+  const sorted = sortByPolyfillOrder([
+    'web.url.constructor',
+    'es.object.entries',
+    'es.array.at',
+    'es.array.from',
+  ]);
+  check('sortByPolyfillOrder/all known by registry rank',
+    sorted.indexOf('es.object.entries') < sorted.indexOf('es.array.at'), true);
+  check('sortByPolyfillOrder/all known web after es',
+    sorted.indexOf('es.array.from') < sorted.indexOf('web.url.constructor'), true);
+}
+
+// large mixed input (>=5 entries spanning both groups + lex pairs) - exercises the
+// full comparator decision tree under sort
+{
+  const sorted = sortByPolyfillOrder([
+    'zzz.unknown',
+    'web.url.constructor',
+    'aaa.unknown',
+    'es.array.at',
+    'mmm.unknown',
+    'es.object.entries',
+  ]);
+  // all known modules cluster before all unknown
+  const lastKnownIdx = Math.max(
+    sorted.indexOf('es.array.at'),
+    sorted.indexOf('es.object.entries'),
+    sorted.indexOf('web.url.constructor'),
+  );
+  const firstUnknownIdx = Math.min(
+    sorted.indexOf('aaa.unknown'),
+    sorted.indexOf('mmm.unknown'),
+    sorted.indexOf('zzz.unknown'),
+  );
+  check('sortByPolyfillOrder/mixed known cluster before unknown',
+    lastKnownIdx < firstUnknownIdx, true);
+  // known-group order matches registry rank
+  check('sortByPolyfillOrder/mixed known by rank (es.object.entries < es.array.at)',
+    sorted.indexOf('es.object.entries') < sorted.indexOf('es.array.at'), true);
+  // unknown-group order matches lex
+  check('sortByPolyfillOrder/mixed unknown by lex',
+    sorted.indexOf('aaa.unknown') < sorted.indexOf('mmm.unknown')
+      && sorted.indexOf('mmm.unknown') < sorted.indexOf('zzz.unknown'),
+    true);
+}
+
+// duplicates preserve count (sort is stable enough at the comparator level for
+// equal-rank pairs to keep relative input order)
+{
+  const sorted = sortByPolyfillOrder(['es.array.at', 'es.array.at', 'zzz.unknown']);
+  check('sortByPolyfillOrder/duplicates kept', sorted.length, 3);
+  check('sortByPolyfillOrder/duplicates clustered', sorted[0] === sorted[1], true);
 }
 
 // --- createModuleInjectors ---

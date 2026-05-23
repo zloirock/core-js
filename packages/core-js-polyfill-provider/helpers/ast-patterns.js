@@ -155,6 +155,18 @@ export const IIFE_CALL_PATH_WRAPPERS = new Set([
   'ChainExpression',
 ]);
 
+// shapes that invoke a function at runtime: regular call, optional-chain call,
+// `new fn()`. `NewExpression` makes the predicate symmetric across the lifted
+// arrow / FE forms `let x; new function () { x = "hi" }(); x.at(0)`
+const IIFE_CALL_NODE_TYPES = new Set([
+  'CallExpression',
+  'OptionalCallExpression',
+  'NewExpression',
+]);
+export function isIifeCallNode(node) {
+  return !!node && IIFE_CALL_NODE_TYPES.has(node.type);
+}
+
 // runtime-transparent expression wrappers: peeling the wrapper preserves the inner
 // expression's semantics. covers TS expression wrappers (`as`, `satisfies`, `!`, ...) AND
 // `ParenthesizedExpression` (preserved by parser when `createParenthesizedExpressions: true`).
@@ -359,14 +371,11 @@ export function findIifeCallSite(fnParentPath, paramNode) {
     callPath = callPath.parentPath;
   }
   const callNode = callPath?.node;
-  // OptionalCallExpression: babel emits a distinct node for `(...)?.(args)`; unplugin (oxc)
-  // wraps a CallExpression with `optional: true` in ChainExpression which the wrapper-peel
-  // above handles. accept both shapes so IIFE detection fires symmetrically across parsers.
-  // NewExpression intentionally accepted: even though `new (() => {})()` throws TypeError
-  // at runtime (arrows aren't constructible), the receiver-substitution still wires the
-  // polyfill into the call-arg slot - keeps the detection symmetric with CallExpression
-  if (callNode?.type !== 'CallExpression' && callNode?.type !== 'NewExpression'
-    && callNode?.type !== 'OptionalCallExpression') return null;
+  // OptionalCallExpression: babel emits a distinct node, oxc wraps a CallExpression with
+  // `optional: true` in ChainExpression (peeled above). NewExpression accepted: receiver-
+  // substitution still wires the polyfill into the call-arg slot even when `new` would
+  // throw at runtime
+  if (!isIifeCallNode(callNode)) return null;
   if (peelIifeCallee(callNode.callee, fnNode) !== fnNode) return null;
   return { callPath, paramIndex };
 }
@@ -1289,18 +1298,10 @@ const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
   'ClassPrivateMethod',
 ]);
 
-// true when ObjectPattern at `path` sits at function-parameter position: direct param
-// (`function({x})`), wrapped in AssignmentPattern default (`function({x} = R)`), nested
-// inside ArrayPattern (`function([{x}])`, `function([{x} = R])`), wrapped in RestElement
-// (`function([a, ...{x}])`), nested inside ObjectProperty.value (`function({a: {x} = R})`),
-// or any nested combination (`function([[{x}]])`, `function({a: [{x} = R]})`). walks
-// AssignmentPattern.left + ArrayPattern + RestElement + ObjectProperty/Property.value
-// wrappers until a function-like owner appears or a non-wrapper breaks the chain. `path`
-// exposes `.node` + `.parentPath` (babel NodePath and unplugin's walker path both satisfy
-// the contract). depth cap: deepest realistic shape `function([[[{x} = R]]])` is < 8 hops;
-// 32 surfaces accidental cycles loudly. hitting the cap throws (rather than silently
-// returning false) so user code with pathological nesting fails loud at lint instead of
-// producing under-detected polyfill output
+// true when ObjectPattern at `path` sits at function-parameter position. walks up through
+// AssignmentPattern.left / ArrayPattern / RestElement.argument / ObjectProperty.value /
+// ObjectPattern.properties wrappers until a function-like owner appears or a non-wrapper
+// breaks the chain. realistic nesting < 8 hops; depth cap of 32 surfaces AST cycles loudly
 export function isFunctionParamDestructureParent(path) {
   if (!path) return false;
   let prev = path.node;
@@ -1308,7 +1309,7 @@ export function isFunctionParamDestructureParent(path) {
   let depth = 0;
   while (parent) {
     if (depth++ >= 32) {
-      throw new Error('isFunctionParamDestructureParent: pattern nesting exceeds 32 levels - likely an AST cycle');
+      throw new Error('[core-js] isFunctionParamDestructureParent: pattern nesting exceeds 32 levels - likely an AST cycle');
     }
     const { node } = parent;
     if (!node) return false;
