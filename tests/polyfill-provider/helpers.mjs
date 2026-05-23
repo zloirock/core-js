@@ -24,6 +24,7 @@ import {
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
+import { isFunctionParamDestructureParent } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
 
@@ -201,6 +202,52 @@ check('findUniqueName/numeric start=1 clamped to 2',
 throwsWith('findUniqueName/undefined suffix throws',
   () => findUniqueName('_x', undefined, () => false),
   'startSuffix must be null');
+
+// throw message carries `[core-js]` prefix (consistent with sibling helpers)
+throwsWith('findUniqueName/undefined suffix throw is core-js-prefixed',
+  () => findUniqueName('_x', undefined, () => false),
+  '[core-js]');
+
+// negative startSuffix throws RangeError-shape (silent clamp would mask caller bug)
+throwsWith('findUniqueName/negative throws non-negative',
+  () => findUniqueName('_x', -1, () => false),
+  'must be non-negative');
+throwsWith('findUniqueName/negative throw is core-js-prefixed',
+  () => findUniqueName('_x', -5, () => false),
+  '[core-js]');
+
+// non-number startSuffix (string / boolean / object): TypeError, not coerced
+throwsWith('findUniqueName/string suffix throws',
+  () => findUniqueName('_x', '3', () => false),
+  'finite non-negative number');
+throwsWith('findUniqueName/boolean suffix throws',
+  () => findUniqueName('_x', true, () => false),
+  'finite non-negative number');
+throwsWith('findUniqueName/object suffix throws',
+  () => findUniqueName('_x', {}, () => false),
+  'finite non-negative number');
+
+// non-finite startSuffix (NaN, Infinity): TypeError (silent NaN would loop forever)
+throwsWith('findUniqueName/NaN suffix throws',
+  () => findUniqueName('_x', NaN, () => false),
+  'finite non-negative number');
+throwsWith('findUniqueName/Infinity suffix throws',
+  () => findUniqueName('_x', Infinity, () => false),
+  'finite non-negative number');
+
+// conflict scan from numeric start: _x3 taken -> _x4
+{
+  const taken = new Set(['_x3']);
+  check('findUniqueName/numeric start with conflict increments',
+    findUniqueName('_x', 3, n => taken.has(n)), '_x4');
+}
+
+// large gap: _x5..._x9 taken, returns _x10 (cross 1-digit / 2-digit boundary)
+{
+  const taken = new Set(['_x5', '_x6', '_x7', '_x8', '_x9']);
+  check('findUniqueName/conflict span crosses digit boundary',
+    findUniqueName('_x', 5, n => taken.has(n)), '_x10');
+}
 
 // --- stripQueryHash ---
 
@@ -566,6 +613,161 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
   Object.freeze(error);
   tagError(error, 'input.ts');
   check('tagError/frozen error preserves message', error.message, 'frozen original');
+}
+
+// hostile `get message()` throws: tagError must NOT unwind (would lose the original error
+// downstream); read is wrapped, message is left untouched and identity preserved
+{
+  const error = Object.create(null);
+  Object.defineProperty(error, 'message', { get() { throw new Error('hostile'); } });
+  let crashed = false;
+  try {
+    tagError(error, 'input.ts');
+  } catch {
+    crashed = true;
+  }
+  check('tagError/hostile message getter does not unwind', crashed, false);
+}
+
+// hostile getter + thrown error identity check: the caller can still rethrow the original
+{
+  const original = Object.create(null);
+  Object.defineProperty(original, 'message', { get() { throw new Error('hostile'); } });
+  let caught;
+  try {
+    try {
+      throw original;
+    } catch (error) {
+      tagError(error, 'input.ts');
+      throw error;
+    }
+  } catch (error) {
+    caught = error;
+  }
+  check('tagError/hostile message preserves original identity', caught, original);
+}
+
+// empty tag string: accepted (not blocked by the typeof gate), produces `[core-js] [] msg`
+{
+  const error = new Error('boom');
+  tagError(error, '');
+  check('tagError/empty tag stamps without crash', error.message, '[core-js] [] boom');
+}
+
+// tag with regex meta chars: prefix check is a literal substring match, no injection.
+// `.+?` / `[/.+?^$]` would interpret as regex alternation if includes ever switched to
+// pattern matching - guard against that by asserting both stamp and idempotent re-tag
+{
+  const error = new Error('boom');
+  tagError(error, '[/.+?^$]');
+  check('tagError/regex meta tag stamps literally', error.message, '[core-js] [[/.+?^$]] boom');
+  tagError(error, '[/.+?^$]');
+  check('tagError/regex meta tag idempotent', error.message, '[core-js] [[/.+?^$]] boom');
+}
+
+// custom error subclass without stack: tagging works (no stack interaction)
+{
+  class CustomError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = 'CustomError';
+      delete this.stack;
+    }
+  }
+  const error = new CustomError('custom boom');
+  tagError(error, 'input.ts');
+  check('tagError/custom error class without stack', error.message, '[core-js] [input.ts] custom boom');
+}
+
+// mid-message `[tag]` does NOT block re-stamping (only head-anchored prefix matches).
+// previous `includes` semantics would have skipped this; startsWith correctly stamps
+{
+  const error = new Error('failure at [input.ts] during phase 2');
+  tagError(error, 'input.ts');
+  check('tagError/mid-message tag does not block', error.message,
+    '[core-js] [input.ts] failure at [input.ts] during phase 2');
+}
+
+// already head-tagged: skip (idempotent at outer wrapper rethrow)
+{
+  const error = new Error('[core-js] [input.ts] boom');
+  tagError(error, 'input.ts');
+  check('tagError/head-tagged idempotent', error.message, '[core-js] [input.ts] boom');
+}
+
+// head-tagged with DIFFERENT tag: re-stamp (outer wrapper sees a different file context).
+// startsWith on the new tag's prefix fails -> outer stamp prepends
+{
+  const error = new Error('[core-js] [inner.ts] inner failure');
+  tagError(error, 'outer.ts');
+  check('tagError/head-tagged different tag re-stamps', error.message,
+    '[core-js] [outer.ts] [core-js] [inner.ts] inner failure');
+}
+
+// --- isFunctionParamDestructureParent ---
+
+// minimal path-like shape: `.node` + `.parentPath`. parser-agnostic helper exposed in
+// `ast-patterns.js`; depth cap (32) + cycle detection live in the function itself, so
+// synthetic paths exercise the throw without needing a real parser run
+{
+  // legitimate nested ObjectPattern in function param: `function({ outer: { inner } }) {}`
+  // chain bottom-up: inner ObjectPattern -> ObjectProperty.value -> outer ObjectPattern ->
+  // FunctionDeclaration.params[0]
+  function buildPath(node, parentPath) {
+    return { node, parentPath };
+  }
+  const innerOP = { type: 'ObjectPattern', properties: [] };
+  const valueProp = { type: 'ObjectProperty', value: innerOP };
+  const outerOP = { type: 'ObjectPattern', properties: [valueProp] };
+  const fnDecl = { type: 'FunctionDeclaration', params: [outerOP] };
+  const innerPath = buildPath(innerOP,
+    buildPath(valueProp,
+      buildPath(outerOP,
+        buildPath(fnDecl, null))));
+  checkTruthy('isFunctionParamDestructureParent/normal nested ObjectPattern',
+    isFunctionParamDestructureParent(innerPath));
+}
+
+// 40-deep ObjectPattern chain with no function-like ancestor: depth cap (32) throws
+// with `[core-js]` prefix. each hop is `ObjectPattern.properties` -> prev (transparent
+// wrapper case), no break case fires until cap trips
+{
+  // build path chain from innermost outward: at the end, innermost's parentPath chain
+  // reaches 40 ObjectPattern wrappers - more than the depth cap of 32
+  const innerOP = { type: 'ObjectPattern', properties: [] };
+  const innerPath = { node: innerOP, parentPath: null };
+  let currentPath = innerPath;
+  let prevNode = innerOP;
+  for (let i = 0; i < 40; i++) {
+    const wrapperNode = { type: 'ObjectPattern', properties: [prevNode] };
+    const wrapperPath = { node: wrapperNode, parentPath: null };
+    currentPath.parentPath = wrapperPath;
+    currentPath = wrapperPath;
+    prevNode = wrapperNode;
+  }
+  let crashed = false;
+  let message = '';
+  try {
+    isFunctionParamDestructureParent(innerPath);
+  } catch (error) {
+    crashed = true;
+    message = error.message;
+  }
+  checkTruthy('isFunctionParamDestructureParent/depth cap throws on deep nest', crashed);
+  checkTruthy('isFunctionParamDestructureParent/depth cap throw is core-js-prefixed',
+    message.includes('[core-js]'));
+  checkTruthy('isFunctionParamDestructureParent/depth cap mentions cycle reason',
+    message.includes('exceeds 32 levels'));
+}
+
+// shallow non-function-param ObjectPattern: `const { x } = obj` -> VariableDeclarator,
+// not a function-like owner. helper returns false (no throw)
+{
+  const objectPattern = { type: 'ObjectPattern', properties: [] };
+  const declarator = { type: 'VariableDeclarator', id: objectPattern };
+  const path = { node: objectPattern, parentPath: { node: declarator, parentPath: null } };
+  check('isFunctionParamDestructureParent/non-param destructure returns false',
+    isFunctionParamDestructureParent(path), false);
 }
 
 finish();
