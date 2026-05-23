@@ -222,8 +222,10 @@ export function createExpressionDispatch({
             return resolveBinaryOperatorType(path.node.operator.slice(0, -1), path.get('left'), path.get('right'));
         }
       case 'ConditionalExpression':
-        // Babel desugars destructuring defaults as: _ref === void 0 ? DEFAULT : _ref
-        // when one branch is a void-0 check and the other is the same identifier, resolve to the default branch
+        // transpilers desugar destructuring defaults to a self-ternary - positive
+        // (`_ref === void 0 ? D : _ref`), inverse (`_ref !== void 0 ? _ref : D`),
+        // and loose-eq (`_ref == null ? D : _ref`). resolve to the DEFAULT branch
+        // when one branch is the same identifier as the nullish-check argument
         return resolveDesugarDefaultTernary(path)
           || resolveUnionType(path.get('consequent'), path.get('alternate'), '?:');
       case 'LogicalExpression':
