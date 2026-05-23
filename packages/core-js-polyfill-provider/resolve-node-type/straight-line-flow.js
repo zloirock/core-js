@@ -8,6 +8,7 @@
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
 import {
   IIFE_CALL_PATH_WRAPPERS,
+  IIFE_CALL_CALLEE_WRAPPERS,
   NESTED_BINDING_INTRODUCERS,
   TS_EXPR_WRAPPERS,
   isIifeCallNode,
@@ -141,8 +142,12 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       if (!t.isFunction(cur.node)) continue;
       if (cur.node.async || cur.node.generator) return null;
       let callee = cur;
+      // walk only through wrappers that don't change the invoked value. UnaryExpression on
+      // the callee path (`(!fn)(...)`) invokes the BOOLEAN, not fn - body writes never run,
+      // narrowing against them is unsound. IIFE_CALL_CALLEE_WRAPPERS excludes UnaryExpression;
+      // the broader IIFE_CALL_PATH_WRAPPERS still applies to wrappers ABOVE the call
       while (callee.parentPath?.node
-        && (IIFE_CALL_PATH_WRAPPERS.has(callee.parentPath.node.type)
+        && (IIFE_CALL_CALLEE_WRAPPERS.has(callee.parentPath.node.type)
           || TS_EXPR_WRAPPERS.has(callee.parentPath.node.type))) {
         // SequenceExpression peels only when callee is the TAIL - preceding elements are
         // side-effect slots that don't carry the invoked value
