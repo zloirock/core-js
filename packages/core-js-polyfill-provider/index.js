@@ -131,7 +131,7 @@ function validateIncludeExclude({ include, exclude, modules, method }) {
 export function createPolyfillContext({
   method,
   mode,
-  version = 'node_modules',
+  version,
   package: pkg,
   additionalPackages,
   include,
@@ -139,15 +139,17 @@ export function createPolyfillContext({
   shippedProposals = false,
   shouldInjectPolyfill = () => true,
 }) {
-  // explicit `null` (common in conditional config spreads) skips the destructuring default;
-  // leaving it unmodified makes `null/<entry>` miss the polyfill map and drop all polyfills
+  // explicit `null` (common in conditional config spreads) skips destructuring defaults -
+  // every nullable Options field must use `??=` to mirror the convention "null = same as
+  // absent" advertised in `index.d.ts` (`version?: string | null` / `mode?: Mode | null` / ...)
   mode ??= 'actual';
+  version ??= 'node_modules';
   if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
 
   const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();
   const excludeEntries = method === 'usage-pure' ? collectEntryPaths(exclude) : new Set();
 
-  if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
+  pkg ??= method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   // defensive: third-party callers that bypass `initPluginOptions` may pass `pkg === ''` /
   // `'/'` / non-string. without this guard `''.toLowerCase()` succeeds, `stripTrailingSlashes`
   // returns `''`, and downstream `getCoreJSEntry` would treat absolute paths as core-js entries

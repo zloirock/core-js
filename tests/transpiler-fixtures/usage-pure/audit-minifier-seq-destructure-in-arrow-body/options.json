@@ -3,9 +3,11 @@
     [
       "@core-js",
       {
-        "method": "entry-global",
+        "method": "usage-pure",
         "version": "4.0",
-        "package": ""
+        "targets": {
+          "ie": 11
+        }
       }
     ]
   ]

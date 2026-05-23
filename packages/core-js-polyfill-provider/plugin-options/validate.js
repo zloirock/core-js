@@ -130,9 +130,9 @@ export function validateOptions({
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
     throw new TypeError('[core-js] `include` and `exclude` are not supported when using `shouldInjectPolyfill`');
   }
-  // null-handling asymmetry: `package` rejects null (single value with no default to clear);
-  // `additionalPackages` accepts null (matches the conditional-spread `isEmpty` convention)
-  if (pkg !== undefined) expectPackageName('package', pkg);
+  // `null = same as absent` per `index.d.ts` convention (`package?: string | null`):
+  // accept null as "use default", validate only non-empty strings
+  if (!isEmpty(pkg)) expectPackageName('package', pkg);
   if (!isEmpty(additionalPackages)) {
     if (!Array.isArray(additionalPackages)) {
       throw optionTypeError('additionalPackages', 'an array, null, or undefined', additionalPackages);

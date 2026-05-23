@@ -10,7 +10,7 @@ import {
 import { createPolyfillResolver } from '../../packages/core-js-polyfill-provider/resolver.js';
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, finish, throwsWith } = createChecker('resolver');
+const { check, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('resolver');
 
 // --- resolve(meta): top-level meta dispatcher ---
 // API quirk: misses return `undefined` (not `null`). `kind: 'instance'` is NOT a
@@ -139,6 +139,19 @@ check('entryToGlobalHint/empty returns null', entryToGlobalHint(''), null);
 {
   const ctx = createPolyfillContext({ method: 'usage-global', mode: null });
   check('createPolyfillContext/mode null defaults to actual', ctx.mode, 'actual');
+}
+
+// version === null falls through ??= default ('node_modules'); conditional-spread shapes
+// like `{ version: cond ? '4.1' : null }` must not throw - mirrors d.ts `version?: string | null`
+doesNotThrow('createPolyfillContext/version null OK',
+  () => createPolyfillContext({ method: 'usage-global', version: null }));
+
+// package === null falls through ??= default; mirrors d.ts `package?: string | null`
+{
+  const globalCtx = createPolyfillContext({ method: 'usage-global', package: null });
+  check('createPolyfillContext/package null defaults to core-js', globalCtx.pkg, 'core-js');
+  const pureCtx = createPolyfillContext({ method: 'usage-pure', package: null });
+  check('createPolyfillContext/package null defaults to @core-js/pure', pureCtx.pkg, '@core-js/pure');
 }
 
 // --- createPolyfillContext: package shape guards ---

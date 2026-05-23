@@ -327,7 +327,11 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       // memoize unconditionally - bare Identifier hits `isSafeToReuse` and inlines without _ref
       const [objAssign, objRef] = memoize(object, path.scope);
       const lookup = t.callExpression(id, [objAssign]);
-      const wrappedCallee = wrapConditional(check, lookup);
+      // check=null path: extractCheck saw a polyfillable optional and skipped the null-guard
+      // memo (replacement consumes `?.`). drop the ternary wrap to avoid synthesising an
+      // invalid `null == null ? ...` BinaryExpression - mirrors the same `wrapConditional(
+      // null, ...)` defense in `replaceAndWrap`
+      const wrappedCallee = check ? wrapConditional(check, lookup) : lookup;
       const callArgs = [t.cloneNode(objRef), ...parent.arguments.map(a => t.cloneNode(a))];
       const result = t.callExpression(t.memberExpression(wrappedCallee, t.identifier('call')), callArgs);
       callerPath.parentPath.replaceWith(withSideEffects(result, effectiveSE));
