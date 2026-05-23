@@ -237,18 +237,31 @@ export function createTypeQuery({
     return { type: annotation, scope: binding.scope };
   }
 
-  // TS resolves `ReturnType<typeof fn>` against the LAST overload signature when `fn` is an
-  // ambient with multiple `declare function` headers; earlier headers are specialized cases,
-  // the last is canonical (mirrors `infer R` over an intersection-of-call-signatures, which
-  // picks the rightmost). retarget the binding here. runtime `FunctionDeclaration` can't
-  // overload, so non-ambient bindings stay as-is. covers both bare (`typeof fn`) and
-  // qualified (`typeof NS.fn`) shapes via `findOverloadsForName` which dispatches to the
-  // bare-name (cached) or namespaced walker depending on segment count
+  // legal subjects for `typeof fn` last-head retargeting: an ambient overload head
+  // (`TSDeclareFunction`) or a non-ambient `FunctionDeclaration` impl. ambient heads are
+  // already overload signatures; the impl path covers the babel TS shape `function fn(x:A):B;
+  // function fn(x:C):D; function fn(x:any):any {...}` where the impl is the runtime binding
+  // but the preceding heads drive `typeof fn` per TS narrowing rule
+  function isRetargetableOverloadSubject(node) {
+    return isAmbientFunctionNode(node) || t.isFunctionDeclaration(node);
+  }
+
+  // TS resolves `ReturnType<typeof fn>` against the LAST overload signature when `fn` has
+  // multiple `declare function` heads; earlier heads are specialized cases, the last is
+  // canonical (mirrors `infer R` over an intersection-of-call-signatures, which picks the
+  // rightmost). non-ambient `FunctionDeclaration` impl with preceding ambient sibling heads
+  // ALSO qualifies (impl's `any`/`null` return is overridden by the last declared head).
+  // covers bare and qualified (`typeof NS.fn`) shapes via `findOverloadsForName`
   function pickLastAmbientOverload(resolved, param, scope) {
-    if (!resolved || !isAmbientFunctionNode(resolved.node)) return resolved;
+    if (!resolved) return resolved;
     if (param.type !== 'TSTypeQuery') return resolved;
+    if (!isRetargetableOverloadSubject(resolved.node)) return resolved;
     const overloads = findOverloadsForName(collectQualifiedSegments(param.exprName), scope);
-    return overloads.length > 1 ? overloads.at(-1) : resolved;
+    if (!overloads.length) return resolved;
+    // ambient head: only retarget when there's a LATER head (count > 1, since `resolved`
+    // is itself one of the entries). impl: ANY ambient heads supersede the impl body
+    const minHeadsForRetarget = isAmbientFunctionNode(resolved.node) ? 2 : 1;
+    return overloads.length >= minHeadsForRetarget ? overloads.at(-1) : resolved;
   }
 
   function resolveReturnTypeFromTypeQuery(param, scope) {
