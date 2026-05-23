@@ -12,12 +12,17 @@
 //                                                       enum-member access)
 //   resolveUnionType(leftPath, rightPath, op)         - resolve `a OP b` for `||` / `&&` /
 //                                                       `??` / `?:` / `||=` / `&&=` / `??=`
-//   resolveDesugarDefaultTernary(path)                - recognise babel / swc / esbuild
-//                                                       destructuring-default ternary desugar
+//   resolveDesugarDefaultTernary(path)                - recognise babel / swc / esbuild /
+//                                                       terser destructuring-default ternary
+//                                                       (positive `=== void 0 ? D : R`,
+//                                                       inverse `!== void 0 ? R : D`,
+//                                                       loose-eq `== null ? D : R`,
+//                                                       bare `undefined` Identifier forms)
 //   resolveBinaryOperatorType(op, left, right)        - `+` / `-` / `*` / `/` / `%` / `**` /
 //                                                       bitwise / shift narrowing (number vs
 //                                                       bigint vs string disambiguation)
 import { $Primitive, primitiveTypeOf } from './base.js';
+import { isBareUndefinedIdentifier } from './ast-shapes.js';
 
 export function createValueOps({
   isLiteralOf,
@@ -68,32 +73,76 @@ export function createValueOps({
     return left && right ? commonType(left, right) : null;
   }
 
-  // recognize Babel's destructuring default desugaring: _ref === void 0 ? DEFAULT : _ref
-  // and resolve to the type of DEFAULT (the consequent branch)
+  // recognise the destructuring-default desugar shape: positive `_ref === void 0 ? D : _ref`
+  // (babel) and inverse `_ref !== void 0 ? _ref : D` (esbuild / swc / terser). result type
+  // folds default + _ref via `commonType` - an untyped or unrelated-typed `_ref` collapses
+  // to null so the caller falls through to the standard `?:` union fold rather than emitting
+  // an unsound Maybe-array narrow against a caller-controlled value
   function resolveDesugarDefaultTernary(path) {
-    const { test, alternate } = path.node;
-    if (test.type !== 'BinaryExpression' || test.operator !== '===') return null;
-    const { left, right } = test;
-    const refName = checkSelfTernaryRefName(left, right);
-    if (!refName) return null;
-    if (alternate.type !== 'Identifier' || alternate.name !== refName) return null;
-    return resolveNodeType(path.get('consequent'));
+    const slot = matchSelfDefaultTernarySlot(path.node, path.scope);
+    if (!slot) return null;
+    const defaultType = resolveNodeType(path.get(slot));
+    if (!defaultType) return null;
+    const refType = resolveNodeType(path.get(slot === 'consequent' ? 'alternate' : 'consequent'));
+    if (!refType) return null;
+    // `_ref` declared as `undefined`-only collapses to the default-only path
+    if (isNullableOrNever(refType)) return defaultType;
+    return commonType(defaultType, refType);
   }
 
-  // identify the destructure-ref name from a default-ternary test. babel emits
-  // `_ref === void 0`; swc / esbuild emit `typeof _ref === 'undefined'`. both desugar
-  // the same `function({x = D})` pattern - missing the typeof form silently dropped
-  // type inference for any swc / esbuild output passed through the plugin
-  function checkSelfTernaryRefName(left, right) {
-    if (left.type === 'Identifier' && isVoidZero(right)) return left.name;
+  // shape-only matcher: returns the slot holding the DEFAULT branch
+  // ('consequent' / 'alternate'), null when the ternary isn't a self-default pattern.
+  // extracted from the resolver so the AST shape detection is testable without binding
+  // to a resolver instance
+  function matchSelfDefaultTernarySlot(node, scope) {
+    const { test, consequent, alternate } = node;
+    if (test.type !== 'BinaryExpression') return null;
+    const op = test.operator;
+    const isInverse = op === '!==' || op === '!=';
+    const isLoose = op === '!=' || op === '==';
+    if (op !== '===' && op !== '==' && !isInverse) return null;
+    const refName = checkSelfTernaryRefName(test.left, test.right, scope, isLoose);
+    if (!refName) return null;
+    const selfBranch = isInverse ? consequent : alternate;
+    if (selfBranch.type !== 'Identifier' || selfBranch.name !== refName) return null;
+    return isInverse ? 'alternate' : 'consequent';
+  }
+
+  // identify the destructure-ref name from a default-ternary test. supported test shapes:
+  //   _ref === void 0 / _ref === undefined           - babel + esbuild strict-eq
+  //   typeof _ref === 'undefined'                    - older esbuild / swc
+  //   _ref == null (loose only)                      - terser idiom (null OR undefined)
+  // each form picks the default for `function ({x = D})`; missing one silently drops the
+  // narrow. bare-`undefined` requires scope check (shadowable identifier). NullLiteral
+  // RHS is accepted only under loose-eq - strict `_ref === null` would NOT fire default
+  // for `undefined` so it isn't a destructure-default shape
+  function checkSelfTernaryRefName(left, right, scope, isLoose) {
     if (left.type === 'UnaryExpression' && left.operator === 'typeof'
       && left.argument?.type === 'Identifier' && isUndefinedString(right)) return left.argument.name;
+    if (left.type !== 'Identifier') return null;
+    if (isVoidZero(right) || isBareUndefined(right, scope)) return left.name;
+    if (isLoose && isNullLiteral(right)) return left.name;
     return null;
+  }
+
+  function isNullLiteral(node) {
+    if (node?.type === 'NullLiteral') return true;
+    return node?.type === 'Literal' && node.value === null && !node.regex;
   }
 
   function isVoidZero(node) {
     return node.type === 'UnaryExpression' && node.operator === 'void'
       && isLiteralOf(node.argument, 'Numeric') && node.argument.value === 0;
+  }
+
+  // `undefined` is a read-only global but ECMA still allows local shadowing
+  // (`var undefined` / `function (undefined) {}` / `const undefined = X`).
+  // `scope.hasBinding` is true for the global itself in babel; `getBinding`
+  // returns a descriptor only for a LOCAL binding - the gate that distinguishes
+  // bare global-`undefined` from a shadowed identifier
+  function isBareUndefined(node, scope) {
+    if (!isBareUndefinedIdentifier(node)) return false;
+    return !scope?.getBinding?.('undefined');
   }
 
   // `isLiteralOf(node, 'String')` routes through `babelNodeType` which normalises ESTree

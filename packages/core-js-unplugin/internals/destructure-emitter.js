@@ -35,6 +35,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   globalProxyMemberName,
   markSynthReceiverSkipped,
+  memberKeyName,
   symbolKeyToEntry,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
@@ -991,28 +992,13 @@ export function createDestructureEmitter({
       return false;
     }
 
-    // LIMITATION: 1-hop check only. recognises `identifierNode.<polyfillName>` but NOT
-    // multi-hop proxy chains like `globalThis.Map.from` where the polyfillable name is
-    // two members deep. acceptable for the destructure-emitter callsite: the substituter
-    // walks identifier-by-identifier, and the OUTER MemberExpression range covers the
-    // full chain - skipping at the 1-hop level prevents inline `globalThis -> _globalThis`
-    // substitution INSIDE the outer transform's `_Map.from` replacement
+    // 1-hop only: deeper chains are covered by the outer MemberExpression range, the skip
+    // here just prevents inline `globalThis -> _globalThis` substitution INSIDE the outer
+    // transform's `_Map.from` replacement
     function isPolyfillableMemberAccess(parent, identifierNode) {
       if (parent?.type !== 'MemberExpression' || parent.object !== identifierNode) return false;
-      const { property } = parent;
-      if (!parent.computed) {
-        return property?.type === 'Identifier' && !!resolveGlobalPolyfill(property.name);
-      }
-      // computed-string `obj['Map']` / `` obj[`Map`] ``: parser shape varies. babel emits
-      // StringLiteral; oxc emits Literal with string .value; single-quasi TemplateLiteral
-      // (no interpolations) is also a static-string key. both must apply the same skip -
-      // the outer rewrite's range covers the whole `obj[<literal>]` MemberExpression
-      const literalValue = property?.type === 'StringLiteral' ? property.value
-        : property?.type === 'Literal' && typeof property.value === 'string' ? property.value
-          : property?.type === 'TemplateLiteral' && !property.expressions?.length && property.quasis?.length === 1
-            ? property.quasis[0].value?.cooked ?? null
-            : null;
-      return literalValue !== null && !!resolveGlobalPolyfill(literalValue);
+      const key = memberKeyName(parent);
+      return key !== null && !!resolveGlobalPolyfill(key);
     }
 
     function walk(node, parent) {
