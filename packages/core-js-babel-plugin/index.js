@@ -47,12 +47,20 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R));` collapses a destructure
 // assignment into the last slot of a SequenceExpression - the destructure-emitter gate
 // would silently bail without this split. shape detection is shared with unplugin's
-// text-rewrite path via `getMinifierSequenceDestructureExpressions`
+// text-rewrite path via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
+// pre-pass routes through `forEachStatementListBody` over the raw AST). walks every
+// Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
+// so function / loop / try / class-static / namespace bodies are covered too; Program-only
+// walk silently bailed destructure-emitter inside non-Program statement lists
 function splitMinifierSequenceDestructure(programPath, t) {
-  for (const bodyPath of programPath.get('body')) {
-    const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
-    if (expressions) bodyPath.replaceWithMultiple(expressions.map(e => t.expressionStatement(e)));
+  function splitInBody(blockPath) {
+    for (const bodyPath of blockPath.get('body')) {
+      const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
+      if (expressions) bodyPath.replaceWithMultiple(expressions.map(e => t.expressionStatement(e)));
+    }
   }
+  splitInBody(programPath);
+  programPath.traverse({ 'BlockStatement|StaticBlock|TSModuleBlock': splitInBody });
 }
 
 export default function plugin(api, options) {
@@ -447,6 +455,11 @@ export default function plugin(api, options) {
             // preserved through the super-to-static remap, not dropped
             if (inheritedStatic) meta = remapInheritedStaticMeta(injector, meta, inheritedMeta);
             if (inheritedStatic && !meta) return;
+            // re-check mutation gate AFTER remap: the pre-remap `meta.object` was null
+            // (this-receiver, kind='property' but unresolved); remap fills it with the super
+            // class name. without the re-check, `this.from(arr)` inside `class C extends Array`
+            // silently bypasses user's `Array.from = ...` monkey-patch
+            if (inheritedStatic && isMutatedStaticMeta(meta, mutatedStatics)) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, meta.sideEffects);
           }
