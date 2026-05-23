@@ -1,5 +1,5 @@
 import plugin from '@core-js/babel-plugin';
-import type { Options, Method, Mode } from '@core-js/babel-plugin';
+import type { Options, Method, Mode, Targets } from '@core-js/babel-plugin';
 
 // return type
 const result: { name: string, visitor: object } = plugin({}, { method: 'usage-global' }, '/path');
@@ -10,6 +10,45 @@ result.visitor;
 const method: Method = 'usage-global';
 const mode: Mode = 'actual';
 const opts: Options = { method: 'usage-global' };
+const targets: Targets = { chrome: '80', firefox: 72 };
+const targetsQuery: Targets = '> 1%';
+const targetsList: Targets = ['defaults', 'not IE 11'];
+const targetsEsm: Targets = { esmodules: true };
+plugin({}, { method: 'usage-global', targets }, '/path');
+plugin({}, { method: 'usage-global', targets: targetsQuery }, '/path');
+plugin({}, { method: 'usage-global', targets: targetsList }, '/path');
+plugin({}, { method: 'usage-global', targets: targetsEsm }, '/path');
+
+// `null` accepted on all optional fields (mirrors the runtime conditional-spread idiom)
+plugin({}, {
+  method: 'usage-global',
+  version: null,
+  mode: null,
+  package: null,
+  additionalPackages: null,
+  targets: null,
+  include: null,
+  exclude: null,
+  debug: null,
+  shouldInjectPolyfill: null,
+  absoluteImports: null,
+  configPath: null,
+  browserslistEnv: null,
+  ignoreBrowserslistConfig: null,
+  shippedProposals: null,
+  importStyle: null,
+}, '/path');
+
+// readonly arrays accepted for additionalPackages / include / exclude (`as const` idiom)
+const additionalPkgsConst = ['@x/y'] as const;
+const includeConst = ['es.array.push'] as const;
+const excludeConst = [/^web\./] as const;
+plugin({}, {
+  method: 'usage-global',
+  additionalPackages: additionalPkgsConst,
+  include: includeConst,
+  exclude: excludeConst,
+}, '/path');
 
 // valid calls
 plugin({}, { method: 'usage-global' }, '/path');
