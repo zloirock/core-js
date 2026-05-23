@@ -155,6 +155,17 @@ export const IIFE_CALL_PATH_WRAPPERS = new Set([
   'ChainExpression',
 ]);
 
+// wrappers that may appear BETWEEN the function-like node and its CallExpression's `.callee`
+// slot without changing what's invoked. narrower than IIFE_CALL_PATH_WRAPPERS - UnaryExpression
+// there is for shapes ABOVE the call (`!fn()` invokes fn, then negates the result); BELOW the
+// call (`(!fn)()` invokes the boolean, not fn). SequenceExpression included with explicit
+// tail-check at callsite - the tail is the invoked value, preceding slots are side effects
+export const IIFE_CALL_CALLEE_WRAPPERS = new Set([
+  'SequenceExpression',
+  'ParenthesizedExpression',
+  'ChainExpression',
+]);
+
 // shapes that invoke a function at runtime: regular call, optional-chain call,
 // `new fn()`. `NewExpression` makes the predicate symmetric across the lifted
 // arrow / FE forms `let x; new function () { x = "hi" }(); x.at(0)`
@@ -366,7 +377,10 @@ export function findIifeCallSite(fnParentPath, paramNode) {
   const paramIndex = fnNode.params?.indexOf(paramNode);
   if (paramIndex === undefined || paramIndex < 0) return null;
   let callPath = fnParentPath.parentPath;
-  while (callPath?.node && (IIFE_CALL_PATH_WRAPPERS.has(callPath.node.type)
+  // walk only through wrappers that don't change the invoked value. UnaryExpression on
+  // the callee path (`(!fn)(...)`) invokes the BOOLEAN, not fn - the runtime call throws
+  // TypeError before any param binding, so synth-swap / param-default rewrites are unsafe
+  while (callPath?.node && (IIFE_CALL_CALLEE_WRAPPERS.has(callPath.node.type)
     || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
     callPath = callPath.parentPath;
   }

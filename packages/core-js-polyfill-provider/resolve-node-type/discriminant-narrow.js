@@ -18,7 +18,7 @@
 // search; weaker invariant than `findLastStraightLineAssignment` from straight-line-flow,
 // because it requires only block-child preceding-sibling reachability, not var-scope-wide
 // straight-line execution).
-import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { peelLabeledStatementPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { scopeNode } from './straight-line-flow.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
@@ -172,7 +172,10 @@ export function createDiscriminantNarrow({
     const siblings = getStatementSiblings(current);
     if (!siblings) return;
     for (let i = current.key - 1; i >= 0; i--) {
-      const sibling = siblings[i];
+      // peel LabeledStatement wrap symmetric с typeof-guards.parseSiblingGuards. without
+      // the peel `outer: if (kind !== 'a') return;` would skip discriminant narrow
+      // (resolveExitCondition gates on IfStatement type)
+      const sibling = peelLabeledStatementPath(siblings[i]);
       const exitCond = resolveExitCondition(sibling);
       if (exitCond === null) continue;
       if (!discriminantGuardApplies(sibling.scope, sibling.node.test, ctx)) continue;
