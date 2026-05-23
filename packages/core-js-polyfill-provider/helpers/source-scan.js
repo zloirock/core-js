@@ -1,22 +1,41 @@
 import { isASTNode } from './ast-patterns.js';
 
 // ES spec LineTerminator: U+000A, U+000D (skip the LF half of CRLF), U+2028, U+2029
-export function buildOffsetToLine(code) {
+function collectLineStarts(code) {
   const lineStarts = [0];
   for (let i = 0; i < code.length; i++) {
     const c = code.charCodeAt(i);
     if (c === 0x0A || c === 0x2028 || c === 0x2029
       || (c === 0x0D && code.charCodeAt(i + 1) !== 0x0A)) lineStarts.push(i + 1);
   }
+  return lineStarts;
+}
+
+function lineIndexFor(lineStarts, offset) {
+  let lo = 0;
+  let hi = lineStarts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (lineStarts[mid] <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+export function buildOffsetToLine(code) {
+  const lineStarts = collectLineStarts(code);
+  return offset => lineIndexFor(lineStarts, offset) + 1;
+}
+
+// 1-based line + column; returns null when offset is not an in-range non-negative integer.
+// shared lineStarts table lets column = offset - lineStarts[lineIndex] + 1 in O(log n).
+// accepts offset === code.length so an EOF-anchored diagnostic still reports a valid position
+export function buildOffsetToLineColumn(code) {
+  const lineStarts = collectLineStarts(code);
   return offset => {
-    let lo = 0;
-    let hi = lineStarts.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (lineStarts[mid] <= offset) lo = mid;
-      else hi = mid - 1;
-    }
-    return lo + 1;
+    if (!Number.isInteger(offset) || offset < 0 || offset > code.length) return null;
+    const lineIndex = lineIndexFor(lineStarts, offset);
+    return { line: lineIndex + 1, column: offset - lineStarts[lineIndex] + 1 };
   };
 }
 
