@@ -821,7 +821,16 @@ export function createPolyfillEmitter({
       return;
     }
     const chain = findInnerPolyChain(node, parent, metaPath);
-    if (chain) return replaceInstanceChainCombined({ outerBinding: binding, node, parent, metaPath, chain });
+    // chain emit doesn't carry `sideEffects` (the OR-chain template has no slot to re-emit
+    // them via SequenceExpression wrap). currently meta.sideEffects only fires for shapes
+    // that bail chain detection (paren-wrapped SE receivers fail `findInnerPolyChain`'s
+    // CallExpression check at the chain start), so the drop is unobservable. defensive
+    // bail keeps the invariant explicit: any future shape that combines side effects with
+    // a polyfillable inner chain falls through to `addInstanceTransform` which preserves
+    // them via `withSideEffects` wrap
+    if (chain && !sideEffects?.length) {
+      return replaceInstanceChainCombined({ outerBinding: binding, node, parent, metaPath, chain });
+    }
     const isCall = isCallee(node, parent);
     addInstanceTransform({ binding, node, parent, metaPath, isCall, replacementIsCall: isCall, sideEffects });
   }
