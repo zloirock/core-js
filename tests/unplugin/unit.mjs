@@ -8,7 +8,12 @@ import { collectMutatedStaticMembers } from '../../packages/core-js-polyfill-pro
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
-import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import createPlugin, {
+  formatLabelLocation,
+  formatParseErrorForThrow,
+  formatParseErrorForWarn,
+  formatParseErrorMessage,
+} from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { createTopLevelStatementRemover } from '../../packages/core-js-unplugin/internals/detect-entry.js';
 import {
@@ -913,7 +918,9 @@ checkLastUserImportEnd();
 // --- transform parse-error path ---
 // fatal parse errors return null + emit a `this.warn(...)` describing the failure so the
 // user identifies the file. oxc-parser is forgiving and returns an `errors` array rather
-// than throwing, so the plugin filters severity:'Error' explicitly
+// than throwing, so the plugin filters severity:'Error' explicitly. message must carry
+// source location (codeframe baked-in `line:col` pointer) so the user can fix the source
+// from the warn alone - bare `Unexpected token` without coordinates is unactionable
 function checkTransformParseErrorReturnsNullAndWarns() {
   const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
   let warned = '';
@@ -925,8 +932,237 @@ function checkTransformParseErrorReturnsNullAndWarns() {
   check('transform/parse-error returns null', result, null);
   check('transform/parse-error emits warn with `[core-js]` prefix',
     warned.startsWith('[core-js]') && warned.includes('/syntax-error.mjs'), true);
+  // codeframe carries `,-[<id>:<line>:<col>]` and an ASCII pointer to the failing
+  // token. presence of the bracketed id-line-col marker confirms location was surfaced
+  check('transform/parse-error warn includes source location',
+    /\/syntax-error\.mjs:\d+:\d+/.test(warned), true);
+  check('transform/parse-error warn includes codeframe pointer',
+    warned.includes('class { method('), true);
 }
 checkTransformParseErrorReturnsNullAndWarns();
+
+// bundler-less callers (esbuild post-resolve adapter, bun, direct callers without a `warn`
+// hook) must NOT silently drop the file with `return null` - that hides the broken source
+// downstream. plugin throws a tagged error so the breadcrumb propagates instead
+function checkTransformParseErrorThrowsWhenNoWarn() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let thrown = null;
+  try {
+    plugin.transform.call({}, 'class { method( ', '/no-warn.mjs');
+  } catch (error) {
+    thrown = error;
+  }
+  check('transform/parse-error throws when no warn callback', thrown instanceof Error, true);
+  // runTransform's outer catch stamps `[core-js] [<id>]` via tagError; inner message body
+  // says `could not parse: <oxc error>` so the two prefixes don't double up
+  check('transform/parse-error thrown msg carries core-js tag with file id',
+    thrown?.message?.startsWith('[core-js] [/no-warn.mjs]'), true);
+  check('transform/parse-error thrown msg includes source location',
+    /\/no-warn\.mjs:\d+:\d+/.test(thrown?.message ?? ''), true);
+  // `warn` field on `this` set to a non-function (object / null / number) must take the
+  // same throw path - the runtime guard is `typeof === 'function'`, not truthy/defined
+  let thrown2 = null;
+  try {
+    plugin.transform.call({ warn: 'not a function' }, 'class { method( ', '/bad-warn.mjs');
+  } catch (error) {
+    thrown2 = error;
+  }
+  check('transform/parse-error throws when warn is not a function',
+    thrown2 instanceof Error && thrown2.message.includes('/bad-warn.mjs'), true);
+}
+checkTransformParseErrorThrowsWhenNoWarn();
+
+// formatParseErrorMessage labels-only fallback: oxc currently always emits codeframe, but
+// future versions might omit it for synthetic / degraded errors. helper must still build
+// an actionable message from labels + label.message + helpMessage. test with a
+// synthetic error shape (no codeframe) to lock the fallback path
+function checkFormatParseErrorLabelsFallback() {
+  const code = 'const x =\nfoo(';
+  const syntheticError = {
+    severity: 'Error',
+    message: 'Synthetic test error',
+    labels: [{ message: 'expected expression', start: 10, end: 11 }],
+    helpMessage: 'add a value after `=`',
+    codeframe: null,
+  };
+  const warnMsg = formatParseErrorMessage({
+    id: '/synthetic.mjs', error: syntheticError, code, withCoreJSPrefix: true,
+  });
+  check('formatParseErrorMessage/labels-fallback prefix',
+    warnMsg.startsWith('[core-js] could not parse /synthetic.mjs:'), true);
+  // offset 10 lands on line 2 (after the `\n` at offset 9), column 1 (start of `foo`)
+  check('formatParseErrorMessage/labels-fallback at line:col', warnMsg.includes('at 2:1'), true);
+  check('formatParseErrorMessage/labels-fallback label.message',
+    warnMsg.includes('expected expression'), true);
+  check('formatParseErrorMessage/labels-fallback helpMessage',
+    warnMsg.includes('add a value after `=`'), true);
+  // throw-path variant strips the explicit `[core-js]` prefix because runTransform's catch
+  // re-stamps `[core-js] [<id>]` via tagError - double-prefixing would be noisy
+  const throwMsg = formatParseErrorMessage({
+    id: '/synthetic.mjs', error: syntheticError, code, withCoreJSPrefix: false,
+  });
+  check('formatParseErrorMessage/throw-path no `[core-js]` prefix',
+    throwMsg.startsWith('could not parse:'), true);
+  // missing helpMessage and missing label.message both degrade gracefully - presence of
+  // line:col alone is enough for the user to find the broken span
+  const minimal = formatParseErrorMessage({
+    id: '/min.mjs',
+    error: {
+      severity: 'Error',
+      message: 'Unexpected token',
+      labels: [{ message: null, start: 0, end: 1 }],
+      helpMessage: null,
+      codeframe: null,
+    },
+    code: 'x',
+    withCoreJSPrefix: true,
+  });
+  check('formatParseErrorMessage/minimal labels has line:col',
+    /at \d+:\d+/.test(minimal), true);
+  check('formatParseErrorMessage/minimal labels no null str',
+    !minimal.includes('null'), true);
+  // codeframe present -> labels path skipped entirely (codeframe already carries line:col)
+  const withFrame = formatParseErrorMessage({
+    id: '/frame.mjs',
+    error: {
+      severity: 'Error',
+      message: 'Boom',
+      labels: [{ message: 'label noise', start: 0, end: 1 }],
+      helpMessage: null,
+      codeframe: '  x Boom\n   ,-[/frame.mjs:1:1]\n',
+    },
+    code: 'x',
+    withCoreJSPrefix: true,
+  });
+  check('formatParseErrorMessage/codeframe wins over labels',
+    withFrame.includes('[/frame.mjs:1:1]') && !withFrame.includes('label noise'), true);
+}
+checkFormatParseErrorLabelsFallback();
+
+// --- formatParseErrorMessage degradation paths ---
+// no codeframe AND no labels: helper must still emit a usable head from `error.message`;
+// silently swallowing the diagnostic would hide the broken file from the user
+function checkFormatParseErrorNoCodeframeNoLabels() {
+  const warnOut = formatParseErrorForWarn({
+    id: '/bare.mjs',
+    error: { severity: 'Error', message: 'Bare oxc failure', labels: null, helpMessage: null, codeframe: null },
+    code: 'x',
+  });
+  check('formatParseErrorMessage/bare warn starts with prefix',
+    warnOut.startsWith('[core-js] could not parse /bare.mjs: Bare oxc failure'), true);
+  check('formatParseErrorMessage/bare warn carries no location chunk',
+    !warnOut.includes('\nat ') && !warnOut.includes('null'), true);
+
+  const throwOut = formatParseErrorForThrow({
+    error: { severity: 'Error', message: 'Bare oxc failure', labels: undefined, codeframe: undefined },
+    code: 'x',
+  });
+  check('formatParseErrorMessage/bare throw head only', throwOut, 'could not parse: Bare oxc failure');
+}
+checkFormatParseErrorNoCodeframeNoLabels();
+
+// helpMessage with neither codeframe nor labels: tail still attaches to head separated by `\n`
+// so the suggestion ("did you mean `function*`?") reaches the user even on degraded shapes
+function checkFormatParseErrorHelpMessageAttachesWithoutLocation() {
+  const msg = formatParseErrorForWarn({
+    id: '/help-only.mjs',
+    error: {
+      severity: 'Error',
+      message: 'Unexpected token',
+      labels: null,
+      helpMessage: 'try removing the trailing comma',
+      codeframe: null,
+    },
+    code: 'x,',
+  });
+  const [head, tail] = msg.split('\n');
+  check('formatParseErrorMessage/help-only head',
+    head.startsWith('[core-js] could not parse /help-only.mjs: Unexpected token'), true);
+  check('formatParseErrorMessage/help-only tail equals helpMessage', tail, 'try removing the trailing comma');
+}
+checkFormatParseErrorHelpMessageAttachesWithoutLocation();
+
+// --- formatLabelLocation edge cases ---
+// guards: integer-only offset; null / negative / non-integer / past-EOF -> null so the caller
+// drops the `at line:col` chunk instead of emitting a junk `at NaN:NaN`
+function checkFormatLabelLocationEdgeCases() {
+  // start=0 -> first char, line 1 column 1
+  check('formatLabelLocation/start=0 first char',
+    formatLabelLocation({ start: 0 }, 'abc\ndef'), '1:1');
+  // start past LF terminator -> line 2 column 1
+  check('formatLabelLocation/past LF line 2 col 1',
+    formatLabelLocation({ start: 4 }, 'abc\ndef'), '2:1');
+  // start at EOF (offset === code.length) -> still valid, snaps to final line tail
+  check('formatLabelLocation/start at EOF valid', formatLabelLocation({ start: 7 }, 'abc\ndef'), '2:4');
+  // empty source + start=0 -> 1:1 (only-line entry covers offset 0)
+  check('formatLabelLocation/empty source start 0', formatLabelLocation({ start: 0 }, ''), '1:1');
+  // null / undefined / negative / non-integer / past-EOF -> null
+  check('formatLabelLocation/null start', formatLabelLocation({ start: null }, 'abc'), null);
+  check('formatLabelLocation/undefined start', formatLabelLocation({ start: undefined }, 'abc'), null);
+  check('formatLabelLocation/negative start', formatLabelLocation({ start: -1 }, 'abc'), null);
+  check('formatLabelLocation/past EOF start', formatLabelLocation({ start: 10 }, 'abc'), null);
+  check('formatLabelLocation/fractional start', formatLabelLocation({ start: 1.5 }, 'abc'), null);
+  // label without `start` (missing key) -> null
+  check('formatLabelLocation/missing start key', formatLabelLocation({}, 'abc'), null);
+  // CRLF line endings: column reflects post-newline reset on line 2
+  check('formatLabelLocation/CRLF line 2 col 1',
+    formatLabelLocation({ start: 5 }, 'abc\r\ndef'), '2:1');
+  // U+2028 ES line separator advances the line counter the same as LF. literal source
+  // escape sequences are forbidden by `es/no-json-superset`; build via `String.fromCharCode`
+  const ls2028 = String.fromCharCode(0x2028);
+  check('formatLabelLocation/U+2028 line 2',
+    formatLabelLocation({ start: 4 }, `abc${ ls2028 }def`), '2:1');
+}
+checkFormatLabelLocationEdgeCases();
+
+// --- parse-error path: SFC virtual id surfaces lifted suffix ---
+// Vue/Astro/Svelte SFC virtual ids embed the language in the query (`?vue&type=script&lang=ts`).
+// `liftSfcLangSuffix` recovers it onto a synthesized extension (`App.vue.ts`) before parsing.
+// the warn message MUST carry the lifted id so the user sees the real source file with its
+// extension, not the bare virtual path
+function checkTransformParseErrorSfcLiftedSuffix() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let warned = '';
+  const result = plugin.transform.call(
+    { warn: msg => { warned = msg; } },
+    'class { method( ',
+    '/src/App.vue?vue&type=script&lang=ts',
+  );
+  check('transform/sfc parse-error returns null', result, null);
+  // warn surfaces the ORIGINAL id (full query) so the user can map back to their source file
+  check('transform/sfc parse-error warn carries original SFC id',
+    warned.includes('/src/App.vue?vue&type=script&lang=ts'), true);
+  // codeframe references the LIFTED id (`App.vue.ts`) - oxc-parser sees the synthesized path
+  // and bakes it into the codeframe pointer, so the user can correlate the location chunk
+  // with the SFC sub-block's effective language
+  check('transform/sfc parse-error codeframe references lifted suffix',
+    /App\.vue\.ts:\d+:\d+/.test(warned), true);
+}
+checkTransformParseErrorSfcLiftedSuffix();
+
+// --- parse-error path: empty source ---
+// empty file with a `warn` hook returns null without emitting a warn (oxc accepts empty input).
+// no-warn variant likewise returns null - empty source has no fatal errors to throw on
+function checkTransformParseErrorEmptySource() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let warned = '';
+  const result = plugin.transform.call(
+    { warn: msg => { warned = msg; } },
+    '',
+    '/empty.mjs',
+  );
+  check('transform/empty source returns null', result, null);
+  check('transform/empty source emits no warn', warned, '');
+  // no-warn path: empty input is well-formed so the throw branch never fires
+  let thrown = null;
+  try {
+    plugin.transform.call({}, '', '/empty-nowarn.mjs');
+  } catch (error) {
+    thrown = error;
+  }
+  check('transform/empty source no-warn does not throw', thrown, null);
+}
+checkTransformParseErrorEmptySource();
 
 // --- flush() skips through multi-comment directive tails ---
 // directiveEnd lands after `"use strict";`; skipLineEnd must walk past `/*a*/ //b` so the
