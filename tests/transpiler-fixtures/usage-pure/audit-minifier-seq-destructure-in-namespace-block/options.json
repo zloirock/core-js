@@ -5,8 +5,15 @@
       {
         "method": "usage-pure",
         "version": "4.0",
-        "package": ""
+        "targets": {
+          "ie": 11
+        }
       }
     ]
-  ]
+  ],
+  "parserOpts": {
+    "plugins": [
+      "typescript"
+    ]
+  }
 }
