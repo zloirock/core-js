@@ -113,6 +113,7 @@ export default function createPlugin(options) {
   const estreeAdapter = createEstreeAdapter(() => currentInjector);
   const typeResolvers = createResolveNodeType(nodeType, types, {
     getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
+    getPolyfillBindingHint: (scope, name) => currentInjector?.getBindingInfo?.(name)?.hint ?? null,
     isReassignedBinding: name => currentInjector?.isReassignedBinding?.(name) ?? false,
   });
 

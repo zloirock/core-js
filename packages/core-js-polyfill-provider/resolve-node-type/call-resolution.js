@@ -99,18 +99,9 @@ export function createCallResolution({
     if (isFunctionLike(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
     // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
-    // alias to a known static method through any shape:
-    //   - direct: `const from = Array.from; from(x)` (babel mutates AST to
-    //     `const from = _Array$from`, injector exposes entry='array/from' for `_Array$from`)
-    //   - destructure: `const { from } = Array; from(x)` (unplugin keeps AST shape;
-    //     `staticPairFromDestructure` walks pattern; babel post-rewrite alias map covers it)
-    //   - default: `const { from = () => [] } = Array; from(x)` (babel post-rewrite emits
-    //     `const from = _Array$from === void 0 ? () => [] : _Array$from;` - resolved
-    //     node is ConditionalExpression, but the user-facing name `from` is registered
-    //     in the body-extract alias map so polyfill-entry lookup succeeds)
-    // probe via the callee's user-facing name first (matches ANY post-rewrite shape via
-    // injector alias), then fall back to walked-resolved Identifier (covers cases where
-    // alias map miss but resolved is itself a polyfill UID)
+    // aliased static-method call. probe callee user-facing name first (injector alias
+    // covers post-rewrite `const from = _Array$from` / destructure / default-with-fallback
+    // shapes), then walked-resolved Identifier as fallback when alias-map missed
     if (t.isIdentifier(callee.node)) {
       const aliased = resolveAliasedStaticReturn(callee);
       if (aliased) return aliased;
@@ -119,14 +110,16 @@ export function createCallResolution({
       const aliased = resolveAliasedStaticReturn(resolved);
       if (aliased) return aliased;
     }
-    // identifier callees that didn't resolve to a function-like via the binding chain may still
-    // be reachable through an ambient `declare function` not registered in scope.bindings,
-    // or a binding whose annotation is a function-type (`declare const f: () => T`).
-    // ambient lookup keyed by Identifier name; cast-on-callee shapes (`(fn as () => T)()`,
-    // `(fn satisfies F)()`, `fn!()`) carry no Identifier here but still have an annotation
-    // reachable via `findExpressionAnnotation` inside `resolveCallReturnTypeFromAnnotation`
+    // ambient `declare function` (not in scope.bindings) keyed by Identifier name. cast-on-
+    // callee shapes (`(fn as () => T)()`, `fn!()`) hit `findExpressionAnnotation` below
     if (t.isIdentifier(callee.node)) {
       const ambient = findAmbientFunctionPath(callee.node.name, callee.scope);
+      if (ambient) return resolveReturnType(ambient, callee.parentPath);
+    }
+    // chained alias `const f = getArr; f()`: ambient probe by callee name 'f' missed; retry
+    // against walked Identifier so the ambient return type reaches downstream member chains
+    if (resolved.node?.type === 'Identifier' && resolved.node !== callee.node) {
+      const ambient = findAmbientFunctionPath(resolved.node.name, resolved.scope);
       if (ambient) return resolveReturnType(ambient, callee.parentPath);
     }
     return resolveCallReturnTypeFromAnnotation(callee);
@@ -144,28 +137,14 @@ export function createCallResolution({
     return retHint ? typeFromHint(retHint) : null;
   }
 
-  // unrewriten destructure alias resolution: walks the destructure pattern through nested
-  // ObjectPatterns (`const { from } = Array`, `const { a: { from } } = wrapper`,
-  // `const { ns: { from } } = { ns: Array }`) to a (constructor, method) pair. shorthand
-  // (`{ from }`), renamed (`{ from: f }`), and AssignmentPattern wrappers (`{ from = ... }`)
-  // are peeled inside `findDestructuredKeyPath`. delegates the init-walk to the shared
-  // `walkStaticReceiverChain` (detect-usage/destructure.js) via a thin babel-binding
-  // adapter; constructor registry gate stays here so the resolver still distinguishes
-  // "any global Identifier at the leaf" from "known-static constructor with return type"
+  // resolve `const { from } = Array` / nested `const { a: { from } } = wrapper` patterns
+  // to a (constructor, method) pair. `findDestructuredKeyPath` peels shorthand / rename /
+  // AssignmentPattern wrappers; init walk delegated to `walkStaticReceiverChain`.
+  // reassigned bindings bail (current value may differ from pattern-init), except the
+  // single-violation `let x; ({x} = Source)` shape which routes to `pairFromAssignmentDestructure`
   function staticPairFromDestructure(scope, name) {
     const binding = scope?.getBinding(name);
     if (!binding?.path) return null;
-    // reassigned bindings (`let { from } = Array; from = other`) lose their pattern-init
-    // association at the call site - the destructure pair describes the FIRST value, not
-    // necessarily the CURRENT one. without this guard, `from(arr)` infers Array.from's
-    // return shape and narrows downstream instance polyfills to Array-only, missing the
-    // String / other-type branches that the reassigned function could legitimately produce.
-    // mirrors `walkStaticReceiverChain`'s INIT-side guard (detect-usage/destructure.js) and
-    // `resolvePath`'s reassignment walk.
-    // single-violation `let x; ({x} = Source)` shape is a different beast: the binding has
-    // no init at declaration time, the assignment provides the value once. delegate that
-    // case to `pairFromAssignmentDestructure` so the destructure-host-only restriction
-    // doesn't lose static-pair tracking for the assignment-style aliasing
     if (binding.constantViolations?.length) {
       return binding.constantViolations.length === 1 && !binding.path.node?.init
         ? pairFromAssignmentDestructure(binding.constantViolations[0], name, binding.scope)
@@ -278,14 +257,9 @@ export function createCallResolution({
     return lookup(target);
   }
 
-  // shared member-by-name lookup against a single (non-union) type's structural members.
-  // returns annotation + scope on hit, null on miss (no members / no matching key).
-  // TSMethodSignature non-getter members yield the SIGNATURE node itself (a function-shaped
-  // annotation) instead of its `typeAnnotation` slot - the slot IS the return type, but
-  // `obj.method` as an expression evaluates to the FUNCTION value, not its return. callers
-  // calling the result (`obj.method()`) extract the return via `functionTypeReturnAnnotation`
-  // downstream; callers using the bare member (`const fn = obj.method`) see the function
-  // type and can dispatch via `fn()` later. getters and plain properties stay value-typed
+  // member-by-name lookup against a single (non-union) type's structural members.
+  // TSMethodSignature non-getter members yield the SIGNATURE itself - `obj.method` is a
+  // function value; callers chain into `functionTypeReturnAnnotation` to peel the return
   function resolveMemberInTypeMembers({ typeNode, propName, scope, subst }) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
@@ -381,26 +355,15 @@ export function createCallResolution({
         if (ambient) fnPath = ambient;
       }
       if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
-        // explicit `<...>` args first; fall through to argument inference when caller
-        // omitted them (`makeBox(arr)` -> infer T from arr's annotation), then declared
-        // defaults via `buildCallSiteSubst`. inferred path bridges the gap babel itself
-        // covers via TS's structural inference - without it, `function makeBox<T>(t: T): {value: T}`
-        // returned `{value: T}` unsubstituted, dropping array narrowing on `b.value.at(0)`
-        // symmetric unwrap: both branches return the post-`unwrapTypeAnnotation` value so
-        // downstream consumers don't have to peel TSTypeAnnotation differently depending on
-        // whether type-args were applied
+        // explicit `<...>` args; argument inference fallback (`makeBox(arr)` lifts arr's
+        // annotation onto T). without subst, generic return `{value: T}` leaks unsubstituted
         const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node);
         const rawReturn = unwrapTypeAnnotation(fnPath.node.returnType);
         const annotation = subst ? applyAliasSubstDeep(rawReturn, subst) : rawReturn;
         return { annotation, scope: fnPath.scope };
       }
-      // typed method call: w.inner.value() - resolve callee's annotation, extract return type.
-      // ONLY function-shaped annotations (TSFunctionType / TSMethodSignature / etc.) produce
-      // a return type; non-function property annotations (`{ value: string }`) bail here
-      // rather than leak as a fake return type. previously a `?? unwrappedMember` fallback
-      // used the property annotation itself as the call's return value, mis-narrowing
-      // downstream chains - `w.value().X` would see `string` as the receiver of `.X`
-      // even though `value()` is a TypeError at runtime
+      // typed method call `w.inner.value()`: only function-shaped annotations produce a
+      // return type. non-function property annotations bail to keep downstream chains sound
       const callee = path.get('callee');
       if (callee.node.type === 'MemberExpression' || callee.node.type === 'OptionalMemberExpression') {
         const memberInfo = findExpressionAnnotation(callee, depth + 1);
@@ -428,15 +391,9 @@ export function createCallResolution({
     return buildSubstMap(fnNode.typeParameters?.params, getTypeArgs(callNode)?.params);
   }
 
-  // infer {paramName -> argAnnotation} from runtime argument annotations when caller
-  // omitted explicit `<...>` (`makeBox(arr)` with `function makeBox<T>(t: T)`: lift arr's
-  // annotation onto T). limited to direct `T` param shapes (not container wrappers like
-  // `T[]` / `Array<T>` / `Promise<T>`) so this stays cheap and doesn't rebuild
-  // `buildTypeParamMap`'s full container-aware inference. depth threading prevents
-  // recursion blowup when the arg's annotation lookup recurses through chained calls.
-  // SpreadElement bails the whole inference - spread expands into unknown count of
-  // positional args at runtime, so positional param-to-arg mapping breaks (the spread
-  // may consume the T-typed param and `args[i]` lands on a later, unrelated arg)
+  // infer T -> argAnnotation from runtime arg annotations when caller omits `<...>`
+  // (`makeBox(arr)` with `function makeBox<T>(t: T)`). limited to direct `T` param shapes
+  // (no container wrappers); SpreadElement bails whole inference since positional mapping breaks
   function inferCallSiteSubst(fnNode, callPath, depth) {
     if (getTypeArgs(callPath.node)?.params?.length) return null;
     const fnTypeParams = fnNode.typeParameters?.params;

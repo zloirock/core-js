@@ -80,18 +80,26 @@ export function validatePatternList(name, list) {
   }
 }
 
-// generate a unique identifier name following babel's UID convention: `startSuffix === null`
-// tries the bare prefix first, falling back to `_hint2, _hint3, ...` on collision (skip `_hint1`);
-// numeric `startSuffix` starts at `prefix${startSuffix}` and increments (cache-driven continuation).
-// isTaken is called for each candidate; true = name conflicts.
-// numeric `startSuffix < 2` would break the skip-1 convention (`_hint0` / `_hint1` emitted
-// in violation of babel's UID scheme). clamp up to 2 so chain continuations respect the rule.
-// undefined startSuffix would silently produce `${prefix}undefined` - reject loudly so callers
-// can't accidentally pass undefined where they meant null. iteration cap prevents infinite
-// loop if isTaken always returns true (defensive: 2^20 covers any realistic name space)
+// babel UID convention: `null` tries bare prefix first then `_hint2, _hint3, ...` (skip `_hint1`);
+// finite non-negative number starts at `prefix${startSuffix}` and increments (cache continuation).
+// non-negative < 2 clamps to 2 - preserves skip-1 invariant for continuations seeded with 0/1.
+// undefined / non-number / non-finite / negative inputs reject loudly: a silent `_hintundefined`
+// / `_hint-1` / `_hint[object Object]` would otherwise leak a caller bug downstream.
+// iteration cap (2^20) bounds collision-storm pathologies; isTaken=true forever throws
 export function findUniqueName(prefix, startSuffix, isTaken) {
   if (startSuffix === undefined) {
-    throw new TypeError('findUniqueName: startSuffix must be null (try-bare-first) or a number; got undefined');
+    throw new TypeError('[core-js] findUniqueName: startSuffix must be null (try-bare-first) '
+      + 'or a finite non-negative number; got undefined');
+  }
+  if (startSuffix !== null) {
+    if (typeof startSuffix !== 'number' || !Number.isFinite(startSuffix)) {
+      const got = typeof startSuffix === 'number' ? startSuffix : typeof startSuffix;
+      throw new TypeError('[core-js] findUniqueName: startSuffix must be null '
+        + `or a finite non-negative number; got ${ got }`);
+    }
+    if (startSuffix < 0) {
+      throw new RangeError(`[core-js] findUniqueName: startSuffix must be non-negative; got ${ startSuffix }`);
+    }
   }
   if (startSuffix === null) {
     if (!isTaken(prefix)) return prefix;
