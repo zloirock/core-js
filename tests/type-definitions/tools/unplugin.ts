@@ -1,5 +1,41 @@
-import { vite, webpack, rollup, esbuild, rspack, rolldown, farm, bun } from '@core-js/unplugin';
+import { vite, webpack, rollup, esbuild, rspack, rolldown, farm, bun, shouldTransform } from '@core-js/unplugin';
 import type { Options, Method, Mode, Targets } from '@core-js/unplugin';
+
+// shouldTransform is the identifier-filter exposed for consumer pre-filtering
+const transformDecision: boolean = shouldTransform('/abs/path/to/source.js');
+transformDecision;
+
+// `null` accepted on all optional fields (mirrors the runtime conditional-spread idiom)
+vite({
+  method: 'usage-global',
+  version: null,
+  mode: null,
+  package: null,
+  additionalPackages: null,
+  targets: null,
+  include: null,
+  exclude: null,
+  debug: null,
+  shouldInjectPolyfill: null,
+  absoluteImports: null,
+  configPath: null,
+  browserslistEnv: null,
+  ignoreBrowserslistConfig: null,
+  shippedProposals: null,
+  importStyle: null,
+  phase: null,
+});
+
+// readonly arrays accepted for additionalPackages / include / exclude
+const unpAdditional = ['@x/y'] as const;
+const unpInclude = ['es.array.push'] as const;
+const unpExclude = [/^web\./] as const;
+vite({
+  method: 'usage-global',
+  additionalPackages: unpAdditional,
+  include: unpInclude,
+  exclude: unpExclude,
+});
 // Sub-entry imports (e.g., import plugin from '@core-js/unplugin/vite')
 import vitePlugin from '@core-js/unplugin/vite';
 import webpackPlugin from '@core-js/unplugin/webpack';
