@@ -87,16 +87,10 @@ export function createClosureAnalysis({
     return { kind: 'extraction' };
   }
 
-  // single per-program index of all classified Identifier refs (grouped by their resolved
-  // binding) plus direct `new <Name>().<X>(...)` chain calls (grouped by constructor name).
-  // built once per file with one programPath.traverse, then reused by every temporal-bound
-  // query - previous design re-walked the entire program once per closure (one per class /
-  // object literal), turning C classes with public instance fields into O(C * N). lookup is
-  // now O(|closure| + |classNames|) over already-classified entries
-  // derived per-program index keyed off the shared `buildProgramIndex` from `binding-analysis`.
-  // Post-classifies the raw refs through `classifyClosureRef` (filtering out writes / decl-id
-  // slots) and extracts `new C().<member>(...)` chain call starts. Decoupled from the raw
-  // index so consumers don't pay the classification cost when only raw refs are needed
+  // per-program index of classified Identifier refs (grouped by binding) + direct
+  // `new <Name>().<X>(...)` chain-call starts (grouped by constructor name). built once via
+  // `buildProgramIndex`; previously re-walked per closure - O(C * N) on N-statement programs.
+  // refs filtered through `classifyClosureRef` so write / decl-id slots drop out
   let programClosureIndexCache = new WeakMap();
   function buildProgramClosureIndex(programPath) {
     return memoize(programClosureIndexCache, programPath.node, () => {
@@ -174,12 +168,8 @@ export function createClosureAnalysis({
     });
   }
 
-  // collect base class + every transitive subclass path. used by instance flow scan to
-  // include subclass instances in the closure (since `class Sub extends C; const s = new
-  // Sub(); s.x = Y` writes affect C's inherited field slot) and to scan subclass methods'
-  // `this.<field>` writes recursively (not just direct subclasses). cached per class node:
-  // the instance pipeline reads `.names` in programGate and `.paths` in programWritesPush;
-  // `collectClassInstanceClosure` reads `.names` again - one walk amortized
+  // class + every transitive subclass: `class Sub extends C; new Sub().x = Y` widens C's
+  // inherited field fold, and subclass methods' `this.x = Y` writes also count
   let classDescendantPathsCache = new WeakMap();
   function collectClassDescendantPaths(classPath, programPath) {
     return memoize(classDescendantPathsCache, classPath.node, () => {
@@ -203,23 +193,20 @@ export function createClosureAnalysis({
     });
   }
 
-  // build the union alias closure across every `new <ClassName>()`-bound instance in the
-  // module, where ClassName is the base class OR any transitive subclass (subclass instance
-  // writes affect base's inherited field slot). each bound declarator's chain (via
-  // `computeAliasClosureFromBinding`) becomes part of the union; anonymous instance bindings
-  // (destructured ids, etc.) and direct `new C()` in unsafe positions (function arg /
-  // return / spread / ...) signal "unmonitored channel" and the entire closure bails to null.
-  // anonymous classes (no `className`) bail unconditionally - external writes via instance
-  // are unenumerable without a stable name. returned `Map<binding, name>` plugs into
-  // `isReceiverInClosure` and `getClosureTemporalBound` the same way the object closure does -
-  // binding identity is the unique key so a shadowed name (`const c = new C()` in two
-  // sibling scopes) keeps both bindings instead of overwriting one
+  // union alias closure across every `new <Name>()` instance bound to a declarator, where
+  // `<Name>` is the class OR any transitive subclass / `const A = C` alias. `new C()` in a
+  // leak position (function arg, spread, ...) or any non-Identifier declarator id bails to
+  // null. returned `Map<binding, name>` is keyed by binding identity so shadowed bindings
+  // stay distinct (consumed by `isReceiverInClosure` / `getClosureTemporalBound`)
   function collectClassInstanceClosure(classPath, programPath) {
     const desc = collectClassDescendantPaths(classPath, programPath);
     if (!desc) return null;
     const { newExprByName } = buildProgramIndex(programPath);
     const closure = new Map();
-    for (const name of desc.names) {
+    const constructorNames = new Set(desc.names);
+    const bindingClosure = getClassBindingClosure(classPath, programPath);
+    if (bindingClosure) for (const aliasName of bindingClosure.values()) constructorNames.add(aliasName);
+    for (const name of constructorNames) {
       const entries = newExprByName.get(name);
       if (!entries) continue;
       for (const entry of entries) {
@@ -269,15 +256,9 @@ export function createClosureAnalysis({
     });
   }
 
-  // walk an Identifier's const-alias chain to its canonical root name. follows
-  // `const Alias = Source` chains until init is non-Identifier (root reached) or a
-  // terminating condition triggers null:
-  //   - cycle (`let A = B; let B = A;`): mutual aliases have no canonical anchor
-  //   - `constantViolations` (`let A = X; A = Y;`): runtime value unknown at use site
-  // `unwrapExpressionChain` peels Paren / SE / TS / ChainExpression on each init step
-  // so `const Alias = (side(), Base as any)` resolves through to the inner Identifier.
-  // returns the canonical name on Identifier-init terminal, the start name on missing
-  // binding or non-Identifier init, null on cycle / let-rebind
+  // canonical root name for an Identifier's const-alias chain. `const Alias = Source`
+  // walks one hop at a time; `unwrapExpressionChain` peels paren / SE / TS wrappers on
+  // the init. cycle or `let A = X; A = Y` reassignment -> null
   function aliasChainCanonicalName(name, scope) {
     const seen = new Set();
     while (!seen.has(name)) {
@@ -287,24 +268,18 @@ export function createClosureAnalysis({
       const init = unwrapExpressionChain(binding?.path?.node?.init);
       if (init?.type !== 'Identifier') return name;
       // advance scope to the binding's declaration scope so the next hop's `getBinding`
-      // resolves the next-hop name in its OWN lexical context. without this, the original
-      // call-site scope leaks across the entire chain and inner shadows (`const P = Promise`
-      // outer, then `function f() { const P = SomethingElse; ... }`) mis-resolve through to
-      // the wrong binding
+      // hop to the binding's own declaration scope; inner shadows (`const P = Promise`
+      // outer; `function f() { const P = X; ... }` inner) would otherwise mis-resolve
       scope = binding.path?.scope ?? scope;
       name = init.name;
     }
     return null;
   }
 
-  // canonical name for an `extends` clause node. Identifier dispatches to the alias-chain
-  // walker; non-computed MemberExpression resolves through proxy-global walk
-  // (`globalThis.X.Foo` chains) OR `walkStaticReceiverChain` (const-bound `NS.Inner.Foo`
-  // chains, with class-leaf accept). walks the member chain into root + walkPath, so
-  // multi-hop user namespaces work the same as single-hop. returns null for any
-  // unsupported shape - registering under a wrong name would WIDEN the base's field-type
-  // fold with non-subclass writes, so safe miss preferred over false-positive.
-  // entry-level TS peel handles `class Child extends (Base as typeof Base) {}` etc.
+  // canonical name for an `extends` clause node. Identifier -> alias-chain walker;
+  // non-computed MemberExpression -> proxy-global (`globalThis.X.Foo`) OR
+  // `walkStaticReceiverChain` (const-bound `NS.Inner.Foo`, class-leaf accept).
+  // unsupported shapes return null - over-registration WIDENS the base's field fold
   function extendsClauseName(superClass, scope) {
     superClass = unwrapRuntimeExpr(superClass);
     if (superClass?.type === 'Identifier') return aliasChainCanonicalName(superClass.name, scope);
@@ -323,15 +298,9 @@ export function createClosureAnalysis({
     return walkStaticReceiverChain({ receiverNode: cur, walkPath: path, scope, adapter: babelBindingAdapter });
   }
 
-  // multi-name variant of `extendsClauseName` for the module-field index. canonical-name
-  // callers (`findParentClassDecl`, type-position `parentRef` builder) need ONE answer
-  // for "what's the parent class type"; ambiguous shapes (`extends mix(Base)` /
-  // `extends cond ? Base : Other`) have no single answer and bail to null. but the
-  // module index only needs "which base names should this subclass be registered under"
-  // - over-registration is the SAFE direction (writes through the subclass widen the
-  // base's field type, conservative polyfill emit). unrecognised shapes bail silently -
-  // over-registration on a NON-class binding is benign (associates a subclass with a name
-  // nobody reads back, no false-positive widens)
+  // multi-name variant of `extendsClauseName` for the module-field index. ambiguous shapes
+  // (`extends mix(Base)`, `extends cond ? A : B`) register under EVERY candidate name -
+  // over-registration widens the base's field fold conservatively
   function collectExtendsCandidateNames(superClass, scope, out = []) {
     superClass = unwrapRuntimeExpr(superClass);
     if (!superClass) return out;
@@ -351,15 +320,10 @@ export function createClosureAnalysis({
   const { memberWriteFieldName, writePathContributedType } =
     createMemberWriteShape({ t, getKeyName, resolveNodeType });
 
-  // generic write-folder: `writePath` is a pre-filtered `<expr>.<fieldName> = Y` from the
-  // module index (operator / member / field-name already satisfied). caller supplies a
-  // `predicate(objPath)` that decides whether this write's receiver belongs to the field's
-  // monitored set. `this.<fieldName> = ...` writes are scanned separately by the per-owner
-  // this-writes index (`getInstanceMethodThisWrites` / `getStaticMethodThisWrites`), so
-  // they're skipped here to avoid double-counting.
-  // TS expression wrappers (`(this as any).x = Y`, `(c as any).x = Y`) peeled before the
-  // `this` discriminator so wrapped this-writes don't escape the dedicated index and
-  // wrapped receiver Identifiers reach the closure-membership check via isReceiverInClosure
+  // generic write-folder over pre-filtered `<expr>.<field> = Y`. `this.<field>` is handled
+  // by the per-owner this-writes index, so peeled-`this` receivers skip here to avoid
+  // double-counting. predicate decides whether the receiver belongs to the field's monitored
+  // set (closure-membership for instance / static flows)
   function pushIfWriteMatches(writePath, predicate, out) {
     const objPath = memberWriteTargetPath(writePath).get('object');
     const peeled = unwrapRuntimeExpr(objPath.node);

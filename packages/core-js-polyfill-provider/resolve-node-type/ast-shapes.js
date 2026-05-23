@@ -98,3 +98,10 @@ export function peelTSParenthesized(node) {
 export function isTypeQueryOverImportType(node) {
   return node?.type === 'TSTypeQuery' && node.exprName?.type === 'TSImportType';
 }
+
+// bare-`undefined` Identifier shape. callers needing the runtime-`undefined` semantic
+// MUST additionally check scope binding (`undefined` is shadowable: `(undefined => ...)`,
+// `var undefined`, `const undefined = "X"`); the pure-shape predicate is parser-side only
+export function isBareUndefinedIdentifier(node) {
+  return node?.type === 'Identifier' && node.name === 'undefined';
+}
