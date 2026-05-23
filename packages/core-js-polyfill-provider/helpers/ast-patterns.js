@@ -2047,3 +2047,28 @@ export function getMinifierSequenceDestructureExpressions(stmt) {
   if (leftType !== 'ObjectPattern' && leftType !== 'ArrayPattern') return null;
   return expr.expressions;
 }
+
+// node types whose `body[]` slot hosts a Statement list. Program (top-level), BlockStatement
+// (function / loop / try / if-block / catch / arrow-block bodies), StaticBlock (class
+// `static {}`), TSModuleBlock (namespace / ambient module bodies)
+const STATEMENT_LIST_BODY_HOSTS = new Set([
+  'Program',
+  'BlockStatement',
+  'StaticBlock',
+  'TSModuleBlock',
+]);
+
+// invoke `visitor(body)` for every Statement-list slot rooted at `rootNode`. structural
+// recursion via `isASTNode` filter stays safe against plugin-stamped sidecar keys without
+// a hand-curated skip list - new visitor metadata won't poison the walk
+export function forEachStatementListBody(rootNode, visitor) {
+  function visitListHosts(node) {
+    if (!isASTNode(node)) {
+      if (Array.isArray(node)) for (const item of node) visitListHosts(item);
+      return;
+    }
+    if (STATEMENT_LIST_BODY_HOSTS.has(node.type) && Array.isArray(node.body)) visitor(node.body);
+    for (const key of Object.keys(node)) visitListHosts(node[key]);
+  }
+  visitListHosts(rootNode);
+}
