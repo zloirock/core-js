@@ -490,6 +490,30 @@ export function destructureReceiverSlot(node) {
   return null;
 }
 
+// walk a (possibly nested) ObjectPattern to find the keyPath leading to a leaf Identifier
+// named `name`. peels `AssignmentPattern` wrappers (`{key: id = default}`). literal-key
+// only (Identifier / StringLiteral / Literal); computed keys / non-literal property names
+// bail - the proxy-global resolution path that consumes this uses static key names. simpler
+// counterpart to pattern-bindings.js's `findDestructuredKeyPath` which also resolves
+// computed-key bindings + ArrayPattern indices via cluster-private helpers
+export function objectPatternLiteralKeyPath(pattern, name) {
+  if (pattern?.type !== 'ObjectPattern') return null;
+  for (const prop of pattern.properties) {
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+    if (prop.computed) continue;
+    const keyName = prop.key?.type === 'Identifier' ? prop.key.name
+      : (prop.key?.type === 'StringLiteral' || prop.key?.type === 'Literal') ? prop.key.value : null;
+    if (typeof keyName !== 'string') continue;
+    const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+    if (value?.type === 'Identifier' && value.name === name) return [keyName];
+    if (value?.type === 'ObjectPattern') {
+      const inner = objectPatternLiteralKeyPath(value, name);
+      if (inner) return [keyName, ...inner];
+    }
+  }
+  return null;
+}
+
 // destructure-receiver value bound to an ObjectPattern. unifies the two wrapper shapes
 // that drive `meta.fromFallback` per-branch synth-swap:
 //   1. slot-bearing wrapper (VariableDeclarator / AssignmentExpression / AssignmentPattern):
