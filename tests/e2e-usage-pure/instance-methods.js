@@ -56,9 +56,14 @@ QUnit.test('instance/array: Array#with', assert => {
   assert.deepEqual([1, 2, 3].with(1, 42), [1, 42, 3]);
 });
 
+// test pins Array#reduce polyfill; suppress `math/prefer-math-sum-precise` which would
+// rewrite `.reduce((a,b)=>a+b,0)` into `Math.sumPrecise(arr)` (sumPrecise has its own test)
+/* eslint-disable math/prefer-math-sum-precise -- see above */
 QUnit.test('instance/array: Array#reduce', assert => {
-  assert.same(Math.sumPrecise([1, 2, 3]), 6);
+  assert.same([1, 2, 3].reduce((acc, x) => acc + x, 0), 6);
+  assert.same([1, 2, 3].reduce((acc, x) => acc + x), 6);
 });
+/* eslint-enable math/prefer-math-sum-precise -- end of test-pinned block */
 
 QUnit.test('instance/array: Array#fill', assert => {
   assert.deepEqual([1, 2, 3].fill(0), [0, 0, 0]);
