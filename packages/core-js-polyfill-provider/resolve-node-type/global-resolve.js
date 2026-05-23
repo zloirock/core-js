@@ -19,7 +19,14 @@
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH } from './base.js';
 import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { getSuperTypeArgs, isAmbientBindingShape, peelIIFEReturn, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import {
+  getSuperTypeArgs,
+  isAmbientBindingShape,
+  objectPatternLiteralKeyPath,
+  peelIIFEReturn,
+  unwrapRuntimeExpr,
+} from '../helpers/ast-patterns.js';
+import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
 export function createGlobalResolve({
   t,
@@ -115,11 +122,31 @@ export function createGlobalResolve({
     return resolveKnownConstructor(node.name) ? node.name : null;
   }
 
+  // `const { window: { Array } } = globalThis` - destructure-leaf bound to a global. walks
+  // the ObjectPattern + init through `walkStaticReceiverChain` so the leaf identifier
+  // resolves to the source proxy-global's named entry. without this, downstream
+  // `Array.from(...)` loses its return-type narrow because `Array` shows a local binding and
+  // `resolveAliasedGlobalName` bails at `followableVarInit` on ObjectPattern ids
+  function resolveDestructuredGlobalName(path) {
+    const binding = path.scope?.getBinding(path.node.name);
+    const declarator = binding?.path?.node;
+    if (!declarator || binding.constantViolations?.length || !t.isVariableDeclarator(declarator)) return null;
+    if (declarator.id?.type !== 'ObjectPattern' || !declarator.init) return null;
+    const keyPath = objectPatternLiteralKeyPath(declarator.id, path.node.name);
+    if (!keyPath?.length) return null;
+    return walkStaticReceiverChain({
+      receiverNode: declarator.init,
+      walkPath: keyPath,
+      scope: binding.scope ?? binding.path.scope ?? path.scope,
+      adapter: babelBindingAdapter,
+      path: binding.path,
+    });
+  }
+
   function resolveGlobalName(path) {
     if (t.isIdentifier(path.node)) {
-      return hasRuntimeBinding(path.scope, path.node.name)
-        ? resolveAliasedGlobalName(path)
-        : path.node.name;
+      if (!hasRuntimeBinding(path.scope, path.node.name)) return path.node.name;
+      return resolveAliasedGlobalName(path) ?? resolveDestructuredGlobalName(path);
     }
     if (!isMemberLike(path) || path.node.computed) return null;
     const object = path.get('object');

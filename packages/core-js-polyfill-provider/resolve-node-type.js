@@ -84,9 +84,13 @@ const { hasOwn } = Object;
 // side-channel for the post-rewrite alias `_globalThis` -> `globalThis` mapping, kept off
 // the binding object so closure / alias trackers preserve WeakMap identity. covers both
 // pure-import bindings (`import _Array$from` -> entry `array/from` -> hint `Array`) and
-// alias-only bindings (`_globalThis` registered via `registerGlobalAlias`, no entry path)
-function makeBabelBindingAdapter(getPolyfillBindingHint) {
+// alias-only bindings (`_globalThis` registered via `registerGlobalAlias`, no entry path).
+// string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
+// `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
+// from the resolver path (destructure-leaf -> proxy-global)
+function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType) {
   return {
+    packages: null,
     hasBinding: (scope, name) => !!scope?.getBinding(name),
     getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type,
     getBinding: (scope, name) => scope?.getBinding(name),
@@ -94,6 +98,8 @@ function makeBabelBindingAdapter(getPolyfillBindingHint) {
       const hint = getPolyfillBindingHint(scope, name);
       return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
     },
+    isStringLiteral: node => babelNodeType(node) === 'StringLiteral',
+    getStringValue: node => babelNodeType(node) === 'StringLiteral' ? node.value : null,
   };
 }
 
@@ -107,7 +113,7 @@ function createResolveNodeType(babelNodeType, t, {
   getPolyfillBindingHint = () => null,
   isReassignedBinding = () => false,
 } = {}) {
-  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint);
+  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType);
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
   // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
