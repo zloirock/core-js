@@ -30,7 +30,8 @@
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
 import { collectQualifiedSegments, isQualifiedNameNode } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
-import { getTypeArgs, singleQuasiString, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { memberKeyName } from '../helpers/class-walk.js';
 
 const CLASS_PATH_TYPES = ['ClassDeclaration'];
 
@@ -467,32 +468,14 @@ export function createMemberResolve({
     // cache through the same key as their joined-string form (`['E'].join('.') === 'E'`)
     const enumDecl = findEnumDeclaration(segments, path.scope);
     if (!enumDecl) return null;
-    // `E.A` (Identifier) and `E['A']` (computed StringLiteral) both look up the same
-    // member by name. computed StringLiteral matches babel's `StringLiteral` type and
-    // ESTree's `Literal` with string value
-    const memberName = enumMemberKeyName(path.node);
+    // `E.A` (Identifier) / `E['A']` (computed StringLiteral / ESTree Literal) / `` E[`A`] ``
+    // - all look up the same member; numeric keys fall through to the reverse-map fallback
+    const memberName = memberKeyName(path.node);
     if (memberName !== null) return resolveEnumMemberType(enumDecl, memberName);
-    // numeric reverse-map lookup: `E[E.A]` on a numeric enum returns string. only fires
-    // for computed numeric-typed keys against numeric enums (string enums lack reverse map)
+    // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string
     if (!path.node.computed) return null;
     if (resolveEnumType(enumDecl)?.type !== 'number') return null;
     return resolveNodeType(path.get('property'))?.type === 'number' ? new $Primitive('string') : null;
-  }
-
-  // resolve an enum member-access key to its name, or null when the key isn't a static
-  // member reference (computed-by-expression, numeric reverse-map index, etc.).
-  // shapes:
-  //   `E.A`     - non-computed Identifier
-  //   `E['A']`  - computed StringLiteral (babel) / ESTree string-valued Literal
-  //   `` E[`A`] `` - computed single-quasi TemplateLiteral (no interpolation)
-  // numeric-key shapes fall through (returned null) so the caller's reverse-map fallback
-  // can fire on numeric enums
-  function enumMemberKeyName(memberNode) {
-    const { property, computed } = memberNode;
-    if (!computed) return property?.type === 'Identifier' ? property.name : null;
-    if (property?.type === 'StringLiteral') return property.value;
-    if (property?.type === 'Literal' && typeof property.value === 'string') return property.value;
-    return singleQuasiString(property);
   }
 
   return {

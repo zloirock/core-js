@@ -1,25 +1,19 @@
 // stamp `[core-js] [tag] ` on `error.message` for cross-pass file context. shared by
-// babel-plugin (`withFileTag`) and unplugin (`runTransform` catch) so a re-thrown error
-// always carries the file id downstream toolchains expect.
-//
-// skips when:
-// - `tag` is not a string (defensive against caller plumbing typos)
-// - `error.message` is not a string (user Error subclass with object/array `message`,
-//   AggregateError without overridden `message`, primitive `throw 'str'` whose caught
-//   reference has no `.message` at all)
-// - message already contains `[tag]` (idempotent: an outer wrapper rethrow would
-//   otherwise double-stamp). a bare `[core-js]` prefix from inner user-callback errors
-//   does NOT block tagging: re-stamping appends the file context once, leaving
-//   `[core-js] [tag] [core-js] X` which keeps the user-callback identity while adding
-//   the file marker.
-//
-// the `try/catch` around assignment swallows the TypeError from a sibling plugin's
-// `Object.freeze(error)` (strict-mode assign to frozen prop) so the original error
-// still propagates with its un-tagged message rather than being shadowed by a
-// confusing assignment failure
+// babel-plugin (`withFileTag`) and unplugin (`runTransform` catch).
+// idempotency uses `startsWith('[core-js] [${tag}]')` (anchored at message head). bare
+// inner `[core-js]` prefix and mid-message `[tag]` occurrences do NOT block re-stamping -
+// only an outer wrapper rethrow with identical tag at the head is skipped.
+// reads + assignment wrap in try/catch: hostile `get message() { throw }` and frozen
+// errors stay non-fatal (skip rather than unwind, preserving original identity)
 export function tagError(error, tag) {
-  const msg = error?.message;
-  if (typeof tag !== 'string' || typeof msg !== 'string') return;
-  if (msg.includes(`[${ tag }]`)) return;
-  try { error.message = `[core-js] [${ tag }] ${ msg }`; } catch { /* frozen error */ }
+  if (typeof tag !== 'string' || error === null || error === undefined) return;
+  let msg;
+  try {
+    msg = error.message;
+  } catch { return; }
+  if (typeof msg !== 'string') return;
+  if (msg.startsWith(`[core-js] [${ tag }]`)) return;
+  try {
+    error.message = `[core-js] [${ tag }] ${ msg }`;
+  } catch { /* swallow */ }
 }
