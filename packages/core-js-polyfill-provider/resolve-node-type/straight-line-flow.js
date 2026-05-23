@@ -6,17 +6,19 @@
 //
 // O(V) cache build per binding (sorted by source position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
-import { IIFE_CALL_PATH_WRAPPERS, NESTED_BINDING_INTRODUCERS, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
+import {
+  IIFE_CALL_PATH_WRAPPERS,
+  NESTED_BINDING_INTRODUCERS,
+  TS_EXPR_WRAPPERS,
+  isIifeCallNode,
+} from '../helpers/ast-patterns.js';
 
-// expression wrappers whose child position is ALWAYS evaluated. used to validate the
-// chain from a candidate assignment up to its enclosing statement; anything outside this
-// set (LogicalExpression / ConditionalExpression / OptionalCallExpression / `||=`-style
-// AssignmentExpression) is conditional and disqualifies the assignment
+// always-evaluated wrappers between assignment and its enclosing statement.
+// Logical / Conditional / OptionalCall / short-circuit AssignmentExpression excluded
 const STRAIGHT_LINE_WRAPPER_TYPES = new Set([...IIFE_CALL_PATH_WRAPPERS, ...TS_EXPR_WRAPPERS]);
 
-// statement wrappers `reachesStraightLine` walks from a candidate assignment up to the
-// binding's var-scope (outer check) or IIFE body (inner check). LabeledStatement is
-// forward-transparent - labeled `break`/`continue` targeting it caught by sibling scan
+// statement wrappers `reachesStraightLine` treats as forward-transparent.
+// LabeledStatement included - targeted break / continue caught by sibling scan
 const STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES = new Set([
   'BlockStatement',
   'Program',
@@ -24,11 +26,7 @@ const STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES = new Set([
   'LabeledStatement',
 ]);
 
-// control-flow exits in a preceding sibling of the candidate that mean the assignment may
-// NOT run: function-exit (`return` / `throw`), loop/switch-exit (`break`), iteration-skip
-// (`continue`). nested function / class bodies don't propagate - their exits stay in their
-// own scope (gated by `NESTED_BINDING_INTRODUCERS` in `subtreeContainsExit`). loop/switch
-// shadow unlabeled `break`/`continue`; LabeledStatement scopes its label locally
+// shadow unlabeled `break` / `continue` - subtree walker tracks whether we're inside one
 const LOOP_LIKE_TYPES = new Set([
   'ForStatement',
   'ForInStatement',
@@ -63,10 +61,8 @@ function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
   return false;
 }
 
-// walk from `startStmt` up to `endNode` checking no preceding sibling at any statement-
-// list level contains an exit reachable from outside a nested function. complements
-// `reachesStraightLine`'s ancestor-only check - the chain may be all-straight-line yet
-// a preceding `if (c) return;` at the same block level still disqualifies the assignment
+// no preceding sibling at any statement-list level exits before reaching `endNode`.
+// catches `if (c) return; x = 1` shapes that an ancestor-only check would miss
 function precedingSiblingsExitFree(startStmt, endNode) {
   for (let cur = startStmt; cur && cur.node !== endNode; cur = cur.parentPath) {
     const parentNode = cur.parentPath?.node;
@@ -121,11 +117,9 @@ function reachesStraightLine(startPath, endNode) {
 }
 
 export function createStraightLineFlow({ t, babelNodeType }) {
-  // walk a constant-violation up to the enclosing assignment node:
-  //   `x = y` / `({x} = y)`                  -> AssignmentExpression
-  //   `var x = y` redeclaration (subsequent) -> VariableDeclarator
-  // babel: violation IS the AE / VariableDeclarator. estree-toolkit: violation is the LHS
-  // Identifier; walk up through Property / ObjectPattern. depth scales with destructure nesting
+  // walk constant-violation up to AssignmentExpression / VariableDeclarator.
+  // babel: violation IS the AE / VD. estree-toolkit: violation is LHS Identifier,
+  // walk up through Property / ObjectPattern - depth scales with destructure nesting
   function violationToAssignment(v) {
     let p = v;
     for (let i = 0; i < MAX_DEPTH && p; i++) {
@@ -137,13 +131,10 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return null;
   }
 
-  // if `path` is inside a synchronous IIFE within `targetScope`, return `{ call, fnBody }` -
-  // the wrapping CallExpression path + the IIFE body AST node. matches `(() => { x = 1 })()`
-  // not `setTimeout(() => { x = 1 })`. body is BlockStatement for block-bodied functions; for
-  // arrow-with-expression-body it's the expression (paren-wrapped bodies peeled so identity
-  // comparison vs the assignment node works under oxc which preserves `() => (expr)`'s outer
-  // ParenthesizedExpression). callers need both: call continues lift, body bounds the inner
-  // straight-line check. wrapper-peel sets match findIifeCallSite for parser symmetry
+  // synchronous IIFE wrapping `path` within `targetScope` -> { call, fnBody }.
+  // matches `(() => {x=1})()`, `(() => {x=1})?.()`, `new function () { x = 1 }()`.
+  // body peeled through ParenthesizedExpression / TS wrappers so the identity check
+  // `effectiveAp.node === fnBody` works under oxc which keeps `() => (expr)` parens
   function findEnclosingIIFE(path, targetScope) {
     for (let cur = path; cur; cur = cur.parentPath) {
       if (cur.scope === targetScope) return null;
@@ -161,7 +152,10 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       }
       const call = callee.parentPath;
       if (!call || call.node.callee !== callee.node) return null;
-      if (call.node.type !== 'CallExpression' && call.node.type !== 'OptionalCallExpression') return null;
+      if (!isIifeCallNode(call.node)) return null;
+      // `new (() => {})()` throws TypeError at runtime - arrow body never runs,
+      // writes aren't reachable from post-call usage. require constructible callee
+      if (call.node.type === 'NewExpression' && cur.node.type !== 'FunctionExpression') return null;
       // body-side peel mirrors callee-side: `() => ((x = 1) as any)` parses as TSAsExpression
       // wrapping the assignment; without peel, the assignment-is-body trivial case misses
       let fnBody = cur.node.body;
@@ -185,10 +179,8 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return false;
   }
 
-  // walk from `path` UP to `stmt` (exclusive); every intermediate node must be an always-
-  // evaluating wrapper. catches IIFE-lifted (`false && iife()`, `cond ? iife() : 0`) and
-  // bare-assignment shapes (`false && (x = 'hello')`, `cond ? (x = 'hello') : 0`, `flag
-  // ||= (x = 'hello', flag)`)
+  // every wrapper from `path` up to `stmt` (exclusive) is always-evaluating.
+  // catches `false && (x = 'hi')`, `cond ? (x = 'hi') : 0`, `flag ||= (x = 'hi', flag)`
   function isStraightLineExpressionChain(path, stmt) {
     for (let cur = path.parentPath; cur && cur.node !== stmt.node; cur = cur.parentPath) {
       if (!isAlwaysEvaluatingWrapper(cur.node)) return false;
@@ -196,18 +188,10 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return true;
   }
 
-  // unified reachability check from `effectiveAp` up to `endNode`. three layers, all must pass:
-  //   1. ancestor chain enclosingStmt.parentPath -> endNode is all passthrough types
-  //   2. expression chain effectiveAp -> enclosingStmt is all always-evaluating wrappers
-  //   3. no preceding sibling at any block level exits before enclosingStmt
-  // sibling check matters at BOTH layers for different exit kinds:
-  //   - inner (IIFE body): preceding return / throw / break / continue inside the IIFE
-  //     skips the assignment while the call still returns
-  //   - outer (var-scope): labeled break / continue targeting a LabeledStatement wrapping
-  //     the assignment-but-not-the-use can skip the assignment while the use runs (e.g.
-  //     `outer: { if (c) break outer; x = "hi"; } x.at(0)`). return / throw at the outer
-  //     level fire only when the use also doesn't run, so the implication still holds for
-  //     those - conservative but rare in practice
+  // reachability from `effectiveAp` to `endNode`: ancestor chain passthrough, expression
+  // chain always-evaluating, and no preceding sibling at any block level exits before
+  // the enclosing statement. sibling layer catches labeled break / continue at outer
+  // var-scope and return / throw / break / continue inside IIFE body
   function passesStraightLineCheck(effectiveAp, endNode, wrapStmtType) {
     const stmt = findEnclosingStatement(effectiveAp, wrapStmtType);
     if (!stmt || !reachesStraightLine(stmt.parentPath, endNode)) return false;
@@ -235,10 +219,9 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
     const bindingScopeNode = scopeNode(bindingScope);
-    // Program / BlockStatement / StaticBlock host statements directly at `.body`; only
-    // function-like scopes wrap statements in a BlockStatement node. since the ancestor
-    // walk compares `p.node === endNode`, array-bodied scopes must compare against the
-    // scope node itself, not its `.body` array
+    // Program / Block / StaticBlock host statements at `.body` directly; functions wrap in
+    // BlockStatement. ancestor walk compares `p.node === endNode` - array-bodied scopes
+    // must compare against the scope node itself, not its `.body` array
     const varScopeBody = Array.isArray(bindingScopeNode.body) ? bindingScopeNode : bindingScopeNode.body;
     const out = [];
     for (const v of constantViolations) {
@@ -255,8 +238,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       const pos = effectiveAp.node.start;
       if (pos === undefined || pos === null) continue;
 
-      // no lift -> ap wrapped in its native wrapStmtType. lifted -> effectiveAp is a
-      // CallExpression which always sits inside an ExpressionStatement
+      // lifted effectiveAp is the IIFE call - sits inside an ExpressionStatement
       const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
       if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerWrapType)) continue;
       out.push({ ap, pos });
