@@ -1021,13 +1021,62 @@ runBoth('Union of arrays narrowed inside Array.isArray no-throw',
 
 // --- Enum types ---
 
-// enum-member narrowing isn't tabulated in the type-inference engine - exact value type
-// (number/string per member init) isn't propagated. smoke-test: resolver must not crash
-// on enum-member type references regardless of init shape
+// `E.A` resolves through resolveEnumMemberAccess -> resolveEnumMemberType, which classifies
+// each member's initializer kind. table-driven cases below cover the per-member kind
+// classification + heterogeneous mixes + the known back-ref limit + const enums (constness
+// is compile-time only - runtime kind matches non-const enums)
 
-runBoth('TS numeric enum member type ref resolves without throw',
-  'enum E { A, B } let v: E.A;',
-  (adapter, prog, lbl) => {
+const ENUM_MEMBER_CASES = [
+  // single-member string / numeric / implicit-numeric
+  { label: 'string', src: 'enum E { A = "foo" } const v = E.A;', kind: 'string' },
+  { label: 'numeric', src: 'enum E { A = 42 } const v = E.A;', kind: 'number' },
+  { label: 'implicit-numeric', src: 'enum E { A, B } const v = E.A;', kind: 'number' },
+  // back-to-back same-kind members
+  { label: 'back-to-back string A', src: 'enum E { A = "x", B = "y" } const v = E.A;', kind: 'string' },
+  { label: 'back-to-back string B', src: 'enum E { A = "x", B = "y" } const v = E.B;', kind: 'string' },
+  // heterogeneous mix - each member classified independently
+  { label: 'mix string A', src: 'enum E { A = "foo", B = 42, C = "bar" } const v = E.A;', kind: 'string' },
+  { label: 'mix number B', src: 'enum E { A = "foo", B = 42, C = "bar" } const v = E.B;', kind: 'number' },
+  { label: 'mix string C', src: 'enum E { A = "foo", B = 42, C = "bar" } const v = E.C;', kind: 'string' },
+  // const enum: constness is compile-time concern; runtime kind identical to non-const
+  { label: 'const enum string', src: 'const enum E { A = "foo" } const v = E.A;', kind: 'string' },
+  { label: 'const enum numeric', src: 'const enum E { A = 42 } const v = E.A;', kind: 'number' },
+];
+
+for (const { label, src, kind } of ENUM_MEMBER_CASES) {
+  runBoth(`enum member kind: ${ label } -> ${ kind } primitive`, src, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind });
+  });
+}
+
+// known limit: resolveEnumMemberKind doesn't chase Identifier or MemberExpression back-refs
+// to peer members. flip these into ENUM_MEMBER_CASES if the classifier learns to follow them
+const ENUM_BAIL_CASES = [
+  { label: 'identifier back-ref to peer (numeric)', src: 'enum E { A = 1, B = A } const v = E.B;' },
+  { label: 'member back-ref (E.A forward-ref)', src: 'enum E { A = "x", B = E.A } const v = E.B;' },
+];
+
+for (const { label, src } of ENUM_BAIL_CASES) {
+  runBoth(`enum member bail: ${ label }`, src, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (type === null) return pass();
+    return fail(lbl, `expected null bail, got ${ JSON.stringify(type) }`);
+  });
+}
+
+// type-position enum-member reference (`let v: E.A`) goes through resolveTypeAnnotation -
+// separate path from value-position. resolver must not crash; narrow type-ref tabulation
+// is out of scope
+const ENUM_TYPE_REF_CASES = [
+  { label: 'numeric enum type ref', src: 'enum E { A, B } let v: E.A;' },
+  { label: 'string enum type ref', src: 'enum E { A = "a", B = "b" } let v: E.A;' },
+];
+
+for (const { label, src } of ENUM_TYPE_REF_CASES) {
+  runBoth(`enum type ref smoke: ${ label }`, src, (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
     const resolver = adapter.makeResolver();
     try {
@@ -1035,17 +1084,7 @@ runBoth('TS numeric enum member type ref resolves without throw',
       pass();
     } catch (error) { fail(lbl, `threw: ${ error.message }`); }
   });
-
-runBoth('TS string enum member type ref resolves without throw',
-  'enum E { A = "a", B = "b" } let v: E.A;',
-  (adapter, prog, lbl) => {
-    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
-    const resolver = adapter.makeResolver();
-    try {
-      resolver.resolveNodeType(decl.get('id'));
-      pass();
-    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
-  });
+}
 
 // --- Prototype-method access on built-in ---
 

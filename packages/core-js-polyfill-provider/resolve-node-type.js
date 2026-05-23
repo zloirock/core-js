@@ -1,5 +1,6 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint } from './index.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import {
   getTypeArgs,
   kebabToCamel,
@@ -23,6 +24,7 @@ import {
 } from './resolve-node-type/base.js';
 import {
   collectQualifiedSegments,
+  isBareUndefinedIdentifier,
   peelTSParenthesized,
   typeRefName,
   typeRefSegments,
@@ -78,22 +80,34 @@ const {
 
 const { hasOwn } = Object;
 
-// thin binding adapter for `walkStaticReceiverChain` (detect-usage/destructure.js) so the
-// resolver layer can reuse the shared walker. babel scopes expose getBinding directly;
-// `binding.path.node` carries the VariableDeclarator. matches the babel-plugin adapter's
-// shape minus the polyfillHint / TS-runtime extras the resolver doesn't need
-const BABEL_BINDING_ADAPTER = {
-  hasBinding: (scope, name) => !!scope?.getBinding(name),
-  getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type,
-  getBinding: (scope, name) => scope?.getBinding(name),
-};
+// binding adapter shared with `walkStaticReceiverChain`. `getBindingPolyfillHint` is a
+// side-channel for the post-rewrite alias `_globalThis` -> `globalThis` mapping, kept off
+// the binding object so closure / alias trackers preserve WeakMap identity. covers both
+// pure-import bindings (`import _Array$from` -> entry `array/from` -> hint `Array`) and
+// alias-only bindings (`_globalThis` registered via `registerGlobalAlias`, no entry path)
+function makeBabelBindingAdapter(getPolyfillBindingHint) {
+  return {
+    hasBinding: (scope, name) => !!scope?.getBinding(name),
+    getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type,
+    getBinding: (scope, name) => scope?.getBinding(name),
+    getBindingPolyfillHint(scope, name) {
+      const hint = getPolyfillBindingHint(scope, name);
+      return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
+    },
+  };
+}
 
 // `cycleSeenSets` + `cycleFlipDetector` live in `resolve-node-type/user-type-resolve.js`
 // (their only consumer). `getOrInitMap` lives in `resolve-node-type/base.js` (consumed
 // by typeof-guards + name-resolution).
 
 // eslint-disable-next-line max-statements -- factory of type inference engine
-function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () => null, isReassignedBinding = () => false } = {}) {
+function createResolveNodeType(babelNodeType, t, {
+  getPolyfillBindingEntry = () => null,
+  getPolyfillBindingHint = () => null,
+  isReassignedBinding = () => false,
+} = {}) {
+  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint);
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
   // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
@@ -555,6 +569,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     resolveRuntimeExpression,
     resolveKnownContainerType: (...args) => resolveKnownContainerType(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    babelBindingAdapter,
   });
 
   // mapped + conditional type evaluation lives in the `type-expansion` cluster. service
@@ -959,7 +974,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!inner) return false;
     if (inner.type === 'NullLiteral') return true;
     if (inner.type === 'Literal' && inner.value === null && !inner.regex) return true;
-    if (inner.type === 'Identifier' && inner.name === 'undefined') return true;
+    if (isBareUndefinedIdentifier(inner)) return true;
     return inner.type === 'UnaryExpression' && inner.operator === 'void';
   }
 
@@ -1099,7 +1114,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // factory function decls (hoisted) or pure imports
   const closureAnalysisCluster = createClosureAnalysis({
     t,
-    babelBindingAdapter: BABEL_BINDING_ADAPTER,
+    babelBindingAdapter,
     memoize,
     getKeyName,
     objectBindingName,
@@ -1408,7 +1423,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   const callResolutionCluster = createCallResolution({
     t,
     babelNodeType,
-    babelBindingAdapter: BABEL_BINDING_ADAPTER,
+    babelBindingAdapter,
     isMemberLike,
     isFunctionLike,
     isNullableOrNever,
@@ -1672,7 +1687,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     blockAlwaysExits,
     canFallThrough,
     KNOWN_STATIC_TYPE_GUARDS,
-    babelBindingAdapter: BABEL_BINDING_ADAPTER,
+    babelBindingAdapter,
   });
   const {
     findEnclosingTypeGuards,
