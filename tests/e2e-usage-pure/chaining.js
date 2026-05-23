@@ -45,11 +45,16 @@ QUnit.test('chain: Object.entries -> map', assert => {
   assert.deepEqual(result, ['x=10']);
 });
 
+// test pins `.reduce()` in a chain; suppress `math/prefer-math-sum-precise` here -
+// sumPrecise has its own dedicated test
+/* eslint-disable math/prefer-math-sum-precise -- see above */
 QUnit.test('chain: Array.from -> filter -> reduce', assert => {
-  const sum = Math.sumPrecise(Array.from({ length: 5 }, (_, i) => i + 1)
-    .filter(x => x % 2));
+  const sum = Array.from({ length: 5 }, (_, i) => i + 1)
+    .filter(x => x % 2)
+    .reduce((acc, x) => acc + x, 0);
   assert.same(sum, 9);
 });
+/* eslint-enable math/prefer-math-sum-precise -- end of test-pinned block */
 
 QUnit.test('chain: JSON.stringify -> includes', assert => {
   assert.true(JSON.stringify({ a: 1 }).includes('a'));
