@@ -212,7 +212,12 @@ export function createClosureAnalysis({
       for (const entry of entries) {
         if (entry.isLeakPosition) return null;
         if (!entry.isDeclaratorInit) continue;
-        const declarator = entry.path.parentPath;
+        // wrapperPath is the outermost transparent-wrapper path; its parentPath is the
+        // VariableDeclarator regardless of whether `(new C())` / `new C() as C` / bare
+        // `new C()` shape was used. without the indirection, paren-wrapped init resolves
+        // declarator.node.id = undefined (ParenthesizedExpression has no `id` slot) and
+        // the closure walk bails as if the init wasn't a declarator
+        const declarator = entry.wrapperPath.parentPath;
         const { id } = declarator.node;
         if (id?.type !== 'Identifier') return null;
         const binding = declarator.scope?.getBinding(id.name);
