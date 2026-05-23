@@ -2535,7 +2535,7 @@ function checkSnapshotStoreBumpsRecency() {
   check('SnapshotCache/size stays 2 on re-store', cache.size(), 2);
   check('SnapshotCache/re-store preserves latest value',
     cache.take('/oldest.js')?.v, 'oldest-touched');
-  check('SnapshotCache/re-store doesnt drop other entries',
+  check('SnapshotCache/re-store does not drop other entries',
     cache.take('/middle.js')?.v, 'middle');
 }
 checkSnapshotStoreBumpsRecency();
