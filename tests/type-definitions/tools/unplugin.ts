@@ -103,6 +103,8 @@ vite({ method: 'usage-global', phase: 'pre' });
 vite({ method: 'usage-pure', phase: 'post' });
 vite({ method: 'usage-global', phase: 'pre+post' });
 vite({ method: 'entry-global', phase: 'pre' });
+// phase: null on entry-global mirrors the conditional-spread idiom at runtime
+vite({ method: 'entry-global', phase: null });
 
 // all options combined
 vite({
