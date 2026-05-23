@@ -46,12 +46,16 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 export default function plugin(api, options) {
   const { types: t, caller } = api;
 
-  // `getPolyfillBindingEntry` reads `injector` lazily (assigned in Program enter, declared
-  // below) - same late-binding closure pattern as `createASTHelpers` / `createBabelAdapter`.
-  // resolves polyfilled-static aliases (`const from = Array.from` after rewrite) so the
-  // call return type propagates to outer member-access narrowing
+  // `getPolyfillBindingEntry` / `getPolyfillBindingHint` read `injector` lazily (assigned in
+  // Program enter, declared below) - same late-binding closure pattern as `createASTHelpers`
+  // / `createBabelAdapter`. entry path resolves polyfilled-static aliases (`const from =
+  // Array.from` after rewrite). hint covers BOTH pure-import bindings (`_Array$from` -> entry
+  // `array/from` -> hint `Array`) AND alias-only bindings (`_globalThis` registered via
+  // `registerGlobalAlias`, no standalone entry path) so the proxy-global recognizer reaches
+  // `extends g.Array<...>` after the in-place `globalThis` -> `_globalThis` rewrite
   const typeResolvers = createResolveNodeType(node => node?.type, t, {
     getPolyfillBindingEntry(scope, name) { return injector?.getBindingInfo?.(name)?.entry ?? null; },
+    getPolyfillBindingHint(scope, name) { return injector?.getBindingInfo?.(name)?.hint ?? null; },
     isReassignedBinding(name) { return injector?.isReassignedBinding?.(name) ?? false; },
   });
   const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;

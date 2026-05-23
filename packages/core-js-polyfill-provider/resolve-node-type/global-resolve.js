@@ -18,8 +18,8 @@
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH } from './base.js';
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { getSuperTypeArgs, isAmbientBindingShape, peelIIFEReturn } from '../helpers/ast-patterns.js';
+import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { getSuperTypeArgs, isAmbientBindingShape, peelIIFEReturn, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 
 export function createGlobalResolve({
   t,
@@ -30,6 +30,7 @@ export function createGlobalResolve({
   resolveRuntimeExpression,
   resolveKnownContainerType,
   resolveTypeAnnotation,
+  babelBindingAdapter,
 }) {
   // TS-runtime shadow filter: raw `scope.getBinding(name)` returns a binding for `declare
   // const X` / `import type { X }` / TSEnumDeclaration / TSInterfaceDeclaration / etc.,
@@ -63,18 +64,11 @@ export function createGlobalResolve({
     return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName) && isGlobalProxy(objectPath.get('object'));
   }
 
-  // IIFE returning a proxy-global: `(() => globalThis)()` / `(function(){ return self; })()`.
-  // `peelIIFEReturn` returns the body's single ReturnStatement / expression-body argument
-  // when callee is a sync zero-param arrow / fn-expression. mirrors `resolveProxyGlobalRoot`
-  // in the polyfill resolver so type-inference for `(() => globalThis)().Array.from(x)`
-  // (return type Array) stays symmetric with the polyfill-side detection
+  // IIFE returning a proxy-global: `(() => globalThis)()` / `(function(){ return self })()`
   function isProxyGlobalIifeReturn(callPath) {
     const ret = peelIIFEReturn(callPath.node);
     if (!ret) return false;
-    // resolve the return expression as a path. oxc preserves `ParenthesizedExpression` on
-    // the callee; babel strips it. peel the wrapper to reach the function-like node, then
-    // dive into its body. expression-body arrows have callee.body === ret directly;
-    // block-bodied functions need `findReturnPath` to locate the single ReturnStatement
+    // oxc preserves `ParenthesizedExpression` on the callee; babel strips it
     let fnPath = callPath.get('callee');
     while (fnPath?.node?.type === 'ParenthesizedExpression') fnPath = fnPath.get('expression');
     if (!fnPath?.node) return false;
@@ -110,15 +104,9 @@ export function createGlobalResolve({
     return null;
   }
 
-  // user-aliased global: `const A = Array; new A(...)` / `A(...)` / etc.
-  // `resolveRuntimeExpression` peels const-bound Identifier aliases until it lands on
-  // an unbound Identifier (a global) or stops at a non-const / non-Identifier RHS.
-  // accept only when the walk LANDED on a different Identifier that's a KNOWN
-  // constructor -- returning a non-global name here would short-circuit downstream
-  // type-inference fallbacks (`null` lets generic dispatchers kick in; a non-global
-  // name reaches `resolveKnownConstructor`, which returns null, suppressing the
-  // generic emit). reassigned bindings (`let A; A = other`) walk to `other`, which
-  // isn't a known constructor -- we bail and preserve the pre-fix generic-dispatch
+  // user-aliased global `const A = Array; new A()`: walk const aliases through
+  // `resolveRuntimeExpression`. accept only when the walk LANDED on a different unbound
+  // Identifier that's a KNOWN constructor - otherwise bail so generic dispatchers kick in
   function resolveAliasedGlobalName(path) {
     const walked = resolveRuntimeExpression(path);
     const node = walked?.node;
@@ -176,13 +164,27 @@ export function createGlobalResolve({
     return knownConstructorAt(binding.path.get('init'));
   }
 
+  // `extends` accepts a broader set of shapes than plain `resolveGlobalName`:
+  //  - TS / Flow expression wrappers (`(Base as any)`, `(Base!)`, `<Base>Foo`, `(Base satisfies Ctor)`)
+  //  - computed proxy-global member (`globalThis['Array']`) - accepted by `memberKeyName`
+  //  - post-rewrite proxy-global alias (`_globalThis.Array` after in-place rewrite) - the
+  //    factory's `babelBindingAdapter` reports `polyfillHint` for alias names so
+  //    `globalProxyMemberName` resolves the chain uniformly with the direct-globalThis shape
+  function resolveSuperGlobalName(superPath) {
+    const direct = resolveGlobalName(superPath);
+    if (direct) return direct;
+    const peeled = unwrapRuntimeExpr(superPath.node);
+    if (!peeled || (peeled.type !== 'MemberExpression' && peeled.type !== 'OptionalMemberExpression')) return null;
+    return globalProxyMemberName({ node: peeled, scope: superPath.scope, adapter: babelBindingAdapter, path: superPath });
+  }
+
   function resolveClassInheritance(classPath) {
     let current = classPath;
     let depth = MAX_DEPTH;
     while (depth--) {
       if (!current.node.superClass) return null;
       const superPath = current.get('superClass');
-      const name = resolveGlobalName(superPath);
+      const name = resolveSuperGlobalName(superPath);
       if (name) {
         const base = resolveKnownConstructor(name);
         // `class MyArr extends Array<string>` - the super's type argument is the element type
