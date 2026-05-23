@@ -179,6 +179,10 @@ throwsWith('validateOptions/non-empty exclude + shouldInjectPolyfill conflict',
 
 doesNotThrow('validateOptions/package undefined OK',
   () => validateOptions({ ...validBase, package: undefined }));
+// `null = same as absent` per index.d.ts (`package?: string | null`); conditional-spread
+// shapes like `{ package: cond ? '@my/fork' : null }` must not throw at validate time
+doesNotThrow('validateOptions/package null OK',
+  () => validateOptions({ ...validBase, package: null }));
 doesNotThrow('validateOptions/package valid string',
   () => validateOptions({ ...validBase, package: '@my/fork' }));
 throwsWith('validateOptions/package non-string',
