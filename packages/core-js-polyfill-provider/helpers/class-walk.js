@@ -1,9 +1,8 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { markAndPeelSkippableWrappers, singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
 
-// declaration-init peel: strip parens + TS wrappers (`unwrapRuntimeExpr`) AND the tail of
-// SequenceExpression (`(se(), receiver)` -> `receiver` at runtime). combined walks the
-// mixed-wrapper cases like `((se(), X) as any)`. stops when the two peels reach a fixpoint
+// peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
+// to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`
 function unwrapInitForResolution(node) {
   while (node) {
     const peeled = unwrapRuntimeExpr(node);
@@ -16,30 +15,37 @@ function unwrapInitForResolution(node) {
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
-// direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint
-// after `globalThis -> _globalThis` in-place mutation). scope+adapter optional; without them
-// only direct names pass. with scope+adapter, a user binding (`function f(globalThis) {}`)
-// shadows the global - shadowed names without `polyfillHint` are NOT proxy-global. `path`
-// (optional) anchors TS-runtime shadow detection (`enum globalThis {}` / `namespace self {}`
-// inside a static block) for adapters whose scope tracker can't see those declarations
+// direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
+// scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
+// is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
+// const aliases (`const g = globalThis`) pass through via init-peel
 function isProxyGlobalIdentifierNode({ node, scope, adapter, path }) {
   if (node?.type !== 'Identifier') return false;
-  if (scope && adapter) {
-    const binding = adapter.getBinding(scope, node.name);
-    if (binding) return !!binding.polyfillHint && POSSIBLE_GLOBAL_OBJECTS.has(binding.polyfillHint);
-    // TS-runtime shadow via path-anchored lookup. shadowed name with no polyfillHint is NOT proxy-global
-    if (adapter.hasBinding?.(scope, node.name, path)) return false;
-  }
+  if (!scope || !adapter) return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
+  const binding = adapter.getBinding(scope, node.name);
+  // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
+  // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
+  // no entry in babel's scope chain, so the init-follow path never observes them
+  const hint = binding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, node.name);
+  if (hint) return POSSIBLE_GLOBAL_OBJECTS.has(hint);
+  if (binding) return followLocalBindingToProxyGlobal(binding, scope, adapter, path);
+  if (adapter.hasBinding?.(scope, node.name, path)) return false;
   return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
 }
 
-// extract a member property's name as a string (identifier, string literal, single-quasi template);
-// null when the key isn't statically resolvable.
-// this helper is adapter-free (operates on raw AST nodes); the dual `StringLiteral` / `Literal`
-// check is the cross-parser dispatch - babel emits `StringLiteral`, oxc emits `Literal`.
-// adapter-aware callers should go through `adapter.isStringLiteral` (see `types.isStringLiteral`
-// warning in `unplugin/internals/estree-compat.js`)
-function memberKeyName(node) {
+// const-alias chain: `const g = globalThis` -> recurse into the init. reassigned bindings
+// bail (the init-time global identity is no longer guaranteed at the use site)
+function followLocalBindingToProxyGlobal(binding, scope, adapter, path) {
+  if (binding.constantViolations?.length) return false;
+  const init = unwrapInitForResolution(binding.path?.node?.init);
+  if (init?.type !== 'Identifier') return false;
+  return isProxyGlobalIdentifierNode({ node: init, scope: binding.path?.scope ?? scope, adapter, path });
+}
+
+// raw-AST static key extractor: Identifier (non-computed), StringLiteral / ESTree Literal
+// (computed), single-quasi TemplateLiteral. null for dynamic shapes. adapter-aware callers
+// should route through `adapter.isStringLiteral`
+export function memberKeyName(node) {
   const { property, computed } = node;
   if (!computed && property?.type === 'Identifier') return property.name;
   if (computed && property?.type === 'StringLiteral') return property.value;
@@ -53,10 +59,8 @@ function memberKeyName(node) {
 }
 
 // `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis.self.X` -> 'X', else null.
-// babel: `OptionalMemberExpression`; ESTree/oxc: `ChainExpression { MemberExpression { optional } }`.
-// walks intermediate proxy-global links (`globalThis.self` / `globalThis.window`) so deeper
-// chains still resolve to the final key. empty-string key (`globalThis['']`) returns null -
-// no real global has empty name; treat as miss so callers' `!== null` check stays sound
+// walks intermediate proxy-global links so deeper chains resolve to the leaf key.
+// empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
 export function globalProxyMemberName({ node, scope, adapter, path }) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
@@ -70,64 +74,43 @@ export function globalProxyMemberName({ node, scope, adapter, path }) {
   return memberKeyName(node) || null;
 }
 
-// strict: IIFE caller-arg only overrides wrapper-default when it's a bare Identifier.
-// non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`, `(...)((x, y))`) leave
-// the wrapper-default as the synth target so resolution can fall through to the default
-// (`function f({p} = Array)(globalThis.X)` -> default `Array.p` resolves even if
-// `globalThis.X.p` doesn't). use this gate when the wrapper has an AssignmentPattern default
+// strict: IIFE caller-arg overrides wrapper-default ONLY when bare Identifier; other shapes
+// keep the AssignmentPattern default as the synth target so resolution can fall through
 export function isClassifiableReceiverArg(node) {
   return node?.type === 'Identifier';
 }
 
-// permissive: no wrapper-default exists (`function f({p})` invoked as IIFE) - any
-// statically-classifiable receiver is acceptable. accepts bare Identifier AND proxy-global
-// MemberExpressions (`globalThis.X`, `self.X`, `window.X`, `globalThis.self.X`) since
-// resolution can match `globalThis.X.key` to `X.key` via `globalProxyMemberName`. failing
-// to widen here would force inline-default fallback, asymmetric with the bare-Identifier
-// IIFE path. scope+adapter optional - structural-only classification when omitted
+// permissive: no wrapper-default - accept bare Identifier OR proxy-global MemberExpression
+// so `globalThis.X.key` resolves the same as the bare-Identifier IIFE path
 export function isExpandedClassifiableReceiver({ node, scope, adapter, path }) {
   if (node?.type === 'Identifier') return true;
   return globalProxyMemberName({ node, scope, adapter, path }) !== null;
 }
 
-// mark a synth-swap receiver and all its inner sub-nodes as "owned" by skippedNodes so
-// no other visitor races on the same source range. for bare Identifier receivers this is
-// just the node; for proxy-global MemberExpression chains (`globalThis.Map`,
-// `globalThis.self.Map`) we walk down `.object` and skip every intermediate Identifier
-// too - otherwise the inner `globalThis` Identifier visitor still fires and emits a
-// `_globalThis` polyfill, leaving an orphan import (babel) or a transform-queue overlap
-// composition error (unplugin) when synth-swap removes the outer chain
+// mark a synth-swap receiver and all inner sub-nodes as owned by skippedNodes so the
+// inner-Identifier visitor doesn't double-fire (orphan import / transform-queue overlap).
+// walks through paren / chain / TS wrappers on each `.object` hop too
 export function markSynthReceiverSkipped(receiver, skippedNodes) {
   if (!receiver) return;
   let cur = receiver;
   while (cur) {
     skippedNodes.add(cur);
     if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
-      // walk through paren / chain / TS wrappers on `.object` adding EACH to skippedNodes
-      // via the shared `markAndPeelSkippableWrappers`. without marking the wrappers, an
-      // Identifier visitor inspecting a wrapped global LATER (`(globalThis as any).Map`)
-      // would still fire its own polyfill - leaving an orphan import (babel) or a transform-
-      // queue overlap composition error (unplugin)
       cur = markAndPeelSkippableWrappers(cur.object, skippedNodes);
     } else break;
   }
 }
 
-// `class C extends MyPromise { super.try(...) }` - `buildSuperStaticMeta` sets
-// `superMeta.object` to the binding name (`MyPromise`), but resolver tables key by global
-// (`statics.Promise.try`). returns superMeta with `.object` rewired to the registered
-// global hint, or the input unchanged when the injector doesn't know the name.
-// pure (non-mutating) so caller cache reuse stays safe
+// rewire `superMeta.object` from binding name (`MyPromise`) to registered global hint
+// (`Promise`) so resolver tables key by the global. pure - caller cache reuse stays safe
 export function resolveSuperImportName(injector, superMeta) {
   if (!superMeta?.object || !injector) return superMeta;
   const imp = injector.getPureImport(superMeta.object);
   return imp ? { ...superMeta, object: imp.hint } : superMeta;
 }
 
-// remap inherited-static meta through `resolveSuperImportName` while preserving the
-// caller's computed-key sideEffects channel. without the carry, `super[(fn(),'X')]`
-// would lose `fn()` evaluation when the static dispatch retargets to the parent class's
-// global hint. shared between babel-plugin and unplugin emitters
+// remap inherited-static meta while preserving the computed-key sideEffects channel
+// (`super[(fn(),'X')]` would otherwise lose `fn()` evaluation on static-dispatch retarget)
 export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) {
   if (!inheritedMeta) return null;
   const remapped = resolveSuperImportName(injector, inheritedMeta);
@@ -135,45 +118,33 @@ export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) 
     ? { ...remapped, sideEffects: originalMeta.sideEffects } : remapped;
 }
 
-// `super.X` in a static method -> static meta on the parent class. `resolveSuperType`
-// dispatches on AST shape (Identifier alias chains / MemberExpression proxy-global chains).
-// oxc-parser preserves `ParenthesizedExpression` wrappers that babel strips - peel first
+// `super.X` in a static method -> static meta on the parent class. peel parens + TS casts
+// on the superClass node so `class C extends (Base as typeof Base)` resolves to Base
 export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
-  // unwrap TS casts too: `class C extends (Base as typeof Base)` should resolve to Base
   const superClass = unwrapRuntimeExpr(classNode.superClass);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
   return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
 }
 
-// shared `super.X` / `this.X` class-walking helpers. `t` is `@babel/types` or
-// `estree-compat.types`; `adapter` enables scope-aware proxy-global resolution through
-// polyfillHint for plugin-managed imports. `resolveKey` is the provider's key resolver
-// (from `detect-usage.js`) - injected rather than imported to avoid circular deps
-// (detect-usage already imports class-walk via the helpers barrel). `getInjector` is
-// a lazy accessor for the per-file ImportInjector instance; resolveSuperClassName uses
-// `getInjector().getPureImport(name)` to distinguish user-managed core-js imports
-// (registered via scanExistingCoreJSImports -> registerUserPureImport, hint remapped
-// downstream by resolveSuperImportName) from arbitrary user imports whose local name
-// happens to shadow a known global - the latter must NOT pass through, or
-// `import {fn as Promise} from './local'` would dispatch `super.try` as `Promise.try`.
-// passed lazily because the factory runs before `pre()` allocates the per-file injector
-// (capturing the variable directly would freeze the undefined slot). caches live on
-// the closure - call once per file
+// shared `super.X` / `this.X` class-walking helpers.
+// - `t`: babel/types or estree-compat types
+// - `adapter`: scope/binding accessor (polyfillHint for plugin-managed imports)
+// - `resolveKey`: provider's key resolver, injected to avoid circular deps via helpers barrel
+// - `getInjector`: lazy accessor for the per-file ImportInjector (factory may run before pre())
+// caches on the closure - call once per file
 export function createClassHelpers({ t, adapter, resolveKey, getInjector = null }) {
   function isClassMember(node) {
     return t.isClassMethod(node) || t.isClassPrivateMethod(node)
       || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
   }
 
-  // resolve a statically determinable key: Identifier (non-computed), StringLiteral, TemplateLiteral
+  // statically determinable key: Identifier (non-computed) / StringLiteral / single-quasi
+  // TemplateLiteral. PrivateIdentifier explicit-reject - the no-shadow invariant is too
+  // subtle to leave implicit
   function staticKeyName(key, computed) {
     if (!key) return null;
-    // private members (`#foo` / `accessor #foo`) have PrivateIdentifier keys - they CANNOT be
-    // shadowed by / shadow a public member with the same textual name, so the shadow-check
-    // must reject them explicitly. falling through to singleQuasiString / returning null by
-    // accident would work today but the invariant is too subtle to leave implicit
     if (key.type === 'PrivateIdentifier' || key.type === 'PrivateName') return null;
     if (!computed && t.isIdentifier(key)) return key.name;
     if (t.isStringLiteral(key)) return key.value;
@@ -202,11 +173,8 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       if (enclosingCache.has(node)) return backfill(visited, enclosingCache.get(node));
       visited.push(node);
       if (isClassMember(node) || t.isStaticBlock(node)) {
-        // computed-key slot is OUTSIDE the member's runtime scope - `this` / closure refs
-        // there evaluate at class-def time in the OUTER scope. when prev's node IS the
-        // member's computed key, skip this member and keep walking up. without the gate
-        // `class C { [this.X]() {} }` would resolve `this.X` against C's instance/static
-        // surface instead of the enclosing scope's this
+        // computed-key slot evaluates at class-def time in the OUTER scope - skip the member
+        // when prev's node IS the key so `class C { [this.X]() {} }` doesn't resolve to C
         if (prev && node.computed && node.key === prev.node) {
           prev = cur;
           continue;
@@ -229,16 +197,11 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return backfill(visited, null);
   }
 
-  // find `{ key: binding }` or shorthand `{ key }` in ObjectPattern where value binds
-  // to targetName; null when not found / shape unsupported. return the proxy-member key.
-  // accepts both Identifier keys (`{ Promise: MyP }`) and string-literal keys (`{ 'Promise': MyP }`)
-  // - both forms resolve to the same runtime property at destructure time
+  // find `{ key: binding }` / shorthand `{ key }` in ObjectPattern where value binds to
+  // targetName. returns the property key; accepts Identifier and StringLiteral keys
   function findDestructureKeyForBinding(objectPattern, targetName) {
     for (const p of objectPattern.properties ?? []) {
       if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
-      // `staticKeyName` covers Identifier / StringLiteral / single-quasi TemplateLiteral;
-      // ESTree's oxc `Literal` shape with a string value falls through the `isStringLiteral`
-      // check (`nodeType()` maps Literal+string to StringLiteral), so both parser shapes resolve
       const keyName = staticKeyName(p.key, p.computed);
       if (!keyName) continue;
       const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
@@ -248,32 +211,22 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return null;
   }
 
-  // follow `const X = Y` aliases to the first unshadowed global; null on real local
-  // bindings. ES imports pass through so `resolveSuperImportName` can map them back
-  // to the original global via the injector's `#byName` registry.
-  // `seen` is threaded from the caller so cycle detection survives cross-calls to
-  // `resolveBindingToGlobalName` (which re-enters this function) - without shared state,
-  // mutually-recursive namespace aliases (`const A = NS.P; const NS = { P: A }`) would
-  // bounce between the two resolvers with a fresh Set each hop and stack-overflow
+  // follow `const X = Y` aliases to the first unshadowed global; null on real local bindings.
+  // ES imports pass through for `resolveSuperImportName` to remap via injector's `#byName`.
+  // `seen` is shared with `resolveBindingToGlobalName` so namespace-cycle detection survives
   function resolveSuperClassName(startName, scope, seen = new Set(), path = null) {
     let name = startName;
     while (!seen.has(name)) {
       seen.add(name);
-      // injector-side hints win over scope-walked bindings: `handleDestructuredProperty`
-      // rewrites `{Promise: MyP, ...rest} = globalThis` / `{Promise: MyP = Fallback} =
-      // globalThis` in-place, so `binding.path.init` becomes an Identifier or a
-      // ConditionalExpression that the walk below cannot map back to `Promise`. the
-      // destructure emitter explicitly registers the alias via `registerGlobalAlias`,
-      // and the adapter surfaces that as `polyfillHint`. prefer it before any scope walk
-      const hint = adapter.getBinding?.(scope, name)?.polyfillHint;
+      // polyfillHint wins: `handleDestructuredProperty` rewrites destructure-with-default
+      // shapes in-place, so `binding.path.init` is unrecoverable. plugin adapters expose
+      // via binding object; resolver-tier adapter via side-channel
+      const hint = adapter.getBinding?.(scope, name)?.polyfillHint
+        ?? adapter.getBindingPolyfillHint?.(scope, name);
       if (hint) return hint;
       const binding = scope?.getBinding?.(name);
-      // no binding in raw scope: check TS-runtime fallback (`enum X` / `namespace X` /
-      // value-mode `TSImportEqualsDeclaration`) anchored on caller `path`. estree-toolkit's
-      // scope tracker doesn't see those names from inside nested TSModuleBlocks, but
-      // `findTSRuntimeBindingInPath` walks up the AST and catches them. without the gate
-      // `namespace M { enum Promise { A }; class C extends Promise { static run() {
-      // super.try() }}}` would treat `Promise` as the global and inject the polyfill
+      // no binding: TS-runtime fallback (`enum X` / `namespace X` / `import X = require()`)
+      // anchored on `path` - estree-toolkit's scope tracker misses these
       if (!binding) {
         if (path && adapter.hasBinding?.(scope, name, path)) return null;
         return name;
@@ -282,28 +235,16 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       const decl = binding.path?.node;
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
         || decl?.type === 'ImportNamespaceSpecifier') {
-        // pass through ONLY when the injector recognises `name` as a user-side core-js
-        // import (registered via `registerUserPureImport`). otherwise the local name is
-        // either a renamed builtin shadow (`import {fn as Promise} from './local'`),
-        // a namespace alias, or a default import from a non-core-js module - none of
-        // which carry the global's semantics, so dispatching `super.X` as the global's
-        // polyfill would override user-shim semantics. without an injector accessor we
-        // fall back to the legacy pass-through (preserves contract for callers that
-        // haven't plumbed `getInjector`)
+        // pass-through ONLY for injector-registered core-js imports - otherwise `import
+        // {fn as Promise} from './local'` would dispatch `super.X` as the global's polyfill
         const injector = getInjector?.();
         if (!injector) return name;
         return injector.getPureImport?.(name) ? name : null;
       }
       if (decl?.type !== 'VariableDeclarator') return null;
-      // strip parens + TS casts (`const A = Promise as typeof Promise`); without TS-strip
-      // the alias chain bails and `super.X` doesn't resolve to the wrapped Promise
       const init = unwrapInitForResolution(decl.init);
-      // ObjectPattern destructure (`const { Promise: MyP } = R`): treat as the equivalent
-      // `const MyP = R.<key>` member access. babel-plugin mutates AST before this runs so
-      // binding.path points at the rewritten simple form, but unplugin keeps raw destructure
-      // and needs the resolution here. proxy-global init (`globalThis` / `self.window` etc.)
-      // short-circuits to the destructured key. user-namespace init (`const NS = {Promise}`)
-      // routes through resolveBindingToGlobalName which walks namespace-object literals
+      // ObjectPattern: `const { Promise: MyP } = R` -> `const MyP = R.Promise`. unplugin
+      // keeps raw destructure; babel-plugin already rewrites it
       if (decl.id?.type === 'ObjectPattern') {
         const keyName = findDestructureKeyForBinding(decl.id, name);
         if (!keyName) return null;
@@ -320,19 +261,15 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         name = init.name;
         continue;
       }
-      // non-Identifier init: delegate to the unified resolver which handles proxy-global
-      // chains AND user-namespace object-literal members. `const A = globalThis.Promise`
-      // / `const A = NS.Promise` both resolve to 'Promise' through the same path.
-      // thread `seen` so cycles via namespace-member recursion are detected
+      // delegate proxy-global / namespace-member chains; share `seen` so namespace-member
+      // recursion can't loop
       return resolveBindingToGlobalName(init, scope, seen, path);
     }
     return null;
   }
 
-  // a "namespace container" - class body with static properties or object literal - is any
-  // value we can statically look up a member on by name. methods / getters / private fields /
-  // static blocks intentionally skipped: their value isn't a resolvable alias chain (static
-  // block runs at class-eval time with arbitrary code; getters return runtime values)
+  // namespace container = class body (static properties) or object literal - anything we
+  // can statically look up by name. methods / getters / static blocks skipped (runtime values)
   function findNamespaceMemberValue(container, propName) {
     if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
       for (const m of container.body?.body ?? []) {
@@ -351,10 +288,8 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return null;
   }
 
-  // bare Identifier -> static container (ClassDeclaration / ClassExpression / ObjectExpression
-  // reached through `const X = ...`). null when binding is missing, mutated, or the init
-  // doesn't peel down to something `findNamespaceMemberValue` can index. seen-Set guards
-  // the alias chain `const A = B; const B = A` from infinite recursion
+  // Identifier -> reachable static container (ClassDeclaration / ClassExpression /
+  // ObjectExpression via `const X = ...`). seen guards alias cycles
   function bindingContainerValue(name, scope, seen) {
     if (seen.has(name)) return null;
     seen.add(name);
@@ -366,11 +301,8 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       : unwrapInitForResolution(declNode?.init);
   }
 
-  // member access value lookup: resolve outer to a container, look up the leaf property.
-  // returns the property's value node (Identifier alias / nested namespace / etc.) or null.
-  // shared by `resolveToContainer` (which recurses on the value to keep walking down the
-  // chain) and `resolveBindingToGlobalName` (which feeds the value back through itself to
-  // map to a global name). leaf-key resolution accepts computed/literal/const-alias chains
+  // member-access value lookup: outer -> container, look up leaf property. shared by
+  // resolveToContainer (recurses on value) and resolveBindingToGlobalName (maps to global)
   function resolveMemberAccess(memberNode, scope, seen) {
     const propName = resolveKey({ node: memberNode.property, computed: memberNode.computed, scope, adapter });
     if (!propName) return null;
@@ -394,38 +326,24 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return null;
   }
 
-  // unified "what global name does this expression resolve to?" primitive. covers:
-  //  - bare Identifier (`extends Promise`) / alias chain (`const X = Promise`)
-  //  - proxy-global member chain (`extends globalThis.Promise`)
-  //  - user-namespace object literal (`const NS = { Promise }; extends NS.Promise`)
-  //  - static class-as-namespace (`class Box { static Promise = Promise }; extends Box.Promise`)
-  //  - any composition / N-level nesting through the above
-  // returns the canonical global name or null. `seen` threads through `resolveSuperClassName`
-  // and `resolveToContainer` so mutually-recursive aliases (`const A = NS.P; const NS = {P:A}`)
-  // share one cycle-detection Set across all hops. `path` (optional) anchors TS-runtime shadow
-  // detection (`declare const Promise; class C extends Promise`) for adapters whose scope
-  // tracker can't see those declarations
+  // unified "what global name does this expression resolve to?" primitive. covers Identifier
+  // alias chains, proxy-global member chains, user-namespace object literals, static
+  // class-as-namespace, and any N-level composition through them. shared `seen` enables
+  // mutually-recursive alias cycle detection; `path` anchors TS-runtime shadow checks
   function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null) {
     const peeled = unwrapRuntimeExpr(node);
     if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen, path);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
-    // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key.
-    // `path` threads through so TS-runtime shadows on the root (`declare const globalThis`)
-    // bail before the polyfill-ish dispatch
     const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter, path });
     if (proxyKey !== null) return proxyKey;
-    // namespace-member chain - feed leaf value back through self so deeper namespaces /
-    // alias chains / proxy-globals compose naturally
+    // namespace-member: feed leaf value back through self so deeper chains compose
     const value = resolveMemberAccess(peeled, scope, seen);
     return value ? resolveBindingToGlobalName(value, scope, seen, path) : null;
   }
 
-  // common path for `super.X` and `this.X` in static context - both resolve to the same
-  // `<SuperClass>.X` static meta since JS looks up unresolved static names on the
-  // super class's static surface.
-  // key goes through the provider's `resolveKey` (not the narrow `staticKeyName`) so
-  // `super[CONST]` where CONST is a const-bound string / template literal / 'a' + 'b'
-  // concat / aliased Symbol.X still lands on the matching static entry
+  // `super.X` and `this.X`-in-static both look up `<SuperClass>.X` on the parent's static
+  // surface. provider's `resolveKey` (not staticKeyName) so `super[CONST]` / aliased Symbol.X
+  // still resolve
   function resolveStaticInheritedMember(path) {
     const key = resolveKey({ node: path.node.property, computed: path.node.computed, scope: path.scope, adapter });
     if (!key) return null;
@@ -452,12 +370,8 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return names;
   }
 
-  // `this.X` is shadowed when the class declares its own `X` of the matching kind -
-  // static-ctx checks static members, instance-ctx checks instance members. nested
-  // non-arrow fn rebinds `this`, so ownership can't be proven there.
-  // computed-key edge `class C { [this.X] = 1 }`: `this` in the key position binds to
-  // the surrounding scope (not the class), but `getOwnNames` only lists static-key members,
-  // so computed keys can't accidentally produce a shadow match - safe by construction
+  // `this.X` shadowed when class declares own `X` of the matching kind (static / instance).
+  // nested non-arrow fn rebinds `this` -> ownership can't be proven there
   function isShadowedByClassOwnMember(path, key) {
     if (typeof key !== 'string') return false;
     const info = findEnclosingClassMember(path);
@@ -476,17 +390,9 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return !!findEnclosingClassMember(path)?.isStatic;
   }
 
-  // gates dispatch to `resolveStaticInheritedMember` plus the downstream instance-fallback
-  // bail. `super.X` always returns true because the caller uses the predicate as "is this a
-  // super / this-in-static" check that ALSO forces the instance-fallback bail below (pure
-  // instance super.X is out of scope of the resolver). `this.X` needs the static-context
-  // check - non-static `this.X` is a regular instance read and shouldn't route here.
-  // peel parens AND TS expression wrappers on object: oxc preserves `(this).X` / `(super).X`,
-  // babel strips; users sometimes write `(this as any).X` / `(this!).X` to escape TS type
-  // narrowing - the cast is compile-time only, the receiver remains `this`/`super` at
-  // runtime, so static-inheritance dispatch should fire. without the TS peel the parser-
-  // specific shape falls through to instance-method path. direct type-string checks because
-  // estree-compat's `types` doesn't export `isSuper`
+  // gates static-inheritance dispatch + instance-fallback bail. peel parens / TS casts on
+  // the object so `(this as any).X` / `(super).X` still route to static dispatch. direct
+  // type-string checks because estree-compat's `types` doesn't export `isSuper`
   function isInheritedStaticLookup(path) {
     const obj = unwrapRuntimeExpr(path.node.object);
     const objType = obj?.type;
@@ -503,15 +409,12 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   };
 }
 
-// convert Symbol.X key to kebab-case entry: Symbol.hasInstance -> symbol/has-instance.
-// pure string transform - DOES NOT validate that the entry actually exists in the user's
-// namespace (es / esnext / proposals vary). callers must validate via the resolver before
-// treating the result as a real polyfill candidate
+// `Symbol.hasInstance` -> `symbol/has-instance`. pure string transform - caller must
+// validate the entry exists via the resolver. lowercase first char to filter malformed
+// inputs (`Symbol.XYZ` -> `symbol/-x-y-z` would silently miss the lookup)
 export function symbolKeyToEntry(key) {
   if (!key?.startsWith('Symbol.')) return null;
   const prop = key.slice(7);
-  // well-known symbols all start lowercase; `Symbol.` / `Symbol.XYZ` would produce
-  // `symbol/` / `symbol/-x-y-z` - malformed entries that silently miss the lookup
   if (!prop || prop[0] < 'a' || prop[0] > 'z') return null;
   return `symbol/${ prop.replaceAll(/[A-Z]/g, c => `-${ c.toLowerCase() }`) }`;
 }
