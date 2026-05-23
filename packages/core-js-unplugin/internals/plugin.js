@@ -3,6 +3,7 @@ import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
   collectMutatedStaticMembers,
+  forEachStatementListBody,
   getMinifierSequenceDestructureExpressions,
   createTypeAnnotationChecker,
   detectCommonJS,
@@ -121,16 +122,21 @@ function nonEmptyString(value) {
 // shape detection shared with babel-plugin's `splitMinifierSequenceDestructure` pre-pass via
 // `getMinifierSequenceDestructureExpressions`. unplugin can't use babel's AST-level mutation
 // here (oxc AST positions must stay valid for downstream MagicString edits), so we rewrite
-// the text instead and re-parse the result
+// the text instead and re-parse the result. walks Program body AND every descendant
+// Statement-list host (BlockStatement / TSModuleBlock / StaticBlock) via the shared
+// `forEachStatementListBody` so function / loop / try / namespace bodies are covered too;
+// Program-only walk silently bailed destructure-emitter inside non-Program statement lists
 function applyMinifierSequenceSplit(code, ast) {
   let mutated = null;
-  for (const stmt of ast.body) {
-    const expressions = getMinifierSequenceDestructureExpressions(stmt);
-    if (!expressions) continue;
-    const splitText = expressions.map(e => `${ code.slice(e.start, e.end) };`).join('\n');
-    if (!mutated) mutated = new MagicString(code);
-    mutated.overwrite(stmt.start, stmt.end, splitText);
-  }
+  forEachStatementListBody(ast, statements => {
+    for (const stmt of statements) {
+      const expressions = getMinifierSequenceDestructureExpressions(stmt);
+      if (!expressions) continue;
+      const splitText = expressions.map(e => `${ code.slice(e.start, e.end) };`).join('\n');
+      if (!mutated) mutated = new MagicString(code);
+      mutated.overwrite(stmt.start, stmt.end, splitText);
+    }
+  });
   return mutated ? mutated.toString() : null;
 }
 
@@ -742,6 +748,11 @@ export default function createPlugin(options) {
             if (inheritedStatic) {
               meta = remapInheritedStaticMeta(injector, meta, resolveStaticInheritedMember(metaPath));
               if (!meta) return;
+              // re-check mutation gate AFTER remap: the pre-remap meta.object was null for
+              // this-receiver kind='property'; remap fills it with the super class name.
+              // without the re-check, `this.from(arr)` inside `class C extends Array`
+              // silently bypasses user's `Array.from = ...` monkey-patch
+              if (isMutatedStaticMeta(meta, mutatedStatics)) return;
             }
             if (isTaggedTemplateTag(parent, node, meta.placement)) return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator({
