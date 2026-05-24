@@ -1,15 +1,12 @@
 // pure AST/path helpers used by the polyfill emission pipeline (and the main visitor
 // for outermost-optional-chain detection). no file-scope deps - callers pass node /
 // path arguments directly
-import { TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { peelSkippableWrappers, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
-// peel parens, chain expressions, AND TS wrappers - for AST identity checks
-// (e.g. matching `node` against `parent.callee` through `arr.includes!(1)`)
-export function unwrapNode(n) {
-  while (n && (n.type === 'ParenthesizedExpression' || n.type === 'ChainExpression'
-      || TS_EXPR_WRAPPERS.has(n.type))) n = n.expression;
-  return n;
-}
+// peel parens, chain expressions, AND TS wrappers - for AST identity checks (e.g. matching
+// `node` against `parent.callee` through `arr.includes!(1)`). delegates to shared
+// `peelSkippableWrappers` (`SKIPPABLE_WRAPPER_TYPES` covers all three categories)
+export const unwrapNode = peelSkippableWrappers;
 
 // peel parens / chain expressions only - kept separate from `unwrapNode` so
 // memoization decisions stay aligned with babel's `isSafeToReuse`
