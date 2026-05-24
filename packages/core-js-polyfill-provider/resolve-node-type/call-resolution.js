@@ -76,6 +76,7 @@ export function createCallResolution({
   buildSubstMap,
   typeParamName,
   effectiveParam,
+  resolveIndexedAccessMemberAnnotationAST,
 }) {
   // --- Call-return dispatch ---
 
@@ -210,7 +211,8 @@ export function createCallResolution({
 
   // extract return type from a binding's function-type annotation:
   //   `declare const f: () => T` / `const f: (x: X) => T = ...` / Flow `(x: X) => T` /
-  //   `const f: typeof other` (follow TSTypeQuery to referenced function's return)
+  //   `const f: typeof other` (follow TSTypeQuery to referenced function's return) /
+  //   `type M = T['method']; declare const f: M` (peel TSIndexedAccessType to method node)
   function resolveCallReturnTypeFromAnnotation(callee) {
     const info = findExpressionAnnotation(callee);
     if (!info) return null;
@@ -221,6 +223,18 @@ export function createCallResolution({
     // treats Q<...> as a TSTypeReference and returns null
     annotation = swapAliasToTSTypeQueryWithSubst(annotation, info.scope);
     if (annotation?.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(annotation, info.scope);
+    // TSIndexedAccessType callee annotation (`T['method']` directly OR via alias `type M =
+    // T['method']`). follow the alias chain to surface the indexed-access body, then peel
+    // through findTypeMember. method-shape detection (Layer 2) returns the full signature,
+    // not just its return, so functionTypeReturnAnnotation below extracts the substituted
+    // return slot. without the peel, indexed-access aliases bypass call narrowing entirely
+    const aliased = followTypeAliasChain(annotation, info.scope);
+    if (aliased?.node?.type === 'TSIndexedAccessType') {
+      const { subst } = aliased;
+      const aliasedNode = subst ? applyAliasSubstDeep(aliased.node, subst) : aliased.node;
+      const peeled = resolveIndexedAccessMemberAnnotationAST(aliasedNode, info.scope, 0);
+      if (peeled) annotation = peeled;
+    }
     const ret = functionTypeReturnAnnotation(annotation);
     return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
