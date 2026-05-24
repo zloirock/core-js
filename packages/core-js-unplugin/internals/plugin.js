@@ -15,6 +15,7 @@ import {
   isTaggedTemplateTag,
   isThisReceiver,
   isUpdateTarget,
+  peelSkippableWrappers,
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -217,11 +218,15 @@ export default function createPlugin(options) {
     typeResolvers,
     astPredicates: {
       isMemberLike: path => path.node?.type === 'MemberExpression',
+      // peel parens + TS expression wrappers from `parent.callee` before identity-checking
+      // against `node`. without the peel, the resolver's `filter()` walks through wrappers
+      // to find the outer Call but then this identity check fails (parent.callee is the
+      // wrapper, not the inner MemberExpression), arg-count / arg-shape filters silently
+      // over-inject. shared `peelSkippableWrappers` also handles ChainExpression which oxc
+      // emits around optional chains (`(obj?.fn)()`)
       isCallee: (node, parent) => {
         if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
-        let { callee } = parent;
-        while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
-        return callee === node;
+        return peelSkippableWrappers(parent.callee) === node;
       },
       isSpreadElement: node => node?.type === 'SpreadElement',
     },
