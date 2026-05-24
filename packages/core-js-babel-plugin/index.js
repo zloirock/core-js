@@ -13,6 +13,7 @@ import {
   isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
   mayHaveSideEffects,
+  peelSkippableWrappers,
   TS_EXPR_WRAPPERS,
   visitSymbolInLhsSe,
   wouldPromoteDirectiveAfterRemoval,
@@ -84,9 +85,17 @@ export default function plugin(api, options) {
     typeResolvers,
     astPredicates: {
       isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
-      isCallee: (node, parent) => t.isCallExpression(parent, { callee: node })
-        || t.isOptionalCallExpression(parent, { callee: node })
-        || t.isNewExpression(parent, { callee: node }),
+      // peel parens + TS expression wrappers from `parent.callee` before identity-checking
+      // against `node`. without the peel, `(JSON.parse as any)(s)` shape - where the
+      // resolver's `filter()` already walked through TS-wraps to find the outer Call -
+      // rejects the callee match by strict identity (parent.callee is the wrapper, not
+      // the inner MemberExpression) and arg-count / arg-shape filters silently over-inject.
+      // babel's `t.is*({callee:node})` matchers are strict-identity; replace with explicit
+      // peel through shared `SKIPPABLE_WRAPPER_TYPES`
+      isCallee: (node, parent) => {
+        if (!t.isCallExpression(parent) && !t.isOptionalCallExpression(parent) && !t.isNewExpression(parent)) return false;
+        return peelSkippableWrappers(parent.callee) === node;
+      },
       isSpreadElement: node => t.isSpreadElement(node),
     },
     getBabelTargets: typeof api.targets === 'function' ? () => api.targets() : null,

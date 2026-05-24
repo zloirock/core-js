@@ -212,6 +212,17 @@ export function markAndPeelSkippableWrappers(node, skippedNodes) {
   return node;
 }
 
+// tracking-free peel of `SKIPPABLE_WRAPPER_TYPES` (TS_EXPR_WRAPPERS + ParenthesizedExpression
+// + ChainExpression). used wherever a caller needs the semantically meaningful node and
+// doesn't care which wrappers were skipped. consolidates the peel-loop that previously
+// lived inline in babel-plugin's `isCallee`, unplugin's `isCallee`, and unplugin's
+// `unwrapNode` - all three now share one wrapper-set so adding a future transparent
+// wrapper updates the single SKIPPABLE_WRAPPER_TYPES constant
+export function peelSkippableWrappers(node) {
+  while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) node = node.expression;
+  return node;
+}
+
 // peel `SKIPPABLE_WRAPPER_TYPES` wrappers down through `.expression` slot, returning the
 // innermost non-wrapper path (or the input when nothing to peel). path-based counterpart
 // to `markAndPeelSkippableWrappers`. callers that need to walk down through TS / paren /
