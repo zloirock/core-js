@@ -69,7 +69,6 @@ export const statics = {
   Array: {
     from: 'array/from',
     fromAsync: 'array/from-async',
-    isTemplateObject: 'array/is-template-object',
     of: 'array/of',
   },
   ArrayBuffer: {
