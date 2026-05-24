@@ -4,7 +4,7 @@
 // unstripped - `pathKey` then returned null and the guard never matched. fix routes both
 // the equality sides AND the member-object slot through `unwrapRuntimeExpr`, which peels
 // all transparent runtime wrappers in one step. distinct methods per branch
-// (.repeat string / .at array / .padEnd string / .at array) pin emission to narrow:
+// (.repeat string / .at array / .padEnd string / .includes array) pin emission to narrow:
 type Box = { kind: 'a'; v: string } | { kind: 'b'; v: number[] };
 function probe(box: Box) {
   if ((box as Box).kind === 'a') {

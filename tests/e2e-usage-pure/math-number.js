@@ -50,9 +50,11 @@ QUnit.test('Number.EPSILON', assert => {
   assert.true(Number.EPSILON < 1);
 });
 
-QUnit.test('Number.MIN_SAFE_INTEGER', assert => {
-  assert.same(typeof Number.MIN_SAFE_INTEGER, 'number');
-  assert.true(Number.MIN_SAFE_INTEGER < 0);
+QUnit.test('Number.MAX_SAFE_INTEGER / MIN_SAFE_INTEGER', assert => {
+  /* eslint-disable math/prefer-number-max-safe-integer, math/prefer-number-min-safe-integer -- pin spec value */
+  assert.same(Number.MAX_SAFE_INTEGER, 2 ** 53 - 1);
+  assert.same(Number.MIN_SAFE_INTEGER, -(2 ** 53 - 1));
+  /* eslint-enable math/prefer-number-max-safe-integer, math/prefer-number-min-safe-integer -- end pin block */
 });
 
 QUnit.test('Math.acosh', assert => {
