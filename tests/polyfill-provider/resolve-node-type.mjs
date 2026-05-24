@@ -451,6 +451,45 @@ runBoth('TS conditional: `T extends string ? Array : Map` with concrete T -> Arr
     checkType(lbl, type, { primitive: false, ctor: 'Array' });
   });
 
+// `never extends X` is true for every X (never is the bottom type, assignable to everything),
+// so a conditional with check = never must pick the true branch unconditionally
+runBoth('TS conditional: `never extends X` picks true branch (bottom-type semantics)',
+  'type Box<T> = T extends string ? string[] : Map<string, number>; let r: Box<never>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// `never extends Array<...>` (object extend, not primitive): bottom-type rule must fire
+// before the "primitive-check vs concrete-object-extend" disjoint rule that otherwise
+// returns false for any check-side primitive against a concrete extend
+runBoth('TS conditional: `never extends Array<X>` (object extend) still picks true branch',
+  'type Box<T> = T extends Array<number> ? string[] : Map<string, number>; let r: Box<never>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// nested conditional with `never` propagated through both checks: outer picks true, the
+// resolver substitutes T = never into the body, then the inner T extends-check also fires
+// and must pick its own true branch. without bottom-type rule both calls fall through
+// the primitive-vs-X rules and return false, picking the deepest false branch
+runBoth('TS conditional: nested `T extends ... ? ... : T extends ... ? A : B` with T=never picks outermost true',
+  `
+    type Box<T> = T extends string ? string[] : T extends number ? Map<string, number> : Set<string>;
+    let r: Box<never>;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
 // --- Discriminant-union narrowing (`if (u.kind === 'a') { u.value }`) ---
 // covers the cluster: parseDiscriminantCheck / memberLiteralPair / pushDiscriminantClauses
 // / findDiscriminantGuards. each scenario sets up a union with two branches and verifies
