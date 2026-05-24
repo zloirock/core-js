@@ -840,6 +840,41 @@ runBoth('globalThis.Map() resolved as Map constructor invocation',
     checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
   });
 
+// `isProxyGlobalIifeReturn` walks the call's `fnPath` to locate the arrow / fn-expr body.
+// `peelIIFEReturn` (the node-level companion) peels TS / paren / chain wrappers on the
+// callee via `unwrapInitValue + unwrapRuntimeExpr`. when the path-level walk only peeled
+// `ParenthesizedExpression`, TS-wrapped callees never matched their body, breaking
+// proxy-global detection for shapes like `((() => globalThis) as any)().Map`
+runBoth('proxy-global: TS-wrapped IIFE callee resolves through proxy-global chain',
+  'const m = new (((() => globalThis) as any)()).Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// FunctionExpression IIFE variant of the same shape - `(function(){ return self })().Map`.
+// distinct from the arrow case: callee shape goes through a different branch of
+// `peelIIFEReturn` (function-expression vs arrow), and the inner body return-path differs
+runBoth('proxy-global: FunctionExpression IIFE returning self resolves through Map ctor',
+  'const m = new ((function () { return self; })()).Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// TSSatisfiesExpression wrapper - distinct from TSAsExpression but both runtime no-ops.
+// shared peel via SKIPPABLE_WRAPPER_TYPES covers both; explicit fixture pins that the
+// alternate wrapper choice doesn't regress
+runBoth('proxy-global: TSSatisfiesExpression-wrapped IIFE callee resolves',
+  'const m = new (((() => globalThis) satisfies unknown)()).Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
 // --- Function declaration return type ---
 
 runBoth('function declaration with explicit return -> Promise',
