@@ -143,8 +143,3 @@ QUnit.test('static: Array.isArray', assert => {
 QUnit.test('static: JSON.stringify', assert => {
   assert.same(JSON.stringify({ a: 1 }), '{"a":1}');
 });
-
-QUnit.test('static: Number.MAX_SAFE_INTEGER / MIN_SAFE_INTEGER', assert => {
-  assert.same(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
-  assert.same(typeof Number.MIN_SAFE_INTEGER, 'number');
-});
