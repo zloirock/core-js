@@ -21,7 +21,7 @@
 // `walkStaticReceiverChain` for `extends NS.Inner.Class` lookups
 import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
 import { createMemberWriteShape, memberWriteTargetPath } from './class-member-shapes.js';
-import { unwrapExpressionChain, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { peelParenAndTSParentPath, unwrapExpressionChain, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
@@ -76,14 +76,22 @@ export function createClosureAnalysis({
     const { parent } = p;
     if (parent?.type === 'VariableDeclarator' && parent.id === p.node) return null;
     if (parent?.type === 'VariableDeclarator' && parent.init === p.node) return null;
-    if ((parent?.type !== 'MemberExpression' && parent?.type !== 'OptionalMemberExpression')
-      || parent.object !== p.node) return { kind: 'extraction' };
-    const ctx = p.parentPath?.parent;
-    if ((ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression') && ctx.callee === parent) {
+    // peel transparent wrappers between the identifier and its semantic context so
+    // `(name as any).X(...)` / `(name)?.X(...)` still classify as 'call' rather than
+    // 'extraction'. oxc preserves both shapes; babel strips parens but keeps TS wrappers.
+    // identity check uses `unwrapRuntimeExpr` because the member object slot may itself
+    // be a wrapped reference to the identifier (`{object: TSAsExpression{expression: p.node}}`)
+    const memberPath = peelParenAndTSParentPath(p);
+    const memberNode = memberPath?.node;
+    if ((memberNode?.type !== 'MemberExpression' && memberNode?.type !== 'OptionalMemberExpression')
+      || unwrapRuntimeExpr(memberNode.object) !== p.node) return { kind: 'extraction' };
+    const ctx = peelParenAndTSParentPath(memberPath)?.node;
+    if ((ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression') && unwrapRuntimeExpr(ctx.callee) === memberNode) {
       return { kind: 'call', start: ctx.start };
     }
-    if (ctx?.type === 'AssignmentExpression' && ctx.left === parent && ctx.operator === '=') return { kind: 'write' };
-    if (ctx?.type === 'UpdateExpression' && ctx.argument === parent) return { kind: 'write' };
+    if (ctx?.type === 'AssignmentExpression' && ctx.operator === '='
+      && unwrapRuntimeExpr(ctx.left) === memberNode) return { kind: 'write' };
+    if (ctx?.type === 'UpdateExpression' && unwrapRuntimeExpr(ctx.argument) === memberNode) return { kind: 'write' };
     return { kind: 'extraction' };
   }
 
