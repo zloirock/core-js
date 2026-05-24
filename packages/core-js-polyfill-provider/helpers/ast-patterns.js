@@ -961,18 +961,46 @@ export function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
   return parent.type === 'TSImportEqualsDeclaration' && parent.importKind === 'type';
 }
 
+// ancestors that hard-stop the pure-erase walk: reaching one proves we're inside a
+// runtime container without first crossing a pure-erase boundary. ClassBody / ClassDeclaration /
+// ClassExpression / Program are runtime containers; TS expression wrappers (TSAsExpression
+// et al, via `TS_EXPR_WRAPPERS`) signal user-cast = runtime expectation per existing
+// convention - distinct from purely-type heritage clauses where the type is contract-only
+const PURE_TYPE_ERASE_STOP_TYPES = new Set([
+  ...TS_EXPR_WRAPPERS,
+  'ClassBody',
+  'ClassDeclaration',
+  'ClassExpression',
+  'Program',
+]);
+
 // path-accepting wrapper: encapsulates the (parent, parentKey, grandparent) extraction so
 // callers don't repeat `path?.parent, path?.key, path?.parentPath?.parent` 4-5 times across
 // the codebase. accepts babel NodePath or estree-toolkit path - both expose the same triple.
-// also covers `class X implements Foo<T>` (Babel) - identifier sits inside
-// TSExpressionWithTypeArguments which the parent's listKey 'implements' marks as type-only.
-// `class X extends Foo<T>` uses the same wrapper but parent slot is 'superClass' (runtime),
-// so the listKey check is what distinguishes the two
+// `isInImplementsHeritage` covers both the direct case (`class X implements Foo<T>` where
+// Foo's path matches via own parent + listKey) AND nested type-args (`Foo<Map<...>>` where
+// Map's path needs ancestor walk past TSTypeReference / TSTypeParameterInstantiation hops)
 export function isTSTypeOnlyIdentifierPath(path) {
   if (isTSTypeOnlyIdentifier(path?.parent, path?.key, path?.parentPath?.parent)) return true;
-  if (path?.parent?.type === 'TSExpressionWithTypeArguments'
-    && path.key === 'expression'
-    && path.parentPath?.listKey === 'implements') return true;
+  return isInImplementsHeritage(path);
+}
+
+// walk path's ancestor chain looking for the `implements` heritage clause - the one
+// type-only context where babel's permissive `isReferenced` over-emits polyfills for
+// nested type-args. oxc emits dedicated `TSClassImplements` (already in TS_TYPE_ONLY_NODES);
+// babel reuses `TSExpressionWithTypeArguments` and gates via the parent path's listKey.
+// `PURE_TYPE_ERASE_STOP_TYPES` short-circuits the walk at runtime-bearing ancestors:
+// TS expression wrappers (`as` / `satisfies` / `!` / `<T>x`) signal user-cast runtime
+// expectation per existing convention; class/program containers terminate the walk.
+// distinct from `type T = Map<...>` / `interface I extends Set<...>` / `(x as Map<...>)`
+// where the user-referenced type IS expected at runtime (those keep emitting polyfills)
+function isInImplementsHeritage(path) {
+  for (let current = path?.parentPath; current; current = current.parentPath) {
+    const type = current.node?.type;
+    if (!type || PURE_TYPE_ERASE_STOP_TYPES.has(type)) return false;
+    if (type === 'TSClassImplements') return true;
+    if (type === 'TSExpressionWithTypeArguments' && current.listKey === 'implements') return true;
+  }
   return false;
 }
 
