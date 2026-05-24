@@ -486,6 +486,11 @@ export function createTypeExpansion({
   // artefacts (undecidable, fall back to fold)
   function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty }) {
     if (!check || !extend) return null;
+    // never is the bottom type: assignable to any T, so `never extends T` is always true.
+    // without this short-circuit, the primitive-vs-X tail rules below see never as just
+    // another primitive and return false (wrong branch). symmetric to `extends never`
+    // handled by the "object check vs primitive extend" rule already returning false
+    if (check.type === 'never') return true;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
       // extends has no inner constraint. three sub-cases distinguished by caller-supplied flags:
