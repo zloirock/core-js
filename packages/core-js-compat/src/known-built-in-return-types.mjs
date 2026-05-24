@@ -666,7 +666,6 @@ export const staticMethods = {
     from: 'Array',
     fromAsync: { type: 'Promise', resolved: 'Array' },
     isArray: 'boolean',
-    isTemplateObject: 'boolean',
     of: 'Array',
   },
   ArrayBuffer: {
