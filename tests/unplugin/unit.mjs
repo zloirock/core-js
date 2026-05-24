@@ -2820,6 +2820,76 @@ function checkRemoveBatchSkipsPriorRange() {
 }
 checkRemoveBatchSkipsPriorRange();
 
+// reverse processing order (right-to-left) matches the real caller's loop over
+// `resolveBatchDirectivePromotionPolicy({...}).toRemove`, which is filled in descending
+// body position. forward `skipGap` from the LEFTMOST removal must be range-aware about
+// the already-removed RIGHTMOST sibling - else it lands on the soon-to-be-erased
+// neighbour's text, mis-reads it as non-hazard, and skips the `;` injection. without
+// the guard fix, both removals decline injection and `var x = 1` fuses with `(foo)()`
+function checkRemoveBatchRightToLeftForwardScansRangeAware() {
+  const a = "import 'a';";
+  const b = "import 'b';";
+  const source = `var x = 1\n${ a }\n${ b }\n(foo)();`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  // process RIGHTMOST first (mirrors `for (node of toRemove)` over descending-order list)
+  remove({ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length });
+  remove({ start: 10, end: 10 + a.length });
+  // expected: `;` injection at the leftmost removal's boundary, which is where the survivor
+  // `(foo)()` starts after both imports drain. without range-aware forward scan, both
+  // removals see non-hazard next and decline injection, producing `var x = 1\n(foo)();`
+  // (which JS parses as a call to `1`)
+  check('remove/batch reverse-order forward scan is range-aware',
+    ms.toString(), 'var x = 1\n;(foo)();');
+}
+checkRemoveBatchRightToLeftForwardScansRangeAware();
+
+// triple-removal batch: the range-aware walker must compose across multiple chained
+// `removedRanges`, jumping each in turn. without sequential composition the middle range
+// would block the walk and the leftmost removal would land inside a stale-source region
+function checkRemoveBatchTripleRemovalForwardScan() {
+  const a = "import 'a';";
+  const b = "import 'b';";
+  const c = "import 'c';";
+  const source = `var x = 1\n${ a }\n${ b }\n${ c }\n(foo)();`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  const aStart = 10;
+  const bStart = aStart + a.length + 1;
+  const cStart = bStart + b.length + 1;
+  // descending order: c -> b -> a
+  remove({ start: cStart, end: cStart + c.length });
+  remove({ start: bStart, end: bStart + b.length });
+  remove({ start: aStart, end: aStart + a.length });
+  // c sees `(` -> hazard, prev `;` of b -> no inject
+  // b sees `i` of c-source under raw scan; range-aware jumps c-range, lands on `(` -> hazard,
+  //   prev `;` of a -> no inject. PLUS `hasInjectedSemiBetween` is false (no `;` between)
+  // a sees `i` of b-source under raw scan; range-aware jumps b-range then c-range, lands
+  //   on `(` -> hazard, prev `1` of `var x = 1` -> INJECT
+  // single `;` at a's boundary
+  check('remove/batch triple removal forward scan composes ranges',
+    ms.toString(), 'var x = 1\n;(foo)();');
+}
+checkRemoveBatchTripleRemovalForwardScan();
+
+// no survivor after a batch (all removed up to EOF): forward scan returns src.length,
+// guard short-circuits without inject. previously raw skipGap would still see in-range
+// `i` characters as non-hazard which happened to behave correctly; with range-aware scan
+// we must reach src.length and bail explicitly
+function checkRemoveBatchEofNoSurvivorBails() {
+  const a = "import 'a';";
+  const b = "import 'b';";
+  const source = `var x = 1\n${ a }\n${ b }\n`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  remove({ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length });
+  remove({ start: 10, end: 10 + a.length });
+  // both removals reach EOF (no hazard char), so no `;` should be injected
+  check('remove/batch EOF survivor bails without injection',
+    ms.toString(), 'var x = 1\n');
+}
+checkRemoveBatchEofNoSurvivorBails();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
