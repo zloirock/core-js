@@ -572,12 +572,6 @@ export const features = {
     template: $instanceArray,
     name: 'indexOf',
   },
-  'array/is-template-object': {
-    modules: ['esnext.array.is-template-object'],
-    template: $static,
-    namespace: 'Array',
-    name: 'isTemplateObject',
-  },
   'array/iterator': {
     modules: ['es.array.iterator'],
     template: $uncurriedIterator,
@@ -3785,13 +3779,6 @@ export const proposals = {
     modules: [
       'es.array.includes',
       'es.typed-array.includes',
-    ],
-  },
-  'array-is-template-object': {
-    link: 'https://github.com/tc39/proposal-array-is-template-object',
-    stage: 2,
-    modules: [
-      'esnext.array.is-template-object',
     ],
   },
   'array-unique': {
