@@ -212,6 +212,17 @@ export function markAndPeelSkippableWrappers(node, skippedNodes) {
   return node;
 }
 
+// peel `SKIPPABLE_WRAPPER_TYPES` wrappers down through `.expression` slot, returning the
+// innermost non-wrapper path (or the input when nothing to peel). path-based counterpart
+// to `markAndPeelSkippableWrappers`. callers that need to walk down through TS / paren /
+// chain wrappers to a semantic-bearing node use this; null-safe so chained calls don't
+// require pre-guard. used by global-resolve's proxy-global detection where babel strips
+// parens but oxc preserves them, and TS expression wrappers can land on either parser
+export function peelSkippableWrapperPath(path) {
+  while (path?.node && SKIPPABLE_WRAPPER_TYPES.has(path.node.type)) path = path.get('expression');
+  return path;
+}
+
 // transparent wrappers between a CallExpression's `.callee` and the actual invoked node.
 // narrower than IIFE_CALL_PATH_WRAPPERS - Unary changes what's invoked. SequenceExpression
 // is peeled unconditionally below: the tail is the invoked function regardless of preceding
