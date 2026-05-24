@@ -1,4 +1,4 @@
-// line-level disable directive followed by CRLF newline: the directive's scope ends
+// line-level disable directive followed by CRLF newline: the directive scope ends
 // at the next semantic line regardless of newline style.
 const a = arr.at(0);
 // core-js-disable-next-line
