@@ -813,6 +813,7 @@ function createResolveNodeType(babelNodeType, t, {
     unwrapPassthroughWrapper,
     resolveAwaitedAnnotation,
     resolveAwaitExpressionType,
+    resolveIndexedAccessMemberAnnotationAST,
   } = awaitedCluster;
 
   // `resolveTypeAnnotation` + `resolveConstructorType` + `resolveConstructorCallType` live
@@ -1462,6 +1463,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildSubstMap,
     typeParamName,
     effectiveParam,
+    resolveIndexedAccessMemberAnnotationAST,
   });
   ({ functionTypeReturnAnnotation, findExpressionAnnotation, buildCallSiteSubst } = callResolutionCluster);
   const { resolveCallReturnType, resolveIndexSignatureValue } = callResolutionCluster;

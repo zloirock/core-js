@@ -57,6 +57,20 @@ export function isInterfaceDeclaration(decl) {
   return decl?.type === 'TSInterfaceDeclaration' || decl?.type === 'InterfaceDeclaration';
 }
 
+// node-type set for "structurally a method signature on a member slot": interface methods
+// (TSMethodSignature), ambient class methods (TSDeclareMethod), babel ClassMethod /
+// ClassPrivateMethod, ESTree MethodDefinition wrap. broader than `isMethodMember` in
+// class-member-shapes.js, which only covers babel class-body method nodes. used by
+// indexed-access peel to detect `T['method']` shape - returning the member itself as a
+// function-type instead of unwrapping to its return slot
+export function isMethodShapeMember(memberType) {
+  return memberType === 'TSMethodSignature'
+    || memberType === 'TSDeclareMethod'
+    || memberType === 'ClassMethod'
+    || memberType === 'ClassPrivateMethod'
+    || memberType === 'MethodDefinition';
+}
+
 export function typeAliasBody(decl) {
   if (decl.type === 'TSTypeAliasDeclaration') return decl.typeAnnotation;
   if (decl.type === 'OpaqueType') return decl.impltype;
