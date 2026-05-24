@@ -297,10 +297,6 @@
                 "url": "{docs-version}/docs/features/proposals/iterator-range"
               },
               {
-                "title": "Array.isTemplateObject",
-                "url": "{docs-version}/docs/features/proposals/array-istemplateobject"
-              },
-              {
                 "title": "Number.prototype.clamp",
                 "url": "{docs-version}/docs/features/proposals/number-prototype-clamp"
               },

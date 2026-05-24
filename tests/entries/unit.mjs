@@ -1081,7 +1081,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
     ok(typeof load(NS, 'array/filter-reject') == 'function');
-    ok(typeof load(NS, 'array/is-template-object') == 'function');
     ok(typeof load(NS, 'array/unique-by') == 'function');
     ok(typeof load(NS, 'array/prototype/filter-reject') == 'function');
     ok(typeof load(NS, 'array/prototype/unique-by') == 'function');
@@ -1188,7 +1187,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/array-from-async');
   load('proposals/array-grouping');
   load('proposals/array-includes');
-  load('proposals/array-is-template-object');
   load('proposals/array-unique');
   load('proposals/array-buffer-base64');
   load('proposals/array-buffer-transfer');

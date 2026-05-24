@@ -178,7 +178,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
-      - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Number.prototype.clamp`](#numberprototypeclamp)
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
@@ -2971,23 +2970,6 @@ for (const i of Iterator.range(1, 10)) {
 for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
   console.log(i); // => 1, 4, 7, 10
 }
-```
-
-##### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)[⬆](#index)
-Module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
-```ts
-class Array {
-  static isTemplateObject(value: any): boolean
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-is-template-object
-core-js(-pure)/full/array/is-template-object
-```
-*Example*:
-```js
-console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
 
 ##### [`Number.prototype.clamp`](https://github.com/tc39/proposal-math-clamp)[⬆](#index)
