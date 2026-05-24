@@ -53,6 +53,21 @@ const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
 export function createTopLevelStatementRemover(ms) {
   const src = ms.original;
   const removedRanges = [];
+  // positions where this batch has already injected `;` at a removal boundary. forward
+  // hazard-scan from a later removal that jumps over an injected range sees the `;` as
+  // an effective terminator at the right boundary and skips its own injection - else two
+  // adjacent removals would both inject (`;;` at the leftmost boundary)
+  const injectedSemiAt = new Set();
+
+  // skip past any removed range covering `p`; returns the first position outside the
+  // range in the walk direction (negative = backward, positive = forward), or `p`
+  // unchanged when no range covers it. shared between the prev / next significant-char
+  // walkers so both stay in sync about what "already-removed" means
+  function skipPastRemovedRange(p, direction) {
+    const range = findRangeContaining(removedRanges, p);
+    if (!range) return p;
+    return direction > 0 ? range[1] : range[0] - 1;
+  }
 
   // backward walk over whitespace + comments + already-removed ranges; returns the first
   // SURVIVING source char index (-1 = start-of-file). re-entry on a hit inside a range
@@ -61,15 +76,16 @@ export function createTopLevelStatementRemover(ms) {
   function findPrevSignificantChar(fromIdx) {
     let p = fromIdx;
     while (p >= 0) {
-      const range = findRangeContaining(removedRanges, p);
-      if (range) {
-        p = range[0] - 1;
+      const skipped = skipPastRemovedRange(p, -1);
+      if (skipped !== p) {
+        p = skipped;
         continue;
       }
       const sig = prevSignificantPos(src, p + 1);
       if (sig < 0) return -1;
-      if (findRangeContaining(removedRanges, sig)) {
-        p = sig;
+      const sigSkipped = skipPastRemovedRange(sig, -1);
+      if (sigSkipped !== sig) {
+        p = sigSkipped;
         continue;
       }
       return sig;
@@ -77,16 +93,53 @@ export function createTopLevelStatementRemover(ms) {
     return -1;
   }
 
+  // forward walk over whitespace + comments + already-removed ranges. symmetric to
+  // `findPrevSignificantChar` - the real caller iterates `toRemove` in descending body
+  // position so by the time we process the leftmost sibling, the rightmost is already in
+  // `removedRanges`. without the range-aware jump, raw `skipGap` lands on the soon-to-be
+  // erased neighbour's text and reads it as non-hazard, silently skipping the `;` guard
+  function findNextSignificantChar(fromIdx) {
+    let p = fromIdx;
+    while (p < src.length) {
+      const skipped = skipPastRemovedRange(p, 1);
+      if (skipped !== p) {
+        p = skipped;
+        continue;
+      }
+      const sig = skipGap(src, p);
+      if (sig >= src.length) return src.length;
+      const sigSkipped = skipPastRemovedRange(sig, 1);
+      if (sigSkipped !== sig) {
+        p = sigSkipped;
+        continue;
+      }
+      return sig;
+    }
+    return src.length;
+  }
+
+  // any `;` injection at a removed-range boundary inside (from, to) acts as the new
+  // effective terminator at the right edge - no need to re-inject a duplicate on the
+  // outer boundary. checks all known injection points, narrow to-range walk only
+  function hasInjectedSemiBetween(from, to) {
+    for (const pos of injectedSemiAt) if (pos > from && pos <= to) return true;
+    return false;
+  }
+
   // `skipGap` is comment-aware so a leading `//` on the next line isn't mis-classified
   // as the regex/division ASI hazard char `/`. prev ending in `;` is the only cheaply-
   // provable-safe case; `}` can close a function/class expr that fuses with a tag call
   // (`function(){}`hello``) so we conservatively guard there too
   function guardAsiAtBoundary(start, end) {
-    const nextIdx = skipGap(src, end);
-    if (!ASI_HAZARD_STARTS.has(src[nextIdx])) return;
+    const nextIdx = findNextSignificantChar(end);
+    if (nextIdx >= src.length || !ASI_HAZARD_STARTS.has(src[nextIdx])) return;
+    // jumped over a removed range whose own boundary already carries an injected `;` -
+    // that `;` is the active terminator for the next significant char, no double-inject
+    if (hasInjectedSemiBetween(end, nextIdx)) return;
     const prevIdx = findPrevSignificantChar(start - 1);
     if (prevIdx < 0 || src[prevIdx] === ';') return;
     ms.prependLeft(end, ';');
+    injectedSemiAt.add(end);
   }
 
   return function remove(node) {
