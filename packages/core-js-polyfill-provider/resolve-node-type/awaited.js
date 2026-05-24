@@ -32,7 +32,7 @@
 // it; factory has its own `functionTypeParams` declaration that this cluster's caller-side
 // `unwrap` / `resolve` already work past.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
-import { typeRefSegments } from './ast-shapes.js';
+import { isMethodShapeMember, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createAwaited({
@@ -159,13 +159,19 @@ export function createAwaited({
   // shared helper: when `peeled` is TSIndexedAccessType, resolve its member's annotation
   // AST (returns null otherwise). enables Awaited / structure-preserving wrappers that
   // wrap an indexed access to peel down to the member's underlying shape without bouncing
-  // through a Type Object intermediate
+  // through a Type Object intermediate. method-shape members surface the FULL signature
+  // (TS spec: `T['method']` = `() => V`, NOT `V`) so downstream consumers can call
+  // functionTypeReturnAnnotation / treat as $Object('Function'); without the method probe,
+  // babel (member.typeAnnotation = return) and oxc (member.value path) diverge and both
+  // misroute - babel emits V as the indexed-access type, oxc emits the method node
   function resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth) {
     if (peeled?.type !== 'TSIndexedAccessType') return null;
     const key = indexedAccessKey(peeled.indexType);
     if (key === null) return null;
     const member = findTypeMember({ objectType: peeled.objectType, key, scope, depth: depth + 1 });
-    const annotation = unwrapTypeAnnotation(member?.typeAnnotation ?? member?.returnType ?? member);
+    if (!member) return null;
+    if (isMethodShapeMember(member.type)) return member;
+    const annotation = unwrapTypeAnnotation(member.typeAnnotation ?? member.returnType ?? member);
     return annotation && annotation !== peeled ? annotation : null;
   }
 
@@ -432,12 +438,15 @@ export function createAwaited({
   // cross-references (peelAwaitedCommonSteps, pickAwaitedConditionalBranch,
   // getPromiseInnerAnnotation, getSingleTypeRefArg, peelAwaitedArgument,
   // peelAwaitedTupleElement, peelAwaitedWrapper, resolveAwaitedFromCallBody,
-  // peelUserThenable, cbFirstArgAnnotation) live as private closures inside the cluster
+  // peelUserThenable, cbFirstArgAnnotation) live as private closures inside the cluster.
+  // `resolveIndexedAccessMemberAnnotationAST` exposed so call-resolution can peel
+  // `T['key']` annotations on binding callees (`type M = T['m']; declare const fn: M; fn()`)
   return {
     peelStructurePreservingWrapper,
     unwrapPassthroughWrapper,
     resolveAwaitedAnnotation,
     resolveAwaitExpressionType,
     functionTypeParams,
+    resolveIndexedAccessMemberAnnotationAST,
   };
 }
