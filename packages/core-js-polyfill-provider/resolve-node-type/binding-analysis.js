@@ -137,9 +137,13 @@ export function createBindingAnalysis({
 
   // does `<expr>` look like a direct `new <X>(...)` write target (`(new C()).x = Y`)?
   // class closure tracks bound instances; this predicate covers the residual shape where
-  // an unbound instance immediately receives a write via member access
+  // an unbound instance immediately receives a write via member access. peels the receiver
+  // expression through ParenthesizedExpression + TS expression wrappers so user-written
+  // `(new C() as any).x = Y` / `(new C() satisfies T).x = Y` shapes still match - both are
+  // runtime no-ops over the same NewExpression. without the peel, the outer wrapper masks
+  // the new-expression and the external write silently drops from field-flow narrowing
   function isReceiverNewOfClass(objPath, classNames) {
-    return isNewOfClass(objPath.node, classNames);
+    return isNewOfClass(unwrapRuntimeExpr(objPath.node), classNames);
   }
 
   // object-literal binding name for identity matching in the external-write scan. only
