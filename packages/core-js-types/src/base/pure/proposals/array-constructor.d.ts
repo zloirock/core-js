@@ -1,9 +1,7 @@
 /// <reference types="./iterator" />
 /// <reference types="../core-js-types/promise" />
 
-// Motivation: We must omit methods `fromAsync` and `isTemplateObject` because they cause a signature mismatch error.
-
-// https://github.com/tc39/proposal-array-is-template-object
+// Motivation: We must omit method `fromAsync` because it causes a signature mismatch error.
 
 // https://github.com/tc39/proposal-array-from-async
 
@@ -12,7 +10,7 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  type ArrayConstructorBase = Omit<ArrayConstructor, 'fromAsync' | 'isTemplateObject'>;
+  type ArrayConstructorBase = Omit<ArrayConstructor, 'fromAsync'>;
 
   export interface CoreJSArrayConstructor extends ArrayConstructorBase {
     /**
@@ -30,13 +28,6 @@ declare namespace CoreJS {
      * @param thisArg - Value of 'this' used when executing mapFn.
      */
     fromAsync<T, U>(iterableOrArrayLike: CoreJSAsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapFn: (value: Awaited<T>, index: number) => U, thisArg?: any): CoreJSPromise<Awaited<U>[]>;
-
-    /**
-     * Determines whether a `value` is a `TemplateStringsArray`
-     * @param value - The value to be checked
-     * @returns `true` if `value` is a `TemplateStringsArray`, otherwise `false`
-     */
-    isTemplateObject(value: any): value is TemplateStringsArray;
   }
 
   var CoreJSArray: CoreJSArrayConstructor;
