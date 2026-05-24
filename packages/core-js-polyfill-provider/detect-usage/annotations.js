@@ -7,6 +7,7 @@
 //   - `isPolyfillableOptional({ node: member, scope, adapter, resolve })` - the polyfill replacement
 //     consumes `?.`, so the receiver null-check is redundant
 import { getSuperTypeArgs } from '../helpers/ast-patterns.js';
+import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { unwrapParens } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
@@ -212,15 +213,17 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 }
 
 // the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
-// ESTree (oxc) preserves ParenthesizedExpression around the object (`(globalThis)?.Array`),
-// which babel strips - unwrap here so the optimization fires for both parsers.
+// `unwrapParens` peels ParenthesizedExpression (oxc preserves; babel strips) and the
+// SequenceExpression tail when preceding elements are SE-free (`(0, globalThis)?.Array`).
+// `unwrapRuntimeExpr` follow-up strips TS expression wrappers so `(globalThis as any)?.Array`
+// also reaches the Identifier check and the polyfill consumes the optional `?.`.
 // `path` (when provided) anchors the `adapter.hasBinding` lookup at the reference site,
 // catching TS-runtime shadows (`enum`, `namespace`, `import X = require()`) that babel's
 // raw scope index misses. extractCheck/replaceInstanceLike pass it through their
 // `skipOptional` callback hop; legacy callers without a path-aware adapter still work
 // because the third argument is optional on `hasBinding`
 export function isPolyfillableOptional({ node, scope, adapter, resolve, path }) {
-  const obj = unwrapParens(node.object);
+  const obj = unwrapRuntimeExpr(unwrapParens(node.object));
   if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name, path)) return false;
   if (resolve({ kind: 'global', name: obj.name })) return true;
   const key = !node.computed && node.property?.type === 'Identifier' && node.property.name;
