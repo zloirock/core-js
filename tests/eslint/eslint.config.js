@@ -1269,7 +1269,7 @@ const forbidCompletelyNonExistentBuiltIns = {
   ...forbidNonStandardBuiltIns,
   // disallow non-standard built-in methods
   'es/no-nonstandard-array-properties': [ERROR, { allow: [
-    'isTemplateObject',
+    // empty
   ] }],
   'es/no-nonstandard-array-prototype-properties': [ERROR, { allow: [
     'filterReject',
