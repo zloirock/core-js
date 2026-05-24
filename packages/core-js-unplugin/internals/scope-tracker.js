@@ -15,6 +15,13 @@ import { skipDirectivePrologue, varScopeAnchor } from './plugin-helpers.js';
 const WRAP_KIND_ARROW = 'arrow';
 const WRAP_KIND_STMT = 'stmt';
 
+// inclusive containment - pos at body.start or body.end counts as "inside". used by
+// scopedVar / bodyWrap overlap checks where insertPos sits at block-anchor positions
+// (immediately after `{`) which can coincide with a sibling body's start
+function bodyContains(body, pos) {
+  return pos >= body.start && pos <= body.end;
+}
+
 // pure helper: from a list of `[body, entry]` wraps, return those NOT enclosed by any
 // other wrap in the same list. shared by `consumeRefBindingsInRange` (outermost wraps in
 // the drained range) and `#composeBodyWrapText` (direct descendants within a body slice).
@@ -175,10 +182,10 @@ export default class ScopeTracker {
   // body slice before emitting the outermost splice; the inner entries are dropped from
   // the returned list (and the map) since their effect is now baked into the outer
   consumeRefBindingsInRange(start, end) {
-    const splices = [];
+    const scopedVarSplices = [];
     for (const [insertPos, names] of this.#scopedVars) {
       if (insertPos >= start && insertPos <= end) {
-        splices.push({ start: insertPos, end: insertPos, content: this.#scopedVarText(insertPos, names) });
+        scopedVarSplices.push({ start: insertPos, end: insertPos, content: this.#scopedVarText(insertPos, names) });
         this.#scopedVars.delete(insertPos);
       }
     }
@@ -189,26 +196,56 @@ export default class ScopeTracker {
     // inner wraps are absorbed into outer's composed content rather than emitted as
     // separate splices - drop ALL wraps from the map but only emit outermost splices
     for (const [body] of wrapsInRange) this.#bodyWraps.delete(body);
-    for (const [body, entry] of findOutermostWraps(wrapsInRange)) {
-      splices.push({ start: body.start, end: body.end, content: this.#composeBodyWrapText(body, entry, wrapsInRange) });
+    // scopedVars inside an outermost bodyWrap range must be COMPOSED into the wrap's body
+    // slice, not emitted as separate splices: spliceInRange iterates descending by start,
+    // so a sibling scopedVar (insert at later pos) applies first then the bodyWrap overwrite
+    // [B,E] uses ORIGINAL-source coords to slice the post-insert string, dropping the
+    // scopedVar text entirely AND truncating the body content shifted by the insert length
+    const outermostWraps = findOutermostWraps(wrapsInRange);
+    const splices = scopedVarSplices.filter(
+      sv => !outermostWraps.some(([body]) => bodyContains(body, sv.start)));
+    for (const [body, entry] of outermostWraps) {
+      splices.push({
+        start: body.start,
+        end: body.end,
+        content: this.#composeBodyWrapText(body, entry, wrapsInRange, scopedVarSplices),
+      });
     }
     return splices;
   }
 
-  // build body-wrap text with any DIRECT descendant body-wraps composed into the slice.
-  // recursion handles deeper levels - each level composes only its immediate children, and
-  // each child's own compose handles its grandchildren. splicing iterates descendants in
-  // descending start order so earlier-position splices don't shift later-position offsets
-  #composeBodyWrapText(body, entry, allWrapsInRange) {
+  // build body-wrap text with DIRECT descendant body-wraps + scopedVar inserts composed into
+  // the slice. recursion handles deeper-level body-wraps - each level composes only its
+  // immediate children, child's own compose handles grandchildren. scopedVars inside any
+  // nested wrap pass through to that wrap's recursive call instead of landing here so each
+  // var declaration appears exactly once at the right block level. splicing iterates
+  // descendants in descending start order so earlier-position splices don't shift later-
+  // position offsets
+  #composeBodyWrapText(body, entry, allWrapsInRange, allScopedVarSplices = []) {
     const inside = allWrapsInRange.filter(([other]) => other !== body
       && other.start >= body.start && other.end <= body.end);
     const direct = findOutermostWraps(inside).sort((a, b) => b[0].start - a[0].start);
+    // scopedVars inside this body but NOT inside any nested wrap (the nested wrap's
+    // recursive call will absorb its own scopedVars). without this filter, the same var
+    // declaration would appear at multiple block levels
+    const directScopedVars = allScopedVarSplices.filter(
+      sv => bodyContains(body, sv.start)
+        && !inside.some(([innerBody]) => bodyContains(innerBody, sv.start)));
     let slice = this.#code.slice(body.start, body.end);
-    for (const [innerBody, innerEntry] of direct) {
-      const innerText = this.#composeBodyWrapText(innerBody, innerEntry, allWrapsInRange);
-      const localStart = innerBody.start - body.start;
-      const localEnd = innerBody.end - body.start;
-      slice = slice.slice(0, localStart) + innerText + slice.slice(localEnd);
+    // merge body-wraps + scopedVars sorted descending by start so each splice's local offset
+    // stays valid throughout the loop (earlier positions don't shift later-iteration coords)
+    const composed = [
+      ...direct.map(([b, e]) => ({
+        start: b.start,
+        end: b.end,
+        content: this.#composeBodyWrapText(b, e, allWrapsInRange, allScopedVarSplices),
+      })),
+      ...directScopedVars,
+    ].sort((a, b) => b.start - a.start);
+    for (const sp of composed) {
+      const localStart = sp.start - body.start;
+      const localEnd = sp.end - body.start;
+      slice = slice.slice(0, localStart) + sp.content + slice.slice(localEnd);
     }
     return entry.kind === WRAP_KIND_ARROW
       ? `{ var ${ entry.names.join(', ') }; return ${ slice }; }`
