@@ -24,6 +24,7 @@ import {
   isAmbientBindingShape,
   objectPatternLiteralKeyPath,
   peelIIFEReturn,
+  peelSkippableWrapperPath,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
@@ -71,13 +72,14 @@ export function createGlobalResolve({
     return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName) && isGlobalProxy(objectPath.get('object'));
   }
 
-  // IIFE returning a proxy-global: `(() => globalThis)()` / `(function(){ return self })()`
+  // IIFE returning a proxy-global: `(() => globalThis)()` / `(function(){ return self })()`.
+  // peel SKIPPABLE_WRAPPER_TYPES on the callee path so the walk matches `peelIIFEReturn`'s
+  // node-level coverage - else TS-wrapped callees like `((() => globalThis) as any)()`
+  // find a body in `peelIIFEReturn` but fail the path walk
   function isProxyGlobalIifeReturn(callPath) {
     const ret = peelIIFEReturn(callPath.node);
     if (!ret) return false;
-    // oxc preserves `ParenthesizedExpression` on the callee; babel strips it
-    let fnPath = callPath.get('callee');
-    while (fnPath?.node?.type === 'ParenthesizedExpression') fnPath = fnPath.get('expression');
+    const fnPath = peelSkippableWrapperPath(callPath.get('callee'));
     if (!fnPath?.node) return false;
     const fnBody = fnPath.get('body');
     const retPath = fnBody?.node === ret ? fnBody : findReturnPath(fnBody, ret);
@@ -85,6 +87,11 @@ export function createGlobalResolve({
   }
 
   function isGlobalProxy(objectPath) {
+    // peel transparent wrappers up front - oxc preserves ParenthesizedExpression around
+    // shapes like `(((() => globalThis) as any)()).Map` where the inner shape IS a
+    // proxy-global call. babel strips parens at AST build so this is a no-op for it
+    objectPath = peelSkippableWrapperPath(objectPath);
+    if (!objectPath?.node) return false;
     if (t.isIdentifier(objectPath.node)) {
       return POSSIBLE_GLOBAL_OBJECTS.has(objectPath.node.name) && !hasRuntimeBinding(objectPath.scope, objectPath.node.name);
     }
