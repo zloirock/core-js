@@ -2049,9 +2049,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'esnext.array.filter-reject': function () {
     return [].filterReject;
   },
-  'esnext.array.is-template-object': function () {
-    return Array.isTemplateObject;
-  },
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
   },

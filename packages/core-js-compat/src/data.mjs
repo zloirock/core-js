@@ -2500,8 +2500,6 @@ export const data = {
   },
   'esnext.array.filter-reject': {
   },
-  'esnext.array.is-template-object': {
-  },
   'esnext.array.unique-by': {
   },
   'esnext.async-iterator.constructor': {

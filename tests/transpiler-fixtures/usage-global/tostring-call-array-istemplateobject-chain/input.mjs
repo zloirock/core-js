@@ -1,1 +1,0 @@
-Array.isTemplateObject(obj).toString();
