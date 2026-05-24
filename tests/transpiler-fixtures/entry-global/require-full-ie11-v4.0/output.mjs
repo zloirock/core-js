@@ -289,7 +289,6 @@ import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/es.weak-set.constructor";
 import "core-js/modules/esnext.array.filter-reject";
-import "core-js/modules/esnext.array.is-template-object";
 import "core-js/modules/esnext.array.unique-by";
 import "core-js/modules/esnext.async-iterator.constructor";
 import "core-js/modules/esnext.async-iterator.drop";
