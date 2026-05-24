@@ -314,7 +314,12 @@ export function createClassFields({
     const index = new Map();
     const handle = p => {
       const target = memberWriteTargetPath(p).node;
-      if (!t.isThisExpression(unwrapRuntimeExpr(target?.object))) return;
+      // accept both `this.<field>` and `super.<field>` LHS - in a subclass method
+      // `super.field = Y` targets the BASE class's field slot. callers that aggregate
+      // descendants' write sets (resolveClassFieldType) need those super-writes folded
+      // into the base's flow union, else subclass writes through super silently drop
+      const recvType = unwrapRuntimeExpr(target?.object)?.type;
+      if (recvType !== 'ThisExpression' && recvType !== 'Super') return;
       const fieldName = memberWriteFieldName(target);
       if (!fieldName) return;
       let types = index.get(fieldName);
