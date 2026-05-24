@@ -175,6 +175,18 @@ export function createTypeSubst({
     return { ...node, [returnSlot]: rt, ...paramsChanged && { [paramsSlot]: params } };
   }
 
+  // ESTree MethodDefinition wraps its function shape in .value (FunctionExpression). delegate
+  // through applyAliasSubstDeep so the FunctionExpression handler below substitutes returnType
+  // and params with proper alpha-rename. without this, `findTypeMember` returns the method
+  // unchanged for ESTree-parsed sources, and indexed-access / class-chain peels lose the
+  // outer type-param substitution by the time downstream functionTypeReturnAnnotation reads
+  // the slots
+  function substMethodDefinition(node, subst, depth, visited) {
+    if (!node.value) return node;
+    const newValue = applyAliasSubstDeep(node.value, subst, depth + 1, visited);
+    return newValue === node.value ? node : { ...node, value: newValue };
+  }
+
   function substIndexedAccess(node, subst, depth, visited) {
     const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1, visited);
     const idx = applyAliasSubstDeep(node.indexType, subst, depth + 1, visited);
@@ -240,6 +252,18 @@ export function createTypeSubst({
     TSFunctionType: substFunctionType,
     TSConstructorType: substFunctionType,
     FunctionTypeAnnotation: substFunctionType,
+    // class-method shapes: babel ClassMethod / ClassPrivateMethod / TSDeclareMethod carry
+    // returnType + params + typeParameters directly. shared with substFunctionType because
+    // the slot layout matches. MethodDefinition peels into .value first (ESTree wrap);
+    // FunctionExpression substitution covers the .value descent from substMemberAnnotations'
+    // slot iteration. without these handlers, `returnMemberMethodNode(member, subst)` returns
+    // method members unchanged - downstream class type-arg subst is silently lost for
+    // findTypeMember consumers (e.g. T['method'] indexed-access resolution)
+    ClassMethod: substFunctionType,
+    ClassPrivateMethod: substFunctionType,
+    TSDeclareMethod: substFunctionType,
+    FunctionExpression: substFunctionType,
+    MethodDefinition: substMethodDefinition,
     TSIndexedAccessType: substIndexedAccess,
     TSMappedType: substMappedType,
     TSTypeQuery: (n, s, d, v) => withSubstitutedTypeArgs(n, n, s, d, v),
