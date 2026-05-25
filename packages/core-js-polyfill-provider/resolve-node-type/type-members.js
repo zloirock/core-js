@@ -476,17 +476,19 @@ export function createTypeMembers({
     if (!members) return null;
     for (const member of members) {
       switch (member.type) {
+        // unannotated `interface I { items; items: number[] }` declaration-merging: `break`
+        // rather than `return null` so iteration continues to a typed sibling. without that,
+        // the first hit halts the walk and over-emits the generic polyfill family
         case 'TSPropertySignature':
+          if (!keyMatchesName(member.key, key) || !member.typeAnnotation) break;
+          return withSubst(member.typeAnnotation);
+        // getter: read the return; setter: continue iteration to a paired getter;
+        // plain method: expose the full signature (see returnMemberMethodNode)
         case 'TSMethodSignature':
-          if (keyMatchesName(member.key, key)) {
-            if (member.type !== 'TSMethodSignature') return withSubst(member.typeAnnotation);
-            // getter: read the return; setter: continue iteration to a paired getter;
-            // plain method: expose the full signature (see returnMemberMethodNode)
-            if (member.kind === 'get') return withSubst(member.typeAnnotation ?? member.returnType);
-            if (member.kind === 'set') break;
-            return returnMemberMethodNode(member, subst);
-          }
-          break;
+          if (!keyMatchesName(member.key, key)) break;
+          if (member.kind === 'get') return withSubst(member.typeAnnotation ?? member.returnType);
+          if (member.kind === 'set') break;
+          return returnMemberMethodNode(member, subst);
         case 'ObjectTypeProperty':
           if (keyMatchesName(member.key, key)) return withSubst(member.value);
           break;
@@ -494,11 +496,14 @@ export function createTypeMembers({
         case 'PropertyDefinition':    // babel TS / ESTree spec
         case 'ClassAccessorProperty': // babel decoratorAutoAccessors plugin
         case 'AccessorProperty':      // TC39 stage-4 auto-accessor: oxc / ESTree spec
-          // class body property: typeAnnotation if present, otherwise we can't infer the type.
-          // keep parser-shape list in sync with `createClassMemberShape.isPropertyMember`
-          // in `resolve-node-type/class-member-shapes.js` (predicate-based dispatch of the
-          // same surface used by class-walk / type-query)
-          if (!member.computed && keyMatchesName(member.key, key)) return withSubst(member.typeAnnotation ?? null);
+          // class body property: typeAnnotation if present, otherwise `break` so a sibling
+          // iface-merge property with the annotation supplies the type (`class C { items=[] };
+          // interface C { items: number[] }`). returning null here would halt iteration and
+          // over-emit the generic Maybe polyfill family. keep parser-shape list in sync with
+          // `createClassMemberShape.isPropertyMember` in `class-member-shapes.js`
+          if (!member.computed && keyMatchesName(member.key, key) && member.typeAnnotation) {
+            return withSubst(member.typeAnnotation);
+          }
           break;
         // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
         // babel carries it directly). setter: `break` so iteration continues to a paired getter

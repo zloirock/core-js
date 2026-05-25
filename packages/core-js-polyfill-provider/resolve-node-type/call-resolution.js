@@ -273,14 +273,16 @@ export function createCallResolution({
 
   // member-by-name lookup against a single (non-union) type's structural members.
   // TSMethodSignature non-getter members yield the SIGNATURE itself - `obj.method` is a
-  // function value; callers chain into `functionTypeReturnAnnotation` to peel the return
+  // function value; callers chain into `functionTypeReturnAnnotation` to peel the return.
+  // Flow's `ObjectTypeProperty` stores the type in `m.value` (covers both property shape
+  // AND method shape where value is a FunctionTypeAnnotation); fallback after the TS slots
   function resolveMemberInTypeMembers({ typeNode, propName, scope, subst }) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
       const isMethodProper = m.type === 'TSMethodSignature' && m.kind !== 'get';
-      const raw = isMethodProper ? m : (m.typeAnnotation ?? m.returnType);
+      const raw = isMethodProper ? m : (m.typeAnnotation ?? m.returnType ?? m.value);
       if (!raw) continue;
       return { annotation: applySubst(raw, subst), scope };
     }
