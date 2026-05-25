@@ -11,9 +11,9 @@ import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
-// `globalThis.self.Map ||= X` - multi-hop proxy-global chain on the LHS of a logical-assign.
-// proxy-global walking surfaces the warning along the whole chain so member-rooted writes
-// like `globalThis.self.Map` / `globalThis.window.Map` reach the same diagnostic as
-// the direct `globalThis.Map` (identifier object) form
+// `globalThis.self.Map ||= X` - multi-hop proxy-global chain. inner identifier visits
+// trigger Map / Promise polyfill emission (the chain IS a polyfillable read of the leaf
+// before the assignment). usage-global stays silent (no warning); pure mode is where the
+// LHS warning fires for the same chain via globalProxyMemberName
 globalThis.self.Map ||= 1;
 globalThis.window.Promise ??= 2;

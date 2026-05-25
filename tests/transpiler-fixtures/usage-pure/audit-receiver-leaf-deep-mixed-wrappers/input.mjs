@@ -1,5 +1,5 @@
-// unwrapReceiverLeaf depth: parens + TS-as + IIFE + parens + TS-as nest deeply.
-// Helper iterates unwrapInitValue / unwrapRuntimeExpr alternating with peelIIFEReturn
+// receiver-leaf depth: parens + TS-as + IIFE + parens + TS-as nest deeply.
+// helper iterates init-value / runtime-expr peel alternating with IIFE-return peel
 // up to 64 depth. After full peel the receiver leaf should be the inner Identifier
 // `arr`. Confirms the loop converges (no infinite regression) and that emit
 // suppression sees the same leaf as receiver-name resolution.

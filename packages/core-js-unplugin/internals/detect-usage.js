@@ -84,14 +84,13 @@ function isReferenced({ node, parent, parentKey, parentPath, skipUpdateTargets }
   // local name in a re-export alias - not a runtime reference to the polyfilled global
   if ((parent.type === 'ExportSpecifier' || parent.type === 'ExportAllDeclaration')
     && parentKey === 'exported') return false;
-  // shared write-only context filter: pure `x = y` / destructure-LHS / AssignmentPattern.left.
-  // covers Identifier and MemberExpression positions; compound (`x += y`) excluded so member-LHS
-  // can still emit (read fires first)
+  // Identifier LHS of assignment: module / strict-mode reads the binding before write, so
+  // `Map = X` / `Map ||= X` / `Map += X` all need the polyfill in global mode. pure-mode
+  // rewrite to frozen `_Map` TypeError's at write, so reject. checked BEFORE the member
+  // write-only filter (line 679 in `isMemberWriteOnlyContext` matches Identifier LHS too)
+  if (node.type === 'Identifier' && parent.type === 'AssignmentExpression' && parentKey === 'left') return !skipUpdateTargets;
+  // member-write-only / destructure-LHS / AssignmentPattern.left for non-Identifier shapes
   if (isMemberWriteOnlyContext(node, parent, parentPath?.parent)) return false;
-  // Identifier LHS of compound assignment (`Map ||= X` / `Map += 1`) - polyfill substitutes
-  // bare global with a read-only import binding, so assigning throws regardless of operator.
-  // member LHS with compound is allowed through (read fires before write)
-  if (parent.type === 'AssignmentExpression' && parentKey === 'left' && node.type === 'Identifier') return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
@@ -592,8 +591,12 @@ export function createUsageVisitors({
     const { node, parent, key: parentKey } = path;
     // `isReferenced` returns false for write-context leaves like `Map ||= X`; diagnose the
     // pattern before the early return so users see why nothing was polyfilled
-    if (onWarning) {
-      const warning = checkLogicalAssignLhsGlobal(node, parent, adapter.hasBinding(path.scope, node.name, path));
+    // usage-pure rewrites globals to read-only import bindings; `_Map ||= X` would TypeError
+    // at write time, so emit the warning. usage-global leaves globals untouched - side-effect
+    // imports populate the binding before module body runs, so `||=` no-ops without emitting
+    // user-visible problem. skip warning in global mode to avoid false-positive noise
+    if (onWarning && method === 'usage-pure') {
+      const warning = checkLogicalAssignLhsGlobal(path, adapter.hasBinding(path.scope, node.name, path));
       if (warning) onWarning(warning);
     }
     if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
@@ -621,8 +624,8 @@ export function createUsageVisitors({
     // rejects (write-context member) and before child-visitor rewrites `globalThis` ->
     // `_globalThis`. `globalProxyMemberName` (used inside the helper) walks chains and
     // gates on shadowing internally - no separate isBound check needed
-    if (onWarning) {
-      const warning = checkLogicalAssignLhsMember({ node, parent, scope: path.scope, adapter });
+    if (onWarning && method === 'usage-pure') {
+      const warning = checkLogicalAssignLhsMember({ path, scope: path.scope, adapter });
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;

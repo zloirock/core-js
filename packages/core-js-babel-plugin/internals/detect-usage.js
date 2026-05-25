@@ -175,11 +175,13 @@ export function createUsageVisitors({
     return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter });
   }
 
-  function handleIdentifier(path) {
+  // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
+  // already established the read context (e.g., assignment LHS - strict-mode binding lookup)
+  function handleIdentifier(path, skipReferencedCheck = false) {
     // orphaned node (parent removed by a sibling transform): `isReferencedIdentifier`
     // reads `parent.type` unconditionally and would crash. check BEFORE everything else
     if (!path.parent) return;
-    if (!path.isReferencedIdentifier()) return;
+    if (!skipReferencedCheck && !path.isReferencedIdentifier()) return;
     // logical-assign LHS warning lives on a dedicated `Identifier` visitor (babel
     // classifies `Map ||= X` LHS as non-reference, so it doesn't reach this path)
     // ReferencedIdentifier matches JSXIdentifier in too many positions. accept:
@@ -233,8 +235,12 @@ export function createUsageVisitors({
     // visit rewrites `globalThis` -> `_globalThis` (at which point the chain breaks).
     // `globalProxyMemberName` (used inside the helper) walks proxy-global chains and gates
     // on shadowing internally - no separate isBound computation needed at this site
-    if (onWarning) {
-      const warning = checkLogicalAssignLhsMember({ node, parent, scope: path.scope, adapter });
+    // usage-pure rewrites globals to read-only import bindings; `_Map ||= X` would TypeError
+    // at write time, so emit the warning. usage-global leaves the chain untouched - side-effect
+    // imports populate the proxy-global before module body, so `||=` no-ops without emitting
+    // user-visible problem. skip in global mode to avoid false-positive warning noise
+    if (onWarning && method === 'usage-pure') {
+      const warning = checkLogicalAssignLhsMember({ path, scope: path.scope, adapter });
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
@@ -394,15 +400,21 @@ export function createUsageVisitors({
     // never fires for it - need a separate visitor to surface the diagnostic)
     ReferencedIdentifier: handleIdentifier,
     Identifier(path) {
-      if (onWarning === undefined || !path.parent) return;
-      // `adapter.hasBinding` folds in TS-runtime shadows (`enum Map {}`, `namespace Map {}`,
-      // value-mode `import Map = require()`) AND injector-managed alias bindings. raw
-      // `getBindingIdentifier` only sees babel scope-tracker bindings - enum/namespace
-      // shadows would fall through and the warning would fire false-positive on `Map ||= Y`
-      // even though the local enum makes the assignment legal at runtime
-      const warning = checkLogicalAssignLhsGlobal(path.node, path.parent,
-        adapter.hasBinding(path.scope, path.node.name, path));
-      if (warning) onWarning(warning);
+      if (!path.parent) return;
+      const { parent } = path;
+      // assignment LHS in global mode: strict-mode reads the binding before the write, so
+      // `Map = X` / `Map ||= X` / `Map += 1` all need the polyfill. babel's
+      // `isReferencedIdentifier` returns false for AssignmentExpression.left, so fire manually
+      if (method !== 'usage-pure'
+        && parent.type === 'AssignmentExpression'
+        && parent.left === path.node) return handleIdentifier(path, true);
+      // pure mode: logical-assign LHS warning. `adapter.hasBinding` folds in TS-runtime
+      // shadows (`enum Map {}` / `namespace Map {}`) so `Map ||= Y` with local enum stays silent
+      if (method === 'usage-pure' && onWarning !== undefined) {
+        const warning = checkLogicalAssignLhsGlobal(path,
+          adapter.hasBinding(path.scope, path.node.name, path));
+        if (warning) onWarning(warning);
+      }
     },
     'MemberExpression|OptionalMemberExpression': handleMemberExpression,
     ObjectProperty(path) {
