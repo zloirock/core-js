@@ -126,30 +126,43 @@ export function createDiscriminantNarrow({
     };
   }
 
+  // ANY constantViolation whose `.node.start` falls inside one of `intervals`. each entry is
+  // `{ from, to, inclusive }` - open `(from, to)` by default, closed `[from, to]` when
+  // `inclusive`. undefined endpoints skip the entry rather than match-all. returns true
+  // CONSERVATIVELY when a violation has no `.start` (synthetic AST nodes - we cannot tell
+  // where they sit, so assume potentially-violating). consumers therefore drop the narrow
+  // rather than retain it, matching the `hasMutationAfterGuards` polarity used elsewhere
+  function violationsHitAnyInterval(violations, intervals) {
+    if (!violations?.length) return false;
+    for (const v of violations) {
+      const start = v.node?.start;
+      if (start === undefined || start === null) return true;
+      for (const { from, to, inclusive } of intervals) {
+        if (from === undefined || to === undefined) continue;
+        if (inclusive ? (start >= from && start <= to) : (start > from && start < to)) return true;
+      }
+    }
+    return false;
+  }
+
   // a guard is valid for narrowing iff (a) `rootName` resolves to the same binding in the
   // guard's enclosing scope as at varPath (rejects inner-shadow leakage), and (b) no
-  // reassignment of that binding sits between `testEnd` and the use site (`ctx.objectStart`).
-  // missing-position polarity mirrors `hasMutationAfterGuards`' `isBefore`: synthetic AST
-  // nodes without source ranges are conservatively assumed to potentially violate, so the
-  // guard drops rather than over-keeps. without the symmetry, discriminant narrowing would
-  // SILENTLY survive synthetic violations while typeof / instanceof guards correctly drop
+  // reassignment of that binding sits in the open interval (testEnd, objectStart) (between
+  // guard end and use site) OR in the closed interval [testStart, testEnd] (an SE inside
+  // the guard expression itself, e.g. `if ((x = other, x.kind === 'a'))` invalidates narrow
+  // because the binding at the use site is the post-SE value, not the pre-test one).
+  // routed through `violationsHitAnyInterval` so synthetic violations conservatively drop
+  // the guard - mirrors `hasMutationAfterGuards`' `isBefore` polarity
   function discriminantGuardApplies(scope, testNode, ctx) {
     const { rootName, objectBinding, violations, objectStart } = ctx;
     if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
     const testStart = testNode?.start;
     const testEnd = testNode?.end;
     if (testEnd === undefined || objectStart === undefined) return false;
-    return !violations.some(v => {
-      const start = v.node?.start;
-      if (start === undefined || start === null) return true;
-      // (a) reassignment between testEnd and use site (`if (kind==='a') { x = other; x.method() }`)
-      // (b) reassignment INSIDE the discriminant expression itself - SE in the test
-      //     (`if ((x = other, x.kind === 'a'))`) invalidates narrow because the binding
-      //     evaluated at the use site is the post-SE value, not the pre-test one
-      if (start > testEnd && start < objectStart) return true;
-      if (testStart !== undefined && start >= testStart && start <= testEnd) return true;
-      return false;
-    });
+    return !violationsHitAnyInterval(violations, [
+      { from: testEnd, to: objectStart, inclusive: false },
+      { from: testStart, to: testEnd, inclusive: true },
+    ]);
   }
 
   // flatten `&&` (truthy) / `||` (falsy) chains so a discriminant clause embedded alongside
@@ -286,12 +299,26 @@ export function createDiscriminantNarrow({
     return !!findPatternKeyPath(left, targetName, scope);
   }
 
+  // any constantViolation whose source-position falls in the open interval (lowExcl, highExcl).
+  // shares `violationsHitAnyInterval`'s synthetic-violation polarity (no `.start` -> assume
+  // possible -> drop narrow)
+  function hasReassignmentBetween(binding, lowExcl, highExcl) {
+    return violationsHitAnyInterval(binding?.constantViolations, [
+      { from: lowExcl, to: highExcl, inclusive: false },
+    ]);
+  }
+
   // scan preceding ExpressionStatement siblings within a block-child parent, returning the
   // path of the first AssignmentExpression that re-binds `targetName`. ObjectPattern
   // destructure-assignment is only parseable as `({...} = R)` - the parens become an AST node
   // in oxc-parser (ESTree preserves ParenthesizedExpression), unwrap so the AssignmentExpression
-  // is reachable. babel strips parens at parse, so the unwrap is a no-op there
-  function findPrecedingSiblingAssignment(parent, currentKey, targetName) {
+  // is reachable. babel strips parens at parse, so the unwrap is a no-op there.
+  // when a candidate hit is found, validate no intermediate sibling reassigns the binding
+  // (`f = X; if (cond) f = Y; f.use()`): the intermediate `if-f=Y` may have rebound `f` to a
+  // different shape, so the candidate's RHS no longer represents the value at the use site.
+  // bail to null so the caller falls back to the declared type. without this, narrowing
+  // unsoundly picks the FIRST preceding match and ignores conditional shadowing
+  function findPrecedingSiblingAssignment({ parent, currentKey, targetName, binding, varPath }) {
     const siblings = parent.get('body');
     for (let i = currentKey - 1; i >= 0; i--) {
       const sib = siblings[i];
@@ -302,7 +329,10 @@ export function createDiscriminantNarrow({
         expr = expr.expression;
         exprPath = exprPath.get('expression');
       }
-      if (assignmentBindsTarget(expr, targetName, sib.scope)) return exprPath;
+      if (assignmentBindsTarget(expr, targetName, sib.scope)) {
+        if (hasReassignmentBetween(binding, sib.node.end, varPath.node?.start)) return null;
+        return exprPath;
+      }
     }
     return null;
   }
@@ -336,7 +366,7 @@ export function createDiscriminantNarrow({
       // reassignments. binding rebindable was already gated above
       if (t.isFunction(parent.node)) return null;
       if (isBlockChildPath(parent, current)) {
-        const hit = findPrecedingSiblingAssignment(parent, current.key, targetName);
+        const hit = findPrecedingSiblingAssignment({ parent, currentKey: current.key, targetName, binding, varPath });
         if (hit) return hit;
       }
       const forInit = findForInitAssignment(parent, current.key, targetName);

@@ -137,9 +137,13 @@ export function createTypeExpansion({
     if (node.nameType || !node.typeAnnotation) return null;
     const shape = parseMappedTypeShape(node);
     if (!shape || shape.kind !== 'keyof') return null;
-    const body = node.typeAnnotation;
+    // oxc preserves `(T[K])` body shape as TSParenthesizedType; babel parser drops parens
+    // at parse time. peel so the passthrough recognition fires on both parsers - without
+    // the peel, oxc-parsed `{[K in keyof T]: (T[K])}` falls past the IndexedAccess check
+    // and emits the slow per-key expansion instead of the cheap passthrough delegation
+    const body = peelTSParenthesized(node.typeAnnotation);
     if (body.type !== 'TSIndexedAccessType') return null;
-    const indexParam = body.indexType;
+    const indexParam = peelTSParenthesized(body.indexType);
     if (indexParam?.type !== 'TSTypeReference' || indexParam.typeName?.type !== 'Identifier'
       || indexParam.typeName.name !== shape.paramName) return null;
     // when source IS a type-ref, require body.objectType to be the SAME ref by name. the
