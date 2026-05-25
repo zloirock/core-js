@@ -12,6 +12,7 @@ import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfi
 import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
+  unwrapParens,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
@@ -27,7 +28,6 @@ import {
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   resolveCallArgument,
-  unwrapParens,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -191,8 +191,10 @@ export function createEstreeAdapter(getInjector = () => null) {
     getBindingNodeType(scope, name) {
       return scope?.getBinding(name)?.path?.node?.type ?? null;
     },
-    // oxc-parser preserves `ParenthesizedExpression`; unwrap so `require(('x'))` /
-    // `import(('x'))` survive the ESTree->string translation
+    // shared `unwrapParens` peels paren / TS expression wrappers / safe SequenceExpression
+    // so `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
+    // all reach the underlying string literal. SE prefix that carries observable side-effects
+    // stops further peeling - entry-detection doesn't rewrite the call, so unsafe SE stays
     isStringLiteral(node) {
       return isLiteralString(unwrapParens(node));
     },
