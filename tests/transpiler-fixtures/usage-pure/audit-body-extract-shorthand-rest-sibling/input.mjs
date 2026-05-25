@@ -1,4 +1,4 @@
-// body-extract for the bare shorthand `{from}` with a rest sibling. propBindingIdentifier
+// body-extract for the bare shorthand `{from}` with a rest sibling. prop binding-identifier resolver
 // returns the shorthand identifier directly. emits `let from = _polyfill;` at body top and
 // rewrites the prop value to `_unused` so the destructure still consumes the key (rest
 // exclusion preserved). complementary leaf to the aliased / default-value variants of

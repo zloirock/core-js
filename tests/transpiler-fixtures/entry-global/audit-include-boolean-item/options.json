@@ -5,7 +5,9 @@
       {
         "method": "entry-global",
         "version": "4.0",
-        "include": [true]
+        "include": [
+          true
+        ]
       }
     ]
   ]
