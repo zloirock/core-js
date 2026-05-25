@@ -1,0 +1,10 @@
+// arrayElementsHaveSpreadAtOrBefore guards the literal-element index extraction: a spread
+// at AST index <= target index shifts the runtime position of subsequent elements by an
+// unknown amount, so `elements[targetIndex]` no longer corresponds to runtime slot
+// `targetIndex`. expected: bail to constraint (which here is `unknown`) -> generic polyfill
+declare const rest: Array<{ items: string }>;
+function first<T extends [unknown, unknown]>(t: T): T[1] {
+  return t[1];
+}
+const r = first([{ items: [1, 2, 3] }, ...rest]);
+r.items.at(-1);
