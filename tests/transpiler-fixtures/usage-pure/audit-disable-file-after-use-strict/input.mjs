@@ -1,4 +1,4 @@
-// file-level disable directive `/* core-js disable */` placed after `'use strict'`:
+// file-level disable directive `// core-js-disable-file` placed after `'use strict'`:
 // the directive must still be honoured for the whole file.
 'use strict';
 // core-js-disable-file
