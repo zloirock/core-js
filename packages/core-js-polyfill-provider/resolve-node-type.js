@@ -268,6 +268,36 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
+  // any SpreadElement at AST-index <= `index` shifts the runtime position of subsequent
+  // elements by an unknown amount, so `elements[index]` no longer corresponds to runtime
+  // slot `index`. bail conservatively. forward iteration up to `index` keeps the cost
+  // O(index) per lookup; arrays with deep static lookups stay sub-linear in array length
+  function arrayElementsHaveSpreadAtOrBefore(elements, index) {
+    for (let i = 0; i <= index && i < elements.length; i++) {
+      if (elements[i]?.node?.type === 'SpreadElement') return true;
+    }
+    return false;
+  }
+
+  // backward iteration so the LAST assignment wins (`{a: 1, a: 2}` returns 2) and any
+  // SpreadElement encountered before the match could have injected `key` -> bail.
+  // forward iteration with `return-on-first-match` was double-wrong: returned an early
+  // match for `{a: 1, ...spread}` (spread might override) AND bailed for `{...spread, a: 1}`
+  // (the LATER literal wins even after the spread). returns null when no key matches, when
+  // a spread sits before the latest match, or when the matched value is a leaf method
+  // shorthand (`onMethod` returns the leaf decision so callers split method/value semantics)
+  function findObjectLiteralKey(propsPath, key, onMethod) {
+    for (let i = propsPath.length - 1; i >= 0; i--) {
+      const prop = propsPath[i];
+      const { node } = prop;
+      if (node.type === 'SpreadElement') return null;
+      if (node.computed || getKeyName(node.key) !== key) continue;
+      if (babelNodeType(node) === 'ObjectMethod') return onMethod();
+      return prop.get('value');
+    }
+    return null;
+  }
+
   // walk into an ObjectExpression / ArrayExpression argPath one key deep, returning the
   // INNER Path (suitable for chaining further hops). complementary to
   // `resolveObjectLiteralProperty` which returns a leaf Type Object - this returns the
@@ -279,20 +309,14 @@ function createResolveNodeType(babelNodeType, t, {
       const index = typeof key === 'number' ? key : Number(key);
       if (!Number.isInteger(index) || index < 0) return null;
       const elements = argPath.get('elements');
+      if (arrayElementsHaveSpreadAtOrBefore(elements, index)) return null;
       const elementPath = elements[index];
-      if (!elementPath?.node || elementPath.node.type === 'SpreadElement') return null;
+      if (!elementPath?.node) return null;
       return elementPath;
     }
     if (argPath?.node?.type !== 'ObjectExpression') return null;
-    for (const prop of argPath.get('properties')) {
-      const { node } = prop;
-      if (node.type === 'SpreadElement') return null;
-      if (node.computed || getKeyName(node.key) !== key) continue;
-      // ObjectMethod is a leaf (Function value with no walkable inner shape)
-      if (babelNodeType(node) === 'ObjectMethod') return null;
-      return prop.get('value');
-    }
-    return null;
+    // ObjectMethod is a leaf (Function value with no walkable inner shape)
+    return findObjectLiteralKey(argPath.get('properties'), key, () => null);
   }
 
   // ObjectExpression { key: value, ... } -> value's type for the literal key.
@@ -312,21 +336,17 @@ function createResolveNodeType(babelNodeType, t, {
       const index = typeof key === 'number' ? key : Number(key);
       if (!Number.isInteger(index) || index < 0) return null;
       const elements = argPath.get('elements');
+      if (arrayElementsHaveSpreadAtOrBefore(elements, index)) return null;
       const elementPath = elements[index];
-      if (!elementPath?.node || elementPath.node.type === 'SpreadElement') return null;
+      if (!elementPath?.node) return null;
       return resolveNodeType(elementPath);
     }
     if (argPath?.node?.type !== 'ObjectExpression') return null;
-    for (const prop of argPath.get('properties')) {
-      const { node } = prop;
-      if (node.type === 'SpreadElement') return null;
-      if (node.computed || getKeyName(node.key) !== key) continue;
-      // babel-only `ObjectMethod` shorthand: `{ foo() {...} }`. oxc emits `Property { value: FunctionExpression }`
-      // and falls through to `resolveNodeType(prop.get('value'))` which returns Function via FunctionExpression
-      if (babelNodeType(node) === 'ObjectMethod') return new $Object('Function');
-      return resolveNodeType(prop.get('value'));
-    }
-    return null;
+    // babel-only `ObjectMethod` shorthand: `{ foo() {...} }`. oxc emits `Property { value: FunctionExpression }`
+    // and falls through to `resolveNodeType(prop.get('value'))` which returns Function via FunctionExpression
+    const valuePath = findObjectLiteralKey(argPath.get('properties'), key, () => new $Object('Function'));
+    if (valuePath === null) return null;
+    return valuePath instanceof $Object ? valuePath : resolveNodeType(valuePath);
   }
 
   // [key] where key is a string/number literal, a const binding (chain) to one, or an
