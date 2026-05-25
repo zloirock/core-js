@@ -2,7 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-// unwrapInitValue alternates ParenthesizedExpression peel and SequenceExpression tail
+// init-value peel alternates ParenthesizedExpression peel and SequenceExpression tail
 // peel until stable. used to reach the semantic init through any mix of paren wraps and
 // SE-prefix layers. distinct methods (.from / .of / .fromAsync) per line surface the
 // resolved global per-receiver

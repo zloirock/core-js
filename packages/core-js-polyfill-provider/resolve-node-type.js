@@ -4,7 +4,6 @@ import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import {
   getTypeArgs,
   kebabToCamel,
-  peelFallbackWrappers,
   singleQuasiString,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
@@ -994,10 +993,10 @@ function createResolveNodeType(babelNodeType, t, {
   // `null` / `undefined` literal or `void <expr>` - placeholders that don't reflect runtime
   // type. covers babel `NullLiteral` + ESTree `Literal { value: null }` (oxc); the `regex`
   // guard excludes `/foo/` literals which also reuse the `Literal` node in ESTree.
-  // shared `peelFallbackWrappers` strips ParenthesizedExpression / TS expression wrappers
+  // shared `unwrapRuntimeExpr` strips ParenthesizedExpression / TS expression wrappers
   // (`null as any`, `(null)`) so the nullish-tail is recognized through user-applied wrappers
   function isNullishInit(node) {
-    const inner = peelFallbackWrappers(node);
+    const inner = unwrapRuntimeExpr(node);
     if (!inner) return false;
     if (inner.type === 'NullLiteral') return true;
     if (inner.type === 'Literal' && inner.value === null && !inner.regex) return true;

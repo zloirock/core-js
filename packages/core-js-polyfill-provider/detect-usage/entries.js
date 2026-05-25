@@ -2,7 +2,7 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import { declaresRequireBinding, mayHaveSideEffects, singleQuasiString } from '../helpers/ast-patterns.js';
+import { declaresRequireBinding, singleQuasiString } from '../helpers/ast-patterns.js';
 import { normalizeImportSource } from '../helpers/path-normalize.js';
 import { bindsModuleDefault, unwrapParens } from './resolve.js';
 
@@ -54,11 +54,12 @@ export function getEntrySource(node, adapter, scope) {
   if (expr?.type === 'CallExpression' && expr.arguments?.length === 1) {
     // peel parens / TS wrappers / chain so `(require as any)('core-js/...')` and
     // `require!('core-js/...')` reach the same Identifier check. SequenceExpression peeled
-    // separately - safe-mode unwrapParens stops on SE-with-side-effects which we want
+    // unconditionally: entry-detection doesn't rewrite the source, SE prefix's side effects
+    // run at runtime as written. `(spy(), require)('core-js/...')` still registers as entry
     let callee = unwrapParens(expr.callee);
     if (callee?.type === 'SequenceExpression') {
       const tail = callee.expressions?.at(-1);
-      if (tail && !callee.expressions.slice(0, -1).some(mayHaveSideEffects)) callee = unwrapParens(tail);
+      if (tail) callee = unwrapParens(tail);
     }
     if (callee?.type === 'Identifier' && callee.name === 'require') {
       if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
