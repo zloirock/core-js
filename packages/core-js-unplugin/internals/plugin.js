@@ -705,6 +705,15 @@ export default function createPlugin(options) {
 
         const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
+        // true when `inner`'s source range sits inside any sideEffects subtree - the outer
+        // text-emit re-emits that subtree verbatim via `wrapSideEffects`, so `inner` survives
+        // in the output and must NOT be suppressed from its own polyfill substitution.
+        // sideEffects nodes always have `.start` / `.end` populated (parser-provided AST nodes),
+        // so the bounds check is reliable; falsy sideEffects (empty list / undefined) short-circuit
+        function innerPreservedBySideEffects(inner, sideEffects) {
+          return !!sideEffects?.some(se => se.start <= inner.start && inner.end <= se.end);
+        }
+
         const usagePureCallback = (meta, metaPath) => {
           // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
@@ -837,16 +846,24 @@ export default function createPlugin(options) {
             replaceInstance({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
             replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
-            // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`).
-            // without seeding skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol`
-            // transform whose needle composes into the outer's `_Symbol$iterator` replacement as
-            // `__Symbol$iterator` (substring `Symbol` inside the outer's emit gets re-prefixed).
-            // peels parens / SE-tail / TS wrappers / chain wrappers AND no-arg arrow / fn IIFE
-            // shells (`(() => Symbol)?.()`) so the receiver Identifier we want to suppress is
-            // reached through any combination of transparent wrappers
+            // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`):
+            // without skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol` whose
+            // needle composes into the outer's `_Symbol$iterator` replacement as `__Symbol$iterator`
+            // (substring `Symbol` inside the outer's emit gets re-prefixed).
+            // `unwrapReceiverLeaf` peels parens / SE-tail / TS wrappers / chain wrappers AND no-arg
+            // arrow / fn IIFE shells (`(() => Symbol)?.()`) so the receiver Identifier we want to
+            // suppress is reached through any combination of transparent wrappers.
+            // exception: when the leaf lives INSIDE a sideEffect subtree (`meta.sideEffects = [IIFE]`
+            // for an inline-call receiver with observable prefix), the outer emit RE-EMITS that
+            // subtree verbatim via `wrapSideEffects` - the inner text survives in the output and
+            // must still receive its own polyfill substitution. SE-tail receivers (`(foo(), Symbol)`)
+            // carry only the preceding expressions in sideEffects, NOT the receiver subtree, so
+            // the leaf is dropped from the output text and suppression still applies
             if (node.type === 'MemberExpression') {
               const inner = unwrapReceiverLeaf(node.object);
-              if (inner?.type === 'Identifier') skippedNodes.add(inner);
+              if (inner?.type === 'Identifier' && !innerPreservedBySideEffects(inner, meta.sideEffects)) {
+                skippedNodes.add(inner);
+              }
             }
           }
         };

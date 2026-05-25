@@ -559,13 +559,18 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
   // fork `seen` per side so shared-binding probe (e.g. `obj[s[s]]` re-entering `s`) doesn't
   // trip the cycle guard on the second side after the first side populated the Set. mirrors
-  // the TemplateLiteral / `+` branches above
+  // the TemplateLiteral / `+` branches above.
+  // reject the doubly-bracket-nested case `Symbol[Symbol.X]`: the inner `Symbol.X` resolves
+  // to a well-known symbol VALUE (not the string 'X'), so the outer reads property keyed by
+  // a symbol value - Symbol constructor itself doesn't carry well-known-symbol-valued
+  // properties, so `Symbol[Symbol.iterator]` is `undefined` at runtime. recognising that as
+  // a well-known polyfill dispatch is a misclassification
   if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) {
     const name = resolveKey({
       node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
     });
-    if (name) return `Symbol.${ name }`;
+    if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
   }
   return null;
 }
