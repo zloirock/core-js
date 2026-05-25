@@ -31,6 +31,7 @@ import { REBIND_ASSIGNMENT_OPERATORS } from './base.js';
 import {
   isBindingPosition,
   isNonReferencePosition,
+  peelTransparentExprAncestorPath,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
@@ -248,6 +249,45 @@ export function createBindingAnalysis({
       : !mutates.includes(argIndex);
   }
 
+  // `let c; c = new C();` as ExpressionStatement-direct AssignmentExpression: assignment is the
+  // binding's SOLE source (caller's gate on let-with-no-init + single constantViolation lives
+  // in `resolveInstanceBindingName`). returns the LHS Identifier name or null when the shape
+  // doesn't qualify
+  function assignmentInitNameOf(effectivePath) {
+    const parent = effectivePath.parentPath?.node;
+    if (parent?.type !== 'AssignmentExpression' || parent.operator !== '=') return null;
+    if (parent.right !== effectivePath.node || parent.left?.type !== 'Identifier') return null;
+    if (effectivePath.parentPath?.parentPath?.node?.type !== 'ExpressionStatement') return null;
+    return parent.left.name;
+  }
+
+  // classify the effective parent context of a `new C()` so `collectClassInstanceClosure` /
+  // temporal-bound consumers decide leak / declarator-init / chain semantics without re-walking.
+  // `isMemberRecv` carries the parent MemberExpression for `new C().X(...)` chain detection (the
+  // bound consumer needs both the call's start AND that `.X(...)` follows the new-expression).
+  // `assignmentInitName` recovers narrow for `let c; c = new C()` shapes - bare-let with single
+  // assignment-init binding mirrors declarator-init semantics (see comment on `assignmentInitNameOf`)
+  function classifyNewExprPosition(originalPath, effectivePath) {
+    const effective = effectivePath.node;
+    const parent = effectivePath.parentPath?.node;
+    const isDeclaratorInit = parent?.type === 'VariableDeclarator' && parent.init === effective;
+    const isExprStmt = parent?.type === 'ExpressionStatement' && parent.expression === effective;
+    const isMemberRecv = parent?.type === 'MemberExpression' && parent.object === effective;
+    const assignmentInitName = assignmentInitNameOf(effectivePath);
+    return {
+      path: originalPath,
+      // wrapperPath is the outermost transparent-wrapper path (or `originalPath` when no wrappers
+      // present). consumers reach the effective declarator / member-receiver parent without
+      // re-walking. `effectivePath !== originalPath` is the only signal that peel changed the
+      // position, but consumers can read `wrapperPath.parentPath` uniformly
+      wrapperPath: effectivePath,
+      isDeclaratorInit,
+      isLeakPosition: !isDeclaratorInit && !isExprStmt && !isMemberRecv && !assignmentInitName,
+      isMemberRecv,
+      assignmentInitName,
+    };
+  }
+
   // shared per-program index: one walk builds both the `Identifier`-by-binding map (used by
   // `collectBindingReferences` for estree-toolkit fallback and by `closure-analysis` temporal
   // bound classification) AND the `NewExpression`-by-callee-name map (used by `closure-analysis`
@@ -282,39 +322,8 @@ export function createBindingAnalysis({
         NewExpression(p) {
           const callee = unwrapRuntimeExpr(p.node.callee);
           if (!callee || callee.type !== 'Identifier') return;
-          // peel transparent expression wrappers (ParenthesizedExpression in oxc, TS-cast /
-          // non-null / satisfies / as in babel) walking up parentPath so `const c = (new C())`
-          // / `const c = new C() as C` resolve their effective parent to the VariableDeclarator.
-          // without the peel, parent type sees the wrapper, all three flags collapse to false,
-          // and isLeakPosition forces collectClassInstanceClosure to bail, dropping the field-
-          // flow narrow for `c.method()`
-          let effectivePath = p;
-          while (effectivePath.parentPath?.node
-            && (effectivePath.parentPath.node.type === 'ParenthesizedExpression'
-              || TS_EXPR_WRAPPERS.has(effectivePath.parentPath.node.type))
-            && effectivePath.parentPath.node.expression === effectivePath.node) {
-            effectivePath = effectivePath.parentPath;
-          }
-          const effective = effectivePath.node;
-          const parent = effectivePath.parentPath?.node;
-          // classify parent context so consumers decide leak / declarator-init / chain
-          // semantics without re-walking. `isMemberRecv` carries the parent MemberExpression
-          // for `new C().X(...)` chain detection (the temporal-bound consumer needs both
-          // the call's start AND that the `.X(...)` follows the new-expression)
-          const isDeclaratorInit = parent?.type === 'VariableDeclarator' && parent.init === effective;
-          const isExprStmt = parent?.type === 'ExpressionStatement' && parent.expression === effective;
-          const isMemberRecv = parent?.type === 'MemberExpression' && parent.object === effective;
-          pushByKey(newExprByName, callee.name, {
-            path: p,
-            // wrapperPath is the outermost transparent-wrapper path (or `p` when no wrappers
-            // present). consumers use it to reach the effective declarator/member-receiver
-            // parent without re-walking. `effectivePath !== p` is the only signal that peel
-            // changed the position, but consumers can read `wrapperPath.parentPath` uniformly
-            wrapperPath: effectivePath,
-            isDeclaratorInit,
-            isLeakPosition: !isDeclaratorInit && !isExprStmt && !isMemberRecv,
-            isMemberRecv,
-          });
+          const effectivePath = peelTransparentExprAncestorPath(p);
+          pushByKey(newExprByName, callee.name, classifyNewExprPosition(p, effectivePath));
         },
       });
       return { identifierByBinding, newExprByName };

@@ -206,6 +206,45 @@ export function createClosureAnalysis({
   // leak position (function arg, spread, ...) or any non-Identifier declarator id bails to
   // null. returned `Map<binding, name>` is keyed by binding identity so shadowed bindings
   // stay distinct (consumed by `isReceiverInClosure` / `getClosureTemporalBound`)
+  // SOLE-source guard for assignment-init bindings: `c = new C()` is treated equivalent to
+  // a declarator-init only when the binding's lifetime carries no OTHER value at any source
+  // position. requires (a) bare-let declaration (`let c;` with init === null), and (b) single
+  // constantViolation entry (this assignment is the only reassignment). without these,
+  // `let c = otherValue; c = new C()` or `let c; c = new C(); c = otherValue` would let an
+  // unrelated value slip into the instance closure, unsoundly suppressing writes to it
+  function isSoleAssignmentSource(binding) {
+    if (binding?.kind !== 'let') return false;
+    const declNode = binding.path?.node;
+    if (declNode?.type !== 'VariableDeclarator' || declNode.init !== null) return false;
+    return (binding.constantViolations?.length ?? 0) === 1;
+  }
+
+  // resolve the binding holding the constructed instance. shape: `{ name, scope, anchorPath }`
+  // when the entry binds an instance to a tracked binding; `{ bail: true }` when the entry's
+  // shape pollutes the closure (mixed source - assignment-init with non-bare-let or multiple
+  // reassignments, see `isSoleAssignmentSource`); null when the entry isn't tracked and the
+  // caller should skip (paren-wrapped declarator with non-Identifier id).
+  // for `const c = new C()` the declarator's id is the binding source; for
+  // `let c; c = new C();` the LHS Identifier resolves through the scope lookup, gated by
+  // `isSoleAssignmentSource`. both viable shapes feed `computeAliasClosureFromBinding`
+  function resolveInstanceBindingName(entry) {
+    if (entry.assignmentInitName) {
+      const assignPath = entry.wrapperPath.parentPath;
+      const scope = assignPath?.scope;
+      if (!isSoleAssignmentSource(scope?.getBinding(entry.assignmentInitName))) return { bail: true };
+      return { name: entry.assignmentInitName, scope, anchorPath: assignPath };
+    }
+    if (!entry.isDeclaratorInit) return null;
+    // wrapperPath is the outermost transparent-wrapper path; its parentPath is the
+    // VariableDeclarator regardless of `(new C())` / `new C() as C` / bare `new C()` shape.
+    // without the indirection, paren-wrapped init resolves declarator.node.id = undefined
+    // (ParenthesizedExpression has no `id` slot) and the closure walk bails
+    const declarator = entry.wrapperPath.parentPath;
+    const id = declarator?.node?.id;
+    if (id?.type !== 'Identifier') return { bail: true };
+    return { name: id.name, scope: declarator.scope, anchorPath: declarator };
+  }
+
   function collectClassInstanceClosure(classPath, programPath) {
     const desc = collectClassDescendantPaths(classPath, programPath);
     if (!desc) return null;
@@ -219,17 +258,18 @@ export function createClosureAnalysis({
       if (!entries) continue;
       for (const entry of entries) {
         if (entry.isLeakPosition) return null;
-        if (!entry.isDeclaratorInit) continue;
-        // wrapperPath is the outermost transparent-wrapper path; its parentPath is the
-        // VariableDeclarator regardless of whether `(new C())` / `new C() as C` / bare
-        // `new C()` shape was used. without the indirection, paren-wrapped init resolves
-        // declarator.node.id = undefined (ParenthesizedExpression has no `id` slot) and
-        // the closure walk bails as if the init wasn't a declarator
-        const declarator = entry.wrapperPath.parentPath;
-        const { id } = declarator.node;
-        if (id?.type !== 'Identifier') return null;
-        const binding = declarator.scope?.getBinding(id.name);
-        const sub = computeAliasClosureFromBinding({ rootBinding: binding, rootName: id.name, anchorPath: declarator });
+        const source = resolveInstanceBindingName(entry);
+        // `bail: true` signals an unsafe shape (mixed-source assignment-init, paren-wrapped
+        // declarator with non-Identifier id) that would silently let untracked values into
+        // the closure - bail entire closure for soundness. null = not a binding-source at
+        // all (e.g., `new C()` as MemberExpression receiver - already tracked elsewhere), skip
+        if (source?.bail) return null;
+        if (!source) continue;
+        const binding = source.scope?.getBinding(source.name);
+        if (!binding) return null;
+        const sub = computeAliasClosureFromBinding({
+          rootBinding: binding, rootName: source.name, anchorPath: source.anchorPath,
+        });
         if (sub === null) return null;
         for (const [b, k] of sub) closure.set(b, k);
       }

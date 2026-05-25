@@ -6,7 +6,7 @@ import "core-js/modules/es.array.species";
 import "core-js/modules/es.string.iterator";
 // reverse plugin order: core-js listed FIRST, `@babel/plugin-transform-typescript`
 // AFTER. babel interleaves visitors per node, so core-js sees TS-AST (`as`,
-// `<T>...`, `!`) and must unwrap via emit-utils.unwrapNode before scanning APIs
+// `<T>...`, `!`) and must peel TS wrappers before scanning APIs
 const xs = [1, 2, 3].at(0);
 const ys = Array.from([4, 5]);
 const zs = items.map(x => x);
