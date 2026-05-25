@@ -2,7 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 // flatten + Symbol.iterator sibling with DIRECT proxy-global receiver (no aliasing).
-// extractionReceiverSrc returns nodeSrc(tail) = 'globalThis'. natural visitor's
+// extractionReceiverSrc returns original-source slice(tail) = 'globalThis'. natural visitor's
 // 'globalThis -> _globalThis' substitution must compose into the rebuilt synth-extraction
 // text so the final emit uses '_getIteratorMethod(_globalThis)' - otherwise old runtimes
 // without native 'globalThis' fail at the extraction call. seedSkipped's

@@ -5,8 +5,12 @@
       {
         "method": "usage-pure",
         "version": "4.0",
-        "targets": { "ie": 11 },
-        "exclude": ["array/prototype/at"]
+        "targets": {
+          "ie": 11
+        },
+        "exclude": [
+          "array/prototype/at"
+        ]
       }
     ]
   ]
