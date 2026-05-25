@@ -932,25 +932,25 @@ export default class TransformQueue {
   // partial overlap (`[10,20) intersect [15,25)`) would trip MagicString.overwrite with a
   // generic "already edited" error; surface ranges here for diagnostic. track running
   // max-end so non-consecutive shapes like `[0,10), [3,5), [7,14)` still flag the `[0,10)
-  // vs [7,14)` partial overlap that consecutive-only iteration would miss
+  // vs [7,14)` partial overlap that consecutive-only iteration would miss.
+  // split entries own [start, logicalEnd) logically even though physical halves stop at the
+  // mid - represent each split pair by its prefix only (suffix carries no new logical info),
+  // and use `entryLogicalEnd` so an inner contained within the full logical span doesn't trip
+  // a false partial-overlap when it crosses the physical mid
   #assertNoPartialOverlap(sorted) {
     if (sorted.length < 2) return;
-    // walk all currently "open" intervals (those whose end > curr.start) so the diagnostic
-    // names the actually-intersecting pair, not just the running-max bearer. on detection,
-    // `find` returns the first open interval `o` such that `curr` starts strictly inside
-    // `o` and extends strictly past it - true partial overlap. open list is bounded by
-    // max-nesting depth in practice (filter rebuilds it per iteration, O(N*D) total).
-    // split pairs (`[start, mid)` + `[mid, end)`) look like partial overlap by interval
-    // arithmetic but are touching by design (intentional adjacency); skip the check
-    // when both sides share the same split groupId
     let open = [];
     for (const curr of sorted) {
-      open = open.filter(o => o.end > curr.start);
-      const conflict = open.find(o => curr.start > o.start && curr.end > o.end
-        && !(o.splitInfo && curr.splitInfo && o.splitInfo.groupId === curr.splitInfo.groupId));
+      // suffix half adds no new logical info beyond its prefix peer - skip the walk for it.
+      // any inner that genuinely partial-overlaps the split's logical span has already been
+      // surfaced against the prefix
+      if (curr.splitInfo?.role === 'suffix') continue;
+      const currEnd = entryLogicalEnd(curr);
+      open = open.filter(o => entryLogicalEnd(o) > curr.start);
+      const conflict = open.find(o => curr.start > o.start && currEnd > entryLogicalEnd(o));
       if (conflict) {
         throw this.#invariant('partial overlap between transforms '
-          + `[${ conflict.start },${ conflict.end }) and [${ curr.start },${ curr.end }). this is a `
+          + `[${ conflict.start },${ entryLogicalEnd(conflict) }) and [${ curr.start },${ currEnd }). this is a `
           + 'composition bug - please report with a reproducer.');
       }
       open.push(curr);
