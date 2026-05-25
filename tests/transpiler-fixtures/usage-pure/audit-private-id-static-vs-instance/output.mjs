@@ -2,7 +2,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 // PrivateIdentifier in static and instance context. Both parsers emit identical shape -
 // `MemberExpression { property: PrivateIdentifier, computed: false }`. buildMemberMeta
-// has early-return on PrivateIdentifier (per §4 unplugin) - polyfill bypassed correctly
+// has early-return on PrivateIdentifier (documented in unplugin handler) - polyfill bypassed correctly
 class Container {
   static #map = new _Map([[1, 'a']]);
   #set = new _Set([10, 20, 30]);

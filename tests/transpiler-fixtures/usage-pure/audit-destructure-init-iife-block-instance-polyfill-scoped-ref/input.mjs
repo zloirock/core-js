@@ -4,7 +4,7 @@
 // scopedVar at inner block start, also inside init range). consumeRefBindingsInRange returns
 // BOTH bodyWrap splice (overwriting outer arrow body range) AND scopedVar splice (insert
 // inside that same range). pins the absorb-scopedVar-into-composed-bodyWrap fix in
-// scope-tracker - without it, spliceInRange's bodyWrap overwrite discards the scopedVar
+// scope-tracker - without it, range splice's bodyWrap overwrite discards the scopedVar
 // insertion since splice bounds remain in original-source coordinates
 const { from } = ((() => ((() => { var z = [1, 2, 3].at(0); return z; })(), [4, 5, 6].at(0)))(), Array);
 console.log(from);
