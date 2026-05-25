@@ -5,7 +5,12 @@ Using targets: {
 }
 
 Using polyfills with `usage-global` method:
-Based on your code and targets, the core-js@4 polyfill did not add any polyfill.
-
-Warnings:
-  `Map ||= ...` left-hand side cannot be polyfilled (read-only import binding); expected runtime engine to provide `Map`
+The core-js@4 polyfill added the following polyfills:
+  es.object.to-string { "ie":"11" }
+  es.array.iterator { "ie":"11" }
+  es.map.constructor { "ie":"11" }
+  es.map.species { "ie":"11" }
+  es.map.get-or-insert { "ie":"11" }
+  es.map.get-or-insert-computed { "ie":"11" }
+  es.string.iterator { "ie":"11" }
+  web.dom-collections.iterator { "ie":"11" }

@@ -1,10 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// TS-cast wrappers around branches: `(Array as any)` peels through peelFallbackWrappers
-// before isViableBranchForKey runs the Identifier / MemberExpression check. mixed
-// Identifier-cast vs MemberExpression-cast branches both viable - synth-swap rewrites
-// both to the same polyfill literal. distinct keys per declaration cement which import
-// links to which line
+// TS-cast wrappers around branches: `(Array as any)` peels through the runtime-transparent
+// peel before the branch-viability check runs the Identifier / MemberExpression check.
+// mixed Identifier-cast vs MemberExpression-cast branches both viable - synth-swap
+// rewrites both to the same polyfill literal. distinct keys per declaration cement which
+// import links to which line
 function f({
   from
 } = cond ? {
