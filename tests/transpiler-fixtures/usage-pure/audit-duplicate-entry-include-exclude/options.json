@@ -5,8 +5,12 @@
       {
         "method": "usage-pure",
         "version": "4.0",
-        "include": ["array/from"],
-        "exclude": ["array/from"],
+        "include": [
+          "array/from"
+        ],
+        "exclude": [
+          "array/from"
+        ],
         "targets": {
           "ie": 11
         }
