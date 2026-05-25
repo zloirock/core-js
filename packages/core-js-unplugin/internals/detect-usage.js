@@ -122,7 +122,11 @@ function isAmbientBinding(binding) {
 }
 
 function hasRuntimeBinding(scope, name, path = null) {
-  if (!(scope?.hasBinding?.(name) ?? false)) {
+  // pass `path` through to `scope.hasBinding` / `scope.getBinding`: native estree-toolkit
+  // scopes ignore the extra arg (their signature is name-only), but `makeFrameScope` uses
+  // it for position-aware block-scope shadow checks - the inner `let`/`const`/`catch.param`
+  // binding only matches when the lookup site sits inside its containing block
+  if (!(scope?.hasBinding?.(name, path) ?? false)) {
     if (hasTSRuntimeBinding(scope, name, path)) return true;
     // estree-toolkit doesn't hoist `var` declarations from nested non-function blocks to
     // the enclosing function scope (babel's tracker does). without this fallback,
@@ -136,7 +140,7 @@ function hasRuntimeBinding(scope, name, path = null) {
   // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
   // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
   // their hasBinding=true is authoritative
-  const native = scope?.getBinding?.(name);
+  const native = scope?.getBinding?.(name, path);
   return !(native && isAmbientBinding(native));
 }
 
@@ -259,21 +263,55 @@ function makeSynthPath({ node, parent, parentKey, parentPath, scope, listKey = n
   return self;
 }
 
-// frame scope for an inline function inside a decorator - locals shadow parentScope
+// frame scope for an inline function inside a decorator - locals shadow parentScope.
+// position-aware: `localDecls` carries Map<name, Array<{constant, node, blockStart,
+// blockEnd}>> so block-scoped bindings (`let`/`const`/`catch.param`/block-level
+// FunctionDeclaration / ClassDeclaration) only shadow the parent when the lookup site
+// sits inside their containing block. fn-scoped bindings (`var`, params, fn.id, hoisted
+// FunctionDeclaration at fn body top level) use the whole fn body range and shadow uniformly
+function findLocalAt(localDecls, name, path) {
+  const entries = localDecls.get(name);
+  if (!entries) return null;
+  const pos = path?.node?.start;
+  // no position context (e.g. caller used the legacy `hasBinding(name)` signature) -
+  // return the most-recently-added entry which corresponds to the innermost binding
+  // walked. matches the pre-position "last write wins" overwrite semantics
+  if (typeof pos !== 'number') return entries[0];
+  // pick the most-specific (smallest containing block) shadow whose range covers `pos`.
+  // ties broken by insertion order (most recent first - same as no-position fallback)
+  let best = null;
+  let bestSpan = Infinity;
+  for (const entry of entries) {
+    if (entry.blockStart <= pos && pos <= entry.blockEnd) {
+      const span = entry.blockEnd - entry.blockStart;
+      if (span < bestSpan) {
+        best = entry;
+        bestSpan = span;
+      }
+    }
+  }
+  return best;
+}
+
 function makeFrameScope(parentScope, localDecls) {
   const bindingCache = new Map();
   const frame = {
-    hasBinding: name => localDecls.has(name) || (parentScope?.hasBinding(name) ?? false),
-    getBinding: name => {
-      const local = localDecls.get(name);
-      if (!local) return parentScope?.getBinding?.(name) ?? null;
-      let binding = bindingCache.get(name);
+    hasBinding(name, path) {
+      return findLocalAt(localDecls, name, path) !== null
+        || (parentScope?.hasBinding(name, path) ?? false);
+    },
+    getBinding(name, path) {
+      const local = findLocalAt(localDecls, name, path);
+      if (!local) return parentScope?.getBinding?.(name, path) ?? null;
+      // cache keyed on the entry identity, not the name - distinct shadows of the same
+      // name (`let X = 1; { let X = 2; }`) must produce distinct synthetic bindings
+      let binding = bindingCache.get(local);
       if (!binding) {
         binding = {
           constant: local.constant,
           path: makeSynthPath({ node: local.node, parent: null, parentKey: null, parentPath: null, scope: frame }),
         };
-        bindingCache.set(name, binding);
+        bindingCache.set(local, binding);
       }
       return binding;
     },
@@ -287,47 +325,97 @@ function makeFrameScope(parentScope, localDecls) {
 // which the unplugin / babel-plugin pipeline doesn't do
 const LOCALS_CACHE = new WeakMap();
 
+// nodes that open a fresh lexical block scope. each entry inside one of these scopes its
+// `let`/`const` / class declarations / catch parameters to the block's source range so
+// shadow detection at a use-site uses position-aware containment. `var` and hoisted
+// FunctionDeclaration retain function-scope semantics (they get the fn body's range
+// passed through directly, ignoring intermediate block boundaries)
+const BLOCK_SCOPING_NODE_TYPES = new Set([
+  'BlockStatement',
+  'StaticBlock',
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'SwitchStatement',
+]);
+
+// LIFO insertion: most-recently-added entry sits at index 0 so the no-position fallback
+// returns the innermost shadow (matches the pre-refactor "last write wins" semantics of
+// the old single-entry Map.set). entries carry their own block range so position-aware
+// lookup can pick the right shadow among same-name bindings in distinct scopes
+function addLocal(locals, name, entry) {
+  const list = locals.get(name);
+  if (list) list.unshift(entry);
+  else locals.set(name, [entry]);
+}
+
+function addPatternLocals(locals, pattern, entry) {
+  walkPatternIdentifiers(pattern, id => addLocal(locals, id.name, entry));
+}
+
 function collectFunctionLocals(fnNode) {
   const cached = LOCALS_CACHE.get(fnNode);
   if (cached) return cached;
   const locals = new Map();
-  // params marked constant so resolve-node-type follows typeAnnotation
+  // fn-scope range covers the WHOLE function node (signature + body) so param identifiers
+  // themselves resolve to their own bindings - `fnNode.body.start` would leave params
+  // outside the range and `findLocalAt` would miss them, letting the identifier visitor
+  // rewrite `(Map) -> (_Map)` for a function-param shadow
+  const fnStart = fnNode.start;
+  const fnEnd = fnNode.end;
   for (const param of fnNode.params ?? []) {
-    walkPatternIdentifiers(param, id => locals.set(id.name, { constant: true, node: param }));
+    addPatternLocals(locals, param, { constant: true, node: param, blockStart: fnStart, blockEnd: fnEnd });
   }
-  if (fnNode.id?.name) locals.set(fnNode.id.name, { constant: true, node: fnNode });
-  function walk(node) {
+  if (fnNode.id?.name) {
+    addLocal(locals, fnNode.id.name, { constant: true, node: fnNode, blockStart: fnStart, blockEnd: fnEnd });
+  }
+  function walk(node, blockStart, blockEnd) {
     if (!node || typeof node !== 'object') return;
-    // hoisted `function foo()` binds in the enclosing function scope; register the
-    // name, then skip the body (new scope) as with any function-like
+    // FunctionDeclaration is block-scoped per ES6+ strict mode; at fn body top level the
+    // currentBlock IS the fn body so it naturally widens to fn-scope semantics. body opens
+    // its own scope - stop descent regardless
     if (node.type === 'FunctionDeclaration') {
-      if (node.id?.name) locals.set(node.id.name, { constant: true, node });
+      if (node.id?.name) {
+        addLocal(locals, node.id.name, { constant: true, node, blockStart, blockEnd });
+      }
       return;
     }
     if (FUNCTION_NODE_TYPES.has(node.type)) return;
     if (node.type === 'VariableDeclaration') {
+      // `var` hoists out of any enclosing block (fn-scoped); `let`/`const`/`using` /
+      // `await using` are block-scoped. catch-bindings walk separately below
+      const isVar = node.kind === 'var';
+      const scopeStart = isVar ? fnStart : blockStart;
+      const scopeEnd = isVar ? fnEnd : blockEnd;
       const constant = node.kind === 'const';
       for (const d of node.declarations) {
-        walkPatternIdentifiers(d.id, id => locals.set(id.name, { constant, node: d }));
+        addPatternLocals(locals, d.id, { constant, node: d, blockStart: scopeStart, blockEnd: scopeEnd });
       }
     } else if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
-      // register the class binding (declarations only - expressions emit nothing), then
-      // STOP - class body opens its own scope. method bodies, static blocks, instance fields
-      // all live in their own scope chains; descending into them would conflate inner
-      // declarations (`class C { static { var X } }` -> X inside f's locals) with outer
-      // function locals, breaking shadow detection
+      // ClassDeclaration is block-scoped (strict mode); ClassExpression doesn't bind
+      // in the enclosing scope. body opens its own scope - stop descent either way
       if (node.type === 'ClassDeclaration' && node.id?.name) {
-        locals.set(node.id.name, { constant: true, node });
+        addLocal(locals, node.id.name, { constant: true, node, blockStart, blockEnd });
       }
       return;
     } else if (node.type === 'CatchClause' && node.param) {
-      // catch-binding is block-scoped but close enough: flat frame-locals only need
-      // "does this name shadow the global" for polyfill-lookup suppression
-      walkPatternIdentifiers(node.param, id => locals.set(id.name, { constant: false, node: node.param }));
+      // catch-binding lives only inside the handler body. descend with the catch-body
+      // context so `let`/`const` inside also get correct ranges
+      const catchStart = node.body?.start ?? node.start;
+      const catchEnd = node.body?.end ?? node.end;
+      addPatternLocals(locals, node.param, {
+        constant: false, node: node.param, blockStart: catchStart, blockEnd: catchEnd,
+      });
+      if (node.body) walk(node.body, catchStart, catchEnd);
+      return;
     }
-    forEachChildNode(node, walk);
+    // block-shape nodes push a new block context for their descendants
+    const inBlock = BLOCK_SCOPING_NODE_TYPES.has(node.type);
+    const childStart = inBlock ? node.start : blockStart;
+    const childEnd = inBlock ? node.end : blockEnd;
+    forEachChildNode(node, child => walk(child, childStart, childEnd));
   }
-  if (fnNode.body) walk(fnNode.body);
+  if (fnNode.body) walk(fnNode.body, fnStart, fnEnd);
   LOCALS_CACHE.set(fnNode, locals);
   return locals;
 }
