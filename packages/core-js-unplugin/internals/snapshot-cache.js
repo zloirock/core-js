@@ -38,8 +38,12 @@ const QUERY_OR_HASH_RE = /[#?]/;
 // (`\\?\C:\src\App.vue` vs `C:/src/App.vue` - same logical file produces same key).
 // Windows drive letter case asymmetry: some bundler stages lowercase (`c:/src/...`), others
 // preserve source case (`C:/src/...`). same logical file produces different keys without
-// canonicalisation - lowercase the drive letter so pre / post align under any pipeline mix
-const WINDOWS_DRIVE_LETTER_RE = /^(?<letter>[A-Z]):\//;
+// canonicalisation - lowercase the drive letter so pre / post align under any pipeline mix.
+// optional leading `/` matches Vite-style residual after `/@fs/` strip (`/@fs/C:/src/foo.js`
+// -> `/C:/src/foo.js`) and `file:///` (`file:///C:/src/foo.js` -> `/C:/src/foo.js`); without
+// it those forms keep the slash and the drive letter never lowercases - same logical file,
+// different cache keys, snapshot lost between pre / post on Windows + Vite dev-server
+const WINDOWS_DRIVE_LETTER_RE = /^\/?(?<letter>[A-Z]):\//;
 function normalizePath(path) {
   let p = path.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
   // composite chains like `/@id/file:///abs/foo` carry two schemes back-to-back. one-pass

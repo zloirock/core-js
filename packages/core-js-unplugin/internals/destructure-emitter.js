@@ -405,31 +405,58 @@ export function createDestructureEmitter({
     });
   }
 
+  // full-preserve declarator: preservedSrc is a verbatim slice of the original source
+  // anchored at decl.start. all splices must fall within [decl.start, decl.end) - an
+  // out-of-range splice would either silently no-op or corrupt source; asserting at the gate
+  // isolates the splice contract violation here instead of letting a downstream MagicString
+  // chunk-split error surface far from the cause
+  function bakeFullPreserveSplices(slot, decl, splices) {
+    for (const s of splices) {
+      if (s.start < decl.start || s.end > decl.end) {
+        throw new RangeError(`[core-js] destructure-emitter: splice [${ s.start },${ s.end }) outside declarator [${ decl.start },${ decl.end })`);
+      }
+    }
+    slot.preservedSrc = spliceInRange(slot.preservedSrc, decl.start, splices);
+  }
+
+  // partial-consume non-for-init: preservedSrc has the rebuilt `{ preserved } = <initSrc>`
+  // shape ending with a verbatim initSrc receiver tail slice (when the receiver was
+  // polyfillable, initSrc is the polyfill binding instead and no original-position splices
+  // can land inside it). only splices that anchor within the verbatim trailing initSrc range
+  // are baked, mapped to the offset within initSrc. splices outside that range (e.g. inside
+  // the pattern's original outer keys) are NOT applied here - the SE prefix path
+  // (`liftExtractedSEPrefixesByIdx`) covers everything before the receiver tail
+  function bakePartialConsumeTailSplices(slot, decl, splices) {
+    if (slot.preservedSrc === null || !slot.preservedInitSrc) return;
+    const { tail } = peelNestedSequenceExpressions(decl.init);
+    if (!tail) return;
+    const inRange = splices.filter(s => s.start >= tail.start && s.end <= tail.end);
+    if (!inRange.length) return;
+    const headLen = slot.preservedSrc.length - slot.preservedInitSrc.length;
+    const bakedInit = spliceInRange(slot.preservedInitSrc, tail.start, inRange);
+    slot.preservedSrc = slot.preservedSrc.slice(0, headLen) + bakedInit;
+    slot.preservedInitSrc = bakedInit;
+  }
+
   // bake `var _ref;` ref-binding splices (from scope-tracker, drained per-declarator into
   // `perDecl[i].drainedRefs` in `flushPendingFlatten`) into preservedSrc at original-source
-  // positions. extracted declarators take separate paths: their preservedSrc was rebuilt
-  // with seExpr-local text by `injectForInitSESinks` (for-init) or remains null pending the
-  // `liftExtractedSEPrefixes` lift (non-for-init); refSplices for them were already baked
-  // into those rebuilds via `bakeRefSplicesInRange`. sibling-receiver-name substitutions
-  // (`globalThis -> _globalThis`) are NOT baked here - they're queued on transform-queue
-  // by `polyfillSiblingReceiverRefs` so compose handles nested body-wraps correctly
-  function bakePendingSplicesIntoPreserved(declaration, perDecl) {
+  // positions. dispatch on extraction shape:
+  // - non-extracted (full-preserve): `bakeFullPreserveSplices` operates on the whole slice
+  // - partial-consume non-for-init: `bakePartialConsumeTailSplices` covers the trailing
+  //   initSrc only (the SE prefix path baked the rest in `liftExtractedSEPrefixesByIdx`)
+  // - for-init partial-consume: `injectForInitSESinks` already rebuilt initSrc with refs
+  //   baked into the SE-sink wrapper; skip to avoid double-baking
+  // sibling-receiver-name substitutions (`globalThis -> _globalThis`) are NOT baked here -
+  // they're queued on transform-queue by `polyfillSiblingReceiverRefs` so compose handles
+  // nested body-wraps correctly
+  function bakePendingSplicesIntoPreserved(declaration, perDecl, { isForInit = false } = {}) {
     for (let i = 0; i < perDecl.length; i++) {
-      if (perDecl[i].extractions.length) continue;
-      const decl = declaration.declarations[i];
-      const splices = perDecl[i].drainedRefs;
+      const slot = perDecl[i];
+      const splices = slot.drainedRefs;
       if (!splices.length) continue;
-      // invariant: every splice must fall within [decl.start, decl.end). spliceInRange
-      // anchors at decl.start and indexes into preservedSrc; an out-of-range splice would
-      // either silently no-op or corrupt source. asserting at the gate isolates the splice
-      // contract violation to this function instead of letting a downstream MagicString /
-      // applyTransforms surface emit a confusing chunk-split error far from the cause
-      for (const s of splices) {
-        if (s.start < decl.start || s.end > decl.end) {
-          throw new RangeError(`[core-js] destructure-emitter: splice [${ s.start },${ s.end }) outside declarator [${ decl.start },${ decl.end })`);
-        }
-      }
-      perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
+      const decl = declaration.declarations[i];
+      if (!slot.extractions.length) bakeFullPreserveSplices(slot, decl, splices);
+      else if (!isForInit) bakePartialConsumeTailSplices(slot, decl, splices);
     }
   }
 
@@ -467,7 +494,7 @@ export function createDestructureEmitter({
   // newline-separated declarators would parse the middle as the for-test slot, syntax error
   function renderForInitFlatten(declaration, perDecl) {
     injectForInitSESinks(declaration, perDecl);
-    bakePendingSplicesIntoPreserved(declaration, perDecl);
+    bakePendingSplicesIntoPreserved(declaration, perDecl, { isForInit: true });
     const parts = [];
     for (const r of perDecl) {
       for (const e of r.extractions) parts.push(e.decl);
