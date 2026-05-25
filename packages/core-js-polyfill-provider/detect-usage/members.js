@@ -70,7 +70,7 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // classification sees the rhs-most constructor (`Array`). don't push to sideEffects
     // here - instance dispatch captures the assignment via memoize `_ref = (a = Array)`,
     // and static dispatch picks up the outermost assignment separately at emission time
-    const { value: classifyTarget } = peelChainAssignment(obj);
+    const { value: classifyTarget, outer: chainAssignOuter } = peelChainAssignment(obj);
     const objectName = resolveObjectName({ objectNode: classifyTarget, scope, adapter, path });
     // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
@@ -92,7 +92,13 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // IIFE-rooted MemberExpression chain (`(() => globalThis)().Array.from(x)`): walk the
     // chain down to the root CallExpression and probe its prefix-SE the same way - without
     // the chain walk, IIFE-with-prefix inside a proxy-global chain silently drops its setup
-    if (objectName) {
+    // when the receiver IS a chain-assignment (`(a = IIFE()).resolve(1)`), the emitter's
+    // `prependChainAssignmentEffect` already preserves the whole rhs (including any inline
+    // call) by re-emitting the outermost `=` expression. pushing the inner root-call into
+    // sideEffects here would duplicate it - the SequenceExpression wrap would emit the
+    // IIFE both as part of `(a = IIFE())` and as a standalone receiver re-eval. only
+    // probe `findChainRootCallExpression` when there's no chain-assign wrapper.
+    if (objectName && !chainAssignOuter) {
       const rootCall = findChainRootCallExpression(classifyTarget);
       if (rootCall && inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path })) {
         sideEffects.push(rootCall);
@@ -275,7 +281,12 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   const keyNode = prop.computed
     ? unwrapParensCollectingEffects(prop.property, sideEffects) : prop.property;
   const name = resolveKey({ node: keyNode, computed: prop.computed, scope, adapter, path });
-  return name ? { key: `Symbol.${ name }`, ref, sideEffects } : null;
+  // reject `arr[Symbol[Symbol.X]]`: resolveKey returns `'Symbol.X'` when the inner key is
+  // itself a Symbol.X form (well-known symbol VALUE used as bracket key). at runtime this
+  // is `arr[<well-known-symbol-value>]` which doesn't match the `Symbol.X` polyfill dispatch
+  // shape - Symbol constructor itself doesn't carry well-known-symbol-valued properties
+  if (!name || name.startsWith('Symbol.')) return null;
+  return { key: `Symbol.${ name }`, ref, sideEffects };
 }
 
 // walk the proxy-global chain at `node`, seeding every intermediate MemberExpression AND the
