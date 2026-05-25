@@ -11,6 +11,7 @@ import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfi
 import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
+  unwrapParens,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
@@ -33,20 +34,16 @@ const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportNamespaceSpecifier',
 ]);
 
-// `createParenthesizedExpressions: true` leaves `(('x'))` as a ParenthesizedExpression wrapper.
-// peel so `require(('x'))` / `import(('x'))` entry detection matches the unwrapped form
-// (parity with unplugin's estreeAdapter which calls `unwrapParens` before the type check)
-function peelParens(node) {
-  while (node?.type === 'ParenthesizedExpression') node = node.expression;
-  return node;
-}
-
+// shared `unwrapParens` peels paren / TS expression wrappers / safe SequenceExpression so
+// `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
+// all reach the underlying StringLiteral. parity with unplugin's adapter which routes the
+// arg through the same helper before the type check
 function isStringLiteral(node) {
-  return peelParens(node)?.type === 'StringLiteral';
+  return unwrapParens(node)?.type === 'StringLiteral';
 }
 
 function stringLiteralValue(node) {
-  const inner = peelParens(node);
+  const inner = unwrapParens(node);
   return inner?.type === 'StringLiteral' ? inner.value : null;
 }
 
@@ -355,13 +352,15 @@ export function createUsageVisitors({
   }
 
   // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it
-  // (`class Map {}; let x: Map = ...` must NOT pull in es.map.constructor)
+  // (`class Map {}; let x: Map = ...` must NOT pull in es.map.constructor). route through
+  // the adapter's `hasBinding` so the same filters apply as for `handleIdentifier`: ambient
+  // declarations (`declare const Map`) DON'T shadow (binding is tsc-elided); TS-runtime
+  // declarations (`enum Map`, `namespace Map`) DO shadow (resolved via path ancestor walk).
+  // a raw `getBindingIdentifier` here misses TS-runtime shadows entirely and conversely
+  // over-skips on ambient declarations - both fixed by going through the adapter
   function annotationGlobal(path) {
     return name => {
-      // `hasBinding` returns true for free variables via `program.globals` (babel marks `Map`
-      // there as soon as any Identifier visitor reads it, even when no local binds it).
-      // use `getBindingIdentifier` instead - that returns only actual local binders
-      if (path.scope?.getBindingIdentifier(name)) return;
+      if (adapter.hasBinding(path.scope, name, path)) return;
       onUsage({ kind: 'global', name }, path);
     };
   }
