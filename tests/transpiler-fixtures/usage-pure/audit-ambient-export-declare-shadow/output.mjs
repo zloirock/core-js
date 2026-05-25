@@ -1,5 +1,5 @@
 import _Map from "@core-js/pure/actual/map/constructor";
-// `declare const Map: ...` parent-declared ambient binding. isAmbientBindingShape
+// `declare const Map: ...` parent-declared ambient binding. ambient binding filter
 // covers `declare var X` / `declare const X` via parent.declare === true. Map reference
 // here resolves to global, polyfill should fire
 declare const Map: any;

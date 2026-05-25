@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 // post-replace deoptimize walk peels through transparent wrappers
-// (TS_EXPR_WRAPPERS / ParenthesizedExpression / ChainExpression) when stripping
+// (TS expression wrappers / ParenthesizedExpression / ChainExpression) when stripping
 // the dangling-optional-on-now-non-optional parent. previously only the immediate
 // parent was checked; a TS wrapper between the replaced static and the surviving
 // `?.` would hide the dangling optional from the de-optimization pass. here:

@@ -5,7 +5,7 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 // `using` is block-scoped lexical binding - the local `globalThis` shadows the global
 // throughout the IIFE body. inner `[globalThis]` reference must NOT be rewritten to the
 // polyfill alias. without `using` / `await using` in `LEXICAL_DECL_KINDS`, the binding
-// is invisible to `polyfillSiblingReceiverRefs`; inner reference gets wrongly rewritten
+// is invisible to `sibling-receiver ref polyfilling`; inner reference gets wrongly rewritten
 const from = _Array$from;
 const val = (() => {
   var _ref;
