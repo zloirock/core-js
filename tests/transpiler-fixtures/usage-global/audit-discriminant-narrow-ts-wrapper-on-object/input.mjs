@@ -1,10 +1,10 @@
 // Discriminant narrow when TS expression-wrappers (`as` / `!` / `satisfies`) sit on the
-// guard's member-expression object slot. earlier `peelParensAndChain` peeled only parens
-// + ChainExpression, leaving TSAsExpression / TSNonNullExpression / TSSatisfiesExpression
-// unstripped - `pathKey` then returned null and the guard never matched. fix routes both
-// the equality sides AND the member-object slot through `unwrapRuntimeExpr`, which peels
-// all transparent runtime wrappers in one step. distinct methods per branch
-// (.repeat string / .at array / .padEnd string / .includes array) pin emission to narrow:
+// guard's member-expression object slot. previously paren+chain peel left TSAsExpression /
+// TSNonNullExpression / TSSatisfiesExpression unstripped - the path key returned null and
+// the guard never matched. fix routes both equality sides AND the member-object slot
+// through the same runtime-transparent peel, so all wrappers are stripped in one step.
+// distinct methods per branch (.repeat string / .at array / .padEnd string / .includes
+// array) pin emission to narrow:
 type Box = { kind: 'a'; v: string } | { kind: 'b'; v: number[] };
 function probe(box: Box) {
   if ((box as Box).kind === 'a') {

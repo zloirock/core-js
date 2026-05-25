@@ -1,5 +1,5 @@
 // deep proxy-global chain `globalThis.window.self.Array` as receiver of a parameter
-// destructure default. `markSynthReceiverSkipped` walks down each MemberExpression's
+// destructure default. the synth-receiver-skipped marker walks down each MemberExpression's
 // `.object` and adds every link to skippedNodes; the final leaf Identifier `globalThis`
 // is also skipped so the inner Identifier visitor does not race with synth-swap on the
 // replaced receiver range. distinct sibling methods per param confirm key registration.
