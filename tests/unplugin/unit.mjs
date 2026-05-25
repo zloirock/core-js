@@ -423,6 +423,65 @@ function checkNonIntegerRangeThrows() {
 }
 checkNonIntegerRangeThrows();
 
+// split entries own [start, logicalEnd) logically even though their physical halves stop
+// at the mid. an inner [3, 8) contained within a split [0, 10) (prefix [0,5) + suffix [5,10))
+// crosses the physical mid but stays within the logical span - assertNoPartialOverlap must
+// not trip on it. before the fix, physical .end comparison flagged inner vs prefix as
+// partial overlap and threw spuriously. apply() may still throw downstream on the actual
+// MagicString overwrite (touching chunks); only the assertion's diagnostic is verified here
+function expectNoPartialOverlapAssertion(label, code, build) {
+  const q = new TransformQueue(code, new MagicString(code));
+  build(q);
+  let assertionThrew = false;
+  try { q.apply(); } catch (error) {
+    if (/partial overlap/.test(error.message)) assertionThrew = true;
+  }
+  if (assertionThrew) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan(label) } :: false partial overlap`;
+  } else counts.passed++;
+}
+
+function expectPartialOverlapAssertion(label, code, build) {
+  const q = new TransformQueue(code, new MagicString(code));
+  build(q);
+  try { q.apply(); } catch (error) {
+    if (/partial overlap/.test(error.message)) {
+      counts.passed++;
+      return;
+    }
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan(label) } :: unexpected error ${ error.message }`;
+    return;
+  }
+  counts.failed++;
+  echo`${ red('FAIL') } ${ cyan(label) } :: expected partial-overlap throw`;
+}
+
+// inner contained within a split's logical span crosses the physical mid - must not throw
+expectNoPartialOverlapAssertion('TransformQueue/split logical end contains inner',
+  '0123456789abcdef', q => { q.addSplit(0, 5, 10, 'PRE', 'SUF', null, null); q.add(3, 8, 'INNER'); });
+
+// inner starting inside a split's logical span and ending past its logical end is a
+// genuine partial overlap (e.g. inner [7,14) vs split [5,11) gives the [7,11) overlap).
+// entryLogicalEnd still detects this; the suffix-skip doesn't mask it because the prefix
+// (the only walked half) is the entry whose logical span is overrun
+expectPartialOverlapAssertion('TransformQueue/inner crossing split logical end throws',
+  '0123456789abcdef', q => { q.addSplit(5, 8, 11, 'PRE', 'SUF', null, null); q.add(7, 14, 'TAIL'); });
+
+// two splits sharing the same groupId (prefix + suffix pair from a single addSplit call)
+// must not trip the assertion against each other. the same-groupId exclusion still gates
+// the suffix-walk path through the prefix-only entry
+expectNoPartialOverlapAssertion('TransformQueue/split pair same groupId pass',
+  '0123456789', q => { q.addSplit(0, 5, 10, 'PRE', 'SUF', null, null); });
+
+// two independent splits placed side-by-side (different groupIds) with no overlap pass
+expectNoPartialOverlapAssertion('TransformQueue/two adjacent splits pass',
+  '0123456789abcdef', q => {
+    q.addSplit(0, 2, 4, 'A', 'B', null, null);
+    q.addSplit(8, 10, 12, 'C', 'D', null, null);
+  });
+
 // non-consecutive partial overlap: sorted by start gives [A=[0,10), B=[3,5), C=[7,14)].
 // consecutive-pair iteration wouldn't flag A vs C (B sits between, neither pair is partial);
 // running max-end catches it. this is the shape agent audit 4 flagged as TQ-13-4
@@ -1322,6 +1381,28 @@ function checkSnapshotKeyNormalization() {
   check('SnapshotCache/invalidate fanout bare', cache.take('/src/Fan.vue'), null);
   check('SnapshotCache/invalidate fanout script', cache.take('/src/Fan.vue?vue&type=script'), null);
   check('SnapshotCache/invalidate fanout template', cache.take('/src/Fan.vue?vue&type=template'), null);
+  // Windows drive letter normalization through Vite scheme prefixes. after `/@fs/` strip
+  // the path becomes `/C:/src/foo.js`; drive-letter regex must match through the residual
+  // leading `/` so the lowercased canonical form aligns with bare `C:/src/foo.js` keys
+  cache.store('C:/win/proj.js', { tag: 'win-fs' });
+  check('SnapshotCache/win drive via /@fs/', cache.take('/@fs/C:/win/proj.js')?.tag, 'win-fs');
+  cache.store('C:/win/file.js', { tag: 'win-file' });
+  check('SnapshotCache/win drive via file:///', cache.take('file:///C:/win/file.js')?.tag, 'win-file');
+  // upper / lower drive letter must hash identically regardless of bundler-stage casing
+  cache.store('C:/win/case.js', { tag: 'win-case' });
+  check('SnapshotCache/win drive lower-case canonical', cache.take('c:/win/case.js')?.tag, 'win-case');
+  // composite scheme + Windows drive: `/@id/file:///C:/...` strips both prefixes and
+  // canonicalises drive case. UNC `\\?\C:\...` flows through the UNC stripper first
+  cache.store('C:/win/composite.js', { tag: 'win-composite' });
+  check('SnapshotCache/win drive via composite /@id/file://',
+    cache.take('/@id/file:///C:/win/composite.js')?.tag, 'win-composite');
+  cache.store('C:/win/unc.js', { tag: 'win-unc' });
+  check('SnapshotCache/win drive via UNC long-path', cache.take('\\\\?\\C:\\win\\unc.js')?.tag, 'win-unc');
+  // SFC sub-block on a Windows path: drive letter normalises in the path portion while the
+  // sorted SFC query tail is preserved so distinct sub-blocks keep distinct keys
+  cache.store('C:/win/View.vue?vue&type=script', { tag: 'win-sfc-script' });
+  check('SnapshotCache/win drive sfc sub-block',
+    cache.take('/@fs/C:/win/View.vue?vue&type=script')?.tag, 'win-sfc-script');
   // peekWithParse leaves the snapshot intact: callers (post pass with disable-file detection)
   // can inspect cached AST before committing to `take()`. bail paths leave the entry so a
   // subsequent retry can still consume it
