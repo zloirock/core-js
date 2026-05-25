@@ -20,7 +20,7 @@ import {
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
-  peelFallbackWrappers,
+  peelFallbackBranchInner,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelToExpressionStatement,
@@ -1111,36 +1111,45 @@ export function createDestructureEmitter({
     if (!rhs || !propNode || !objectPattern) return false;
     if (!isSynthSimpleObjectPattern(objectPattern)) return false;
     if (propNode.computed || propNode.key?.type !== 'Identifier') return false;
-    // peel ParenthesizedExpression + TS expression wrappers so paren-wrapped or TS-cast
-    // fallback receivers (`(cond ? A : B) as any`) reach the slot resolver. NOTE: do NOT
-    // peel chain-assignment here - `foo = cond ? Array : Set` is intentional escape hatch
-    // (rewriting branches as synth literals would change `foo`'s runtime value)
-    const inner = peelFallbackWrappers(rhs);
+    // `registerBranchTreeForKey` peels paren / TS / chain / SE wrappers internally - do NOT
+    // peel chain-assignment here (`foo = cond ? Array : Set` is intentional escape hatch;
+    // rewriting branches as synth literals would change `foo`'s runtime value)
+    return registerBranchTreeForKey(rhs, propNode.key.name, objectPattern, scope, path);
+  }
+
+  // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
+  // gets per-branch synth-swap. `peelFallbackBranchInner` peels paren / TS / chain AND SE
+  // tail so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds
+  // the branches, and recursion registers each leaf. SE prefix stays in the source range
+  // around the substitution target via `applySynthSwaps`' inner-position overwrite
+  function registerBranchTreeForKey(branch, key, objectPattern, scope, path) {
+    const inner = peelFallbackBranchInner(branch);
+    if (!inner) return false;
     const slots = getFallbackBranchSlots(inner);
-    if (!slots) return false;
-    const key = propNode.key.name;
-    let registered = false;
-    for (const slot of slots) {
-      const branch = inner[slot];
-      const pure = isViableBranchForKey({ branch, key, scope, adapter: estreeAdapter, resolvePure, path });
-      if (!pure) continue;
-      const binding = injectPureImport(pure.entry, pure.hintName);
-      // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
-      // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
-      // the inner Identifier visitor fires on `Iterator` / `globalThis` and emits a parallel
-      // polyfill that conflicts with the synth-swap emit. shared `markAndPeelSkippableWrappers`
-      // covers the same wrapper set used by `markSynthReceiverSkipped`'s inner walk
-      const cur = markAndPeelSkippableWrappers(branch, skippedNodes);
-      markSynthReceiverSkipped(cur, skippedNodes);
-      let pending = pendingSynthSwaps.get(branch);
-      if (!pending) {
-        pending = { receiver: branch, objectPattern, polyfills: new Map() };
-        pendingSynthSwaps.set(branch, pending);
+    if (slots) {
+      let any = false;
+      for (const slot of slots) {
+        if (registerBranchTreeForKey(inner[slot], key, objectPattern, scope, path)) any = true;
       }
-      pending.polyfills.set(key, binding);
-      registered = true;
+      return any;
     }
-    return registered;
+    const pure = isViableBranchForKey({ branch, key, scope, adapter: estreeAdapter, resolvePure, path });
+    if (!pure) return false;
+    const binding = injectPureImport(pure.entry, pure.hintName);
+    // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
+    // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
+    // the inner Identifier visitor fires on `Iterator` / `globalThis` and emits a parallel
+    // polyfill that conflicts with the synth-swap emit. shared `markAndPeelSkippableWrappers`
+    // covers the same wrapper set used by `markSynthReceiverSkipped`'s inner walk
+    const cur = markAndPeelSkippableWrappers(branch, skippedNodes);
+    markSynthReceiverSkipped(cur, skippedNodes);
+    let pending = pendingSynthSwaps.get(branch);
+    if (!pending) {
+      pending = { receiver: branch, objectPattern, polyfills: new Map() };
+      pendingSynthSwaps.set(branch, pending);
+    }
+    pending.polyfills.set(key, binding);
+    return true;
   }
 
   // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
@@ -1496,7 +1505,11 @@ export function createDestructureEmitter({
   function applySynthSwaps() {
     for (const [, { receiver, objectPattern, polyfills }] of pendingSynthSwaps) {
       if (objectPattern?.type !== 'ObjectPattern') continue;
-      const inner = peelFallbackWrappers(receiver);
+      // safe-SE peel too: `cond ? (0, Array) : Iterator` registers the branch with the SE as
+      // outer receiver. apply step substitutes at the SE TAIL (inner Identifier) so SE prefix
+      // remains in the AST around the swap, preserving safe side-effects. mirrors babel-plugin's
+      // `unwrapSequenceTail` peel in `registerBranchTreeForKey` for parser-mode-symmetric emission
+      const inner = peelFallbackBranchInner(receiver);
       // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
       // `globalThis?.Array`) receivers - mirrors `isViableBranchForKey` so `tryRegisterPerBranchSynth`
       // -> `applySynthSwaps` round-trip stays in sync. for member-chain shapes, unpolyfilled
