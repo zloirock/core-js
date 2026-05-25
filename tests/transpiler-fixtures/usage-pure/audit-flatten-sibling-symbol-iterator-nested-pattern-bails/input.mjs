@@ -1,5 +1,5 @@
 // `[Symbol.iterator]: {next}` - value is a nested ObjectPattern, NOT a binding Identifier.
-// `propBindingIdentifier` in `symbolIteratorLocalName` returns null, so the synth-extraction
+// `prop binding-identifier resolver` in `symbolIteratorLocalName` returns null, so the synth-extraction
 // path doesn't fire. but `planOuterProp` has a SECOND branch using `isSymbolIteratorComputedKey`
 // alone: when the key shape matches but value isn't binding-extractable, emit the rebuilt
 // preservedSrc with the polyfilled `[_Symbol$iterator]` key + verbatim value source. this

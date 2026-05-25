@@ -1,6 +1,6 @@
 // aliased-with-default shape `{from: alias = []}` + computed-key sibling forces synth-swap
 // to bail (computed sibling). body-extract path now fires unconditionally regardless of
-// AssignmentPattern wrapper - propBindingIdentifier peels AssignmentPattern.left to surface
+// AssignmentPattern wrapper - prop binding-identifier resolver peels AssignmentPattern.left to surface
 // the alias. body emit is `let alias = _polyfill;` (preserves the user's chosen local name)
 const KEY = 'k';
 function run({ from: alias = [], [KEY]: tag } = Array) {
