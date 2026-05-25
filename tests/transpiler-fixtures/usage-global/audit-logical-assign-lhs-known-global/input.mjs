@@ -1,4 +1,5 @@
-// `Map ||= 1` reads Map first - polyfill import binding is read-only so `_Map ||= 1` throws
-// TypeError on write. can't be fixed in code; emit a debug warning so users see why no
-// polyfill was injected for this pattern
+// `Map ||= 1` in usage-global mode: side-effect polyfill imports populate the global before
+// module body runs, so `||=` reads Map (truthy) and no-ops. plugin doesn't rewrite write-
+// context globals -> no polyfill emission at this site, no warning (only pure mode warns
+// because the rewrite substitutes a read-only import binding and write would TypeError)
 Map ||= 1;

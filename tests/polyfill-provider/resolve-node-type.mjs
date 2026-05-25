@@ -96,7 +96,6 @@ import {
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
   peelFallbackReceiver,
-  peelFallbackWrappers,
   peelNestedSequenceExpressions,
   propBindingIdentifier,
   resolveCallArgument,
@@ -1997,22 +1996,6 @@ runBoth('class method declared return -> Map',
   check('ast-patterns: resolveCallArgument opaque spread',
     resolveCallArgument(opaqueSpread, 0), null);
 
-  // peelFallbackWrappers: strips parens + TS wrappers
-  check('ast-patterns: peelFallbackWrappers paren',
-    peelFallbackWrappers({
-      type: 'ParenthesizedExpression',
-      expression: { type: 'Identifier', name: 'x' },
-    })?.name, 'x');
-  check('ast-patterns: peelFallbackWrappers TSAsExpression',
-    peelFallbackWrappers({
-      type: 'TSAsExpression',
-      expression: { type: 'Identifier', name: 'x' },
-    })?.name, 'x');
-  // bare passes through
-  check('ast-patterns: peelFallbackWrappers bare',
-    peelFallbackWrappers({ type: 'Identifier', name: 'x' })?.name, 'x');
-  check('ast-patterns: peelFallbackWrappers null', peelFallbackWrappers(null), null);
-
   // unwrapExportedDeclaration: export wrapping passes inner declaration through
   const exported = {
     type: 'ExportNamedDeclaration',
@@ -2504,7 +2487,8 @@ runBoth('class method declared return -> Map',
   };
   check('ast-patterns: peelFallbackReceiver paren+TS+SE',
     peelFallbackReceiver(wrappedCond)?.type, 'ConditionalExpression');
-  // SE with side-effectful prefix -> peel stops at SE (prefix preserved)
+  // SE with side-effectful prefix -> peel unconditionally to tail (prefix preserved at
+  // apply time via per-branch substitution / source-range overwrite around inner Identifier)
   const seWithCall = {
     type: 'SequenceExpression',
     expressions: [
@@ -2512,8 +2496,8 @@ runBoth('class method declared return -> Map',
       condExpr,
     ],
   };
-  check('ast-patterns: peelFallbackReceiver stops at SE prefix',
-    peelFallbackReceiver(seWithCall)?.type, 'SequenceExpression');
+  check('ast-patterns: peelFallbackReceiver peels SE-with-side-effects to tail',
+    peelFallbackReceiver(seWithCall)?.type, 'ConditionalExpression');
 }
 
 // --- ast-patterns: member-write contexts + tag predicates ---

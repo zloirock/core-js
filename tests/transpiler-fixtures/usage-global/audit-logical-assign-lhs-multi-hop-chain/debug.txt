@@ -19,7 +19,3 @@ The core-js@4 polyfill added the following polyfills:
   es.string.iterator { "ie":"11" }
   web.dom-collections.iterator { "ie":"11" }
   web.self { "ie":"11" }
-
-Warnings:
-  `globalThis.self.Map ||= ...` left-hand side cannot be polyfilled (plugin rewrites reads, not writes); expected runtime engine to provide `Map`
-  `globalThis.window.Promise ??= ...` left-hand side cannot be polyfilled (plugin rewrites reads, not writes); expected runtime engine to provide `Promise`

@@ -11,7 +11,7 @@ import {
   isChainAssignment,
   isTransparentDestructureWrapper,
   peelFallbackReceiver,
-  peelFallbackWrappers,
+  peelFallbackBranchInner,
   peelZeroArgIifeReturn,
   resolveFallbackReceiver,
   unwrapExpressionChain,
@@ -153,11 +153,12 @@ function resolveConditionalDestructureMeta({ node, key, scope, adapter, path }) 
 // returns the resolved pure descriptor (with `entry`/`hintName`/`kind`) or null.
 // shared between babel-plugin and unplugin so the branch-detection rules stay in lockstep
 export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure, path = null }) {
-  // peel ParenthesizedExpression / TS expression wrappers around the branch:
-  // `cond ? (Array) : (Iterator)` (oxc preserves) / `cond ? Array! : Iterator!` (TS).
-  // without the peel the strict Identifier check rejected wrapped branches and the synth
-  // swap silently bailed for that side
-  const inner = peelFallbackWrappers(branch);
+  // peel ParenthesizedExpression / TS expression wrappers AND safe SE tail around the branch:
+  // `cond ? (Array) : (Iterator)` (oxc preserves parens), `cond ? Array! : Iterator!` (TS),
+  // `cond ? (0, Array) : Iterator` (SE-prefixed). without the SE-tail peel, comma-prefixed
+  // branches resolved to SequenceExpression -> strict-shape check bailed and per-branch synth
+  // dropped that side, leaving native `Array.from` -> "polyfill always wins" violation
+  const inner = peelFallbackBranchInner(branch);
   if (inner?.type !== 'Identifier'
     && inner?.type !== 'MemberExpression'
     && inner?.type !== 'OptionalMemberExpression') return null;
@@ -184,10 +185,10 @@ function flattenFallbackBranches({ node, key, scope, adapter, path }) {
   if (branchSlots) {
     return branchSlots.flatMap(s => flattenFallbackBranches({ node: peeled[s], key, scope, adapter, path }));
   }
-  // leaf branch: paren/TS-wrapped Identifier / MemberExpression, resolve as a single meta.
-  // buildDestructuringInitMeta handles the alias chain + proxy-global / static / global
+  // leaf branch: paren/TS-wrapped + safe-SE Identifier / MemberExpression, resolve as a single
+  // meta. buildDestructuringInitMeta handles the alias chain + proxy-global / static / global
   // classification. drops branches that didn't resolve to a known global (`object` null)
-  const inner = peelFallbackWrappers(peeled);
+  const inner = peelFallbackBranchInner(peeled);
   if (!inner) return [];
   const branchMeta = buildDestructuringInitMeta({ initNode: inner, key, scope, adapter, path });
   return branchMeta?.object ? [branchMeta] : [];
