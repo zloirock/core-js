@@ -46,7 +46,9 @@ function f({
 // default-value param: nested conditional - outer ?? wraps inner ?
 function g({
   try: t
-} = (cond1 ? _Promise : null) ?? {
+} = (cond1 ? {
+  try: _Promise$try
+} : null) ?? {
   try: _Promise$try
 }) {
   return t;
