@@ -1,5 +1,5 @@
 // class-as-namespace probe: static fields aliasing globals must be resolved through
-// findNamespaceMemberValue / resolveBindingToGlobalName. extends Box.Promise resolves to
+// findNamespaceMemberValue / binding-to-global lookup. extends Box.Promise resolves to
 // Promise via the static-field aliasing chain
 class Box {
   static MyPromise = Promise;

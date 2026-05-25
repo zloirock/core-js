@@ -6,7 +6,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // scopedVar at inner block start, also inside init range). consumeRefBindingsInRange returns
 // BOTH bodyWrap splice (overwriting outer arrow body range) AND scopedVar splice (insert
 // inside that same range). pins the absorb-scopedVar-into-composed-bodyWrap fix in
-// scope-tracker - without it, spliceInRange's bodyWrap overwrite discards the scopedVar
+// scope-tracker - without it, range splice's bodyWrap overwrite discards the scopedVar
 // insertion since splice bounds remain in original-source coordinates
 ((() => { var _ref2; return ((() => {
 var _ref; var z = _atMaybeArray(_ref = [1, 2, 3]).call(_ref, 0); return z; })(), _atMaybeArray(_ref2 = [4, 5, 6]).call(_ref2, 0)); })(), Array);
