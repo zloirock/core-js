@@ -12,9 +12,9 @@ const SYM = _Symbol();
 function run({
   [SYM]: x
 } = Array) {
-  let fromAsync = _Array$fromAsync;
-  let of = _Array$of;
   let from = _Array$from;
+  let of = _Array$of;
+  let fromAsync = _Array$fromAsync;
   return [from, of, fromAsync, x];
 }
 run();
