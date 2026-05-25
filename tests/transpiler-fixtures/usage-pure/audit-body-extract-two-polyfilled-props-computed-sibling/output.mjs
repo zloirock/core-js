@@ -10,8 +10,8 @@ const SYM = _Symbol();
 function run({
   [SYM]: x
 } = Array) {
-  let of = _Array$of;
   let from = _Array$from;
+  let of = _Array$of;
   return [from, of, x];
 }
 run();
