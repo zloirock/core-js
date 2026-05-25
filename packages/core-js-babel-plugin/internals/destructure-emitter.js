@@ -49,6 +49,12 @@ export default function createDestructureEmitter({
 }) {
   // original body index of each declaration, before insertBefore shifts it
   const originalDeclKeys = new WeakMap();
+  // per-function bookkeeping for body-extract emission: chains `insertAfter` on the previous
+  // extract decl (preserves source order; bare directive-anchor.insertAfter on every visit
+  // would stack subsequent extracts in REVERSE at body[directiveCount]). matches unplugin's
+  // single-pass emission shape so the babel and unplugin outputs share byte-for-byte
+  // declaration ordering on multi-polyfilled-param functions
+  const bodyExtractLastInsert = new WeakMap();
   // per-host bookkeeping for AssignmentExpression cascade emission: chains `insertAfter`
   // on previous polyfill-assignment (preserves declaration order; bare host.insertAfter on
   // every visit would stack subsequent insertions in REVERSE at parent.body[idx+1]) and
@@ -99,6 +105,20 @@ export default function createDestructureEmitter({
     }
     prop.get('value').replaceWith(t.assignmentPattern(t.cloneNode(prop.node.value), t.cloneNode(id)));
     prop.node.shorthand = false;
+  }
+
+  // anchor a body-extract decl inside `fnPath.body`. first call lands after the directive
+  // prologue (or at body[0] when no directives); subsequent calls chain off the previous
+  // insert so multi-polyfilled-param functions emit declarations in SOURCE order rather
+  // than the REVERSE order a naive directive-anchor reuse would produce. returns the
+  // inserted path so callers can chain the next insertion off it
+  function insertBodyExtractDecl(fnPath, newDecl) {
+    const prevInsert = bodyExtractLastInsert.get(fnPath.node);
+    if (prevInsert) return prevInsert.insertAfter(newDecl)[0];
+    const bodyPath = fnPath.get('body');
+    const directiveCount = countLeadingDirectives(bodyPath.node.body);
+    if (directiveCount === 0) return bodyPath.unshiftContainer('body', newDecl)[0];
+    return bodyPath.get('body')[directiveCount - 1].insertAfter(newDecl)[0];
   }
 
   // parameter destructure polyfill. only static/global fit here; instance methods need a
@@ -179,10 +199,7 @@ export default function createDestructureEmitter({
     const newDecl = t.variableDeclaration('let', [
       t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id)),
     ]);
-    const bodyPath = fnPath.get('body');
-    const directiveCount = countLeadingDirectives(bodyPath.node.body);
-    if (directiveCount === 0) bodyPath.unshiftContainer('body', newDecl);
-    else bodyPath.get('body')[directiveCount - 1].insertAfter(newDecl);
+    bodyExtractLastInsert.set(fnPath.node, insertBodyExtractDecl(fnPath, newDecl));
     skippedNodes.add(prop.node);
     if (prop.node.value) skippedNodes.add(prop.node.value);
     if (hasRestSiblingExcept(prop.parent.properties, prop.node)) {
