@@ -3,6 +3,7 @@
 // known global throws (read-only import binding) or no-ops (member-write on the polyfill)
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
+import { peelTransparentExprAncestorPath } from '../helpers/ast-patterns.js';
 
 export const KNOWN_FUNCTION_GLOBALS = new Set([
   ...Object.keys(knownBuiltInReturnTypes.constructors),
@@ -17,17 +18,21 @@ export function isKnownGlobalName(name) {
 
 const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);
 
-// `<node> <op>= ...` with logical op -> op string; else null
-function logicalAssignOperator(node, parent) {
-  if (parent?.type !== 'AssignmentExpression' || parent.left !== node) return null;
+// `<node> <op>= ...` with logical op -> op string; else null. peeled-path's parent is the
+// effective AssignmentExpression after walking up paren / TS-wrappers (`Map! ||= X` parses
+// as AssignmentExpression{left: TSNonNullExpression{expression: Map}}; without peel, the
+// caller's direct parent is the wrapper, not the assignment)
+function logicalAssignOperator(peeledPath) {
+  const parent = peeledPath?.parentPath?.node;
+  if (parent?.type !== 'AssignmentExpression' || parent.left !== peeledPath.node) return null;
   return LOGICAL_ASSIGN_OPERATORS.has(parent.operator) ? parent.operator : null;
 }
 
 // shared shell between bare-identifier and member LHS. resolves the LHS to a global name,
 // then formats `<chain> <op> ...` with the caller's per-shape reason text. returns warning
 // text or null
-function checkLogicalAssignLhs({ node, parent, resolveName, formatChain, reason }) {
-  const op = logicalAssignOperator(node, parent);
+function checkLogicalAssignLhs({ peeledPath, resolveName, formatChain, reason }) {
+  const op = logicalAssignOperator(peeledPath);
   if (!op) return null;
   const name = resolveName();
   if (!name || !isKnownGlobalName(name)) return null;
@@ -36,12 +41,14 @@ function checkLogicalAssignLhs({ node, parent, resolveName, formatChain, reason 
 }
 
 // `Map ||= ...` reads the global before polyfill loads (ReferenceError); the import
-// binding is read-only so substitution also throws at write time
-export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
+// binding is read-only so substitution also throws at write time. accepts the identifier's
+// path so TS wrappers between identifier and assignment (`Map! ||= X`) peel via
+// `peelTransparentExprAncestorPath` before the strict-identity LHS check
+export function checkLogicalAssignLhsGlobal(path, isBound) {
+  const identifier = path?.node;
   if (isBound || identifier?.type !== 'Identifier') return null;
   return checkLogicalAssignLhs({
-    node: identifier,
-    parent,
+    peeledPath: peelTransparentExprAncestorPath(path),
     resolveName: () => identifier.name,
     formatChain: () => identifier.name,
     reason: 'read-only import binding',
@@ -51,12 +58,12 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
 // `globalThis.Map ||= X` / `globalThis.self.Map ||= X` / `globalThis['Map'] ||= X` -
 // MemberExpression LHS, including multi-hop proxy chains and computed string-key access.
 // `globalProxyMemberName` walks the chain and short-circuits on shadowed leafs (subsumes
-// per-callsite isBound)
-export function checkLogicalAssignLhsMember({ node, parent, scope, adapter }) {
+// per-callsite isBound). same TS-wrapper peel as bare-identifier
+export function checkLogicalAssignLhsMember({ path, scope, adapter }) {
+  const node = path?.node;
   if (!node || node.type !== 'MemberExpression') return null;
   return checkLogicalAssignLhs({
-    node,
-    parent,
+    peeledPath: peelTransparentExprAncestorPath(path),
     resolveName: () => globalProxyMemberName({ node, scope, adapter }),
     formatChain: () => stringifyMemberChain(node),
     reason: 'plugin rewrites reads, not writes',

@@ -1,4 +1,4 @@
-// unwrapInitValue alternates ParenthesizedExpression peel and SequenceExpression tail
+// init-value peel alternates ParenthesizedExpression peel and SequenceExpression tail
 // peel until stable. used to reach the semantic init through any mix of paren wraps and
 // SE-prefix layers. distinct methods (.from / .of / .fromAsync) per line surface the
 // resolved global per-receiver

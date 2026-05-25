@@ -181,26 +181,31 @@ export default function createSynthSwapEmitter({
     // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
     // escape hatch (rewriting branches as synth literals would change `foo`'s runtime
     // value, see `audit-per-branch-chain-assignment`)
-    const innerPath = peelTransparentPath(rhsPath);
-    const slots = getFallbackBranchSlots(innerPath?.node);
-    if (!slots) return false;
-    const key = prop.node.key.name;
-    let registered = false;
-    for (const slot of slots) {
-      // peel TS wrappers / parens from each branch BEFORE register so apply()'s
-      // `t.isIdentifier(receiver)` invariant holds. without the peel `cond ? Array as any
-      // : Iterator as any` registers a TSAsExpression-wrapped path; apply() then bails
-      // non-deterministically (works only when a sibling constructor-polyfill happens to
-      // replace the slot with a fresh Identifier)
-      const branchPath = peelTransparentPath(innerPath.get(slot));
-      if (!branchPath?.node) continue;
-      const branch = branchPath.node;
-      const pure = isViableBranchForKey({ branch, key, scope: branchPath.scope, adapter, resolvePure, path: branchPath });
-      if (!pure) continue;
-      registerPolyfill({ targetPath: branchPath, objectPatternPath: objectPattern, key, entry: pure.entry, hintName: pure.hintName });
-      registered = true;
+    return registerBranchTreeForKey(peelTransparentPath(rhsPath), objectPattern, prop.node.key.name);
+  }
+
+  // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
+  // gets per-branch synth-swap. `unwrapSequenceTail` peels paren / TS / chain AND SE tail
+  // so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds the
+  // branches, and recursion registers each leaf. SE prefix stays in the AST around the
+  // substitution target so side-effects run at runtime
+  function registerBranchTreeForKey(branchPath, objectPattern, key) {
+    const peeled = unwrapSequenceTail(branchPath);
+    if (!peeled?.node) return false;
+    const slots = getFallbackBranchSlots(peeled.node);
+    if (slots) {
+      let any = false;
+      for (const slot of slots) {
+        if (registerBranchTreeForKey(peeled.get(slot), objectPattern, key)) any = true;
+      }
+      return any;
     }
-    return registered;
+    const branch = peeled.node;
+    const pure = isViableBranchForKey({ branch, key, scope: peeled.scope, adapter, resolvePure, path: peeled });
+    if (!pure) return false;
+    const innerPath = unwrapSequenceTail(peeled);
+    registerPolyfill({ targetPath: innerPath, objectPatternPath: objectPattern, key, entry: pure.entry, hintName: pure.hintName });
+    return true;
   }
 
   // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
