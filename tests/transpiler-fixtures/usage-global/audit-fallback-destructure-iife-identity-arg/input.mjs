@@ -1,5 +1,5 @@
 // identity IIFE: `(arg => arg)(Array)` is a pass-through wrapper that returns its
-// argument verbatim. `peelZeroArgIifeReturn` recognises the identity pattern (body is
+// argument verbatim. IIFE-identity peel recognises the identity pattern (body is
 // an Identifier matching one of the params) and lifts the corresponding arg as the
 // inline value -- so `Result` resolves to `Array`, the destructured `from` becomes
 // `Array.from`, and `es.array.from` polyfill is emitted. complements the zero-arg IIFE

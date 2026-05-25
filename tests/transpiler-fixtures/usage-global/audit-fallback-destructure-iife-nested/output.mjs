@@ -22,9 +22,9 @@ import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // nested IIFE: `(() => (() => cond ? Array : Iterator)())()`. inner IIFE wraps the
-// conditional, outer IIFE wraps the inner call. `peelFallbackReceiver`'s loop iterates
-// to stability -- peels outer IIFE -> inner CallExpression, then peels inner IIFE ->
-// ConditionalExpression. without the loop-to-stable design, only one layer would peel.
+// conditional, outer IIFE wraps the inner call. fallback-receiver peel iterates to
+// stability -- strips outer IIFE -> inner CallExpression, then inner IIFE ->
+// ConditionalExpression. without loop-to-stable, only one layer would peel.
 const {
   from
 } = (() => (() => cond ? Array : Iterator)())();
