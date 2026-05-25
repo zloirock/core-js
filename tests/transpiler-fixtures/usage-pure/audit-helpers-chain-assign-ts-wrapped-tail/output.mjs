@@ -3,7 +3,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
-// peelFallbackReceiver alternates chain-assign peel and paren+TS wrappers until stable.
+// fallback-receiver peel alternates chain-assign + paren+TS wrappers until stable.
 // here a chain-assign sits inside a TS as-any cast, then another paren wraps the outer
 // chain-assign, then a SE-prefix without observable effects, finally the conditional.
 // distinct methods (Array.from, Set.union, Map.groupBy) anchor per-branch dispatch

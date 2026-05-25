@@ -2,10 +2,9 @@ import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.string.pad-start";
 import "core-js/modules/es.array.at";
 // Multi-hop and wrapper variations on optional-member predicate callees. complements the
-// single-hop fixture: tests `resolveMemberCallChain`'s walk through nested
-// `OptionalMemberExpression` / `MemberExpression` nodes and `unwrapRuntimeExpr`'s entry
-// peel of `ChainExpression` / TS expression wrappers. distinct methods per branch
-// (.repeat / .at / .padStart) pin emission to the narrow:
+// single-hop fixture: tests walk through nested OptionalMemberExpression / MemberExpression
+// nodes plus entry peel of ChainExpression / TS expression wrappers. distinct methods per
+// branch (.repeat / .at / .padStart) pin emission to the narrow:
 //   isStr branch  -> string  -> es.string.repeat
 //   isArr branch  -> number[] -> es.array.at
 //   isStr-ts-cast -> string  -> es.string.pad-start
@@ -25,7 +24,7 @@ function caller(state: Container, input: string | number[]) {
   if (state?.kit.isArr(input)) {
     input.at(-1);
   }
-  // TS cast + optional - tests unwrapRuntimeExpr peels TSAsExpression before shape match
+  // TS cast + optional - TSAsExpression peeled before shape match
   if ((state as Container).kit?.isStr(input)) {
     input.padStart(4, '0');
   }

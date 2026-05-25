@@ -193,7 +193,7 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
 
 // extended set including `ChainExpression` for callers that need to skip / mark optional-
 // chain wrappers too. used by skip-mark walkers (`markSynthReceiverSkipped` /
-// destructure-emitter's per-branch peel) and by `peelFallbackWrappers`. ChainExpression
+// destructure-emitter's per-branch peel) and by `unwrapRuntimeExpr`. ChainExpression
 // is the oxc-side wrapper for optional chains (babel folds the marker into
 // OptionalMemberExpression directly) - both adapters see the same flat shape after peel
 export const SKIPPABLE_WRAPPER_TYPES = new Set([
@@ -1059,18 +1059,33 @@ function isUpdateOperandWrapper(node) {
   return !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
 }
 
-// peel ParenthesizedExpression + TS expression wrappers + ChainExpression. oxc-parser
-// preserves parens AND wraps optional chains in ChainExpression (babel emits OptionalMember
-// directly without the wrapper); babel-parser strips parens by default. used in fallback-
-// receiver / computed-key / branch-slot resolution where the underlying shape is what
-// matters and wrappers are transparent at runtime. distinct from `unwrapParens` (in
-// detect-usage) which also peels SequenceExpression tails - that's mode-specific
-export function peelFallbackWrappers(node) {
-  while (node && (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression'
-      || TS_EXPR_WRAPPERS.has(node.type))) {
-    node = node.expression;
+// per-branch peel for fallback receivers: paren / TS / chain wrappers AND SequenceExpression
+// tail (`cond ? (0, Array) : Iterator` -> Array). SE prefix preserved at apply time via
+// `unwrapSequenceTail` (synth-swap replaces only the inner Identifier, prefix stays in the
+// AST so `logCall()` side-effects in `(logCall(), Array)` still run). alternates the two
+// peel layers until stable so mixed shapes `cond ? ((0, Array) as any) : ...` reach the leaf
+export function peelFallbackBranchInner(node) {
+  for (let prev; node !== prev;) {
+    prev = node;
+    node = unwrapRuntimeExpr(node);
+    while (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
   }
   return node;
+}
+
+// walk up `parentPath` through ParenthesizedExpression / TS expression wrappers so consumers
+// reach the runtime-effective parent context. mirrors `unwrapRuntimeExpr` but operates on
+// path ancestors (upward), not the node tree (downward). returns the outermost transparent-
+// wrapper path; identity-stable when no wrappers present. shared between binding-analysis's
+// new-expression classifier and globals.js's logical-assign LHS check
+export function peelTransparentExprAncestorPath(path) {
+  let cur = path;
+  while (cur?.parentPath?.node
+    && (cur.parentPath.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(cur.parentPath.node.type))
+    && cur.parentPath.node.expression === cur.node) {
+    cur = cur.parentPath;
+  }
+  return cur;
 }
 
 // deep peel for fallback receivers: chain-assignment (`foo = bar = (cond ? A : B)`) +
@@ -1094,9 +1109,8 @@ export function peelFallbackReceiver(node) {
       visited.add(node.right);
       node = node.right;
     }
-    node = peelFallbackWrappers(node);
-    while (node?.type === 'SequenceExpression'
-      && !node.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+    node = unwrapRuntimeExpr(node);
+    while (node?.type === 'SequenceExpression') {
       const tail = node.expressions.at(-1);
       if (visited.has(tail)) return node;
       visited.add(tail);
@@ -1174,13 +1188,13 @@ export const NESTED_BINDING_INTRODUCERS = new Set([
 // matching the identity shape
 export function peelZeroArgIifeReturn(node) {
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
-  // peel paren / TS-wrappers + SequenceExpression tail off the callee. `peelFallbackWrappers`
+  // peel paren / TS-wrappers + SequenceExpression tail off the callee. `unwrapRuntimeExpr`
   // stops at SE; `(0, () => Array)()` (comma-sequence prefix on the callee) is a common
   // wrapper shape that should still recognise as IIFE. mirror `peelIifeCallee` which
   // already accepts SE-prefixed callees for the IIFE-identity gate
-  let callee = peelFallbackWrappers(node.callee);
+  let callee = unwrapRuntimeExpr(node.callee);
   while (callee?.type === 'SequenceExpression' && callee.expressions?.length) {
-    callee = peelFallbackWrappers(callee.expressions.at(-1));
+    callee = unwrapRuntimeExpr(callee.expressions.at(-1));
   }
   if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return null;
   if (callee.async || callee.generator) return null;
@@ -1312,7 +1326,7 @@ function patternBindsAnyParam(pattern, paramNames) {
 // rewrites (`obj[(SE(), Symbol.iterator)]`) where dropping the property silently elides SE -
 // caller bails to native shape so the inner key visitor can polyfill in place
 export function hasSideEffectfulSequencePrefix(node) {
-  const cur = peelFallbackWrappers(node);
+  const cur = unwrapRuntimeExpr(node);
   return cur?.type === 'SequenceExpression'
     && cur.expressions.slice(0, -1).some(mayHaveSideEffects);
 }
