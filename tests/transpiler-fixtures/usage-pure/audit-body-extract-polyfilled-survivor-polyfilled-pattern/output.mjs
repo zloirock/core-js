@@ -13,8 +13,8 @@ function run({
   length,
   [SYM]: x
 } = Array) {
-  let of = _Array$of;
   let from = _Array$from;
+  let of = _Array$of;
   return [from, length, of, x];
 }
 run();
