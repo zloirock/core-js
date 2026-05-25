@@ -1,6 +1,6 @@
 // `declare const Set: ...` is a TS-ONLY ambient declaration - the binding exists at
 // compile time but tsc elides it; at runtime `Set` IS the global. raw `scope.getBinding`
-// returns the declare binding either way, so without an isAmbientBindingShape filter the
+// returns the declare binding either way, so without an ambient binding filter filter the
 // shadow check classifies Set as user-shadowed and isGlobalProxy / resolveGlobalName /
 // resolveAliasedGlobalName all bail. polyfill emission for `new Set()` then collapses
 // to the un-polyfilled identifier, which fails on old engines without the global

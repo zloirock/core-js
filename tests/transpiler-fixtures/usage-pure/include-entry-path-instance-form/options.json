@@ -5,8 +5,12 @@
       {
         "method": "usage-pure",
         "version": "4.0",
-        "targets": { "chrome": 130 },
-        "include": ["array/instance/at"]
+        "targets": {
+          "chrome": 130
+        },
+        "include": [
+          "array/instance/at"
+        ]
       }
     ]
   ]
