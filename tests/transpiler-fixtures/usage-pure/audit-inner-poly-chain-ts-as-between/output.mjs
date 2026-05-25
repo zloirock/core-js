@@ -1,5 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// findInnerPolyChain walks past TS_EXPR_WRAPPERS / ChainExpression / Parenthesized
+// findInnerPolyChain walks past TS expression wrappers / ChainExpression / Parenthesized
 // between outer member and the inner optional call. Tests `as` cast between the inner
 // `?.()` and the outer `.method()`. replaceInstanceChainCombined fires on outer member.
 declare const arr: number[] | null;
