@@ -1,5 +1,5 @@
 // body-extract for the renamed-alias shape `{from: alias}` (no default) with a rest
-// sibling. propBindingIdentifier surfaces the AssignmentPattern.left or the renamed
+// sibling. prop binding-identifier resolver surfaces the AssignmentPattern.left or the renamed
 // identifier directly. body emits `let alias = _polyfill;` preserving the user's chosen
 // local name. distinct keys (`from` / `of`) on separate functions verify per-key dispatch
 function run({ from: arr, ...rest } = Array) {

@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
 // `type Box<V> = { value: V }` + `Box<string[]>.value` - non-index-signature alias member.
-// same subst machinery applies: buildSubstMap V -> string[], then substMemberAnnotations
+// same subst machinery applies: buildSubstMap V -> string[], then member-annotation subst
 // rewrites `value: V` into `value: string[]`. `.at(-1)` lands on array-specific polyfill
 type Box<V> = {
   value: V;

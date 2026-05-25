@@ -5,7 +5,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // IIFE body DURING traversal; pre-fix the cascade emitted its statement-range overwrite
 // immediately and the later ref-insert tripped `transform-queue: insert at N lands inside
 // overwrite`. now `pendingCascade` defers the overwrite to flush time, drains the
-// ref-bindings in the statement range, and bakes them into the per-prefix nodeSrc
+// ref-bindings in the statement range, and bakes them into the per-prefix original-source slice
 let from;
 (function () {
   var _ref;
