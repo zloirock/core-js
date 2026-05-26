@@ -2,7 +2,7 @@
 // data-driven path: kebabToPascal('url') would produce 'Url' (wrong); index
 // maps the kebab head 'url' back to the canonical 'URL' so super-method
 // resolution finds the polyfill entry
-import URL from "@core-js/pure/web/url";
+import URL from "@core-js/pure/actual/url";
 class MyURL extends URL {
   method() {
     return super.toJSON();
