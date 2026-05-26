@@ -513,8 +513,11 @@ export function createDestructureEmitter({
   function renderBlockFlatten(declaration, declPath, perDecl) {
     bakePendingSplicesIntoPreserved(declaration, perDecl);
     const sePrefixesByIdx = liftExtractedSEPrefixesByIdx(declaration, perDecl);
-    const replacement = renderBlockStatements(perDecl, declaration.kind, sePrefixesByIdx);
-    return wrapBodylessIfMulti(replacement, replacement.includes('\n'), declPath);
+    // count of emitted top-level statements drives wrap-with-{} for bodyless control parents.
+    // explicit `count > 1` honors the helper's contract; `text.includes('\n')` would mis-fire
+    // on a single statement that happens to render across multiple lines
+    const { text, count } = renderBlockStatements(perDecl, declaration.kind, sePrefixesByIdx);
+    return wrapBodylessIfMulti(text, count > 1, declPath);
   }
 
   // seed skippedNodes ONLY for the consumed parts: the ObjectPattern (id) and the
@@ -586,7 +589,7 @@ export function createDestructureEmitter({
       if (r.preservedSrc !== null) preserveBuffer.push(r.preservedSrc);
     }
     flushPreserveBuffer();
-    return lines.join('\n');
+    return { text: lines.join('\n'), count: lines.length };
   }
 
   // plan factory: classify every outer prop of a destructure declarator without side
@@ -1273,7 +1276,7 @@ export function createDestructureEmitter({
     // (`arr = from('x'); arr.at(-1)`) finds the polyfill's static return type without
     // having to re-derive (Constructor, method) from the destructure pattern shape. matches
     // babel-plugin's body-extract paths which register the same alias post-AST-mutation
-    injector.registerBodyExtractAlias(localId.name, entry, propPath.scope?.getBinding(localId.name));
+    injector.registerBodyExtractAlias(localId.name, entry, propPath.scope.getBinding(localId.name));
     skippedNodes.add(propNode);
     if (propNode.value) skippedNodes.add(propNode.value);
     return true;
