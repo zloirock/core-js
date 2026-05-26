@@ -22,8 +22,10 @@ import { SFC_FRAMEWORK_GROUP } from './sfc-shapes.js';
 // module collision. `/@id/` already has trailing slash literal in the pattern.
 // `file://` accepts optional `localhost` host segment per RFC 3986 - some bundlers /
 // Node URL helpers serialize file URLs as `file://localhost/abs/path` instead of the
-// canonical `file:///abs/path` triple-slash form
-const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/(?:localhost)?|\/@fs(?=\/|$)|\/@id\/)/i;
+// canonical `file:///abs/path` triple-slash form. `(?=\/)` lookahead pins the optional
+// host to localhost only: `file://otherhost/path` doesn't match `localhost`, doesn't
+// follow with `/` after the empty optional group either, so the regex passes through
+const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/(?:localhost)?(?=\/)|\/@fs(?=\/|$)|\/@id\/)/i;
 const REPEATED_SLASHES_RE = /\/{2,}/g;
 // only framework SFC markers count as sub-block identifiers. pairing `type=`/`lang=`/`setup`
 // with a framework key avoids matching generic `?type=module` or `?lang=en` on non-SFC
