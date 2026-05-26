@@ -475,7 +475,7 @@ export default class TransformQueue {
       throw new TypeError(`[core-js] transform-queue: start/end must be integers (received ${ String(start) }, ${ String(end) })`);
     }
     // split diagnostics so the caller sees which class of misuse fired:
-    //   start === end -> caller meant insert (use `insert(pos, content)` or `addInsert`);
+    //   start === end -> caller meant insert (use `insert(pos, content)`);
     //   start > end   -> inverted range (caller's offset arithmetic is reversed)
     if (start === end) {
       throw new RangeError(`[core-js] transform-queue: zero-length range [${ start },${ end }) - use insert() for insertions`);
