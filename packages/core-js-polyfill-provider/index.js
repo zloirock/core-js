@@ -6,7 +6,7 @@ import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for
 import { kebabToPascal } from './helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, safeStringify, validatePatternList } from './helpers/pattern-matching.js';
-import { lookupEntryModules, normalizeImportSource } from './helpers/path-normalize.js';
+import { WINDOWS_UNC_PREFIX_RE, lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
 
 const { hasOwn } = Object;
 
@@ -60,14 +60,16 @@ function stripLeadingPrefix(p) {
 
 // normalize the import source to a canonical entry path so we can look it up in the `entries`
 // map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`.
-// `normalizeImportSource` does all the cross-cutting work (stripQueryHash + backslash-replace
-// + UNC strip + slash-collapse + lowercase); only the protocol / extension / `/index` cleanup
-// is plugin-specific and stays here
+// pipeline split between query/backslash normalisation (pre-strip), prefix strip, and the
+// remaining UNC/slash-collapse/lowercase pass: slash-collapse must run AFTER stripLeadingPrefix
+// because `file://` would otherwise collapse to `file:/` and miss the prefix matcher
 function normalizeImportPath(path) {
   if (typeof path != 'string') return null;
-  const withoutPrefix = stripLeadingPrefix(normalizeImportSource(path));
+  const queryless = stripQueryHash(path).replaceAll('\\', '/');
+  const stripped = stripLeadingPrefix(queryless);
+  const canonical = stripped.replace(WINDOWS_UNC_PREFIX_RE, '').replaceAll(/\/{2,}/g, '/').toLowerCase();
   // accept `.js`, `.mjs`, `.cjs` - `import 'core-js/actual/array/at.mjs'` should resolve like `.js`
-  return withoutPrefix.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '');
+  return canonical.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '');
 }
 
 function patternMatches(pattern, modules) {
@@ -167,10 +169,11 @@ export function createPolyfillContext({
   if (isInvalidPkgShape(pkg)) {
     throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ safeStringify(pkg) }`);
   }
-  if (additionalPackages?.some(isInvalidPkgShape)) {
-    // per-element stringify so the invalid item is identifiable even when one bad entry
-    // (BigInt / circular / Proxy) would corrupt whole-array `safeStringify` to `[Object]`
-    const invalid = additionalPackages.filter(isInvalidPkgShape).map(safeStringify).join(', ');
+  // per-element stringify so the invalid item is identifiable even when one bad entry
+  // (BigInt / circular / Proxy) would corrupt whole-array `safeStringify` to `[Object]`
+  const invalidExtra = additionalPackages?.filter(isInvalidPkgShape);
+  if (invalidExtra?.length) {
+    const invalid = invalidExtra.map(safeStringify).join(', ');
     throw new TypeError(`[core-js] \`additionalPackages\` entries must be non-empty, non-slash-only strings; invalid: [${ invalid }]`);
   }
 
@@ -182,16 +185,20 @@ export function createPolyfillContext({
   // `'my-core-js//foo'` (double slash) and silently miss every entry detection. apply to `pkg`
   // too (not just packages-array members) so emitted import paths stay clean: injector-base
   // joins via `resolveImportPath(this.pkg, subpath)` which would otherwise produce
-  // `'@core-js/pure///actual/array/from'` from `package: '@core-js/pure///'`
-  function stripTrailingSlashes(p) {
-    let end = p.length;
-    while (end > 0 && p[end - 1] === '/') end--;
-    return end === p.length ? p : p.slice(0, end);
+  // `'@core-js/pure///actual/array/from'` from `package: '@core-js/pure///'`.
+  // also collapse interior `//` runs: `normalizeImportPath` canonicalises sources with
+  // slash-collapse, so a package name `'my//core-js'` would silently never match its own
+  // normalised imports
+  function canonicalisePackage(p) {
+    const collapsed = p.replaceAll(/\/{2,}/g, '/');
+    let end = collapsed.length;
+    while (end > 0 && collapsed[end - 1] === '/') end--;
+    return end === collapsed.length ? collapsed : collapsed.slice(0, end);
   }
 
-  pkg = stripTrailingSlashes(pkg);
+  pkg = canonicalisePackage(pkg);
   const packages = [...new Set([pkg, ...additionalPackages ?? []]
-    .map(p => stripTrailingSlashes(p.toLowerCase())))];
+    .map(p => canonicalisePackage(p.toLowerCase())))];
   const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const modulesForEntryCache = new Map();
@@ -271,11 +278,12 @@ export function createPolyfillContext({
 export const resolve = createMetaResolver(builtInDefinitions);
 
 // reverse map `<head>` -> `<global name>` for entry-path canonical heads. keys an
-// injector-side hint lookup so acronym / mixed-case globals (`URL`, `JSON`, `RegExp`,
-// `URIError`, `DOMException`, ...) and bare function-globals (`atob`, `parseInt`,
-// `globalThis`, `structuredClone`, ...) survive `super.X` back-mapping that would
-// otherwise fall through `kebabToPascal` (`url` -> `Url`, `json` -> `Json`, `regexp` ->
-// `Regexp`, `parse-int` -> `ParseInt`).
+// injector-side hint lookup for every pure-bearing global registered via `built-in-definitions`
+// (`Promise`, `Map`, `atob`, `self`, ...) so acronym / mixed-case names (`URL`, `JSON`,
+// `RegExp`, `URIError`, `DOMException`) and bare function-globals (`atob`, `parseInt`,
+// `globalThis`, `structuredClone`) survive `super.X` back-mapping that would otherwise
+// fall through `kebabToPascal` (`url` -> `Url`, `json` -> `Json`, `regexp` -> `Regexp`,
+// `parse-int` -> `ParseInt`).
 // data-driven: one scan over `globals` + `statics`. for `statics`-only owners (Array,
 // JSON, Math, Number, Object, Reflect, RegExp, String, Error) the `head === lower(name)`
 // guard rejects shared heads - Error subclasses all have `error/is-error` deps, but only
@@ -340,10 +348,11 @@ function deriveHintFromKebab(entry) {
   return KNOWN_GLOBAL_NAMES.has(hint) ? hint : null;
 }
 
-// data-driven primary lookup via `entryHintIndex` covers acronym globals (`URL`,
-// `URLSearchParams`, `DOMException`) that kebab derivation would mangle. fallback to
-// `deriveHintFromKebab` resolves bare-class user imports for globals without pure ctor
-// (whose pure surface is statics-only - Array.from, Math.cbrt, Object.assign, ...).
+// data-driven primary lookup via `entryHintIndex` covers ALL pure-bearing globals registered
+// from `built-in-definitions`: kebab-friendly names (`Promise`, `Map`, `atob`, `self`) plus
+// acronym / mixed-case forms (`URL`, `URLSearchParams`, `DOMException`) that kebab derivation
+// would mangle. fallback to `deriveHintFromKebab` resolves bare-class user imports for globals
+// without pure ctor (whose pure surface is statics-only - Array.from, Math.cbrt, Object.assign).
 // `resolvePure`'s `hasOwn(desc, 'pure')` gate downstream is the last line of defence
 // against fallback over-injection: hints for globals without any pure surface (Date,
 // Function, Uint8Array, ...) resolve to a name whose `statics[name][key]` either misses

@@ -7,6 +7,17 @@ function blockify(lines) {
   return `${ lines.join('\n') }\n`;
 }
 
+// guard against adversarial Proxy on a thrown payload making `.message` access (or even
+// `String(error)`) re-throw and corrupting the diagnostic. swallow secondary errors so
+// `appendRight`'s failure stays attributable
+function safeErrorMessage(error) {
+  try {
+    return error?.message ?? String(error);
+  } catch {
+    return '<unreadable>';
+  }
+}
+
 export default class ImportInjector extends ImportInjectorState {
   // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot
   // inherit. refs (`var _refN;`) ARE emitted in pre regardless, so pre's output is valid in
@@ -230,7 +241,7 @@ export default class ImportInjector extends ImportInjectorState {
         this.#ms.appendRight(insertPos, block);
         return pendingPrepend;
       } catch (error) {
-        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ error.message }); deferring to ordered prepend`);
+        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ safeErrorMessage(error) }); deferring to ordered prepend`);
       }
     }
     return pendingPrepend + block;
@@ -244,7 +255,7 @@ export default class ImportInjector extends ImportInjectorState {
         this.#ms.appendRight(insertPos, block);
         return;
       } catch (error) {
-        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ error.message }); prepending instead`);
+        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ safeErrorMessage(error) }); prepending instead`);
       }
     }
     this.#ms.prepend(block);
