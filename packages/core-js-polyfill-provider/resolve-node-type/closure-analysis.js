@@ -21,7 +21,7 @@
 // `walkStaticReceiverChain` for `extends NS.Inner.Class` lookups
 import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
 import { createMemberWriteShape, memberWriteTargetPath } from './class-member-shapes.js';
-import { peelParenAndTSParentPath, unwrapExpressionChain, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { isTSTypeOnlyIdentifierPath, peelParenAndTSParentPath, unwrapExpressionChain, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
@@ -76,6 +76,11 @@ export function createClosureAnalysis({
     const { parent } = p;
     if (parent?.type === 'VariableDeclarator' && parent.id === p.node) return null;
     if (parent?.type === 'VariableDeclarator' && parent.init === p.node) return null;
+    // type-only positions (`export type { X }` / `export { type X }`, `class implements
+    // Foo<X>` heritage) are tsc-elided at runtime - the reference doesn't escape the module
+    // so closure-narrow stays in scope. shared helper covers both declaration-level and
+    // per-specifier `exportKind` and the implements-heritage walk
+    if (isTSTypeOnlyIdentifierPath(p)) return null;
     // peel transparent wrappers between the identifier and its semantic context so
     // `(name as any).X(...)` / `(name)?.X(...)` still classify as 'call' rather than
     // 'extraction'. oxc preserves both shapes; babel strips parens but keeps TS wrappers.
