@@ -25,13 +25,17 @@ import { scopeNode } from './straight-line-flow.js';
 // would TypeError on these at runtime, so the branch is unreachable in the guarded
 // scope. TS keywords + Flow type-annotation variants. `NullLiteral` deliberately omitted
 // (runtime literal, only appears wrapped inside TSLiteralType, not as a direct union
-// branch in either parser)
+// branch in either parser). bottom types (`never` / Flow `empty`) have no inhabitants,
+// so their union branches are unreachable for the same reason - guard branch cannot
+// fire on a value that does not exist
 const NULLISH_BRANCH_TYPES = new Set([
   'TSNullKeyword',
   'TSUndefinedKeyword',
   'TSVoidKeyword',
+  'TSNeverKeyword',
   'NullLiteralTypeAnnotation',
   'VoidTypeAnnotation',
+  'EmptyTypeAnnotation',
 ]);
 
 // TS + Flow union-type predicate. used by both narrowing entry points and the inner
