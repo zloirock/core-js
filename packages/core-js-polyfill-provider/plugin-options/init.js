@@ -26,7 +26,10 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     ...rest
   } = options;
   const unknown = keys(rest).filter(k => !KNOWN_REST_KEYS.has(k));
-  if (unknown.length) throw new TypeError(`[core-js] Unknown plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }`);
+  if (unknown.length) {
+    const valid = [...KNOWN_REST_KEYS].sort().join(', ');
+    throw new TypeError(`[core-js] Unknown plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }. Valid options: ${ valid }`);
+  }
   validateOptions({
     absoluteImports,
     additionalPackages: rest.additionalPackages,

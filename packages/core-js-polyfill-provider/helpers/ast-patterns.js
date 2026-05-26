@@ -73,6 +73,23 @@ export function resolveBatchDirectivePromotionPolicy({ body, candidateIndices, h
   return { toRemove, toReplaceWithNoop };
 }
 
+// indirect-require entry shape: `(prefix1, prefix2, ..., require)('core-js/...')`. peels
+// the ExpressionStatement -> CallExpression -> SequenceExpression callee (through any
+// ParenthesizedExpression wrappers from oxc) and returns the observable side-effect
+// prefix expressions in source order. entry-detection consumes the require-tail and would
+// drop the whole statement on removal; this lets both plugins recover the prefix slots so
+// `(spy(), require)('core-js/...')` preserves `spy()` while `(0, require)(...)` drops as
+// expected. returns an empty array when the shape doesn't match OR every prefix slot is
+// side-effect-free
+export function extractIndirectRequireSEPrefix(stmtNode) {
+  const { expression } = stmtNode ?? {};
+  if (expression?.type !== 'CallExpression') return [];
+  let { callee } = expression;
+  while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+  if (callee?.type !== 'SequenceExpression' || callee.expressions.length < 2) return [];
+  return callee.expressions.slice(0, -1).filter(mayHaveSideEffects);
+}
+
 // `\`foo\`` - TemplateLiteral with no interpolations, used as a static string key. returns
 // the cooked text; null when interpolations present, node isn't a template literal, or
 // the cooked form is unavailable (post-ES2018 invalid-escape tagged template - `cooked` is
