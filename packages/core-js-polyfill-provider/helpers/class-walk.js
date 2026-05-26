@@ -171,14 +171,16 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     for (let cur = path.parentPath; cur; cur = cur.parentPath) {
       const { node } = cur;
       if (enclosingCache.has(node)) return backfill(visited, enclosingCache.get(node));
+      // computed-key slot evaluates at class-def time in the OUTER scope - skip the member
+      // when prev's node IS the key so `class C { [this.X]() {} }` doesn't resolve to C.
+      // skip BEFORE the push so body-side walks reaching the same node fresh resolve to the
+      // class context instead of inheriting this walk's outer-null conclusion via the cache
+      if (isClassMember(node) && prev && node.computed && node.key === prev.node) {
+        prev = cur;
+        continue;
+      }
       visited.push(node);
       if (isClassMember(node) || t.isStaticBlock(node)) {
-        // computed-key slot evaluates at class-def time in the OUTER scope - skip the member
-        // when prev's node IS the key so `class C { [this.X]() {} }` doesn't resolve to C
-        if (prev && node.computed && node.key === prev.node) {
-          prev = cur;
-          continue;
-        }
         return backfill(visited, {
           classBodyNode: cur.parentPath?.node,
           classNode: cur.parentPath?.parentPath?.node,
