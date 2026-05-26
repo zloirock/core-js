@@ -446,6 +446,11 @@ const USER_ASSIGN_PARENT_TYPES = new Set([
   // emits its memo refs inside SequenceExpression tails. without this, user code like
   // `let r = (_ref = helper(), _ref.x)` gets misclassified as orphan and adopted
   'SequenceExpression',
+  // `export default _ref = foo()` at module top-level is user-authored - plugin never
+  // emits its memo refs as a default export expression. without this, user code like
+  // `export default _ref = make()` gets adopted as orphan-ref and shares state with the
+  // module-level rehydrated `var _ref;`
+  'ExportDefaultDeclaration',
 ]);
 
 // orphan-ref heuristic: plugin emits `_ref = foo()` / `_ref = obj.x` as a sub-expression inside
