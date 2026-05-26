@@ -447,6 +447,10 @@ export function createNameResolution({ t }) {
       const decl = declPath.node;
       if (!decl) continue;
       if (rest.length === 0 && decl.id?.name === head && matchType(decl)) return declPath;
+      // mirrors `walkStatementsForDecl`: bare-name segments only resolve via top-level
+      // decls in this iteration. without the guard nested namespaces would re-enter their
+      // own body on every bare segment query, doubling work on deep TSModuleDeclaration trees
+      if (rest.length === 0) continue;
       if (decl.type !== 'TSModuleDeclaration') continue;
       // `declare global { ... }` augments program scope: descend its body for any segment
       // depth, mirrors `walkStatementsForDecl`. without this branch the NodePath-walking
