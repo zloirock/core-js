@@ -430,7 +430,17 @@ export function createCallResolution({
       const argAnnot = argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation);
       if (argAnnot) subst.set(name, argAnnot);
     }
-    return subst.size ? subst : null;
+    if (!subst.size) return null;
+    // fill un-inferred params from their declared defaults so a partial inference doesn't
+    // shadow `f<T, U = T[]>(t: T)` defaults at the call site. without this the `??` to
+    // `buildCallSiteSubst` is skipped (subst is non-null) and U's default never propagates;
+    // downstream typeparam-scope lookup recovers U as TSTypeReference but loses the inferred
+    // T binding when walking through U's default (T's scope-lookup has no value)
+    for (const p of fnTypeParams) {
+      const name = typeParamName(p);
+      if (name && !subst.has(name) && p.default) subst.set(name, p.default);
+    }
+    return subst;
   }
 
   // cluster-private: `resolveMemberAnnotation` / `resolveMemberInTypeMembers` /
