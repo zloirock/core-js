@@ -1,6 +1,7 @@
 import {
   ESM_MARKER_TYPES,
   detectCommonJS,
+  extractIndirectRequireSEPrefix,
   hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
   isDeleteTarget,
@@ -603,6 +604,14 @@ export default function plugin(api, options) {
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
         injectModulesForEntry(entry);
+        // indirect-require SE prefix preservation: `(spy(), require)('core-js/...')` passes
+        // `getEntrySource` via the SequenceExpression tail peel, but removing the whole
+        // statement would silently drop `spy()`. extract observable side effects from the
+        // prefix slots so they still run at runtime. side-effect-free prefix (e.g. `0` in
+        // `(0, require)(...)`) drops as expected. only the require shape carries this risk:
+        // `import 'core-js/...'` / `await import('core-js/...')` / TSImportEqualsDeclaration
+        // have no caller-side prefix slot to lose
+        const sePrefix = extractIndirectRequireSEPrefix(path.node);
         // directive-promotion guard: when an EXISTING directive prologue terminates at this
         // entry and the next sibling is a string-literal expression, removal would silently
         // promote that literal to a directive (e.g. `"use asm"` enabling asm.js). swap in
@@ -614,6 +623,10 @@ export default function plugin(api, options) {
         const body = programNode?.body;
         const idx = typeof path.key === 'number' ? path.key : body?.indexOf(path.node);
         const hasPriorDirective = (programNode?.directives?.length ?? 0) > 0;
+        if (sePrefix.length) {
+          path.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
+          return;
+        }
         if (body && idx >= 0
           && wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, hasPriorDirective })) {
           path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
@@ -816,6 +829,10 @@ export default function plugin(api, options) {
       // include CatchClause extractor so sibling-injected `catch ({at}) {...}` inside
       // helper bodies still gets extracted for polyfill dispatch. extractor is idempotent
       // so even if helperVisitors === usageVisitors already re-visited a catch, no harm.
+      // catch-clause coverage is attached HERE and in usage-pure pre() but NOT in usage-global
+      // pre(): only usage-pure has the body-extract rewrite that synthesises destructure-derived
+      // catch-clause bindings (`catch ({ at }) -> catch (_err) { const at = _err.at; ... }`),
+      // so usage-global has nothing for the extractor to consume there.
       // skip when `originalBodyNodes` is null - that's a `core-js-disable-file` path
       // where preTraverse early-returned before the snapshot was taken (multi-file batch:
       // the previous file's postHook nullified `originalBodyNodes`); without the guard

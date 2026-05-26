@@ -52,6 +52,8 @@ export function createTypeMembers({
   resolveTypeAnnotation,
   functionTypeReturnAnnotation,
   unwrapPassthroughWrapper,
+  collectInferredNames,
+  dropMapKeys,
 }) {
   // follow superClass for declared parent members. `Identifier` covers both real and ambient
   // (`declare class P {}` + `class C extends P {}`), which behave the same in type position.
@@ -357,6 +359,15 @@ export function createTypeMembers({
   function findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst }) {
     const checkSubst = withSubst(aliased.checkType);
     const extendSubst = withSubst(aliased.extendsType);
+    // alpha-rename guard: trueType / falseType reference `infer X` declarations bound in
+    // extendsType. an outer alias typeparam with the SAME name (`type F<T> = T extends
+    // Array<infer T> ? T : never`) would leak into the inner `infer T` slot via the outer
+    // `withSubst`, replacing the inferred element with the outer typearg. drop infer names
+    // from the subst BEFORE walking the branches. checkSubst / extendSubst above use the
+    // outer subst intentionally - the branch picker matches the check expression against
+    // the constraint, both use outer-scope substitutions
+    const innerSubst = dropMapKeys(subst, collectInferredNames(aliased.extendsType));
+    const innerWithSubst = node => node ? applySubst(unwrapTypeAnnotation(node), innerSubst) : node;
     // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
     // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
     // typeparam refs that resolved to a concrete shape no longer read as unconstrained
@@ -367,7 +378,7 @@ export function createTypeMembers({
       isUnconstrained: isUnconstrainedTypeReference(extendSubst),
     });
     if (branch !== null) {
-      return findTypeMember({ objectType: withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
+      return findTypeMember({ objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
     }
     // structural-eval may return a Type Object ($Primitive / $Object) that findTypeMember
     // can occasionally lookup via known-constructor stubs (`$Object('Array')`). when the
@@ -379,8 +390,8 @@ export function createTypeMembers({
       const direct = findTypeMember({ objectType: resolved, key, scope, depth: depth + 1 });
       if (direct) return direct;
     }
-    const trueResult = findTypeMember({ objectType: withSubst(aliased.trueType), key, scope, depth: depth + 1 });
-    const falseResult = findTypeMember({ objectType: withSubst(aliased.falseType), key, scope, depth: depth + 1 });
+    const trueResult = findTypeMember({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1 });
+    const falseResult = findTypeMember({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1 });
     // strip nullable/never branches symmetric with `resolveConditionalBranches` - otherwise
     // `K extends string ? Foo : never` post-subst can return a synth union carrying the
     // never branch as a member, which would interfere with downstream member dispatch
