@@ -51,9 +51,9 @@ function reassignedStart(binding) {
 //   override-friendly: registerUserPureImport, registerUserGlobalImport, addPureImport,
 //             addGlobalImport - call super.X() then layer subclass bookkeeping (refs,
 //             post-rename, sibling-plugin tracking).
-//   private (DO NOT touch): #importInfoByName, #flushedRefs, #nextSuffixByPrefix - state
-//             owned by base; manipulated only via captureSuffixState / rehydrateSuffixState
-//             / captureImportInfoByName / rehydrateImportInfoByName for pre+post handoff.
+//   private (DO NOT touch): #importInfoByName, #nextSuffixByPrefix - state owned by base;
+//             manipulated only via captureSuffixState / rehydrateSuffixState /
+//             captureImportInfoByName / rehydrateImportInfoByName for pre+post handoff.
 //
 // shared invariants:
 //   - usedNames is single source-of-truth for collision detection. uniqueName consults it
