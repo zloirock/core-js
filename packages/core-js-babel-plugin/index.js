@@ -77,7 +77,7 @@ export default function plugin(api, options) {
   const typeResolvers = createResolveNodeType(node => node?.type, t, {
     getPolyfillBindingEntry(scope, name) { return injector?.getBindingInfo?.(name)?.entry ?? null; },
     getPolyfillBindingHint(scope, name) { return injector?.getBindingInfo?.(name)?.hint ?? null; },
-    isReassignedBinding(name) { return injector?.isReassignedBinding?.(name) ?? false; },
+    isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
   });
   const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
 

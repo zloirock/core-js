@@ -15,7 +15,9 @@ import {
 } from '../helpers/ast-patterns.js';
 
 // always-evaluated wrappers between assignment and its enclosing statement.
-// Logical / Conditional / OptionalCall / short-circuit AssignmentExpression excluded
+// conditional-evaluation forms (Logical / Conditional / OptionalCall / short-circuit
+// AssignmentExpression) excluded by omission - their non-default branches do not
+// unconditionally run the inner assignment
 const STRAIGHT_LINE_WRAPPER_TYPES = new Set([...IIFE_CALL_PATH_WRAPPERS, ...TS_EXPR_WRAPPERS]);
 
 // statement wrappers `reachesStraightLine` treats as forward-transparent.
