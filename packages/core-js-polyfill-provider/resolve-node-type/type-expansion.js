@@ -713,8 +713,10 @@ export function createTypeExpansion({
     return null;
   }
 
-  // `isConcreteEmptyShape` + `collectInferredNames` stay cluster-private (only consumed
-  // by `pickConditionalBranchVia` / `trueBranchSubst` internally)
+  // `isConcreteEmptyShape` stays cluster-private (only consumed by `pickConditionalBranchVia`
+  // / `trueBranchSubst` internally). `collectInferredNames` exported for cross-cluster
+  // alpha-rename guards (`findConditionalTypeMember` drops infer names from outer subst
+  // before walking trueType / falseType branches)
   return {
     // mapped
     mappedTypeKeyName,
@@ -727,6 +729,7 @@ export function createTypeExpansion({
     resolveInferElementPattern,
     resolveConditionalBranches,
     isUnconstrainedTypeReference,
+    collectInferredNames,
     // shared
     typeRefSegmentsEqual,
     dropMapKeys,

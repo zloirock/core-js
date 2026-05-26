@@ -638,6 +638,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveInferElementPattern,
     resolveConditionalBranches,
     isUnconstrainedTypeReference,
+    collectInferredNames,
     typeRefSegmentsEqual,
     dropMapKeys,
     trueBranchSubst,
@@ -1583,6 +1584,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveTypeAnnotation,
     functionTypeReturnAnnotation,
     unwrapPassthroughWrapper,
+    collectInferredNames,
+    dropMapKeys,
   });
   ({ findTypeMember, getTypeMembers } = typeMembersCluster);
 
