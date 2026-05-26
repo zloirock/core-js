@@ -31,6 +31,7 @@ import { REBIND_ASSIGNMENT_OPERATORS } from './base.js';
 import {
   isBindingPosition,
   isNonReferencePosition,
+  isTSTypeOnlyIdentifierPath,
   peelTransparentExprAncestorPath,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
@@ -62,11 +63,17 @@ export function createBindingAnalysis({
       const names = new Set();
       for (const stmt of programPath.node.body) {
         if (stmt.type === 'ExportNamedDeclaration') {
+          // type-only exports (`export type { X }` / `export type X = ...`) are tsc-elided
+          // at runtime - importers see nothing, so the binding isn't externally reachable
+          // and shouldn't bail closure-narrow. covers both declaration-level `exportKind`
+          // and per-specifier `exportKind` (TS allows mixed `export { type X, Y }`)
+          if (stmt.exportKind === 'type') continue;
           // re-export (`export { X } from 'mod'`) doesn't reference a local binding;
           // `spec.local` points at the source module's name. skip to avoid false-positive
           // export marks on coincidentally-named locals
           if (stmt.specifiers && !stmt.source) {
             for (const spec of stmt.specifiers) {
+              if (spec.exportKind === 'type') continue;
               // local is Identifier for in-module specs; defensive `?.type` check handles
               // any future parser shapes where the field is StringLiteral or missing
               if (spec.local?.type === 'Identifier') names.add(spec.local.name);
@@ -351,6 +358,11 @@ export function createBindingAnalysis({
   // those uses don't escape the binding's value (the class) for static-state mutation purposes
   function defaultAliasRefClassifier(parent, refNode, refPath) {
     if (isMemberRefReceiver(parent, refNode)) return 'trivial';
+    // type-only positions (`export type { X }` / `export { type X }`, `class implements
+    // Foo<X>` heritage) are tsc-elided at runtime - reference doesn't escape the module so
+    // closure-narrow stays in scope. shared helper covers both declaration-level and
+    // per-specifier `exportKind` and the implements-heritage walk
+    if (refPath && isTSTypeOnlyIdentifierPath(refPath)) return 'trivial';
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode && parent.id?.type === 'Identifier') {
       return 'alias';
     }

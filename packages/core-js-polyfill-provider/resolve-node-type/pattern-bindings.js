@@ -68,15 +68,21 @@ export function createPatternBindings({
         if (el.argument?.type === 'Identifier' && el.argument.name === name) return [-1];
         // nested ArrayPattern inside rest (`[a, ...[head]] = arr`). the rest slice has
         // the same element type as the source; an inner positional access at `j` then maps
-        // to source index `i + j` (rest starts at outer position `i`). only positional
-        // inner hits are mappable - ObjectPattern in rest or nested-rest inside rest yields
-        // a non-positional first segment which can't be statically offset; bail to null
-        // there so callers fall back to broader inference instead of returning a wrong path
+        // to source index `i + j` (rest starts at outer position `i`)
         if (el.argument?.type === 'ArrayPattern') {
           const inner = findArrayPatternKeyPath(el.argument, name, scope);
           if (inner && typeof inner[0] === 'number' && inner[0] >= 0) {
             return [i + inner[0], ...inner.slice(1)];
           }
+        }
+        // nested ObjectPattern in rest (`const [...{ length }] = arr`) destructures the
+        // rest-Array directly: `{ length }` is a key off the Array slice. signal via `[-1]`
+        // so callers resolve through the Array element type, then walk into the inner key
+        // path. `length` matches Array.prototype.length; arbitrary numeric/string keys
+        // resolve through the array's index/length signature
+        if (el.argument?.type === 'ObjectPattern') {
+          const inner = findDestructuredKeyPath(el.argument, name, scope);
+          if (inner) return [-1, ...inner];
         }
         continue;
       }
@@ -450,10 +456,10 @@ export function createPatternBindings({
     const keyPath = findDestructuredKeyPath(objectPattern, varName, bindingPath.scope);
     if (!keyPath) return null;
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
-      // build full path through nested patterns: { a: [{ b }] } = init -> ['a', 0, 'b']
-      const prefix = collectPatternKeyPath(objectPattern, bindingPath);
-      const fullPath = prefix?.length ? [...prefix, ...keyPath] : keyPath;
-      const result = resolveDestructuredMember(bindingPath.get('init'), fullPath);
+      // findDestructuredKeyPath already walks INTO nested ObjectPattern / ArrayPattern
+      // children so the path is complete from the outer (declarator-id) pattern down to
+      // the binding leaf. no prefix walk needed - the outer pattern IS the declarator's id
+      const result = resolveDestructuredMember(bindingPath.get('init'), keyPath);
       if (result) return result;
     }
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
