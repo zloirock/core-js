@@ -201,7 +201,7 @@ export default function createPlugin(options) {
   const typeResolvers = createResolveNodeType(nodeType, types, {
     getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
     getPolyfillBindingHint: (scope, name) => currentInjector?.getBindingInfo?.(name)?.hint ?? null,
-    isReassignedBinding: name => currentInjector?.isReassignedBinding?.(name) ?? false,
+    isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
   });
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling

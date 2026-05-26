@@ -893,7 +893,7 @@ function createResolveNodeType(babelNodeType, t, {
       // walk so downstream narrowing (e.g. via the polyfill UID this binding was rewritten
       // to) doesn't dispatch type-specific instance polyfills for a value whose runtime
       // identity is no longer guaranteed
-      if (isReassignedBinding(path.node.name)) break;
+      if (isReassignedBinding(path.node.name, binding)) break;
       // mutable binding with reassignments: follow the last preceding-block `=` assignment
       // before `path` so `let f: Foo = init; f = { kind:'b', data:'str' }; f.data.at(0)`
       // (and `if (...) { f = {...}; f.data.at(0); }`) narrows `f` to the RHS shape, not the
