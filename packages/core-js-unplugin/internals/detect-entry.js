@@ -1,5 +1,9 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage/entries';
-import { declaresRequireBinding, resolveBatchDirectivePromotionPolicy } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  declaresRequireBinding,
+  extractIndirectRequireSEPrefix,
+  resolveBatchDirectivePromotionPolicy,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { consumeOneLineEnding, prevSignificantPos, skipGap } from './plugin-helpers.js';
 
 // entry-global mode: rewrite top-level `import 'core-js/...'` / `require('core-js/...')`
@@ -31,8 +35,25 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   });
 
   const removeStatement = createTopLevelStatementRemover(ms);
-  for (const node of toRemove) removeStatement(node);
-  for (const node of toReplaceWithNoop) ms.overwrite(node.start, node.end, '0;');
+  // indirect-require SE prefix preservation: `(spy(), require)('core-js/...')` passes entry
+  // detection via the SequenceExpression tail peel, but raw removal would silently drop the
+  // observable prefix slots. emit the prefix as standalone statements (sliced verbatim from
+  // ms.original so formatting / comments survive). returns true when SE prefix consumed the
+  // slot. checked in BOTH buckets defensively: a future hasPriorDirective propagation could
+  // classify an SE entry as `toReplaceWithNoop`, and the prefix replacement already breaks
+  // the prologue so `0;` placeholder is never needed when SE prefix is present
+  function writeSEPrefixIfAny(node) {
+    const sePrefix = extractIndirectRequireSEPrefix(node);
+    if (!sePrefix.length) return false;
+    ms.overwrite(node.start, node.end, sePrefix.map(e => `${ ms.original.slice(e.start, e.end) };`).join('\n'));
+    return true;
+  }
+  for (const node of toRemove) {
+    if (!writeSEPrefixIfAny(node)) removeStatement(node);
+  }
+  for (const node of toReplaceWithNoop) {
+    if (!writeSEPrefixIfAny(node)) ms.overwrite(node.start, node.end, '0;');
+  }
   return toRemove.length + toReplaceWithNoop.length > 0;
 }
 
