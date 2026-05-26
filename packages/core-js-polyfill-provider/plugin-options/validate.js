@@ -147,7 +147,7 @@ export function validateOptions({
       throw optionTypeError('targets', 'a string, array, or object', targets);
     }
     if (targets === '' || (Array.isArray(targets) && !targets.length)) {
-      throw optionTypeError('targets', 'a non-empty string, array, or object', targets);
+      throw optionTypeError('targets', 'a non-empty string, non-empty array, or object', targets);
     }
   }
 }

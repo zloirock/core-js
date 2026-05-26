@@ -590,6 +590,9 @@ export function createUsageVisitors({
   }
 
   function identifierVisitor(path) {
+    // orphaned node (parent removed by sibling transform / pruning): downstream isReferenced
+    // and parent-shape checks would crash on null. parity with babel-plugin's handleIdentifier
+    if (!path.parent) return;
     const { node, parent, key: parentKey } = path;
     // `isReferenced` returns false for write-context leaves like `Map ||= X`; diagnose the
     // pattern before the early return so users see why nothing was polyfilled

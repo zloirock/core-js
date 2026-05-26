@@ -29,6 +29,15 @@ function chooseStartSuffix(cached, prefix, isTaken) {
   return cached ?? null;
 }
 
+// declaration source position of a binding's defining identifier. stable across the
+// pre/post snapshot round-trip (same source text, same offsets) and across babel pure
+// AST mutation (parser-emitted nodes carry `start`). returns null for synthetic bindings
+// without source positions - the lookup table treats null as "any scope" so post-mutation
+// babel bindings still find their reassignment flag through the bare-name match
+function reassignedStart(binding) {
+  return binding?.identifier?.start ?? binding?.path?.node?.start ?? null;
+}
+
 // import-emitter state; each plugin subclasses and implements `flush()`.
 // augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass.
 //
@@ -158,15 +167,31 @@ export default class ImportInjectorState {
   // the resolver can't re-derive the flag at use site; capture pre-mutation here
   registerBodyExtractAlias(name, entry, sourceBinding = null) {
     if (sourceBinding && sourceBinding.kind !== 'const' && sourceBinding.constantViolations?.length) {
-      this.#reassignedBindings.add(name);
+      this.#trackReassignedBinding(name, reassignedStart(sourceBinding));
       return;
     }
     this.#recordImportInfo(name, entry);
   }
 
-  #reassignedBindings = new Set();
-  isReassignedBinding(name) {
-    return this.#reassignedBindings.has(name);
+  // name -> Set<start> indexes reassignment by declaration position so two `from` bindings
+  // in distinct scopes don't poison each other. lookup with a known start (unplugin, babel
+  // pre-mutation) matches exact-scope; lookup with null start (legacy callers, babel
+  // post-mutation synthetic identifier) treats the name's mere presence in the Map as a
+  // match - cannot prove the unknown-scope query isn't one of the registered ones
+  #reassignedBindings = new Map();
+  #trackReassignedBinding(name, start) {
+    let starts = this.#reassignedBindings.get(name);
+    if (!starts) {
+      starts = new Set();
+      this.#reassignedBindings.set(name, starts);
+    }
+    starts.add(start);
+  }
+  isReassignedBinding(name, binding = null) {
+    const starts = this.#reassignedBindings.get(name);
+    if (!starts) return false;
+    const start = binding ? reassignedStart(binding) : null;
+    return start === null || starts.has(start);
   }
 
   // binding-name -> { source, hint } for super-import back-mapping (see `resolveSuperImportName`
@@ -267,13 +292,20 @@ export default class ImportInjectorState {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
   }
 
-  // symmetric handoff for `#reassignedBindings`: pre populates the Set via
+  // symmetric handoff for `#reassignedBindings`: pre populates the Map via
   // `registerBodyExtractAlias` (it sees pre-mutation `constantViolations`), post needs the
-  // same flags so `isReassignedBinding(name)` short-circuits the resolver's alias walk.
-  // without the snapshot post's Set is fresh-empty - body-extract alias detection regresses
-  captureReassignedBindings() { return new Set(this.#reassignedBindings); }
+  // same flags so `isReassignedBinding` short-circuits the resolver's alias walk.
+  // without the snapshot post's Map is fresh-empty - body-extract alias detection regresses
+  captureReassignedBindings() {
+    const out = new Map();
+    for (const [name, starts] of this.#reassignedBindings) out.set(name, new Set(starts));
+    return out;
+  }
   rehydrateReassignedBindings(captured) {
-    if (captured) for (const name of captured) this.#reassignedBindings.add(name);
+    if (!captured) return;
+    for (const [name, starts] of captured) {
+      for (const start of starts) this.#trackReassignedBinding(name, start);
+    }
   }
 
   isNameTaken(name) { return this.usedNames.has(name); }
