@@ -868,37 +868,38 @@ export default function createPlugin(options) {
           }
         };
 
-        // pre-pass: detect declarations that WILL be fully flattened (every outer prop
-        // resolvable as proxy-global shorthand or nested static method). the outer rewrite
-        // discards the init span, so suppress handleIdentifier's `_globalThis` injection
-        // for it - otherwise a now-dead import leaks into the final bundle
-        traverse(ast, {
+        // mount tracker for every post pass (parity with `injector.enableReferenceTracking()`
+        // gate above): standalone `phase: 'post'` without a pre-pass snapshot also needs
+        // `referencedInSource` populated, otherwise `pruneUnusedRefs`'s dead-import filter
+        // strips ALL pure imports because no Identifier ever calls `trackReferencedName`.
+        //
+        // VariableDeclaration enter handler folded in from a separate pre-pass: detects
+        // declarations that WILL be fully flattened (every outer prop resolvable as
+        // proxy-global shorthand or nested static method). the outer rewrite discards the
+        // init span, so suppress handleIdentifier's `_globalThis` injection for it -
+        // otherwise a now-dead import leaks into the final bundle. enter fires before
+        // descending into the declarator, beating the usage callback that would observe
+        // the init's children
+        const usageVisitors = mergeVisitors({
           $: { scope: true },
+          Program(path) { injector.rootScope = path.scope; },
           VariableDeclaration(path) {
             for (const d of path.node.declarations) {
               if (d.init && canFullyConsumeProxyDeclarator(d, path.scope)) skippedNodes.add(d.init);
             }
           },
-        });
-        traverse(ast, mergeVisitors({
-          $: { scope: true },
-          Program(path) { injector.rootScope = path.scope; },
-          ...createUsageVisitors({
-            adapter: estreeAdapter,
-            onUsage: usagePureCallback,
-            onWarning: msg => debugOutput?.warn(msg),
-            method,
-            suppressProxyGlobals: true,
-            walkAnnotations: false,
-            isEntryAvailable: isEntryNeeded,
-          }),
-        }, trackReferences ? {
-        // mount tracker for every post pass (parity with `injector.enableReferenceTracking()`
-        // gate above): standalone `phase: 'post'` without a pre-pass snapshot also needs
-        // `referencedInSource` populated, otherwise `pruneUnusedRefs`'s dead-import filter
-        // strips ALL pure imports because no Identifier ever calls `trackReferencedName`
+        }, createUsageVisitors({
+          adapter: estreeAdapter,
+          onUsage: usagePureCallback,
+          onWarning: msg => debugOutput?.warn(msg),
+          method,
+          suppressProxyGlobals: true,
+          walkAnnotations: false,
+          isEntryAvailable: isEntryNeeded,
+        }));
+        traverse(ast, trackReferences ? mergeVisitors(usageVisitors, {
           Identifier(path) { injector.trackReferencedName(path.node.name); },
-        } : {}));
+        }) : usageVisitors);
         applySynthSwaps();
         applyDestructuringTransforms();
         scopeTracker.applyTransforms(transforms);
