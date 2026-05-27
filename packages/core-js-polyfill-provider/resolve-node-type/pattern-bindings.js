@@ -12,7 +12,7 @@
 // Public surface mirrors the previous factory functions - external callers are heavy
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
-import { $Object, $Primitive, PATTERN_WRAPPERS } from './base.js';
+import { $Object, $Primitive, PATTERN_WRAPPERS, peelAssignmentPattern } from './base.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
 import { assignLeft, assignRightKey } from './straight-line-flow.js';
 
@@ -86,7 +86,7 @@ export function createPatternBindings({
         }
         continue;
       }
-      const unwrapped = el.type === 'AssignmentPattern' ? el.left : el;
+      const unwrapped = peelAssignmentPattern(el);
       if (unwrapped?.type === 'Identifier' && unwrapped.name === name) return [i];
       const inner = findPatternKeyPath(unwrapped, name, scope);
       if (inner) return [i, ...inner];
@@ -101,7 +101,7 @@ export function createPatternBindings({
       if (babelNodeType(prop) !== 'ObjectProperty') continue;
       const key = prop.computed ? resolveComputedKeyName(prop.key, scope) : getKeyName(prop.key);
       if (key === null) continue;
-      const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+      const value = peelAssignmentPattern(prop.value);
       if (value?.type === 'Identifier' && value.name === name) return [key];
       const inner = findPatternKeyPath(value, name, scope);
       if (inner) return [key, ...inner];
@@ -192,7 +192,7 @@ export function createPatternBindings({
     for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
       if (!element || element.type === 'RestElement') continue;
-      const id = element.type === 'AssignmentPattern' ? element.left : element;
+      const id = peelAssignmentPattern(element);
       if (id?.type === 'Identifier' && id.name === varName) return i;
     }
     return -1;
@@ -445,9 +445,27 @@ export function createPatternBindings({
     return result;
   }
 
+  // walk an ObjectPattern (and any nested ObjectPatterns under its property values) looking
+  // for a RestElement whose argument identifier matches `varName`. covers both top-level
+  // (`{ ...rest } = obj`) and nested (`{ x: {...rest} } = obj`) cases - shared `isRestBinding`
+  // only inspects the immediate properties array, so without the recursive walk the resolver
+  // falls through to keyPath logic and nested `rest` ends up null. narrow to `$Object('Object')`
+  // lets the `arg-is-object` filter (e.g. on `Object.keys`) subsume the polyfill when the user
+  // passes a provably non-primitive rest binding
+  function bindsObjectRest(pattern, varName) {
+    if (pattern?.type !== 'ObjectPattern') return false;
+    for (const prop of pattern.properties) {
+      if (prop?.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === varName) return true;
+      if (babelNodeType(prop) !== 'ObjectProperty') continue;
+      if (bindsObjectRest(peelAssignmentPattern(prop.value), varName)) return true;
+    }
+    return false;
+  }
+
   function resolveObjectBinding(objectPattern, varName, bindingPath) {
-    // object rest: const { a, ...rest } = obj -> rest is always Object
-    if (isRestBinding(objectPattern.properties, varName)) return new $Object('Object');
+    // object rest at any depth: `{ ...rest } = obj` and `{ x: {...rest} } = obj` both bind
+    // an Object. the recursive walk in `bindsObjectRest` catches both cases uniformly
+    if (bindsObjectRest(objectPattern, varName)) return new $Object('Object');
     // annotation on the pattern: const { items }: { items: number[] } = ...
     if (objectPattern.typeAnnotation) {
       const result = resolveDestructuredType(objectPattern, varName, bindingPath.scope);
