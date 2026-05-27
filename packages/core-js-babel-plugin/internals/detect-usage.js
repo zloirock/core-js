@@ -436,9 +436,13 @@ export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesF
     injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
   });
   return {
+    // CallExpression path covers @babel/parser@7 where `import('mod')` is
+    // CallExpression { callee: { type: 'Import' } }. @babel/parser@8 parses the same
+    // source as a top-level ImportExpression node - hence the second visitor below
     CallExpression(path) {
       if (path.get('callee').isImport()) rules.onImportExpression(path.node);
     },
+    ImportExpression(path) { rules.onImportExpression(path.node); },
     Function(path) { rules.onFunction(path.node); },
     'ForOfStatement|ArrayPattern'(path) {
       if (path.isForOfStatement()) rules.onForOfStatement(path.node);
