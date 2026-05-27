@@ -2,6 +2,24 @@ import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-norma
 import ImportInjectorState from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 
+// babel@7 exposes `scope.references` / `scope.uids` as object maps; babel@8 replaced them
+// with `scope.referencesSet` / `scope.uidsSet` (real Sets) and throws on the legacy
+// accessors. one probe of any scope at injector construction commits the bag to a single
+// path - no runtime checks on subsequent calls. the API surface is invariant across all
+// scopes of a given babel install, so probing once is sufficient
+function makeScopeBag(probeScope, setKey, mapKey) {
+  if (probeScope[setKey]) return {
+    has: (scope, name) => scope[setKey].has(name),
+    add: (scope, name) => scope[setKey].add(name),
+    list: scope => scope[setKey],
+  };
+  return {
+    has: (scope, name) => !!scope[mapKey]?.[name],
+    add(scope, name) { (scope[mapKey] ??= {})[name] = true; },
+    list: scope => Object.keys(scope[mapKey] ?? {}),
+  };
+}
+
 export default class ImportInjector extends ImportInjectorState {
   #t;
   #programPath;
@@ -31,11 +49,17 @@ export default class ImportInjector extends ImportInjectorState {
   // sibling imports. flag set by `reorderImportRegion`, asserted by
   // `reorderRefsAfterImports` so caller-order violations surface as a clear error
   #importRegionSorted = false;
+  // scope-bag accessors specialised once per injector to the babel version's API
+  #scopeReferences;
+  #scopeUids;
 
   constructor({ t, programPath, pkg, packages = null, mode, importStyle, absoluteImports = false }) {
     super({ absoluteImports, mode, pkg, importStyle, packages });
     this.#t = t;
     this.#programPath = programPath;
+    const program = programPath.scope.getProgramParent();
+    this.#scopeReferences = makeScopeBag(program, 'referencesSet', 'references');
+    this.#scopeUids = makeScopeBag(program, 'uidsSet', 'uids');
   }
 
   // post-hook safety-net needs to know whether any import has already been written so
@@ -53,7 +77,7 @@ export default class ImportInjector extends ImportInjectorState {
     // land here. without it, UID generator would pick `_Map` and collide with a user's
     // accidental `_Map = ...` sloppy global (reassigning our const import throws at runtime)
     return scope.hasBinding(name) || !!program.globals[name]
-      || !!program.references[name] || !!program.uids[name];
+      || this.#scopeReferences.has(program, name) || this.#scopeUids.has(program, name);
   }
 
   // publish every allocated UID into program.references/.uids so sibling transforms
@@ -66,8 +90,8 @@ export default class ImportInjector extends ImportInjectorState {
   uniqueName(prefix, extraCheck) {
     const name = super.uniqueName(prefix, extraCheck);
     const program = this.#programPath.scope.getProgramParent();
-    program.references[name] = true;
-    program.uids[name] = true;
+    this.#scopeReferences.add(program, name);
+    this.#scopeUids.add(program, name);
     return name;
   }
 
@@ -197,8 +221,8 @@ export default class ImportInjector extends ImportInjectorState {
     this.#forEachScopeBinding(([name]) => taken.add(name));
     const program = this.#programPath.scope.getProgramParent();
     for (const n of Object.keys(program.globals ?? {})) taken.add(n);
-    for (const n of Object.keys(program.references ?? {})) taken.add(n);
-    for (const n of Object.keys(program.uids ?? {})) taken.add(n);
+    for (const n of this.#scopeReferences.list(program)) taken.add(n);
+    for (const n of this.#scopeUids.list(program)) taken.add(n);
     return taken;
   }
 
