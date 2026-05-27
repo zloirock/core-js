@@ -1,6 +1,6 @@
 {
   var O = [];
-  O.at(42);
+  O.findLast(x => x);
 }
 {
   var O = {};
@@ -8,5 +8,5 @@
 }
 {
   var O = [];
-  O.at(42);
+  O.flat();
 }
