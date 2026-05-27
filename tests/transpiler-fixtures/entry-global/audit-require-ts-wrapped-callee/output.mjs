@@ -1,4 +1,5 @@
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.reflect.own-keys";
 import "core-js/modules/es.aggregate-error.constructor";
 import "core-js/modules/es.promise.constructor";
 import "core-js/modules/es.promise.catch";
@@ -13,4 +14,6 @@ import "core-js/modules/es.promise.try";
 import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.promise.all-keyed";
+import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-collections.iterator";

@@ -721,8 +721,8 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
 // custom error subclass without stack: tagging works (no stack interaction)
 {
   class CustomError extends Error {
-    constructor(message) {
-      super(message);
+    constructor(message, options) {
+      super(message, options);
       this.name = 'CustomError';
       delete this.stack;
     }

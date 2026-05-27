@@ -24,6 +24,8 @@ require("core-js/modules/esnext.iterator.chunks");
 require("core-js/modules/esnext.iterator.includes");
 require("core-js/modules/esnext.iterator.join");
 require("core-js/modules/esnext.iterator.windows");
+require("core-js/modules/esnext.promise.all-keyed");
+require("core-js/modules/esnext.promise.all-settled-keyed");
 require("core-js/modules/web.dom-exception.stack");
 require("core-js/modules/web.clear-immediate");
 require("core-js/modules/web.set-immediate");
