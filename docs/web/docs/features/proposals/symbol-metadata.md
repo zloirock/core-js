@@ -18,7 +18,7 @@ class Function {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/decorator-metadata
-core-js(-pure)/actual|full/symbol/metadata
+core-js(-pure)/full/symbol/metadata
 ```
 
 ## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)

@@ -292,6 +292,8 @@ import "core-js/modules/esnext.iterator.chunks";
 import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
+import "core-js/modules/esnext.promise.all-keyed";
+import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/web.dom-exception.constructor";
 import "core-js/modules/web.dom-exception.stack";
 import "core-js/modules/web.dom-exception.to-string-tag";
