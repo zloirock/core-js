@@ -92,6 +92,14 @@ export const PATTERN_WRAPPERS = new Set([
   'RestElement',
 ]);
 
+// destructure-pattern slots wrap their default value in AssignmentPattern (`{a = 1}`,
+// `[b = 2]`, `function f(x = init)`). callers walking the pattern's structural identity
+// want the underlying target (`a`, `b`, `x`) - the `.left` slot - and don't care about
+// the default. peel uniformly so duplicate ternaries don't drift between pattern walks
+export function peelAssignmentPattern(node) {
+  return node?.type === 'AssignmentPattern' ? node.left : node;
+}
+
 export function $Primitive(type) {
   this.type = type;
   this.constructor = null;
