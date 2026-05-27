@@ -177,22 +177,23 @@ runBoth('onClass/plain class -> no injection', 'class C {}', (adapter, prog, lbl
 });
 
 // decorated class triggers metadata. babel parser needs `decorators-legacy` plugin
-// explicit, oxc auto-enables decorators for `.ts` files
-runBoth('onClass/decorated class -> symbol/metadata', '@dec class C {}', (adapter, prog, lbl) => {
+// explicit, oxc auto-enables decorators for `.ts` files. modules are injected directly
+// (not via mode entry) because decorator-metadata is stage 2.7, outside the `actual/` set
+runBoth('onClass/decorated class -> esnext.{function,symbol}.metadata', '@dec class C {}', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'ClassDeclaration');
   if (!path?.node?.decorators?.length) return;
   const { rules, captured } = makeRules();
   rules.onClass(path.node);
-  checkDeep(lbl, captured, { mode: ['symbol/metadata'], plain: [] });
+  checkDeep(lbl, captured, { mode: [], plain: ['modules/esnext.function.metadata', 'modules/esnext.symbol.metadata'] });
 }, ['decorators-legacy']);
 
-runBoth('onClass/decorated method -> symbol/metadata', 'class C { @dec m() {} }', (adapter, prog, lbl) => {
+runBoth('onClass/decorated method -> esnext.{function,symbol}.metadata', 'class C { @dec m() {} }', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'ClassDeclaration');
   const hasDeco = path?.node?.body?.body?.some(el => el?.decorators?.length);
   if (!hasDeco) return;
   const { rules, captured } = makeRules();
   rules.onClass(path.node);
-  checkDeep(lbl, captured, { mode: ['symbol/metadata'], plain: [] });
+  checkDeep(lbl, captured, { mode: [], plain: ['modules/esnext.function.metadata', 'modules/esnext.symbol.metadata'] });
 }, ['decorators-legacy']);
 
 finish();
