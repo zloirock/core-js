@@ -1,5 +1,8 @@
+import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.includes";
+import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.string.includes";
+import "core-js/modules/esnext.iterator.includes";
 // paren-wrapped `(typeof import('foo').Bar)` is preserved as a TSParenthesizedType
 // node by oxc (babel strips parens during parsing). isStructuralAnnotation must
 // peel the paren before checking the TSTypeQuery / TSImportType nesting; otherwise
