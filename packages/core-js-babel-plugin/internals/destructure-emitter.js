@@ -707,10 +707,9 @@ export default function createDestructureEmitter({
   // position around the consumed slot. pre-siblings run before the lifted SE, post-siblings
   // after the extracted target. earlier collapsed-trailing emission silently reordered
   // pre-sibling initializers past the SE expression, observable when both sides carry effects
-  function wrapBodylessWithSideEffect({ declaration, initNode, parentDeclarator, extractedDeclaration }) {
+  function wrapBodylessWithSideEffect({ declaration, initNode, parentDeclarator, extractedDeclaration, kind }) {
     const decls = declaration.node.declarations;
     const idx = decls.indexOf(parentDeclarator);
-    const { kind } = declaration.node;
     const stmts = [];
     if (idx > 0) stmts.push(t.variableDeclaration(kind, decls.slice(0, idx)));
     stmts.push(t.expressionStatement(t.cloneDeep(initNode)), extractedDeclaration);
@@ -869,15 +868,37 @@ export default function createDestructureEmitter({
     };
   }
 
+  // @babel/traverse@8 stale-path fixup: an earlier emit in the same handleObjectPropertyResult
+  // chain (cascade extraction) may have wrapped a bodyless VariableDeclaration in BlockStatement
+  // and `parent.parentPath` now points at the wrapper. raw `parent.parent` is still the real
+  // VariableDeclaration - scan the wrapper's children for the matching path. babel@7's tracker
+  // kept paths in sync so this is a no-op there
+  function resolveDeclarationPath(declaratorPath) {
+    const declaration = declaratorPath.parentPath;
+    if (declaration.isBlockStatement() && declaratorPath.parent?.type === 'VariableDeclaration') {
+      const rebound = declaration.get('body').find(p => p.node === declaratorPath.parent);
+      if (rebound) return rebound;
+    }
+    return declaration;
+  }
+
+  // kind snapshot resilient to downstream path-orphaning. fall through declaration -> statement
+  // parent -> `var` (the only kind valid inside bodyless control hosts where wrap fires).
+  // @babel/types@7 silently accepted undefined in variableDeclaration builders; v8 throws
+  function snapshotDeclarationKind(declaration) {
+    return declaration.node.kind ?? findStatementParent(declaration).node?.kind ?? 'var';
+  }
+
   // VariableDeclarator branch executor. classifies the host shape, asks the planner
   // for a strategy, then dispatches to the matching AST mutation
   function emitVariableDeclaratorDestructure({ prop, parent, localBinding, value, isStaticValue, isEmpty }) {
-    const declaration = parent.parentPath;
+    const declaration = resolveDeclarationPath(parent);
     // save original index before first insertBefore shifts it
     if (!originalDeclKeys.has(declaration.node)) {
       originalDeclKeys.set(declaration.node, findStatementParent(declaration).key);
     }
-    const extractedDeclaration = t.variableDeclaration(declaration.node.kind, [
+    const kind = snapshotDeclarationKind(declaration);
+    const extractedDeclaration = t.variableDeclaration(kind, [
       t.variableDeclarator(localBinding, value),
     ]);
     const ctx = classifyVariableDeclaratorSite({ declaration, parent, isStaticValue, isEmpty });
@@ -889,6 +910,7 @@ export default function createDestructureEmitter({
           initNode: parent.node.init,
           parentDeclarator: parent.node,
           extractedDeclaration,
+          kind,
         });
       case STRATEGIES.FOR_INIT_SE_STATIC:
       case STRATEGIES.FOR_INIT_SE_INSTANCE:

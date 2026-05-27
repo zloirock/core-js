@@ -7,6 +7,7 @@ export default {
       {
         method: 'entry-global',
         version: '4.0',
+        targets: { ie: 11 },
       },
     ],
   ],

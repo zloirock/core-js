@@ -25,6 +25,12 @@ import {
 import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias } from './ast-shapes.js';
 import { unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
 
+// `declare global { ... }` opens a program-scope augmentation block. @babel/parser@7 flags it
+// with a boolean `decl.global`; @babel/parser@8 dropped that field and only sets `kind: 'global'`
+function isGlobalAugmentation(decl) {
+  return decl.global || decl.kind === 'global';
+}
+
 // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass.
 // module-level functions so `ambientDeclCache` keys by identity stay stable across calls
 export function isAmbientFunctionNode(node) {
@@ -196,10 +202,10 @@ export function createNameResolution({ t }) {
       if (decl.type !== 'TSModuleDeclaration') continue;
       const moduleSegs = moduleNameSegments(decl.id);
       if (!moduleSegs) continue;
-      // `declare global { ... }` augments program scope - its body's bindings are visible
-      // at every depth. descend regardless of segment count so both `Box` (bare) and
-      // `NS.Foo` (qualified via `declare global { namespace NS {} }`) resolve through it
-      if (decl.global) {
+      // `declare global { ... }` body bindings are visible at every depth - descend regardless
+      // of segment count so both `Box` (bare) and `NS.Foo` (qualified via `declare global {
+      // namespace NS {} }`) resolve through it
+      if (isGlobalAugmentation(decl)) {
         const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch });
         if (inner && !collect) return inner;
         continue;
@@ -452,10 +458,9 @@ export function createNameResolution({ t }) {
       // own body on every bare segment query, doubling work on deep TSModuleDeclaration trees
       if (rest.length === 0) continue;
       if (decl.type !== 'TSModuleDeclaration') continue;
-      // `declare global { ... }` augments program scope: descend its body for any segment
-      // depth, mirrors `walkStatementsForDecl`. without this branch the NodePath-walking
-      // variant misses globally-augmented decls that the node-walking variant finds
-      if (decl.global) {
+      // NodePath-walking mirror of `walkStatementsForDecl`'s global-augmentation branch -
+      // without this the path variant misses globally-augmented decls that the node variant finds
+      if (isGlobalAugmentation(decl)) {
         const bodyPath = declPath.get('body');
         const innerPaths = bodyPath?.node?.type === 'TSModuleDeclaration'
           ? [bodyPath]
