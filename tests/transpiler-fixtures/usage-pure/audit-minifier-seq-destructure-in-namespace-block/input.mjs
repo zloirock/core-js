@@ -4,6 +4,5 @@
 let values;
 namespace NS {
   (sideEffect(), ({ values } = Object));
-  export { values };
 }
 NS.values({ a: 1 });
