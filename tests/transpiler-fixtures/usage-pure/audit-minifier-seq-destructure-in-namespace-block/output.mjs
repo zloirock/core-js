@@ -7,7 +7,6 @@ let values;
 namespace NS {
   sideEffect();
   values = _Object$values;
-  export { values };
 }
 _values(NS).call(NS, {
   a: 1
