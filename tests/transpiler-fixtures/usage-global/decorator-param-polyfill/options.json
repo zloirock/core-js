@@ -10,7 +10,12 @@
         }
       }
     ],
-    ["@babel/plugin-syntax-decorators", { "legacy": true }]
+    [
+      "@babel/plugin-syntax-decorators",
+      {
+        "version": "legacy"
+      }
+    ]
   ],
   "parserOpts": {
     "plugins": [
