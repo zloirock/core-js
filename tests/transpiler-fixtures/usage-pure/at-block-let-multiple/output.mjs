@@ -1,7 +1,8 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 {
   let O = [];
-  _atMaybeArray(O).call(O, 42);
+  _findLastMaybeArray(O).call(O, x => x);
 }
 {
   let O = {};
@@ -9,5 +10,5 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 }
 {
   let O = [];
-  _atMaybeArray(O).call(O, 42);
+  _flatMaybeArray(O).call(O);
 }
