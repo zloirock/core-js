@@ -45,7 +45,10 @@ export function createSyntaxRules({ injectModulesForModeEntry, injectModulesForE
       if (isDisabled(node)) return;
       const hasActiveDecorator = decorators => decorators?.some(d => !isDisabled(d));
       if (hasActiveDecorator(node.decorators) || node.body.body.some(el => hasActiveDecorator(el.decorators))) {
-        injectModulesForModeEntry('symbol/metadata');
+        // decorator-metadata is stage 2.7 so its modules sit outside `actual/`; inject them
+        // directly to keep auto-injection working for decorators regardless of mode
+        injectModulesForEntry('modules/esnext.function.metadata');
+        injectModulesForEntry('modules/esnext.symbol.metadata');
       }
     },
   };
