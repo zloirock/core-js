@@ -537,6 +537,14 @@ export function createPatternBindings({
     // scope (estree-toolkit) fall back to walking ancestors for namespace-local type decls
     const typeAnnotation = findBindingAnnotation(bindingPath);
     if (typeAnnotation) return withLookupPath(bindingPath, () => resolveTypeAnnotation(typeAnnotation, bindingPath.scope));
+    // unannotated Identifier param with default value (`function f(x = [])`). babel binds
+    // the param to the AssignmentPattern wrapper (same convention as RestElement above), so
+    // the default expression lives at `bindingPath.get('right')`. annotated form caught by
+    // `findBindingAnnotation` above. caller-passed arg overrides at runtime, but polyfill
+    // emit follows the declared default's TYPE shape
+    if (node?.type === 'AssignmentPattern' && node.left?.type === 'Identifier' && node.left.name === name) {
+      return resolveNodeType(bindingPath.get('right'));
+    }
     // for-in / for-of (only for direct bindings - destructured bindings return early above)
     const forLoopParent = findForLoopParent(bindingPath);
     if (forLoopParent) {
