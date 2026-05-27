@@ -14,6 +14,8 @@ import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.function.metadata";
+import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
 // 3-deep JSXMemberExpression chain inside decorator (`@(<Map.A.B />) class C {}`).
 // `jsxIdentifierVisitor` walks `.object` from the root Identifier through nested
