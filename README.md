@@ -2878,6 +2878,12 @@ await Promise.allSettledKeyed({
 core-js(-pure)/stage/2.7
 ```
 
+#### Stage 2.7 proposals[⬆](#index)
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/stage/2.7
+```
+
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
 ```ts
