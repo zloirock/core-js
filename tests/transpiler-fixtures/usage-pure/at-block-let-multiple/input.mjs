@@ -1,6 +1,6 @@
 {
   let O = [];
-  O.at(42);
+  O.findLast(x => x);
 }
 {
   let O = {};
@@ -8,5 +8,5 @@
 }
 {
   let O = [];
-  O.at(42);
+  O.flat();
 }
