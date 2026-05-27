@@ -1073,6 +1073,10 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'iterator/includes')([1, 2].values(), 2) === true);
     ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/windows') == 'function');
+    ok(typeof load(NS, 'iterator/prototype/chunks') == 'function');
+    ok(load(NS, 'iterator/prototype/includes').call([1, 2].values(), 2) === true);
+    ok(load(NS, 'iterator/prototype/join').call([1, 2].values()) === '1,2');
+    ok(typeof load(NS, 'iterator/prototype/windows') == 'function');
   }
 
   for (const NS of ['full']) {
@@ -1080,6 +1084,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
+    ok(load(NS, 'symbol/metadata'));
     ok(typeof load(NS, 'array/filter-reject') == 'function');
     ok(typeof load(NS, 'array/unique-by') == 'function');
     ok(typeof load(NS, 'array/prototype/filter-reject') == 'function');
@@ -1115,10 +1120,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
-    ok(typeof load(NS, 'iterator/prototype/chunks') == 'function');
-    ok(load(NS, 'iterator/prototype/includes').call([1, 2].values(), 2) === true);
-    ok(load(NS, 'iterator/prototype/join').call([1, 2].values()) === '1,2');
-    ok(typeof load(NS, 'iterator/prototype/windows') == 'function');
     ok(typeof load(NS, 'iterator/prototype/to-async') == 'function');
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);

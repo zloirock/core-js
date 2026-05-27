@@ -14,6 +14,8 @@ import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.function.metadata";
+import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
 // JSX elements used inside a decorator position (`@(<Map />)` and `@(<Set.X />)`)
 // must still trigger global polyfill detection on the JSX tag root. The first
