@@ -20,7 +20,7 @@
 // `innerTypeParamName`, `bindTypeParam`, `buildTypeParamMap`, `resolveCallArgType`,
 // `resolveDirectParam`, `resolvePatternParam`, `resolveParamType`, `resolveBodyExpr`,
 // `wrapAsyncPromise`, `applyCallSiteSubst`.
-import { MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive } from './base.js';
+import { MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive, peelAssignmentPattern } from './base.js';
 import { isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
@@ -113,7 +113,7 @@ export function createReturnType({
         continue;
       }
       // peel outer AssignmentPattern wrapper (`function f(x = 0)` / `function f({a} = {})`)
-      const patternParam = param.type === 'AssignmentPattern' ? param.left : param;
+      const patternParam = peelAssignmentPattern(param);
       if (patternParam?.type === 'Identifier' && patternParam.name === targetName) {
         return resolveDirectParam(param, i, args, fnPath);
       }
