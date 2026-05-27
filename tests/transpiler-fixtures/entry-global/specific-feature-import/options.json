@@ -4,7 +4,10 @@
       "@core-js",
       {
         "method": "entry-global",
-        "version": "4.0"
+        "version": "4.0",
+        "targets": {
+          "ie": 11
+        }
       }
     ]
   ]
