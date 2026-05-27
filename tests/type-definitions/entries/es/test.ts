@@ -4,9 +4,7 @@ const concat = Iterator.concat([1, 2, 3]);
 
 structuredClone({ name: 'core-js' });
 
-// @ts-expect-error
 Iterator.zipKeyed({ a: [1, 2], b: [3, 4] });
-// @ts-expect-error
 Iterator.zip([[1, 2, 3], [4, 5, 6]]);
 
 // @ts-expect-error
