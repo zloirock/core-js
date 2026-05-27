@@ -1,13 +1,24 @@
 // Unit tests for `@core-js/babel-plugin/internals/babel-compat.js`. fixture suite covers
 // the helpers indirectly; this file isolates each helper so dispatch-shape regressions
-// surface here, not behind a fixture-output diff
-import { parse as babelParse } from '@babel/parser';
-import _babelTraverse from '@babel/traverse';
-import * as t from '@babel/types';
+// surface here, not behind a fixture-output diff.
+// BABEL_REQUIRE_FROM resolves @babel/parser, @babel/traverse, @babel/types from an
+// alternate workspace - mirrors the fixture runner's hook so unit tests run under
+// babel@7 (default) and babel@8 (with BABEL_REQUIRE_FROM=../babel-plugin-v8) alike
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import * as nodePath from 'node:path';
+
+const { BABEL_REQUIRE_FROM } = process.env;
+const requireBabel = BABEL_REQUIRE_FROM
+  ? createRequire(pathToFileURL(`${ nodePath.resolve(BABEL_REQUIRE_FROM) }/`).href)
+  : createRequire(import.meta.url);
+const { parse: babelParse } = requireBabel('@babel/parser');
+const traverseModule = requireBabel('@babel/traverse');
+const t = requireBabel('@babel/types');
 import createASTHelpers from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 
-const traverse = _babelTraverse.default ?? _babelTraverse;
+const traverse = traverseModule.default ?? traverseModule;
 const { check, checkTruthy, finish } = createChecker('babel-compat');
 
 // deterministic identifiers - real `ImportInjector` carries scope-tracking state irrelevant
@@ -233,17 +244,20 @@ for (const { name, code, rhsCheck } of UNSAFE_REUSE_CASES) {
 // --- generateRef / generateLocalRef / generateUnusedId (delegation smoke) ---
 
 {
+  // `$` keeps the marker visually distinct from generated `_refN` names while staying a
+  // valid identifier character (the `:` separator used previously trips @babel/types@8
+  // strict identifier validation in t.identifier)
   const injector = {
-    generateDeclaredRef: scope => t.identifier(`_declared:${ scope.tag }`),
-    generateLocalRef: scope => t.identifier(`_local:${ scope.tag }`),
+    generateDeclaredRef: scope => t.identifier(`_declared$${ scope.tag }`),
+    generateLocalRef: scope => t.identifier(`_local$${ scope.tag }`),
     generateUnusedName: () => '_unused_xyz',
   };
   const helpers = makeHelpers({ injector });
   const declared = helpers.generateRef({ tag: 'A' });
   const local = helpers.generateLocalRef({ tag: 'B' });
   const unused = helpers.generateUnusedId();
-  check('generateRef/delegates to generateDeclaredRef', declared.name, '_declared:A');
-  check('generateLocalRef/delegates to generateLocalRef', local.name, '_local:B');
+  check('generateRef/delegates to generateDeclaredRef', declared.name, '_declared$A');
+  check('generateLocalRef/delegates to generateLocalRef', local.name, '_local$B');
   check('generateUnusedId/wraps generateUnusedName as Identifier',
     unused.type === 'Identifier' && unused.name, '_unused_xyz');
 }
