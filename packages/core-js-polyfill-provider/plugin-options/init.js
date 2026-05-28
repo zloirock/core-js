@@ -4,13 +4,15 @@
 // (`createPolyfillContext` + `createPolyfillResolver`) read. sibling submodules in
 // `plugin-options/` cover the individual stages (validate / targets / debug-output);
 // `inject.js` and `usage-callback.js` are independently consumed by the host plugins
-import { KNOWN_REST_KEYS, validateOptions } from './validate.js';
+import { validateOptions } from './validate.js';
 import { buildShouldInjectPolyfill, resolveTargets } from './targets.js';
 import { createDebugOutputFactory } from './debug-output.js';
 
-const { keys } = Object;
-
 export function initPluginOptions(options, { getBabelTargets } = {}) {
+  // single validation pass: `validateOptions` owns both shape-check and unknown-key
+  // detection (via `...unknown` rest in its signature - that destructure is the source
+  // of truth for known option names, so they don't have to be listed twice)
+  validateOptions(options);
   const {
     absoluteImports,
     browserslistEnv,
@@ -25,29 +27,6 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     targets,
     ...rest
   } = options;
-  const unknown = keys(rest).filter(k => !KNOWN_REST_KEYS.has(k));
-  if (unknown.length) {
-    const valid = [...KNOWN_REST_KEYS].sort().join(', ');
-    throw new TypeError(`[core-js] Unknown plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }. Valid options: ${ valid }`);
-  }
-  validateOptions({
-    absoluteImports,
-    additionalPackages: rest.additionalPackages,
-    browserslistEnv,
-    configPath,
-    debug,
-    exclude,
-    ignoreBrowserslistConfig,
-    importStyle,
-    include,
-    method: rest.method,
-    mode: rest.mode,
-    package: rest.package,
-    shippedProposals,
-    shouldInjectPolyfill: userCallback,
-    targets,
-    version: rest.version,
-  });
   const parsedTargets = resolveTargets({
     targets,
     configPath,

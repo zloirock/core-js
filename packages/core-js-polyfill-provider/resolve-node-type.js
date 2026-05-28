@@ -1205,6 +1205,8 @@ function createResolveNodeType(babelNodeType, t, {
   const classObjectMemberCluster = createClassObjectMember({
     t,
     keyMatchesName,
+    literalKeyValue,
+    singleQuasiString,
     buildSubstMap,
     unwrapTypeAnnotation,
     typesEqual,

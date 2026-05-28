@@ -32,6 +32,8 @@ const NAMESPACE_FN_PATH_TYPES = ['FunctionDeclaration', 'TSDeclareFunction'];
 export function createClassObjectMember({
   t,
   keyMatchesName,
+  literalKeyValue,
+  singleQuasiString,
   buildSubstMap,
   unwrapTypeAnnotation,
   typesEqual,
@@ -48,6 +50,15 @@ export function createClassObjectMember({
   getTypeMembers,
   findNamespacedFunctionPath,
 }) {
+  // computed key matches only when statically resolvable to a string (`['foo']` literal,
+  // `[`foo`]` single-quasi, `[42]` numeric). binding-Identifier computed (`[sym]` over
+  // `const sym = Symbol()`) is disjoint from same-named string key per ECMA-262 13.2.5.5,
+  // so `{ items: 'a', [items]: 'b' }` does NOT shadow `items: 'a'`
+  function memberKeyMatches(key, computed, name) {
+    return computed
+      ? (literalKeyValue(key) ?? singleQuasiString(key)) === name
+      : keyMatchesName(key, name);
+  }
   // babel splits public/private/accessor into distinct types; ESTree uses MethodDefinition /
   // PropertyDefinition with a PrivateIdentifier key. shared `./class-member-shapes.js`
   // collapses both shapes so `resolveClassMemberNode` doesn't miss private members
@@ -61,23 +72,19 @@ export function createClassObjectMember({
       const { node } = member;
       if (!node || !!node.static !== isStatic) continue;
       if (node.kind !== 'get' && node.kind !== 'set') continue;
-      if (keyMatchesName(node.key, name)) return true;
+      if (memberKeyMatches(node.key, node.computed, name)) return true;
     }
     return false;
   }
 
   function findClassMember({ classPath, name, isStatic, classSubst, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
-    // walk in reverse: in JS, duplicate method names are legal and the runtime uses the last definition
-    // `findObjectMember` does the same; both must agree.
+    // reverse-walk: duplicate keys are legal; runtime takes the last definition.
+    // `findObjectMember` does the same; both must agree
     const members = classPath.get('body').get('body');
     for (let i = members.length - 1; i >= 0; i--) {
       const member = members[i];
-      // computed-key members with statically-known names (`['from']` / `[`a-${"b"}`]`) are
-      // resolvable - keyMatchesName drives literalKeyValue / single-quasi extraction. only
-      // truly dynamic computed keys (no static value) are unresolvable; those naturally
-      // fail keyMatchesName below
-      if (!keyMatchesName(member.node.key, name)) continue;
+      if (!memberKeyMatches(member.node.key, member.node.computed, name)) continue;
       if (!!member.node.static !== isStatic) continue;
       if (member.node.kind === 'set') continue;
       return { member, subst: classSubst ?? null };
@@ -300,7 +307,8 @@ export function createClassObjectMember({
     for (let i = properties.length - 1; i >= 0; i--) {
       const prop = properties[i];
       if (t.isSpreadElement(prop.node)) return null;
-      if (!prop.node.computed && prop.node.kind !== 'set' && keyMatchesName(prop.node.key, name)) return prop;
+      if (prop.node.kind === 'set') continue;
+      if (memberKeyMatches(prop.node.key, prop.node.computed, name)) return prop;
     }
     return null;
   }
