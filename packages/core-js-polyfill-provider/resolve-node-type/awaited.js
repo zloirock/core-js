@@ -99,9 +99,10 @@ export function createAwaited({
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
     const recurse = next => peelAwaitedArgument({ arg: next, scope, depth: depth + 1, typeParamMap, seen });
-    // distribute Awaited over union / intersection. filter null members - if a member's
-    // recursive peel exhausts depth, it returns null; carrying nulls into `.types`
-    // crashes findTypeMember's member-walk. drop nulls so surviving branches still narrow.
+    // distribute Awaited over union / intersection. filter null members - a nested
+    // union / intersection that collapses to empty `types[]` returns null; carrying
+    // nulls into the parent's `.types` crashes findTypeMember's member-walk. drop
+    // nulls so surviving branches still narrow.
     // INTENTIONAL DIVERGENCE from `resolveAwaitedAnnotation`'s intersection path: the AST
     // walker only filters null members; the resolved-type walker (`foldIntersectionTypes`)
     // additionally drops plain-Object via `commonType`. different output formats justify the
