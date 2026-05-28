@@ -666,7 +666,10 @@ export function flattenableHostSlot(parent, parentPath) {
 export function peelToExpressionStatement(startPath) {
   const sequencePrefix = [];
   const ctx = peelTransparentExprWrappers(startPath, exprs => {
-    for (const e of exprs) sequencePrefix.push(e);
+    // walker traverses inner -> outer SE wrappers, but source / ECMA SE evaluation order
+    // is outer -> inner. unshift each level's prefix so the array reads outer-first:
+    // `(outer_a, (inner_b, AE))` -> [outer_a, inner_b] matches `outer_a; inner_b;` emit
+    sequencePrefix.unshift(...exprs);
   });
   return ctx?.node?.type === 'ExpressionStatement' ? { exprStmt: ctx, sequencePrefix } : null;
 }
@@ -2147,7 +2150,9 @@ const STATEMENT_LIST_BODY_HOSTS = new Set([
 
 // invoke `visitor(body)` for every Statement-list slot rooted at `rootNode`. structural
 // recursion via `isASTNode` filter stays safe against plugin-stamped sidecar keys without
-// a hand-curated skip list - new visitor metadata won't poison the walk
+// a hand-curated skip list - new visitor metadata won't poison the walk. `SwitchCase` uses
+// the `consequent` field for its statement list (not `body`); special-case the slot name
+// here so minifier-sequence-split + other statement-walkers reach `case L: stmt;` lists
 export function forEachStatementListBody(rootNode, visitor) {
   function visitListHosts(node) {
     if (!isASTNode(node)) {
@@ -2155,6 +2160,7 @@ export function forEachStatementListBody(rootNode, visitor) {
       return;
     }
     if (STATEMENT_LIST_BODY_HOSTS.has(node.type) && Array.isArray(node.body)) visitor(node.body);
+    if (node.type === 'SwitchCase' && Array.isArray(node.consequent)) visitor(node.consequent);
     for (const key of Object.keys(node)) visitListHosts(node[key]);
   }
   visitListHosts(rootNode);
