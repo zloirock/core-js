@@ -444,16 +444,71 @@ function peelDestructureWrappers(pattern) {
   return { parent, arrayDepth };
 }
 
+// follow const-bound Identifier through its init at each hop, peeling parens / chain / TS /
+// chain-assignment between hops. `visited` Set guards against `const a = b; const b = a`
+// cycles. returns the terminal node when chain stops (non-Identifier, unbound name,
+// reassigned binding, or no init). `adapter.hasBinding(scope, name, path)` gates on
+// user-declared bindings so built-ins like `Array` exit the loop with cur = Array.
+// updates `scope` to follow the binding's own scope (closure-captured outer bindings)
+function followConstIdentifierInit(cur, scope, adapter, path) {
+  const visited = new Set();
+  while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
+    visited.add(cur.name);
+    const binding = adapter.getBinding(scope, cur.name);
+    if (!binding || binding.constantViolations?.length) break;
+    const initNode = binding.path?.node?.init ?? binding.node?.init;
+    if (!initNode) break;
+    cur = unwrapExpressionChain(peelChainAssignmentDeep(initNode));
+    scope = binding.scope ?? scope;
+  }
+  return cur;
+}
+
 // descend `depth` ArrayExpression layers via `.elements[0]` to mirror the
 // ArrayPattern wrapper stack on the destructure side. bail (return null) if any
 // intermediate level isn't an ArrayExpression - mismatched lhs/rhs depth means
-// the runtime structure won't unwrap the wrappers and static resolution would lie
-function descendArrayWrapperInit(receiverNode, depth) {
+// the runtime structure won't unwrap the wrappers and static resolution would lie.
+// when scope/adapter are passed, dereferences const-bound Identifier wrappers via
+// `followConstIdentifierInit` so `const wrapper = [Array]; [v] = wrapper` reaches Array
+function descendArrayWrapperInit(receiverNode, depth, scope = null, adapter = null, path = null) {
   for (let i = 0; i < depth; i++) {
-    if (receiverNode?.type !== 'ArrayExpression') return null;
-    [receiverNode] = receiverNode.elements;
+    let cur = unwrapExpressionChain(receiverNode);
+    if (scope && adapter) cur = followConstIdentifierInit(cur, scope, adapter, path);
+    if (cur?.type !== 'ArrayExpression') return null;
+    [receiverNode] = cur.elements;
   }
   return receiverNode;
+}
+
+// resolve receiver for ArrayPattern-rooted nested destructure: `const [...{from}] = wrapper`
+// or chained `[[{from}]] = wrapper`. walks up ArrayPattern wrappers from the inner ObjectPattern
+// counting depth; descends the host's init slot through Identifier aliases and ArrayExpression
+// layers. returns the leaf constructor name when it's a recognised static placement
+export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, adapter) {
+  let cur = innerObjectPattern;
+  let arrayDepth = 0;
+  while (cur.parentPath?.node?.type === 'ArrayPattern') {
+    cur = cur.parentPath;
+    arrayDepth++;
+  }
+  if (arrayDepth === 0) return null;
+  const host = cur.parentPath;
+  const slot = flattenableHostSlot(host?.node, host);
+  if (!slot) return null;
+  const slotNode = host.node[slot];
+  if (!slotNode) return null;
+  const descended = descendArrayWrapperInit(slotNode, arrayDepth, host.scope, adapter, host);
+  if (!descended) return null;
+  const leaf = unwrapExpressionChain(descended);
+  if (leaf?.type !== 'Identifier') return null;
+  if (isStaticPlacement(leaf.name)) return leaf.name;
+  // polyfill-substituted alias (`_Promise` for `Promise` after the standalone Identifier
+  // visitor ran ahead of destructure dispatch): use the binding's `polyfillHint` to
+  // recover the original constructor name. babel-plugin needs this because AST mutation
+  // happens in-place during visitor traversal - by the time the destructure prop visits,
+  // the wrapper's binding init has already been rewritten from `[Promise]` to `[_Promise]`
+  const hint = adapter.getBinding(host.scope, leaf.name)?.polyfillHint;
+  return hint && isStaticPlacement(hint) ? hint : null;
 }
 
 // per-outerProp memoization: sibling inner-Property visits under the same outer Property
