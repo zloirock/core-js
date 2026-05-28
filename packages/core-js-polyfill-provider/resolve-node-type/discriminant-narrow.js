@@ -344,12 +344,18 @@ export function createDiscriminantNarrow({
   // `for (x = R; ...) { use x; }` - the init slot's AssignmentExpression runs before ANY
   // iteration body, so a use inside the body is preceded by the init assignment. sibling-scan
   // only covers block bodies; without this branch, for-init reassignments slip past and the
-  // narrow-by-assignment falls back to the unrefined declared type
-  function findForInitAssignment(parent, currentKey, targetName) {
+  // narrow-by-assignment falls back to the unrefined declared type.
+  // for-UPDATE slot (`for (w = R1; cond; w = R2) { use w }`) reassigns the binding on every
+  // iteration after the first - the body's narrow can no longer trust init's RHS for iter 2+.
+  // `hasReassignmentBetween` over (init.end, body.start) catches both an `=` AE in `.update`
+  // and any other rebind shape (`++`, `+=`, destructure-LHS)
+  function findForInitAssignment(parent, currentKey, targetName, binding) {
     if (!t.isForStatement(parent.node) || currentKey !== 'body') return null;
-    const { init } = parent.node;
+    const { init, body } = parent.node;
     if (!init || !t.isAssignmentExpression(init)) return null;
-    return assignmentBindsTarget(init, targetName, parent.scope) ? parent.get('init') : null;
+    if (!assignmentBindsTarget(init, targetName, parent.scope)) return null;
+    if (binding && hasReassignmentBetween(binding, init.end, body?.start)) return null;
+    return parent.get('init');
   }
 
   // walk varPath's ancestors looking for an `=` assignment at a preceding-sibling statement
@@ -373,7 +379,7 @@ export function createDiscriminantNarrow({
         const hit = findPrecedingSiblingAssignment({ parent, currentKey: current.key, targetName, binding, varPath });
         if (hit) return hit;
       }
-      const forInit = findForInitAssignment(parent, current.key, targetName);
+      const forInit = findForInitAssignment(parent, current.key, targetName, binding);
       if (forInit) return forInit;
       if (parent.node === limit) return null;
     }

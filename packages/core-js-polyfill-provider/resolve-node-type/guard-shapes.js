@@ -18,7 +18,7 @@
 //     consumed by the test-resolver to narrow `if (isFoo(x)) { ... }` shapes
 //   parseAssertionStatementGuard(sibling, varName)
 //     consumed by the preceding-exit sibling scan for `asserts x is T` statement guards
-import { PRIMITIVES } from './base.js';
+import { PRIMITIVES, peelAssignmentPattern } from './base.js';
 import { TS_EXPR_WRAPPERS, unwrapExpressionChain, unwrapSafeSequenceTail } from '../helpers/ast-patterns.js';
 
 // guard shape builders - single point of truth for the guard descriptor literal
@@ -109,7 +109,9 @@ export function createPredicateGuards({
     if (args?.some(a => a?.type === 'SpreadElement')) return false;
     const targetName = predicate.parameterName.name;
     for (let i = 0; i < params.length; i++) {
-      if (params[i]?.name !== targetName) continue;
+      // peel `AssignmentPattern` so defaulted predicate params (`function isStr(x = ''): x is string`)
+      // still match - the inner Identifier holds the parameterName, not the AssignmentPattern itself
+      if (peelAssignmentPattern(params[i])?.name !== targetName) continue;
       const arg = args?.[i];
       if (!arg) return false;
       const unwrapped = unwrapSafeSequenceTail(arg);

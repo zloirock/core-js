@@ -2,7 +2,6 @@
 // configurable injectors, target resolvers, and the debug-output formatter. These
 // modules are config-layer (no AST involved) so the tests don't go through `runBoth`
 import {
-  KNOWN_REST_KEYS,
   VALID_METHODS,
   VALID_MODES,
   validateOptions,
@@ -30,7 +29,7 @@ const validBase = {
   version: '4.0',
 };
 
-// --- VALID_METHODS / VALID_MODES / KNOWN_REST_KEYS ---
+// --- VALID_METHODS / VALID_MODES ---
 
 check('VALID_METHODS is a Set', VALID_METHODS instanceof Set, true);
 checkTruthy('VALID_METHODS has entry-global', VALID_METHODS.has('entry-global'));
@@ -41,11 +40,6 @@ check('VALID_METHODS rejects unknown', VALID_METHODS.has('unknown-method'), fals
 check('VALID_MODES is a Set', VALID_MODES instanceof Set, true);
 checkTruthy('VALID_MODES has actual', VALID_MODES.has('actual'));
 checkTruthy('VALID_MODES has stable + es + full', VALID_MODES.has('stable') && VALID_MODES.has('es') && VALID_MODES.has('full'));
-
-check('KNOWN_REST_KEYS is a Set', KNOWN_REST_KEYS instanceof Set, true);
-for (const key of ['additionalPackages', 'method', 'mode', 'package', 'version']) {
-  checkTruthy(`KNOWN_REST_KEYS has ${ key }`, KNOWN_REST_KEYS.has(key));
-}
 
 // --- validateOptions: happy path ---
 
@@ -764,5 +758,58 @@ throwsWith('initPluginOptions/multiple unknown keys', () => initPluginOptions({
   bogusA: 1,
   bogusB: 2,
 }), 'Unknown plugin options');
+
+// `validateOptions`'s `...unknown` rest is the single source of truth for known option
+// names. data-driven coverage: for each known option, verify (a) the happy-path value
+// type-checks, and (b) appending `X` to the name produces an `Unknown plugin option`
+// error. if the destructure in `validateOptions` adds/drops a key, this loop catches it
+const HAPPY_PATH_VALUES = {
+  absoluteImports: false,
+  additionalPackages: ['@my/fork'],
+  browserslistEnv: 'production',
+  configPath: '/some/path',
+  debug: false,
+  exclude: ['es.array.at'],
+  ignoreBrowserslistConfig: false,
+  importStyle: 'import',
+  include: ['es.string.at'],
+  method: 'usage-global',
+  mode: 'actual',
+  package: 'core-js',
+  shippedProposals: false,
+  shouldInjectPolyfill: undefined,
+  targets: { ie: 11 },
+  version: '4.0',
+};
+
+const KNOWN_OPTION_NAMES = Object.keys(HAPPY_PATH_VALUES);
+
+// `KNOWN_OPTION_NAMES` doubles as a regression lock: if `validateOptions`'s destructure
+// signature drops or renames any of these, one of the `unknown <name>X` probes below
+// fires (the typo'd name now matches a destructure slot instead of `...unknown`)
+for (const key of KNOWN_OPTION_NAMES) {
+  // happy path - exclude the cross-section conflict (`shouldInjectPolyfill` + `include`)
+  if (key === 'shouldInjectPolyfill') continue;
+  doesNotThrow(`initPluginOptions/known key '${ key }' accepted`,
+    () => initPluginOptions({ ...validBase, [key]: HAPPY_PATH_VALUES[key] }));
+}
+
+for (const key of KNOWN_OPTION_NAMES) {
+  // typo (key + 'X') is NOT in the destructure -> caught by `...unknown`
+  const typo = `${ key }X`;
+  throwsWith(`initPluginOptions/typo '${ typo }' rejected`,
+    () => initPluginOptions({ ...validBase, [typo]: HAPPY_PATH_VALUES[key] }),
+    `Unknown plugin option: ${ typo }`);
+}
+
+// multiple unknown keys at once -> pluralised error
+throwsWith('initPluginOptions/multiple unknown keys pluralised',
+  () => initPluginOptions({ ...validBase, fooX: 1, barX: 2 }),
+  'Unknown plugin options: fooX, barX');
+
+// validateOptions with no args at all - default `= {}` engages, throws on missing `method`
+throwsWith('validateOptions/no args throws on method missing',
+  () => validateOptions(),
+  '`method` must be one of');
 
 finish();
