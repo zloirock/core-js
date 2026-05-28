@@ -1736,7 +1736,7 @@ function checkAdditionalPackagesShapeGuard() {
       counts.failed++;
       echo`${ red('FAIL') } ${ cyan(`additionalPackages/${ label }`) } :: expected throw`;
     } catch (error) {
-      /additionalPackages.*entries.*non-empty.*non-slash/.test(error.message)
+      /additionalPackages\[\d+\].*non-empty.*non-slash|additionalPackages.*must be a string/.test(error.message)
         ? counts.passed++
         : counts.failed++;
     }
@@ -1840,7 +1840,7 @@ function checkUnknownBundlerWarn() {
 checkUnknownBundlerWarn();
 
 // --- snapshot-cache pre-pass-twice warn (gated `debug: true`) ---
-// regression lock for the second warn emitter (`snapshot-cache.js:84`). store() called
+// regression lock for snapshot-cache's duplicate-store warn (`store()`). store() called
 // twice with the same id under `debug: true` must emit exactly one diagnostic. without
 // debug the warn is suppressed (legit dev-server pattern, no noise)
 function checkSnapshotPrePassTwiceWarn() {

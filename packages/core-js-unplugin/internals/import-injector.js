@@ -154,10 +154,10 @@ export default class ImportInjector extends ImportInjectorState {
     let maxSuffix = 1;
     for (const ref of orphanRefs) {
       if (this.#flushedRefs.has(ref)) continue;
-      // validate ORPHAN_REF_PATTERN BEFORE mutating refs/usedNames - the API contract
-      // (line 130 above) only accepts generator-shaped names (`_ref`, `_ref2..N`). a non-
-      // conforming `weirdName` slipping through would join `#refs` and `flush` would
-      // emit `var weirdName;` from a stale snapshot, polluting output
+      // validate ORPHAN_REF_PATTERN BEFORE mutating refs/usedNames - the orphan-adoption
+      // contract only accepts generator-shaped names (`_ref`, `_ref2..N`) that
+      // `generateRefName` produces. a non-conforming `weirdName` slipping through would join
+      // `#refs` and `flush` would emit `var weirdName;` from a stale snapshot, polluting output
       const match = ORPHAN_REF_PATTERN.exec(ref);
       if (!match) continue;
       this.#refs.add(ref);
