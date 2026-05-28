@@ -1,15 +1,15 @@
 core-js@4: `DEBUG` option
 
 Using targets: {
-  "android": "147.0.0",
+  "android": "148.0.0",
   "chrome": "109.0.0",
-  "edge": "146.0.0",
+  "edge": "147.0.0",
   "firefox": "140.0.0",
   "ios": "18.5.0",
   "opera": "127.0.0",
   "opera-android": "80.0.0",
   "safari": "26.3.0",
-  "samsung": "28.0.0"
+  "samsung": "29.0.0"
 }
 
 Using polyfills with `usage-pure` method:
