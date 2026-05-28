@@ -198,32 +198,29 @@ export default class ImportInjector extends ImportInjectorState {
     return survivor;
   }
 
-  // collect every plugin-shape binding across all scopes, grouped by name. first-write-wins
-  // shadow with user's `let _refN` would otherwise mistake the user's binding for the
-  // plugin's, renaming user code. dedupe by identity - re-crawl after replaceWith can
-  // produce duplicate entries reachable through multiple traversal paths
-  #collectPluginShapeBindings() {
+  // single per-program walk feeding BOTH the plugin-shape binding multimap AND the taken-name
+  // set the renamer consults. naive split: two `#forEachScopeBinding` passes (each O(scope-graph))
+  // - folding halves the cost on large modules.
+  // `byName`: dedupe by binding identity (re-crawl after replaceWith can produce duplicate
+  // entries reachable through multiple traversal paths); user's `let _refN` shadow excluded
+  // upstream by the plugin-shape filter.
+  // `taken`: includes program.globals + .references/.uids (mirrors `isNameTaken` allocation
+  // policy) - without them the renumber would collapse `_ref2` back onto `_ref`
+  #indexBindingsAndTakenNames() {
     const byName = new Map();
+    const taken = new Set();
     this.#forEachScopeBinding(([name, binding]) => {
+      taken.add(name);
       if (!ImportInjector.#isPluginShapeBinding(binding)) return;
       let list = byName.get(name);
       if (!list) byName.set(name, list = []);
       if (!list.includes(binding)) list.push(binding);
     });
-    return byName;
-  }
-
-  // every name occupied in the program: scope bindings PLUS program.globals/references/uids
-  // (mirrors `isNameTaken` allocation policy). without these extras, renumbering would
-  // collapse a safely-allocated `_ref2` back onto `_ref`, re-introducing the collision
-  #collectTakenNames() {
-    const taken = new Set();
-    this.#forEachScopeBinding(([name]) => taken.add(name));
     const program = this.#programPath.scope.getProgramParent();
     for (const n of Object.keys(program.globals ?? {})) taken.add(n);
     for (const n of this.#scopeReferences.list(program)) taken.add(n);
     for (const n of this.#scopeUids.list(program)) taken.add(n);
-    return taken;
+    return { byName, taken };
   }
 
   // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
@@ -235,7 +232,7 @@ export default class ImportInjector extends ImportInjectorState {
   pruneUnusedRefs() {
     if (!this.#refs.size) return;
     this.#programPath.scope.crawl();
-    const byName = this.#collectPluginShapeBindings();
+    const { byName, taken } = this.#indexBindingsAndTakenNames();
 
     // step 1: drop unused / dead var declarators per name. three outcomes:
     //   1. no plugin-shape bindings  -> drop from `#refs` only (catch / fn-param shape
@@ -264,7 +261,6 @@ export default class ImportInjector extends ImportInjectorState {
     // owns (releasable: surviving refs + pruned refs whose declarators were just removed).
     // `ownedBindings` = identity set guarding the rename traversal against user's nested
     // `let _ref3` shadow (Identifier visitor checks scope.getBinding matches plugin-owned)
-    const taken = this.#collectTakenNames();
     for (const name of this.#refs) taken.delete(name);
     for (const name of prunedNames) taken.delete(name);
     const ownedBindings = new Set();

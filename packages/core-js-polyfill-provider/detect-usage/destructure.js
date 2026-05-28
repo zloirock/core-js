@@ -456,7 +456,25 @@ function descendArrayWrapperInit(receiverNode, depth) {
   return receiverNode;
 }
 
+// per-outerProp memoization: sibling inner-Property visits under the same outer Property
+// (`{X: {from, of, isArray}} = R` - 3 inner keys all walk through the same outer X) collapse
+// from O(siblings*depth) to O(1) after the first. WeakMap keyed on outerProp.node auto-GCs
+// with the program. positive results ONLY - transient null surfaces mid-rewrite (upstream
+// polyfill import not yet flushed into the injector's hint table, so resolveObjectName fails
+// on `_globalThis` and the leaf walk bails), then a later visit on the same outerProp
+// resolves correctly; caching the null would lock in the bail. positive resolutions are
+// stable - once the chain bottoms out on a real global, AST mutations don't reverse it
+const nestedReceiverCache = new WeakMap();
+
 export function resolveNestedDestructureReceiver(outerProp, adapter) {
+  const cached = nestedReceiverCache.get(outerProp.node);
+  if (cached) return cached;
+  const result = computeNestedDestructureReceiver(outerProp, adapter);
+  if (result) nestedReceiverCache.set(outerProp.node, result);
+  return result;
+}
+
+function computeNestedDestructureReceiver(outerProp, adapter) {
   const keys = [];
   let cur = outerProp;
   // arrayDepth accumulates across iterations - ArrayPattern wrappers between
