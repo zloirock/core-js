@@ -28,7 +28,7 @@
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
-import { collectQualifiedSegments, isQualifiedNameNode } from './ast-shapes.js';
+import { collectQualifiedSegments, isQualifiedNameNode, typeRefName } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { memberKeyName } from '../helpers/class-walk.js';
@@ -62,6 +62,8 @@ export function createMemberResolve({
   resolveTypeAnnotation,
   findTypeMember,
   findTypeDeclaration,
+  findTypeParameter,
+  isKeyofTargeting,
   resolveIndexSignatureValue,
   resolveMemberPropertyName,
   resolveRuntimeExpression,
@@ -347,6 +349,27 @@ export function createMemberResolve({
     return decl && t.isClassDeclaration(decl) ? nodePathInScope(decl, scope, CLASS_PATH_TYPES) : null;
   }
 
+  // runtime analogue of `resolveKeyofSelfValueUnion`: `obj[k]` where `obj: T` (a typeparam)
+  // and `k: keyof T` (direct or constrained) folds T's constraint members into a value-union
+  function resolveKeyofSelfMemberViaTypeParam(path, objAnnotation, objScope) {
+    if (objAnnotation.type !== 'TSTypeReference') return null;
+    const name = typeRefName(objAnnotation);
+    if (!name) return null;
+    const param = findTypeParameter(name, objScope);
+    if (!param?.constraint) return null;
+    const propInfo = findExpressionAnnotation(path.get('property'));
+    const propAnnotation = propInfo && unwrapTypeAnnotation(propInfo.annotation);
+    if (!propAnnotation) return null;
+    if (!isKeyofTargeting(propAnnotation, objAnnotation, propInfo.scope)) return null;
+    const members = getTypeMembers({ objectType: unwrapTypeAnnotation(param.constraint), scope: param.scope });
+    if (!members?.length) return null;
+    const valueAnnotations = members
+      .map(m => m.typeAnnotation ?? m.returnType)
+      .filter(Boolean);
+    if (!valueAnnotations.length) return null;
+    return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, param.scope));
+  }
+
   // computed dynamic-key member access via TSIndexSignature: `obj[k]` where
   // `obj: { [key: string]: V }` resolves to V. unions are peeled (skip null/undefined),
   // first remaining branch's index signature wins. returns Type Object or null
@@ -365,7 +388,8 @@ export function createMemberResolve({
         .map(lookup)
         .find(Boolean)
       : lookup(target);
-    return info ? resolveTypeAnnotation(info.annotation, info.scope) : null;
+    if (info) return resolveTypeAnnotation(info.annotation, info.scope);
+    return resolveKeyofSelfMemberViaTypeParam(path, unwrapped, objInfo.scope);
   }
 
   // --- Runtime dispatch (receiver-aware MemberExpression) ---
@@ -396,6 +420,10 @@ export function createMemberResolve({
     if (t.isObjectExpression(objectPath.node)) {
       const result = resolveObjectMember(objectPath, name, callPath);
       if (result) return result;
+      // prop not declared in the literal: fold module-wide `<binding>.<name> = Y` writes
+      // through the alias closure. anonymous literals get an empty closure and silently bail
+      const flowResult = resolveObjectFieldFlow(objectPath, name, callPath);
+      if (flowResult) return flowResult;
     }
     const ctx = resolveClassContext(objectPath);
     if (ctx) {
