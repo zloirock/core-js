@@ -363,7 +363,25 @@ export function createTypeSubst({
       const refName = typeRefName(node);
       if (!refName) break;
       const decl = findTypeDeclaration(refName, scope);
-      if (!isTypeAlias(decl)) break;
+      if (!isTypeAlias(decl)) {
+        // HKT splice for user-defined F: `type Wrap<F,X> = F<X>` applied as `Wrap<Boxed,...>`.
+        // findTypeDeclaration misses F (it's a typeparam binding, not a top-level decl), so
+        // rewrite the ref through subst and re-enter the loop on Boxed's actual declaration.
+        // built-in F (Array, Promise, ...) takes a separate Type-object path via
+        // applyHigherKindedArgs - no AST body to walk, container identity is the result
+        if (subst?.has(refName)) {
+          const spliced = applyAliasSubstDeep(node, subst);
+          // identity check guards against subst that resolves F to itself (cycle);
+          // depth++ reclaims the iteration consumed by the unproductive lookup
+          if (spliced && spliced !== node
+            && (spliced.type === 'TSTypeReference' || spliced.type === 'GenericTypeAnnotation')) {
+            depth++;
+            node = unwrapTypeAnnotation(spliced);
+            continue;
+          }
+        }
+        break;
+      }
       if (visited.has(decl)) break;
       visited.add(decl);
       // accumulate type parameter substitutions for generic aliases

@@ -244,17 +244,35 @@ export function createClassFields({
   // `<binding>.<name> = ...` external writes (when the literal has a stable binding name).
   // method/getter/function-valued properties defer to `resolveObjectMember` for their existing
   // call/return semantics. anonymous (no binding name) objects: still scan inside-method
-  // writes - external write set is just empty, not unknown. exported objects bail entirely
+  // writes - external write set is just empty, not unknown. exported objects bail entirely.
+  // missing prop (`fieldName` not declared in the literal): no init / this-scan, external
+  // RHS writes alone synthesise the candidate set - sentinel keys the cache by
+  // (objectExpression, fieldName) so distinct missing fields on the same literal don't
+  // share a slot
   let objectFieldTypeCache = new WeakMap();
+  let objectFieldMissingSentinels = new WeakMap();
   function resolveObjectFieldFlow(objectPath, fieldName, callPath) {
     const prop = findObjectMember(objectPath, fieldName);
-    if (!prop) return null;
-    // method-shaped or function-valued -> existing semantics handle call/return correctly
-    if (t.isObjectMethod?.(prop.node)) return resolveObjectMember(objectPath, fieldName, callPath);
-    if (t.isObjectProperty?.(prop.node) && t.isFunction?.(prop.node.value)) {
-      return resolveObjectMember(objectPath, fieldName, callPath);
+    if (prop) {
+      // method-shaped or function-valued -> existing semantics handle call/return correctly
+      if (t.isObjectMethod?.(prop.node)) return resolveObjectMember(objectPath, fieldName, callPath);
+      if (t.isObjectProperty?.(prop.node) && t.isFunction?.(prop.node.value)) {
+        return resolveObjectMember(objectPath, fieldName, callPath);
+      }
     }
-    return resolveFieldFlow(prop.node, objectFieldTypeCache, () => collectObjectFieldCandidates(objectPath, prop, fieldName));
+    const cacheKey = prop ? prop.node : missingFieldSentinel(objectPath.node, fieldName);
+    return resolveFieldFlow(cacheKey, objectFieldTypeCache,
+      () => collectObjectFieldCandidates(objectPath, prop, fieldName));
+  }
+
+  // per-(objectExpression, fieldName) sentinel for the missing-prop cache slot. interned so
+  // repeat queries reuse the same key
+  function missingFieldSentinel(objectNode, fieldName) {
+    let inner = objectFieldMissingSentinels.get(objectNode);
+    if (!inner) objectFieldMissingSentinels.set(objectNode, inner = new Map());
+    let sentinel = inner.get(fieldName);
+    if (!sentinel) inner.set(fieldName, sentinel = {});
+    return sentinel;
   }
 
   // gather every type that could flow into `fieldName` on `objectPath` via the unified
@@ -263,13 +281,17 @@ export function createClassFields({
   // caller treats as no inference. unlike class-side, object-literal aliasing is enumerated
   // through scope references, so trace-through-alias writes are folded into the union too.
   // closure builder's post-build check also catches the export case, so a null closure
-  // subsumes both the historical `isObjectExported` early-bail AND in-walk leak detection
+  // subsumes both the historical `isObjectExported` early-bail AND in-walk leak detection.
+  // `prop` null = missing-field case: init / this-scan hooks skipped, only external writes
+  // contribute
   function collectObjectFieldCandidates(objectPath, prop, fieldName) {
     const closure = computeObjectAliasClosure(objectPath);
     if (!closure) return null;
     return collectFieldCandidates({
-      initPath: t.isObjectProperty?.(prop.node) ? prop.get('value') : null,
-      internalThisScan: candidates => appendThisWritesFor(getInstanceMethodThisWrites(objectPath), fieldName, candidates),
+      initPath: prop && t.isObjectProperty?.(prop.node) ? prop.get('value') : null,
+      internalThisScan: prop
+        ? candidates => appendThisWritesFor(getInstanceMethodThisWrites(objectPath), fieldName, candidates)
+        : null,
       isPrivate: false,
       anchor: objectPath,
       programWritesPush: (program, candidates) => {
@@ -465,6 +487,7 @@ export function createClassFields({
   function reset() {
     classFieldTypeCache = new WeakMap();
     objectFieldTypeCache = new WeakMap();
+    objectFieldMissingSentinels = new WeakMap();
     instanceMethodThisWritesCache = new WeakMap();
     staticMethodThisWritesCache = new WeakMap();
   }
