@@ -55,14 +55,24 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // so function / loop / try / class-static / namespace bodies are covered too; Program-only
 // walk silently bailed destructure-emitter inside non-Program statement lists
 function splitMinifierSequenceDestructure(programPath, t) {
-  function splitInBody(blockPath) {
-    for (const bodyPath of blockPath.get('body')) {
+  function splitStatementList(statementPaths) {
+    for (const bodyPath of statementPaths) {
       const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
       if (expressions) bodyPath.replaceWithMultiple(expressions.map(e => t.expressionStatement(e)));
     }
   }
+  function splitInBody(blockPath) {
+    splitStatementList(blockPath.get('body'));
+  }
   splitInBody(programPath);
-  programPath.traverse({ 'BlockStatement|StaticBlock|TSModuleBlock': splitInBody });
+  // SwitchCase's `consequent` slot hosts the case body statement list; SwitchCase is not in
+  // STATEMENT_LIST_BODY_HOSTS (different slot name) so a separate visitor reaches it
+  programPath.traverse({
+    'BlockStatement|StaticBlock|TSModuleBlock': splitInBody,
+    SwitchCase(path) {
+      splitStatementList(path.get('consequent'));
+    },
+  });
 }
 
 export default function plugin(api, options) {

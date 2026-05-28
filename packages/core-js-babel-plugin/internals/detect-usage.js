@@ -100,14 +100,17 @@ export function createBabelAdapter(getInjector = () => null) {
       if (b) {
         const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
         const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
-        // `info.source !== null` means a registered pure import (from
-        // `registerUserPureImport` or `addPureImport`). only attach the hint when the
-        // actual scope binding IS that import - a user-side function / var with a matching
-        // name shadowing an outer scope's polyfill import would otherwise cross-pollute.
-        // `info.source === null` is a destructure-alias from `registerGlobalAlias` whose
-        // binding shape is intentionally a non-import VariableDeclarator (babel rewrites
-        // `const {Promise} = globalThis` in place) - attach unconditionally for this case
-        const polyfillHint = info ? (info.source === null || isImportBinding ? info.hint : null) : null;
+        // `info.source !== null` means a registered pure import - only attach the hint when
+        // the actual scope binding IS that import. `info.source === null` is a destructure-
+        // alias from `registerGlobalAlias`; the registered binding is always const-destructured
+        // and never reassigned, so gate on (VariableDeclarator AST shape) + (const kind) + (no
+        // constantViolations) - rejects function / class / let-rebind shadows that happen to
+        // share the same name in an inner scope
+        const isAliasBindingShape = info?.source === null
+          && b.path.node?.type === 'VariableDeclarator'
+          && b.kind === 'const'
+          && !b.constantViolations?.length;
+        const polyfillHint = info ? (isAliasBindingShape || isImportBinding ? info.hint : null) : null;
         return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint };
       }
       if (!info) return null;
