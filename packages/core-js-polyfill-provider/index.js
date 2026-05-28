@@ -3,7 +3,6 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import { kebabToPascal } from './helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, safeStringify, validatePatternList } from './helpers/pattern-matching.js';
 import { WINDOWS_UNC_PREFIX_RE, lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
@@ -277,91 +276,37 @@ export function createPolyfillContext({
 
 export const resolve = createMetaResolver(builtInDefinitions);
 
-// reverse map `<head>` -> `<global name>` for entry-path canonical heads. keys an
-// injector-side hint lookup for every pure-bearing global registered via `built-in-definitions`
-// (`Promise`, `Map`, `atob`, `self`, ...) so acronym / mixed-case names (`URL`, `JSON`,
-// `RegExp`, `URIError`, `DOMException`) and bare function-globals (`atob`, `parseInt`,
-// `globalThis`, `structuredClone`) survive `super.X` back-mapping that would otherwise
-// fall through `kebabToPascal` (`url` -> `Url`, `json` -> `Json`, `regexp` -> `Regexp`,
-// `parse-int` -> `ParseInt`).
-// data-driven: one scan over `globals` + `statics`. for `statics`-only owners (Array,
-// JSON, Math, Number, Object, Reflect, RegExp, String, Error) the `head === lower(name)`
-// guard rejects shared heads - Error subclasses all have `error/is-error` deps, but only
-// `Error` itself owns head `error`. Non-matching subclasses fall back to
-// `deriveHintFromKebab` (`eval-error` -> `EvalError`). globals don't need the guard
-// because each pure-bearing global has its own kebab namespace
+// `<entry head>` -> `<global name>`. one pass over pure-bearing entries in
+// `built-in-definitions`; per-class kebab heads in `*.pure.dependencies` make each
+// head unique to one global, so first hit wins. multi-segment entries are method /
+// instance / helper paths (`array/from`, `array/instance/at`) - user's binding is the
+// function, not the class - so `entryToGlobalHint` filters them out before lookup
 const CONSTRUCTOR_TAIL = '/constructor';
-function buildEntryHintIndex({ globals, statics }) {
-  const index = new Map();
 
-  function register(name, deps, requireMatch) {
-    if (!Array.isArray(deps)) return;
-    const lower = requireMatch ? name.toLowerCase() : null;
+function * iterPureDeps({ globals, statics }) {
+  for (const [name, desc] of Object.entries(globals)) yield [name, desc?.pure?.dependencies];
+  for (const [name, methods] of Object.entries(statics)) {
+    for (const desc of Object.values(methods)) yield [name, desc?.pure?.dependencies];
+  }
+}
+
+function buildEntryHintIndex(definitions) {
+  const index = new Map();
+  for (const [name, deps] of iterPureDeps(definitions)) {
+    if (!Array.isArray(deps)) continue;
     for (const dep of deps) {
       if (typeof dep !== 'string') continue;
       const [head] = dep.split('/');
-      if (head && !index.has(head) && (!requireMatch || head === lower)) index.set(head, name);
+      if (head && !index.has(head)) index.set(head, name);
     }
-  }
-
-  for (const [name, desc] of Object.entries(globals)) register(name, desc?.pure?.dependencies, false);
-  for (const [name, methods] of Object.entries(statics)) {
-    for (const desc of Object.values(methods)) register(name, desc?.pure?.dependencies, true);
   }
   return index;
 }
 
 const entryHintIndex = buildEntryHintIndex(builtInDefinitions);
 
-// known global / static-owner name set drives the kebab-fallback validation. without the
-// gate, single-segment helper entries (`get-iterator`, `is-iterable`, `set-immediate`)
-// would map to fabricated `GetIterator` / `IsIterable` / `SetImmediate` "globals" that
-// downstream resolveSuperImportName uses as keys and over-injects polyfills for, even
-// though no such global exists. derived names live in either `globals` (with pure ctor)
-// or `statics` (Math, Array, ...), so the union is the authoritative whitelist
-const KNOWN_GLOBAL_NAMES = new Set([
-  ...Object.keys(builtInDefinitions.globals ?? {}),
-  ...Object.keys(builtInDefinitions.statics ?? {}),
-]);
-
-// kebab-style derivation for entries the index intentionally skips: globals that host
-// pure static methods but have no pure constructor in `built-in-definitions` (Array,
-// JSON, Math, Number, Object, Reflect, RegExp, String, all Error subclasses). their
-// names are kebab-friendly with no acronyms, so `kebabToPascal(head)` produces the
-// correct global. method / instance / helper entries (`promise/try`, `array/from`,
-// `array/instance/at`, ...) return null: the user's binding is the function, not the
-// class, so mapping to a global would make `super.X` on `class extends MyMethod` get
-// polyfilled as if MyMethod were the class - silently "fixing" broken user code the
-// plugin has no business touching. single-segment helper entries (`get-iterator`,
-// `is-iterable`) are filtered through `KNOWN_GLOBAL_NAMES` - the kebab form would derive
-// a plausible-looking PascalCase but downstream over-injects against the fabricated
-// global. numeric-leading segments (`42`) can't be real global identifiers; the
-// uppercase-first guard rejects them
-function deriveHintFromKebab(entry) {
-  const [head, ...rest] = entry.split('/');
-  // multi-segment entries are method / instance / helper paths (`array/from`,
-  // `array/instance/at`) - user binding is the function, not the class. caller's
-  // `entryToGlobalHint` already strips trailing `/constructor` so we never see it here
-  if (rest.length) return null;
-  const hint = kebabToPascal(head);
-  if (!hint || hint[0] < 'A' || hint[0] > 'Z') return null;
-  return KNOWN_GLOBAL_NAMES.has(hint) ? hint : null;
-}
-
-// data-driven primary lookup via `entryHintIndex` covers ALL pure-bearing globals registered
-// from `built-in-definitions`: kebab-friendly names (`Promise`, `Map`, `atob`, `self`) plus
-// acronym / mixed-case forms (`URL`, `URLSearchParams`, `DOMException`) that kebab derivation
-// would mangle. fallback to `deriveHintFromKebab` resolves bare-class user imports for globals
-// without pure ctor (whose pure surface is statics-only - Array.from, Math.cbrt, Object.assign).
-// `resolvePure`'s `hasOwn(desc, 'pure')` gate downstream is the last line of defence
-// against fallback over-injection: hints for globals without any pure surface (Date,
-// Function, Uint8Array, ...) resolve to a name whose `statics[name][key]` either misses
-// or carries no pure variant, so no polyfill is emitted.
-// explicit `<head>/constructor` imports collapse to bare `<head>` for the index lookup -
-// `matchEntrySubpath` already strips `/index` and trailing slashes; `/constructor` is the
-// one suffix the canonicaliser preserves, but for hint resolution it carries no extra info
 export function entryToGlobalHint(entry) {
   if (!entry) return null;
   const canonical = entry.endsWith(CONSTRUCTOR_TAIL) ? entry.slice(0, -CONSTRUCTOR_TAIL.length) : entry;
-  return entryHintIndex.get(canonical) ?? deriveHintFromKebab(canonical);
+  return canonical.includes('/') ? null : entryHintIndex.get(canonical) ?? null;
 }
