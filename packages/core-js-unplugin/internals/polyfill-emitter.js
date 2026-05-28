@@ -123,6 +123,16 @@ export function createPolyfillEmitter({
     return false;
   }
 
+  // `(arr?.member)()` shape: a paren-wrapped optional member as callee of a NON-optional outer
+  // call. parens terminate the optional chain, so a nullish receiver must throw at the call
+  // rather than short-circuit to void 0. `node.optional || hasOptionalChainSegment` catches
+  // both the introducing `?.` and a mid-chain one (`(a?.b.member)()`). shared by
+  // `replaceInstance` (.call shape) and `handleSymbolIterator` (bare get-iterator shape)
+  function isParenLookupOnlyCall(node, parent) {
+    return isCallee(node, parent) && isCalleeWrappedInParens(parent, node)
+      && (node.optional || hasOptionalChainSegment(node)) && !parent.optional;
+  }
+
   // walk the chain to find the first non-polyfillable optional, skipping TS wrappers
   function findChainRoot(node, scope) {
     function makeResult(optionalNode) {
@@ -398,9 +408,20 @@ export function createPolyfillEmitter({
     if (seMode === 'suppress') sideEffects = null;
     const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
-    const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot({
+    const { optionalRoot: resolvedRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot({
       node, parent, isCall, scope: metaPath?.scope,
     });
+    // bare paren-lookup (`(arr?.[Symbol.iterator])()` -> `_getIterator(arr)`): the receiver is
+    // passed verbatim as the sole call arg, so BOTH the null-guard and the receiver's `?.`
+    // deoptionalization must be dropped. the guard would swallow the throw into `void 0`; the
+    // deopt would rewrite `x?.y` -> `x.y` and throw eagerly on null `x` instead of short-
+    // circuiting to undefined like native (and babel emits `_getIterator(x?.y)`). only the
+    // bare (non-`.call`) shape needs this - the instance-method `.call` paren-lookup absorbs
+    // the guard into `(guard binding(_ref)).call(...)`, which still throws via the `.call`
+    // access on `void 0`, so it keeps its root and deopt
+    const bareParenLookup = parenLookupOnly && !replacementIsCall;
+    const optionalRoot = bareParenLookup ? null : resolvedRoot;
+    const effectiveDeopt = bareParenLookup ? null : deoptPositions;
     const rootIsReceiver = rootNode === node.object;
     const optionalRootCapturesIntoRef = optionalRoot && !isBareIdentifier(optionalRoot);
     const isProxyGlobalLeaf = recv.skipNode?.type === 'Identifier'
@@ -435,7 +456,7 @@ export function createPolyfillEmitter({
     const preAllocatedGuardRef = optionalRootCapturesIntoRef ? scopeTracker.genRef() : null;
 
     const built = buildReplacement(binding, objectSrc, {
-      isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
+      isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions: effectiveDeopt,
       optionalCall: isCall && parent.optional, args: argsSrc,
       objectStart: node.object.start,
       preAllocatedGuardRef, sideEffects,
@@ -467,7 +488,7 @@ export function createPolyfillEmitter({
     const hint = createRewriteHint({
       rootRaw,
       guardRef: preAllocatedGuardRef ?? reusedOuterRef,
-      deoptPositions,
+      deoptPositions: effectiveDeopt,
       objectStart: node.object.start,
       absorbsRoot: !!reusedOuterRef,
     });
@@ -497,6 +518,14 @@ export function createPolyfillEmitter({
         ? 'get-iterator' : 'get-iterator-method';
     if (!isEntryNeeded(entry)) return;
     const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
+    // `(arr?.[Symbol.iterator])()`: parens terminate the chain, so native evaluates
+    // `(undefined)()` on nullish receiver and throws TypeError. mark parenLookupOnly so the
+    // bare `_getIterator(recv)` emit drops the `recv == null ? void 0 :` guard that would
+    // otherwise swallow the throw into `void 0` - unlike the instance-method `.call` shape
+    // there is no trailing `.call` to re-trigger it. restores the throw, not the exact error
+    // (native `is not a function` vs polyfill `is not iterable`); exact-message parity would
+    // lose the `this=recv` binding, so both-TypeError is the accepted tradeoff
+    const parenLookupOnly = isParenLookupOnlyCall(node, parent);
     // `sideEffects` carries computed-key SE prefixes peeled by `resolveComputedSymbolKey`
     // (`recv[Symbol[(fn(), 'iterator')]]`). without the carry, the rewrite would discard the
     // whole `Symbol[...]` subtree and silently drop `fn()`. `addInstanceTransform` re-emits
@@ -504,7 +533,7 @@ export function createPolyfillEmitter({
     addInstanceTransform({
       binding, node, parent, metaPath, isCall: isCallParent,
       replacementIsCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
-      sideEffects,
+      sideEffects, parenLookupOnly,
     });
     if (node.property) skipWrappedNode(node.property);
   }
@@ -810,11 +839,7 @@ export function createPolyfillEmitter({
   // members carry optional=false even within an optional chain
 
   function replaceInstance({ binding, node, parent, metaPath, sideEffects }) {
-    const wrappedInParen = isCalleeWrappedInParens(parent, node);
-    const optionalInsideChain = node.optional || hasOptionalChainSegment(node);
-    const isParenLookupOnly = isCallee(node, parent) && wrappedInParen
-      && optionalInsideChain && !parent.optional;
-    if (isParenLookupOnly) {
+    if (isParenLookupOnlyCall(node, parent)) {
       addInstanceTransform({
         binding, node, parent, metaPath, isCall: true, replacementIsCall: true, sideEffects, parenLookupOnly: true,
       });
