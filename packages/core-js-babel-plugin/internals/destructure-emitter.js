@@ -567,6 +567,25 @@ export default function createDestructureEmitter({
       handleParameterDestructure({ prop, kind, entry, hintName });
       return;
     }
+    // transparent wrap between ObjectPattern and host (`const [{from}] = wrapper` -
+    // ArrayPattern peeled): no outer Property to inline a default on, so try flatten
+    // directly. `peelTransparentWrappers` walks the same wrappers inside the flatten
+    // chain walk, so the rewrite reaches the same VariableDeclarator. bail silently
+    // when flatten can't (multi-prop ObjectPattern, complex shape) since there's no
+    // alternative emission path for ArrayPattern-wrapped destructures
+    if (objectPattern.parentPath?.node !== patternParent?.node && kind !== 'instance') {
+      // ArrayPattern wrap + rest sibling: residual rendering would drop the outer
+      // ArrayPattern wrap (`[{_unused, ...rest}] -> {_unused, ...rest}`), and rest would
+      // gather different keys at runtime ([Array]'s {0, length} vs Array's own statics).
+      // unplugin's planDeclarator has the same constraint; keep symmetric bail
+      const hostWrapIsArrayPattern = objectPattern.parentPath?.node?.type === 'ArrayPattern';
+      const hasRest = objectPattern.node.properties.some(
+        p => p.type === 'RestElement' || p.type === 'SpreadElement',
+      );
+      if (hostWrapIsArrayPattern && hasRest) return;
+      tryFlattenNestedProxyDestructure(prop, entry, hintName);
+      return;
+    }
     if (!canTransformDestructuring(prop)) return;
     // export + rest: skip - `_unused` rename would pollute the module's export namespace
     if (objectPattern.node.properties.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')
