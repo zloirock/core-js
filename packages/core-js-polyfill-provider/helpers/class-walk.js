@@ -34,10 +34,15 @@ function isProxyGlobalIdentifierNode({ node, scope, adapter, path }) {
 }
 
 // const-alias chain: `const g = globalThis` -> recurse into the init. reassigned bindings
-// bail (the init-time global identity is no longer guaranteed at the use site)
+// bail (the init-time global identity is no longer guaranteed at the use site). two binding
+// shapes flow in: (a) detect-usage adapter pre-unwraps the VariableDeclarator onto
+// `binding.node`; (b) babelBindingAdapter (in resolve-node-type) passes the raw babel
+// binding where `.node` is the bound Identifier and the declarator lives at `.path.node`.
+// branch on `node.type` so a single predicate covers both shapes
 function followLocalBindingToProxyGlobal(binding, scope, adapter, path) {
   if (binding.constantViolations?.length) return false;
-  const init = unwrapInitForResolution(binding.path?.node?.init);
+  const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+  const init = unwrapInitForResolution(decl?.init);
   if (init?.type !== 'Identifier') return false;
   return isProxyGlobalIdentifierNode({ node: init, scope: binding.path?.scope ?? scope, adapter, path });
 }
