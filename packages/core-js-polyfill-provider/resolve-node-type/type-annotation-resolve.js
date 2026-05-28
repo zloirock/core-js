@@ -533,5 +533,6 @@ export function createTypeAnnotationResolve({
     resolveConstructorCallType,
     resolveKnownContainerType,
     resolveNamedType,
+    isKeyofTargeting,
   };
 }

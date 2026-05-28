@@ -119,3 +119,21 @@ export function isTypeQueryOverImportType(node) {
 export function isBareUndefinedIdentifier(node) {
   return node?.type === 'Identifier' && node.name === 'undefined';
 }
+
+// wide-open keyword annotations: `any` / `unknown` / `object` / Flow `any` / `mixed`.
+// `resolveTypeAnnotation` collapses each to null (too broad to narrow polyfills); callers
+// that have a secondary inference channel (guard-based narrowing, RHS-write flow) treat
+// these as "user didn't pin a shape" instead of "give up". excludes `TSTypeLiteral` -
+// `{ x: number }` is structurally closed even though `resolveTypeAnnotation` also returns
+// null for it
+export const OPEN_KEYWORD_ANNOTATION_TYPES = new Set([
+  'TSAnyKeyword',
+  'TSUnknownKeyword',
+  'TSObjectKeyword',
+  'AnyTypeAnnotation',
+  'MixedTypeAnnotation',
+]);
+
+export function isOpenKeywordAnnotation(node) {
+  return OPEN_KEYWORD_ANNOTATION_TYPES.has(node?.type);
+}
