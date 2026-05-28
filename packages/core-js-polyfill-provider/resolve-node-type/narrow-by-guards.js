@@ -13,6 +13,7 @@
 // narrow; mutation inside a nested captured function also invalidates (deferred calls
 // may fire between the guard and the usage)
 import { peelLabeledStatementNode } from '../helpers/ast-patterns.js';
+import { OPEN_KEYWORD_ANNOTATION_TYPES } from './ast-shapes.js';
 import { $Object, $Primitive, PRIMITIVES } from './base.js';
 
 export function createNarrowByGuards({
@@ -199,20 +200,10 @@ export function createNarrowByGuards({
     });
   }
 
-  // annotation shapes that map to an arbitrary object / mixed-content surface. typeof /
-  // instanceof legitimately refines these to a concrete type; anything outside the set is
-  // already concrete enough that guard-based refinement would over-narrow.
   // utility-type names (`Record` / `Partial` / `Readonly` / `Required` / `NonNullable`)
-  // wrap arbitrary object surfaces; distributive utilities (`Pick` / `Omit` / `Exclude` /
-  // `Extract`) name a concrete sub-shape and stay outside this set
-  const OPEN_OBJECT_LIKE_ANNOTATION_TYPES = new Set([
-    'TSUnknownKeyword',
-    'TSAnyKeyword',
-    'TSObjectKeyword',
-    'AnyTypeAnnotation',
-    'MixedTypeAnnotation',
-  ]);
-
+  // wrap arbitrary object surfaces and refine the same way keyword opens do; distributive
+  // utilities (`Pick` / `Omit` / `Exclude` / `Extract`) name a concrete sub-shape and stay
+  // outside this set. keyword set lives in `ast-shapes` to share with class-object-member
   const OPEN_UTILITY_TYPE_NAMES = new Set([
     'Record',
     'Partial',
@@ -228,7 +219,7 @@ export function createNarrowByGuards({
   }
 
   function isOpenAnnotation(node) {
-    return OPEN_OBJECT_LIKE_ANNOTATION_TYPES.has(node?.type)
+    return OPEN_KEYWORD_ANNOTATION_TYPES.has(node?.type)
       || OPEN_UTILITY_TYPE_NAMES.has(utilityTypeRefName(node));
   }
 
