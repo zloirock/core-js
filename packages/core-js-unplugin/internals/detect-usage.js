@@ -176,12 +176,18 @@ export function createEstreeAdapter(getInjector = () => null) {
       // statics, so the rewrite avoids a runtime undefined-call crash.
       // shadow guard (symmetric with babel-plugin): `info.source !== null` means a
       // registered pure import - only attach `polyfillHint` when the actual scope binding
-      // IS an import too. `info.source === null` is a destructure-alias (synthetic, no
-      // standalone import) and attaches unconditionally
+      // IS an import too. `info.source === null` is a destructure-alias from
+      // `registerGlobalAlias`; the registered binding is always const-destructured and
+      // never reassigned, so gate on (VariableDeclarator) + (const) + (no constantViolations)
+      // - rejects function / class / let-rebind shadows that share the alias name
       const info = getInjector()?.getBindingInfo?.(name) ?? null;
       const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
       const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
-      const polyfillHint = info ? (info.source === null || isImportBinding ? info.hint : null) : null;
+      const isAliasBindingShape = info?.source === null
+        && b.path.node?.type === 'VariableDeclarator'
+        && b.kind === 'const'
+        && !b.constantViolations?.length;
+      const polyfillHint = info ? (isAliasBindingShape || isImportBinding ? info.hint : null) : null;
       return {
         node: b.path.node,
         constantViolations: b.constantViolations,
