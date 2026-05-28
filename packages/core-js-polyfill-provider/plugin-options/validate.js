@@ -3,6 +3,23 @@
 // from masking the primary error with a secondary stringify/getter crash
 import { safeStringify, validatePatternList } from '../helpers/pattern-matching.js';
 
+// accepts `Object.create(null)` alongside `Object.prototype`-backed objects.
+// throwing Proxy `getPrototypeOf` -> conservatively NOT plain (falls through to ctor-named path)
+function isPlainObject(value) {
+  if (typeof value !== 'object' || value === null) return false;
+  try {
+    const proto = Object.getPrototypeOf(value);
+    return proto === null || proto === Object.prototype;
+  } catch {
+    return false;
+  }
+}
+
+// null/undefined symmetric so conditional spread (`{ debug: cond ? true : null }`) clears
+function isEmpty(v) {
+  return v === null || v === undefined;
+}
+
 // JSON.stringify drops/null-renders BigInt, NaN, Infinity, Symbol, function - explicit
 // branches for those so the diagnostic stays distinguishable
 function formatReceived(value) {
@@ -33,23 +50,6 @@ function optionTypeError(name, expected, received) {
   return new TypeError(`[core-js] \`${ name }\` must be ${ expected } (received ${ formatReceived(received) })`);
 }
 
-// null/undefined symmetric so conditional spread (`{ debug: cond ? true : null }`) clears
-function isEmpty(v) {
-  return v === null || v === undefined;
-}
-
-// accepts `Object.create(null)` alongside `Object.prototype`-backed objects.
-// throwing Proxy `getPrototypeOf` -> conservatively NOT plain (falls through to ctor-named path)
-function isPlainObject(value) {
-  if (typeof value !== 'object' || value === null) return false;
-  try {
-    const proto = Object.getPrototypeOf(value);
-    return proto === null || proto === Object.prototype;
-  } catch {
-    return false;
-  }
-}
-
 export const VALID_METHODS = new Set(['entry-global', 'usage-global', 'usage-pure']);
 export const VALID_MODES = new Set(['es', 'stable', 'actual', 'full']);
 
@@ -78,15 +78,6 @@ function expectPackageName(label, value) {
   }
 }
 
-// must stay in sync with the `...rest` destructure in `initPluginOptions`
-export const KNOWN_REST_KEYS = new Set([
-  'additionalPackages',
-  'method',
-  'mode',
-  'package',
-  'version',
-]);
-
 export function validateOptions({
   absoluteImports,
   additionalPackages,
@@ -104,7 +95,15 @@ export function validateOptions({
   shouldInjectPolyfill,
   targets,
   version,
-}) {
+  ...unknown
+} = {}) {
+  // the destructure above is the single source of truth for known option names; the
+  // `...unknown` rest catches anything else. surfacing typos here (`excludex`) gives
+  // users a clearer error than the downstream `expectOptional` would
+  const unknownKeys = Object.keys(unknown);
+  if (unknownKeys.length) {
+    throw new TypeError(`[core-js] Unknown plugin option${ unknownKeys.length > 1 ? 's' : '' }: ${ unknownKeys.join(', ') }`);
+  }
   expectEnum('method', VALID_METHODS, method);
   expectEnum('mode', VALID_MODES, mode, { required: false });
   if (!isEmpty(importStyle) && importStyle !== 'import' && importStyle !== 'require') {
