@@ -39,7 +39,11 @@ import {
   symbolKeyToEntry,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
-import { findProxyGlobal, resolveObjectName as sharedResolveObjectName } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  findProxyGlobal,
+  isStaticPlacement,
+  resolveObjectName as sharedResolveObjectName,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isViableBranchForKey, walkStaticReceiverChain } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
@@ -604,8 +608,11 @@ export function createDestructureEmitter({
   //     for proxy-global receivers since runtime value is always defined under polyfill-wins
   // mirrors provider-side `peelDestructureWrappers` + `descendArrayWrapperInit`. bail
   // (stop iterating) on depth divergence or non-array intermediate - downstream shape
-  // check will reject ambiguous shapes
-  function peelArrayWrapperPair(pattern, initSource) {
+  // check will reject ambiguous shapes. when scope is passed, dereferences const-bound
+  // Identifier init through its binding so `const wrapper = [Array]; const [{x}] = wrapper`
+  // descends to the leaf via the wrapper's init
+  function peelArrayWrapperPair(pattern, initSource, scope = null) {
+    const visited = new Set();
     for (;;) {
       // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
       // equivalent (defaults sit on the LHS slot), so we only peel pattern here
@@ -613,10 +620,24 @@ export function createDestructureEmitter({
         pattern = pattern.left;
         continue;
       }
-      if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1
-        || initSource?.type !== 'ArrayExpression') return { pattern, initSource };
+      if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1) {
+        return { pattern, initSource };
+      }
+      let effectiveInit = initSource;
+      // dereference const-bound Identifier (`= wrapper` where `const wrapper = [Array]`)
+      if (scope) {
+        while (effectiveInit?.type === 'Identifier' && !visited.has(effectiveInit.name)) {
+          visited.add(effectiveInit.name);
+          const binding = estreeAdapter.getBinding(scope, effectiveInit.name);
+          if (!binding || binding.constantViolations?.length) break;
+          const bindingInit = binding.path?.node?.init ?? binding.node?.init;
+          if (!bindingInit) break;
+          effectiveInit = bindingInit;
+        }
+      }
+      if (effectiveInit?.type !== 'ArrayExpression') return { pattern, initSource };
       const [innerPattern] = pattern.elements;
-      const [innerInit] = initSource.elements;
+      const [innerInit] = effectiveInit.elements;
       if (!innerPattern || !innerInit) return { pattern, initSource };
       pattern = innerPattern;
       initSource = innerInit;
@@ -633,7 +654,9 @@ export function createDestructureEmitter({
   function planDeclarator(declarator, scope) {
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
-    const { pattern, initSource } = peelArrayWrapperPair(declarator.id, declarator.init);
+    const originalId = declarator.id;
+    const { pattern, initSource } = peelArrayWrapperPair(originalId, declarator.init, scope);
+    const arrayPeelHappened = pattern !== originalId;
     if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
@@ -643,6 +666,17 @@ export function createDestructureEmitter({
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
         const outerProps = pattern.properties.map(planOuterProp);
         if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern };
+      } else if (receiver && isStaticPlacement(receiver)) {
+        // receiver is a known constructor (`Array` / `Map` / ...): pattern's properties
+        // are direct method extractions, mirror `planOuterProp`'s constructor-name dispatch.
+        // bail when ArrayPattern peel happened AND there's a rest sibling - residual
+        // rendering can't currently re-wrap into `[{...rest}]` and would emit a
+        // semantically-different `{...rest}` shape (rest gathers different keys)
+        const hasRest = pattern.properties.some(p => p.type === 'RestElement');
+        if (!(arrayPeelHappened && hasRest)) {
+          const outerProps = pattern.properties.map(p => planInnerProp(p, receiver));
+          if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern };
+        }
       } else if (init) {
         const outerProps = pattern.properties.map(p => planOuterPropStatic({
           outerProp: p, hostInit: init, path: [], scope,
@@ -1303,15 +1337,31 @@ export function createDestructureEmitter({
     }
     // peel inner-default AssignmentPattern (`{ Foo: { x } = {} } = R`) so the nested-flatten
     // path fires for the same shape as the bare `{ Foo: { x } } = R` form
-    let outerHost = metaPath.parentPath?.parentPath;
+    const directParent = metaPath.parentPath?.parentPath;
+    let outerHost = directParent;
     if (outerHost?.node?.type === 'AssignmentPattern'
         && outerHost.node.left === metaPath.parentPath?.node) {
+      outerHost = outerHost.parentPath;
+    }
+    // peel single-element ArrayPattern wrapper (`[{x}] = R`) - transparent passthrough,
+    // walker drops the whole declaration anyway. `walkUpNestedDestructureToDeclaration`
+    // recognises ArrayPattern as an intermediate so the chain still resolves
+    if (outerHost?.node?.type === 'ArrayPattern'
+        && outerHost.node.elements?.length === 1
+        && outerHost.node.elements[0] === metaPath.parentPath?.node) {
       outerHost = outerHost.parentPath;
     }
     if (outerHost?.node?.type === 'Property') {
       if (tryFlattenNestedProxy(metaPath)) return;
       if (tryFlattenAssignmentExpression(metaPath)) return;
       return handleParameterDestructurePure(meta, metaPath, propNode);
+    }
+    // transparent wrap between ObjectPattern and host (ArrayPattern / AssignmentPattern):
+    // no outer Property to inline default on, so flatten-or-bail. tryFlattenNestedProxy
+    // walks the same wrappers internally via the shared intermediate set
+    if (directParent?.node !== outerHost?.node) {
+      if (tryFlattenNestedProxy(metaPath)) return;
+      return;
     }
     if (propNode.value?.type === 'Identifier'
         && injector.hasGeneratedUnusedName(propNode.value.name)) return;

@@ -60,7 +60,7 @@ export function createAwaited({
   buildSubstMap,
   findClassMember,
   isMethodMember,
-  methodFnPath,
+  isPropertyMember,
   getTypeMembers,
   keyMatchesName,
   findExpressionAnnotation,
@@ -356,33 +356,31 @@ export function createAwaited({
     return functionTypeParams(fnType)?.[0];
   }
 
-  // extract the `cb` parameter from a `then` interface member. method-form
-  // (`then(cb: (v:T) => ...)`) lands in TSMethodSignature - cb at `parameters[0]`.
-  // property-form (`then: (cb: (v:T) => ...) => ...`) lands in TSPropertySignature with
-  // its TSFunctionType under typeAnnotation - peel via `firstParamOfFnTypeAnnotation`
-  function interfaceThenCbParam(member) {
-    if (member?.type === 'TSMethodSignature') return functionTypeParams(member)?.[0];
-    if (member?.type === 'TSPropertySignature') return firstParamOfFnTypeAnnotation(member.typeAnnotation);
+  // extract the `cb` parameter from a `then` member. covers all shapes returned by both
+  // direct class-body walks and `getTypeMembers`:
+  //   - TSMethodSignature  (`then(cb: ...)` in iface)   -> functionTypeParams[0]
+  //   - TSPropertySignature (`then: (cb: ...) => ...`)  -> peel TSFunctionType, [0]
+  //   - ClassMethod / MethodDefinition (`then(cb)`)     -> ESTree node.value.params[0]
+  //                                                        babel node.params[0]
+  //   - ClassProperty / PropertyDefinition (`then!: (cb) => ...`) -> peel TSFunctionType
+  // class shapes appear in the fall-through path when a type alias resolves to a user
+  // Thenable class - `getTypeMembers` walks the class body and returns native shapes
+  function memberThenCbParam(member) {
+    if (!member) return null;
+    if (member.type === 'TSMethodSignature') return functionTypeParams(member)?.[0];
+    if (member.type === 'TSPropertySignature') return firstParamOfFnTypeAnnotation(member.typeAnnotation);
+    if (isMethodMember(member)) return (member.value ?? member).params?.[0];
+    if (isPropertyMember(member)) return firstParamOfFnTypeAnnotation(member.typeAnnotation);
     return null;
-  }
-
-  // extract the `cb` parameter from a `then` class member. method-form
-  // (`then(cb)`) is a ClassMethod / MethodDefinition - unwrap via `methodFnPath` to
-  // the inner FunctionExpression and read `params[0]`. property-form
-  // (`then!: (cb) => ...`) is a ClassProperty / PropertyDefinition with TSFunctionType
-  // annotation - peel via `firstParamOfFnTypeAnnotation`
-  function classThenCbParam(memberPath) {
-    if (isMethodMember(memberPath.node)) return methodFnPath(memberPath).node.params?.[0];
-    return firstParamOfFnTypeAnnotation(memberPath.node.typeAnnotation);
   }
 
   // structural Thenable peel (V4-AWAIT-2): `await x` where x has `then(cb: (v: T) => ...): any`
   // resolves to T per TS Thenable contract. plugin's named-PROMISE_SYNONYMS covers Promise /
   // PromiseLike / Thenable aliases but misses user classes / interfaces with structural .then.
-  // class path via `findClassMember` (handles babel + ESTree shapes); interface path iterates
-  // substituted members via `getTypeMembers`. both method-form and property-form `then`
-  // accepted on either side - cb extraction routed through `classThenCbParam` /
-  // `interfaceThenCbParam`, both ending in `cbFirstArgAnnotation` for the inner value type
+  // class path via `findClassMember` (handles babel + ESTree shapes); fall-through via
+  // `getTypeMembers` covers type-aliases pointing to a user class - members come back in
+  // their native node shape (ClassMethod / MethodDefinition / TSMethodSignature / ...),
+  // unified through `memberThenCbParam`. both sides end in `cbFirstArgAnnotation`
   function peelUserThenable(annotation, scope) {
     // accept qualified-name TSTypeReference (`NS.MyThenable<T>`): downstream
     // `findClassPathForTypeReference` and `getTypeMembers` both resolve qualified
@@ -393,7 +391,7 @@ export function createAwaited({
       const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
       const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
       if (found) {
-        const valueAnn = cbFirstArgAnnotation(classThenCbParam(found.member));
+        const valueAnn = cbFirstArgAnnotation(memberThenCbParam(found.member.node));
         if (valueAnn) return resolveTypeAnnotation(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
       }
       // class body lacks `then` - fall through to interface-path because TS
@@ -403,7 +401,7 @@ export function createAwaited({
     }
     const members = getTypeMembers({ objectType: annotation, scope });
     const thenMember = members?.find(m => keyMatchesName(m.key, 'then'));
-    const valueAnn = cbFirstArgAnnotation(interfaceThenCbParam(thenMember));
+    const valueAnn = cbFirstArgAnnotation(memberThenCbParam(thenMember));
     return valueAnn ? resolveTypeAnnotation(valueAnn, scope) : null;
   }
 

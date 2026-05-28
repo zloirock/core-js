@@ -122,10 +122,12 @@ export function peelChainAssignmentDeep(node) {
 // returns array of outermost AssignmentExpression nodes encountered, in source order.
 // shared between top-level (`(a = Array).from(x)`) and mid-chain (`((a = globalThis)
 // .Array).from(x)`) cases - top-level walks one iteration; mid-chain walks down through
-// the .object levels until a non-member root surfaces
+// the .object levels until a non-member root surfaces. SE-prefix wrapping the chain-assign
+// (`(prefix(), (a = Array)).from(x)`) is peeled to the tail at each hop - prefix effects
+// are captured separately upstream by `unwrapParensCollectingEffects` in `buildMemberMeta`
 function collectChainAssignsThroughMemberChain(receiverNode) {
   const collected = [];
-  let cur = unwrapParens(receiverNode);
+  let cur = peelReceiverSequenceTail(receiverNode);
   while (cur) {
     const { outer } = peelChainAssignment(cur);
     if (outer) {
@@ -137,20 +139,21 @@ function collectChainAssignsThroughMemberChain(receiverNode) {
       return collected;
     }
     if (cur?.type !== 'MemberExpression' && cur?.type !== 'OptionalMemberExpression') break;
-    cur = unwrapParens(cur.object);
+    cur = peelReceiverSequenceTail(cur.object);
   }
   return collected;
 }
 
-// prepend chain-assignment receiver as a side effect for static-method dispatch:
+// append chain-assignment receivers as side effects for static-method dispatch:
 // `(a = Array).from(x)` -> emit `(a = Array, _Array$from)(x)`. mid-chain shapes like
 // `((a = globalThis).Array).from(x)` also surface their assignments to the SE channel.
-// callers pass an already-unwrapped receiver node (parens / TS / ChainExpression peeled).
-// returns `baseEffects` unchanged when no chain-assign found
+// SE prefix in `baseEffects` runs BEFORE the SE-tail chain-assign per source order, so
+// `baseEffects` are emitted first; `(prefix(), (a = Array)).from(x)` keeps prefix() ahead
+// of `a = Array` in the prelude. returns `baseEffects` unchanged when no chain-assign found
 export function prependChainAssignmentEffect(receiverNode, baseEffects) {
   const collected = collectChainAssignsThroughMemberChain(receiverNode);
   if (!collected.length) return baseEffects;
-  return baseEffects?.length ? [...collected, ...baseEffects] : collected;
+  return baseEffects?.length ? [...baseEffects, ...collected] : collected;
 }
 
 export function isStaticPlacement(name) {
