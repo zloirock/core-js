@@ -283,6 +283,24 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       : result;
   }
 
+  // classify a (possibly TS-wrapped) member path's relationship to its enclosing call:
+  //   - `callerPath`: the path past transparent TS / paren wrappers (the real callee)
+  //   - `parent`: that caller path's parent node
+  //   - `isCall`: whether `callerPath` is the callee of an enclosing call expression
+  //   - `isParenLookupOnly`: the `(arr?.member)()` shape - a parenthesized optional member as
+  //     callee of a NON-optional outer call. parens terminate the optional chain, so a nullish
+  //     receiver must throw at the outer call instead of short-circuiting to void 0. shared by
+  //     `replaceInstanceLike` (.call shape) and `replaceCallWithSimple` (bare get-iterator shape)
+  function classifyCallerContext(path) {
+    const callerPath = unwrapTSExpressionParent(path);
+    const { parent } = callerPath;
+    const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
+      && parent.callee === callerPath.node;
+    const isParenLookupOnly = isCall && !t.isOptionalCallExpression(parent)
+      && isWrappedInParens(path) && path.isOptionalMemberExpression();
+    return { callerPath, parent, isCall, isParenLookupOnly };
+  }
+
   // parenthesized optional member followed by a NON-optional outer call: `(arr?.includes)(1)`.
   // native semantics:
   //   - arr nullish: `(undefined)(1)` -> TypeError ("not a function") - chain ENDS at `?.`,
@@ -311,12 +329,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       if (peeled !== path.node.object) path.node.object = peeled;
     }
     const effectiveSE = seMode === 'suppress' ? null : sideEffects;
-    const callerPath = unwrapTSExpressionParent(path);
-    const { parent } = callerPath;
-    const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
-      && parent.callee === callerPath.node;
-    const isParenLookupOnly = isCall && !t.isOptionalCallExpression(parent)
-      && isWrappedInParens(path) && path.isOptionalMemberExpression();
+    const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
     const [check, object, embed] = extractCheck(path, skipOptional);
     if (isParenLookupOnly) {
       // build `(check == null ? void 0 : _id(_ref = obj)).call(_ref, ...args)` so:
@@ -347,9 +360,27 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   }
 
   function replaceCallWithSimple(path, id, skipOptional, sideEffects) {
-    const [check, object, embed] = extractCheck(path, skipOptional);
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
-    const callerPath = unwrapTSExpressionParent(path);
+    const { callerPath, isParenLookupOnly } = classifyCallerContext(path);
+    // `(arr?.[Symbol.iterator])()`: parens terminate the optional chain, so on nullish `arr`
+    // native evaluates `(undefined)()` and throws TypeError - the standard `check == null ?
+    // void 0 : _id(arr)` ternary would instead yield `void 0` and swallow the throw (unlike
+    // `replaceInstanceLike`'s sibling case, there is no trailing `.call` to re-trigger the
+    // throw on the void 0). emit the bare `_id(receiver)` so the polyfill call throws on
+    // nullish. caveat: this restores the throw, not the exact error - native throws a
+    // call-time `is not a function`, `getIterator(null)` throws `is not iterable`. exact-
+    // message parity is unreachable: the only emit matching native's message calls the bare
+    // method without `.call`, which drops the `this=receiver` binding the parens preserve and
+    // breaks the success case. both are TypeError - same accepted tradeoff as the instance-
+    // method paren-lookup. receiver is the sole arg (evaluated once), inner `?.` stays intact,
+    // so no memoization / null-guard is needed
+    if (isParenLookupOnly) {
+      callerPath.parentPath.replaceWith(
+        withSideEffects(t.callExpression(id, [t.cloneNode(path.node.object)]), sideEffects),
+      );
+      return;
+    }
+    const [check, object, embed] = extractCheck(path, skipOptional);
     replaceAndWrap({
       replacePath: callerPath.parentPath,
       // wrap with the caller's accumulated `sideEffects` (e.g. computed-key SE from
