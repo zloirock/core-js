@@ -526,15 +526,16 @@ export function isTransparentDestructureWrapper(parentNode, childNode) {
   return false;
 }
 
-// chain assignment `foo = X` evaluates to `X` at runtime - peel through these to find the
-// destructure receiver. peel only when LHS is a simple Identifier:
+// chain assignment `foo = X` / `obj.foo = X` evaluates to `X` at runtime - peel through
+// these to find the destructure receiver. peel only `=` with Identifier or MemberExpression
+// LHS:
 //  - compound `+=` / `||=` produce arithmetic / logical results, not constructor candidates
 //  - destructure-LHS `{from: b} = X` is an inner destructure assignment that gets rewritten
 //    independently; peeling through it would race with that rewrite
 export function isChainAssignment(node) {
-  return node?.type === 'AssignmentExpression'
-    && node.operator === '='
-    && node.left?.type === 'Identifier';
+  if (node?.type !== 'AssignmentExpression' || node.operator !== '=') return false;
+  const lt = node.left?.type;
+  return lt === 'Identifier' || lt === 'MemberExpression' || lt === 'OptionalMemberExpression';
 }
 
 // destructure-receiver slot on a wrapper node:
