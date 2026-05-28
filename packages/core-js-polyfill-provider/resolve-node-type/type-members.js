@@ -23,6 +23,7 @@ import {
 import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
+  memoize,
   unwrapTypeAnnotation,
   peelTSParenthesized,
   isNullableOrNeverAnnotation,
@@ -111,7 +112,22 @@ export function createTypeMembers({
     return buildSubstMap(decl.typeParameters?.params, receiverArgs);
   }
 
-  function getTypeMembers({ objectType, scope, depth = 0, visited = undefined }) {
+  // memoize `(objectType, scope)` -> members. without it every `findTypeMember` re-walks
+  // alias-chain + extends + intersection + structure-preserving wrappers for the same
+  // objectType (a class with N inherited ifaces re-collects all N per member lookup).
+  // visited-walks (cycle-guard interface-merging recursion) bypass: results depend on the
+  // caller's seen set, so a no-cycle cached entry could leak through to subsequent walks
+  // that need cycle protection
+  let getTypeMembersCache = new WeakMap();
+  function getTypeMembers(args) {
+    if (args.visited) return computeGetTypeMembers(args);
+    const { objectType, scope } = args;
+    let perObject = getTypeMembersCache.get(objectType);
+    if (!perObject) getTypeMembersCache.set(objectType, perObject = new WeakMap());
+    return memoize(perObject, scope, () => computeGetTypeMembers(args));
+  }
+
+  function computeGetTypeMembers({ objectType, scope, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
@@ -543,8 +559,13 @@ export function createTypeMembers({
     return null;
   }
 
+  function reset() {
+    getTypeMembersCache = new WeakMap();
+  }
+
   return {
     findTypeMember,
     getTypeMembers,
+    reset,
   };
 }
