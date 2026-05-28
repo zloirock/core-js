@@ -2,8 +2,9 @@ import "core-js/modules/es.symbol.constructor";
 import "core-js/modules/es.symbol.description";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.string.at";
-// computed property key with a Symbol literal key prevents static lookup of `obj.items` shape;
-// the surrounding `Symbol()` call still triggers symbol constructor + description polyfills
+// computed `[items]` with Symbol-typed binding is disjoint from string key `items` per ECMA-262,
+// so `obj.items` reads `'hello'` -> emits `es.string.at` (not `es.array.at`).
+// `Symbol()` call still triggers symbol constructor + description polyfills
 const items = Symbol();
 const obj = {
   items: 'hello',
