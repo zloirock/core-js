@@ -235,12 +235,16 @@ export function checkTypeAnnotations(node, onGlobal) {
   if (node.returnType) walkTypeAnnotationGlobals(node.returnType, onGlobal);
   if (node.params) {
     for (const param of node.params) {
-      const p = param.type === 'AssignmentPattern' ? param.left : param;
-      if (p.typeAnnotation) walkTypeAnnotationGlobals(p.typeAnnotation, onGlobal);
+      // `TSParameterProperty` wraps `constructor(public m: Map<...>)` shapes - the actual
+      // annotation lives on `.parameter`, which may itself be an `AssignmentPattern` for
+      // defaulted parameter properties (`constructor(public m: Map<...> = new Map())`)
+      const peeled = param.type === 'TSParameterProperty' ? param.parameter : param;
+      const p = peeled?.type === 'AssignmentPattern' ? peeled.left : peeled;
+      if (p?.typeAnnotation) walkTypeAnnotationGlobals(p.typeAnnotation, onGlobal);
       // RestElement parser divergence: babel puts `typeAnnotation` directly on the rest
       // element (covered above); oxc TS-ESTree places it on the inner `argument` (Identifier).
       // check both slots so `function f(...args: Array<Foo>)` detects Foo on both parsers
-      if (p.type === 'RestElement' && p.argument?.typeAnnotation) {
+      if (p?.type === 'RestElement' && p.argument?.typeAnnotation) {
         walkTypeAnnotationGlobals(p.argument.typeAnnotation, onGlobal);
       }
     }

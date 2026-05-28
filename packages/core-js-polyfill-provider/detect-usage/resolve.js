@@ -129,10 +129,13 @@ function collectChainAssignsThroughMemberChain(receiverNode) {
   while (cur) {
     const { outer } = peelChainAssignment(cur);
     if (outer) {
+      // outer AE's runtime evaluation covers any nested chain-assigns in its RHS, so
+      // returning here keeps each AE in the emitted prelude exactly once - descending
+      // through `.object` after collecting `outer` would re-surface the inner AE and
+      // double-evaluate its side-effecting initializer
       collected.push(outer);
-      cur = peelChainAssignmentDeep(cur);
+      return collected;
     }
-    cur = unwrapParens(cur);
     if (cur?.type !== 'MemberExpression' && cur?.type !== 'OptionalMemberExpression') break;
     cur = unwrapParens(cur.object);
   }
