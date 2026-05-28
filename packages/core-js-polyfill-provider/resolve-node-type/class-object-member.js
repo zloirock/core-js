@@ -24,6 +24,7 @@
 //   isMethodMember(node)
 //   isPropertyMember(node)
 import { $Object, MAX_DEPTH, nodePathInScope } from './base.js';
+import { isOpenKeywordAnnotation } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 
 const NAMESPACE_FN_PATH_TYPES = ['FunctionDeclaration', 'TSDeclareFunction'];
@@ -242,7 +243,13 @@ export function createClassObjectMember({
     // property access: foo.bar or foo.#bar
     if (isPropertyMember(member.node)) {
       if (member.node.typeAnnotation) {
-        return resolveTypeAnnotation(classSubstInner(member.node.typeAnnotation, classSubst), member.scope);
+        const inner = classSubstInner(member.node.typeAnnotation, classSubst);
+        const resolved = resolveTypeAnnotation(inner, member.scope);
+        if (resolved) return resolved;
+        // open keyword annotation (`any` / `unknown` / `object` / Flow mixed) lets the
+        // RHS-write flow scan still pin a concrete runtime type
+        if (isOpenKeywordAnnotation(unwrapTypeAnnotation(inner))) return resolveClassFieldType(member);
+        return null;
       }
       return resolveClassFieldType(member);
     }
