@@ -78,6 +78,22 @@ function expectPackageName(label, value) {
   }
 }
 
+// shared package-shape validation: `package` + each `additionalPackages` entry. consumed by
+// `validateOptions` (plugin-options layer) AND `createPolyfillContext`'s defensive guard for
+// direct callers that bypass plugin-options, so both surface the identical per-index label +
+// `formatReceived` diagnostic instead of drifting into two separate error wordings
+export function validatePackageShape(pkg, additionalPackages) {
+  // `null = same as absent` per `index.d.ts` convention (`package?: string | null`):
+  // accept null as "use default", validate only non-empty strings
+  if (!isEmpty(pkg)) expectPackageName('package', pkg);
+  if (isEmpty(additionalPackages)) return;
+  if (!Array.isArray(additionalPackages)) {
+    throw optionTypeError('additionalPackages', 'an array, null, or undefined', additionalPackages);
+  }
+  // first-bad-wins; index in the label points users into long lists
+  for (const [i, item] of additionalPackages.entries()) expectPackageName(`additionalPackages[${ i }]`, item);
+}
+
 export function validateOptions({
   absoluteImports,
   additionalPackages,
@@ -129,16 +145,7 @@ export function validateOptions({
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
     throw new TypeError('[core-js] `include` and `exclude` are not supported when using `shouldInjectPolyfill`');
   }
-  // `null = same as absent` per `index.d.ts` convention (`package?: string | null`):
-  // accept null as "use default", validate only non-empty strings
-  if (!isEmpty(pkg)) expectPackageName('package', pkg);
-  if (!isEmpty(additionalPackages)) {
-    if (!Array.isArray(additionalPackages)) {
-      throw optionTypeError('additionalPackages', 'an array, null, or undefined', additionalPackages);
-    }
-    // first-bad-wins; index in the label points users into long lists
-    for (const [i, item] of additionalPackages.entries()) expectPackageName(`additionalPackages[${ i }]`, item);
-  }
+  validatePackageShape(pkg, additionalPackages);
   // positive whitelist; non-string/non-object falls through to opaque `targetsParser` error.
   // empty string/array would silently trigger browserslist-config fallback - suspicious
   if (!isEmpty(targets)) {

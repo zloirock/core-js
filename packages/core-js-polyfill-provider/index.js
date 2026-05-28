@@ -4,8 +4,9 @@ import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
-import { isEntryPattern, isModulePattern, patternToRegExp, safeStringify, validatePatternList } from './helpers/pattern-matching.js';
+import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
 import { WINDOWS_UNC_PREFIX_RE, lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
+import { validatePackageShape } from './plugin-options/validate.js';
 
 const { hasOwn } = Object;
 
@@ -152,29 +153,12 @@ export function createPolyfillContext({
 
   pkg ??= method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   // defensive: third-party callers that bypass `initPluginOptions` may pass `pkg === ''` /
-  // `'/'` / non-string. without this guard `''.toLowerCase()` succeeds, `stripTrailingSlashes`
-  // returns `''`, and downstream `getCoreJSEntry` would treat absolute paths as core-js entries
-  // (`'/foo/bar'.startsWith('/' === pkg + '/')` false-positive). validateOptions enforces this
-  // shape but only when called - direct createPolyfillContext callers need their own check
-  // shape guard for direct callers bypassing validateOptions. applies to `pkg` AND each
-  // `additionalPackages` member - empty / slash-only entries cascade through `packages`
-  // and false-positive every absolute path in `getCoreJSEntry`'s `startsWith('/')` check
-  function isInvalidPkgShape(p) {
-    return typeof p !== 'string' || p === '' || /^\/+$/.test(p);
-  }
-
-  // `safeStringify` swallows JSON.stringify failures on BigInt / circular / hostile Proxy so
-  // the secondary serialization throw doesn't mask the primary "wrong shape" diagnostic
-  if (isInvalidPkgShape(pkg)) {
-    throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ safeStringify(pkg) }`);
-  }
-  // per-element stringify so the invalid item is identifiable even when one bad entry
-  // (BigInt / circular / Proxy) would corrupt whole-array `safeStringify` to `[Object]`
-  const invalidExtra = additionalPackages?.filter(isInvalidPkgShape);
-  if (invalidExtra?.length) {
-    const invalid = invalidExtra.map(safeStringify).join(', ');
-    throw new TypeError(`[core-js] \`additionalPackages\` entries must be non-empty, non-slash-only strings; invalid: [${ invalid }]`);
-  }
+  // `'/'` / non-string. without this guard `''.toLowerCase()` succeeds, the canonicaliser
+  // returns `''`, and downstream `getCoreJSEntry` would treat absolute paths as core-js
+  // entries (`'/foo/bar'.startsWith('/' === pkg + '/')` false-positive). shares
+  // `validatePackageShape` with `validateOptions` so direct callers get the identical
+  // per-index label + `formatReceived` diagnostic instead of a divergent error wording
+  validatePackageShape(pkg, additionalPackages);
 
   version = normalizeCoreJSVersion(version);
 
