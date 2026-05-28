@@ -268,8 +268,15 @@ export function createTypeMembers({
       appendMergedInterfaceMembers({ segments: lookupSegments, scope, depth, out: merged, receiverArgs: curReceiverArgs });
       const parent = findParentClassDecl(cur, scope);
       if (!parent) break;
+      // raw super-args (`extends Mid<T>`) reference cur's type params; apply curSubst FIRST
+      // so the next hop's iface lookup receives concrete args, not raw param refs. example:
+      // `Sub extends Mid<string[]>; Mid<T> extends Base<T>; interface Base<U> { items: U[] }`
+      // - iteration cur=Mid sets up parent=Base. Without subst, [T] propagates to Base's iface
+      // lookup where ifaceSubst {U->T} resolves items to T[]. With subst applied, [string[]]
+      // propagates -> {U->string[]} -> items resolves to string[][]
+      const rawSuperArgs = getSuperTypeArgs(cur)?.params;
+      curReceiverArgs = rawSuperArgs ? rawSuperArgs.map(a => applyAliasSubstDeep(a, curSubst)) : null;
       curSubst = buildParentClassSubstFromNodes(cur, parent, curSubst);
-      curReceiverArgs = getSuperTypeArgs(cur)?.params ?? null;
       cur = parent;
     }
     return merged.length ? merged : null;

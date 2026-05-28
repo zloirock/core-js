@@ -478,7 +478,7 @@ function createResolveNodeType(babelNodeType, t, {
   /* eslint-disable prefer-const -- destructuring assignment below rebinds these */
   let buildCallSiteSubst, substituteTypeParams, functionTypeParams;
   let findExpressionAnnotation, findTypeMember, getTypeMembers, classSubstInner, methodFnPath;
-  let findClassPathForTypeReference, findClassMember, findObjectMember, isMethodMember;
+  let findClassPathForTypeReference, findClassMember, findObjectMember, isMethodMember, isPropertyMember;
   let resolveObjectMember, resolveTypeAnnotation, resolveKnownContainerType, extendsClauseName;
   /* eslint-enable prefer-const -- destructuring assignment below rebinds these */
 
@@ -821,7 +821,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildSubstMap,
     findClassMember: (...args) => findClassMember(...args),
     isMethodMember: (...args) => isMethodMember(...args),
-    methodFnPath: (...args) => methodFnPath(...args),
+    isPropertyMember: (...args) => isPropertyMember(...args),
     getTypeMembers: (...args) => getTypeMembers(...args),
     keyMatchesName,
     findExpressionAnnotation: (...args) => findExpressionAnnotation(...args),
@@ -1227,6 +1227,7 @@ function createResolveNodeType(babelNodeType, t, {
     classSubstInner,
     methodFnPath,
     isMethodMember,
+    isPropertyMember,
     findClassMember,
     findObjectMember,
     resolveObjectMember,
