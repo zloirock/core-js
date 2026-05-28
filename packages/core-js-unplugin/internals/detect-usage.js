@@ -88,7 +88,7 @@ function isReferenced({ node, parent, parentKey, parentPath, skipUpdateTargets }
   // Identifier LHS of assignment: module / strict-mode reads the binding before write, so
   // `Map = X` / `Map ||= X` / `Map += X` all need the polyfill in global mode. pure-mode
   // rewrite to frozen `_Map` TypeError's at write, so reject. checked BEFORE the member
-  // write-only filter (line 679 in `isMemberWriteOnlyContext` matches Identifier LHS too)
+  // write-only filter (`isMemberWriteOnlyContext` matches Identifier LHS too)
   if (node.type === 'Identifier' && parent.type === 'AssignmentExpression' && parentKey === 'left') return !skipUpdateTargets;
   // member-write-only / destructure-LHS / AssignmentPattern.left for non-Identifier shapes
   if (isMemberWriteOnlyContext(node, parent, parentPath?.parent)) return false;
