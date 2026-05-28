@@ -553,7 +553,7 @@ export function createTypeExpansion({
   function isTemplateLiteralExtend(node) {
     // cross-parser: oxc emits TSTemplateLiteralType; babel-parser wraps TemplateLiteral
     // inside TSLiteralType. delegate to the shared `templateLiteralTypeParts` parser
-    // which recognises both shapes - mirrors `matchesConditionalPattern` at line 240
+    // which recognises both shapes - mirrors `matchesConditionalPattern`
     return templateLiteralTypeParts(peelTSParenthesized(node)) !== null;
   }
 
