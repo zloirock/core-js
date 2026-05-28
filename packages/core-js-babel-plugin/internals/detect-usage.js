@@ -1,5 +1,6 @@
 import {
   buildDestructuringInitMeta,
+  resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -301,13 +302,25 @@ export function createUsageVisitors({
     } else if (parent.isObjectProperty()) {
       emitNestedDestructureMeta(path, parent);
       return;
+    } else if (parent.isArrayPattern()) {
+      // ArrayPattern-rooted nested destructure `const [{from}] = wrapper` - walk up the
+      // ArrayPattern stack to the host and descend Identifier-aliased ArrayExpression wrappers
+      // to find the leaf constructor. fall through to typeless meta when no resolution
+      const key = resolveKey(path.get('key'), path.node.computed);
+      if (!key) return;
+      const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
+      if (constructor) {
+        onUsage({ kind: 'property', object: constructor, key, placement: 'static' }, path);
+      } else {
+        onUsage({ kind: 'property', object: null, key, placement: null }, path);
+      }
+      return;
     } else if (parent.isAssignmentPattern()
       || parent.isForOfStatement()
       || parent.isForInStatement()
-      || parent.isArrayPattern()
       || parent.isRestElement()
       || parent.isCatchClause()) {
-      // for-of / array / catch: unknown receiver, emit typeless meta
+      // for-of / catch: unknown receiver, emit typeless meta
       const key = resolveKey(path.get('key'), path.node.computed);
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;

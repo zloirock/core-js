@@ -337,7 +337,7 @@ export function createClassObjectMember({
 
   // cluster-private (consumed only by other cluster functions, never reach the factory
   // surface): `resolveClassMemberNode` / `resolveMethodOrGetterCallReturn` /
-  // `resolveBodyReturnValue` / `resolveMemberFromMembers` / `isPropertyMember`
+  // `resolveBodyReturnValue` / `resolveMemberFromMembers`
   return {
     findClassMember,
     resolveClassMember,
@@ -347,5 +347,6 @@ export function createClassObjectMember({
     resolveObjectMember,
     applySubstToTypeRefArgs,
     isMethodMember,
+    isPropertyMember,
   };
 }
