@@ -2,12 +2,12 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
-// two AssignmentExpression cascades back-to-back, each with its own IIFE-bodied SE prefix
-// containing an inner instance-method polyfill. `pendingCascade` queue must accumulate
-// both entries and `flushPendingCascade` must drain each statement's ref-bindings in its
-// own range. uses `.at` in first cascade's IIFE and `.includes` in second to keep the
-// two `_ref` declarations distinct; receiver inner polyfills differ so each statement's
-// drain returns its own splice set
+// two AssignmentExpression cascades back-to-back, each with its own IIFE-bodied SE
+// prefix containing an inner instance-method polyfill. each statement's cascade must
+// absorb only ITS OWN inner refs into the lifted prefix - cross-statement bleed would
+// emit one statement's `_ref` declaration into the other's range. uses `.at` in first
+// cascade's IIFE and `.includes` in second so the two `_ref` declarations are visibly
+// distinct in the output
 let from;
 let of;
 (function () {

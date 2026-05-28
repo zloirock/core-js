@@ -1,8 +1,8 @@
 // Fully-consumed nested-proxy flatten with a SE-prefix IIFE: the arrow body inside the
 // SE prefix uses an instance-method polyfill that needs `var _ref;` for receiver memoize.
-// scope-tracker drains those ref-bindings (otherwise applyTransforms queues an insert
-// inside the parent overwrite and MagicString throws); the drained splices must be baked
-// into the lifted SE-prefix source, not silently dropped, or the `_ref` reference in the
-// lifted text ends up undeclared and the snippet ReferenceErrors at runtime.
+// That `_ref` binding lives inside the lifted SE slice, not the surrounding declaration.
+// If it is dropped, the lifted snippet references an undeclared `_ref` and throws
+// ReferenceError at runtime; if it is queued at the original offset, the bundler aborts
+// on an insert that lands inside the parent overwrite.
 const { Array: { from } } = ((() => [].values())(), globalThis);
 from([]);
