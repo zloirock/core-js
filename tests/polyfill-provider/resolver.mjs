@@ -158,16 +158,16 @@ doesNotThrow('createPolyfillContext/version null OK',
 
 throwsWith('createPolyfillContext/package empty string',
   () => createPolyfillContext({ method: 'usage-global', package: '' }),
-  '[core-js] `package` option must be');
+  '[core-js] `package` must be');
 throwsWith('createPolyfillContext/package pure slash',
   () => createPolyfillContext({ method: 'usage-global', package: '/' }),
-  '[core-js] `package` option must be');
+  '[core-js] `package` must be');
 throwsWith('createPolyfillContext/package non-string',
   () => createPolyfillContext({ method: 'usage-global', package: 42 }),
-  '[core-js] `package` option must be');
+  '[core-js] `package` must be');
 throwsWith('createPolyfillContext/additionalPackages invalid entry',
   () => createPolyfillContext({ method: 'usage-global', additionalPackages: ['/', 'ok'] }),
-  '[core-js] `additionalPackages` entries must be');
+  '[core-js] `additionalPackages[0]` must be');
 
 // --- createPolyfillContext: trailing slash stripping ---
 
