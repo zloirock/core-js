@@ -43,6 +43,7 @@ export function createPatternBindings({
   getKeyName,
   findLastStraightLineAssignment,
   withLookupPath,
+  functionTypeParams,
 }) {
   // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
   // sentinel conventions:
@@ -502,6 +503,45 @@ export function createPatternBindings({
     return null;
   }
 
+  // callback-param inference for unannotated arrow / function params passed as a call argument.
+  // shape: `recv.method(arg => arg.X)` where `recv: Alias<Arg>` with `method(cb: (a: ParamT) => void)`.
+  // `findTypeMember` deep-substitutes the receiver's alias type-args into the returned method
+  // node, so the callback parameter slot already carries the concrete type before unwrap.
+  // non-Identifier callee property, non-method member, or positional mismatch bail to null
+  function inferCallbackParamType(bindingPath) {
+    const fnPath = bindingPath.parentPath;
+    if (!fnPath?.node || !t.isFunction(fnPath.node)) return null;
+    const paramIndex = fnPath.node.params?.indexOf(bindingPath.node) ?? -1;
+    if (paramIndex < 0) return null;
+    const callPath = fnPath.parentPath;
+    if (!callPath?.node) return null;
+    const callType = babelNodeType(callPath.node);
+    if (callType !== 'CallExpression' && callType !== 'OptionalCallExpression') return null;
+    const argIndex = callPath.node.arguments?.indexOf(fnPath.node) ?? -1;
+    if (argIndex < 0) return null;
+    const callee = callPath.get('callee');
+    // restrict to non-computed Identifier property to keep the inference deterministic. computed
+    // / literal-string member keys would need full `getMemberProperty` semantics; not yet worth
+    // the dep when no caller has tripped the gap
+    const calleeNode = callee.node;
+    if (calleeNode?.type !== 'MemberExpression' && calleeNode?.type !== 'OptionalMemberExpression') return null;
+    if (calleeNode.computed || calleeNode.property?.type !== 'Identifier') return null;
+    const propName = calleeNode.property.name;
+    const objInfo = findExpressionAnnotation(callee.get('object'));
+    if (!objInfo) return null;
+    const receiver = unwrapTypeAnnotation(objInfo.annotation);
+    if (!receiver) return null;
+    const method = findTypeMember({ objectType: receiver, key: propName, scope: objInfo.scope });
+    if (method?.type !== 'TSMethodSignature') return null;
+    const cbParam = functionTypeParams(method)?.[argIndex];
+    const cbFnType = unwrapTypeAnnotation(cbParam?.typeAnnotation);
+    if (cbFnType?.type !== 'TSFunctionType' && cbFnType?.type !== 'FunctionTypeAnnotation') return null;
+    const target = functionTypeParams(cbFnType)?.[paramIndex];
+    const annotation = unwrapTypeAnnotation(target?.typeAnnotation);
+    if (!annotation) return null;
+    return resolveTypeAnnotation(annotation, objInfo.scope);
+  }
+
   // resolve a binding's type via the most precise source available: rest-param ->
   // destructure -> annotation -> for-of element -> straight-line assignment -> const init.
   // single Identifier path; never recurses through the resolver entry-point on the binding
@@ -537,6 +577,14 @@ export function createPatternBindings({
     // scope (estree-toolkit) fall back to walking ancestors for namespace-local type decls
     const typeAnnotation = findBindingAnnotation(bindingPath);
     if (typeAnnotation) return withLookupPath(bindingPath, () => resolveTypeAnnotation(typeAnnotation, bindingPath.scope));
+    // unannotated arrow / function param passed as a call argument: infer from the callee's
+    // matching parameter slot. without this, `Holder<number>.use(items => items.X)` resolves
+    // `items` to the raw `T[]` from the method signature and dispatches the generic polyfill
+    // instead of the array-specific helper
+    if (node?.type === 'Identifier' && bindingPath.parentPath?.node && t.isFunction(bindingPath.parentPath.node)) {
+      const inferred = inferCallbackParamType(bindingPath);
+      if (inferred) return inferred;
+    }
     // unannotated Identifier param with default value (`function f(x = [])`). babel binds
     // the param to the AssignmentPattern wrapper (same convention as RestElement above), so
     // the default expression lives at `bindingPath.get('right')`. annotated form caught by
