@@ -12,10 +12,10 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
     return z2;
   })(), _atMaybeArray(_ref4 = [4]).call(_ref4, 0));
 })();
-// outer arrow body-wrap absorbing TWO scopedVar inserts from two sibling inner blocks.
-// pins the multi-scopedVar branch of #composeBodyWrapText: scopedVars sorted descending by
-// start so each splice's local offset stays valid through the loop. without sort, the
-// second splice's localStart references a shifted position after the first splice extended
-// the slice
+// Outer arrow body-wrap must absorb two scoped `var _ref;` inserts coming from two
+// sibling inner instance-method polyfills. The two inserts target different offsets
+// inside the wrapped slice; if their splice order does not stay stable as the slice
+// grows, the second insert lands at a shifted offset and silently corrupts the wrapped
+// expression - producing syntactically invalid code at runtime.
 const from = _Array$from;
 console.log(from);
