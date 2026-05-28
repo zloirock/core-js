@@ -1,15 +1,13 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-// flatten on inner `from` + sibling `[Symbol.iterator]: iter` computed key. `planOuterProp`
-// recognizes the Symbol.iterator-keyed Property shape (binding-Identifier value) and emits
-// a synth extraction `iter = _getIteratorMethod(receiver)` alongside the regular extraction
-// `from = _Array$from`. preservedOuter ends up empty for both extractions so the whole
-// VariableDeclaration is replaced by two `const ...;` statements. matches babel-plugin's
-// AST-mutation emit byte-for-byte (receiver `obj` survives in `_getIteratorMethod(obj)`
-// because `extractionReceiverSrc` always uses `original-source slice(tail)`; natural visitor's
-// `globalThis -> _globalThis` substitution composes into the rebuilt text via
-// transform-queue's nested-overwrite handling)
+// Flatten on inner `from` together with a sibling `[Symbol.iterator]: iter` computed
+// key. The destructure is fully consumed into two independent extractions, one for
+// `from` and one for `iter = _getIteratorMethod(receiver)`. The receiver binding `obj`
+// is itself an alias of `globalThis`, so the receiver-slice must survive intact through
+// the rewrite while the unrelated `globalThis -> _globalThis` substitution still applies
+// inside its own statement. If either composition fails, one of the bindings ends up
+// referencing an unpolyfilled global and crashes at runtime.
 const obj = _globalThis;
 const from = _Array$from;
 const iter = _getIteratorMethod(obj);
