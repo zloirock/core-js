@@ -1,6 +1,7 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
 import {
   buildDestructuringInitMeta,
+  resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
@@ -558,9 +559,20 @@ export function createUsageVisitors({
       }
       case 'ForOfStatement':
       case 'ForInStatement':
-      case 'ArrayPattern':
       case 'RestElement':
       case 'CatchClause': break;
+      case 'ArrayPattern': {
+        // ArrayPattern-rooted nested destructure `const [{from}] = wrapper` - walk up the
+        // ArrayPattern stack to the host and descend Identifier-aliased ArrayExpression
+        // wrappers to find the leaf constructor
+        const innerKey = extractPropertyKey(propNode, scope);
+        if (!innerKey) break;
+        const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
+        if (constructor) {
+          return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
+        }
+        break;
+      }
       default: {
         // IIFE destructuring: `!function({entries}) {}(Object)`. shared `findIifeCallSite`
         // peels wrapper chain (Unary / Sequence / Paren / Chain / TS), accepts CallExpression /
