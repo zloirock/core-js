@@ -1557,6 +1557,7 @@ function createResolveNodeType(babelNodeType, t, {
   // direct (awaited destructured early); the forward-decl thunks `findTypeMember` /
   // `getTypeMembers` populate via destructure assignment below
   const typeMembersCluster = createTypeMembers({
+    memoize,
     unwrapTypeAnnotation,
     peelTSParenthesized,
     isNullableOrNeverAnnotation,
@@ -1828,6 +1829,7 @@ function createResolveNodeType(babelNodeType, t, {
     classFieldsCluster.reset();
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();
+    typeMembersCluster.reset();
     callResolutionCluster.resetExpressionAnnotationCache();
     resolveCache = new WeakMap();
     resolvedTypeCache = new WeakMap();
