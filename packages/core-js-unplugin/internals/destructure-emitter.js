@@ -486,7 +486,14 @@ export function createDestructureEmitter({
       const replacement = isForInit
         ? renderForInitFlatten(declaration, perDecl)
         : renderBlockFlatten(declaration, declPath, perDecl);
-      transforms.add(declaration.start, declaration.end, replacement);
+      // when the host VariableDeclaration sits inside `export const { ... } = X`,
+      // expand the transform range to cover the wrapping `ExportNamedDeclaration` so
+      // the original `export ` keyword isn't left orphaned before the emitted statements
+      // (which carry their own `export ` prefix to re-export every binding)
+      const parent = declPath.parentPath?.node;
+      const useExportRange = !isForInit && parent?.type === 'ExportNamedDeclaration';
+      const [start, end] = useExportRange ? [parent.start, parent.end] : [declaration.start, declaration.end];
+      transforms.add(start, end, replacement);
     }
     pendingFlatten.length = 0;
   }
@@ -517,10 +524,14 @@ export function createDestructureEmitter({
   function renderBlockFlatten(declaration, declPath, perDecl) {
     bakePendingSplicesIntoPreserved(declaration, perDecl);
     const sePrefixesByIdx = liftExtractedSEPrefixesByIdx(declaration, perDecl);
+    // `export const { Array: { from }, includes } = X` - each emitted statement must
+    // preserve the `export` keyword so both `from` and `includes` are re-exported.
+    // mirror babel-plugin's `splitDeclarators(...isExport)` shape
+    const isExport = declPath.parentPath?.node?.type === 'ExportNamedDeclaration';
     // count of emitted top-level statements drives wrap-with-{} for bodyless control parents.
     // explicit `count > 1` honors the helper's contract; `text.includes('\n')` would mis-fire
     // on a single statement that happens to render across multiple lines
-    const { text, count } = renderBlockStatements(perDecl, declaration.kind, sePrefixesByIdx);
+    const { text, count } = renderBlockStatements(perDecl, declaration.kind, sePrefixesByIdx, isExport);
     return wrapBodylessIfMulti(text, count > 1, declPath);
   }
 
@@ -575,11 +586,12 @@ export function createDestructureEmitter({
   // shape) when crossing an extracted slot. each extracted slot emits its lifted SE prefix
   // statements first, then the extracted bindings. rest case (same declarator carries BOTH
   // extractions AND a preserved residue) pushes preservedSrc unconditionally
-  function renderBlockStatements(perDecl, kind, sePrefixesByIdx) {
+  function renderBlockStatements(perDecl, kind, sePrefixesByIdx, isExport = false) {
     const lines = [];
+    const exportPrefix = isExport ? 'export ' : '';
     let preserveBuffer = [];
     function flushPreserveBuffer() {
-      for (const p of preserveBuffer) lines.push(`${ kind } ${ p };`);
+      for (const p of preserveBuffer) lines.push(`${ exportPrefix }${ kind } ${ p };`);
       preserveBuffer = [];
     }
     for (let i = 0; i < perDecl.length; i++) {
@@ -588,7 +600,7 @@ export function createDestructureEmitter({
         flushPreserveBuffer();
         const slotSEPrefixes = sePrefixesByIdx?.[i];
         if (slotSEPrefixes) for (const p of slotSEPrefixes) lines.push(`${ p };`);
-        for (const e of r.extractions) lines.push(`${ kind } ${ e.decl };`);
+        for (const e of r.extractions) lines.push(`${ exportPrefix }${ kind } ${ e.decl };`);
       }
       if (r.preservedSrc !== null) preserveBuffer.push(r.preservedSrc);
     }
