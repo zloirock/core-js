@@ -107,10 +107,15 @@ const DASH_WORD = /-(?<c>\w)/g;
 // in built-in-definitions data. validate-and-bail keeps malformed entries visible
 const VALID_KEBAB = /^[a-z][0-9a-z]*(?:-[0-9a-z]+)*$/;
 
-export const kebabToCamel = str => str.replaceAll(DASH_WORD, (_, c) => c.toUpperCase());
+export function kebabToCamel(str) {
+  return str.replaceAll(DASH_WORD, (_, c) => c.toUpperCase());
+}
 
-export const kebabToPascal = str => typeof str === 'string' && VALID_KEBAB.test(str)
-  ? kebabToCamel(str[0].toUpperCase() + str.slice(1)) : null;
+export function kebabToPascal(str) {
+  return typeof str === 'string' && VALID_KEBAB.test(str)
+    ? kebabToCamel(str[0].toUpperCase() + str.slice(1))
+    : null;
+}
 
 // type-only expression wrappers - runtime no-ops that forward to their `.expression` child
 export const TS_EXPR_WRAPPERS = new Set([

@@ -3,7 +3,9 @@ const ErrorConstructor = { global: {
   filters: [['min-args', 2]],
 } };
 
-const ErrorStatic = { isError: 'error/is-error' };
+function errorStatic(kebab) {
+  return { isError: `${ kebab }/is-error` };
+}
 
 const TypedArrayStatic = {
   from: { global: 'typed-array/from' },
@@ -65,7 +67,7 @@ export const globals = {
 };
 
 export const statics = {
-  AggregateError: ErrorStatic,
+  AggregateError: errorStatic('aggregate-error'),
   Array: {
     from: 'array/from',
     fromAsync: 'array/from-async',
@@ -79,8 +81,8 @@ export const statics = {
   },
   BigInt64Array: TypedArrayStatic,
   BigUint64Array: TypedArrayStatic,
-  Error: ErrorStatic,
-  EvalError: ErrorStatic,
+  Error: errorStatic('error'),
+  EvalError: errorStatic('eval-error'),
   Float16Array: TypedArrayStatic,
   Float32Array: TypedArrayStatic,
   Float64Array: TypedArrayStatic,
@@ -187,8 +189,8 @@ export const statics = {
     try: 'promise/try',
     withResolvers: 'promise/with-resolvers',
   },
-  RangeError: ErrorStatic,
-  ReferenceError: ErrorStatic,
+  RangeError: errorStatic('range-error'),
+  ReferenceError: errorStatic('reference-error'),
   Reflect: {
     apply: 'reflect/apply',
     construct: 'reflect/construct',
@@ -217,7 +219,7 @@ export const statics = {
     fromCodePoint: 'string/from-code-point',
     raw: 'string/raw',
   },
-  SuppressedError: ErrorStatic,
+  SuppressedError: errorStatic('suppressed-error'),
   Symbol: {
     asyncDispose: 'symbol/async-dispose',
     asyncIterator: 'symbol/async-iterator',
@@ -241,8 +243,8 @@ export const statics = {
     toStringTag: 'symbol/to-string-tag',
     unscopables: 'symbol/unscopables',
   },
-  SyntaxError: ErrorStatic,
-  TypeError: ErrorStatic,
+  SyntaxError: errorStatic('syntax-error'),
+  TypeError: errorStatic('type-error'),
   Uint8Array: {
     from: { global: 'uint8-array/from' },
     fromBase64: { global: 'uint8-array/from-base64' },
@@ -252,7 +254,7 @@ export const statics = {
   Uint8ClampedArray: TypedArrayStatic,
   Uint16Array: TypedArrayStatic,
   Uint32Array: TypedArrayStatic,
-  URIError: ErrorStatic,
+  URIError: errorStatic('uri-error'),
   URL: {
     canParse: 'url/can-parse',
     parse: 'url/parse',
