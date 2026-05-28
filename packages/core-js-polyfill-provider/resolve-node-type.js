@@ -1379,6 +1379,7 @@ function createResolveNodeType(babelNodeType, t, {
     getKeyName,
     findLastStraightLineAssignment,
     withLookupPath,
+    functionTypeParams: (...args) => functionTypeParams(...args),
   });
   const {
     findArrayPatternKeyPath,
@@ -1545,6 +1546,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveConstructorType,
     resolveConstructorCallType,
     resolveNamedType,
+    isKeyofTargeting,
   } = typeAnnotationResolveCluster;
 
   // type-members cluster: member-resolution against any TS / Flow type-position node
@@ -1626,6 +1628,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveTypeAnnotation,
     findTypeMember,
     findTypeDeclaration,
+    findTypeParameter,
+    isKeyofTargeting,
     resolveIndexSignatureValue,
     resolveMemberPropertyName,
     resolveRuntimeExpression,
