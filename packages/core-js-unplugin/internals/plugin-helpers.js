@@ -49,6 +49,19 @@ export function skipDirectivePrologue(statements, fallback) {
   return end;
 }
 
+// peel `(0, require)('m')` SequenceExpression-wrapped callee + `require('m').default`
+// MemberExpression-tail + `require?.('m')` OptionalCallExpression so webpack /
+// esbuild-style indirect-require shapes still register as import-region statements.
+// mirror of babel-plugin's `isRequireCall` in `import-injector.js`
+function isRequireCall(expr) {
+  let cur = expr;
+  if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
+  if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
+  let { callee } = cur;
+  if (callee?.type === 'SequenceExpression') callee = callee.expressions?.at(-1);
+  return callee?.type === 'Identifier' && callee.name === 'require';
+}
+
 // matches the leading import region (top-of-body contiguous run): ImportDeclaration,
 // `export ... from 'mod'` re-export, `require(...)` ExpressionStatement, or
 // VariableDeclaration with at least one `require()` initializer. mirrors babel-plugin's
@@ -63,13 +76,9 @@ function isTopLevelImportLike(stmt) {
   // identifier and is NOT an import - exclude via the `.source` check
   if (stmt?.type === 'ExportNamedDeclaration' && stmt.source) return true;
   if (stmt?.type === 'ExportAllDeclaration') return true;
-  if (stmt?.type === 'ExpressionStatement'
-    && stmt.expression?.type === 'CallExpression'
-    && stmt.expression.callee?.type === 'Identifier'
-    && stmt.expression.callee.name === 'require') return true;
+  if (stmt?.type === 'ExpressionStatement' && isRequireCall(stmt.expression)) return true;
   if (stmt?.type === 'VariableDeclaration') {
-    return stmt.declarations.some(d => d.init?.type === 'CallExpression'
-      && d.init.callee?.type === 'Identifier' && d.init.callee.name === 'require');
+    return stmt.declarations.some(d => isRequireCall(d.init));
   }
   return false;
 }

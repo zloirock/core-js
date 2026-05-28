@@ -288,18 +288,6 @@ export default function createDestructureEmitter({
     return unusedIds;
   }
 
-  // `({Array: {from}, ...} = receiver);` (AssignmentExpression in ExpressionStatement) -
-  // unified cascade-rewrite for ALL chain shapes (rest sibling / multi-prop / single-prop):
-  // mutate the destructure pattern in-place so each polyfilled key is consumed (replaced with
-  // `_unused` sentinel when rest sibling preserves exclusion, otherwise prop removed entirely
-  // and cascade continues outer when pattern empties); hoist a shared `var _unused, _unused2;`
-  // before the host (LHS slots must be pre-declared; strict-mode otherwise throws); chain
-  // each visitor's `name = _polyfill;` after the previous sibling polyfill in declaration
-  // order. when the outermost pattern fully empties (all props polyfilled, no rest), the
-  // surviving `({} = receiver)` is dead code - last visitor removes the host. preserves
-  // "polyfill always wins" - destructure discards the receiver's `Array.from` value into
-  // `_unused`, then `from = _polyfill` overrides whatever native (potentially buggy) value
-  // would have leaked through inline-default fallback
   // force-wrap a bodyless-slot ExpressionStatement (`if (cond) STMT;` / `while (cond) STMT;`
   // / etc.) in a BlockStatement and return the in-block path. babel's `path.insertAfter` on
   // such a slot internally wraps the slot but DOES NOT update the original path's listKey/
@@ -316,18 +304,38 @@ export default function createDestructureEmitter({
     return exprStmt.get('body.0');
   }
 
+  // strip transparent wrappers (oxc parens / TS casts / chain / SE-with-AE-as-tail) sitting
+  // between the AssignmentExpression and its ExpressionStatement host. SE prefix expressions
+  // land as side-effect ExpressionStatement siblings before the host; the host's expression
+  // slot collapses to the bare AE so the cascade's bookkeeping (which assumes
+  // assignPath.parentPath === ExpressionStatement) operates on a clean shape. flatten only
+  // on FIRST visit per host - sibling per-prop re-entries find the slot already collapsed.
+  // path-API replaceWith (NOT raw `exprStmt.node.expression = ...`) updates babel's parent
+  // chain for inner descendants; raw mutation leaves the detached SE expression slot
+  // referenced by inner prop paths, and `isOrphaned` flags every sibling after the first
+  // as orphaned - silently dropping per-prop polyfill dispatch for multi-prop hosts
+  function flattenSEWrappersToBareAE(exprStmt, assignPath, peeled) {
+    if (!peeled || exprStmt.node.expression === assignPath.node) return;
+    const prefixStmts = peeled.sequencePrefix.map(e => t.expressionStatement(e));
+    exprStmt.get('expression').replaceWith(assignPath.node);
+    if (prefixStmts.length) exprStmt.insertBefore(prefixStmts);
+  }
+
+  // `({Array: {from}, ...} = receiver);` (AssignmentExpression in ExpressionStatement) -
+  // unified cascade-rewrite for ALL chain shapes (rest sibling / multi-prop / single-prop):
+  // mutate the destructure pattern in-place so each polyfilled key is consumed (replaced with
+  // `_unused` sentinel when rest sibling preserves exclusion, otherwise prop removed entirely
+  // and cascade continues outer when pattern empties); hoist a shared `var _unused, _unused2;`
+  // before the host (LHS slots must be pre-declared; strict-mode otherwise throws); chain
+  // each visitor's `name = _polyfill;` after the previous sibling polyfill in declaration
+  // order. when the outermost pattern fully empties (all props polyfilled, no rest), the
+  // surviving `({} = receiver)` is dead code - last visitor removes the host. preserves
+  // "polyfill always wins" - destructure discards the receiver's `Array.from` value into
+  // `_unused`, then `from = _polyfill` overrides whatever native (potentially buggy) value
+  // would have leaked through inline-default fallback
   function cascadeAssignmentExpressionDestructure({ assignPath, valueNode, prop, chain, entry, hintName, peeled = null }) {
     const exprStmt = ensureExprStmtInBlock(peeled?.exprStmt ?? assignPath.parentPath);
-    // strip transparent wrappers between the AssignmentExpression and ExpressionStatement
-    // (oxc parens / TS casts / chain / SequenceExpression-with-AE-as-tail). SE prefix
-    // expressions become side-effect ExpressionStatement siblings before the cascade
-    // output. flatten only on the FIRST visit per host so sibling per-prop re-entries
-    // don't double-strip the wrappers
-    if (peeled && exprStmt.node.expression !== assignPath.node) {
-      const prefixStmts = peeled.sequencePrefix.map(e => t.expressionStatement(e));
-      exprStmt.node.expression = assignPath.node;
-      if (prefixStmts.length) exprStmt.insertBefore(prefixStmts);
-    }
+    flattenSEWrappersToBareAE(exprStmt, assignPath, peeled);
     const id = injectPureImport(entry, hintName);
     // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
     injector.registerBodyExtractAlias(valueNode.name, entry, assignPath.scope.getBinding(valueNode.name));
@@ -344,8 +352,7 @@ export default function createDestructureEmitter({
     // above, bare receiver has no observable effect. remove the host. only the visitor that
     // empties the outermost pattern reaches this point - earlier siblings break out of the
     // cascade with non-empty outer
-    const outerPattern = chain.at(-1).pattern;
-    if (outerPattern.node?.properties?.length === 0) exprStmt.remove();
+    if (chain.at(-1).pattern.node?.properties?.length === 0) exprStmt.remove();
     return true;
   }
 
@@ -479,14 +486,19 @@ export default function createDestructureEmitter({
     // for-init can't host external statements either, so SE-prefix lift below is gated
     // on this same predicate
     if (!isForInit) liftSEPrefixSwap(declarator.node, 'init', declaration);
+    // host wrapped in `export const { ... } = X` - every emitted statement re-exports its
+    // bindings, mirror `splitDeclarators`' isExport wrap. for-init can't host export
+    // statements (loop header) so gate on `!isForInit`
+    const declIsExport = !isForInit && declaration.parentPath?.isExportNamedDeclaration();
     if (willRemoveDeclarator && declCount === 1) {
       // single-declarator simple-chain: replaceWith preserves leading comments
-      declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
+      const replacement = wrapAsExportIf(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]), declIsExport);
+      (declIsExport ? declaration.parentPath : declaration).replaceWith(replacement);
       return true;
     }
     if (isForInit) declarator.insertBefore(extractedDeclarator);
     else {
-      const newDecl = t.variableDeclaration(declaration.node.kind, [extractedDeclarator]);
+      const newDecl = wrapAsExportIf(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]), declIsExport);
       // lift leading comments from the host onto the FIRST inserted cascade decl. without
       // this, sibling cascades land split around the original host's comments: first
       // visitor's `insertBefore` keeps comments on the host, then LAST visitor's
@@ -494,7 +506,10 @@ export default function createDestructureEmitter({
       // cosmetically the comments appear BETWEEN cascade emits. idempotent: subsequent
       // inserts find empty leadingComments
       liftLeadingComments(declaration.node, newDecl);
-      declaration.insertBefore(newDecl);
+      // for export wrap, insertBefore must operate on the ExportNamedDeclaration path so
+      // the new export sibling lands at statement level (sibling of the original export),
+      // not nested inside the export wrapper
+      (declIsExport ? declaration.parentPath : declaration).insertBefore(newDecl);
     }
     if (willRemoveDeclarator && declCount > 1) {
       // splice out the emptied declarator in-place; `.remove()` mid-traversal nulls
@@ -981,6 +996,14 @@ export default function createDestructureEmitter({
   // `trySplitDeclaration` (whole-declaration split), `spliceAndLiftSideEffect` (pre/post
   // halves around a lifted SE in DEFER_SE_AND_SPLICE), and
   // `splitDeclarationAroundLiftedSE` (nested-proxy SE-prefix lift through a multi-decl)
+  // re-wrap a VariableDeclaration in ExportNamedDeclaration when the original host was
+  // exported. used by `tryFlattenNestedProxyDestructure` to keep each cascaded extraction
+  // re-exporting its binding (`export const from = _Array$from;` instead of dropping the
+  // `export` keyword on individual emitted declarations)
+  function wrapAsExportIf(decl, isExport) {
+    return isExport ? t.exportNamedDeclaration(decl) : decl;
+  }
+
   function splitDeclarators(decls, kind, isExport) {
     if (!decls.length) return [];
     const groups = decls.some(d => t.isObjectPattern(d.id)) ? [decls] : decls.map(d => [d]);
