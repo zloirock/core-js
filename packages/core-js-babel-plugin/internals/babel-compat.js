@@ -396,7 +396,19 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // caller (findInnerPolyChain) guarantees outer is a call expression.
   // unplugin duplicates this as a text-level rewrite (see plugin.js `replaceInstanceChainCombined`);
   // unification blocked by AST vs text emission asymmetry - the output shape must match bit-for-bit
-  function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId, sideEffects }) {
+  // rebuild a receiver sub-chain with the inner optional call (`target`) spliced out for
+  // `replacement` (the memoized inner result). deep-clones each hop so siblings - call args /
+  // computed keys - are fresh, then overrides the chain-child with the recursively-spliced node
+  function spliceChainInner(node, target, replacement) {
+    if (node === target) return replacement;
+    const clone = t.cloneNode(node, true);
+    if (node.object) clone.object = spliceChainInner(node.object, target, replacement);
+    else if (node.callee) clone.callee = spliceChainInner(node.callee, target, replacement);
+    else if (node.expression) clone.expression = spliceChainInner(node.expression, target, replacement);
+    return clone;
+  }
+
+  function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects }) {
     const callerPath = unwrapTSExpressionParent(outerPath);
     const outerCall = callerPath.parent;
     const { scope } = outerPath;
@@ -415,7 +427,10 @@ export default function (t, { getInjector, typeResolvers } = {}) {
 
     const tests = [nullTest(anAssign),
       nullTest(assign(mRef, t.callExpression(t.cloneNode(innerId), [t.cloneNode(aRef)])))];
-    let outerObject = mCall;
+    // thread surviving non-optional hops (`.map(...)` between inner `flat?.()` and outer
+    // `filter?.()`): splice the memoized inner result into the outer receiver sub-chain so the
+    // hops re-emit (own pass polyfills them on the inner result) rather than being dropped
+    let outerObject = hasHops ? spliceChainInner(outerPath.node.object, chainStartNode, mCall) : mCall;
     // `?.method` as outer: nullish inner result must short-circuit the outer call too
     if (outerPath.node.optional) {
       const vRef = generateRef(scope);
