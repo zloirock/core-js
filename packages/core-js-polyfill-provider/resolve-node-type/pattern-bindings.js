@@ -76,11 +76,10 @@ export function createPatternBindings({
             return [i + inner[0], ...inner.slice(1)];
           }
         }
-        // nested ObjectPattern in rest (`const [...{ length }] = arr`) destructures the
-        // rest-Array directly: `{ length }` is a key off the Array slice. signal via `[-1]`
-        // so callers resolve through the Array element type, then walk into the inner key
-        // path. `length` matches Array.prototype.length; arbitrary numeric/string keys
-        // resolve through the array's index/length signature
+        // nested ObjectPattern in rest (`const [...{ length }] = arr`) reads a key off the
+        // rest Array. signal `[-1, ...inner]`; the resolver bails on a non-empty inner path
+        // rather than mis-narrow the key as the Array itself (resolving it precisely - e.g.
+        // `length` -> number, numeric -> element - needs the source element type)
         if (el.argument?.type === 'ObjectPattern') {
           const inner = findDestructuredKeyPath(el.argument, name, scope);
           if (inner) return [-1, ...inner];
@@ -392,8 +391,10 @@ export function createPatternBindings({
     const [step] = keyPath;
     const rest = keyPath.slice(1);
     if (typeof step === 'number') {
-      // -1 = rest element, always Array
-      if (step < 0) return new $Object('Array');
+      // -1 = rest element. with no further keys the binding IS the rest Array; a remaining
+      // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
+      // needs the source element type - bail so the member doesn't mis-resolve as the Array
+      if (step < 0) return rest.length ? null : new $Object('Array');
       if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
       // any spread at or before the target index shifts subsequent positions to a runtime-
       // determined slot - `[...spread, 'x'][1]` resolves to spread[1] OR 'x' depending on

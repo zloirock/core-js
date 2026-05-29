@@ -277,7 +277,11 @@ export function createTypeMembers({
       // - iteration cur=Mid sets up parent=Base. Without subst, [T] propagates to Base's iface
       // lookup where ifaceSubst {U->T} resolves items to T[]. With subst applied, [string[]]
       // propagates -> {U->string[]} -> items resolves to string[][]
-      const rawSuperArgs = getSuperTypeArgs(cur)?.params;
+      // Flow `declare class Sub extends Base<...>` (DeclareClass) carries super-type-args on
+      // the heritage clause (`extends[0].typeParameters`), not on the declaration's superType*
+      // slots that `getSuperTypeArgs` probes; without the fallback the generic subst into
+      // inherited members silently drops and the member resolves to null (over-injection)
+      const rawSuperArgs = (getSuperTypeArgs(cur) ?? cur.extends?.[0]?.typeParameters)?.params;
       curReceiverArgs = rawSuperArgs ? rawSuperArgs.map(a => applyAliasSubstDeep(a, curSubst)) : null;
       curSubst = buildParentClassSubstFromNodes(cur, parent, curSubst);
       cur = parent;
@@ -479,7 +483,10 @@ export function createTypeMembers({
     }
     const withSubst = node => {
       if (!node) return node;
-      const unwrapped = unwrapTypeAnnotation(node);
+      // peel TSParenthesizedType (oxc preserves `(B)` / `(B | C)` as a wrapper; babel keeps it
+      // in member position too) so union / intersection branch recursion and member-type
+      // returns see the raw discriminated shape instead of bailing on the wrapper
+      const unwrapped = peelTSParenthesized(unwrapTypeAnnotation(node));
       return applySubst(unwrapped, subst);
     };
     // conditional types route through dedicated helper: extracts the branch-pick logic
@@ -527,8 +534,14 @@ export function createTypeMembers({
           if (member.kind === 'set') break;
           return returnMemberMethodNode(member, subst);
         case 'ObjectTypeProperty':
-          if (keyMatchesName(member.key, key)) return withSubst(member.value);
-          break;
+          if (!keyMatchesName(member.key, key)) break;
+          // Flow getter (`{ get items(): T }`) has kind 'get' with a FunctionTypeAnnotation
+          // value: return its return type, not the function type itself (else `.at()` on the
+          // result is dispatched against Function and the narrow is lost). setter: skip to a
+          // paired getter. plain property / method value: return the value annotation
+          if (member.kind === 'get') return withSubst(functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value)));
+          if (member.kind === 'set') break;
+          return withSubst(member.value);
         case 'ClassProperty':         // flow
         case 'PropertyDefinition':    // babel TS / ESTree spec
         case 'ClassAccessorProperty': // babel decoratorAutoAccessors plugin

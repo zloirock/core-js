@@ -62,27 +62,31 @@ export function createUserTypeResolve({
     const base = typeParamMap || new Map();
     const declParamNames = new Set(declParams.map(typeParamName).filter(Boolean));
 
-    // phase 1: resolve each arg under the OUTER map (args live in caller-scope; their
-    // type-param refs may collide with this decl's param names but resolve correctly
-    // via outer bindings before the inner scope strips them)
-    const resolvedArgs = declParams.map((p, i) => {
-      const arg = callArgs?.[i] ?? p.default;
-      if (!arg) return null;
-      return base.size > 0
-        ? substituteTypeParams(arg, base, scope, depth + 1, seen)
-        : resolveTypeAnnotation(arg, scope, depth + 1);
-    });
-    const didSubst = resolvedArgs.some(Boolean);
-
-    // phase 2: drop colliding outer entries via shared alpha-rename helper. when neither
-    // subst happened nor a collision exists, return typeParamMap as-is so caller's
-    // identity preserves for downstream memoize keys
+    // resolve params left-to-right so a later default that references an earlier param
+    // (`<T, U = T>`) sees its already-resolved value. an explicit call-arg lives in caller
+    // scope (resolve under the OUTER `base`; its refs may collide with this decl's param names
+    // but bind via outer scope), while a default lives in this decl's scope and may reference
+    // earlier type-params, so it resolves under the progressively-built local map. without the
+    // sequential fold a bare-ref default (`U = T`) resolves against an unbound param -> null
     const trimmedBase = dropMapKeys(base, declParamNames);
-    if (!didSubst && trimmedBase === base) return typeParamMap;
     const localMap = new Map(trimmedBase);
+    let didSubst = false;
     declParams.forEach((p, i) => {
-      if (resolvedArgs[i]) localMap.set(typeParamName(p), resolvedArgs[i]);
+      const explicit = callArgs?.[i];
+      const arg = explicit ?? p.default;
+      if (!arg) return;
+      const map = explicit ? base : localMap;
+      const resolved = map.size > 0
+        ? substituteTypeParams(arg, map, scope, depth + 1, seen)
+        : resolveTypeAnnotation(arg, scope, depth + 1);
+      if (resolved) {
+        localMap.set(typeParamName(p), resolved);
+        didSubst = true;
+      }
     });
+    // neither subst happened nor a collision exists: return typeParamMap as-is so the caller's
+    // identity preserves for downstream memoize keys
+    if (!didSubst && trimmedBase === base) return typeParamMap;
     return localMap;
   }
 

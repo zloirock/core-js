@@ -289,6 +289,7 @@ export function createTypeQuery({
     resolveTypeQuery,
     resolveTypeofFromSegments,
     resolveTypeQueryBinding,
+    pickLastAmbientOverload,
     resolveReturnTypeFromTypeQuery,
   };
 }
