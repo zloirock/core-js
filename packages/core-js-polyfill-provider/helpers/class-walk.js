@@ -80,9 +80,19 @@ export function globalProxyMemberName({ node, scope, adapter, path }) {
 }
 
 // strict: IIFE caller-arg overrides wrapper-default ONLY when bare Identifier; other shapes
-// keep the AssignmentPattern default as the synth target so resolution can fall through
-export function isClassifiableReceiverArg(node) {
-  return node?.type === 'Identifier';
+// keep the AssignmentPattern default as the synth target so resolution can fall through.
+// the GLOBAL `undefined` arg is special: it makes the runtime apply the parameter default, so
+// it is NOT a classifiable receiver. but `undefined` is shadowable - a local binding named
+// `undefined` is a real value, so the call-arg DOES override the default in that case. consult
+// `adapter.hasBinding` (when scope/adapter are available) to tell global from shadowed; without
+// them, treat `undefined` as the global sentinel. a shadow is always an ordinary binding
+// (`const undefined` / `var` / param), found without position context, so no `path` arg is
+// needed. `void x` is a UnaryExpression and is rejected by the Identifier gate above
+export function isClassifiableReceiverArg(node, scope, adapter) {
+  if (node?.type !== 'Identifier') return false;
+  if (node.name !== 'undefined') return true;
+  if (!scope || !adapter) return false;
+  return adapter.hasBinding(scope, 'undefined');
 }
 
 // permissive: no wrapper-default - accept bare Identifier OR proxy-global MemberExpression
