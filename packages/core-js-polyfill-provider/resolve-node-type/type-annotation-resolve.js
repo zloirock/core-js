@@ -51,6 +51,7 @@ export function createTypeAnnotationResolve({
   functionTypeReturnAnnotation,
   resolveTypeQueryBinding,
   resolveTypeQuery,
+  unwrapPromise,
   resolveTypeofFromSegments,
   resolveClassInheritance,
   resolveUserDefinedType,
@@ -229,7 +230,15 @@ export function createTypeAnnotationResolve({
       }
       case 'Awaited': {
         const arg = firstArg();
-        return arg ? resolveAwaitedAnnotation({ node: arg, scope, depth, typeParamMap, seen }) : null;
+        if (!arg) return null;
+        // `Awaited<typeof X>`: resolve X's type, then await it (Promise<T> -> T, non-Promise ->
+        // itself). resolveAwaitedAnnotation peels annotation shapes but has no TSTypeQuery step,
+        // so route the typeof through resolveTypeQuery here, mirroring the ReturnType case
+        if (arg.type === 'TSTypeQuery') {
+          const queried = resolveTypeQuery(arg, scope);
+          return queried ? unwrapPromise(queried) : null;
+        }
+        return resolveAwaitedAnnotation({ node: arg, scope, depth, typeParamMap, seen });
       }
       case 'ReturnType': {
         const arg = firstArg();
