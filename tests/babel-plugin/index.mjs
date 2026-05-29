@@ -120,6 +120,26 @@ async function resolveExpectedSlots(directory) {
   ]));
 }
 
+// OVERWRITE under BABEL_VARIANT targets the variant siblings only, never the v7 baseline: write
+// each slot to its `<stem>.<variant>.<ext>` sibling, but when this version's whole output state
+// matches the baseline drop every sibling so the fixture falls back to baseline. all-or-nothing -
+// mirrors resolveExpectedSlots' lock (one sibling => the variant owns every slot). so a plain
+// `OVERWRITE=1 npm run test-babel-plugin-v8` regenerates v8 variants with no manual placeholder
+// and never clobbers output.mjs. `slots` is [[slotName, desiredContent | null], ...]
+async function overwriteVariant(directory, slots) {
+  const baseline = await Promise.all(slots.map(async ([name]) => {
+    const file = join(directory, name);
+    return await exists(file) ? readFile(file, UTF8) : null;
+  }));
+  const matchesBaseline = slots.every(([, content], i) => content === baseline[i]);
+  for (const [name, content] of slots) {
+    const file = variantPath(directory, name);
+    if (matchesBaseline || content === null) await rm(file, { force: true });
+    else await writeFile(file, content, UTF8);
+  }
+  return echo`${ cyan(label(directory)) } ${ matchesBaseline ? green('baseline') : yellow('variant') }`;
+}
+
 async function runFixture(directory) {
   if (skipPaths.has(label(directory))) {
     skipped++;
@@ -155,10 +175,17 @@ async function runFixture(directory) {
     [warningsFile, warningsOutput],
   ];
 
-  // OVERWRITE writes to whichever file `resolveExpectedSlots` returned: a variant-override
-  // sibling if it already exists, otherwise the baseline. workflow for adding a new variant
-  // divergence: (1) `touch <stem>.<variant>.<ext>` placeholder, (2) re-run with OVERWRITE
+  // baseline OVERWRITE writes the resolved slots directly. under BABEL_VARIANT it instead routes to
+  // `overwriteVariant`, which auto-creates the variant sibling on divergence and drops it on a
+  // baseline match - so a plain `OVERWRITE=1` run regenerates v8 variants without the old manual
+  // `touch <stem>.<variant>.<ext>` placeholder step and never clobbers the v7 baseline
   if (OVERWRITE) {
+    if (BABEL_VARIANT) return overwriteVariant(directory, [
+      [EXPECTED_SLOTS.errorFile, error ? actual : null],
+      [EXPECTED_SLOTS.outputFile, error ? null : actual],
+      [EXPECTED_SLOTS.debugFile, debugOutput],
+      [EXPECTED_SLOTS.warningsFile, warningsOutput],
+    ]);
     await rm(staleFile, { force: true });
     for (const [file, content] of expected) {
       if (content !== null) await writeFile(file, content, UTF8);
