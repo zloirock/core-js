@@ -1,9 +1,7 @@
-// multi-hop user-namespace extends `class Sub extends NS.Inner.Base`: extendsClauseName
-// must walk the entire MemberExpression chain, deriving root + walkPath, then defer to
-// walkStaticReceiverChain for the const-bound object descent. without multi-hop support,
-// the index falsely misses Sub as a Base subclass and external instance writes (`s.box =
-// "..."`) stay unfolded - inherited Base.box stays narrow at array-only polyfill while
-// runtime sees a string
+// `class Sub extends NS.Inner.Base` - the extends base is a multi-hop member expression
+// resolved through a const-bound object. Sub must be recognized as a Base subclass so that
+// the external write `s.box = "..."` (which changes the field away from array) bails the
+// field narrow: inherited Base.box falls back to the generic `at`, not the Array-only one.
 class Base {
   box = [1, 2, 3];
   first() { return this.box.at(0); }
