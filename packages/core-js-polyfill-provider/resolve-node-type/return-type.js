@@ -98,47 +98,74 @@ export function createReturnType({
     return null;
   }
 
-  // resolve parameter type from call-site argument, default value, or rest-element shape.
-  // dispatch by param shape (Identifier vs pattern) using NAME match - babel sets
-  // `binding.path.node` to the param container (the ObjectPattern itself for destructure),
-  // so identity equality conflates direct and destructured cases
-  function resolveParamType(binding, fnPath, callPath) {
-    const { params } = fnPath.node;
-    const args = callPath.get('arguments');
+  // locate the param that binds `targetName` - direct Identifier (`x` / `x = D`), destructure
+  // pattern (`{a}` / `[a]`, possibly defaulted), or rest (`...args`). returns { index, param,
+  // keyPath } or null. `param` keeps the outer AssignmentPattern wrapper intact so callers can
+  // test for a default; `keyPath` is non-null only for destructure-pattern matches. NAME match
+  // (not identity) - babel sets `binding.path.node` to the ObjectPattern container for
+  // destructure, conflating direct and destructured cases. shared by resolveParamType +
+  // paramHasOverridingArg so both agree on the binding-to-param mapping
+  function findBindingParam(binding, fnPath) {
     const targetName = binding.identifier?.name ?? binding.name ?? null;
+    const { params } = fnPath.node;
     for (let i = 0; i < params.length; i++) {
       const param = params[i];
       if (param.type === 'RestElement') {
-        if (param === binding.path.node) return new $Object('Array');
+        if (param === binding.path.node) return { index: i, param, keyPath: null };
         continue;
       }
       // peel outer AssignmentPattern wrapper (`function f(x = 0)` / `function f({a} = {})`)
       const patternParam = peelAssignmentPattern(param);
       if (patternParam?.type === 'Identifier' && patternParam.name === targetName) {
-        return resolveDirectParam(param, i, args, fnPath);
+        return { index: i, param, keyPath: null };
       }
       if (!targetName || !findPatternKeyPath) continue;
       if (patternParam?.type !== 'ObjectPattern' && patternParam?.type !== 'ArrayPattern') continue;
-      // findPatternKeyPath returns null when the target name isn't in this pattern
-      // (continue scanning sibling params); a non-null keyPath is definitive - either
-      // resolution succeeds or fails AT this param, no later param can match
+      // findPatternKeyPath returns null when the target name isn't in this pattern (continue
+      // scanning siblings); a non-null keyPath is definitive - resolution succeeds or fails AT
+      // this param, no later param can match
       const keyPath = findPatternKeyPath(patternParam, targetName, binding.scope ?? fnPath.scope);
-      if (!keyPath) continue;
-      return resolvePatternParam(param, keyPath, i, args, fnPath);
+      if (keyPath) return { index: i, param, keyPath };
     }
     return null;
   }
 
+  // resolve parameter type from call-site argument, default value, or rest-element shape
+  function resolveParamType(binding, fnPath, callPath) {
+    const found = findBindingParam(binding, fnPath);
+    if (!found) return null;
+    const { index, param, keyPath } = found;
+    if (param.type === 'RestElement') return new $Object('Array');
+    const args = callPath.get('arguments');
+    return keyPath
+      ? resolvePatternParam(param, keyPath, index, args, fnPath)
+      : resolveDirectParam(param, index, args, fnPath);
+  }
+
+  // a positional call arg overrides the binding's param DEFAULT (`f(x = D) { return x } f(arg)`):
+  // only an AssignmentPattern param with an arg at its position qualifies; a bare annotation
+  // (`x: T`) carries no default, so its declared type stays the authoritative narrow
+  function paramHasOverridingArg(binding, fnPath, callPath) {
+    const found = findBindingParam(binding, fnPath);
+    if (!found || found.param.type !== 'AssignmentPattern') return false;
+    return found.index < (callPath.node.arguments?.length ?? 0);
+  }
+
   // resolve expression type within a function body, with fallback to call-site parameter inference
   function resolveBodyExpr(path, fnPath, callPath) {
+    const resolved = callPath ? resolvePath(path) : null;
+    const refBinding = resolved && t.isIdentifier(resolved.node)
+      ? resolved.scope?.getBinding(resolved.node.name) : null;
+    const validBinding = refBinding && !refBinding.constantViolations?.length ? refBinding : null;
+    // a positional arg overrides a param's default - prefer the arg over the body-local type,
+    // which would surface the default and mask the argument
+    if (validBinding && paramHasOverridingArg(validBinding, fnPath, callPath)) {
+      const argType = resolveParamType(validBinding, fnPath, callPath);
+      if (argType) return argType;
+    }
     const type = resolveNodeType(path);
     if (type) return type;
-    if (!callPath) return null;
-    const resolved = resolvePath(path);
-    if (!t.isIdentifier(resolved.node)) return null;
-    const binding = resolved.scope?.getBinding(resolved.node.name);
-    if (!binding || binding.constantViolations?.length) return null;
-    return resolveParamType(binding, fnPath, callPath);
+    return validBinding ? resolveParamType(validBinding, fnPath, callPath) : null;
   }
 
   // collect return statement paths from a block body, skipping nested functions

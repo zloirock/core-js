@@ -1,4 +1,4 @@
-import "core-js/modules/es.string.at";
+import "core-js/modules/es.array.at";
 function getData(x = "fallback") {
   return x;
 }
