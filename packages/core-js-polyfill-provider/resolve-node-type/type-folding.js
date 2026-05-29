@@ -41,6 +41,7 @@ export function createTypeFolding({
   followTypeAliasChain,
   extractElementAnnotation,
   resolveTypeQueryBinding,
+  pickLastAmbientOverload,
 }) {
   function unwrapTupleMember(element) {
     let node = element;
@@ -89,7 +90,9 @@ export function createTypeFolding({
     if (name !== 'Parameters' && name !== 'ConstructorParameters') return null;
     const arg = getTypeArgs(typeRef)?.params[0];
     if (arg?.type !== 'TSTypeQuery') return null;
-    let current = resolveTypeQueryBinding(arg, scope);
+    // overloaded `typeof fn`: select the LAST ambient head's params (TS canonical signature),
+    // matching ReturnType's selection. no-op for classes / non-overloaded subjects
+    let current = pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope);
     let depth = MAX_DEPTH;
     while (depth-- && current?.node) {
       if (current.node.params) return current.node.params;

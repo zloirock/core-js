@@ -28,7 +28,7 @@
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
-import { collectQualifiedSegments, isQualifiedNameNode, typeRefName } from './ast-shapes.js';
+import { collectQualifiedSegments, isQualifiedNameNode, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { memberKeyName } from '../helpers/class-walk.js';
@@ -214,7 +214,9 @@ export function createMemberResolve({
   function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0 }) {
     if (depth > MAX_DEPTH) return null;
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
-    const peelBranch = branch => applySubst(unwrapTypeAnnotation(branch), subst);
+    // peel TSParenthesizedType so a method call on a parenthesized union / intersection branch
+    // (`(A | B).m()`, `A & (B)`) resolves through the branch instead of bailing on the wrapper
+    const peelBranch = branch => applySubst(peelTSParenthesized(unwrapTypeAnnotation(branch)), subst);
     const recurse = peeled => resolveMemberCallReturn({ annotation: peeled, name, scope, resolve, depth: depth + 1 });
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       let result = null;
@@ -418,10 +420,13 @@ export function createMemberResolve({
       }
     }
     if (t.isObjectExpression(objectPath.node)) {
-      const result = resolveObjectMember(objectPath, name, callPath);
-      if (result) return result;
-      // prop not declared in the literal: fold module-wide `<binding>.<name> = Y` writes
-      // through the alias closure. anonymous literals get an empty closure and silently bail
+      // resolveObjectFieldFlow is the flow-aware superset of resolveObjectMember: it delegates
+      // method / getter / function-valued props to resolveObjectMember, but for a plain data
+      // property it folds the init type with every reachable reassignment (`o.data = "s"`) and
+      // inside-method `this.data = ...` write, and also covers the missing-property external-write
+      // case. routing it FIRST (instead of resolveObjectMember, which returns the init type and
+      // is blind to later reassignments) keeps the narrow sound; a null result means an unknown /
+      // ambiguous writer set, so we do NOT fall back to the init-type-only path
       const flowResult = resolveObjectFieldFlow(objectPath, name, callPath);
       if (flowResult) return flowResult;
     }
