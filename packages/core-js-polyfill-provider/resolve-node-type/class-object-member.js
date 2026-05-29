@@ -298,12 +298,17 @@ export function createClassObjectMember({
     for (const member of members) {
       if (member.computed) continue;
       if (!keyMatchesName(member.key, name)) continue;
-      if (member.type === 'TSMethodSignature') {
-        if (callPath) {
-          const returnType = member.returnType ?? member.typeAnnotation;
-          return returnType ? resolveTypeAnnotation(returnType, scope) : null;
-        }
-        return new $Object('Function');
+      // method-shaped members: a TS method signature, or a Flow object-type method /
+      // function-valued property (its `value` is a FunctionTypeAnnotation). a call resolves the
+      // return type; a bare access yields Function. handled before the generic property branch
+      // so a Flow method isn't mis-resolved to the function type itself, which would lose the
+      // narrow on `obj.m().at(...)`
+      const isTsMethod = member.type === 'TSMethodSignature';
+      const isFlowMethod = member.type === 'ObjectTypeProperty' && member.value?.type === 'FunctionTypeAnnotation';
+      if (isTsMethod || isFlowMethod) {
+        if (!callPath) return new $Object('Function');
+        const returnType = isTsMethod ? (member.returnType ?? member.typeAnnotation) : member.value.returnType;
+        return returnType ? resolveTypeAnnotation(returnType, scope) : null;
       }
       if (member.type === 'TSPropertySignature' || member.type === 'ObjectTypeProperty') {
         const annotation = member.typeAnnotation ?? member.value;
