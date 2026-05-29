@@ -245,14 +245,16 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
   seen ??= new Set();
   if (seen.has(name)) return null;
   seen.add(name);
-  // single binding lookup - reused by polyfillHint, type gate, and VariableDeclarator init walk
-  const binding = adapter.getBinding(scope, name);
+  // single binding lookup - reused by polyfillHint, type gate, and VariableDeclarator init walk.
+  // pass `path` so the adapter's var-hoist fallback can surface a nested-block `var` alias
+  // (`var g = globalThis` inside an `if`) that estree-toolkit's name-only scope index misses
+  const binding = adapter.getBinding(scope, name, path);
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
   const hint = binding?.polyfillHint;
   if (hint && (CAPITALISED_IDENT.test(hint) || POSSIBLE_GLOBAL_OBJECTS.has(hint))) return hint;
-  const bindingType = adapter.getBindingNodeType(scope, name);
+  const bindingType = adapter.getBindingNodeType(scope, name, path);
   // imports without a polyfillHint don't map to a known global (their binding could point at
   // any user-imported value); param / catch / class name fall through to the final null
   if (IMPORT_BINDING_TYPES.has(bindingType)) return null;
