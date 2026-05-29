@@ -1196,6 +1196,7 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     resolveClassFieldType,
     resolveObjectFieldFlow,
+    staticFieldShadowable,
   } = classFieldsCluster;
 
   // class-object-member cluster: class body + merged-interface + object literal member
@@ -1220,6 +1221,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveSuperClassPath,
     buildParentClassSubst,
     resolveClassFieldType,
+    staticFieldShadowable,
     getTypeMembers: (...args) => getTypeMembers(...args),
     findNamespacedFunctionPath,
   });
