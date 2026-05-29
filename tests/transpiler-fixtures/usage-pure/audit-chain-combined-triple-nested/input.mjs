@@ -1,7 +1,7 @@
-// THREE optional levels in one chain: `arr.flat?.().map(x=>x).filter?.().reduce?.(...)`.
-// the chain emit at the OUTERMOST polyfilled call (`.reduce?.()` in this shape) must
-// `markIntermediateChainHops` through .filter, .filter?.() OptCall, .map and .map(...) Call
-// so the visitor doesn't queue duplicate chain emits at each polyfilled intermediate.
-// .reduce isn't optional-callable as outermost here so chain emit fires for `.filter+.flat?.()`
+// three optional levels in one chain: `arr.flat?.().map(...).filter?.().reduce?.(...)`. the
+// combine fires at the outermost polyfilled optional call (`.filter?.()`) and threads the
+// `.map(...)` hop onto the inner result, marking the consumed intermediates skipped so no
+// duplicate chain emit queues at each one. the trailing native `.reduce?.(...)` and
+// `.toString()` read off the parenthesized chain result; TS-annotated args pass through verbatim
 const arr = [1, 2];
-arr.flat?.().map(x => x).filter?.().reduce?.((a: number, b: number) => a + b, 0).toString();
+arr.flat?.().map(x => x * 2).filter?.().reduce?.((a: number, b: number) => a + b, 0).toString();
