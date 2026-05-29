@@ -171,6 +171,46 @@ export function createClassFields({
     return getClassBindingClosure(classPath, program) === null;
   }
 
+  // descendant paths when the subclass universe is closed and enumerable; null when the class
+  // binding escapes (an external subclass could exist) or descendants aren't enumerable. null
+  // is the shared "subclasses not safely knowable" signal for the static-shadow check and the
+  // instance-field external-write gate
+  function closedDescendants(classPath, program) {
+    if (classBindingEscapes(classPath, program)) return null;
+    return collectClassDescendantPaths(classPath, program);
+  }
+
+  // `this.<staticField>` inside a static method reads the field off the runtime `this`, which
+  // for an inherited static method is the calling subclass, not the lexical class. a subclass
+  // can override a typed static field with a wider type (base `number[]`, sub `any`) and store
+  // an incompatible runtime value, so a narrow off the lexical declaration is unsound for
+  // `this`-rooted access. report shadowable when subclasses aren't safely knowable or an
+  // in-module descendant declares an own static member of the same name. explicit `Base.<field>`
+  // access is unaffected (it reads the named class's own slot), so the caller gates this on
+  // `this`-rooted reads only
+  function staticFieldShadowable(classPath, fieldName) {
+    const program = findProgramPath(classPath);
+    if (!program) return true;
+    const descendant = closedDescendants(classPath, program);
+    if (!descendant) return true;
+    for (const sub of descendant.paths) {
+      if (sub !== classPath && declaresStaticMember(sub, fieldName)) return true;
+    }
+    return false;
+  }
+
+  // does the class body declare an own static member named `fieldName`? any same-named static
+  // slot (data field, method, accessor) in a subclass shadows the inherited field read - a
+  // same-kind override of incompatible type is rejected by TS, but widening to a method /
+  // accessor / `any`-typed field is not, so match all static slots conservatively
+  function declaresStaticMember(classPath, fieldName) {
+    for (const bodyMember of classPath.get('body').get('body')) {
+      const { node } = bodyMember;
+      if (node?.static && getKeyName(node.key) === fieldName) return true;
+    }
+    return false;
+  }
+
   // static field flow: writes via `<class-binding>.<field> = Y` from anywhere in the module,
   // plus `this.<field> = Y` writes inside static methods AND static blocks (`this` there is
   // the class itself). class-binding closure includes the class identifier and any
@@ -217,8 +257,7 @@ export function createClassFields({
       anchor: classPath,
       programGate: program => {
         if (isPrivate) return false;
-        if (classBindingEscapes(classPath, program)) return true;
-        descendant = collectClassDescendantPaths(classPath, program);
+        descendant = closedDescendants(classPath, program);
         if (!descendant) return true;
         closure = getClassInstanceClosure(classPath, program);
         return closure === null;
@@ -495,6 +534,7 @@ export function createClassFields({
   return {
     resolveClassFieldType,
     resolveObjectFieldFlow,
+    staticFieldShadowable,
     reset,
   };
 }
