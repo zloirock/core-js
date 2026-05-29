@@ -137,3 +137,18 @@ export const OPEN_KEYWORD_ANNOTATION_TYPES = new Set([
 export function isOpenKeywordAnnotation(node) {
   return OPEN_KEYWORD_ANNOTATION_TYPES.has(node?.type);
 }
+
+// loop heads whose body re-executes - a write inside any of them feeds back to a use on the
+// next iteration (back-edge). `t.isLoop` is a babel-types alias the hand-written estree adapter
+// doesn't expose, so the shared resolver carries its own set
+export const LOOP_STATEMENT_TYPES = new Set([
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+]);
+
+export function isLoopStatement(node) {
+  return LOOP_STATEMENT_TYPES.has(node?.type);
+}
