@@ -44,11 +44,13 @@ const VALID_PHASES = ['pre', 'post', 'pre+post'];
 // bundlers where `phase: 'pre+post'` doesn't reliably enforce pre-then-post ordering against
 // sibling plugins. upstream unplugin's `enforce` field is dropped silently on bun (no
 // priority concept; bun processes Bun.plugin() registrations in declaration order without
-// inter-plugin interleaving slots). on farm `enforce` IS honored via priority mapping
-// (pre→102 / post→98), so sibling default-priority 100 lands BETWEEN our pre and post -
-// that's the design intent for pre+post. fall back to single-mode 'post' only where the
-// ordering truly breaks; user gets the safer behavior with a one-time warn
-const PRE_POST_UNSAFE_BUNDLERS = new Set(['bun']);
+// inter-plugin interleaving slots). esbuild emulates the `transform` hook through a first-wins
+// `onLoad`, so two sibling plugin instances can't both run on one module - whichever esbuild
+// calls first wins and the other pass is silently dropped, which breaks pre-then-post. on farm
+// `enforce` IS honored via priority mapping (pre->102 / post->98), so sibling default-priority
+// 100 lands BETWEEN our pre and post - that's the design intent for pre+post. fall back to
+// single-mode 'post' only where the ordering truly breaks; user gets a one-time warn
+const PRE_POST_UNSAFE_BUNDLERS = new Set(['bun', 'esbuild']);
 
 // `phase` controls when the plugin runs. See index.d.ts for the full trade-off matrix.
 // `entry-global` is pinned to pre so `import 'core-js'` is seen before siblings transform it.
