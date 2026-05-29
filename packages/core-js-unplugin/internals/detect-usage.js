@@ -536,7 +536,7 @@ export function createUsageVisitors({
         // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
         if (isFunctionParamDestructureParent(objectPattern)) {
           const argNode = findIifeArgForParam(parent.parentPath, parent.node);
-          initNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
+          initNode = isClassifiableReceiverArg(argNode, scope, adapter) ? argNode : parent.node.right;
           break;
         }
         // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
