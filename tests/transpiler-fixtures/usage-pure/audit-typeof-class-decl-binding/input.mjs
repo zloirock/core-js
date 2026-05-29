@@ -1,7 +1,6 @@
-// resolveBareTypeQueryBinding ClassDeclaration branch: `typeof Helper` resolves
-// to the class itself; ReturnType<typeof Helper.factory> walks the class member.
-// The bare-identifier extractor must surface ClassDeclaration as a valid binding
-// path so downstream member resolution can find static method signatures.
+// `typeof Helper` resolves to the class declaration itself, so
+// ReturnType<typeof Helper.factory> can reach the static method's return type (number[]).
+// The result narrows to Array and `.at(0)` emits the Array variant.
 class Helper {
   static factory(): number[] {
     return [1, 2, 3];
