@@ -1253,7 +1253,7 @@ export function createDestructureEmitter({
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     const objectPattern = metaPath.parent;
     const receiver = isSynthSimpleObjectPattern(objectPattern)
-      ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern) : null;
+      ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern, metaPath.scope, estreeAdapter) : null;
     if (!receiver) {
       // synth-swap bailed (computed-key sibling / non-Identifier shape) - try body-extract
       // first: insert `let from = _polyfill;` at function body top + remove the prop from
