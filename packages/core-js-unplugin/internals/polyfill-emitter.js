@@ -663,6 +663,17 @@ export function createPolyfillEmitter({
     };
   }
 
+  // peel Paren / Chain / TS wrappers off a (node, path) pair in lockstep, returning both so chain
+  // descent and polyfill resolution stay aligned on the unwrapped node
+  function peelChainWrappers(node, path) {
+    while (node && (node.type === 'ParenthesizedExpression'
+        || node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
+      node = node.expression;
+      path = path.get('expression');
+    }
+    return [node, path];
+  }
+
   // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined).
   // strictly call-only: babel-plugin's analogue gates on `isCallExpression || isOptionalCallExpression`,
   // so NewExpression must fall through to `addInstanceTransform` (which emits the `isNew` branch
@@ -672,14 +683,32 @@ export function createPolyfillEmitter({
   function findInnerPolyChain(node, parent, metaPath) {
     if (!isCallee(node, parent) || node.type !== 'MemberExpression' || node.computed) return null;
     if (parent.type !== 'CallExpression') return null;
-    let current = node.object;
-    while (current && (current.type === 'ParenthesizedExpression'
-        || current.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(current.type))) {
-      current = current.expression;
-    }
+    let [current, currentPath] = peelChainWrappers(node.object, metaPath.get('object'));
+    // collect non-optional intermediate hops (`.map(...)` / `.slice(...)` / `.x`) between the outer
+    // call and the optional inner. the combine threads them onto the memoized inner result so they
+    // survive instead of being dropped (value corruption) - mirrors babel-compat.js spliceChainInner.
+    // hops are always non-optional here: the descent breaks at the first `?.`, which becomes chainStart
+    const hops = [];
     while (current && (current.type === 'MemberExpression' || current.type === 'CallExpression')) {
       if (current.optional) break;
-      current = current.type === 'MemberExpression' ? current.object : current.callee;
+      if (current.type === 'CallExpression') {
+        const [hopCallee, hopCalleePath] = peelChainWrappers(current.callee, currentPath.get('callee'));
+        // un-threadable hop callee shapes (computed / non-Identifier / `super`): bail rather than
+        // risk a malformed thread. matches the inner-chainStart gate below
+        if (hopCallee?.type !== 'MemberExpression' || hopCallee.computed
+          || hopCallee.property?.type !== 'Identifier' || hopCallee.object?.type === 'Super') return null;
+        const hopMeta = { kind: 'property', object: null, key: hopCallee.property.name, placement: 'prototype' };
+        const { result: hopResult } = resolvePureOrGlobalFallback(hopMeta, hopCalleePath);
+        hops.push({
+          poly: hopResult?.kind === 'instance' ? hopResult : null,
+          args: sliceBetweenParens(current) ?? '',
+          rawSrc: code.slice(hopCallee.object.end, current.end),
+        });
+        [current, currentPath] = peelChainWrappers(hopCallee.object, hopCalleePath.get('object'));
+      } else {
+        hops.push({ poly: null, args: null, rawSrc: code.slice(current.object.end, current.end) });
+        [current, currentPath] = peelChainWrappers(current.object, currentPath.get('object'));
+      }
     }
     if (current?.type !== 'CallExpression' || !current.optional) return null;
     const { callee } = current;
@@ -691,9 +720,9 @@ export function createPolyfillEmitter({
     // dedicated super-call handling instead
     if (callee.object?.type === 'Super') return null;
     const meta = { kind: 'property', object: null, key: callee.property.name, placement: 'prototype' };
-    const { result } = resolvePureOrGlobalFallback(meta, metaPath.get('object').get('callee'));
+    const { result } = resolvePureOrGlobalFallback(meta, currentPath.get('callee'));
     if (result?.kind !== 'instance') return null;
-    return { chainStart: current, innerCallee: callee, innerResult: result };
+    return { chainStart: current, innerCallee: callee, innerResult: result, hops };
   }
 
   // suppress the inner proxy-global of a TS / Paren wrapped chain receiver. chain emit
@@ -754,8 +783,27 @@ export function createPolyfillEmitter({
     return n?.type === 'Identifier' ? n : null;
   }
 
+  // thread collected non-optional hops onto the inner result. polyfillable hops re-emit inline
+  // (`binding(_ref = prev).call(_ref, args)`) so the receiver binds; non-poly hops and member
+  // accesses append their verbatim source. refs allocate OUTERMOST-first (hops array order, after
+  // the caller's mRef / outerRef) to match babel's spliced re-traversal, while the receiver is
+  // built INNERMOST-first - keeping the emit byte-for-byte with babel even for multiple hops
+  function buildThreadedReceiver(innerCall, hops) {
+    const slots = hops.map(hop => hop.poly
+      ? { ref: scopeTracker.genRef(), binding: injectPureImport(hop.poly.entry, hop.poly.hintName) }
+      : null);
+    let acc = innerCall;
+    for (let i = hops.length - 1; i >= 0; i--) {
+      const slot = slots[i];
+      acc = slot
+        ? `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ hops[i].args ? `, ${ hops[i].args }` : '' })`
+        : `${ acc }${ hops[i].rawSrc }`;
+    }
+    return acc;
+  }
+
   function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain }) {
-    const { chainStart, innerCallee, innerResult } = chain;
+    const { chainStart, innerCallee, innerResult, hops } = chain;
     const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
     // chain-rooted polyfillable receiver: without substituting the leaf, OR-chain emit
     // would carry `globalThis?.X` etc. verbatim into every `null == ...` slot of the
@@ -802,6 +850,7 @@ export function createPolyfillEmitter({
     const innerArgs = sliceBetweenParens(chainStart) ?? '';
     const outerArgs = sliceBetweenParens(parent) ?? '';
     const innerCall = `${ mRef }.call(${ aRef }${ innerArgs ? `, ${ innerArgs }` : '' })`;
+    const threaded = buildThreadedReceiver(innerCall, hops);
 
     const tests = [
       `null == ${ anAssign }`,
@@ -809,10 +858,10 @@ export function createPolyfillEmitter({
     ];
     let outerObj;
     if (node.optional) {
-      tests.push(`null == (${ outerRef } = ${ innerCall })`);
+      tests.push(`null == (${ outerRef } = ${ threaded })`);
       outerObj = outerRef;
     } else {
-      outerObj = `${ outerRef } = ${ innerCall }`;
+      outerObj = `${ outerRef } = ${ threaded }`;
     }
     const dot = parent.optional ? '?.' : '.';
     const suffix = outerArgs ? `, ${ outerArgs }` : '';
