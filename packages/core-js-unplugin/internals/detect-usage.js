@@ -30,6 +30,7 @@ import {
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   resolveCallArgument,
+  unwrapSafeSequenceTail,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -547,13 +548,14 @@ export function createUsageVisitors({
       case 'AssignmentPattern':
         // `function({ from } = Array)` - AssignmentPattern wraps the param. Route `parent.right`
         // as the destructure receiver so `from` resolves to `Array.from`.
-        // for IIFE with statically-classifiable caller-arg (Identifier matching a known
-        // builtin), the wrapper-default is dead code at runtime: prefer caller-arg as
-        // receiver. non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) carry no
-        // static type, so wrapper-default still provides the best static context and the
-        // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
+        // for IIFE with statically-classifiable caller-arg, the wrapper-default is dead code at
+        // runtime: prefer caller-arg as receiver. peel SE-tail / paren / TS wrappers first
+        // (`(0, Array)` / `(Array)` -> `Array`) so a wrapped bare global classifies - matches the
+        // synth-swap emit path, which already peels via the same helper. genuinely non-Identifier
+        // shapes (`(...)(globalThis.X)`, `(...)(call())`) stay un-classifiable, so wrapper-default
+        // keeps the static context and the runtime fallback (`= Array` on undefined arg) carries it
         if (isFunctionParamDestructureParent(objectPattern)) {
-          const argNode = findIifeArgForParam(parent.parentPath, parent.node);
+          const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
           initNode = isClassifiableReceiverArg(argNode, scope, adapter) ? argNode : parent.node.right;
           break;
         }
