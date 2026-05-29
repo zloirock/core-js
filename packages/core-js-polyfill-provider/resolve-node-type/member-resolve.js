@@ -427,7 +427,11 @@ export function createMemberResolve({
     }
     const ctx = resolveClassContext(objectPath);
     if (ctx) {
-      const result = resolveClassMember({ classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath });
+      // `viaThis` marks a `this`-rooted static read: the runtime receiver can be a subclass,
+      // so a static-field narrow must verify no subclass shadow is reachable
+      const result = resolveClassMember({
+        classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath, viaThis: t.isThisExpression(objectPath.node),
+      });
       if (result) return result;
     }
     // ambient `declare class X { static make() }` - X reference has no scope binding in babel
