@@ -56,6 +56,9 @@ export default class ScopeTracker {
   #scopedVars = new Map();
   // body node -> { kind, names: [var names] }
   #bodyWraps = new Map();
+  // insertionPos -> { start, end } of the brace-delimited block, so a scoped `var` whose insert
+  // would land inside an enclosing overwrite can be re-emitted as a composing body-overwrite
+  #scopedVarBlocks = new Map();
   // setScope walk-up cache. each node's enclosing scope is fixed by its position in the
   // AST, so the walk is purely a function of the node. multiple traverse passes within
   // one runTransform are SAFE (same AST, same node identity); a fresh AST per file
@@ -101,6 +104,12 @@ export default class ScopeTracker {
       const anchor = varScopeAnchor(p.node, this.#code);
       if (anchor) {
         this.scope = skipDirectivePrologue(anchor.statements, anchor.insertPos);
+        // remember the brace-delimited block range (BlockStatement / StaticBlock is the node
+        // itself; catch / namespace wrap their block in `.body`) so applyTransforms can re-emit
+        // the scoped `var` as a composing body-overwrite when its insert would land inside an
+        // enclosing overwrite
+        const braceNode = p.node.type === 'BlockStatement' || p.node.type === 'StaticBlock' ? p.node : p.node.body;
+        if (braceNode) this.#scopedVarBlocks.set(this.scope, { start: braceNode.start, end: braceNode.end });
         break;
       }
     }
@@ -258,11 +267,21 @@ export default class ScopeTracker {
     for (const [body, entry] of this.#bodyWraps) {
       queue.add(body.start, body.end, this.#bodyWrapText(body, entry));
     }
-    // queue scoped var declarations at each computed insertion point (after `{` + any
-    // directive prologue - see skipDirectives). use `queue.insert` so the apply phase
-    // remains the single drain (overwrites + inserts both flushed by `queue.apply()`)
+    // queue scoped var declarations at each computed insertion point (after `{` + any directive
+    // prologue). normally a plain insert; but when the insert point sits inside an enclosing
+    // overwrite (e.g. an instance-method memo wrapping an IIFE whose body hosts another polyfill)
+    // a raw insert can't fold into the overwritten chunk - re-emit it as a body-spanning overwrite
+    // so it composes into the enclosing transform like #bodyWraps. brace head (up to insertPos)
+    // and tail stay verbatim so nested transforms inside the block still compose by content
     for (const [insertPos, names] of this.#scopedVars) {
-      queue.insert(insertPos, this.#scopedVarText(insertPos, names));
+      const block = this.#scopedVarBlocks.get(insertPos);
+      if (block && queue.insertLandsInsideOverwrite(insertPos)) {
+        const head = this.#code.slice(block.start, insertPos);
+        const tail = this.#code.slice(insertPos, block.end);
+        queue.add(block.start, block.end, `${ head } var ${ names.join(', ') };${ tail }`);
+      } else {
+        queue.insert(insertPos, this.#scopedVarText(insertPos, names));
+      }
     }
     queue.apply();
   }

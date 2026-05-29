@@ -288,9 +288,20 @@ export function createDestructureEmitter({
     return segments;
   }
 
+  // vacate a soon-to-be-overwritten range of BOTH channels MagicString can't host inside an
+  // overwrite: scope-tracker ref-bindings and queued point-inserts (e.g. a catch-clause prelude
+  // emitted while a sibling SE-prefix was visited). returned as one splice list the caller bakes
+  // into the lifted text via spliceInRange; a leftover insert would trip the insert-inside-
+  // overwrite invariant
+  function consumeRefsAndInserts(start, end) {
+    const refs = scopeTracker.consumeRefBindingsInRange(start, end);
+    const inserts = transforms.drainInsertsInRange(start, end);
+    return inserts.length ? refs.concat(inserts) : refs;
+  }
+
   function flushPendingCascade() {
     for (const entry of pendingCascade) {
-      const drainedRefs = scopeTracker.consumeRefBindingsInRange(entry.stmtNode.start, entry.stmtNode.end);
+      const drainedRefs = consumeRefsAndInserts(entry.stmtNode.start, entry.stmtNode.end);
       const segments = renderCascadeSegments(entry, drainedRefs);
       transforms.add(entry.stmtNode.start, entry.stmtNode.end,
         wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, entry.stmtPath));
@@ -471,7 +482,7 @@ export function createDestructureEmitter({
   function drainRefBindingsByDeclarator(declaration, perDecl) {
     for (let i = 0; i < perDecl.length; i++) {
       const decl = declaration.declarations[i];
-      perDecl[i].drainedRefs = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
+      perDecl[i].drainedRefs = consumeRefsAndInserts(decl.start, decl.end);
     }
   }
 
@@ -1638,12 +1649,6 @@ export function createDestructureEmitter({
   // share `pendingDestructuring` / `pendingSynthSwaps` accumulators; differ only in the
   // shape of the AST anchor being emitted into. final flush via the host's queue.apply()
   function applyDestructuringTransforms() {
-    // drain deferred flatten / cascade payloads first - they consume scope-tracker bindings
-    // within each preserved declarator / statement range, so subsequent
-    // `scopeTracker.applyTransforms` won't queue inserts that fall inside the overwrite
-    // (MagicString chunk-split throw)
-    flushPendingFlatten();
-    flushPendingCascade();
     const byStatement = new Map();
     for (const [, info] of pendingDestructuring) {
       if (!info.declPath?.node || !info.declaratorPath?.node) continue;
@@ -1652,13 +1657,26 @@ export function createDestructureEmitter({
       byStatement.get(key).push(info);
     }
 
+    // emit catch-clause rewrites BEFORE the flush: a catch prelude is queued as a point-insert
+    // that can land inside a sibling flatten declarator's SE-prefix range, and flushPendingFlatten
+    // drains inserts within each declarator range to bake them into the lifted prefix text. the
+    // catch inserts must already be in the queue when that drain runs, else they stay anchored
+    // inside the flatten overwrite and trip the insert-inside-overwrite invariant
+    for (const [, infos] of byStatement) {
+      if (infos[0].isCatchClause) emitCatchClause(infos, infos[0].declPath.node);
+    }
+
+    // drain deferred flatten / cascade payloads - they consume scope-tracker bindings AND the
+    // catch inserts above within each preserved declarator / statement range, so subsequent
+    // `scopeTracker.applyTransforms` won't queue inserts that fall inside the overwrite
+    // (MagicString chunk-split throw)
+    flushPendingFlatten();
+    flushPendingCascade();
+
     for (const [, infos] of byStatement) {
       const [{ declPath, isAssignment, isCatchClause }] = infos;
 
-      if (isCatchClause) {
-        emitCatchClause(infos, declPath.node);
-        continue;
-      }
+      if (isCatchClause) continue;
 
       // shared classifier returns booleans both plugins consume from the same source.
       // assignment hosts skip classification (the booleans are VariableDeclaration-only
@@ -1710,16 +1728,15 @@ export function createDestructureEmitter({
         const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
         let initTransformed = (initStart !== undefined && initEnd !== undefined
             ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
-        // drain `var _ref;` ref-binding inserts anchored inside [initStart, initEnd) so the
-        // replaceNode-spanning overwrite below stays queue-safe. inserts come from inner
-        // instance-method polyfills (`[1].at(0)` in an IIFE-bodied init) that landed inside
-        // the init range during sibling traversal. without the bake, `scopeTracker.apply
-        // Transforms` later queues the `_ref` insert inside our [replaceNode.start, end)
-        // overwrite and MagicString rejects it as a chunk-split violation
+        // bake `var _ref;` ref-bindings AND point-inserts anchored inside [initStart, initEnd)
+        // into the lifted init text so the replaceNode-spanning overwrite below stays queue-safe.
+        // both arise during sibling traversal: inner instance-method polyfills (`[1].at(0)` in an
+        // IIFE-bodied init) seed the ref-binding, a catch-clause prelude seeds the insert. left in
+        // the queue either lands inside our overwrite and MagicString rejects the chunk split
         if (initStart !== undefined && initEnd !== undefined) {
-          const refsInInit = scopeTracker.consumeRefBindingsInRange(initStart, initEnd);
-          if (refsInInit.length && initTransformed === initSrc) {
-            initTransformed = spliceInRange(initSrc, initStart, refsInInit);
+          const splices = consumeRefsAndInserts(initStart, initEnd);
+          if (splices.length && initTransformed === initSrc) {
+            initTransformed = spliceInRange(initSrc, initStart, splices);
           }
         }
         for (const e of entries) {
