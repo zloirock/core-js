@@ -26,6 +26,7 @@ import {
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   resolveCallArgument,
+  unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
 
@@ -282,13 +283,14 @@ export function createUsageVisitors({
       // expression is the receiver that our destructure targets when the arg is omitted.
       // for IIFE with statically-classifiable caller-arg (`(({from} = Array) => ...)(Set)`),
       // wrapper-default is dead code at runtime - resolve against caller-arg instead.
-      // narrowing to Identifier: only bare globals can be classified to a receiver type;
-      // non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) carry no static type
-      // info, so wrapper-default still provides the best static receiver context, and the
-      // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
+      // peel SE-tail / paren / TS wrappers off the caller-arg first (`(0, Array)` / `(Array)` ->
+      // `Array`) so a wrapped bare global classifies - matches the synth-swap emit path, which
+      // already peels via the same helper (without this, detect resolves against the dead default).
+      // genuinely non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) stay un-classifiable,
+      // so wrapper-default keeps the static receiver context and the runtime fallback carries it
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
-      const argNode = findIifeArgForParam(parent.parentPath, parent.node);
+      const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
       const receiverNode = isClassifiableReceiverArg(argNode, parent.scope, adapter) ? argNode : parent.node.right;
       const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
       onUsage(meta, path);
