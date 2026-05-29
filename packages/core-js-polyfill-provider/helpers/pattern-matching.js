@@ -94,8 +94,7 @@ export function findUniqueName(prefix, startSuffix, isTaken) {
   if (startSuffix !== null) {
     if (typeof startSuffix !== 'number' || !Number.isFinite(startSuffix)) {
       const got = typeof startSuffix === 'number' ? startSuffix : typeof startSuffix;
-      throw new TypeError('[core-js] findUniqueName: startSuffix must be null '
-        + `or a finite non-negative number; got ${ got }`);
+      throw new TypeError(`[core-js] findUniqueName: startSuffix must be null or a finite non-negative number; got ${ got }`);
     }
     if (startSuffix < 0) {
       throw new RangeError(`[core-js] findUniqueName: startSuffix must be non-negative; got ${ startSuffix }`);
@@ -109,7 +108,10 @@ export function findUniqueName(prefix, startSuffix, isTaken) {
   let name = `${ prefix }${ counter }`;
   const limit = counter + (1 << 20);
   while (isTaken(name)) {
-    if (++counter > limit) throw new Error(`[core-js] findUniqueName: collision space exhausted at \`${ prefix }${ counter }\` (isTaken always returns true?)`);
+    // report the last name actually tried (counter - 1): the pre-increment value is the taken
+    // candidate that exhausted the space; the post-increment counter is the over-limit index
+    // that was never constructed
+    if (++counter > limit) throw new Error(`[core-js] findUniqueName: collision space exhausted at \`${ prefix }${ counter - 1 }\` (isTaken always returns true?)`);
     name = `${ prefix }${ counter }`;
   }
   return name;
