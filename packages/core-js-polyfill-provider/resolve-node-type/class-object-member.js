@@ -47,6 +47,7 @@ export function createClassObjectMember({
   resolveSuperClassPath,
   buildParentClassSubst,
   resolveClassFieldType,
+  staticFieldShadowable,
   getTypeMembers,
   findNamespacedFunctionPath,
 }) {
@@ -125,10 +126,20 @@ export function createClassObjectMember({
     return result;
   }
 
-  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs }) {
+  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
     const found = findClassMember({ classPath, name, isStatic, classSubst });
-    if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
+    if (found) {
+      // `this.<staticField>` resolves against the lexical class, but an inherited static
+      // method runs with `this` bound to the calling subclass. when a subclass can override
+      // the static field with an incompatible runtime value, a narrow off the lexical
+      // declaration would emit an element-specialized instance polyfill that throws on the
+      // subclass value in engines lacking the native method. bail to the general variant only
+      // when such a shadow is reachable; explicit `Base.<field>` access (viaThis false) reads
+      // the named class's own slot and stays narrowed
+      if (viaThis && isStatic && isPropertyMember(found.member.node) && staticFieldShadowable(classPath, name)) return null;
+      return resolveClassMemberNode(found.member, callPath, found.subst);
+    }
     if (!classPath.node.id?.name) return null;
     // static lookup miss: try TS declaration-merging fallback. when `namespace Foo { export
     // function bar(): T {} }` merges with `class Foo {}`, `Foo.bar` is a runtime callable
