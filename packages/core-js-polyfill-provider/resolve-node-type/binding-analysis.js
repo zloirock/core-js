@@ -356,7 +356,32 @@ export function createBindingAnalysis({
   // object-shape value). class-binding closure swaps in `classBindingRefClassifier` which also
   // accepts `new ClassName()`, `class Sub extends ClassName`, `x instanceof ClassName` -
   // those uses don't escape the binding's value (the class) for static-state mutation purposes
+  // computed member key that's a compile-time constant - a write through it touches a KNOWN
+  // field, so field-flow can fold or ignore it. dynamic keys (`o[i]`, `o[f()]`) are unknowable
+  function isStaticComputedKey(property) {
+    const type = property?.type;
+    if (type === 'StringLiteral' || type === 'NumericLiteral' || type === 'BigIntLiteral') return true;
+    if (type === 'Literal') return true; // estree (oxc): string / number / bigint / boolean / null / regex
+    return type === 'TemplateLiteral' && property.expressions?.length === 0;
+  }
+
+  // `o[k] = v` / `o[k]++` / `delete o[k]` with a dynamic key: an unmonitored write to ANY field
+  // (k could equal a tracked field name at runtime) that field-flow can't enumerate - a leak.
+  // `parent` is the member node; `refPath.parentPath.parent` is the assignment / update / delete above it
+  function isDynamicComputedKeyWrite(parent, refNode, refPath) {
+    if (parent?.type !== 'MemberExpression' && parent?.type !== 'OptionalMemberExpression') return false;
+    if (parent.object !== refNode || !parent.computed || isStaticComputedKey(parent.property)) return false;
+    const host = refPath?.parentPath?.parent;
+    if (!host) return false;
+    return (host.type === 'AssignmentExpression' && host.left === parent)
+      || (host.type === 'UpdateExpression' && host.argument === parent)
+      || (host.type === 'UnaryExpression' && host.operator === 'delete' && host.argument === parent);
+  }
+
   function defaultAliasRefClassifier(parent, refNode, refPath) {
+    // a dynamic computed-key write is an unenumerable mutation channel - leak before the
+    // member-receiver shortcut would otherwise treat it as trivial
+    if (isDynamicComputedKeyWrite(parent, refNode, refPath)) return 'leak';
     if (isMemberRefReceiver(parent, refNode)) return 'trivial';
     // type-only positions (`export type { X }` / `export { type X }`, `class implements
     // Foo<X>` heritage) are tsc-elided at runtime - reference doesn't escape the module so
