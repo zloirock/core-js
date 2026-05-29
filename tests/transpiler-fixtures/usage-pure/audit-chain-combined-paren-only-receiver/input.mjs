@@ -1,5 +1,5 @@
-// Paren-only wrapped chain receiver: `(globalThis).flat?.().includes(1)` - no TS, just
-// parenthesization. `markWrappedProxyGlobalSkipped` peels both Paren and TS wrappers via
-// the same loop, so the inner `globalThis` Identifier is suppressed and the chain emit
-// uses the receiver text verbatim
+// Parenthesis-wrapped chain receiver `(globalThis).flat?.().includes(1)` - plain parens,
+// no TS cast. The wrapper is peeled so the inner `globalThis` resolves to the global
+// polyfill, and the optional chain narrows flat/includes without queuing a duplicate
+// globalThis rewrite.
 (globalThis).flat?.().includes(1);

@@ -1,10 +1,8 @@
 import _at from "@core-js/pure/actual/instance/at";
-// ReturnType<typeof import('x').fn> reaches `pickLastAmbientOverload` with an
-// exprName whose head is TSImportType, not Identifier / TSQualifiedName.
-// `collectQualifiedSegments` returns null for that shape, the unified
-// `findOverloadsForName` short-circuits, and the resolver falls through to its
-// structural bail - the cross-module signature is opaque, so polyfills must
-// still inject for the receiver's instance call.
+// The return type is `typeof import('foo').fn` - a cross-module reference whose signature is
+// opaque to the resolver. The return type cannot be determined, so it falls through to a
+// structural bail: the instance call `.at(0)` is still polyfilled, but as the generic
+// variant rather than the Array-specific one.
 function getFn(): typeof import("foo").fn {
   return null as any;
 }

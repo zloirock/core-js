@@ -1,8 +1,6 @@
-// `typeof NS.Inner.fn` for 3+ segment qualified names through TS namespaces. babel doesn't
-// bind `namespace NS` as a scope value, so resolveTypeQueryBinding's scope-walk misses;
-// findNamespacedFunctionPath walks TSModuleDeclaration bodies recursively (via parameterized
-// walkStatementsForDecl with isFunctionOrClassDeclaration leaf-match) and lands on `fn`.
-// returnType resolves to `string[]` and `r.at(0)` narrows to the array polyfill
+// `typeof NS.Inner.fn` - a 3+ segment qualified name through nested TS namespaces. The
+// nested namespace bodies are searched to find `fn`, whose return type is string[], so the
+// result narrows to Array and `.at(0)` emits the Array variant.
 namespace NS {
   export namespace Inner {
     export declare function fn(): string[];
