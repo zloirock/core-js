@@ -476,18 +476,24 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
   return cur;
 }
 
-// descend `depth` ArrayExpression layers via `.elements[0]` to mirror the
-// ArrayPattern wrapper stack on the destructure side. bail (return null) if any
-// intermediate level isn't an ArrayExpression - mismatched lhs/rhs depth means
-// the runtime structure won't unwrap the wrappers and static resolution would lie.
+// descend ArrayExpression layers following `indices` (outermost-first) to mirror the
+// ArrayPattern wrapper stack on the destructure side - the inner pattern need not sit at
+// index 0 of each wrapper (`const [, { from }] = [Set, Array]`). bail (return null) if any
+// level isn't an ArrayExpression, the target slot is a hole, or a spread at or before the
+// target index shifts runtime positions - any of these means the runtime structure won't
+// unwrap to the assumed slot and static resolution would lie.
 // when scope/adapter are passed, dereferences const-bound Identifier wrappers via
 // `followConstIdentifierInit` so `const wrapper = [Array]; [v] = wrapper` reaches Array
-function descendArrayWrapperInit(receiverNode, depth, scope = null, adapter = null, path = null) {
-  for (let i = 0; i < depth; i++) {
+function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = null, path = null) {
+  for (const index of indices) {
     let cur = unwrapExpressionChain(receiverNode);
     if (scope && adapter) cur = followConstIdentifierInit(cur, scope, adapter, path);
     if (cur?.type !== 'ArrayExpression') return null;
-    [receiverNode] = cur.elements;
+    for (let i = 0; i <= index; i++) {
+      if (cur.elements[i]?.type === 'SpreadElement') return null;
+    }
+    receiverNode = cur.elements[index];
+    if (!receiverNode) return null;
   }
   return receiverNode;
 }
@@ -498,18 +504,23 @@ function descendArrayWrapperInit(receiverNode, depth, scope = null, adapter = nu
 // layers. returns the leaf constructor name when it's a recognised static placement
 export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, adapter) {
   let cur = innerObjectPattern;
-  let arrayDepth = 0;
+  // record the element index at each ArrayPattern wrapper (innermost-first) so the init
+  // descent picks the matching slot, not a blind `[0]` - `const [, { from }] = [Set, Array]`
+  const innerFirstIndices = [];
   while (cur.parentPath?.node?.type === 'ArrayPattern') {
+    const index = cur.parentPath.node.elements.indexOf(cur.node);
+    if (index === -1) return null;
+    innerFirstIndices.push(index);
     cur = cur.parentPath;
-    arrayDepth++;
   }
-  if (arrayDepth === 0) return null;
+  if (innerFirstIndices.length === 0) return null;
   const host = cur.parentPath;
   const slot = flattenableHostSlot(host?.node, host);
   if (!slot) return null;
   const slotNode = host.node[slot];
   if (!slotNode) return null;
-  const descended = descendArrayWrapperInit(slotNode, arrayDepth, host.scope, adapter, host);
+  // descent runs outermost-first; the walk-up collected innermost-first, so reverse
+  const descended = descendArrayWrapperInit(slotNode, innerFirstIndices.toReversed(), host.scope, adapter, host);
   if (!descended) return null;
   const leaf = unwrapExpressionChain(descended);
   if (leaf?.type !== 'Identifier') return null;
@@ -562,7 +573,11 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
     // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise
     const slot = flattenableHostSlot(parent?.node, parent);
     const slotNode = slot ? parent.node[slot] : null;
-    const receiverNode = totalArrayDepth ? descendArrayWrapperInit(slotNode, totalArrayDepth) : slotNode;
+    // transparent ArrayPattern wrappers are single-element (isTransparentDestructureWrapper),
+    // so every level descends index 0 - pass a zeros vector for descendArrayWrapperInit's index list
+    const receiverNode = totalArrayDepth
+      ? descendArrayWrapperInit(slotNode, Array.from({ length: totalArrayDepth }, () => 0))
+      : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested combinations like `(se(), (R as any))`) all reach the receiver. without

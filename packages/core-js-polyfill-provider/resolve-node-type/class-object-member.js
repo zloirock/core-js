@@ -48,6 +48,7 @@ export function createClassObjectMember({
   buildParentClassSubst,
   resolveClassFieldType,
   staticFieldShadowable,
+  instanceMemberShadowable,
   getTypeMembers,
   findNamespacedFunctionPath,
 }) {
@@ -64,6 +65,15 @@ export function createClassObjectMember({
   // PropertyDefinition with a PrivateIdentifier key. shared `./class-member-shapes.js`
   // collapses both shapes so `resolveClassMemberNode` doesn't miss private members
   const { isMethodMember, isPropertyMember } = createClassMemberShape({ t });
+
+  // private members (`#x`, `static #x`, `accessor #x`) are lexically class-scoped: a subclass
+  // declaring `#x` creates a distinct brand, never an override of the base's slot, so a
+  // `this.#x` read always resolves to the lexical class's member regardless of the runtime
+  // instance. the subclass-shadow bail must skip them (matches `class-fields.js` isPrivateMember)
+  function isPrivateClassMember(node) {
+    return node?.key?.type === 'PrivateIdentifier'
+      || t.isClassPrivateProperty?.(node) || t.isClassPrivateMethod?.(node);
+  }
 
   // does the class body own a getter / setter for `name` matching `isStatic`? used to
   // gate `resolveMergedNamespaceStatic` fallback - setter-only members own the slot even
@@ -130,14 +140,18 @@ export function createClassObjectMember({
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
     const found = findClassMember({ classPath, name, isStatic, classSubst });
     if (found) {
-      // `this.<staticField>` resolves against the lexical class, but an inherited static
-      // method runs with `this` bound to the calling subclass. when a subclass can override
-      // the static field with an incompatible runtime value, a narrow off the lexical
-      // declaration would emit an element-specialized instance polyfill that throws on the
-      // subclass value in engines lacking the native method. bail to the general variant only
-      // when such a shadow is reachable; explicit `Base.<field>` access (viaThis false) reads
-      // the named class's own slot and stays narrowed
-      if (viaThis && isStatic && isPropertyMember(found.member.node) && staticFieldShadowable(classPath, name)) return null;
+      // `this.<member>` resolves against the lexical class, but an inherited method / getter
+      // runs with `this` bound to the calling subclass (static side) or subclass instance
+      // (instance side). when a subclass can override the member with an incompatible runtime
+      // value - widened to `any`, or a method / accessor / field of a different shape - a narrow
+      // off the lexical declaration would emit an element-specialized polyfill that throws on
+      // the subclass value in engines lacking the native method. bail to the general variant
+      // only when such a shadow is reachable: covers static fields AND static getters / methods
+      // (staticFieldShadowable matches any static slot) plus the whole instance side
+      // (instanceMemberShadowable). explicit `Base.<member>` / `inst.<member>` access (viaThis
+      // false) reads the named type's own slot and stays narrowed
+      if (viaThis && !isPrivateClassMember(found.member.node)
+        && (isStatic ? staticFieldShadowable(classPath, name) : instanceMemberShadowable(classPath, name))) return null;
       return resolveClassMemberNode(found.member, callPath, found.subst);
     }
     if (!classPath.node.id?.name) return null;

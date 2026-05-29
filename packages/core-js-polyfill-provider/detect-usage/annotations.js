@@ -153,6 +153,7 @@ const TYPE_CHILD_KEYS = [
   'typeAnnotation',
   'types',
   'elementType',
+  'elementTypes', // TSTupleType members; 'elementType' above covers only TSArrayType
   'objectType',
   'indexType',
   'checkType',
