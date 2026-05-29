@@ -18,6 +18,7 @@ import {
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
+  findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findIifeArgForParam,
   findIifeCallSite,
@@ -85,15 +86,20 @@ function isReferenced({ node, parent, parentKey, parentPath, skipUpdateTargets }
   // local name in a re-export alias - not a runtime reference to the polyfilled global
   if ((parent.type === 'ExportSpecifier' || parent.type === 'ExportAllDeclaration')
     && parentKey === 'exported') return false;
-  // Identifier LHS of assignment: module / strict-mode reads the binding before write, so
-  // `Map = X` / `Map ||= X` / `Map += X` all need the polyfill in global mode. pure-mode
-  // rewrite to frozen `_Map` TypeError's at write, so reject. checked BEFORE the member
-  // write-only filter (`isMemberWriteOnlyContext` matches Identifier LHS too)
-  if (node.type === 'Identifier' && parent.type === 'AssignmentExpression' && parentKey === 'left') return !skipUpdateTargets;
+  // bare-Identifier LHS that reads the binding before writing it: assignment (`Map = X` /
+  // `Map ||= X` / `Map += X`) and for-in/of head (`for (Map of arr)`). module / strict-mode
+  // reads the global first, so global mode needs the polyfill (else IE 11 ReferenceError);
+  // pure-mode rewrite to a frozen `_Map` import would TypeError at the write, so reject. checked
+  // BEFORE the member write-only filter, which matches Identifier LHS / the for-x head too and
+  // would otherwise drop them. a destructuring pattern head reaches its inner Identifiers through
+  // the pattern, never here
+  if (node.type === 'Identifier' && parentKey === 'left'
+    && (parent.type === 'AssignmentExpression' || parent.type === 'ForInStatement' || parent.type === 'ForOfStatement')) {
+    return !skipUpdateTargets;
+  }
   // member-write-only / destructure-LHS / AssignmentPattern.left for non-Identifier shapes
   if (isMemberWriteOnlyContext(node, parent, parentPath?.parent)) return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
-  if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
   // UpdateExpression operand, peeling transparent wrappers - gate see `skipUpdateTargets`
   if (skipUpdateTargets && isInUpdateOperand(parentPath)) return false;
@@ -163,9 +169,18 @@ export function createEstreeAdapter(getInjector = () => null) {
     hasBinding(scope, name, path = null) {
       return hasRuntimeBinding(scope, name, path);
     },
-    getBinding(scope, name) {
+    getBinding(scope, name, path = null) {
       const b = scope?.getBinding?.(name);
-      if (!b) return null;
+      if (!b) {
+        // var-hoist fallback (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var`
+        // from a nested non-function block to its function scope, so `function f(){ if (c) {
+        // var g = globalThis } g.Map.groupBy(...) }` finds no native binding and the proxy-global
+        // alias is lost (babel hoists the var natively, so it diverged). surface a synthetic
+        // binding off the declarator found by walking `path` ancestors so alias resolution can
+        // read its `.init`. path-less callers get null as before
+        const declarator = path ? findFunctionScopeVarDeclaratorInPath(path, name) : null;
+        return declarator ? { node: declarator, constantViolations: undefined, importSource: null, polyfillHint: null } : null;
+      }
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
       // raw module source at this interface is deliberate - not a leak, just the minimum
@@ -195,8 +210,11 @@ export function createEstreeAdapter(getInjector = () => null) {
         polyfillHint,
       };
     },
-    getBindingNodeType(scope, name) {
-      return scope?.getBinding(name)?.path?.node?.type ?? null;
+    getBindingNodeType(scope, name, path = null) {
+      const native = scope?.getBinding(name)?.path?.node?.type;
+      if (native) return native;
+      // var-hoist fallback parity with getBinding: a nested-block `var` surfaces as a declarator
+      return path && findFunctionScopeVarDeclaratorInPath(path, name) ? 'VariableDeclarator' : null;
     },
     // shared `unwrapParens` peels paren / TS expression wrappers / safe SequenceExpression
     // so `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
@@ -720,6 +738,20 @@ export function createUsageVisitors({
       FunctionDeclaration: checkTypeAnnotation,
       FunctionExpression: checkTypeAnnotation,
       ArrowFunctionExpression: checkTypeAnnotation,
+      // bodyless function-signature types carry their global refs in params / return / type
+      // params but have no FunctionExpression body to drive the param/return walk above, so
+      // sweep them directly (babel reaches these via ReferencedIdentifier). covers interface
+      // method / call / construct signatures, standalone function / constructor types (incl.
+      // inside type aliases), and ambient overload declare-functions. abstract / declare-class /
+      // overload METHODS surface in oxc as a TSEmptyBodyFunctionExpression `.value` (the params
+      // live there, not on the method node), so sweep that node rather than babel's TSDeclareMethod
+      TSMethodSignature: checkTypeAnnotation,
+      TSCallSignatureDeclaration: checkTypeAnnotation,
+      TSConstructSignatureDeclaration: checkTypeAnnotation,
+      TSFunctionType: checkTypeAnnotation,
+      TSConstructorType: checkTypeAnnotation,
+      TSDeclareFunction: checkTypeAnnotation,
+      TSEmptyBodyFunctionExpression: checkTypeAnnotation,
       VariableDeclarator(path) {
         if (path.node.id?.typeAnnotation) {
           walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path));
