@@ -128,7 +128,7 @@ export default function createSynthSwapEmitter({
       // falls straight through to rightPath
       if (t.isIdentifier(rightPath.node)) {
         const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
-        if (argPath && isClassifiableReceiverArg(argPath.node)) return argPath;
+        if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
       }
       return rightPath;
     }

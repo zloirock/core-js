@@ -3538,6 +3538,15 @@ runBoth('class method declared return -> Map',
     isClassifiableReceiverArg(directProxy), false);
   check('class-walk: isClassifiableReceiverArg null -> false',
     isClassifiableReceiverArg(null), false);
+  // `undefined` arg: the global sentinel makes the IIFE-param default apply, so it is NOT a
+  // classifiable receiver; a shadowing local binding turns it into a real value (use the arg)
+  const undefinedArg = { type: 'Identifier', name: 'undefined' };
+  check('class-walk: isClassifiableReceiverArg undefined node-only -> false',
+    isClassifiableReceiverArg(undefinedArg), false);
+  check('class-walk: isClassifiableReceiverArg global undefined -> false',
+    isClassifiableReceiverArg(undefinedArg, {}, { hasBinding: () => false }), false);
+  checkTruthy('class-walk: isClassifiableReceiverArg shadowed undefined -> true',
+    isClassifiableReceiverArg(undefinedArg, {}, { hasBinding: () => true }));
 
   // isExpandedClassifiableReceiver: permissive - Identifier OR proxy-global member
   checkTruthy('class-walk: isExpandedClassifiableReceiver identifier',
