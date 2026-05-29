@@ -309,6 +309,11 @@ export default function plugin(api, options) {
           return p;
         };
         let current = unwrap(path.get('object'));
+        // outer call's immediate (wrapper-peeled) receiver. when the descent below crosses
+        // non-optional Member/Call hops (`.map(...)` / `.slice(...)`) to reach the optional
+        // inner, this differs from the inner - the combine then threads the surviving hops
+        // onto the memoized inner result instead of dropping them (value corruption)
+        const outerObjectNode = current.node;
         while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
           if (current.node.optional) break;
           current = unwrap(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
@@ -331,6 +336,8 @@ export default function plugin(api, options) {
           innerArgs: current.node.arguments,
           innerEntry: result.entry,
           innerHintName: result.hintName,
+          chainStartNode: current.node,
+          hasHops: current.node !== outerObjectNode,
         };
       }
 
