@@ -626,6 +626,25 @@ export default class TransformQueue {
     return entry.content;
   }
 
+  // drain every point-insert whose pos falls within [start, end] and return them as
+  // zero-length splices ({ start: pos, end: pos, content }). the destructure flatten calls
+  // this when it relocates an SE-prefix whose inner inserts (catch-clause prelude emitted
+  // during a sibling visit, etc.) were queued at their original positions: left in the queue
+  // they'd land inside the flatten's own overwrite range and trip the insert-inside-overwrite
+  // invariant (MagicString can't fold an appendRight into an overwritten chunk). overwrites
+  // inside the range still compose normally; only inserts need relocating. the caller bakes
+  // the returned splices into the lifted text via its own spliceInRange
+  drainInsertsInRange(start, end) {
+    const splices = [];
+    for (const ins of this.#inserts) {
+      if (ins.pos >= start && ins.pos <= end) {
+        splices.push({ start: ins.pos, end: ins.pos, content: ins.content });
+        this.#inserts.delete(ins);
+      }
+    }
+    return splices;
+  }
+
   #removeEntry(entry) {
     this.#transforms.delete(entry);
     const rKey = rangeKey(entry.start, entry.end);
@@ -679,24 +698,38 @@ export default class TransformQueue {
   // (incrementally updated by add/remove) instead of re-sorting per apply. `entryLogicalEnd`
   // is the correct upper bound: split prefix physically ends at mid but its logicalEnd
   // covers the full [start, end] that apply() composes/overwrites as a single chunk
-  #assertNoInsertInsideOverwrite() {
+  // the overwrite entry strictly enclosing `pos` (start < pos < logicalEnd), or null. binary
+  // search by start + the prefix-max gate short-circuits the common no-overlap case before the
+  // linear back-scan. shared by the insert-inside-overwrite invariant and the scoped-var
+  // compose gate
+  #enclosingOverwrite(pos) {
     const sorted = this.#sorted;
     const prefMax = this.#prefixMaxEnd;
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (sorted[mid].start <= pos) lo = mid + 1; else hi = mid;
+    }
+    if (lo === 0 || prefMax[lo - 1] <= pos) return null;
+    for (let i = lo - 1; i >= 0; i--) {
+      if (pos > sorted[i].start && pos < entryLogicalEnd(sorted[i])) return sorted[i];
+    }
+    return null;
+  }
+
+  // true when a point-insert at `pos` would land strictly inside an overwrite (the condition
+  // apply() rejects). scope-tracker consults this to re-emit a scoped `var` as a composing
+  // body-overwrite instead of a doomed raw insert
+  insertLandsInsideOverwrite(pos) {
+    return this.#enclosingOverwrite(pos) !== null;
+  }
+
+  #assertNoInsertInsideOverwrite() {
     for (const { pos } of this.#inserts) {
-      let lo = 0;
-      let hi = sorted.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >>> 1;
-        if (sorted[mid].start <= pos) lo = mid + 1; else hi = mid;
-      }
-      if (lo === 0 || prefMax[lo - 1] <= pos) continue;
-      // scan back for the actual enclosing entry. rare hit path - linear is fine since
-      // the prefMax gate already short-circuits the common no-overlap case
-      for (let i = lo - 1; i >= 0; i--) {
-        const end = entryLogicalEnd(sorted[i]);
-        if (pos > sorted[i].start && pos < end) {
-          throw new RangeError(`[core-js] transform-queue: insert at ${ pos } lands inside overwrite [${ sorted[i].start },${ end })`);
-        }
+      const entry = this.#enclosingOverwrite(pos);
+      if (entry) {
+        throw new RangeError(`[core-js] transform-queue: insert at ${ pos } lands inside overwrite [${ entry.start },${ entryLogicalEnd(entry) })`);
       }
     }
   }
