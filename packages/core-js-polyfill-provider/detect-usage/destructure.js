@@ -16,7 +16,7 @@ import {
   resolveFallbackReceiver,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { KNOWN_FUNCTION_GLOBALS, KNOWN_NAMESPACE_GLOBALS } from './globals.js';
 import {
@@ -213,9 +213,12 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   let receiverNode = null;
   if (wrapperNode?.type === 'AssignmentPattern' && wrapperPath.parentPath?.node
       && FN_TYPES_FOR_IIFE.has(wrapperPath.parentPath.node.type)) {
-    // AssignmentPattern is an IIFE param wrapper - prefer call-arg over default
+    // AssignmentPattern is an IIFE param wrapper - prefer the call-arg over the default ONLY
+    // when it is a classifiable receiver; a non-classifiable arg (notably `undefined`, which
+    // makes the runtime apply the default) keeps the default so its branches are enumerated.
+    // mirrors the meta-build receiver choice in each plugin's detect-usage
     const desc = resolveFallbackReceiver(wrapperPath.parentPath, wrapperNode);
-    receiverNode = desc?.rhsNode ?? wrapperNode.right;
+    receiverNode = desc?.rhsNode && isClassifiableReceiverArg(desc.rhsNode, path.scope, adapter) ? desc.rhsNode : wrapperNode.right;
   } else {
     const slot = destructureReceiverSlot(wrapperNode);
     if (slot) receiverNode = wrapperNode[slot];
@@ -336,9 +339,9 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     // and prepend it to walkPath so subsequent dereferences hit `source[key]` correctly
     const idNode = binding.path?.node?.id ?? binding.node?.id;
     if (idNode?.type === 'ObjectPattern') {
-      const destructureKey = findShorthandKey(idNode, current.name, currentScope, adapter);
-      if (!destructureKey) return null;
-      walkPath = [destructureKey, ...walkPath];
+      const destructureKeys = findShorthandKey(idNode, current.name, currentScope, adapter);
+      if (!destructureKeys) return null;
+      walkPath = [...destructureKeys, ...walkPath];
     } else if (idNode?.type === 'ArrayPattern') {
       // array-destructure-leaf - positional within an array literal source. rare for
       // static-method aliasing; safe miss preferred over false-positive constructor
@@ -397,16 +400,25 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
   return null;
 }
 
-// find the source-key in an ObjectPattern that produces the binding named `bindingName`.
-// shorthand `{Math}` -> 'Math' (key === value name). renamed `{Math: M}` -> 'Math' for
-// bindingName='M'. AssignmentPattern default (`{Math: M = ...}`) peels through .left.
-// computed-key patterns resolve via `sharedResolveKey`'s static-binding inspection
+// find the source-key PATH in an ObjectPattern that produces the binding named `bindingName`.
+// shorthand `{Math}` -> ['Math'] (key === value name). renamed `{Math: M}` -> ['Math'] for
+// bindingName='M'. nested `{ns: {Math: M}}` -> ['ns', 'Math'] - the binding lives below the
+// surface, so the caller descends the source object through every key on the path.
+// AssignmentPattern default (`{Math: M = ...}`) peels through .left. computed-key patterns
+// resolve via `sharedResolveKey`'s static-binding inspection. returns null when the binding
+// isn't reachable or any key on the path is unresolvable
 function findShorthandKey(objectPattern, bindingName, scope, adapter) {
   for (const prop of objectPattern.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope, adapter });
+    if (!keyName) continue;
     const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-    if (value?.type !== 'Identifier' || value.name !== bindingName) continue;
-    return sharedResolveKey({ node: prop.key, computed: prop.computed, scope, adapter });
+    if (value?.type === 'Identifier') {
+      if (value.name === bindingName) return [keyName];
+    } else if (value?.type === 'ObjectPattern') {
+      const nested = findShorthandKey(value, bindingName, scope, adapter);
+      if (nested) return [keyName, ...nested];
+    }
   }
   return null;
 }
