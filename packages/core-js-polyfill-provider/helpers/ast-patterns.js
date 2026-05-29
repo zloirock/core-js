@@ -329,16 +329,18 @@ function isVarScopeBoundary(type) {
 
 // recursively collect `var` bindings inside `scopeNode`, descending through arbitrary
 // non-boundary node shapes (block / if / loop / switch / try-catch / etc). stops at
-// nested var-scope boundaries so inner-function vars don't leak. result includes vars
-// from `scopeNode.body` (function-like bodies wrap in BlockStatement; Program / Block /
+// nested var-scope boundaries so inner-function vars don't leak. returns a Map of
+// var-name -> its VariableDeclarator (first declaration wins on redeclaration): membership
+// callers use `.has(name)`, alias-resolution callers read the declarator's `.init`. covers
+// vars from `scopeNode.body` (function-like bodies wrap in BlockStatement; Program / Block /
 // StaticBlock host statements directly at `.body`)
 export function collectScopeVars(scopeNode) {
-  const locals = new Set();
+  const locals = new Map();
 
   function visit(node) {
     if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
-      for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => locals.add(id.name));
+      for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => { if (!locals.has(id.name)) locals.set(id.name, d); });
       return;
     }
     if (isVarScopeBoundary(node.type)) return;
@@ -354,22 +356,30 @@ export function collectScopeVars(scopeNode) {
   return locals;
 }
 
-// walk path's ancestor chain to the first var-scope owner; check if `name` is among its
-// vars. `var` doesn't propagate past function boundaries, so an inner-function miss is
-// final - no need to continue walking. complements `findTSRuntimeBindingInPath` for
-// runtime (vs TS-ambient) shadow detection. result cached per-node via WeakMap (caller
-// stays correct under sibling-plugin AST mutation only when this file isn't re-traversed
-// after the mutation - same constraint as `tsRuntimeBindingsCache`)
+// walk path's ancestor chain to the first var-scope owner and return `name`'s VariableDeclarator
+// (callers read its `.init`), or null. `var` doesn't propagate past function boundaries, so an
+// inner-function miss is final - no need to continue walking. estree-toolkit doesn't hoist a
+// `var` from a nested non-function block to the enclosing function scope, so its `scope.getBinding`
+// misses `function f(){ if (c) { var g = globalThis } g.Map.groupBy(...) }`; the adapter surfaces
+// a synthetic binding off this declarator so proxy-global alias resolution survives. result cached
+// per-node via WeakMap (caller stays correct under sibling-plugin AST mutation only when this file
+// isn't re-traversed after the mutation - same constraint as `tsRuntimeBindingsCache`)
 const scopeVarsCache = new WeakMap();
-export function findFunctionScopeVarInPath(path, name) {
+export function findFunctionScopeVarDeclaratorInPath(path, name) {
   for (let cur = path; cur; cur = cur.parentPath) {
     const { node } = cur;
     if (!node || !isVarScopeBoundary(node.type)) continue;
     let vars = scopeVarsCache.get(node);
     if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
-    return vars.has(name);
+    return vars.get(name) ?? null;
   }
-  return false;
+  return null;
+}
+
+// boolean wrapper for callers that only need presence (runtime vs TS-ambient shadow detection;
+// complements `findTSRuntimeBindingInPath`)
+export function findFunctionScopeVarInPath(path, name) {
+  return findFunctionScopeVarDeclaratorInPath(path, name) !== null;
 }
 
 // resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
