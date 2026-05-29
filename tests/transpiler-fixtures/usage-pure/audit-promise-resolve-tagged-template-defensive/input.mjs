@@ -1,6 +1,6 @@
-// tagged-template invocation of Promise.resolve as tag function:
-// `Promise.resolve\`raw\`` is unusual but parser-accepted; TaggedTemplate has no
-// `arguments` slot, so inferPromiseResolveReturnType must defensively bail
+// Promise.resolve aliased to `tag`, then invoked as a tagged template (`tag\`raw\``).
+// Unusual but parser-accepted; a tagged template carries no argument list, so return-type
+// inference bails to the default Promise<unknown> while Promise.resolve stays polyfilled.
 const tag = Promise.resolve;
 const r = tag`hello`;
 r.then(x => x);

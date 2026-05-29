@@ -1,5 +1,4 @@
-// proxy-global chain through a TS `as` mid-chain wrapper. resolveProxyGlobalChainSrc must
-// peel TS expression wrappers between hops to reach the `globalThis` leaf for substitution;
-// otherwise the receiver retains raw `globalThis` and IE11 ReferenceErrors on the
-// implicit lookup before the polyfill ever fires.
+// `((globalThis as any).X).Y.at?.(0)` - a TS `as` cast sits mid-chain. The cast is peeled
+// to reach the globalThis root so it is substituted to the polyfill; otherwise the receiver
+// keeps a bare globalThis that ReferenceErrors in engines lacking it before the polyfill runs.
 ((globalThis as any).X).Y.at?.(0);
