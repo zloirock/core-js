@@ -13,7 +13,7 @@
 // narrow; mutation inside a nested captured function also invalidates (deferred calls
 // may fire between the guard and the usage)
 import { peelLabeledStatementNode } from '../helpers/ast-patterns.js';
-import { OPEN_KEYWORD_ANNOTATION_TYPES } from './ast-shapes.js';
+import { OPEN_KEYWORD_ANNOTATION_TYPES, isLoopStatement } from './ast-shapes.js';
 import { $Object, $Primitive, PRIMITIVES } from './base.js';
 
 export function createNarrowByGuards({
@@ -171,9 +171,21 @@ export function createNarrowByGuards({
     // a fresh inner conditional re-narrows at runtime regardless of outer-scope mutations.
     // "fresh" requires no mutation in the consequent path AND no mutation in the inner
     // guard's own test slot
+    const bindingGuardedAt = current => !!(findConditionalGuards(current, varName).length
+      || findSwitchCaseGuards(current, varName).length
+      || findEarlyExitGuards(current, varName).length);
     let innerFreshConditional = false;
+    // a reassignment anywhere inside a loop body re-executes before the use on the next
+    // iteration, so once we cross such a loop a guard OUTSIDE it no longer holds at the use
+    // (`if (typeof x !== 'string') return; while (c) { x.at(0); x = readAnything() }`). an
+    // inner conditional that re-narrows each iteration (innerFreshConditional) stays exempt
+    let crossedBackEdgeLoop = false;
     for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
+      if (!innerFreshConditional && isLoopStatement(parent.node) && violatesInsideNode(parent.node)) crossedBackEdgeLoop = true;
       if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
+      // a guard reached only after crossing a back-edge loop is outside it - it cannot
+      // re-establish the narrow per iteration, so the loop-carried reassignment wins
+      if (crossedBackEdgeLoop && bindingGuardedAt(current)) return true;
       if (findConditionalGuards(current, varName).length) {
         const fresh = !violatesBefore(current) && !violatesInsideNode(conditionalTestNode(current));
         if (fresh) innerFreshConditional = true;

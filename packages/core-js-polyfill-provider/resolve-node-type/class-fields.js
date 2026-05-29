@@ -113,13 +113,25 @@ export function createClassFields({
     return candidates;
   }
 
+  // a write nested inside a function body executes whenever that function is invoked - its
+  // source position says nothing about execution order, so a hoisted / deferred writer
+  // (`function corrupt() { c.items = "s" }` called before the use) must fold unconditionally.
+  // only straight-line writes can be dropped by the source-position temporal bound
+  function isWriteInsideFunction(writePath) {
+    for (let p = writePath.parentPath; p && !t.isProgram(p.node); p = p.parentPath) {
+      if (t.isFunction(p.node)) return true;
+    }
+    return false;
+  }
+
   // walk module-wide `<expr>.<fieldName> = Y` writes (already filtered to `fieldName` via
-  // `getModuleFieldIndex`), drop those past the temporal `bound`, fold remaining receivers
-  // matching `predicate` into `out`. shared between class and object external-write phases
+  // `getModuleFieldIndex`), drop straight-line writes past the temporal `bound` (in-function
+  // writes always fold - see above), fold remaining receivers matching `predicate` into `out`.
+  // shared between class and object external-write phases
   function foldExternalWrites({ fieldName, predicate, bound, program, out }) {
     const index = getModuleFieldIndex(program);
     for (const writePath of index.writesByField.get(fieldName) ?? []) {
-      if ((writePath.node.start ?? Infinity) >= bound) continue;
+      if ((writePath.node.start ?? Infinity) >= bound && !isWriteInsideFunction(writePath)) continue;
       pushIfWriteMatches(writePath, predicate, out);
     }
   }
@@ -211,6 +223,37 @@ export function createClassFields({
     return false;
   }
 
+  // instance-side analog of `staticFieldShadowable`: `this.<member>` inside an inherited
+  // non-static method / getter reads off the runtime instance, which for an inherited method
+  // is a subclass instance, not the lexical class. a subclass can override a typed instance
+  // member (method / getter / field) with a widened (`any`) or shape-changing slot and store
+  // an incompatible runtime value, so a narrow off the lexical declaration is unsound for
+  // `this`-rooted access. report shadowable when subclasses aren't safely knowable (binding
+  // escapes -> external subclass possible) or an in-module descendant declares an own instance
+  // member of the same name. explicit `inst.<member>` access reads the static type and stays
+  // narrowed (caller gates this on `this`-rooted reads only)
+  function instanceMemberShadowable(classPath, fieldName) {
+    const program = findProgramPath(classPath);
+    if (!program) return true;
+    const descendant = closedDescendants(classPath, program);
+    if (!descendant) return true;
+    for (const sub of descendant.paths) {
+      if (sub !== classPath && declaresInstanceMember(sub, fieldName)) return true;
+    }
+    return false;
+  }
+
+  // does the class body declare an own NON-static member named `fieldName`? matches any
+  // instance slot (data field, method, accessor); a widening / `any`-typed / shape-changing
+  // override shadows the inherited member read. StaticBlock carries no key and is skipped
+  function declaresInstanceMember(classPath, fieldName) {
+    for (const bodyMember of classPath.get('body').get('body')) {
+      const { node } = bodyMember;
+      if (node && !node.static && node.type !== 'StaticBlock' && getKeyName(node.key) === fieldName) return true;
+    }
+    return false;
+  }
+
   // static field flow: writes via `<class-binding>.<field> = Y` from anywhere in the module,
   // plus `this.<field> = Y` writes inside static methods AND static blocks (`this` there is
   // the class itself). class-binding closure includes the class identifier and any
@@ -284,10 +327,10 @@ export function createClassFields({
   // method/getter/function-valued properties defer to `resolveObjectMember` for their existing
   // call/return semantics. anonymous (no binding name) objects: still scan inside-method
   // writes - external write set is just empty, not unknown. exported objects bail entirely.
-  // missing prop (`fieldName` not declared in the literal): no init / this-scan, external
-  // RHS writes alone synthesise the candidate set - sentinel keys the cache by
-  // (objectExpression, fieldName) so distinct missing fields on the same literal don't
-  // share a slot
+  // missing prop (`fieldName` not declared in the literal): no init, but inside-method
+  // `this.<field>` writes AND external `<binding>.<field>` writes both contribute - sentinel
+  // keys the cache by (objectExpression, fieldName) so distinct missing fields on the same
+  // literal don't share a slot
   let objectFieldTypeCache = new WeakMap();
   let objectFieldMissingSentinels = new WeakMap();
   function resolveObjectFieldFlow(objectPath, fieldName, callPath) {
@@ -295,7 +338,11 @@ export function createClassFields({
     if (prop) {
       // method-shaped or function-valued -> existing semantics handle call/return correctly
       if (t.isObjectMethod?.(prop.node)) return resolveObjectMember(objectPath, fieldName, callPath);
-      if (t.isObjectProperty?.(prop.node) && t.isFunction?.(prop.node.value)) {
+      // function-valued property, including TS-cast / paren wrapped (`fn: (() => 'x') as () => string`):
+      // peel runtime wrappers before the function check so resolveObjectMember owns the call /
+      // return semantics. without the peel the flow-fold path mis-treats the cast-wrapped function
+      // as a plain data field and loses the call return type
+      if (t.isObjectProperty?.(prop.node) && t.isFunction?.(unwrapRuntimeExpr(prop.node.value))) {
         return resolveObjectMember(objectPath, fieldName, callPath);
       }
     }
@@ -328,9 +375,13 @@ export function createClassFields({
     if (!closure) return null;
     return collectFieldCandidates({
       initPath: prop && t.isObjectProperty?.(prop.node) ? prop.get('value') : null,
-      internalThisScan: prop
-        ? candidates => appendThisWritesFor(getInstanceMethodThisWrites(objectPath), fieldName, candidates)
-        : null,
+      // run the inside-method `this.<field> = ...` scan even when the field is NOT a declared
+      // own property: a method (`{ poison(){ this.data = "s" }, read(){ this.data.at(0) } }`)
+      // can write a field that never appears as an own property, and that write must join the
+      // candidate union exactly like an external `<binding>.<field> = ...` write does. without
+      // it the read narrows off the external-write-only set and mis-emits an element-specialized
+      // polyfill for a value the method already reassigned to an incompatible type
+      internalThisScan: candidates => appendThisWritesFor(getInstanceMethodThisWrites(objectPath), fieldName, candidates),
       isPrivate: false,
       anchor: objectPath,
       programWritesPush: (program, candidates) => {
@@ -535,6 +586,7 @@ export function createClassFields({
     resolveClassFieldType,
     resolveObjectFieldFlow,
     staticFieldShadowable,
+    instanceMemberShadowable,
     reset,
   };
 }

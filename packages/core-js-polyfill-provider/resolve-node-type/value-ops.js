@@ -37,9 +37,12 @@ export function createValueOps({
   commonType,
 }) {
   function resolveNumericType(path) {
-    // `resolveNodeType` on a bare Identifier stops at the identifier itself without
-    // descending to its binding init - `resolvePath` walks `const x = BigInt(1)` so
-    // `x++` sees the BigInt-typed init. `number` fallback kept for unresolvable paths
+    // Number-vs-BigInt kind for unary `-`/`~` and `++`/`--` (all preserve it). `resolvePath`
+    // descends a const / unreassigned binding to its init, so `const x = BigInt(1); -x` reads
+    // bigint. a `++`/`--` operand is necessarily reassigned, so `resolvePath` bails on that
+    // constantViolation to the bare identifier and the case falls to the `number` default -
+    // a known minor imprecision (`let x = 5n; x++` reads number) with no polyfill impact, since
+    // core-js exposes no Number / BigInt prototype methods that this kind would route between
     const resolved = resolveNodeType(resolvePath(path));
     return new $Primitive(primitiveTypeOf(resolved) === 'bigint' ? 'bigint' : 'number');
   }
