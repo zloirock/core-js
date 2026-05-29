@@ -2971,6 +2971,33 @@ function checkRemoveBatchEofNoSurvivorBails() {
 }
 checkRemoveBatchEofNoSurvivorBails();
 
+// --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
+// bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's
+// first-wins onLoad runs only one of two sibling instances), so an explicit `phase: 'pre+post'`
+// downgrades to a single 'post' stage with a one-time warn. vite / webpack / farm keep both
+// stages (their enforce-to-priority mapping interleaves siblings correctly)
+function checkPrePostBundlerDowngrade() {
+  const opts = { method: 'usage-global', version: '4.0', phase: 'pre+post' };
+  const origWarn = console.warn;
+  const warned = [];
+  console.warn = (...a) => warned.push(a.join(' '));
+  try {
+    for (const fw of ['esbuild', 'bun']) {
+      const subs = unplugin.raw({ ...opts }, { framework: fw });
+      check(`phase pre+post downgrades to one stage on ${ fw }`, subs.length, 1);
+      check(`phase pre+post downgraded stage runs at post on ${ fw }`, subs[0].enforce, 'post');
+    }
+    for (const fw of ['vite', 'webpack', 'farm']) {
+      const subs = unplugin.raw({ ...opts }, { framework: fw });
+      check(`phase pre+post keeps both stages on ${ fw }`, subs.length, 2);
+    }
+  } finally {
+    console.warn = origWarn;
+  }
+  check('phase pre+post downgrade warns once per unsafe bundler', warned.filter(w => /pre\+post/.test(w)).length, 2);
+}
+checkPrePostBundlerDowngrade();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
