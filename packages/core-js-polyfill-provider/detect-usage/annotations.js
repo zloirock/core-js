@@ -200,6 +200,18 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     const refSlot = TYPE_REFERENCE_SLOTS[node.type];
     const ref = refSlot ? node[refSlot] : null;
     if (ref?.type === 'Identifier') onGlobal(ref.name);
+    // `typeof NS.X` (qualified TSTypeQuery): `exprName` is a TSQualifiedName whose leftmost
+    // `left` is the runtime root `NS`. pull it in so qualified type queries match babel's
+    // ReferencedIdentifier-on-root behaviour - unplugin's estree-toolkit scope tracker does
+    // not visit the TSTypeQuery chain root, so without this the root global is missed and the
+    // two pipelines diverge (`typeof Map.prototype` -> babel emits es.map.*, unplugin nothing).
+    // gated to TSTypeQuery: a qualified TSTypeReference (`x: NS.Foo`) roots at a type-only
+    // namespace, not a runtime value, so it must NOT be treated as a global reference
+    else if (node.type === 'TSTypeQuery' && ref?.type === 'TSQualifiedName') {
+      let root = ref.left;
+      while (root?.type === 'TSQualifiedName') root = root.left;
+      if (root?.type === 'Identifier') onGlobal(root.name);
+    }
     for (const key of TYPE_CHILD_KEYS) {
       const child = node[key];
       if (Array.isArray(child)) {
