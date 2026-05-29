@@ -18,7 +18,7 @@
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH } from './base.js';
-import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { globalProxyMemberName, memberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
   getSuperTypeArgs,
   isAmbientBindingShape,
@@ -67,8 +67,9 @@ export function createGlobalResolve({
   // mirror `globalProxyMemberName`'s walk but stays in resolve-node-type's path-based API
   function isProxyGlobalChainLink(objectPath) {
     if (!t.isMemberExpression(objectPath.node) && !t.isOptionalMemberExpression(objectPath.node)) return false;
-    if (objectPath.node.computed) return false;
-    const propName = objectPath.node.property?.name;
+    // memberKeyName accepts computed string-literal keys (`globalThis['self']`), matching
+    // globalProxyMemberName's node-based link walk - a bare `.computed` bail dropped them
+    const propName = memberKeyName(objectPath.node);
     return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName) && isGlobalProxy(objectPath.get('object'));
   }
 
@@ -155,11 +156,12 @@ export function createGlobalResolve({
       if (!hasRuntimeBinding(path.scope, path.node.name)) return path.node.name;
       return resolveAliasedGlobalName(path) ?? resolveDestructuredGlobalName(path);
     }
-    if (!isMemberLike(path) || path.node.computed) return null;
+    if (!isMemberLike(path)) return null;
     const object = path.get('object');
     if (!isGlobalProxy(object)) return null;
-    const property = path.get('property');
-    return t.isIdentifier(property.node) ? property.node.name : null;
+    // memberKeyName covers `globalThis.Map` and `globalThis['Map']` (literal computed key),
+    // returning null for dynamic computed keys so they keep generic dispatch
+    return memberKeyName(path.node);
   }
 
   // known constructor at the runtime-resolved target of `path`, or null
