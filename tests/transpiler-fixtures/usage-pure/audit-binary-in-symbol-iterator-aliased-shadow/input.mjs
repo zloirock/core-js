@@ -1,7 +1,6 @@
-// shadowed proxy global - the parameter `globalThis` is the local binding, not the host's
-// proxy global. const-alias init follows `globalThis` upwards to the param shape (Identifier
-// binding, NOT VariableDeclarator), so followLocalBindingToProxyGlobal bails. asSymbolRef
-// rejects g.Symbol; no polyfill subsumption fires
+// The parameter named `globalThis` shadows the real global, so `g` aliases a local binding,
+// not the host global. `g.Symbol.iterator in arr` is therefore NOT the global iterator probe
+// and must stay a plain `in` check with no polyfill subsumption.
 function f(globalThis) {
   const g = globalThis;
   return g.Symbol.iterator in arr;

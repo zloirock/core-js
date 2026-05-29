@@ -1,7 +1,6 @@
-// non-global const alias - init bottoms out on an unbound free identifier (not in the
-// proxy-global set), so followLocalBindingToProxyGlobal returns false. asSymbolRef rejects
-// `g.Symbol` and no Symbol-X subsumption fires (the in-operator falls through to the
-// general property-membership path)
+// `g` aliases an arbitrary user object (someObj), not the global, so `g.Symbol.iterator in
+// arr` is NOT the global iterator probe. No Symbol-iterator subsumption fires and the `in`
+// operator stays a general property-membership check.
 const g = someObj;
 const r = g.Symbol.iterator in arr;
 [r];

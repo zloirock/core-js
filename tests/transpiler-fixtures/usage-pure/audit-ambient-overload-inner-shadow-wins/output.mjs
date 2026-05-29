@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// Inner-scope ambient overload must SHADOW outer-scope siblings (TS lexical scoping).
-// the ambient overload collector previously walked the entire scope chain without
-// stopping, so the outer two `fn` overloads polluted the inner scope's match list.
-// `pickLastAmbientOverload.at(-1)` then returned an outer overload (last in append
-// order = the second outer declaration) while TS would have used the inner overload.
-// fix stops collection at the innermost scope that produced any matches.
+// Inner-scope ambient overload shadows outer-scope siblings of the same name (TS lexical
+// scoping). The two outer `fn` overloads return string; the inner `fn` returns number[].
+// ReturnType<typeof fn> inside probe() must resolve against the inner overload, so the
+// result is Array and .at(0) emits the Array variant.
 declare function fn(x: number): string;
 declare function fn(x: string): string;
 function probe() {

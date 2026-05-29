@@ -1,7 +1,7 @@
-// namespaced function with a single signature (no overloads). pickLastAmbientOverload
-// must passthrough when the namespaced lookup returns exactly one match - guards
-// against an off-by-one that would discard the only available overload. includes is
-// distinct from sibling type-query fixtures so the polyfill import marks origin.
+// A namespaced function with a single signature (no overloads). ReturnType<typeof NS.fn>
+// resolves to its only return type (number[]), so `.includes(0)` narrows to Array; the lone
+// signature must not be discarded. (includes is distinct from sibling type-query fixtures so
+// the emitted import marks which line fired.)
 declare namespace NS {
   function fn(x: string): number[];
 }
