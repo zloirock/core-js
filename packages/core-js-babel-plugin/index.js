@@ -761,6 +761,14 @@ export default function plugin(api, options) {
       // descending `seq` breaks ties deterministically (later-generated first)
       const batchOrder = (a, b) => b.index - a.index || b.seq - a.seq;
 
+      // augment a visitor set with the CatchClause extractor so a catch binding still gets its
+      // destructure-derived instance polyfill in the contexts the main traversal doesn't reach:
+      // a deferred SE-prefix (`(g(()=>{try{}catch({at}){at()}}),Array)`) and sibling-injected
+      // helper bodies. `destructureEmit` is read lazily so the per-file emitter is always current
+      function withCatchExtractor(visitors) {
+        return { ...visitors, CatchClause: path => destructureEmit.extractCatchClause(path) };
+      }
+
       // re-traversing an inserted SE can itself trigger `deferSideEffect` (nested destructuring
       // inside the lifted SE, e.g. `const { of } = (innerCall(), Array)` in an arrow body).
       // loop until the queue stays empty so nothing is silently dropped; termination is
@@ -784,10 +792,11 @@ export default function plugin(api, options) {
           // sibling-plugin-injected helper bodies (already TS-stripped), wrong contract
           // here. usage-pure case: usageVisitors === helperVisitors so behaviour identical
           if (!usageVisitors) continue;
+          const deferredVisitors = withCatchExtractor(usageVisitors);
           path.traverse({
             ExpressionStatement(p) {
               if (!inserted.delete(p.node)) return;
-              p.traverse(usageVisitors);
+              p.traverse(deferredVisitors);
               if (!inserted.size) p.stop();
             },
           });
@@ -849,7 +858,7 @@ export default function plugin(api, options) {
       // `null.has(...)` throws TypeError on every body child here
       function reTraverseHelperBodies(path) {
         if (!originalBodyNodes) return;
-        const helperWithCatch = { ...helperVisitors, CatchClause: catchPath => destructureEmit.extractCatchClause(catchPath) };
+        const helperWithCatch = withCatchExtractor(helperVisitors);
         for (const childPath of path.get('body')) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperWithCatch);
         }
@@ -1048,10 +1057,7 @@ export default function plugin(api, options) {
 
       return {
         pre: withFileTag(function usagePurePre() {
-          preTraverse(this.file.path, {
-            ...usageVisitors,
-            CatchClause: path => destructureEmit.extractCatchClause(path),
-          });
+          preTraverse(this.file.path, withCatchExtractor(usageVisitors));
         }),
         visitor: { Program: { exit: withFileTag(programExit) } },
         post: withFileTag(postHook),
