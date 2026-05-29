@@ -262,7 +262,10 @@ export function createTypeMembers({
     let curReceiverArgs = receiverArgs;
     while (cur && !seen.has(cur)) {
       seen.add(cur);
-      const ownBody = (cur.body?.body ?? []).filter(m => !m?.static);
+      // regular classes / interfaces carry members on `body.body`; a Flow `declare class`
+      // parent (DeclareClass) carries them on `body.properties` (ObjectTypeAnnotation), so an
+      // inherited member from such a parent surfaces on the subclass too
+      const ownBody = (cur.body?.body ?? cur.body?.properties ?? []).filter(m => !m?.static);
       merged.push(...substMembers(ownBody, curSubst));
       const lookupSegments = cur === declaration ? segments : (cur.id?.name ? [cur.id.name] : null);
       appendMergedInterfaceMembers({ segments: lookupSegments, scope, depth, out: merged, receiverArgs: curReceiverArgs });
