@@ -1,7 +1,6 @@
-// Parameters<typeof fn<string>> - TS 4.7+ instantiation expression. The TSTypeQuery
-// arg carries typeArguments on its inner exprName. resolveParametersParams uses
-// resolveTypeQueryBinding which only takes the bare param. Probe whether
-// instantiation type-args propagate to params.
+// `Parameters<typeof pluck<string>>[0]` - TS 4.7+ instantiation expression inside a type
+// query. The type argument propagates to the parameter list, so the first parameter type is
+// string[] and `.at` / `.findLastIndex` narrow to the Array variants.
 declare function pluck<T>(items: T[], key: T): T[];
 type FirstArg = Parameters<typeof pluck<string>>[0];
 declare const arr: FirstArg;

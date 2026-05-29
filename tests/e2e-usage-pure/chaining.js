@@ -149,10 +149,10 @@ QUnit.test('chain: Iterator.from -> filter -> map -> take -> toArray', assert =>
   assert.deepEqual(result, [20, 40]);
 });
 
-// --- Deep optional chain - outer receiver types bottom out at primitive via element-tracking ---
-// `arr.at(0)?.at(0).at(0).at(0)`: 4-deep chain on 3-nested array. Outer M4 receiver type
-// resolves to `number`, but the generic-fallback retry polyfills it anyway. Without the
-// retry, the outermost `.at(0)` stayed raw and broke under native-`.at`-less targets
+// --- Deep optional chain - element-tracking bottoms out at a primitive ---
+// the chain element-tracks through the nested arrays (each Array receiver is polyfilled) down
+// to the deepest element; one `.at` deeper sits on that primitive, whose receiver narrows to
+// Number, so the resolver leaves THAT call raw (Number has no `.at`) and it throws at runtime
 
 QUnit.test('chain: 4-deep optional `.at(0)` short-circuits when first guard is nullish', assert => {
   // `arr.at(5)` is out-of-bounds -> undefined; `?.at(0)` short-circuits the entire chain
@@ -161,10 +161,13 @@ QUnit.test('chain: 4-deep optional `.at(0)` short-circuits when first guard is n
   assert.same(arr.at(5)?.at(0).at(0).at(0), undefined);
 });
 
-QUnit.test('chain: 4-deep optional `.at(0)` reaches outermost polyfill on non-null chain', assert => {
+QUnit.test('chain: deep `.at(0)` element-tracks to a primitive, leaving the over-deep call raw', assert => {
   const arr = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]];
-  // arr.at(0) = [[1,2],[3,4]] -> .at(0) = [1,2] -> .at(0) = 1 -> `.at(0)` on number throws.
-  // validates the outermost polyfill DOES execute (it's the throw source, not the raw skip)
+  // three Array `.at(0)` hops element-track [[1,2],[3,4]] -> [1,2] -> 1: each receiver narrows
+  // to Array, so each call is polyfilled and the chain yields the deepest element
+  assert.same(arr.at(0)?.at(0).at(0), 1);
+  // one `.at` deeper sits on that number: the receiver narrows to Number and the call is left
+  // raw (Number has no `.at`), so it throws - the narrow correctly bottomed out at the primitive
   assert.throws(() => arr.at(0)?.at(0).at(0).at(0), TypeError);
 });
 
