@@ -289,7 +289,7 @@ export function createUsageVisitors({
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
       const argNode = findIifeArgForParam(parent.parentPath, parent.node);
-      const receiverNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
+      const receiverNode = isClassifiableReceiverArg(argNode, parent.scope, adapter) ? argNode : parent.node.right;
       const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
       onUsage(meta, path);
       return;
