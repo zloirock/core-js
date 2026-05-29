@@ -521,7 +521,7 @@ function createResolveNodeType(babelNodeType, t, {
   // (`peelStructurePreservingWrapper`), element-types output (`extractElementAnnotation`),
   // and typeQuery output (`resolveTypeQueryBinding`) - all late-bound via thunks
   // eslint-disable-next-line prefer-const -- destructuring assignment below rebinds these
-  let peelStructurePreservingWrapper, extractElementAnnotation, resolveTypeQueryBinding;
+  let peelStructurePreservingWrapper, extractElementAnnotation, resolveTypeQueryBinding, pickLastAmbientOverload;
   const {
     tupleElements,
     rebuildTupleElements,
@@ -552,6 +552,7 @@ function createResolveNodeType(babelNodeType, t, {
     followTypeAliasChain: (...args) => followTypeAliasChain(...args),
     extractElementAnnotation: (...args) => extractElementAnnotation(...args),
     resolveTypeQueryBinding: (...args) => resolveTypeQueryBinding(...args),
+    pickLastAmbientOverload: (...args) => pickLastAmbientOverload(...args),
   });
 
   // value-ops cluster: per-shape runtime resolvers - binary-operator narrowing, union /
@@ -1197,6 +1198,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveClassFieldType,
     resolveObjectFieldFlow,
     staticFieldShadowable,
+    instanceMemberShadowable,
   } = classFieldsCluster;
 
   // class-object-member cluster: class body + merged-interface + object literal member
@@ -1222,6 +1224,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildParentClassSubst,
     resolveClassFieldType,
     staticFieldShadowable,
+    instanceMemberShadowable,
     getTypeMembers: (...args) => getTypeMembers(...args),
     findNamespacedFunctionPath,
   });
@@ -1437,7 +1440,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildCallSiteSubst: (...args) => buildCallSiteSubst(...args),
     functionTypeReturnAnnotation: (...args) => functionTypeReturnAnnotation(...args),
   });
-  ({ resolveTypeQueryBinding } = typeQueryCluster);
+  ({ resolveTypeQueryBinding, pickLastAmbientOverload } = typeQueryCluster);
   const {
     resolveTypeQuery,
     resolveTypeofFromSegments,
@@ -1529,6 +1532,7 @@ function createResolveNodeType(babelNodeType, t, {
     functionTypeReturnAnnotation,
     resolveTypeQueryBinding,
     resolveTypeQuery,
+    unwrapPromise,
     resolveTypeofFromSegments,
     resolveClassInheritance,
     resolveUserDefinedType,
