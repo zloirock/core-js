@@ -101,7 +101,7 @@ function detectIifeArgReceiver(wrapperPath, objectPattern) {
 // caller-arg replaces wrapper-default ONLY when statically classifiable (Identifier).
 // for non-Identifier caller-arg, wrapper-default remains the synth target so the
 // runtime fallback path carries the polyfill
-export function findSynthSwapReceiver(wrapperPath, objectPattern) {
+export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter) {
   if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
   const wrapper = wrapperPath?.node;
   if (wrapper?.type === 'AssignmentPattern' && wrapper.left === objectPattern) {
@@ -123,7 +123,7 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern) {
     // is skipped on caller-omitted invocation, polyfill always wins
     if (peeled.type === 'Identifier') {
       const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
-      if (isClassifiableReceiverArg(argReceiver)) return argReceiver;
+      if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
     }
     return peeled;
   }
