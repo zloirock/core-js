@@ -19,6 +19,7 @@ import {
   isTransparentDestructureWrapper,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
+  paramListReadsName,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelToExpressionStatement,
@@ -181,6 +182,10 @@ export default function createDestructureEmitter({
     if (!valueNode) return false;
     const fnPath = findEnclosingFunctionLikePath(prop);
     if (!fnPath || !t.isBlockStatement(fnPath.node.body)) return false;
+    // a sibling param / in-pattern default that reads this binding (`{ of, dflt = of }`,
+    // `({ of } = R, y = of)`) evaluates in param scope; relocating the binding into a body
+    // `let` would strand that read. fall through to inline-default, which keeps the binding
+    if (paramListReadsName(fnPath.node.params, valueNode.name)) return false;
     const id = injectPureImport(entry, hintName);
     // register the local name -> entry path so receiver-narrowing through this binding
     // (`arr = from('x'); arr.at(-1)`) finds the polyfill's static return type. babel scope
