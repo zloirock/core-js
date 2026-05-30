@@ -299,5 +299,5 @@ export default function createSynthSwapEmitter({
     });
   }
 
-  return { apply, findTargetPath, registerPolyfill, tryRegisterPerBranchSynth };
+  return { apply, collapseProxyGlobalReceiver, findTargetPath, registerPolyfill, tryRegisterPerBranchSynth };
 }

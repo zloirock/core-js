@@ -28,12 +28,26 @@ import {
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   planDestructureEmission,
   STRATEGIES,
 } from './destructure-emission-plan.js';
+
+// when a residual destructure keeps a proxy-global member-chain receiver in the output (a
+// surviving sibling / ...rest still reads off it, or it stays as a param default), collapse
+// the intermediate proxy hops to the polyfilled root so `globalThis.self.Array` emits
+// `_globalThis.Array`, not the runtime-undefined `_globalThis.self.Array` (ie:11 / Node).
+// gated on `maximalProxyGlobalHop` so only a real intermediate hop is collapsed - the bare-root
+// `globalThis.Array` keeps its natural global-rewrite path. the actual AST rewrite is the shared
+// `collapseProxyGlobalReceiver` (the same helper the synth-swap path uses via `buildSynthLiteral`)
+function collapseRetainedProxyReceiver(synthSwap, hostNode, key) {
+  const receiver = hostNode?.[key];
+  if (!receiver || !maximalProxyGlobalHop(receiver)) return;
+  const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver);
+  if (collapsed) hostNode[key] = collapsed;
+}
 
 export default function createDestructureEmitter({
   t,
@@ -143,6 +157,11 @@ export default function createDestructureEmitter({
       // from the destructure. preserves "polyfill always wins" even at the cost of caller-
       // passed `{from: customFrom}` being ignored (consistent with VariableDeclaration
       // flatten contract). expr-body arrows skipped (no statement slot to host the const)
+      //
+      // the receiver stays as the param DEFAULT (`{...} = R`, evaluated when the arg is
+      // undefined), so collapse a proxy-global member chain in it before either fallback runs
+      const paramDefault = objectPattern.parentPath;
+      if (paramDefault?.isAssignmentPattern()) collapseRetainedProxyReceiver(synthSwap, paramDefault.node, 'right');
       if (tryBodyExtractFromParamDestructure(prop, entry, hintName)) return;
       emitParamInlineDefault(prop, injectPureImport(entry, hintName));
       // parity with sibling destructure handlers - replaceWith schedules re-traversal
@@ -881,6 +900,13 @@ export default function createDestructureEmitter({
       // pre-existing `_unused*` bindings our injector hasn't learnt about
       prop.get('value').replaceWith(generateUnusedId());
       prop.node.shorthand = false;
+    }
+
+    // residual destructure keeps the receiver (a surviving sibling or ...rest reads off it) -
+    // collapse a proxy-global member chain so the retained init / right is runtime-safe
+    if (hasRest || !isEmpty) {
+      if (parent.isVariableDeclarator()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'init');
+      else if (parent.isAssignmentExpression()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'right');
     }
 
     if (parent.isVariableDeclarator()) {
