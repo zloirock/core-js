@@ -114,7 +114,9 @@ export function createTypeofGuards({
           if (hint) return guardFromHint(hint, negated);
         }
       }
-      const userGuard = parseUserPredicateGuard({ callee, scope, negated, args: test.arguments, varName });
+      // pass the full call node: an optional `?.()` lives on the call (`OptionalCallExpression`
+      // / `ChainExpression`), not on `callee`, so the predicate guard can gate the complement branch
+      const userGuard = parseUserPredicateGuard({ callee, scope, negated, args: test.arguments, varName, call: test });
       if (userGuard) return userGuard;
     }
     return null;
@@ -319,17 +321,22 @@ export function createTypeofGuards({
   }
 
   // collect ALL type guards along the AST path for cumulative narrowing.
-  // const bindings can't be reassigned - function boundaries don't invalidate guards
-  function findEnclosingTypeGuards({ path, varName, isConst = false, binding = null }) {
+  // const bindings can't be reassigned - function boundaries don't invalidate guards.
+  // `boundaryHost` (optional): stop after the iteration whose host (`current.parentPath.node`)
+  // is that node - used when a reassignment between a fresh inner conditional and the outer
+  // guards has made those outer guards stale, so only guards from the host inward are kept
+  function findEnclosingTypeGuards({ path, varName, isConst = false, binding = null, boundaryHost = null }) {
     const guards = [];
     for (let current = path.parentPath; current; current = current.parentPath) {
       if (t.isFunction(current.node) && !isConst) break;
-      if (!guardAppliesToBinding(current.parentPath?.scope, varName, binding)) continue;
-      guards.push(
-        ...findConditionalGuards(current, varName),
-        ...findSwitchCaseGuards(current, varName),
-        ...findEarlyExitGuards(current, varName),
-      );
+      if (guardAppliesToBinding(current.parentPath?.scope, varName, binding)) {
+        guards.push(
+          ...findConditionalGuards(current, varName),
+          ...findSwitchCaseGuards(current, varName),
+          ...findEarlyExitGuards(current, varName),
+        );
+      }
+      if (boundaryHost && current.parentPath?.node === boundaryHost) break;
     }
     return guards.length ? guards : null;
   }
