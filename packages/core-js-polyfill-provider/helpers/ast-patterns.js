@@ -1480,6 +1480,17 @@ export function isInUpdateOperand(parentPath) {
   return check?.node?.type === 'UpdateExpression';
 }
 
+// true when `path` is the bare-Identifier LHS of a for-of / for-in head (`for (X of Y)` /
+// `for (X in Y)`) - a per-iteration assignment target. parallel to isInUpdateOperand and
+// gated the same way: usage-pure must skip it (rewriting the global to a frozen import
+// binding TypeErrors at the write), usage-global must NOT (the head reads the binding first,
+// so the side-effect polyfill is still needed). a declaration head (`for (const X of Y)`)
+// binds a fresh name and never reaches here as a global reference
+export function isForXHeadAssignTarget(path) {
+  const parent = path?.parentPath?.node;
+  return (parent?.type === 'ForOfStatement' || parent?.type === 'ForInStatement') && parent.left === path.node;
+}
+
 // function-like types that carry `params` - ObjectPattern used as a parameter lives
 // either directly under one of these, or wrapped in an AssignmentPattern for the
 // `function({ x } = default) {}` form
