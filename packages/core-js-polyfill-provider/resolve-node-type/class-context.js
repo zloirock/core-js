@@ -55,13 +55,18 @@ export function createClassContext({
   // MethodDefinition (ESTree class-method wrapper, continue to ClassBody), Property nested
   // in ClassBody (some adapters - continue), anything else (function rebinds `this`)
   function resolveThisAnchor(path) {
-    for (let current = path.parentPath; current; current = current.parentPath) {
+    let child = path;
+    for (let current = path.parentPath; current; child = current, current = current.parentPath) {
       // Decorator's argument evaluates at class-definition time in the OUTER scope, NOT in
       // the decorated class/method's `this`. crossing a Decorator on the way up means the
       // original `this` lives in the outer scope - returning null here lets the resolver
       // fall back to outer-scope handling instead of binding to the inner class context
       if (current.node.type === 'Decorator') return null;
       if (t.isClassBody(current.parentPath?.node)) {
+        // a member's COMPUTED KEY (`[this.x]() {}`) evaluates at class-definition time in the
+        // OUTER `this`, not the instance. if we ascended through the key (not the body/value),
+        // do not anchor to this class - same outer-scope rule as the Decorator argument above
+        if (current.node.computed && child.node === current.node.key) return null;
         const classPath = current.parentPath.parentPath;
         if (!t.isClass(classPath?.node)) return null;
         return { kind: 'class', classPath, isStatic: !!current.node.static || current.node.type === 'StaticBlock' };
