@@ -162,7 +162,7 @@ export default class ImportInjector extends ImportInjectorState {
       if (!match) continue;
       this.#refs.add(ref);
       this.usedNames.add(ref);
-      // extract numeric suffix (captures `[2-9]` or `[1-9]\d+`; bare `_ref` -> slot 1)
+      // extract numeric suffix (pattern caps it below Number.MAX_SAFE_INTEGER; bare `_ref` -> slot 1)
       const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
       if (n > maxSuffix) maxSuffix = n;
     }

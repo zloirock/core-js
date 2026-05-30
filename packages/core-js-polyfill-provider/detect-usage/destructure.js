@@ -272,14 +272,16 @@ export function walkStaticReceiverChain({ receiverNode, walkPath, scope, adapter
 }
 
 // proxy-global recognition for `walkStaticReceiverStep`: returns the source proxy-global
-// name when `node` is an Identifier that's either bare (`globalThis`/`self`/...) or a
-// plugin-rewritten alias whose binding's `polyfillHint` carries the source global. shared
-// between the in-loop early-exit (substitute and break out of dereference chain) and the
-// post-loop mid-chain lift (decide whether remaining walkPath describes constructor access)
-function proxyGlobalNameOf(node, binding) {
+// name when `node` is an Identifier - bare (`globalThis`/`self`/...) or a plugin-rewritten
+// alias (`_globalThis`) whose source name only survives on the injector side-channel
+// because the in-place `globalThis` -> `_globalThis` rewrite already ran by this walk. the
+// hint arrives two ways (mirrors `isProxyGlobalIdentifierNode`): unplugin pre-stamps
+// `binding.polyfillHint`; babel exposes it through `adapter.getBindingPolyfillHint`. pass
+// whichever a call site has - both default to null so either suffices on its own
+function proxyGlobalNameOf({ node, binding = null, adapter = null, scope = null }) {
   if (node?.type !== 'Identifier') return null;
   if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return node.name;
-  const hint = binding?.polyfillHint;
+  const hint = binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, node.name);
   return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
 }
 
@@ -303,11 +305,11 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     if (visited.has(current.name)) return null;
     visited.add(current.name);
     const binding = adapter.getBinding(currentScope, current.name);
-    // plugin-rewritten proxy-global alias (`_globalThis` after first-pass globalThis rewrite):
-    // substitute current to the SOURCE proxy-global name so the post-loop mid-chain lift can
-    // match. break out of the dereference loop - the import binding's init isn't an
-    // ObjectExpression and would otherwise bail at the bindingType check below
-    const proxyName = proxyGlobalNameOf(current, binding);
+    // plugin-rewritten proxy-global alias (`_globalThis`): substitute current to the SOURCE
+    // proxy-global name so the post-loop mid-chain lift can match, then break - the import
+    // binding's init isn't an ObjectExpression and would otherwise bail at the bindingType
+    // check below. pass binding + adapter + scope so both hint shapes are reachable
+    const proxyName = proxyGlobalNameOf({ node: current, binding, adapter, scope: currentScope });
     if (proxyName && proxyName !== current.name) {
       current = { type: 'Identifier', name: proxyName };
       break;
@@ -363,14 +365,16 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     }
     return null;
   }
-  // proxy-global mid-chain lift: current is a recognised proxy-global identifier (bare
-  // source name OR plugin-rewritten alias resolved via `proxyGlobalNameOf` above). mirror
-  // `resolveNestedDestructureReceiver`'s short-circuit: intermediate hops must also be
+  // proxy-global mid-chain lift: current is a recognised proxy-global identifier (bare source
+  // name or plugin-rewritten alias). for babel the rewritten alias has no scope binding, so
+  // the dereference loop above never ran and the alias reaches here verbatim - adapter+scope
+  // let `proxyGlobalNameOf` recover its source name (no binding to read the hint off of).
+  // mirror `resolveNestedDestructureReceiver`'s short-circuit: intermediate hops must also be
   // proxy-globals (chained `globalThis.self.Array.from` shapes), leaf must be a recognised
   // static-placement name. without this, nested static-receiver chains like
   // `const ns = {root: globalThis}; const {root: {Array: {from}}} = ns` bail at the inner
   // `globalThis` hop and downstream `Array.from` polyfill is missed silently
-  if (proxyGlobalNameOf(current, null)
+  if (proxyGlobalNameOf({ node: current, adapter, scope: currentScope })
       && walkPath.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))
       && isStaticPlacement(walkPath.at(-1))) {
     return walkPath.at(-1);
