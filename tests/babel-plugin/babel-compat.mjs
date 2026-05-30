@@ -620,17 +620,21 @@ for (const { kind, code, pick, to } of DEOPT_CASES) {
     countOr(exprStmt.expression.test), 3);
 }
 
-// sideEffects wraps the conditional in a SequenceExpression
+// sideEffects fold into the conditional's ALTERNATE (not around the whole conditional) so they
+// fire only when the chain does not short-circuit - matches native, which skips a computed-key
+// eval on a nullish receiver. wrapping the conditional would run the effect unconditionally
 {
   const { helpers, program, ast } = setup('arr.at(0).includes(1);');
   const se = [t.callExpression(t.identifier('spy'), [])];
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', outerId: '_includes', innerId: '_at', sideEffects: se });
-  // expected SequenceExpression wrap: (spy(), <conditional>)
-  checkTruthy('replaceInstanceChainCombined/sideEffects wraps in SequenceExpression',
-    exprStmt.expression.type === 'SequenceExpression'
-    && exprStmt.expression.expressions[0].callee.name === 'spy'
-    && exprStmt.expression.expressions[1].type === 'ConditionalExpression');
+  // expected: `<tests> ? void 0 : (spy(), <method call>)`
+  const cond = exprStmt.expression;
+  checkTruthy('replaceInstanceChainCombined/sideEffects fold into conditional alternate',
+    cond.type === 'ConditionalExpression'
+    && cond.alternate.type === 'SequenceExpression'
+    && cond.alternate.expressions[0].callee.name === 'spy'
+    && cond.alternate.expressions[1].type === 'CallExpression');
 }
 
 // --- replaceCallWithSimple ---
