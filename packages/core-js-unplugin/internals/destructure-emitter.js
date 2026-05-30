@@ -20,6 +20,7 @@ import {
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
+  paramListReadsName,
   peelFallbackBranchInner,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
@@ -1316,6 +1317,10 @@ export function createDestructureEmitter({
     if (!localId) return false;
     const fnPath = findEnclosingFunctionLikePath(propPath);
     if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return false;
+    // a sibling param / in-pattern default that reads this binding (`{ of, dflt = of }`,
+    // `({ of } = R, y = of)`) evaluates in param scope; relocating the binding into a body
+    // `let` would strand that read. fall through to inline-default, which keeps the binding
+    if (paramListReadsName(fnPath.node.params, localId.name)) return false;
     // place `let X = _polyfill;` AFTER any leading directive prologue (`"use strict"`,
     // `"use asm"`, custom directives) - inserting at body.start+1 would push the
     // directive past position 0 and silently flip the function to sloppy mode
