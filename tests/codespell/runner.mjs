@@ -11,6 +11,7 @@ const skip = [
 
 const ignoreWords = [
   'aNumber',
+  'disjointness',
   'forIn',
   'importEnd',
   'larg',
