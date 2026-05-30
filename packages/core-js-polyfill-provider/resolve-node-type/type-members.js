@@ -434,7 +434,8 @@ export function createTypeMembers({
     if (inferElement) {
       const threadedSubst = new Map(innerSubst);
       threadedSubst.set(inferName, inferElement);
-      return findTypeMember({ objectType: applySubst(unwrapTypeAnnotation(aliased.trueType), threadedSubst), key, scope, depth: depth + 1 });
+      const trueObjectType = applySubst(unwrapTypeAnnotation(aliased.trueType), threadedSubst);
+      return findTypeMember({ objectType: trueObjectType, key, scope, depth: depth + 1 });
     }
     // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
     // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
