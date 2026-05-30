@@ -25,7 +25,7 @@ import {
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { isFunctionParamDestructureParent } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { isFunctionParamDestructureParent, paramListReadsName } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
 
@@ -821,6 +821,91 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
   const path = { node: objectPattern, parentPath: { node: declarator, parentPath: null } };
   check('isFunctionParamDestructureParent/non-param destructure returns false',
     isFunctionParamDestructureParent(path), false);
+}
+
+// --- paramListReadsName ---
+
+// param-position read detection guarding param-destructure body-extract. synthetic param
+// nodes (no parser needed) - the helper is a pure structural walk over `.params`
+{
+  const id = name => ({ type: 'Identifier', name });
+  const ofBinding = { type: 'ObjectProperty', key: id('of'), value: id('of'), computed: false, shorthand: true };
+  const restEl = { type: 'RestElement', argument: id('rest') };
+  const dflt = (name, right) => ({
+    type: 'ObjectProperty', key: id(name), computed: false,
+    value: { type: 'AssignmentPattern', left: id(name), right },
+  });
+
+  // `{ of, dflt = of, ...rest } = Array` - sibling in-pattern default reads `of`
+  const patternDefaultReadsOf = [{
+    type: 'AssignmentPattern',
+    left: { type: 'ObjectPattern', properties: [ofBinding, dflt('dflt', id('of')), restEl] },
+    right: id('Array'),
+  }];
+  checkTruthy('paramListReadsName/in-pattern default reads binding',
+    paramListReadsName(patternDefaultReadsOf, 'of'));
+
+  // the binding declaration itself is never counted as a read
+  check('paramListReadsName/bare binding is not a read',
+    paramListReadsName([{
+      type: 'AssignmentPattern',
+      left: { type: 'ObjectPattern', properties: [ofBinding, restEl] },
+      right: id('Array'),
+    }], 'of'), false);
+
+  // later top-level param default reads an earlier param binding: `({ of } = Array, y = of)`
+  checkTruthy('paramListReadsName/later param default reads binding',
+    paramListReadsName([
+      { type: 'AssignmentPattern', left: { type: 'ObjectPattern', properties: [ofBinding] }, right: id('Array') },
+      { type: 'AssignmentPattern', left: id('y'), right: id('of') },
+    ], 'of'));
+
+  // ArrayPattern element default reads a sibling element binding: `[of, y = of]`
+  checkTruthy('paramListReadsName/array-pattern element default reads binding',
+    paramListReadsName([{
+      type: 'ArrayPattern',
+      elements: [id('of'), { type: 'AssignmentPattern', left: id('y'), right: id('of') }],
+    }], 'of'));
+
+  // computed key reads the binding: `{ of, [of]: picked }`
+  checkTruthy('paramListReadsName/computed key reads binding',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [ofBinding, { type: 'ObjectProperty', key: id('of'), value: id('picked'), computed: true }],
+    }], 'of'));
+
+  // a default-position closure captures the param binding: `{ p = () => of }`
+  checkTruthy('paramListReadsName/nested closure default reads binding',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [dflt('p', { type: 'ArrowFunctionExpression', params: [], body: id('of') })],
+    }], 'of'));
+
+  // estree `Property` node type behaves like babel `ObjectProperty`
+  checkTruthy('paramListReadsName/estree Property default reads binding',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [{
+        type: 'Property', key: id('dflt'), computed: false,
+        value: { type: 'AssignmentPattern', left: id('dflt'), right: id('of') },
+      }],
+    }], 'of'));
+
+  // negative: default reads a DIFFERENT name, not the queried binding
+  check('paramListReadsName/default reads unrelated name',
+    paramListReadsName([{ type: 'ObjectPattern', properties: [ofBinding, dflt('dflt', id('seed'))] }], 'of'), false);
+
+  // negative: a non-computed member property is a name, not a read (`{ p = x.of }`)
+  check('paramListReadsName/non-computed member property is not a read',
+    paramListReadsName([{
+      type: 'ObjectPattern',
+      properties: [dflt('p', { type: 'MemberExpression', object: id('x'), property: id('of'), computed: false })],
+    }], 'of'), false);
+
+  // guards
+  check('paramListReadsName/empty params', paramListReadsName([], 'of'), false);
+  check('paramListReadsName/empty name', paramListReadsName(patternDefaultReadsOf, ''), false);
+  check('paramListReadsName/non-array params', paramListReadsName(null, 'of'), false);
 }
 
 finish();
