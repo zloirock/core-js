@@ -43,6 +43,7 @@ import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   findProxyGlobal,
   isStaticPlacement,
+  maximalProxyGlobalPrefix,
   resolveObjectName as sharedResolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isViableBranchForKey, walkStaticReceiverChain } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -1120,24 +1121,62 @@ export function createDestructureEmitter({
       return false;
     }
 
-    // 1-hop only: deeper chains are covered by the outer MemberExpression range, the skip
-    // here just prevents inline `globalThis -> _globalThis` substitution INSIDE the outer
-    // transform's `_Map.from` replacement
-    function isPolyfillableMemberAccess(parent, identifierNode) {
-      if (parent?.type !== 'MemberExpression' || parent.object !== identifierNode) return false;
-      const key = memberKeyName(parent);
-      return key !== null && !!resolveGlobalPolyfill(key);
+    // true when `constructorName` names a known constructor (`Object`) and `outerMember`
+    // reads a static method off the `innerMember` hop that produced it - mirrors the natural
+    // visitor resolving `globalThis.Object.fromEntries` to `_Object$fromEntries`. the outer
+    // hop must sit directly on `innerMember` to stay on the chain anchored at the receiver
+    function readsStaticOffConstructor(constructorName, outerMember, innerMember) {
+      if (!isStaticPlacement(constructorName)) return false;
+      if (outerMember?.type !== 'MemberExpression' || outerMember.object !== innerMember) return false;
+      const staticKey = memberKeyName(outerMember);
+      return staticKey !== null
+        && !!resolveBuiltIn({ kind: 'property', object: constructorName, key: staticKey, placement: 'static' });
     }
 
+    // skip the receiver-ref substitution when ANY enclosing member access (at any depth)
+    // is polyfillable - the natural visitor overwrites a span that STARTS at this receiver
+    // identifier, so a competing inline `globalThis -> _globalThis` would land inside that
+    // overwrite and corrupt the inner-needle compose. two polyfillable shapes are detected
+    // per enclosing hop, mirroring what the natural visitor resolves:
+    //   - whole-constructor global (`globalThis.Map` -> `_Map`): key resolves via
+    //     `resolveGlobalPolyfill`. single-hop, but a deeper chain (`globalThis.Map.x`)
+    //     still starts at the same receiver so the whole chain is covered
+    //   - static method on a known constructor (`globalThis.Object.fromEntries` ->
+    //     `_Object$fromEntries`): the receiver hop names a constructor and the NEXT hop's
+    //     key resolves as its static. `Object` has no whole-constructor polyfill, so the
+    //     single-hop gate alone left this receiver substitutable -> double-substitution crash
+    function isPolyfillableMemberAccess(ancestors, identifierNode) {
+      // walk UP the enclosing member chain: each hop's `.object` must be the previous hop
+      // (the chain rooted at `identifierNode`); stop at the first non-MemberExpression or
+      // dynamic key, since that breaks the contiguous chain anchored at the receiver
+      let child = identifierNode;
+      for (let depth = ancestors.length - 1; depth >= 0; depth--) {
+        const member = ancestors[depth];
+        if (member?.type !== 'MemberExpression' || member.object !== child) break;
+        const key = memberKeyName(member);
+        if (key === null) break;
+        if (resolveGlobalPolyfill(key)) return true;
+        if (readsStaticOffConstructor(key, ancestors[depth - 1], member)) return true;
+        child = member;
+      }
+      return false;
+    }
+
+    // `ancestors` accumulates the enclosing-node stack (root-first) so the member-chain
+    // skip-check can walk UP from a matched receiver identifier through every enclosing
+    // MemberExpression - a single immediate-parent pointer can't see `globalThis.Object`'s
+    // OWN parent `globalThis.Object.fromEntries`
+    const ancestors = [];
     function walk(node, parent) {
       if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
       const opens = isScopeOwner(node.type);
       if (opens) pushScope(node);
       if (node.type === 'Identifier' && flattenedReceivers.has(node.name)
-        && !isShadowed(node.name) && !isPolyfillableMemberAccess(parent, node)
+        && !isShadowed(node.name) && !isPolyfillableMemberAccess(ancestors, node)
         && !isNonReferencePosition(parent, node) && !isBindingPosition(parent, node)) {
         matches.push(node);
       }
+      ancestors.push(node);
       for (const key of Object.keys(node)) {
         // skip the `init` slot of a nested VariableDeclarator with ObjectPattern id
         // (potentially flatten-eligible inner destructure). its own inner flatten consumes
@@ -1152,6 +1191,7 @@ export function createDestructureEmitter({
         if (Array.isArray(value)) for (const item of value) walk(item, node);
         else walk(value, node);
       }
+      ancestors.pop();
       if (opens) scopeStack.pop();
     }
 
@@ -1227,10 +1267,14 @@ export function createDestructureEmitter({
     // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
     // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
     // the inner Identifier visitor fires on `Iterator` / `globalThis` and emits a parallel
-    // polyfill that conflicts with the synth-swap emit. shared `markAndPeelSkippableWrappers`
-    // covers the same wrapper set used by `markSynthReceiverSkipped`'s inner walk
-    const cur = markAndPeelSkippableWrappers(branch, skippedNodes);
-    markSynthReceiverSkipped(cur, skippedNodes);
+    // polyfill that conflicts with the synth-swap emit.
+    // the receiver to skip is the same `inner` already resolved above - for a SE branch
+    // (`(log(), globalThis.Array)`) that is the peeled SE TAIL, exactly the node the synth
+    // swap later overwrites. skip-marking it keeps the natural visitor from substituting
+    // `globalThis -> _globalThis` INSIDE that soon-to-be-overwritten span. the SE prefix
+    // (`log()`) stays unmarked so its inner identifiers still polyfill and run at runtime
+    markAndPeelSkippableWrappers(branch, skippedNodes);
+    markSynthReceiverSkipped(inner, skippedNodes);
     let pending = pendingSynthSwaps.get(branch);
     if (!pending) {
       pending = { receiver: branch, objectPattern, polyfills: new Map() };
@@ -1603,6 +1647,39 @@ export function createDestructureEmitter({
     transforms.insert(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
   }
 
+  // byte-precise swap of a chain's proxy-global ROOT identifier (`globalThis` in
+  // `globalThis.Array.other`) for its polyfill binding, leaving the rest of the chain text
+  // (`.Array.other`) intact for instance / member dispatch. needed wherever the natural
+  // visitor was suppressed on the chain (synth-swap / destructure rewrite owns the span), so
+  // a bare `globalThis` would otherwise leak and ReferenceError on engines without it (mirrors
+  // babel's `_globalThis` substitution). `src` is the verbatim chain text anchored at
+  // `baseStart`. returns null when there's no proxy root or its root has no global polyfill -
+  // each caller picks its own fallback. whole-chain-polyfillable chains (`globalThis.Map`)
+  // never reach here: they're rewritten to `_Map` upstream and stay bare Identifiers
+  function substituteProxyGlobalRoot({ node, src, baseStart }) {
+    const proxyRoot = findProxyGlobal(node);
+    if (!proxyRoot) return null;
+    const rootPure = resolveGlobalPolyfill(proxyRoot.name);
+    if (!rootPure) return null;
+    // replace the WHOLE proxy-global navigation prefix (root + intermediate proxy hops such as
+    // the `self` in `globalThis.self.Array`), not just the root id: keeping `.self` would read an
+    // undefined property off the global object on hosts without it (`_globalThis.self` on ie:11
+    // pure / Node), breaking the emitted receiver across the target range
+    const prefixEnd = maximalProxyGlobalPrefix(node).end;
+    const start = proxyRoot.start - baseStart;
+    return src.slice(0, start) + injectPureImport(rootPure.entry, rootPure.hintName)
+      + src.slice(prefixEnd - baseStart);
+  }
+
+  // receiver source for a synth swap's MemberExpression receiver (`globalThis.Array`),
+  // used by unpolyfilled-key fallbacks (`other: <receiver>.other`). the synth swap marks the
+  // receiver chain skipped, so the natural visitor never substitutes its proxy-global root and
+  // we must do it here. falls back to the verbatim source for non-proxy receivers
+  function synthMemberReceiverSrc(member) {
+    const src = nodeSrc(member);
+    return substituteProxyGlobalRoot({ node: member, src, baseStart: member.start }) ?? src;
+  }
+
   // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
   // after main traverse - full polyfill set per receiver known only after sibling visits.
   // non-polyfilled siblings read from pure receiver when receiver itself is polyfillable
@@ -1630,7 +1707,7 @@ export function createDestructureEmitter({
       let receiverSrc = null;
       const getReceiverSrc = () => receiverSrc ??= receiverPure
         ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-        : nodeSrc(inner);
+        : synthMemberReceiverSrc(inner);
       const entries = [];
       for (const p of objectPattern.properties) {
         if (p.type !== 'Property' || p.computed || p.key?.type !== 'Identifier') continue;
@@ -1719,14 +1796,7 @@ export function createDestructureEmitter({
           if (leafPolyfill) return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
         }
         if (info.initStart === undefined) return null;
-        const proxyRoot = findProxyGlobal(initNode);
-        if (!proxyRoot) return null;
-        const rootPolyfill = resolveGlobalPolyfill(proxyRoot.name);
-        if (!rootPolyfill) return null;
-        const rootBinding = injectPureImport(rootPolyfill.entry, rootPolyfill.hintName);
-        const offset = proxyRoot.start - info.initStart;
-        return info.initSrc.slice(0, offset) + rootBinding
-          + info.initSrc.slice(offset + (proxyRoot.end - proxyRoot.start));
+        return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart });
       }
 
       function emitPolyfilled(info, parts, forInitSESinks) {

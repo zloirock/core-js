@@ -23,11 +23,13 @@ import {
   findIifeArgForParam,
   findIifeCallSite,
   findTSRuntimeBindingInPath,
+  getTypeArgs,
   isASTNode,
   isAmbientBindingShape,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
+  isNamespaceScopedVarBinding,
   isTSTypeOnlyIdentifierPath,
   resolveCallArgument,
   unwrapSafeSequenceTail,
@@ -148,7 +150,15 @@ function hasRuntimeBinding(scope, name, path = null) {
   // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
   // their hasBinding=true is authoritative
   const native = scope?.getBinding?.(name, path);
-  return !(native && isAmbientBinding(native));
+  if (!native) return true;
+  if (isAmbientBinding(native)) return false;
+  // estree-toolkit over-hoists a `var` declared inside `namespace N {}` / `declare global {}`
+  // (a TSModuleBlock) to the enclosing function / program scope, so its hasBinding falsely
+  // reports a shadow for a use-site OUTSIDE the namespace body. re-validate with the
+  // position-aware var walk (TSModuleBlock is a boundary there): the namespace-local var only
+  // shadows references INSIDE its body, where the walk still finds it
+  if (path && isNamespaceScopedVarBinding(native)) return findFunctionScopeVarInPath(path, name);
+  return true;
 }
 
 // factory: per-plugin-instance adapter closed over a getInjector callback. babel-plugin
@@ -725,12 +735,24 @@ export function createUsageVisitors({
     checkTypeAnnotations(path.node, annotationGlobal(path));
   }
 
-  // class-field shapes carry their typeAnnotation on the field-level node, NOT on a nested
-  // function - the FunctionExpression walk (method param/return types) doesn't reach field
-  // types. when annotation walking is enabled (usage-global), pair the decorator walk with
-  // a direct typeAnnotation sweep so `Map` / `Set` polyfills emit for `x: Map<T>` etc.
-  // abstract variants get the same treatment - their type-only declarations are still signal
-  function visitClassMember(path) {
+  // explicit type arguments at a call / new site (`bar<Map<...>>()`, `new Foo<Map<...>>()`)
+  // are a type-only instantiation hanging off the call node, not a runtime ref the call's own
+  // visitor reads. there's no FunctionExpression body to drive the param / return walk, so sweep
+  // them directly (babel reaches them via ReferencedIdentifier). most calls carry none, hence the
+  // guard. `getTypeArgs` reads babel `typeParameters` / oxc `typeArguments` uniformly
+  function checkCallTypeArguments(path) {
+    const typeArgs = getTypeArgs(path.node);
+    if (typeArgs) walkTypeAnnotationGlobals(typeArgs, annotationGlobal(path));
+  }
+
+  // a class node and its field shapes carry type-only globals the FunctionExpression walk
+  // (method param / return types) never reaches: the class's own `typeParameters` constraints /
+  // defaults and `extends Base<...>` super-type-args, plus a field's `x: Map<T>` annotation.
+  // `checkTypeAnnotations` already reads `typeParameters.params` + super-type-args, so one routine
+  // covers both the class node and its members. pair it with the decorator walk so those globals
+  // polyfill when annotation walking is on (usage-global). abstract field variants are the same -
+  // their type-only declarations are still signal
+  function visitDecoratorsAndAnnotation(path) {
     visitDecorators(path);
     if (walkAnnotations) checkTypeAnnotation(path);
   }
@@ -764,6 +786,10 @@ export function createUsageVisitors({
           walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
         }
       },
+      // call / new type arguments (covers the optional-call form too)
+      CallExpression: checkCallTypeArguments,
+      NewExpression: checkCallTypeArguments,
+      OptionalCallExpression: checkCallTypeArguments,
     } : {},
     Identifier: identifierVisitor,
     // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
@@ -775,13 +801,14 @@ export function createUsageVisitors({
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
     Property: propertyVisitor,
-    ClassDeclaration: visitDecorators,
-    ClassExpression: visitDecorators,
+    // class node sweeps its own type params + `extends Base<...>` super-type-args
+    ClassDeclaration: visitDecoratorsAndAnnotation,
+    ClassExpression: visitDecoratorsAndAnnotation,
     MethodDefinition: visitDecorators,
-    PropertyDefinition: visitClassMember,
-    AccessorProperty: visitClassMember,
-    TSAbstractPropertyDefinition: visitClassMember,
-    TSAbstractAccessorProperty: visitClassMember,
+    PropertyDefinition: visitDecoratorsAndAnnotation,
+    AccessorProperty: visitDecoratorsAndAnnotation,
+    TSAbstractPropertyDefinition: visitDecoratorsAndAnnotation,
+    TSAbstractAccessorProperty: visitDecoratorsAndAnnotation,
   };
 }
 
