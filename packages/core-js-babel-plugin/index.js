@@ -5,6 +5,7 @@ import {
   hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
   isDeleteTarget,
+  isForXHeadAssignTarget,
   isForXWriteTarget,
   isInUpdateOperand,
   isThisReceiver,
@@ -903,9 +904,10 @@ export default function plugin(api, options) {
             // `function f() { enum Map; ... }` shadowing); without it the walk anchors at the
             // Program scope and misses nested TS-runtime bindings
             if (adapter.hasBinding(idPath.scope, idPath.node.name, idPath)) return;
-            // post-sweep is usage-pure only, so skip unconditionally (same rationale as
-            // primary-pass `skipUpdateTargets`): rewrite to frozen import binding invalid
-            if (isInUpdateOperand(idPath.parentPath)) return;
+            // post-sweep is usage-pure only: skip a global at a write position a frozen import
+            // binding cannot occupy (same rationale as the primary pass) - UpdateExpression
+            // operand (`Map++`) or for-of / for-in head bare-Identifier LHS (`for (Map of arr)`)
+            if (isInUpdateOperand(idPath.parentPath) || isForXHeadAssignTarget(idPath)) return;
             // same predicate as the primary visitor - skip disabled / type-annotation /
             // delete-target positions so this sweep doesn't overrule their exclusions
             if (shouldSkipPath(idPath)) return;
