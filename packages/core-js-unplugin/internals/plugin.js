@@ -119,26 +119,39 @@ function nonEmptyString(value) {
 // Paren+TS so this shape silently bails. rewrite the ExpressionStatement's
 // SequenceExpression body as consecutive `;`-terminated statements in source text so
 // the standard destructure flow handles the inner assignment. side-effecting prefix
-// expressions stay in source order as preceding statements
-// shape detection shared with babel-plugin's `splitMinifierSequenceDestructure` pre-pass via
-// `getMinifierSequenceDestructureExpressions`. unplugin can't use babel's AST-level mutation
-// here (oxc AST positions must stay valid for downstream MagicString edits), so we rewrite
-// the text instead and re-parse the result. walks Program body AND every descendant
-// Statement-list host (BlockStatement / TSModuleBlock / StaticBlock) via the shared
-// `forEachStatementListBody` so function / loop / try / namespace bodies are covered too;
-// Program-only walk silently bailed destructure-emitter inside non-Program statement lists
-function applyMinifierSequenceSplit(code, ast) {
-  let mutated = null;
+// expressions stay in source order as preceding statements.
+// shares shape detection with babel-plugin's equivalent pre-pass, but can't reuse babel's
+// AST-level mutation: oxc AST positions must stay valid for downstream MagicString edits, so
+// we rewrite the text and re-parse. walks Program body AND every descendant statement-list
+// host (BlockStatement / TSModuleBlock / StaticBlock) so function / loop / try / namespace
+// bodies are covered too - a Program-only walk silently bailed inside non-Program lists.
+// splits only the OUTERMOST matching statements per pass; the caller loops to a fixpoint to
+// reach nested matches (see the call site for why one pass can't take them all)
+function applyMinifierSequenceSplitPass(code, ast) {
+  const matches = [];
   forEachStatementListBody(ast, statements => {
     for (const stmt of statements) {
       const expressions = getMinifierSequenceDestructureExpressions(stmt);
-      if (!expressions) continue;
-      const splitText = expressions.map(e => `${ code.slice(e.start, e.end) };`).join('\n');
-      if (!mutated) mutated = new MagicString(code);
-      mutated.overwrite(stmt.start, stmt.end, splitText);
+      if (expressions) matches.push({ start: stmt.start, end: stmt.end, expressions });
     }
   });
-  return mutated ? mutated.toString() : null;
+  if (!matches.length) return null;
+  const mutated = new MagicString(code);
+  // a nested match (inner `(eff(), ({x}=obj))` within outer `(fn, ({y}=obj2))`) lives inside
+  // its enclosing statement's range. overwriting both on one MagicString would re-split a
+  // chunk an earlier overwrite already edited, which MagicString rejects. statement ranges
+  // nest cleanly (no partial overlap), so sorting by start ascending then walking once while
+  // skipping any match that begins before the last kept match's end yields exactly the
+  // outermost, non-overlapping set. skipped inner matches resurface on the next fixpoint pass
+  matches.sort((a, b) => a.start - b.start || b.end - a.end);
+  let lastKeptEnd = -1;
+  for (const match of matches) {
+    if (match.start < lastKeptEnd) continue;
+    const splitText = match.expressions.map(expr => `${ code.slice(expr.start, expr.end) };`).join('\n');
+    mutated.overwrite(match.start, match.end, splitText);
+    lastKeptEnd = match.end;
+  }
+  return mutated.toString();
 }
 
 // codeframe is preferred (ASCII pointer with line:col baked in); labels are the fallback so
@@ -333,23 +346,32 @@ export default function createPlugin(options) {
     }
 
     // minifier-shape pre-pass: rewrite `(prefix, ..., destructure);` shapes into
-    // `prefix; ... ; destructure;` consecutive statements before any visitor walks the
-    // tree. re-parse so the rewritten text and AST positions line up. failure to reparse
-    // (shouldn't happen given the initial parse already validated the source) falls back
-    // to the original code+ast and the destructure-emitter gate continues to silently bail
+    // `prefix; ... ; destructure;` consecutive statements before any visitor walks the tree,
+    // re-parsing after each rewrite so the text and AST positions line up.
+    // a single pass splits only the outermost matches (it can't touch a nested match without
+    // re-editing an already-split chunk), so a destructure-in-sequence buried inside another
+    // surfaces as a free-standing statement only after its enclosing statement has been
+    // rewritten and re-parsed. loop to a fixpoint: each pass strictly reduces the remaining
+    // nesting depth, so the loop is guaranteed to terminate on its own once no match remains.
+    // the iteration cap is a pure safety net - it bounds the worst case if a future parser
+    // change ever let a rewrite re-introduce a match instead of consuming one, so a malformed
+    // input can never spin the build forever. it is set far above any real nesting depth
+    const MINIFIER_SPLIT_PASS_CAP = 64;
     let preSplitCode = null;
-    const splitCode = applyMinifierSequenceSplit(code, ast);
-    if (splitCode) {
+    for (let splitPass = 0; splitPass < MINIFIER_SPLIT_PASS_CAP; splitPass++) {
+      const splitCode = applyMinifierSequenceSplitPass(code, ast);
+      if (!splitCode) break; // fixpoint reached: nothing left to split
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
       const reparsed = parseSync(cleanId, splitCode, { sourceType: isCJSFile ? 'script' : 'module' });
       const [reparseFatal] = reparsed.errors?.filter(e => e.severity === 'Error') ?? [];
-      if (!reparseFatal) {
-        preSplitCode = code;
-        code = splitCode;
-        ast = reparsed.program;
-        comments = reparsed.comments;
-        typeResolvers.reset();
-      }
+      // reparse failure shouldn't happen (the initial parse already validated the source);
+      // keep the last good code+ast and let the destructure-emitter gate silently bail
+      if (reparseFatal) break;
+      if (preSplitCode === null) preSplitCode = code; // capture the original text once so the sourcemap can restore sourcesContent
+      code = splitCode;
+      ast = reparsed.program;
+      comments = reparsed.comments;
+      typeResolvers.reset();
     }
 
     // estree-toolkit's scope crawler doesn't recognize `TSDeclareFunction` as a scope owner,
