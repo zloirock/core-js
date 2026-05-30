@@ -286,4 +286,25 @@ runBoth('walkTypeAnnotationGlobals/primitive (no global)', 'const x: number = 1;
   checkDeep(lbl, found, []);
 });
 
+// fn-type signature param: `(items: Set<number>) => void` keeps its params under babel's
+// `parameters` key (oxc uses `params`). a global referenced ONLY in a fn-type param must
+// surface on both parsers - babel-side regression guard for the `parameters` child key
+runBoth('walkTypeAnnotationGlobals/fn-type param', 'let handler: (items: Set<number>) => void;', (adapter, prog, lbl) => {
+  const fnType = adapter.pickPath(prog, 'TSFunctionType');
+  if (!fnType) return;
+  const found = [];
+  walkTypeAnnotationGlobals(fnType.node, name => found.push(name));
+  checkTruthy(lbl, found.includes('Set'), `expected Set in [${ found.join(',') }]`);
+});
+
+// method-signature param inside a type literal: walks members -> method signature -> its
+// `parameters`. structurally distinct host from TSFunctionType, same babel `parameters` key
+runBoth('walkTypeAnnotationGlobals/method-sig param', 'let o: { run(items: Set<number>): void };', (adapter, prog, lbl) => {
+  const lit = adapter.pickPath(prog, 'TSTypeLiteral');
+  if (!lit) return;
+  const found = [];
+  walkTypeAnnotationGlobals(lit.node, name => found.push(name));
+  checkTruthy(lbl, found.includes('Set'), `expected Set in [${ found.join(',') }]`);
+});
+
 finish();
