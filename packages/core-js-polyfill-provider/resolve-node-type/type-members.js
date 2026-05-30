@@ -18,6 +18,7 @@ import {
   isTypeAlias,
   synthInterfaceExtendsRef,
   typeAliasBody,
+  typeRefName,
   typeRefSegments,
 } from './ast-shapes.js';
 import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
@@ -374,6 +375,28 @@ export function createTypeMembers({
     return isNumericKey ? (numberSig ?? stringSig) : (stringSig ?? numberSig ?? symbolSig);
   }
 
+  // element AST of an array-shaped type (`X[]` / `Array<X>` / `ReadonlyArray<X>`, readonly-peeled)
+  // -> X, else null. shared by the infer matcher and the check-element extraction in the thread
+  function arrayElementType(node) {
+    let n = unwrapTypeAnnotation(node);
+    if (n?.type === 'TSTypeOperator' && n.operator === 'readonly') n = n.typeAnnotation;
+    if (n?.type === 'TSArrayType') return n.elementType;
+    if (n?.type === 'TSTypeReference' && (typeRefName(n) === 'Array' || typeRefName(n) === 'ReadonlyArray')) {
+      return getTypeArgs(n)?.params?.[0] ?? null;
+    }
+    return null;
+  }
+
+  // infer name of an array-element-bare-infer extends (`(infer U)[]` / `Array<infer U>` /
+  // `ReadonlyArray<infer U>`), else null - the only conditional shape the numeric-index thread in
+  // findConditionalTypeMember handles (narrower than the conditional evaluator's container matcher)
+  function arrayElementInferName(extendsType) {
+    const element = arrayElementType(extendsType);
+    if (peelTSParenthesized(unwrapTypeAnnotation(element || null))?.type !== 'TSInferType') return null;
+    const names = collectInferredNames(extendsType);
+    return names.size === 1 ? [...names][0] : null;
+  }
+
   // pick the firing branch of a TSConditionalType for member lookup, recursing with the
   // ORIGINAL AST trueType/falseType (not the resolved Type Object). branch-pick strategy:
   //   1) AST equality (literal-vs-literal pairs only)
@@ -398,6 +421,21 @@ export function createTypeMembers({
     // the constraint, both use outer-scope substitutions
     const innerSubst = dropMapKeys(subst, collectInferredNames(aliased.extendsType));
     const innerWithSubst = node => node ? applySubst(unwrapTypeAnnotation(node), innerSubst) : node;
+    // array element-infer thread, ahead of pickConditionalBranchVia (which returns null for an
+    // `infer` extends - undecidable structurally): `T extends Array<infer U> ? <true> : ...` with an
+    // array check type fires the TRUE branch, and U = the check's element (AST). thread it so a
+    // numeric index into the true branch resolves (`(U[])[0]` -> element) instead of leaving U
+    // unresolved (-> null -> ambiguous `.at` over-emit). substituting an AST element keeps the member
+    // path AST-only, avoiding the Type-Object boundary an evaluated-conditional return would hit.
+    // gated on arrayCheckElement being non-null - i.e. the check IS an array, so it genuinely
+    // extends Array<infer U> and the true branch is the firing one
+    const inferName = arrayElementInferName(aliased.extendsType);
+    const inferElement = inferName ? arrayElementType(checkSubst) : null;
+    if (inferElement) {
+      const threadedSubst = new Map(innerSubst);
+      threadedSubst.set(inferName, inferElement);
+      return findTypeMember({ objectType: applySubst(unwrapTypeAnnotation(aliased.trueType), threadedSubst), key, scope, depth: depth + 1 });
+    }
     // POST-AST-subst path: extendSubst already carries the substitution. pickConditionalBranchVia
     // resolves via resolveTypeAnnotation and reads `isUnconstrained` from the post-subst AST -
     // typeparam refs that resolved to a concrete shape no longer read as unconstrained
