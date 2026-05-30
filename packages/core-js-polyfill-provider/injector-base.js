@@ -5,10 +5,14 @@ import { findUniqueName } from './helpers/pattern-matching.js';
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
 // `_ref0`/`_ref1`/leading-zero forms (`_ref01`) stay out of adoption - our generator
 // never emits them, so they must belong to user code.
+// the numeric tail is length-capped at 15 digits (< Number.MAX_SAFE_INTEGER): a user-written
+// `_ref` with a 16+-digit suffix would `parseInt` into a float-collapsed integer that the
+// nextSuffix cache seed + `findUniqueName` probe loop can never increment past, hanging the
+// allocator. an over-long suffix simply fails to match here, so it is reserved as a user name.
 // `(?<suffix>...)` captures the numeric tail (empty string for bare `_ref`) so callers
 // that need the slot index for nextSuffix-cache seeding can `.exec()` instead of duplicating
 // the pattern. `.test()` users ignore the group; both share one regex
-export const ORPHAN_REF_PATTERN = /^_ref(?<suffix>[2-9]|[1-9]\d+)?$/;
+export const ORPHAN_REF_PATTERN = /^_ref(?<suffix>[2-9]|[1-9]\d{1,14})?$/;
 
 // returns the next suffix to seed `#nextSuffixByPrefix` after `findUniqueName` produced
 // `name`. bare prefix -> reserve slot 2 (babel skip-1); numeric tail -> advance by 1.

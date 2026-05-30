@@ -816,7 +816,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveBodyReturnType,
     resolveAnnotationInContext,
-    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     isFunctionLike,
     findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
     buildSubstMap,
