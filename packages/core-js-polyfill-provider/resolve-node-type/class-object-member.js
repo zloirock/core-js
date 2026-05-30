@@ -136,24 +136,27 @@ export function createClassObjectMember({
     return result;
   }
 
+  // a via-`this` member narrow is unsound when a subclass can shadow the slot with an
+  // incompatible runtime value (the runtime receiver of an inherited method is the subclass);
+  // `staticFieldShadowable` / `instanceMemberShadowable` carry that reasoning and decide
+  // reachability. this wrapper only gates entry: explicit `Base.<member>` / `inst.<member>`
+  // reads (viaThis false) hit the named type's own slot and stay narrowed, and a private
+  // `this.#x` read always binds the lexical class's brand (never an override) so it's exempt.
+  // `foundNode` is the resolved class-body member, or null for the merged-interface /
+  // merged-namespace fall-throughs (whose members are never private class slots)
+  function viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode }) {
+    if (!viaThis || (foundNode && isPrivateClassMember(foundNode))) return false;
+    return isStatic ? staticFieldShadowable(classPath, name) : instanceMemberShadowable(classPath, name);
+  }
+
   function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
     const found = findClassMember({ classPath, name, isStatic, classSubst });
-    if (found) {
-      // `this.<member>` resolves against the lexical class, but an inherited method / getter
-      // runs with `this` bound to the calling subclass (static side) or subclass instance
-      // (instance side). when a subclass can override the member with an incompatible runtime
-      // value - widened to `any`, or a method / accessor / field of a different shape - a narrow
-      // off the lexical declaration would emit an element-specialized polyfill that throws on
-      // the subclass value in engines lacking the native method. bail to the general variant
-      // only when such a shadow is reachable: covers static fields AND static getters / methods
-      // (staticFieldShadowable matches any static slot) plus the whole instance side
-      // (instanceMemberShadowable). explicit `Base.<member>` / `inst.<member>` access (viaThis
-      // false) reads the named type's own slot and stays narrowed
-      if (viaThis && !isPrivateClassMember(found.member.node)
-        && (isStatic ? staticFieldShadowable(classPath, name) : instanceMemberShadowable(classPath, name))) return null;
-      return resolveClassMemberNode(found.member, callPath, found.subst);
-    }
+    // hoisted above the found / fall-through dispatch so the shadow bail also guards the
+    // merged-interface instance and merged-namespace static paths below - a via-`this` narrow
+    // off a merged declaration is just as unsound under a subclass override as off the class body
+    if (viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode: found?.member.node ?? null })) return null;
+    if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
     if (!classPath.node.id?.name) return null;
     // static lookup miss: try TS declaration-merging fallback. when `namespace Foo { export
     // function bar(): T {} }` merges with `class Foo {}`, `Foo.bar` is a runtime callable
