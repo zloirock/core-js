@@ -62,13 +62,22 @@ export function createNarrowByGuards({
     return null;
   }
 
+  // a guard filters a candidate iff `matchesGuard === guard.positive`. an `optionalCall`
+  // predicate guard (`obj.isStr?.(x)`) may short-circuit without testing x, so it is trusted
+  // only in the positive direction: in the complement branch (positive === false) it does
+  // not filter, leaving the candidate in the union
+  function guardKeeps(resolved, guard) {
+    if (guard.optionalCall && !guard.positive) return true;
+    return matchesGuard(resolved, guard) === guard.positive;
+  }
+
   // filter candidate types by guards, return the unique surviving type or null
   function narrowByGuards(candidates, guards) {
     let result = null;
     for (const resolved of candidates) {
       if (!resolved) continue;
       if (isNullableOrNever(resolved)) continue;
-      if (!guards.every(guard => matchesGuard(resolved, guard) === guard.positive)) continue;
+      if (!guards.every(guard => guardKeeps(resolved, guard))) continue;
       result = commonType(result, resolved);
       if (!result) return null;
     }
@@ -90,6 +99,13 @@ export function createNarrowByGuards({
       for (let p = path; p; p = p.parentPath) if (p === scope) return true;
       return false;
     }
+    // positional containment: violation byte range fits inside node's byte range.
+    // unknown ranges -> not contained (callers treat that as conservatively-outside)
+    function isInsideNode(node, vnode) {
+      return hasStart(node) && node.end !== null && node.end !== undefined
+        && hasStart(vnode) && vnode.end !== null && vnode.end !== undefined
+        && vnode.start >= node.start && vnode.end <= node.end;
+    }
     return {
       violates(scope) {
         return constantViolations.some(v => isDescendantOf(v, scope));
@@ -97,15 +113,20 @@ export function createNarrowByGuards({
       violatesBefore(scope) {
         return constantViolations.some(v => isDescendantOf(v, scope) && isBefore(v));
       },
-      // positional containment: mutation byte range fits inside node's byte range. used
-      // for sibling-relative scopes the parentPath walker can't reach
+      // mutation byte range fits inside node's byte range. used for sibling-relative
+      // scopes the parentPath walker can't reach
       violatesInsideNode(node) {
         if (!hasStart(node) || node.end === null || node.end === undefined) return false;
-        const { start, end } = node;
-        return constantViolations.some(v => {
-          const n = v.node;
-          return hasStart(n) && n.end !== null && n.end !== undefined && n.start >= start && n.end <= end;
-        });
+        return constantViolations.some(v => isInsideNode(node, v.node));
+      },
+      // a before-usage reassignment that sits strictly between the outer guards and the inner
+      // fresh re-narrowing conditional: inside `outerHost` (so an outer guard already ran before
+      // it) yet outside `innerHost` (so the inner guard does not re-narrow past it). that window
+      // is what makes the outer guards stale. a reassignment positioned BEFORE the outer guards
+      // is excluded - those guards re-narrow after it and stay valid
+      violatesBetweenHosts(outerHost, innerHost) {
+        return constantViolations.some(v => isBefore(v)
+          && isInsideNode(outerHost, v.node) && !isInsideNode(innerHost, v.node));
       },
     };
   }
@@ -119,11 +140,19 @@ export function createNarrowByGuards({
   //       absence of `break` (`case 'a': x = 5; case 'b': use(x)`)
   //   (c) early-exit sibling's OWN test slot when the OR-side runs but the return doesn't fire
   //       (`if (typeof x !== 'string' || (x = 5, false)) return;` - LHS=false, RHS runs, !return)
+  //
+  // returns { mutated, staleBoundaryHost }. `staleBoundaryHost` (when set) is the host node
+  // of the nearest fresh inner re-narrowing conditional that a reassignment between it and
+  // the outer guards has invalidated: the caller must collect guards only from that host
+  // inward, dropping the stale outer guards that would otherwise over-narrow the union
   function hasMutationAfterGuards(binding, usagePath, varName) {
+    // every early exit is "a mutation invalidates the narrow, no stale-guard boundary to
+    // report"; only the final fall-through can carry a boundary. share one read-only sentinel
+    const MUTATED = { mutated: true, staleBoundaryHost: null };
     const { constantViolations } = binding;
-    if (!constantViolations.length) return false;
+    if (!constantViolations.length) return { mutated: false, staleBoundaryHost: null };
     const probes = createViolationProbes(constantViolations, usagePath.node);
-    const { violates, violatesBefore, violatesInsideNode } = probes;
+    const { violates, violatesBefore, violatesInsideNode, violatesBetweenHosts } = probes;
     // (a) test slot of conditional/logical guard host. for IfStatement/Conditional the host's
     // `test` is the guard expression; for LogicalExpression where guards came from LHS, RHS
     // mutations live in `current` (the right operand) and `violatesBefore(current)` covers them
@@ -175,6 +204,13 @@ export function createNarrowByGuards({
       || findSwitchCaseGuards(current, varName).length
       || findEarlyExitGuards(current, varName).length);
     let innerFreshConditional = false;
+    // host of the nearest fresh inner re-narrowing conditional (set once, at the first fresh
+    // conditional walking leaf->up); feeds the stale-guard boundary computed at the final return
+    let nearestFreshHost = null;
+    // host of the outermost enclosing conditional guard (last one seen walking leaf->up).
+    // a reassignment is "between the outer guards and the inner fresh conditional" only if it
+    // lives inside this region; one positioned before it is re-narrowed by it and stays valid
+    let outermostGuardHost = null;
     // a reassignment anywhere inside a loop body re-executes before the use on the next
     // iteration, so once we cross such a loop a guard OUTSIDE it no longer holds at the use
     // (`if (typeof x !== 'string') return; while (c) { x.at(0); x = readAnything() }`). an
@@ -185,19 +221,27 @@ export function createNarrowByGuards({
       if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
       // a guard reached only after crossing a back-edge loop is outside it - it cannot
       // re-establish the narrow per iteration, so the loop-carried reassignment wins
-      if (crossedBackEdgeLoop && bindingGuardedAt(current)) return true;
+      if (crossedBackEdgeLoop && bindingGuardedAt(current)) return MUTATED;
       if (findConditionalGuards(current, varName).length) {
+        outermostGuardHost = parent.node;
         const fresh = !violatesBefore(current) && !violatesInsideNode(conditionalTestNode(current));
-        if (fresh) innerFreshConditional = true;
-        else if (!innerFreshConditional) return true;
+        if (fresh) {
+          if (!innerFreshConditional) nearestFreshHost = parent.node;
+          innerFreshConditional = true;
+        } else if (!innerFreshConditional) return MUTATED;
       }
       if (innerFreshConditional) continue;
       if (findSwitchCaseGuards(current, varName).length
-        && (violatesBefore(parent) || fallThroughCaseViolates(current))) return true;
+        && (violatesBefore(parent) || fallThroughCaseViolates(current))) return MUTATED;
       if (findEarlyExitGuards(current, varName).length
-        && earlyExitInvalidates(current, getStatementSiblings(current))) return true;
+        && earlyExitInvalidates(current, getStatementSiblings(current))) return MUTATED;
     }
-    return false;
+    // the narrow survives, but if a reassignment sits between the outer guards and the nearest
+    // fresh inner conditional, those outer guards are stale: report the fresh host as the
+    // boundary so the caller re-collects from it inward and drops them
+    const staleBoundaryHost = nearestFreshHost && violatesBetweenHosts(outermostGuardHost, nearestFreshHost)
+      ? nearestFreshHost : null;
+    return { mutated: false, staleBoundaryHost };
   }
 
   // bail narrowing if any reassignment lives inside a nested function - that function may
@@ -267,12 +311,18 @@ export function createNarrowByGuards({
       const classification = classifyGuardAnnotation(binding);
       if (classification.kind !== 'closed') {
         const isConst = !binding.constantViolations?.length;
-        const guards = findEnclosingTypeGuards({ path, varName: name, isConst, binding });
-        if (guards && (isConst
-            || (!hasMutationAfterGuards(binding, path, name)
-              && !hasMutationInCapturedFunction(binding)))) {
-          result = { binding, guards, classification };
+        let guards = findEnclosingTypeGuards({ path, varName: name, isConst, binding });
+        let keep = isConst;
+        if (guards && !isConst) {
+          const { mutated, staleBoundaryHost } = hasMutationAfterGuards(binding, path, name);
+          keep = !mutated && !hasMutationInCapturedFunction(binding);
+          // a reassignment between a fresh inner conditional and the outer guards made the
+          // latter stale - re-collect from that host inward so they no longer over-narrow
+          if (keep && staleBoundaryHost) {
+            guards = findEnclosingTypeGuards({ path, varName: name, isConst, binding, boundaryHost: staleBoundaryHost });
+          }
         }
+        if (guards && keep) result = { binding, guards, classification };
       }
     }
     guardsCache.set(node, result);

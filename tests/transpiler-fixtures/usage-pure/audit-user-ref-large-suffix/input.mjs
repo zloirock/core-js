@@ -1,5 +1,5 @@
-// `_ref100` is a valid plugin-emittable shape per ORPHAN_REF_PATTERN
-// (`[1-9]\d+` matches 10+). User code declaring `_ref100` reserves the
+// `_ref100` is a valid plugin-emittable shape per the orphan-ref pattern
+// (multi-digit suffixes match). User code declaring `_ref100` reserves the
 // name through scope.hasBinding (babel) / collectAllBindingNames (unplugin);
 // plugin-allocated `_ref` lands on bare slot regardless of how high
 // user-declared suffix climbs
