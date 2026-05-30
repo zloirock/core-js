@@ -679,6 +679,29 @@ function checkAdoptOrphanRejectsNonConforming() {
 }
 checkAdoptOrphanRejectsNonConforming();
 
+// the orphan pattern caps the numeric tail at 15 digits (< Number.MAX_SAFE_INTEGER). a user
+// `_ref` with a 16+-digit suffix would parseInt into a float-collapsed integer that seeds the
+// nextSuffix cache to a value `findUniqueName` can never increment past, hanging the allocator.
+// such an over-long suffix must NOT match the pattern (-> reserved as a user name, never adopted)
+function checkAdoptOrphanRejectsUnsafeSuffix() {
+  check('orphanPattern/accepts 15-digit suffix', ORPHAN_REF_PATTERN.test(`_ref${ '9'.repeat(15) }`), true);
+  check('orphanPattern/rejects 16-digit suffix', ORPHAN_REF_PATTERN.test(`_ref${ '9'.repeat(16) }`), false);
+  // regression: the canonical generator-shaped names still match, the user-only forms still do not
+  check('orphanPattern/accepts bare _ref', ORPHAN_REF_PATTERN.test('_ref'), true);
+  check('orphanPattern/accepts _ref2', ORPHAN_REF_PATTERN.test('_ref2'), true);
+  check('orphanPattern/accepts _ref100', ORPHAN_REF_PATTERN.test('_ref100'), true);
+  check('orphanPattern/rejects _ref1', ORPHAN_REF_PATTERN.test('_ref1'), false);
+  check('orphanPattern/rejects _ref0', ORPHAN_REF_PATTERN.test('_ref0'), false);
+  const ms = new MagicString('');
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
+  const giant = `_ref${ '9'.repeat(18) }`;
+  inj.adoptOrphanRefs([giant, '_ref2']);
+  const snap = inj.snapshot();
+  check('adoptOrphan/rejects unsafe-length suffix', snap.refs.includes(giant), false);
+  check('adoptOrphan/adopts safe suffix alongside', snap.refs.includes('_ref2'), true);
+}
+checkAdoptOrphanRejectsUnsafeSuffix();
+
 // sequential transforms via one plugin instance must not bleed state between them.
 // runTransformInner installs `currentInjector` AFTER its early-return guards and the
 // try/finally restores the previous slot - a second transform sees a fresh tree and
