@@ -434,9 +434,12 @@ function isScopeRebinding(node) {
   return SCOPE_REBINDING_TYPES.has(node.type);
 }
 
-// plugin never emits `_ref = X` assignments into these parent positions - they surface only
-// from user sloppy-mode code. listed alongside ExpressionStatement (bare statement form) so
-// the orphan classifier rejects all user-written top-level shapes uniformly
+// the plugin only ever emits `_ref = X` inside a `null == (...)` test (a BinaryExpression) or
+// as a call argument. so any `_ref = X` whose parent is one of these positions is user-written
+// sloppy-mode code, never plugin output. listing them here makes the orphan classifier reserve
+// the name (it stays the user's) instead of adopting it and rehydrating a module-level
+// `var _ref;` that would then share state with the user's binding. ExpressionStatement (bare
+// statement form) anchors the list so all user-written top-level shapes are rejected uniformly
 const USER_ASSIGN_PARENT_TYPES = new Set([
   'ExpressionStatement',
   'SwitchCase',
@@ -460,6 +463,12 @@ const USER_ASSIGN_PARENT_TYPES = new Set([
   // `export default _ref = make()` gets adopted as orphan-ref and shares state with the
   // module-level rehydrated `var _ref;`
   'ExportDefaultDeclaration',
+  // `cond ? (_ref = compute()) : f()` - a user assignment as a direct ternary branch. the
+  // plugin's memoize emit lives inside the test (`null == (...)`), never as a bare branch
+  'ConditionalExpression',
+  // `x = _ref = compute()` - a user assignment chained as the RHS of another assignment.
+  // the plugin never nests its memo writes as an assignment RHS
+  'AssignmentExpression',
 ]);
 
 // orphan-ref heuristic: plugin emits `_ref = foo()` / `_ref = obj.x` as a sub-expression inside

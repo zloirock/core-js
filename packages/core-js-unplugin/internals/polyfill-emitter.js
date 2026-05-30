@@ -396,20 +396,33 @@ export function createPolyfillEmitter({
     return null;
   }
 
+  // SequenceExpression-receiver double-emit guard. `classifyReceiverSE` (shared with
+  // babel-compat) decides between `peel` + prepend (non-optional) and `suppress` (SE folded
+  // into the memoize for the optional case). it detects SE through transparent wrappers so
+  // oxc's ParenthesizedExpression(SE) shape resolves identically to babel's bare SE.
+  // `node.object?.type === 'ChainExpression'` is defensive for non-oxc AST shapes - oxc-parser
+  // never emits a ChainExpression in receiver position (it inlines optional markers), but
+  // estree-style trees do; the check stays for parser-agnostic robustness.
+  //
+  // `peel` is downgraded to `null` for the bare (`binding(receiver)`) shape. peeling is sound
+  // only in the `.call(this)` shape, where the memoize re-references the receiver and
+  // `sideEffects` re-supplies the peeled prefix. the bare shape (e.g. Symbol.iterator
+  // get-iterator with no args) passes the receiver verbatim as the sole arg, and the incoming
+  // `sideEffects` carry only the computed-KEY prefix - NOT the receiver's own. peeling there
+  // would strand the receiver prefix (`(a(), arr)[Symbol[(b(), 'iterator')]]()` would drop
+  // `a()`). keeping the whole SequenceExpression receiver mirrors babel's bare get-iterator emit
+  function resolveReceiverSeMode({ node, parent, replacementIsCall, sideEffects }) {
+    const isOptional = node.optional || parent?.optional || node.object?.type === 'ChainExpression';
+    const seMode = classifyReceiverSE(node.object, isOptional, sideEffects);
+    return seMode === 'peel' && !replacementIsCall ? null : seMode;
+  }
+
   // build replacement, wrap guard if needed, add to transform queue
   function addInstanceTransform({
     binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
     sideEffects = null, parenLookupOnly = false,
   }) {
-    // SequenceExpression-receiver double-emit guard - `classifyReceiverSE` (shared with
-    // babel-compat) decides between peel + prepend (non-optional) and SE-in-memoize +
-    // suppress prepend (optional). detects SE through transparent wrappers so oxc's
-    // ParenthesizedExpression(SE) shape resolves identically to babel's bare SE.
-    // `node.object?.type === 'ChainExpression'` is defensive for non-oxc AST shapes -
-    // oxc-parser never emits a ChainExpression in receiver position (it inlines optional
-    // markers), but estree-style trees do; the check stays for parser-agnostic robustness
-    const isOptional = node.optional || parent?.optional || node.object?.type === 'ChainExpression';
-    const seMode = classifyReceiverSE(node.object, isOptional, sideEffects);
+    const seMode = resolveReceiverSeMode({ node, parent, replacementIsCall, sideEffects });
     const receiverObj = seMode === 'peel' ? peelReceiverSequenceTail(node.object) : node.object;
     if (seMode === 'suppress') sideEffects = null;
     const recv = resolveReceiverSource(receiverObj, metaPath);
@@ -669,11 +682,19 @@ export function createPolyfillEmitter({
     };
   }
 
-  // peel Paren / Chain / TS wrappers off a (node, path) pair in lockstep, returning both so chain
-  // descent and polyfill resolution stay aligned on the unwrapped node
-  function peelChainWrappers(node, path) {
+  // peel Paren / Chain / TS wrappers off a (node, path) pair in lockstep, keeping chain descent
+  // and polyfill resolution aligned on the unwrapped node. returns `null` when a
+  // `ParenthesizedExpression` is crossed: a paren above an optional sub-chain is a chain
+  // TERMINATOR (`(arr.flat?.()).includes` ends the chain at the `)`), so the chain-combine
+  // descent must refuse to fold across it - the outer access becomes a fresh non-optional
+  // access on the chain RESULT, which must throw on a nullish value rather than short-circuit.
+  // every chain-descent peel wants this bail, so it lives here instead of at each call site.
+  // parens around the INNERMOST receiver (`(arr).flat?.()`) sit below the optional node, off
+  // this descent path, and never reach here - so they keep combining
+  function peelChainStep(node, path) {
     while (node && (node.type === 'ParenthesizedExpression'
         || node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
+      if (node.type === 'ParenthesizedExpression') return null;
       node = node.expression;
       path = path.get('expression');
     }
@@ -692,7 +713,12 @@ export function createPolyfillEmitter({
     // drops the receiver for an optional inner (`_ref()` not `_ref.call(recv)`) - a runtime throw
     if (!isCallee(node, parent) || node.type !== 'MemberExpression') return null;
     if (parent.type !== 'CallExpression') return null;
-    let [current, currentPath] = peelChainWrappers(node.object, metaPath.get('object'));
+    // any descent peel that crosses a chain-terminating paren bails the combine; babel's gate
+    // rejects the same shape, and the OR-short-circuit emit would otherwise swallow the
+    // resulting non-optional throw into `void 0`
+    let step = peelChainStep(node.object, metaPath.get('object'));
+    if (!step) return null;
+    let [current, currentPath] = step;
     // collect non-optional intermediate hops (`.map(...)` / `.slice(...)` / `.x`) between the outer
     // call and the optional inner. the combine threads them onto the memoized inner result so they
     // survive instead of being dropped (value corruption) - mirrors babel-compat.js spliceChainInner.
@@ -701,7 +727,9 @@ export function createPolyfillEmitter({
     while (current && (current.type === 'MemberExpression' || current.type === 'CallExpression')) {
       if (current.optional) break;
       if (current.type === 'CallExpression') {
-        const [hopCallee, hopCalleePath] = peelChainWrappers(current.callee, currentPath.get('callee'));
+        const calleeStep = peelChainStep(current.callee, currentPath.get('callee'));
+        if (!calleeStep) return null;
+        const [hopCallee, hopCalleePath] = calleeStep;
         // un-threadable hop callee shapes (computed / non-Identifier / `super`): bail rather than
         // risk a malformed thread. matches the inner-chainStart gate below
         if (hopCallee?.type !== 'MemberExpression' || hopCallee.computed
@@ -713,11 +741,13 @@ export function createPolyfillEmitter({
           args: sliceBetweenParens(current) ?? '',
           rawSrc: code.slice(hopCallee.object.end, current.end),
         });
-        [current, currentPath] = peelChainWrappers(hopCallee.object, hopCalleePath.get('object'));
+        step = peelChainStep(hopCallee.object, hopCalleePath.get('object'));
       } else {
         hops.push({ poly: null, args: null, rawSrc: code.slice(current.object.end, current.end) });
-        [current, currentPath] = peelChainWrappers(current.object, currentPath.get('object'));
+        step = peelChainStep(current.object, currentPath.get('object'));
       }
+      if (!step) return null;
+      [current, currentPath] = step;
     }
     if (current?.type !== 'CallExpression' || !current.optional) return null;
     const { callee } = current;
