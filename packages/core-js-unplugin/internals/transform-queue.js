@@ -182,6 +182,29 @@ export function deoptionalizeNeedle(needle) {
   });
 }
 
+// strip `?.` at SELECTED absolute positions only (the emitter's per-hop deopt). mirrors
+// polyfill-emitter's `stripOptionalDots`: positions are absolute source offsets, `baseOffset`
+// is the needle's source start. `?.(` / `?.[` drop both chars, `?.prop` keeps `.`. out-of-range
+// positions are skipped, so an outer's full deopt list applied to a sub-slice needle only
+// touches the markers that fall inside it - matching how an outer transform left some `?.`
+// collapsed and others verbatim when it folded a partial receiver chain
+export function deoptionalizeNeedleAtPositions(needle, baseOffset, positions) {
+  if (!positions?.length) return needle;
+  const sorted = [...positions].sort((a, b) => a - b);
+  let result = '';
+  let prev = 0;
+  for (const absPos of sorted) {
+    let rel = absPos - baseOffset;
+    if (rel < 0 || rel >= needle.length) continue;
+    rel = skipWhitespaceAndComments(needle, rel);
+    if (rel >= needle.length || needle[rel] !== '?' || needle[rel + 1] !== '.') continue;
+    result += needle.slice(prev, rel);
+    const afterQ = skipWhitespaceAndComments(needle, rel + 2);
+    prev = needle[afterQ] === '[' || needle[afterQ] === '(' ? rel + 2 : rel + 1;
+  }
+  return result + needle.slice(prev);
+}
+
 // try needle shapes: raw slice -> deoptionalized -> guardRef-rewritten
 // (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
 // after-char gate: only consider `needle.startsWith(rootRaw)` valid when the char after
@@ -193,7 +216,44 @@ function hasRootBoundary(needle, rootLength) {
   return next === '.' || next === '?' || next === '[' || next === '(';
 }
 
-function substituteInner({ content, needle, replacement, nth, outerHint, innerPrefix }) {
+// does the outer hint carry a guardRef-backed root that this needle is rooted in?
+// shared gate for both the prefix-rewrite path and the guardRef-tail candidate: outer
+// memoized `rootRaw` as `guardRef`, and `needle` starts with `rootRaw` at a structural
+// boundary (not a mid-identifier prefix match)
+function needleRootedInGuard(needle, outerHint) {
+  return !!outerHint?.rootRaw && !!outerHint.guardRef
+    && needle.startsWith(outerHint.rootRaw) && hasRootBoundary(needle, outerHint.rootRaw.length);
+}
+
+// ordered needle shapes to try against `content`, MOST-SPECIFIC -> LEAST-SPECIFIC, first
+// match wins. ordering is load-bearing: a guardRef shape ALSO matches as the raw needle
+// (the `rootRaw` prefix exists verbatim inside `_ref = rootRaw`), so a less specific shape
+// tried first would emit at the wrong slot. each entry below is appended only when its
+// precondition holds, so the raw needle always sits at index 0
+function buildNeedleCandidates({ needle, needleStart, outerHint }) {
+  // [0] raw slice - matches when the outer neither deoptionalized nor guarded the chain
+  const candidates = [needle];
+  const hasOptionalChain = needle.includes('?.');
+  // partial-deopt: the outer collapsed only SOME of the chain's `?.` (the hops it folded
+  // into its receiver) and kept the rest verbatim. replay that exact per-position strip so
+  // the inner needle matches the partially-collapsed text before the blanket full-deopt
+  // below would over-strip the `?.` the outer left intact. needs the needle's source start
+  // to map the outer's absolute `deoptPositions` onto this slice
+  if (hasOptionalChain && needleStart !== undefined && outerHint?.deoptPositions?.length) {
+    const partial = deoptionalizeNeedleAtPositions(needle, needleStart, outerHint.deoptPositions);
+    if (partial !== needle) candidates.push(partial);
+  }
+  // full-deopt: matches when the outer's compose stripped every `?.` marker in the chain
+  if (hasOptionalChain) candidates.push(deoptionalizeNeedle(needle));
+  // guardRef + deopt-tail: outer memoized `rootRaw` as `guardRef`, so the inner needle's
+  // root now reads `guardRef` and only the tail beyond `rootRaw` survives in the text
+  if (needleRootedInGuard(needle, outerHint)) {
+    candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
+  }
+  return candidates;
+}
+
+function substituteInner({ content, needle, needleStart, replacement, nth, outerHint, innerPrefix }) {
   // mirror babel-plugin's AST-mutation flow for `new (chain.method)(args)`: the outer
   // memoizes `chainRoot` (e.g. `arr.flat`) as `_ref`, then the inner visit replaces
   // `arr.flat` with `_flatMaybeArray(arr)` INSIDE the assignment. result: outer guard
@@ -208,28 +268,11 @@ function substituteInner({ content, needle, replacement, nth, outerHint, innerPr
   // full inner emit at `_ref` placeholder) is correct, so we fall through. try the prefix
   // path BEFORE the regular candidates - if we hit the body's `_ref()` first, the prefix
   // path is wasted (and we'd leave `_ref = rootRaw` dead code in the guard)
-  if (innerPrefix && outerHint?.rootRaw && outerHint.guardRef
-      && needle.startsWith(outerHint.rootRaw)
-      && needle.length > outerHint.rootRaw.length
-      && hasRootBoundary(needle, outerHint.rootRaw.length)) {
+  if (innerPrefix && needleRootedInGuard(needle, outerHint) && needle.length > outerHint.rootRaw.length) {
     const rootRawResult = replaceNthOccurrence({ str: content, needle: outerHint.rootRaw, replacement: innerPrefix, n: 0 });
     if (rootRawResult !== content) return { content: rootRawResult, found: true };
   }
-  // candidates list ordered MOST-SPECIFIC -> LEAST-SPECIFIC, first-match wins:
-  //   [0] raw needle           - default, matches when outer didn't deoptionalize/guard
-  //   [1] deoptionalized       - matches when outer's compose stripped `?.` markers
-  //   [2] guardRef + deopt-tail - matches when outer memoized rootRaw as guardRef and
-  //                                inner needle extends beyond rootRaw
-  // ordering matters: a guardRef shape ALSO matches as raw needle (the rootRaw prefix
-  // exists verbatim in `_ref = rootRaw`), so trying guardRef first would emit twice.
-  // raw-first wins via short-circuit on the first replacement that changes content
-  const candidates = [needle];
-  if (needle.includes('?.')) candidates.push(deoptionalizeNeedle(needle));
-  if (outerHint?.rootRaw && outerHint.guardRef
-    && needle.startsWith(outerHint.rootRaw) && hasRootBoundary(needle, outerHint.rootRaw.length)) {
-    candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
-  }
-  for (const candidate of candidates) {
+  for (const candidate of buildNeedleCandidates({ needle, needleStart, outerHint })) {
     const result = replaceNthOccurrence({ str: content, needle: candidate, replacement, n: nth });
     if (result !== content) return { content: result, found: true };
   }
@@ -417,7 +460,13 @@ function removeFrom(map, key, value) {
 // threaded through the outer guard's `_ref = ...` slot. returns null when the outer
 // didn't install a guard and didn't reuse one
 export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot }) {
-  if (!guardRef) return null;
+  // no guard installed, but the emitter still stripped `?.` at hop boundaries (`deoptPositions`)
+  // when collapsing a receiver chain. compose needs those positions so substituteInner can
+  // rebuild the partially-deoptionalized needle an outer left behind. emit a deopt-only hint
+  // (no rootRaw/guardRef checks downstream gate on `guardRef`, so this stays inert there)
+  if (!guardRef) {
+    return deoptPositions?.length ? { rootRaw: null, guardRef: null, deoptPositions, objectStart, absorbsRoot: false } : null;
+  }
   // `guardRef` without `rootRaw` breaks compose: substituteInner relies on rootRaw for
   // needle.startsWith checks. fail fast rather than silently produce a hint that
   // misroutes downstream composition
@@ -898,7 +947,9 @@ export default class TransformQueue {
       for (const r of processedRanges) {
         if (r.end <= inner.start) nth -= countInRange(needle, r.start - start, r.end - start);
       }
-      let result = substituteInner({ content, needle, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix });
+      let result = substituteInner({
+        content, needle, needleStart: inner.start, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix,
+      });
       // rebuild-outer recovery: source-position nth assumes outer's content preserves every
       // source needle match. multi-decl flatten REWRITES earlier declarators (`{X:{m}}=globalThis`
       // -> `const m = _polyfill`), stripping some source-level needle matches from content
@@ -908,7 +959,9 @@ export default class TransformQueue {
       // nth-1 is the correct slot when outer dropped one preceding match
       if (!result.found && nth > 0) {
         for (let tryNth = nth - 1; tryNth >= 0 && !result.found; tryNth--) {
-          result = substituteInner({ content, needle, replacement: innerContent, nth: tryNth, outerHint: rewriteHint, innerPrefix });
+          result = substituteInner({
+            content, needle, needleStart: inner.start, replacement: innerContent, nth: tryNth, outerHint: rewriteHint, innerPrefix,
+          });
         }
       }
       if (!result.found) {
