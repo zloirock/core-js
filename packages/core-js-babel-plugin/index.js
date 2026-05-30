@@ -341,6 +341,25 @@ export default function plugin(api, options) {
         };
       }
 
+      // mark the chain-combine's consumed inner pieces skipped (the optional call, its method
+      // member, and the method key) so re-traversal won't re-process them as a standalone call
+      // (a dead `_ref` via extractCheck). the receiver subtree (innerCallee.object) stays
+      // VISITABLE so its proxy-globals (`globalThis` -> `_globalThis`), statics (`Array.from` ->
+      // `_Array$from`), and nested polyfillable chains (`a.flat?.()`) still substitute - matching
+      // the single-call path. EXCEPTION: a TS-cast-wrapped receiver (`(globalThis as any)`) is kept
+      // verbatim in the memo by both plugins (unplugin can't compose a substitution spanning the
+      // Paren+cast), so blanket-skip it here too rather than substitute through the cast
+      function markCombinedChainConsumed({ chainStartNode, innerCallee }) {
+        skippedNodes.add(chainStartNode);
+        skippedNodes.add(innerCallee);
+        if (innerCallee.property) skippedNodes.add(innerCallee.property);
+        let receiverLeaf = innerCallee.object;
+        while (receiverLeaf?.type === 'ParenthesizedExpression') receiverLeaf = receiverLeaf.expression;
+        if (receiverLeaf && TS_EXPR_WRAPPERS.has(receiverLeaf.type)) {
+          t.traverseFast(innerCallee.object, node => { skippedNodes.add(node); });
+        }
+      }
+
       // super.method(args) / super.method!(args) / super.method?.(args) -> id.call(this, args)
       // sideEffects channel covers computed-key SE: `super[(fn(),'X')](args)` collected fn()
       // into meta.sideEffects via members.js; emit wraps the call in SequenceExpression
@@ -537,11 +556,7 @@ export default function plugin(api, options) {
             const innerChain = findInnerPolyChain(path);
             if (innerChain) {
               const innerId = injectPureImport(innerChain.innerEntry, innerChain.innerHintName);
-              // skip inner callee + descendants: traversal already queued identifier visits
-              // for `.object` / TS wrappers; those siblings would allocate a dead `_ref` via
-              // extractCheck even after the callee itself is marked. traverseFast covers
-              // arbitrary depth (parens, `foo as any`, nested member chains)
-              t.traverseFast(innerChain.innerCallee, node => { skippedNodes.add(node); });
+              markCombinedChainConsumed(innerChain);
               // pass `meta.sideEffects` through: outer-key computed SE (e.g.
               // `(arr?.at?.(0))[(fn(), 'map')](x => x)`) was captured by detect-usage but
               // dropped when the inner-chain rewrite replaced the parent expression with a
