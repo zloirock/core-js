@@ -67,6 +67,12 @@ export function createPolyfillEmitter({
       : binding;
   }
 
+  // leading `, ...` separator for trailing call args - empty when there are none, so it appends
+  // straight after a receiver (`.call(recv${ commaArgs(args) })`)
+  function commaArgs(args) {
+    return args ? `, ${ args }` : '';
+  }
+
   // a `(`-leading replacement at a statement-leading slot can fuse with the previous
   // line into a call (`a\n(...)` -> `a(...)`); inject `;` only when both conditions hit
   function asiGuardLeadingParen(replacement, metaPath, start) {
@@ -195,7 +201,7 @@ export function createPolyfillEmitter({
   // empty / non-empty cases don't litter the strategy emit
   function buildCallParts({ bodyObj, isNonIdent, guardRef, args }) {
     const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
-    const argsPart = args ? `, ${ args }` : '';
+    const argsPart = commaArgs(args);
     return { obj, firstArg, argsPart };
   }
 
@@ -681,7 +687,10 @@ export function createPolyfillEmitter({
   // rewrites to `binding(...).call(_ref, args)` - silent semantic break (a regular call where
   // the user wrote a constructor invocation)
   function findInnerPolyChain(node, parent, metaPath) {
-    if (!isCallee(node, parent) || node.type !== 'MemberExpression' || node.computed) return null;
+    // computed-key outer (`?.[k](...)`) combines too: the method is resolved upstream into
+    // `binding`, so the emit needs no key text. bailing forced the standalone fallback, which
+    // drops the receiver for an optional inner (`_ref()` not `_ref.call(recv)`) - a runtime throw
+    if (!isCallee(node, parent) || node.type !== 'MemberExpression') return null;
     if (parent.type !== 'CallExpression') return null;
     let [current, currentPath] = peelChainWrappers(node.object, metaPath.get('object'));
     // collect non-optional intermediate hops (`.map(...)` / `.slice(...)` / `.x`) between the outer
@@ -796,13 +805,13 @@ export function createPolyfillEmitter({
     for (let i = hops.length - 1; i >= 0; i--) {
       const slot = slots[i];
       acc = slot
-        ? `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ hops[i].args ? `, ${ hops[i].args }` : '' })`
+        ? `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ commaArgs(hops[i].args) })`
         : `${ acc }${ hops[i].rawSrc }`;
     }
     return acc;
   }
 
-  function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain }) {
+  function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain, sideEffects }) {
     const { chainStart, innerCallee, innerResult, hops } = chain;
     const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
     // chain-rooted polyfillable receiver: without substituting the leaf, OR-chain emit
@@ -849,7 +858,7 @@ export function createPolyfillEmitter({
     const outerRef = scopeTracker.genRef();
     const innerArgs = sliceBetweenParens(chainStart) ?? '';
     const outerArgs = sliceBetweenParens(parent) ?? '';
-    const innerCall = `${ mRef }.call(${ aRef }${ innerArgs ? `, ${ innerArgs }` : '' })`;
+    const innerCall = `${ mRef }.call(${ aRef }${ commaArgs(innerArgs) })`;
     const threaded = buildThreadedReceiver(innerCall, hops);
 
     const tests = [
@@ -864,8 +873,12 @@ export function createPolyfillEmitter({
       outerObj = `${ outerRef } = ${ threaded }`;
     }
     const dot = parent.optional ? '?.' : '.';
-    const suffix = outerArgs ? `, ${ outerArgs }` : '';
-    let replacement = `${ tests.join(' || ') } ? void 0 : ${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`;
+    const suffix = commaArgs(outerArgs);
+    // fold outer computed-key side effects into the alternate so they fire only when the chain
+    // does not short-circuit (native skips a computed-key eval on a nullish receiver) - matches
+    // babel-compat.js, which folds the same SE into its conditional alternate
+    const alternate = wrapSideEffects(`${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`, sideEffects);
+    let replacement = `${ tests.join(' || ') } ? void 0 : ${ alternate }`;
     if (chainEmitNeedsWrap(metaPath, parent)) {
       replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, parent.start);
     }
@@ -895,15 +908,11 @@ export function createPolyfillEmitter({
       return;
     }
     const chain = findInnerPolyChain(node, parent, metaPath);
-    // chain emit doesn't carry `sideEffects` (the OR-chain template has no slot to re-emit
-    // them via SequenceExpression wrap). currently meta.sideEffects only fires for shapes
-    // that bail chain detection (paren-wrapped SE receivers fail `findInnerPolyChain`'s
-    // CallExpression check at the chain start), so the drop is unobservable. defensive
-    // bail keeps the invariant explicit: any future shape that combines side effects with
-    // a polyfillable inner chain falls through to `addInstanceTransform` which preserves
-    // them via `withSideEffects` wrap
-    if (chain && !sideEffects?.length) {
-      return replaceInstanceChainCombined({ outerBinding: binding, node, parent, metaPath, chain });
+    // outer computed-key side effects fold into the combine's conditional alternate (see
+    // replaceInstanceChainCombined), so the chain emit now carries them - no need to fall through
+    // to addInstanceTransform, whose standalone shape drops the inner receiver for a computed outer
+    if (chain) {
+      return replaceInstanceChainCombined({ outerBinding: binding, node, parent, metaPath, chain, sideEffects });
     }
     const isCall = isCallee(node, parent);
     addInstanceTransform({ binding, node, parent, metaPath, isCall, replacementIsCall: isCall, sideEffects });
