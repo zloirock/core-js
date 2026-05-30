@@ -44,8 +44,11 @@ const QUERY_OR_HASH_RE = /[#?]/;
 // optional leading `/` matches Vite-style residual after `/@fs/` strip (`/@fs/C:/src/foo.js`
 // -> `/C:/src/foo.js`) and `file:///` (`file:///C:/src/foo.js` -> `/C:/src/foo.js`); without
 // it those forms keep the slash and the drive letter never lowercases - same logical file,
-// different cache keys, snapshot lost between pre / post on Windows + Vite dev-server
-const WINDOWS_DRIVE_LETTER_RE = /^\/?(?<letter>[A-Z]):\//;
+// different cache keys, snapshot lost between pre / post on Windows + Vite dev-server.
+// case-insensitive (`i`, not a bare `[A-Z]` class): an already-lowercase drive behind a scheme
+// prefix (`/@fs/c:/...`) must ALSO shed its residual leading `/`, else its key `/c:/...`
+// diverges from bare `c:/...`
+const WINDOWS_DRIVE_LETTER_RE = /^\/?(?<letter>[a-z]):\//i;
 function normalizePath(path) {
   let p = path.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
   // composite chains like `/@id/file:///abs/foo` carry two schemes back-to-back. one-pass
