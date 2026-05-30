@@ -36,10 +36,26 @@ const cycleSeenSets = new WeakSet();
 // snapshot the pre-call cycle state; returned predicate reports whether the flag flipped
 // during the caller's work. used by interface/class `extends` walks to distinguish "no
 // parent matched" (safe fallback to $Object) from "cyclic extends poisoned the result"
-// (must NOT fall back - returns null so the generic polyfill plugin stays emitted)
+// (must NOT fall back - returns null so the generic polyfill plugin stays emitted). each
+// parent sub-walk runs under `runParentWalkWithCycleIsolation` so this snapshot is clean
 function cycleFlipDetector(visited) {
   const preCycle = cycleSeenSets.has(visited);
   return () => !preCycle && cycleSeenSets.has(visited);
+}
+
+// run one `extends` parent/super sub-walk with the shared cycle flag isolated: clear it
+// first so a sibling that already cycled cannot mask THIS branch's own cycle detection,
+// then re-assert it afterward so the caller's frame still sees that some sibling cycled.
+// without the clear, a multi-parent type with one cyclic parent leaves the flag set across
+// the loop and a later healthy sibling's resolution is discarded as poisoned -> masquerades
+// as Object and drops the instance polyfill. a cycle hit inside the sub-walk persists
+// naturally (we only clear before, never after)
+function runParentWalkWithCycleIsolation(visited, walk) {
+  const siblingHadCycle = cycleSeenSets.has(visited);
+  cycleSeenSets.delete(visited);
+  const result = walk();
+  if (siblingHadCycle) cycleSeenSets.add(visited);
+  return result;
 }
 
 export function createUserTypeResolve({
@@ -190,7 +206,8 @@ export function createUserTypeResolve({
       if (parents?.length) {
         const cycleFlipped = cycleFlipDetector(visited);
         for (const parent of parents) {
-          const result = resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited });
+          const result = runParentWalkWithCycleIsolation(visited,
+            () => resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }));
           if (result) return result;
         }
         if (cycleFlipped()) return null;
@@ -230,9 +247,9 @@ export function createUserTypeResolve({
       const ctor = resolveKnownConstructor(superName);
       if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
       const cycleFlipped = cycleFlipDetector(visited);
-      const result = resolveUserDefinedType({
+      const result = runParentWalkWithCycleIsolation(visited, () => resolveUserDefinedType({
         name: superName, node: parentRef, scope, depth: depth + 1, typeParamMap, seen: visited,
-      });
+      }));
       if (result) return result;
       if (cycleFlipped()) return null;
       return new $Object('Object');
