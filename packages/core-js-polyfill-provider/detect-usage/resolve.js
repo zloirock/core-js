@@ -4,7 +4,7 @@
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '../helpers/class-walk.js';
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
 import {
   isDirectiveStatement,
   kebabToCamel,
@@ -671,9 +671,24 @@ export function maximalProxyGlobalPrefix(node) {
   let prefix = root;
   for (let i = chain.length - 1; i >= 0; i--) {
     const member = chain[i];
-    const key = !member.computed && member.property?.type === 'Identifier' ? member.property.name : null;
+    // `memberKeyName` matches the resolution side: it reads identifier keys AND static
+    // computed keys (string literal / ESTree Literal / single-quasi template), so a computed
+    // proxy hop (`globalThis['self'].Array`) extends the prefix just like the dotted form.
+    // collapse callers then read `_globalThis.Array` instead of leaving `_globalThis['self']`
+    const key = memberKeyName(member);
     if (key && POSSIBLE_GLOBAL_OBJECTS.has(key)) prefix = member;
     else break;
   }
   return prefix;
+}
+
+// the maximal proxy-global prefix WHEN it spans at least one intermediate proxy hop
+// (`globalThis.self` in `globalThis.self.Array`), else null. a bare root is an Identifier; an
+// absorbed hop makes the prefix a member expression. distinguishes a chain whose collapse
+// actually changes the output (root + hops) from a bare root (`globalThis.Array`) that the
+// standard root substitution / natural global rewrite already handles. callers that only need
+// to drop the "extra" hops gate on this and leave the bare-root case alone
+export function maximalProxyGlobalHop(node) {
+  const prefix = maximalProxyGlobalPrefix(node);
+  return prefix && prefix.type !== 'Identifier' ? prefix : null;
 }
