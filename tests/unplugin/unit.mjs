@@ -6,7 +6,7 @@ import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { collectMutatedStaticMembers } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
-import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
+import TransformQueue, { deoptionalizeNeedle, deoptionalizeNeedleAtPositions } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin, {
   formatLabelLocation,
@@ -1519,6 +1519,40 @@ checkOrphan('do-while test',
 checkOrphan('return argument',
   'function g() { return (_ref = foo()); }', [], ['_ref']);
 
+// user assignment as a direct ternary branch (`cond ? (_ref = X) : f()`). the plugin's own
+// memoize emit puts `_ref =` inside the `null == (...)` test (a BinaryExpression), never as a
+// bare branch - so a ConditionalExpression parent is user-only and must reserve, not adopt
+checkOrphan('conditional consequent',
+  'cond ? (_ref = foo()) : f();', [], ['_ref']);
+checkOrphan('conditional alternate',
+  'cond ? f() : (_ref = foo());', [], ['_ref']);
+checkDeclared('conditional consequent reserves', 'cond ? (_ref = foo()) : f();', ['_ref']);
+// user assignment chained as the RHS of another assignment (`x = _ref = X`). plugin only emits
+// memo refs inside `null == (...)` tests or call arguments, never a nested assignment RHS
+checkOrphan('nested assignment rhs',
+  'x = _ref = foo();', [], ['_ref']);
+checkDeclared('nested assignment rhs reserves', 'x = _ref = foo();', ['_ref']);
+// plugin's own emit shapes stay adopted: `_ref =` inside the `null == (...)` BinaryExpression
+// test and as a call argument are both still recognized as orphans (regression guard for the
+// new ConditionalExpression / AssignmentExpression blacklist entries)
+checkOrphan('plugin binary-test emit still orphan',
+  'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
+checkOrphan('plugin call-arg emit still orphan',
+  'foo(_ref = bar());', ['_ref']);
+// deeper edges of the user-only positions: the same `_ref` written in BOTH ternary branches,
+// and chained through more than one `=` (`a = b = _ref = X`). still a single user binding the
+// plugin never emits, so it must reserve once and never adopt
+checkOrphan('conditional both branches',
+  'cond ? (_ref = foo()) : (_ref = bar());', [], ['_ref']);
+checkDeclared('conditional both branches reserves', 'cond ? (_ref = foo()) : (_ref = bar());', ['_ref']);
+checkOrphan('multi-level assignment chain',
+  'a = b = _ref = foo();', [], ['_ref']);
+checkDeclared('multi-level assignment chain reserves', 'a = b = _ref = foo();', ['_ref']);
+// nested-assignment parent also covers a user `_ref` written as the RHS of a member-target
+// assignment - the plugin never threads a memo write through `obj.x = _ref = ...`
+checkOrphan('assignment rhs of member target',
+  'obj.prop = _ref = foo();', [], ['_ref']);
+
 // --- deoptionalizeNeedle ---
 // `?.(`/`?.[` drop both chars regardless of intervening whitespace - ECMAScript parsers
 // allow `obj ?. (args)` / `obj?.\n[i]`, so the source slice the queue sees may have
@@ -1530,6 +1564,22 @@ check('deopt/newline before call', deoptionalizeNeedle('obj?.\n(args)'), 'obj\n(
 check('deopt/space before call', deoptionalizeNeedle('obj?. (args)'), 'obj (args)');
 check('deopt/space before index', deoptionalizeNeedle('obj?. [i]'), 'obj [i]');
 check('deopt/at end', deoptionalizeNeedle('obj?.'), 'obj.');
+
+// --- deoptionalizeNeedleAtPositions ---
+// strip `?.` only at the SELECTED absolute positions an outer transform recorded, mirroring
+// the emitter's per-hop deopt. `arr?.at(0)?.flat()` lives at absolute [10,28); an outer that
+// folded only the `?.flat` hop kept the leading `?.at` verbatim and stripped the marker at 20
+check('deopt-at/single hop kept-leading', deoptionalizeNeedleAtPositions('arr?.at(0)?.flat()', 10, [20]), 'arr?.at(0).flat()');
+check('deopt-at/single hop kept-trailing', deoptionalizeNeedleAtPositions('arr?.at(0)?.flat()', 10, [13]), 'arr.at(0)?.flat()');
+check('deopt-at/both positions', deoptionalizeNeedleAtPositions('arr?.at(0)?.flat()', 10, [13, 20]), 'arr.at(0).flat()');
+// `?.(` / `?.[` drop both chars when targeted; `?.prop` keeps the dot. position is the offset
+// of the `?.` marker (the emitter records `object.end`), which is 3 for `obj?.` (`obj` ends at 3)
+check('deopt-at/call marker', deoptionalizeNeedleAtPositions('obj?.(a)', 0, [3]), 'obj(a)');
+check('deopt-at/index marker', deoptionalizeNeedleAtPositions('obj?.[i]', 0, [3]), 'obj[i]');
+// positions outside the slice are skipped, leaving the needle untouched - an outer's full
+// deopt list applied to a sub-slice only affects markers that fall inside it
+check('deopt-at/out-of-range skipped', deoptionalizeNeedleAtPositions('arr?.flat()', 100, [200]), 'arr?.flat()');
+check('deopt-at/empty positions', deoptionalizeNeedleAtPositions('arr?.flat()', 0, []), 'arr?.flat()');
 
 // --- patternToRegExp: alternation grouping ---
 // `^a|b$` parses as `(^a)|(b$)` and matches `axxx` (starts-with-a) OR `xxxb` (ends-with-b).

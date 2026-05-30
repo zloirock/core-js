@@ -23,6 +23,7 @@ import {
   markSynthReceiverSkipped,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { findProxyGlobal, maximalProxyGlobalPrefix } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 export default function createSynthSwapEmitter({
   adapter,
@@ -219,12 +220,29 @@ export default function createSynthSwapEmitter({
     return t.isIdentifier(node) || t.isMemberExpression(node) || t.isOptionalMemberExpression(node);
   }
 
+  // proxy-global member receiver (`globalThis.self.Array`): collapse the proxy navigation (root +
+  // intermediate proxy hops) to the substituted root, so an unpolyfilled-key fallback reads the
+  // constructor off the global object directly. keeping `.self` would read an undefined property
+  // off the global object on hosts without it (ie:11 pure, non-browser). the constructor sits
+  // directly on the pure-proxy prefix here (a non-proxy hop breaks resolution before synth-swap),
+  // so the collapsed form is `<polyfilled root>.<constructor>`. null when not a collapsible chain
+  function collapseProxyGlobalReceiver(receiver) {
+    if ((!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) || receiver.computed) return null;
+    // collapsible only when the whole `.object` is the pure-proxy navigation (its full span is the
+    // prefix) and `.property` is the constructor leaf
+    if (maximalProxyGlobalPrefix(receiver) !== receiver.object) return null;
+    const root = findProxyGlobal(receiver);
+    const rootPure = root && resolvePure({ kind: 'global', name: root.name });
+    if (!rootPure || rootPure.kind === 'instance') return null;
+    return t.memberExpression(injectPureImport(rootPure.entry, rootPure.hintName), t.cloneNode(receiver.property));
+  }
+
   // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the
   // receiver. polyfilled keys come from `pending.polyfills` (lazy import via
   // `injectPureImport`); unpolyfilled keys fall back to a member access through the
-  // receiver - injected as `_Receiver` polyfill alias when the receiver is itself a
-  // polyfillable global, raw Identifier otherwise. all-polyfilled cases never call
-  // `getReceiverRef`, keeping the import set clean
+  // receiver - injected as a pure import when the receiver is itself a polyfillable global,
+  // collapsed to the polyfilled root for a proxy-global member chain, raw otherwise.
+  // all-polyfilled cases never call `getReceiverRef`, keeping the import set clean
   function buildSynthLiteral(receiver, { objectPatternNode, polyfills }) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
@@ -236,8 +254,9 @@ export default function createSynthSwapEmitter({
     let receiverRef = null;
 
     function getReceiverRef() {
-      return receiverRef ??= isPolyfillableGlobal
-        ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
+      if (receiverRef) return receiverRef;
+      if (isPolyfillableGlobal) return receiverRef = injectPureImport(receiverPure.entry, receiverPure.hintName);
+      return receiverRef = collapseProxyGlobalReceiver(receiver) ?? receiver;
     }
 
     const properties = [];
