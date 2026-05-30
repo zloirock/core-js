@@ -361,7 +361,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
   if (walkPath.length === 0) {
     if (current?.type === 'Identifier') return current.name;
     if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
-      return resolveObjectName({ objectNode: current, scope: currentScope, adapter });
+      return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path });
     }
     return null;
   }
@@ -386,7 +386,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
   // descend-through-resolved-constructor which has no AST anchor here)
   if ((current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression')
       && walkPath.length === 1) {
-    return resolveObjectName({ objectNode: current, scope: currentScope, adapter });
+    return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path });
   }
   if (current?.type !== 'ObjectExpression') return null;
   for (const prop of current.properties) {
