@@ -14,7 +14,7 @@
 // the broader type-guard machinery applies to a binding inside the positive branch (for
 // `x is T`) or after the call returns normally (for `asserts x is T`).
 //
-//   parseUserPredicateGuard({ callee, scope, negated, args, varName })
+//   parseUserPredicateGuard({ callee, scope, negated, args, varName, call })
 //     consumed by the test-resolver to narrow `if (isFoo(x)) { ... }` shapes
 //   parseAssertionStatementGuard(sibling, varName)
 //     consumed by the preceding-exit sibling scan for `asserts x is T` statement guards
@@ -59,18 +59,23 @@ export function isTypeofVar(node, varName) {
 // peel ParenthesizedExpression + TS_EXPR_WRAPPERS inline; do NOT use the shared peelers
 // that strip `ChainExpression` - that strip would erase the optional signal on ESTree.
 // without this dedicated walk, `((asrt as any)?.(x))` as a statement is recognised as
-// a non-optional call and incorrectly narrows
+// a non-optional call and incorrectly narrows.
+// once a `ChainExpression` wrapper has been stripped (the test-resolver hands us the
+// unwrapped call), the optional segment survives only as the `optional: true` boolean on
+// the residual ESTree `CallExpression` / `MemberExpression`, so check that flag too
 function hasOptionalChainInCall(rawExpr) {
   let cur = rawExpr;
   while (cur) {
     // SE-extracted callee `(0, obj?.assertStr)(x)`: walk SE tail (runtime callee).
-    // CallExpression / MemberExpression: descend into callee / object respectively.
+    // CallExpression / MemberExpression: optional flag found -> bail; else descend
+    // into callee / object respectively.
     // ChainExpression / Optional* types: optional segment found, bail caller.
     // Paren / TS wrappers: peel and continue
     if (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression') {
       cur = cur.expression;
       continue;
     }
+    if (cur.optional === true && (cur.type === 'CallExpression' || cur.type === 'MemberExpression')) return true;
     switch (cur.type) {
       case 'ChainExpression':
       case 'OptionalCallExpression':
@@ -165,24 +170,37 @@ export function createPredicateGuards({
   //   `x is T`         - narrows only inside the truthy branch (asserts=false)
   //   `asserts x is T` - narrows after the call completes normally (asserts=true)
   // `args` + `varName` bind `parameterName` to a positional call-arg so non-first-arg
-  // predicates (`function isStr(opts, x): x is T`) narrow the right binding
-  function resolvePredicateGuard({ callee, scope, negated, asserts, args, varName }) {
+  // predicates (`function isStr(opts, x): x is T`) narrow the right binding.
+  // `optionalCall` tags the guard so the narrower trusts it only in the positive direction
+  // (an optional-chained predicate may short-circuit without testing the arg - see below)
+  function resolvePredicateGuard({ callee, scope, negated, asserts, args, varName, optionalCall = false }) {
     if (!scope) return null;
     for (const c of predicateCandidates(callee, scope)) {
       if (c.returnType?.type !== 'TSTypePredicate' || !!c.returnType.asserts !== asserts) continue;
       if (!matchPredicateArg({ predicate: c.returnType, fnNode: c.fnNode, args, varName })) continue;
       const resolved = resolveTypeAnnotation(c.returnType.typeAnnotation, c.scope);
       const guard = guardFromResolvedType(resolved, negated);
-      if (guard) return guard;
+      if (guard) {
+        if (optionalCall) guard.optionalCall = true;
+        return guard;
+      }
     }
     return null;
   }
 
   // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
   // assigned to a const. assertion form (`asserts x is T`) goes through `resolvePredicateGuard`
-  // with asserts=true via `parseAssertionStatementGuard`
-  function parseUserPredicateGuard({ callee, scope, negated, args, varName }) {
-    return resolvePredicateGuard({ callee, scope, negated, asserts: false, args, varName });
+  // with asserts=true via `parseAssertionStatementGuard`.
+  // an optional-chained predicate call (`obj.isStr?.(x)`, `obj?.isStr(x)`, `(p as any)?.(x)`)
+  // may short-circuit to `undefined` (falsy) WITHOUT testing x when the receiver is
+  // null/undefined. that's sound in the positive (truthy) branch - a truthy result means the
+  // call ran and `x is T` held - but UNSOUND in the complement (else / after-return) branch,
+  // where the falsy result could be a short-circuit rather than a genuine "not T". gate it
+  // exactly as `parseAssertionStatementGuard` does and mark the guard optional so the complement
+  // direction is not narrowed. `call` is the full call node (the `?.` lives on it, not on `callee`)
+  function parseUserPredicateGuard({ callee, scope, negated, args, varName, call }) {
+    const optionalCall = !!call && hasOptionalChainInCall(call);
+    return resolvePredicateGuard({ callee, scope, negated, asserts: false, args, varName, optionalCall });
   }
 
   // `assertArray(x)` as a statement - `asserts x is T` narrows x from that point forward.
