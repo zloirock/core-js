@@ -1356,10 +1356,13 @@ export function paramListReadsName(params, name) {
 // expression-body returns directly. BlockStatement body: accept a side-effect
 // ExpressionStatement prefix preceding `return expr;`. non-ExpressionStatement
 // intermediates (control flow, bindings) or expressions that rebind a param (`arg = X`
-// / `arg++`) make the peel unsound. single body walk handles both checks
+// / `arg++`) make the peel unsound. single body walk handles both checks.
+// the returned node is unwrapped to its runtime-effective value (oxc preserves the
+// `(Arg)` paren babel strips at parse): without this `(Arg => (Arg))(X)` fails the
+// identity-lift and `bodyHasParamReference` flags the parenthesised param -> IIFE bails
 function iifeBodyReturn(callee, paramNames) {
   const { body } = callee;
-  if (callee.type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') return body ?? null;
+  if (callee.type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') return unwrapExpressionChain(body) ?? null;
   if (body?.type !== 'BlockStatement') return null;
   const stmts = body.body ?? [];
   if (stmts.length === 0) return null;
@@ -1369,7 +1372,7 @@ function iifeBodyReturn(callee, paramNames) {
     if (stmts[i]?.type !== 'ExpressionStatement') return null;
     if (prefixStmtRebindsParam(stmts[i].expression, paramNames)) return null;
   }
-  return last.argument;
+  return unwrapExpressionChain(last.argument);
 }
 
 // detect any param reassignment hidden anywhere inside `expr` (the expression of one
