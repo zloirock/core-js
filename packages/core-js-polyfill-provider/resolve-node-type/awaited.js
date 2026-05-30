@@ -54,7 +54,6 @@ export function createAwaited({
   resolveRuntimeExpression,
   resolveBodyReturnType,
   resolveAnnotationInContext,
-  resolveTypeAnnotation,
   isFunctionLike,
   findClassPathForTypeReference,
   buildSubstMap,
@@ -374,13 +373,23 @@ export function createAwaited({
     return null;
   }
 
+  // resolve a `then` cb's first-arg annotation under Awaited semantics, not flatly: a cb-arg
+  // typed `Promise<X>` / `PromiseLike<X>` / nested thenable means `await x` yields X, so the
+  // Awaited recursion must run or the awaited value stays typed as the inner Promise and the
+  // inner element's polyfill is dropped. for plain (non-thenable) arg types this bottoms out
+  // identically to a flat resolve
+  function resolveThenableCbArgAwaited(valueAnn, scope) {
+    return resolveAwaitedAnnotation({ node: valueAnn, scope, depth: 0 });
+  }
+
   // structural Thenable peel (V4-AWAIT-2): `await x` where x has `then(cb: (v: T) => ...): any`
   // resolves to T per TS Thenable contract. plugin's named-PROMISE_SYNONYMS covers Promise /
   // PromiseLike / Thenable aliases but misses user classes / interfaces with structural .then.
   // class path via `findClassMember` (handles babel + ESTree shapes); fall-through via
   // `getTypeMembers` covers type-aliases pointing to a user class - members come back in
   // their native node shape (ClassMethod / MethodDefinition / TSMethodSignature / ...),
-  // unified through `memberThenCbParam`. both sides end in `cbFirstArgAnnotation`
+  // unified through `memberThenCbParam`. both sides end in `cbFirstArgAnnotation`, then
+  // `resolveThenableCbArgAwaited` for the recursive Awaited flatten
   function peelUserThenable(annotation, scope) {
     // accept qualified-name TSTypeReference (`NS.MyThenable<T>`): downstream
     // `findClassPathForTypeReference` and `getTypeMembers` both resolve qualified
@@ -392,7 +401,9 @@ export function createAwaited({
       const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
       if (found) {
         const valueAnn = cbFirstArgAnnotation(memberThenCbParam(found.member.node));
-        if (valueAnn) return resolveTypeAnnotation(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
+        // subst applied to the AST BEFORE the awaited walk so a generic cb-arg
+        // (`(v: T) => any`) is concrete when the recursive Promise-peel runs
+        if (valueAnn) return resolveThenableCbArgAwaited(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
       }
       // class body lacks `then` - fall through to interface-path because TS
       // declaration-merging puts `then` on a merged `interface Foo {}` companion.
@@ -402,7 +413,7 @@ export function createAwaited({
     const members = getTypeMembers({ objectType: annotation, scope });
     const thenMember = members?.find(m => keyMatchesName(m.key, 'then'));
     const valueAnn = cbFirstArgAnnotation(memberThenCbParam(thenMember));
-    return valueAnn ? resolveTypeAnnotation(valueAnn, scope) : null;
+    return valueAnn ? resolveThenableCbArgAwaited(valueAnn, scope) : null;
   }
 
   // await expression resolution: Promise / PromiseLike / Thenable named aliases unwrap via

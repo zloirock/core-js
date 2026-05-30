@@ -17,6 +17,7 @@
 // reference factory functions that are declared later in the factory body but are
 // captured by closure via function-declaration hoisting at call time.
 import {
+  GENERATOR_LIKE_NAMES,
   INTRINSIC_STRING_TRANSFORMERS,
   MAX_DEPTH,
   NUMERIC_KEY_SHAPE_RE,
@@ -650,11 +651,27 @@ export function createTypeExpansion({
   // scope; the conservative "use inner if present, else fall back to constraint" recovers
   // narrowing for `Array<infer U extends string>` on opaque arrays without false-narrowing
   // when the inner type is already concrete
+
+  // does the resolved CHECK type plausibly extend the matched infer container? full structural
+  // assignability is out of scope, so only the cheaply-decidable PRIMITIVE-vs-container
+  // disjointness is enforced (the unsound direction the finding targets): a primitive is never
+  // assignable to Array / Set / Promise, but `string` IS an `Iterable<string>`, so the iterable
+  // / generator family still admits a string check side. object check types pass through -
+  // cross-family object subtyping (`Set` extends `Iterable`) is real and over-emit is safe
+  function checkTypeMatchesContainerFamily(checkType, family) {
+    if (!checkType?.primitive) return true;
+    return family === 'iterable' && checkType.type === 'string';
+  }
+
   function resolveInferElementPattern({ node, typeParamMap, scope, depth, seen }) {
     const match = matchArrayInferPattern(node.extendsType);
     if (!match) return null;
     const checkType = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
     if (!checkType) return null;
+    // `matchArrayInferPattern` matched the extends-clause SHAPE only; the true branch may
+    // fire just when the CHECK type belongs to that container family. without this gate a
+    // disjoint primitive check side would bind U and emit a wrong-receiver polyfill
+    if (!checkTypeMatchesContainerFamily(checkType, match.family)) return null;
     // constraint AST (TSStringKeyword / TSNumberKeyword / ...) must pass through
     // resolveTypeAnnotation first; `substituteTypeParams` inserts the value as-is, and
     // downstream consumers expect the internal `$Primitive` / `$Object` shape rather than
@@ -682,19 +699,26 @@ export function createTypeExpansion({
     return SINGLE_ELEMENT_COLLECTIONS.has(name) || isPromiseRefName(name);
   }
 
+  // family tag consumed by `checkTypeMatchesContainerFamily`: generator-like names are
+  // `Iterable`-shaped, everything else (Array / Set / Promise) is a plain collection
+  function containerInferFamily(name) {
+    return GENERATOR_LIKE_NAMES.has(name) ? 'iterable' : 'collection';
+  }
+
   // `infer U extends C` parses as TSInferType wrapping a TSTypeParameter. shared
   // `typeParamName` handles the babel (Identifier-wrapped) / oxc (bare string) name shapes
   // identically with mapped-type's typeParameter binding lookup. constraint is the optional
-  // `extends C` annotation (TS 4.7+); plain `infer U` returns `constraint: null`
-  function extractInferTarget(inferNode) {
+  // `extends C` annotation (TS 4.7+); plain `infer U` returns `constraint: null`. `family`
+  // tags the matched container so the check-type guard can reject disjoint primitive sides
+  function extractInferTarget(inferNode, family) {
     if (inferNode?.type !== 'TSInferType') return null;
     const param = inferNode.typeParameter;
     const name = typeParamName(param);
     if (typeof name !== 'string') return null;
-    return { name, constraint: param?.constraint ?? null };
+    return { name, constraint: param?.constraint ?? null, family };
   }
 
-  // extracts `{ name, constraint }` from `(infer U)[]`, `readonly (infer U)[]`, or
+  // extracts `{ name, constraint, family }` from `(infer U)[]`, `readonly (infer U)[]`, or
   // `Container<infer U>` where Container is a known single-element generic. returns null
   // otherwise. constraint is the optional `extends C` annotation (TS 4.7+); plain
   // `infer U` returns `constraint: null`
@@ -704,11 +728,15 @@ export function createTypeExpansion({
     if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') node = node.typeAnnotation;
     if (node?.type === 'TSArrayType') {
       // babel wraps `(infer U)` in TSParenthesizedType; oxc collapses to bare TSInferType.
-      // peel the wrapper so both shapes reach the inner inference name
-      return extractInferTarget(peelTSParenthesized(node.elementType));
+      // peel the wrapper so both shapes reach the inner inference name. `(infer U)[]` is
+      // sugar for `Array<infer U>` - the collection family
+      return extractInferTarget(peelTSParenthesized(node.elementType), 'collection');
     }
-    if (node?.type === 'TSTypeReference' && isInferContainerName(typeRefName(node))) {
-      return extractInferTarget(getTypeArgs(node)?.params?.[0]);
+    if (node?.type === 'TSTypeReference') {
+      const name = typeRefName(node);
+      if (isInferContainerName(name)) {
+        return extractInferTarget(getTypeArgs(node)?.params?.[0], containerInferFamily(name));
+      }
     }
     return null;
   }

@@ -64,7 +64,14 @@ export function createExpressionDispatch({
     // the constructor's return type. without this fallback, `new` on a binding with no
     // direct class shape produces unknown ($Object(null)) and downstream narrows degrade
     const ctorReturn = resolveCallReturnType(callee);
-    if (ctorReturn) return ctorReturn;
+    if (ctorReturn) {
+      // a plain function VALUE discards a primitive return at `new` time (yields a fresh object);
+      // only an object return survives (`function f(){ return [1]; }`). a construct signature
+      // (`new () => T`) resolves through an annotation, not a function-value node, and declares
+      // the instance type directly - trusted as-is even when the declared return is primitive
+      if (t.isFunction(resolved.node) && ctorReturn.primitive) return new $Object('Object');
+      return ctorReturn;
+    }
     return new $Object(null);
   }
 
