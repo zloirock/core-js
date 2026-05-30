@@ -373,9 +373,23 @@ export function createBindingAnalysis({
     if (parent.object !== refNode || !parent.computed || isStaticComputedKey(parent.property)) return false;
     const host = refPath?.parentPath?.parent;
     if (!host) return false;
-    return (host.type === 'AssignmentExpression' && host.left === parent)
-      || (host.type === 'UpdateExpression' && host.argument === parent)
-      || (host.type === 'UnaryExpression' && host.operator === 'delete' && host.argument === parent);
+    switch (host.type) {
+      case 'AssignmentExpression': return host.left === parent;
+      case 'UpdateExpression': return host.argument === parent;
+      case 'UnaryExpression': return host.operator === 'delete' && host.argument === parent;
+      // a member inside a destructuring pattern is only legal as an assignment target
+      // (declarations / params bind fresh names), so `[c[k]] = v`, `({ x: c[k] } = v)`,
+      // `[c[k] = d] = v`, `[...c[k]] = v` all write through the unenumerable dynamic key
+      case 'ArrayPattern': return true;
+      case 'AssignmentPattern': return host.left === parent;
+      case 'RestElement': return host.argument === parent;
+      case 'ObjectProperty':
+      case 'Property': return host.value === parent;
+      // `for (c[k] of it)` / `for (c[k] in o)` rebinds the dynamic key each iteration
+      case 'ForOfStatement':
+      case 'ForInStatement': return host.left === parent;
+      default: return false;
+    }
   }
 
   function defaultAliasRefClassifier(parent, refNode, refPath) {
