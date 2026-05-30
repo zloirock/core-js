@@ -1414,6 +1414,16 @@ function checkSnapshotKeyNormalization() {
   // upper / lower drive letter must hash identically regardless of bundler-stage casing
   cache.store('C:/win/case.js', { tag: 'win-case' });
   check('SnapshotCache/win drive lower-case canonical', cache.take('c:/win/case.js')?.tag, 'win-case');
+  // drive-letter case mismatch BEHIND a scheme prefix: pre emits `/@fs/C:/...` (source case),
+  // post emits `/@fs/c:/...` (a stage that lowercased). the lowercase form must ALSO shed its
+  // residual leading `/` so both canonicalise to `c:/...` - else snapshot lost (dangling _ref)
+  cache.store('/@fs/C:/win/scheme-case.js', { tag: 'win-scheme-case' });
+  check('SnapshotCache/win drive scheme-prefixed case mismatch',
+    cache.take('/@fs/c:/win/scheme-case.js')?.tag, 'win-scheme-case');
+  // scheme-prefixed lowercase vs bare lowercase: one stage adds `/@fs/`, the other doesn't
+  cache.store('c:/win/scheme-bare.js', { tag: 'win-scheme-bare' });
+  check('SnapshotCache/win drive lowercase scheme vs bare',
+    cache.take('/@fs/c:/win/scheme-bare.js')?.tag, 'win-scheme-bare');
   // composite scheme + Windows drive: `/@id/file:///C:/...` strips both prefixes and
   // canonicalises drive case. UNC `\\?\C:\...` flows through the UNC stripper first
   cache.store('C:/win/composite.js', { tag: 'win-composite' });
