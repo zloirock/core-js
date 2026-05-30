@@ -166,6 +166,10 @@ const TYPE_CHILD_KEYS = [
   'typeParameters',
   'returnType',
   'params',
+  // babel holds fn-type signature params (TSFunctionType / TSConstructorType / TSCall- /
+  // TSConstruct- / TSMethodSignature) under `parameters`; oxc uses `params` above. without
+  // this the walker can't reach a global referenced only in a fn-type param on babel ASTs
+  'parameters',
   'value',
   'argument',
   'impltype',
