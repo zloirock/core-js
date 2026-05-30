@@ -651,3 +651,29 @@ export function findProxyGlobal(node) {
   }
   return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
 }
+
+// the largest pure proxy-global navigation sub-expression of `node`: the root proxy-global
+// identifier plus any consecutive member hops whose key is itself a proxy-global (`globalThis.self`
+// - `self` is a proxy-global alias of the global object). a non-proxy key (a constructor leaf or a
+// user property) ends it. callers collapse this whole span to the substituted root, so the emitted
+// expression reads the constructor off the global object directly instead of an intermediate proxy:
+// `_globalThis.self.Array` would read an undefined `self` off the global object on hosts without it
+// (ie:11 pure, non-browser), whereas the collapsed `_globalThis.Array` is safe across the target range
+export function maximalProxyGlobalPrefix(node) {
+  const root = findProxyGlobal(node);
+  if (!root) return null;
+  const chain = [];
+  let cur = unwrapParens(node);
+  while (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
+    chain.push(cur);
+    cur = unwrapParens(cur.object);
+  }
+  let prefix = root;
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const member = chain[i];
+    const key = !member.computed && member.property?.type === 'Identifier' ? member.property.name : null;
+    if (key && POSSIBLE_GLOBAL_OBJECTS.has(key)) prefix = member;
+    else break;
+  }
+  return prefix;
+}
