@@ -1295,6 +1295,63 @@ function bodyHasParamReference(node, paramNames) {
   return false;
 }
 
+// free-variable read scan: true if `name` is read anywhere in an expression subtree.
+// descends into nested closures (a default-position closure captures the param scope, so its
+// reads count) - unlike `bodyHasParamReference`, which conservatively bails on any closure.
+// shadowing inside a closure is not modelled, so a rebinding closure can over-report - safe,
+// the sole caller only widens a bail. `isNonReferencePosition` skips source-text name slots
+// (member tail, property / method key); babel's optional-member tail is the lone shape it
+// misses (estree folds it into a plain MemberExpression), so skip that one explicitly
+function expressionReadsName(node, name) {
+  if (!node || typeof node !== 'object') return false;
+  if (Array.isArray(node)) return node.some(child => expressionReadsName(child, name));
+  if (typeof node.type !== 'string') return false;
+  if (node.type === 'Identifier') return node.name === name;
+  const optionalTail = !node.computed && node.type === 'OptionalMemberExpression' ? node.property : null;
+  for (const key of Object.keys(node)) {
+    const child = node[key];
+    if (child === optionalTail || isNonReferencePosition(node, child)) continue;
+    if (expressionReadsName(child, name)) return true;
+  }
+  return false;
+}
+
+// walk a parameter pattern for a value-position read of `name`: AssignmentPattern defaults
+// and computed keys. binding (declaration) positions recurse for nested reads but never
+// self-match the bindings they introduce
+function paramPatternReadsValue(node, name) {
+  if (!node || typeof node.type !== 'string') return false;
+  switch (node.type) {
+    case 'AssignmentPattern':
+      return expressionReadsName(node.right, name) || paramPatternReadsValue(node.left, name);
+    case 'ObjectPattern':
+      return (node.properties ?? []).some(property => paramPatternReadsValue(property, name));
+    case 'ArrayPattern':
+      return (node.elements ?? []).some(element => paramPatternReadsValue(element, name));
+    case 'RestElement':
+      return paramPatternReadsValue(node.argument, name);
+    // babel: ObjectProperty; estree / oxc: Property
+    case 'ObjectProperty':
+    case 'Property':
+      return (node.computed && expressionReadsName(node.key, name)) || paramPatternReadsValue(node.value, name);
+    // babel TS parameter-property wrapper (`constructor(public x)`)
+    case 'TSParameterProperty':
+      return paramPatternReadsValue(node.parameter, name);
+    default:
+      return false;
+  }
+}
+
+// true if `name` is read in any value position of the parameter list. a duplicate param
+// binding is a SyntaxError, so any non-declaration occurrence of `name` is necessarily a
+// read. guards param-destructure body-extract: relocating a destructured binding into a
+// body `let` strands a param-scope read of it (param scope can't see the body let -> the
+// read resolves to an outer binding or throws ReferenceError)
+export function paramListReadsName(params, name) {
+  if (!name || !Array.isArray(params)) return false;
+  return params.some(param => paramPatternReadsValue(param, name));
+}
+
 // extract the body's terminal return expression while validating the prefix. arrow
 // expression-body returns directly. BlockStatement body: accept a side-effect
 // ExpressionStatement prefix preceding `return expr;`. non-ExpressionStatement
