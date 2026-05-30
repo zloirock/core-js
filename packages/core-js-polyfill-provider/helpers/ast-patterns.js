@@ -312,19 +312,34 @@ export function findEnclosingFunctionLikePath(path) {
   return cur ?? null;
 }
 
-// var-scope boundaries: own scope owners that catch hoisted `var`. `var` declarations
-// hoist to the nearest one regardless of nested BlockStatement / IfStatement / loop /
-// try-catch wrapping. estree-toolkit's `scope.hasBinding` doesn't reflect this - `var`
-// inside a nested block reports false at sibling lookup even though the binding is alive
-// at runtime. babel's tracker hoists correctly. closes the parser asymmetry
+// var-scope boundaries: the scope owners a `var` hoists to from any nested block / loop /
+// try-catch wrapping. estree-toolkit's `scope.hasBinding` doesn't model this hoist (reports
+// false at a sibling lookup for a `var` in a nested block, though the binding is live at
+// runtime) whereas babel's tracker does; treating these as boundaries closes the asymmetry.
+// TSModuleBlock counts too: a `var` inside `namespace N {}` / `declare global {}` is
+// namespace-scoped (a property of the namespace object), so it must NOT escape to an
+// enclosing function / program - otherwise the sweep treats it as an outer shadow and
+// suppresses the polyfill for the real global used at a site outside the module block
 const VAR_SCOPE_OWNER_TYPES = new Set([
   ...FUNCTION_LIKE_NODE_TYPES,
   'StaticBlock',
   'Program',
+  'TSModuleBlock',
 ]);
 
 function isVarScopeBoundary(type) {
   return VAR_SCOPE_OWNER_TYPES.has(type);
+}
+
+// walk `path`'s ancestor chain (inclusive) and return the first path whose node owns a
+// var scope - the boundary a `var` declared anywhere below it hoists to. returns null if
+// the chain reaches the root without one (shouldn't happen for an attached node: Program
+// is always a boundary). shared by the var-membership walk and the namespace-scope check
+function findNearestVarScopeOwner(path) {
+  for (let cur = path; cur; cur = cur.parentPath) {
+    if (isVarScopeBoundary(cur.node?.type)) return cur;
+  }
+  return null;
 }
 
 // recursively collect `var` bindings inside `scopeNode`, descending through arbitrary
@@ -340,6 +355,9 @@ export function collectScopeVars(scopeNode) {
   function visit(node) {
     if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+      // `declare var X` is tsc-elided - the reference resolves to the global, so the ambient
+      // declaration must not register as a hoisted-var shadow that suppresses polyfill emission
+      if (node.declare === true) return;
       for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => { if (!locals.has(id.name)) locals.set(id.name, d); });
       return;
     }
@@ -366,20 +384,37 @@ export function collectScopeVars(scopeNode) {
 // isn't re-traversed after the mutation - same constraint as `tsRuntimeBindingsCache`)
 const scopeVarsCache = new WeakMap();
 export function findFunctionScopeVarDeclaratorInPath(path, name) {
-  for (let cur = path; cur; cur = cur.parentPath) {
-    const { node } = cur;
-    if (!node || !isVarScopeBoundary(node.type)) continue;
-    let vars = scopeVarsCache.get(node);
-    if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
-    return vars.get(name) ?? null;
-  }
-  return null;
+  const owner = findNearestVarScopeOwner(path);
+  if (!owner) return null;
+  const { node } = owner;
+  let vars = scopeVarsCache.get(node);
+  if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
+  return vars.get(name) ?? null;
 }
 
 // boolean wrapper for callers that only need presence (runtime vs TS-ambient shadow detection;
 // complements `findTSRuntimeBindingInPath`)
 export function findFunctionScopeVarInPath(path, name) {
   return findFunctionScopeVarDeclaratorInPath(path, name) !== null;
+}
+
+// does this native scope binding describe a `var` whose declaration is namespace-scoped
+// (sits inside a TSModuleBlock - `namespace N { var X }` / `declare global { var X }`)?
+// estree-toolkit's scope tracker over-hoists such a `var` to the enclosing function / program,
+// so its `scope.hasBinding` falsely reports a shadow for a use-site OUTSIDE the namespace body.
+// callers re-validate the over-hoist with the position-aware var walk (which now treats
+// TSModuleBlock as a boundary) so the namespace-local var only shadows references inside it.
+// requires the binding's `path` to expose `parentPath` (estree-toolkit native bindings do)
+export function isNamespaceScopedVarBinding(binding) {
+  const declarator = binding?.path;
+  if (declarator?.node?.type !== 'VariableDeclarator') return false;
+  if (declarator.parent?.type !== 'VariableDeclaration' || declarator.parent.kind !== 'var') return false;
+  // the binding is namespace-scoped iff the var's nearest enclosing scope owner is a
+  // TSModuleBlock; a genuine function / program-scope `var` resolves to a function-like /
+  // Program / StaticBlock owner instead. start above the declarator so we classify the
+  // scope that CONTAINS it, not the declarator itself
+  const owner = findNearestVarScopeOwner(declarator.parentPath);
+  return owner?.node.type === 'TSModuleBlock';
 }
 
 // resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
