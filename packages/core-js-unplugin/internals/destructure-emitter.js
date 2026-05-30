@@ -43,6 +43,7 @@ import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   findProxyGlobal,
   isStaticPlacement,
+  maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
   resolveObjectName as sharedResolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -1286,6 +1287,19 @@ export function createDestructureEmitter({
 
   // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
   // Identifier receiver; otherwise inline-default `{p = _polyfill}`.
+  // a body-extracted param keeps its receiver as the DEFAULT (`function ({...rest} = R)`),
+  // evaluated when the arg is undefined. the natural identifier visitor substitutes only the
+  // proxy-global ROOT, so delete just the intermediate proxy hop text (`.self` / `['self']`)
+  // to collapse `globalThis.self.Array` to `_globalThis.Array` - keeping `.self` reads an
+  // undefined property off the global object on hosts without it (ie:11 pure / Node). deleting
+  // only the hop abuts the root-substitution range (no overlap), unlike a full-span overwrite.
+  // `maximalProxyGlobalHop` gates on a real intermediate hop, so this no-ops on the bare root
+  function collapseRetainedProxyDefault(receiver) {
+    const prefix = receiver && maximalProxyGlobalHop(receiver);
+    if (!prefix) return;
+    transforms.add(findProxyGlobal(receiver).end, prefix.end, '');
+  }
+
   // AssignmentPattern value (`{from = []}`): accept and polyfill via synth-swap - the
   // user's default becomes dead code because synth-polyfilled property is always defined
   function handleParameterDestructurePure(meta, metaPath, propNode) {
@@ -1318,6 +1332,11 @@ export function createDestructureEmitter({
       // (`{x}` / `{x: alias}` / `{x = default}` / `{x: alias = default}`) via
       // `propBindingIdentifier`'s AssignmentPattern.left peel - matches babel-plugin's
       // unconditional body-extract dispatch. expr-body arrows skip (no statement slot)
+      //
+      // the receiver stays as the param default in every fallback below, so collapse a
+      // proxy-global member chain in it (`globalThis.self.Array` -> `_globalThis.Array`)
+      const defaultWrapper = metaPath.parentPath?.parentPath?.node;
+      if (defaultWrapper?.type === 'AssignmentPattern') collapseRetainedProxyDefault(defaultWrapper.right);
       if (tryBodyExtractFromParamDestructurePure({
         propPath: metaPath, propNode, binding, objectPattern, entry: pureResult.entry,
       })) return;
@@ -1788,8 +1807,44 @@ export function createDestructureEmitter({
       //      the root identifier in-place via byte-precise slice so the rest of the chain
       //      text (`.unknownArr`) survives for instance dispatch
       // returns the polyfilled init source or null when no substitution applies
+      // polyfill each operand of a retained `||` / `??` / `&&` init in place, so neither side
+      // ReferenceErrors on old engines: `globalThis.Array || Set` -> `_globalThis.Array || _Set`.
+      // bare-global operand -> pure import; proxy-global member chain -> root substitution (keeps
+      // the `_globalThis.Array` member shape, matching babel's in-place per-operand rewrite);
+      // nested logical -> recurse; any other operand keeps its verbatim source. returns the
+      // reassembled init source, or null when no operand referenced a polyfillable global.
+      // ternary inits are handled by the per-branch synth-swap path, not here
+      function polyfillLogicalInitOperands(node, src, baseStart) {
+        let any = false;
+        const renderOperand = operand => {
+          const peeled = unwrapParens(operand);
+          const rawSrc = src.slice(operand.start - baseStart, operand.end - baseStart);
+          let out = null;
+          if (peeled.type === 'LogicalExpression') {
+            out = polyfillLogicalInitOperands(peeled, src, baseStart);
+          } else if (peeled.type === 'Identifier') {
+            const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
+            if (pure) out = injectPureImport(pure.entry, pure.hintName);
+          } else if (findProxyGlobal(peeled)) {
+            out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start });
+          }
+          if (out === null) return rawSrc;
+          any = true;
+          return out;
+        };
+        const leftSrc = renderOperand(node.left);
+        const rightSrc = renderOperand(node.right);
+        if (!any) return null;
+        // the operator + surrounding whitespace between the two operands, verbatim
+        const between = src.slice(node.left.end - baseStart, node.right.start - baseStart);
+        return leftSrc + between + rightSrc;
+      }
+
       function polyfillInitGlobals(info) {
         const initNode = unwrapParens(info.initNode);
+        if (initNode.type === 'LogicalExpression' && info.initStart !== undefined) {
+          return polyfillLogicalInitOperands(initNode, info.initSrc, info.initStart);
+        }
         const leafName = info.initIdentName || globalProxyMemberName({ node: initNode });
         if (leafName) {
           const leafPolyfill = resolvePure({ kind: 'global', name: leafName }, null);
