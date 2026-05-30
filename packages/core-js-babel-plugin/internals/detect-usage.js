@@ -21,6 +21,7 @@ import {
   findIifeCallSite,
   findTSRuntimeBindingInPath,
   isAmbientBindingShape,
+  isForXHeadAssignTarget,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
@@ -205,8 +206,10 @@ export function createUsageVisitors({
     // polyfilling is pure over-injection (and breaks TS output for exports / duplicates the
     // import LHS for TSImportEquals)
     if (isTSTypeOnlyIdentifierPath(path)) return;
-    // UpdateExpression operand (Map++, --Map, Map!++, (Map)++) - gate see `skipUpdateTargets`
-    if (skipUpdateTargets && isInUpdateOperand(path.parentPath)) return;
+    // usage-pure cannot rewrite a global at a write position to a frozen import binding (the
+    // write would TypeError): UpdateExpression operand (`Map++`, `--Map`, `(Map)++`) or a
+    // for-of / for-in head bare-Identifier LHS (`for (Map of arr)` / `for (Map in obj)`)
+    if (skipUpdateTargets && (isInUpdateOperand(path.parentPath) || isForXHeadAssignTarget(path))) return;
     const { node } = path;
     // adapter.hasBinding folds in two filters: skips type-only TSImportEquals (elided by
     // tsc - runtime resolves to global) and recognises plugin-managed bindings (pure-import
