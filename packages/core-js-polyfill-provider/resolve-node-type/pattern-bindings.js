@@ -14,7 +14,7 @@
 // is late-bound via thunk since the cluster recurses into the main resolver.
 import { $Object, $Primitive, PATTERN_WRAPPERS, peelAssignmentPattern } from './base.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
-import { assignLeft, assignRightKey } from './straight-line-flow.js';
+import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 
 export function createPatternBindings({
   t,
@@ -223,6 +223,24 @@ export function createPatternBindings({
       const resolved = resolveNodeType(arrayPath.get('elements')[i]);
       if (!resolved) return null;
       common = commonType(common, resolved);
+      if (!common) return null; // mixed types
+    }
+    return common;
+  }
+
+  // fold a destructured key's type across EVERY element of a for-of array-literal iterable, not
+  // just the first: `for (const { x } of [{ x: "a" }, { x: [1] }])` must surface `x` as the common
+  // type, else narrowing to the leading string would unsoundly drop the array element's polyfill.
+  // holes / spreads / an unresolvable element / mixed types -> null (caller bails to speculative)
+  function resolveArrayLiteralMemberCommonType(arrayPath, keyPath) {
+    const { elements } = arrayPath.node;
+    if (elements.length === 0) return null;
+    let common = null;
+    for (let i = 0; i < elements.length; i++) {
+      if (!elements[i] || elements[i].type === 'SpreadElement') return null;
+      const member = resolveObjectMemberPath(resolveRuntimeExpression(arrayPath.get('elements')[i]), keyPath);
+      if (!member) return null;
+      common = commonType(common, member);
       if (!common) return null; // mixed types
     }
     return common;
@@ -488,10 +506,9 @@ export function createPatternBindings({
     const forOfPath = findForLoopParent(bindingPath);
     if (t.isForOfStatement(forOfPath?.node)) {
       const iterPath = resolveRuntimeExpression(forOfPath.get('right'));
-      if (t.isArrayExpression(iterPath.node) && iterPath.node.elements.length) {
-        const firstElem = resolveRuntimeExpression(iterPath.get('elements')[0]);
-        const result = resolveObjectMemberPath(firstElem, keyPath);
-        if (result) return result;
+      if (t.isArrayExpression(iterPath.node)) {
+        const folded = resolveArrayLiteralMemberCommonType(iterPath, keyPath);
+        if (folded) return folded;
       }
     }
     return resolveDestructuringDefault(objectPattern, varName, bindingPath);
@@ -623,6 +640,9 @@ export function createPatternBindings({
     if (t.isVariableDeclarator(node) && node.init) {
       const violations = binding.constantViolations;
       if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
+      // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
+      // use, so the declarator init no longer describes the receiver from iteration 2 - degrade to generic
+      if (bindingCrossesLoopBackEdge(t, path, binding)) return null;
       const usagePos = path.node.start;
       if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos)) {
         return resolveNodeType(bindingPath.get('init'));
