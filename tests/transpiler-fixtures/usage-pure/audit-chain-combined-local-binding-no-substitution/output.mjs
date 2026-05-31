@@ -6,4 +6,4 @@ var _ref, _ref2;
 // Identifier shadowed by an in-scope binding via `scope.hasBinding`, so the direct-subst
 // check falls through and the receiver text comes from a paren-peel unchanged
 const arr = [1, 2];
-null == arr || null == (_ref = _flatMaybeArray(arr)) ? void 0 : _includesMaybeArray(_ref2 = _ref.call(arr)).call(_ref2, 1);
+null == (_ref = _flatMaybeArray(arr)) ? void 0 : _includesMaybeArray(_ref2 = _ref.call(arr)).call(_ref2, 1);
