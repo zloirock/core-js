@@ -8,4 +8,4 @@ var _ref, _ref2, _ref3;
 // corrupt the value). the trailing `.some(...)` (native here, not polyfilled) forces a paren-wrap
 // so it binds to the conditional result, not the success branch alone, restoring native semantics
 const arr = [1, 2];
-(null == arr || null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2)).some(x => x > 3);
+(null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2)).some(x => x > 3);

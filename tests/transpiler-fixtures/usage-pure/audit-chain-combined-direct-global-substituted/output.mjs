@@ -8,4 +8,4 @@ var _ref, _ref2;
 // template construction - otherwise visitor-driven Identifier substitution patches only
 // the AST-anchored occurrence and the duplicated text occurrences strand raw `globalThis`
 // in the output
-null == _globalThis || null == (_ref = _flatMaybeArray(_globalThis)) ? void 0 : _includes(_ref2 = _ref.call(_globalThis)).call(_ref2, 1);
+null == (_ref = _flatMaybeArray(_globalThis)) ? void 0 : _includes(_ref2 = _ref.call(_globalThis)).call(_ref2, 1);

@@ -6,4 +6,4 @@ import _at from "@core-js/pure/actual/instance/at";
 // post-overwrite intro slot - inverse ordering drops the declaration and the user file
 // would `ReferenceError` under strict mode
 function f(){
-var _ref, _ref2;null == arr || null == (_ref = _at(arr)) ? void 0 : _mapMaybeArray(_ref2 = _ref.call(arr, 0)).call(_ref2, y => y)}
+var _ref, _ref2;null == (_ref = _at(arr)) ? void 0 : _mapMaybeArray(_ref2 = _ref.call(arr, 0)).call(_ref2, y => y)}
