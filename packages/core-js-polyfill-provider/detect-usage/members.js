@@ -125,6 +125,13 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // already walked the `unwrapParens` chain and confirmed the binding guard
     handledObjects.add(symbolKey.ref.raw);
     handledObjects.add(symbolKey.ref.unwrapped);
+    // usage-pure rewrites the WHOLE member-expression (`obj[globalThis.Symbol.iterator]` ->
+    // `_getIteratorMethod(obj)`), so a proxy-global root inside the computed key must be
+    // subsumed too - otherwise the inner identifier visitor queues a parallel `globalThis ->
+    // _globalThis` rewrite that overlaps the outer text replacement and crashes the queue.
+    // usage-global keeps the member-expression, so the proxy-global stays visible and earns
+    // its own polyfill (same mode split as `handleBinaryIn`)
+    if (suppressProxyGlobals) markSubsumedProxyChain(symbolKey.ref.unwrapped, handledObjects, scope, adapter, path);
     // computed-key side effects (`recv[Symbol[(fn(), 'iterator')]]`) propagate through meta.
     // recv side effects survive naturally - the polyfill rewrite uses `node.object` as the
     // `_getIterator(...)` argument, so the SE wrapping the receiver evaluates at call time.
