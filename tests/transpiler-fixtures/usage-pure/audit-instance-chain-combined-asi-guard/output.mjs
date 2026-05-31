@@ -6,4 +6,4 @@ var _ref, _ref2;
 // fuse with the preceding statement via ASI (`f()\n(_polyfill(...))` -> `f()(...)`,
 // TypeError at runtime). a leading `;` is inserted so ASI sees a separate statement boundary
 f();
-(null == arr || null == (_ref = _flatMaybeArray(arr)) ? void 0 : _mapMaybeArray(_ref2 = _ref.call(arr)).call(_ref2, y => y)) + 1;
+(null == (_ref = _flatMaybeArray(arr)) ? void 0 : _mapMaybeArray(_ref2 = _ref.call(arr)).call(_ref2, y => y)) + 1;
