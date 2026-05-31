@@ -1126,6 +1126,13 @@ export default function createDestructureEmitter({
   function emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty }) {
     const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
     const assignmentTarget = parent.parentPath;
+    // save the original body index before the first insertBefore shifts it, so a deferred SE on
+    // the empty tail (`({ from, of } = (se(), Array))`) lifts AHEAD of the earlier insertBefore'd
+    // assignments instead of interleaving between them - mirrors the VariableDeclarator capture,
+    // aligning flat multi-prop AE with the VariableDeclaration splice order
+    if (!originalDeclKeys.has(assignmentTarget.node)) {
+      originalDeclKeys.set(assignmentTarget.node, findStatementParent(assignmentTarget).key);
+    }
     const ctx = classifyAssignmentDestructureSite({ parent, assignmentTarget, isStaticValue, isEmpty });
     const strategy = planDestructureEmission(ctx);
     switch (strategy) {

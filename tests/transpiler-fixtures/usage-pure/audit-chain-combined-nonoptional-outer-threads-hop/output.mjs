@@ -6,4 +6,4 @@ var _ref, _ref2, _ref3;
 // combines because the inner `flat?.()` introduces the `?.`, and the `.map(...)` hop threads onto
 // the inner result; the outer emits a plain `.call` rather than the `?.call` short-circuit form
 const arr = [1, 2];
-null == arr || null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2)).call(_ref2, y => y > 4);
+null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2)).call(_ref2, y => y > 4);
