@@ -59,7 +59,18 @@ function splitMinifierSequenceDestructure(programPath, t) {
   function splitStatementList(statementPaths) {
     for (const bodyPath of statementPaths) {
       const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
-      if (expressions) bodyPath.replaceWithMultiple(expressions.map(e => t.expressionStatement(e)));
+      if (!expressions) continue;
+      bodyPath.replaceWithMultiple(expressions.map(e => {
+        const stmt = t.expressionStatement(e);
+        // carry the wrapped expression's source position onto the synthesized statement so split
+        // products read as genuine user code, not loc-less sibling-plugin synthesis. without it
+        // entry-global's loc gate skips a collapsed `require('core-js/...')` entry and the
+        // disable-directive boundary scan skips past a collapsed first statement
+        stmt.loc = e.loc;
+        stmt.start = e.start;
+        stmt.end = e.end;
+        return stmt;
+      }));
     }
   }
   function splitInBody(blockPath) {
