@@ -21,7 +21,7 @@
 // `resolveDirectParam`, `resolvePatternParam`, `resolveParamType`, `resolveBodyExpr`,
 // `wrapAsyncPromise`, `applyCallSiteSubst`.
 import { MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive, peelAssignmentPattern } from './base.js';
-import { isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
@@ -148,7 +148,15 @@ export function createReturnType({
   function paramHasOverridingArg(binding, fnPath, callPath) {
     const found = findBindingParam(binding, fnPath);
     if (!found || found.param.type !== 'AssignmentPattern') return false;
-    return found.index < (callPath.node.arguments?.length ?? 0);
+    const arg = callPath.node.arguments?.[found.index];
+    if (!arg) return false;
+    // an explicit `undefined` / `void <x>` arg TRIGGERS the param default rather than overriding
+    // it (JS coerces `undefined` at a defaulted param to the default), so the default's declared
+    // type stays authoritative - narrowing to the arg's `undefined` would drop the polyfill. any
+    // `void <x>` yields undefined; bare `undefined` only when unshadowed (it's a writable global)
+    if (arg.type === 'UnaryExpression' && arg.operator === 'void') return false;
+    if (isBareUndefinedIdentifier(arg) && !callPath.scope?.getBinding?.('undefined')) return false;
+    return true;
   }
 
   // resolve expression type within a function body, with fallback to call-site parameter inference
