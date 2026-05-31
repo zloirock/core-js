@@ -1,4 +1,4 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 for (const {
   x
 } of [{
@@ -6,5 +6,5 @@ for (const {
 }, {
   x: 'hello'
 }]) {
-  _atMaybeArray(x).call(x, -1);
+  _at(x).call(x, -1);
 }
