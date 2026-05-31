@@ -216,6 +216,11 @@ export function createNarrowByGuards({
     // (`if (typeof x !== 'string') return; while (c) { x.at(0); x = readAnything() }`). an
     // inner conditional that re-narrows each iteration (innerFreshConditional) stays exempt
     let crossedBackEdgeLoop = false;
+    // a preceding-statement outer guard (early-exit / switch fall-through) that a reassignment
+    // has invalidated, discovered while an inner fresh conditional is already in scope. unlike a
+    // wrapping outer guard (tracked via outermostGuardHost), it sets no host, so the
+    // violatesBetweenHosts check below can't see it - this flag carries the staleness instead
+    let stalePrecedingOuterGuard = false;
     for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
       if (!innerFreshConditional && isLoopStatement(parent.node) && violatesInsideNode(parent.node)) crossedBackEdgeLoop = true;
       if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
@@ -230,16 +235,25 @@ export function createNarrowByGuards({
           innerFreshConditional = true;
         } else if (!innerFreshConditional) return MUTATED;
       }
-      if (innerFreshConditional) continue;
-      if (findSwitchCaseGuards(current, varName).length
-        && (violatesBefore(parent) || fallThroughCaseViolates(current))) return MUTATED;
-      if (findEarlyExitGuards(current, varName).length
-        && earlyExitInvalidates(current, getStatementSiblings(current))) return MUTATED;
+      const switchStale = findSwitchCaseGuards(current, varName).length
+        && (violatesBefore(parent) || fallThroughCaseViolates(current));
+      const earlyExitStale = findEarlyExitGuards(current, varName).length
+        && earlyExitInvalidates(current, getStatementSiblings(current));
+      // with a fresh inner conditional in scope, a stale preceding-statement OUTER guard does not
+      // invalidate the narrow (the inner test re-narrows per its own scope) - it just must be
+      // dropped so its union branch is not intersected back in. without one, it bails outright
+      if (innerFreshConditional) {
+        if (switchStale || earlyExitStale) stalePrecedingOuterGuard = true;
+        continue;
+      }
+      if (switchStale || earlyExitStale) return MUTATED;
     }
-    // the narrow survives, but if a reassignment sits between the outer guards and the nearest
-    // fresh inner conditional, those outer guards are stale: report the fresh host as the
-    // boundary so the caller re-collects from it inward and drops them
-    const staleBoundaryHost = nearestFreshHost && violatesBetweenHosts(outermostGuardHost, nearestFreshHost)
+    // the narrow survives, but if a reassignment sits between the outer guards (wrapping, tracked
+    // by outermostGuardHost; or preceding-statement, flagged above) and the nearest fresh inner
+    // conditional, those outer guards are stale: report the fresh host as the boundary so the
+    // caller re-collects from it inward and drops them
+    const staleBoundaryHost = nearestFreshHost
+      && (violatesBetweenHosts(outermostGuardHost, nearestFreshHost) || stalePrecedingOuterGuard)
       ? nearestFreshHost : null;
     return { mutated: false, staleBoundaryHost };
   }

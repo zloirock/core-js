@@ -19,7 +19,8 @@
 // because it requires only block-child preceding-sibling reachability, not var-scope-wide
 // straight-line execution).
 import { peelLabeledStatementPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
-import { scopeNode } from './straight-line-flow.js';
+import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
+import { isLoopStatement, loopReExecRegionHasViolation } from './ast-shapes.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
 // would TypeError on these at runtime, so the branch is unreachable in the guarded
@@ -243,13 +244,23 @@ export function createDiscriminantNarrow({
   function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
     const ctx = buildDiscriminantContext(varPath, targetKey);
+    const bindingScopeNode = ctx.objectBinding ? scopeNode(ctx.objectBinding.scope) : null;
+    const violationNodes = ctx.violations.map(v => v.node);
+    // once we walk out past a back-edge loop whose body reassigns the binding, every guard above
+    // it is outside the loop and cannot re-narrow per iteration - drop it (mirror narrow-by-guards)
+    let crossedBackEdgeLoop = false;
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
+      if (!crossedBackEdgeLoop && isLoopStatement(parent.node)
+        && loopReExecRegionHasViolation(parent.node, violationNodes, bindingScopeNode)) {
+        crossedBackEdgeLoop = true;
+      }
       // function boundary: guards above this point fire at call-evaluation time, but
       // the use inside the function runs at invocation time; for rebindable bindings any
       // outer-scope reassignment between those moments invalidates narrowing. mirrors the
       // typeof-side stop in `findEnclosingTypeGuards`. const bindings stay closure-stable
       if (t.isFunction(parent.node) && ctx.violations.length) break;
+      if (crossedBackEdgeLoop) continue;
       let test;
       let conditionTrue;
       if (t.isIfStatement(parent.node) || t.isConditionalExpression(parent.node)) {
@@ -368,6 +379,9 @@ export function createDiscriminantNarrow({
     if (!binding.constantViolations?.length) return null;
     const targetName = bindingTargetName(binding, varPath);
     if (!targetName) return null;
+    // loop back-edge: an assignment in an enclosing block OUTSIDE the loop is stale from iteration 2
+    // once the loop body reassigns the binding on the back-edge - degrade to generic
+    if (bindingCrossesLoopBackEdge(t, varPath, binding)) return null;
     const limit = scopeNode(binding.scope);
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
