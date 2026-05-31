@@ -51,6 +51,9 @@ const DECLARATION_ID_TYPES = new Set([
   'ClassDeclaration',
   'ClassExpression',
   'VariableDeclarator',
+  // enum member name (`enum E { Promise }`) is a member key on the runtime enum object, not a
+  // reference to a same-named global - babel's isReferencedIdentifier already excludes it
+  'TSEnumMember',
 ]);
 
 const CLASS_MEMBER_TYPES = new Set([
@@ -682,7 +685,17 @@ export function createUsageVisitors({
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
-    if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
+    if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) {
+      // an UpdateExpression operand (`Promise.allSettled++`) is rejected as a write target, but
+      // the receiver must still be MARKED handled - else the identifier visitor substitutes the
+      // global with its pure import (`_Promise.allSettled++` writes a frozen slot AND desyncs
+      // from the sibling native read). mirror babel, which marks the receiver then bails on the
+      // update. run for marking only (discard meta, no emit)
+      if (skipUpdateTargets && isInUpdateOperand(path.parentPath)) {
+        handleMemberExpressionNode({ node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path });
+      }
+      return;
+    }
     const meta = handleMemberExpressionNode({
       node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path,
     });
