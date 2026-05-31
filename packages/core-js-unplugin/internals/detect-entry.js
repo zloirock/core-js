@@ -4,7 +4,7 @@ import {
   extractIndirectRequireSEPrefix,
   resolveBatchDirectivePromotionPolicy,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { consumeOneLineEnding, prevSignificantPos, skipGap } from './plugin-helpers.js';
+import { consumeOneLineEnding, parenthesizeExprStmtHazard, prevSignificantPos, skipGap } from './plugin-helpers.js';
 
 // entry-global mode: rewrite top-level `import 'core-js/...'` / `require('core-js/...')`
 // statements into the resolved per-feature module set. partitioned in two passes so the
@@ -45,7 +45,7 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   function writeSEPrefixIfAny(node) {
     const sePrefix = extractIndirectRequireSEPrefix(node);
     if (!sePrefix.length) return false;
-    ms.overwrite(node.start, node.end, sePrefix.map(e => `${ ms.original.slice(e.start, e.end) };`).join('\n'));
+    ms.overwrite(node.start, node.end, sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n'));
     return true;
   }
   for (const node of toRemove) {
