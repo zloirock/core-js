@@ -6,6 +6,7 @@
 //
 // O(V) cache build per binding (sorted by source position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
+import { usageCrossesLoopBackEdgeReassign } from './ast-shapes.js';
 import {
   IIFE_CALL_PATH_WRAPPERS,
   IIFE_CALL_CALLEE_WRAPPERS,
@@ -99,6 +100,14 @@ export function assignRightKey(n) {
 // scope-anchor AST node: babel exposes `.block`, estree-toolkit `.path.node`
 export function scopeNode(s) {
   return s.block ?? s.path?.node;
+}
+
+// `usageCrossesLoopBackEdgeReassign` adapted to a binding: derives its reassignment nodes from
+// `constantViolations` and its declaration-scope node. shared by the value-flow finders to bail a
+// source-position narrow that a loop-carried reassignment makes stale from iteration 2
+export function bindingCrossesLoopBackEdge(t, usagePath, binding) {
+  const scopeAnchor = binding?.scope ? scopeNode(binding.scope) : null;
+  return usageCrossesLoopBackEdgeReassign(t, usagePath, binding?.constantViolations?.map(v => v.node), scopeAnchor);
 }
 
 // nearest ancestor (inclusive) of `stmtType`; shared by inner/outer checks
@@ -262,6 +271,9 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     if (beforePos === undefined || beforePos === null) return null;
     if (!binding.constantViolations?.length) return null;
     if (!isInBindingVarScope(usagePath.scope, binding.scope)) return null;
+    // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
+    // use, so the positional "last assignment before use" is stale from iteration 2 - degrade to generic
+    if (bindingCrossesLoopBackEdge(t, usagePath, binding)) return null;
 
     let sortedAssigns = sortedAssignmentCache.get(binding);
     if (!sortedAssigns) {

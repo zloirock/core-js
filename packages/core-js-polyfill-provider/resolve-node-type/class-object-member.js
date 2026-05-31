@@ -252,23 +252,37 @@ export function createClassObjectMember({
     return null;
   }
 
+  // path resolveReturnType should read for a bodyless method's declared signature, or null. babel
+  // models `abstract get x(): T` / `declare class { x(): T }` as a TSDeclareMethod with the
+  // returnType ON the node; oxc/estree as a (TSAbstract)MethodDefinition whose `.value` is a
+  // TSEmptyBodyFunctionExpression carrying the returnType. both expose the params / returnType /
+  // typeParameters resolveReturnType needs - unifying them keeps the two plugins in sync
+  function bodylessReturnPath(member) {
+    if (member.node.type === 'TSDeclareMethod' && member.node.returnType) return member;
+    const { value } = member.node;
+    if (value?.type === 'TSEmptyBodyFunctionExpression' && value.returnType) return member.get('value');
+    return null;
+  }
+
   function resolveClassMemberNode(member, callPath, classSubst) {
     const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
-    // TSDeclareMethod (ambient `declare class` body) has no body - only the return-type
-    // annotation is available for resolution
-    const declaredReturn = member.node.type === 'TSDeclareMethod' ? member.node.returnType : null;
+    // bodyless method (ambient `declare class` / `abstract`) - no body, only the return-type
+    // annotation. babel models it as TSDeclareMethod with returnType ON the node; oxc/estree as a
+    // (TSAbstract)MethodDefinition whose `.value` is a TSEmptyBodyFunctionExpression carrying the
+    // returnType. `declaredReturnPath` is the node resolveReturnType should read (params /
+    // returnType / typeParameters) on either parser, or null when there's no declared signature
+    const declaredReturnPath = bodylessReturnPath(member);
     if (callPath) {
       if (methodFn) {
         const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
         if (r) return r;
-      } else if (declaredReturn) {
-        // TSDeclareMethod (ambient method, no body) exposes `params` / `returnType` /
-        // `typeParameters` directly on its node, the same shape `resolveReturnType` reads
-        // from. routing through it picks up method-level type-args from `<T>(...)` plus
-        // call-site `<string>` so `static make<T>(): T[]` with `Box.make<string>()`
-        // resolves to `string[]` instead of leaking the bare type-param T (which loses
-        // precision and degrades `_atMaybeArray` to generic `_at`)
-        return resolveReturnType(member, callPath, classSubst);
+      } else if (declaredReturnPath) {
+        // the bodyless signature exposes `params` / `returnType` / `typeParameters` the same shape
+        // `resolveReturnType` reads from. routing through it picks up method-level type-args from
+        // `<T>(...)` plus call-site `<string>` so `static make<T>(): T[]` with `Box.make<string>()`
+        // resolves to `string[]` instead of leaking the bare type-param T (which loses precision
+        // and degrades `_atMaybeArray` to generic `_at`)
+        return resolveReturnType(declaredReturnPath, callPath, classSubst);
       } else if (isPropertyMember(member.node)) {
         const value = resolveRuntimeExpression(member.get('value'));
         if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath, classSubst);
@@ -290,7 +304,13 @@ export function createClassObjectMember({
     }
     // method: getter returns its return type, regular method returns Function
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn, undefined, classSubst) : new $Object('Function');
-    if (declaredReturn) return new $Object('Function');
+    // bodyless method (no body): a getter's property access still yields its declared return type -
+    // only a non-getter declared method evaluates to a Function value
+    if (declaredReturnPath) {
+      return member.node.kind === 'get'
+        ? resolveReturnType(declaredReturnPath, undefined, classSubst)
+        : new $Object('Function');
+    }
     return null;
   }
 

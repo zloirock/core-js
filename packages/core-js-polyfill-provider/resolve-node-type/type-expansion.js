@@ -17,7 +17,6 @@
 // reference factory functions that are declared later in the factory body but are
 // captured by closure via function-declaration hoisting at call time.
 import {
-  GENERATOR_LIKE_NAMES,
   INTRINSIC_STRING_TRANSFORMERS,
   MAX_DEPTH,
   NUMERIC_KEY_SHAPE_RE,
@@ -28,6 +27,13 @@ import {
   quasiText,
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
+
+// `resolveInferElementPattern` sentinel: the extends clause is a recognised `Container<infer U>`
+// pattern AND the check side is a disjoint primitive, so the conditional definitively takes the
+// FALSE branch (`string extends Iterator<infer U>` is false - the `infer` means pickConditionalBranch
+// can't decide it structurally). distinct from a plain null (pattern not applicable, or check / inner
+// type unresolvable) which folds both branches
+const INFER_PATTERN_FALSE = Symbol('infer-pattern-false');
 
 export function createTypeExpansion({
   literalKeyValue,
@@ -589,6 +595,10 @@ export function createTypeExpansion({
   // that needs the same evaluation contract for a TSConditionalType node
   function evaluateConditionalType(node, typeParamMap, scope, depth, seen) {
     const inferred = resolveInferElementPattern({ node, typeParamMap, scope, depth, seen });
+    // disjoint-primitive check side: the infer-container true branch can't fire and the result is
+    // exactly the false branch - resolve it (a `string` keeps `_atMaybeString`). without this we'd
+    // fold both branches with an unbound U, collapsing the type to a generic-instance bail
+    if (inferred === INFER_PATTERN_FALSE) return substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1, seen);
     if (inferred) return inferred;
     // alpha-rename guard: extendsType's `infer X` declarations scope to trueType ONLY (per
     // TS spec). drop colliding outer entries from a clone passed to trueType subst so the
@@ -652,12 +662,15 @@ export function createTypeExpansion({
   // narrowing for `Array<infer U extends string>` on opaque arrays without false-narrowing
   // when the inner type is already concrete
 
-  // does the resolved CHECK type plausibly extend the matched infer container? full structural
+  // does the resolved CHECK type plausibly extend the matched infer container (`check extends
+  // Container<infer U>`, i.e. is the check side assignable TO the container)? full structural
   // assignability is out of scope, so only the cheaply-decidable PRIMITIVE-vs-container
-  // disjointness is enforced (the unsound direction the finding targets): a primitive is never
-  // assignable to Array / Set / Promise, but `string` IS an `Iterable<string>`, so the iterable
-  // / generator family still admits a string check side. object check types pass through -
-  // cross-family object subtyping (`Set` extends `Iterable`) is real and over-emit is safe
+  // disjointness is enforced (the unsound direction the finding targets). a `string` is assignable
+  // ONLY to `Iterable<string>` - the minimal interface needing just `[Symbol.iterator]` - so only
+  // the sync `Iterable` family admits a string check side; it is not assignable to Array / Set /
+  // Promise nor to the stricter iterator/generator interfaces (see `containerInferFamily`). object
+  // check types pass through - cross-family object subtyping (`Set` extends `Iterable`) is real and
+  // over-emit is safe
   function checkTypeMatchesContainerFamily(checkType, family) {
     if (!checkType?.primitive) return true;
     return family === 'iterable' && checkType.type === 'string';
@@ -668,10 +681,12 @@ export function createTypeExpansion({
     if (!match) return null;
     const checkType = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
     if (!checkType) return null;
-    // `matchArrayInferPattern` matched the extends-clause SHAPE only; the true branch may
-    // fire just when the CHECK type belongs to that container family. without this gate a
-    // disjoint primitive check side would bind U and emit a wrong-receiver polyfill
-    if (!checkTypeMatchesContainerFamily(checkType, match.family)) return null;
+    // `matchArrayInferPattern` matched the extends-clause SHAPE only; the true branch fires only
+    // when the CHECK type belongs to that container family. a disjoint primitive check side (a
+    // non-string primitive, or a string against a non-`Iterable` family) makes the conditional
+    // definitively FALSE - signal that so the caller resolves the false branch precisely, instead
+    // of binding U (the wrong-receiver polyfill the finding targets) or folding both branches
+    if (!checkTypeMatchesContainerFamily(checkType, match.family)) return INFER_PATTERN_FALSE;
     // constraint AST (TSStringKeyword / TSNumberKeyword / ...) must pass through
     // resolveTypeAnnotation first; `substituteTypeParams` inserts the value as-is, and
     // downstream consumers expect the internal `$Primitive` / `$Object` shape rather than
@@ -699,10 +714,16 @@ export function createTypeExpansion({
     return SINGLE_ELEMENT_COLLECTIONS.has(name) || isPromiseRefName(name);
   }
 
-  // family tag consumed by `checkTypeMatchesContainerFamily`: generator-like names are
-  // `Iterable`-shaped, everything else (Array / Set / Promise) is a plain collection
+  // family tag consumed by `checkTypeMatchesContainerFamily`. the conditional tests `check extends
+  // Name<infer U>` - is the check side assignable TO the container. a `string` satisfies only
+  // `Iterable`, whose interface needs just `[Symbol.iterator]` (which `String.prototype` has).
+  // `Generator` / `IterableIterator` / `IteratorObject` ARE themselves sync iterables too, yet a
+  // string is NOT assignable to them: they additionally require `.next()` (Generator also
+  // `.return`/`.throw`). `Iterator` adds `.next()` without being iterable; the `Async*` names need
+  // `[Symbol.asyncIterator]`. so `Iterable` is the one name a string check side may admit; every
+  // other single-element generic (those + Array / Set / Promise) rejects a primitive check side
   function containerInferFamily(name) {
-    return GENERATOR_LIKE_NAMES.has(name) ? 'iterable' : 'collection';
+    return name === 'Iterable' ? 'iterable' : 'collection';
   }
 
   // `infer U extends C` parses as TSInferType wrapping a TSTypeParameter. shared
