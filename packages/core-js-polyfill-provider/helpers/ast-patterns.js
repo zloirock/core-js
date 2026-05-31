@@ -103,6 +103,23 @@ export function singleQuasiString(node) {
   return node.quasis[0].value.cooked ?? null;
 }
 
+// raw-AST static key extractor: Identifier (non-computed), StringLiteral / ESTree Literal
+// (computed), single-quasi TemplateLiteral. null for dynamic shapes. adapter-aware callers
+// should route through `adapter.isStringLiteral`. lives here (alongside `singleQuasiString`,
+// its only dependency); `class-walk.js` re-exports it so its consumers keep their import path
+export function memberKeyName(node) {
+  const { property, computed } = node;
+  if (!computed && property?.type === 'Identifier') return property.name;
+  if (computed && property?.type === 'StringLiteral') return property.value;
+  // ESTree (oxc) uses `Literal` with a string value for string literals
+  if (computed && property?.type === 'Literal' && typeof property.value === 'string') return property.value;
+  if (computed) {
+    const quasi = singleQuasiString(property);
+    if (quasi !== null) return quasi;
+  }
+  return null;
+}
+
 // `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
 // `weak-map` / `promise` -> `WeakMap` / `Promise` via the Pascal variant
 const DASH_WORD = /-(?<c>\w)/g;
@@ -855,11 +872,11 @@ function namespaceStaticCallMethod(call, namespaceName) {
 // (`Object.defineProperty(Array, name, d)`) stay out of scope - same Identifier-rooted
 // constraint as the MemberExpression-LHS shape: full receiver / key resolution is out of
 // scope for this fast pre-walk
-function collectObjectMutations(call, mutated) {
+function collectObjectMutations(call, mutated, isShadowed) {
   const methodName = namespaceStaticCallMethod(call, 'Object');
   if (methodName === null) return;
   const [target, keyOrProps] = call.arguments ?? [];
-  if (target?.type !== 'Identifier') return;
+  if (target?.type !== 'Identifier' || isShadowed(target.name)) return;
   const targetName = target.name;
   if (methodName === 'defineProperty') {
     const keyName = staticStringKey(keyOrProps);
@@ -882,14 +899,73 @@ function collectObjectMutations(call, mutated) {
 // `Reflect.set(target, key, value)` is intentionally NOT here - it writes a value slot but
 // can trigger setter traps and respects [[Set]] prototype-chain semantics, which differs
 // enough from a slot-override to warrant separate treatment if ever needed
-function collectReflectMutations(call, mutated) {
+function collectReflectMutations(call, mutated, isShadowed) {
   const methodName = namespaceStaticCallMethod(call, 'Reflect');
   if (methodName !== 'defineProperty' && methodName !== 'deleteProperty') return;
   const [target, key] = call.arguments ?? [];
-  if (target?.type !== 'Identifier') return;
+  if (target?.type !== 'Identifier' || isShadowed(target.name)) return;
   const keyName = staticStringKey(key);
   if (keyName === null) return;
   mutated.add(`${ target.name }.${ keyName }`);
+}
+
+// names a node introduces into its OWN scope (params / id / direct declarations / catch
+// param / for-init / class name), or null when it opens no scope. used to drive a binding
+// stack so `collectMutatedStaticMembers` skips a mutation whose receiver is a LOCAL shadow
+// (`const patch = Object => { Object.assign = x }`) rather than a genuine global. errs toward
+// UNDER-collecting (e.g. var-hoist across sibling blocks isn't modelled): a missed shadow
+// keeps the conservative mutation bail; a FALSE binding would wrongly drop the bail on a real
+// monkey-patch, so only true binding positions are recorded
+const SCOPE_FUNCTION_TYPES = new Set([
+  'ArrowFunctionExpression',
+  'ClassMethod',
+  'ClassPrivateMethod',
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ObjectMethod',
+]);
+
+function addDeclarationNames(stmt, set) {
+  if (!stmt) return;
+  if (stmt.type === 'VariableDeclaration') {
+    for (const d of stmt.declarations ?? []) walkPatternIdentifiers(d.id, id => set.add(id.name));
+  } else if ((stmt.type === 'FunctionDeclaration' || stmt.type === 'ClassDeclaration') && stmt.id) {
+    set.add(stmt.id.name);
+  } else if (stmt.type === 'ImportDeclaration') {
+    for (const s of stmt.specifiers ?? []) if (s.local?.name) set.add(s.local.name);
+  } else if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration) {
+    addDeclarationNames(stmt.declaration, set);
+  }
+}
+
+function scopeBoundNames(node) {
+  const { type } = node;
+  if (SCOPE_FUNCTION_TYPES.has(type)) {
+    const set = new Set();
+    for (const p of node.params ?? []) walkPatternIdentifiers(p, id => set.add(id.name));
+    if (node.id?.name) set.add(node.id.name);
+    return set;
+  }
+  if (type === 'BlockStatement' || type === 'Program' || type === 'StaticBlock') {
+    const set = new Set();
+    for (const stmt of node.body ?? []) addDeclarationNames(stmt, set);
+    return set;
+  }
+  if (type === 'CatchClause' && node.param) {
+    const set = new Set();
+    walkPatternIdentifiers(node.param, id => set.add(id.name));
+    return set;
+  }
+  if (type === 'ForStatement' || type === 'ForInStatement' || type === 'ForOfStatement') {
+    const set = new Set();
+    addDeclarationNames(node.init, set);
+    addDeclarationNames(node.left, set);
+    return set.size ? set : null;
+  }
+  if ((type === 'ClassDeclaration' || type === 'ClassExpression') && node.id?.name) {
+    return new Set([node.id.name]);
+  }
+  return null;
 }
 
 // scan AST for `Object.key = X` / `[Object.key] = X` / `({foo: Object.key} = X)` /
@@ -908,20 +984,31 @@ function collectReflectMutations(call, mutated) {
 // an Identifier root
 export function collectMutatedStaticMembers(programNode) {
   const mutated = new Set();
+  // stack of per-scope bound-name Sets; a mutation receiver present in any enclosing scope is
+  // a LOCAL shadow (not the global) and must NOT poison the file-wide mutation set
+  const scopeStack = [];
+  function isShadowed(name) {
+    for (const scope of scopeStack) if (scope.has(name)) return true;
+    return false;
+  }
   function visit(node, parent, grandparent) {
     if (!node || typeof node !== 'object') return;
+    const bound = scopeBoundNames(node);
+    if (bound) scopeStack.push(bound);
     if (node.type === 'MemberExpression'
       && node.object?.type === 'Identifier'
       && node.property?.type === 'Identifier'
       && !node.computed
+      && !isShadowed(node.object.name)
       && isMemberMutationContext(node, parent, grandparent)) {
       mutated.add(`${ node.object.name }.${ node.property.name }`);
     }
     if (node.type === 'CallExpression') {
-      collectObjectMutations(node, mutated);
-      collectReflectMutations(node, mutated);
+      collectObjectMutations(node, mutated, isShadowed);
+      collectReflectMutations(node, mutated, isShadowed);
     }
     walkAstChildren(node, child => visit(child, node, parent));
+    if (bound) scopeStack.pop();
   }
   visit(programNode, null, null);
   return mutated;
@@ -1039,6 +1126,13 @@ export function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
     if (parent.importKind === 'type') return true;
     return grandparent?.type === 'ImportDeclaration' && grandparent.importKind === 'type';
   }
+  // TS type-member key positions name a member in a type, not a runtime reference to a
+  // same-named global: `interface I { Promise: number }` (TSPropertySignature) / `{ Promise():
+  // void }` (TSMethodSignature) / `{ [Promise in K]: 1 }` (TSMappedType type-parameter name).
+  // non-computed signatures only - a computed `[expr]` key IS a runtime value reference
+  if ((parent.type === 'TSPropertySignature' || parent.type === 'TSMethodSignature')
+    && parentKey === 'key' && !parent.computed) return true;
+  if (parent.type === 'TSMappedType' && parentKey === 'key') return true;
   if (parentKey !== 'id') return false;
   if (TS_TYPE_DECL_TYPES.has(parent.type)) return true;
   // `import type X = require(...)` - LHS of TSImportEqualsDeclaration with type modifier.
@@ -1666,9 +1760,15 @@ function memberShapeEqual(a, b) {
     return a.value === b.value;
   }
   if (a.type === 'MemberExpression') {
-    return a.computed === b.computed
-      && memberShapeEqual(a.object, b.object)
-      && memberShapeEqual(a.property, b.property);
+    if (!memberShapeEqual(a.object, b.object)) return false;
+    // compare property keys by resolved static name so the dot (`obj.at`) and bracket
+    // (`obj['at']`) forms of the SAME static key match - e.g. a `for (obj.at of ...)` write
+    // target and a later `obj['at']` read of the same per-iteration slot. dynamic computed
+    // keys (`obj[i]`) have no static name and fall back to structural (form + shape) compare
+    const aKey = memberKeyName(a);
+    const bKey = memberKeyName(b);
+    if (aKey !== null && bKey !== null) return aKey === bKey;
+    return a.computed === b.computed && memberShapeEqual(a.property, b.property);
   }
   return false;
 }
