@@ -21,9 +21,15 @@ import {
   AMBIENT_FN_OR_CLASS_DECLARATION_TYPES,
   AMBIENT_FUNCTION_TYPES,
   getOrInitMap,
+  nodePathInScope,
 } from './base.js';
 import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias } from './ast-shapes.js';
 import { unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
+
+// visitor-key list for recovering a real NodePath of a namespaced declaration via
+// `nodePathInScope` - the union of every node type `isFunctionOrClassDeclaration` /
+// `isAmbientFunctionNode` can leaf-match, so the program-root traversal finds any of them
+const NAMESPACED_DECL_PATH_TYPES = ['FunctionDeclaration', 'ClassDeclaration', ...AMBIENT_FN_OR_CLASS_DECLARATION_TYPES];
 
 // `declare global { ... }` opens a program-scope augmentation block. @babel/parser@7 flags it
 // with a boolean `decl.global`; @babel/parser@8 dropped that field and only sets `kind: 'global'`
@@ -262,15 +268,21 @@ export function createNameResolution({ t }) {
     return collected;
   }
 
-  // resolve `typeof NS.Inner.fn` namespaced lookups: babel doesn't bind TS `namespace`
-  // declarations as scope values, so `constantBindingPath` returns null. surfaces the
-  // first leaf as a {node, scope}-shape - resolveReturnType only consumes those two
-  // properties (not full NodePath methods). passes the input scope as the result scope:
-  // babel doesn't create separate scopes for TSModuleDeclaration anyway, so type names
-  // referenced in the function's signature resolve through the same outer scope chain
+  // recover a raw leaf decl (from findFirstDecl/findAllDecls) to a real NodePath. babel doesn't
+  // bind TS `namespace` members as scope values, so the leaf is a raw node, but downstream
+  // consumers (resolveBodyReturnType / resolveParametersParams / findClassMember /
+  // resolveClassInheritance) call `.get('body')` / `.get('superClass')` - a {node, scope} shape
+  // would throw. recover by program-root identity match (same precedent as
+  // `resolveMergedNamespaceStatic`); babel creates no separate scope for a TSModuleDeclaration, so
+  // the recovered path chains to the outer scope and signature type-names still resolve. null when
+  // recovery fails (degrade, never crash)
+  function recoverDeclPath(node, scope) {
+    return node ? nodePathInScope(node, scope, NAMESPACED_DECL_PATH_TYPES) : null;
+  }
+
+  // resolve `typeof NS.Inner.fn` namespaced lookups to the first function/class decl on the path
   function findNamespacedFunctionPath(segments, scope) {
-    const node = findFirstDecl({ name: segments, scope, leafMatch: isFunctionOrClassDeclaration });
-    return node ? { node, scope } : null;
+    return recoverDeclPath(findFirstDecl({ name: segments, scope, leafMatch: isFunctionOrClassDeclaration }), scope);
   }
 
   // multi-result variant: collect ALL ambient function decls matching the qualified path.
@@ -280,7 +292,8 @@ export function createNameResolution({ t }) {
   // outer-scope overloads from bleeding past a namespace shadow
   function findNamespacedFunctionPaths(segments, scope) {
     return findAllDecls({ name: segments, scope, leafMatch: isAmbientFunctionNode })
-      .map(node => ({ node, scope }));
+      .map(node => recoverDeclPath(node, scope))
+      .filter(Boolean);
   }
 
   // single shared overload collector for `typeof X` / `typeof NS.X.Y`: bare names route
