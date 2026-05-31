@@ -84,8 +84,11 @@ export function resolveBatchDirectivePromotionPolicy({ body, candidateIndices, h
 export function extractIndirectRequireSEPrefix(stmtNode) {
   const { expression } = stmtNode ?? {};
   if (expression?.type !== 'CallExpression') return [];
-  let { callee } = expression;
-  while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+  // peel the SAME wrapper set `getEntrySource` peels (TS as/!/<>/satisfies + paren + chain): a
+  // TS-wrapped indirect require `((spy(), require) as any)('core-js/...')` is detected+removed as an
+  // entry, so its SequenceExpression SE prefix must surface here too - peeling only paren stopped at
+  // the TSAsExpression and silently dropped `spy()`
+  const callee = peelSkippableWrappers(expression.callee);
   if (callee?.type !== 'SequenceExpression' || callee.expressions.length < 2) return [];
   return callee.expressions.slice(0, -1).filter(mayHaveSideEffects);
 }

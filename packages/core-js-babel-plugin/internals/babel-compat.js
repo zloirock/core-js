@@ -2,7 +2,7 @@
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { classifyReceiverSE, peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { classifyReceiverSE, keySideEffectsOnly, peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   createTypeAnnotationChecker,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -144,6 +144,14 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       topPath = parentPath;
       deoptionalizeNode(parentPath);
       ({ parentPath } = parentPath);
+    }
+    // trailing optional CALL whose callee is the just-deoptionalized member (`x.includes?.(2)`):
+    // enclose it in the wrap WITHOUT deoptionalizing (the `?.()` genuinely guards `.includes`).
+    // otherwise wrapping at `.includes` lifts it into the conditional and strands the `?.()`
+    // with `this === undefined` (`(c ? void 0 : (...).includes)?.(2)` throws where native works)
+    if (topPath && parentPath?.isOptionalCallExpression() && parentPath.node.optional
+      && isOptionalOperand(topPath, parentPath)) {
+      topPath = parentPath;
     }
     return topPath;
   }
@@ -301,6 +309,22 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return { callerPath, parent, isCall, isParenLookupOnly };
   }
 
+  // SequenceExpression-receiver double-emit guard (see `classifyReceiverSE` doc). mutates
+  // `path.node.object` for `peel` (non-optional): peel the receiver to its SE tail; the
+  // prepended `sideEffects` replay the full prefix the resolver collected. returns the side
+  // effects to emit - the whole list for `peel` / no-SE, only the trailing key-SE for
+  // `suppress` (optional - the receiver-SE stays in extractCheck's null-guard memoize, so
+  // prepending it too would double-eval). shared by `replaceInstanceLike` + `replaceCallWithSimple`
+  function applyReceiverSeMode(path, sideEffects) {
+    const seMode = classifyReceiverSE(path.node.object,
+      path.node.optional || path.isOptionalMemberExpression(), sideEffects);
+    if (seMode === 'peel') {
+      const peeled = peelReceiverSequenceTail(path.node.object);
+      if (peeled !== path.node.object) path.node.object = peeled;
+    }
+    return seMode === 'suppress' ? keySideEffectsOnly(path.node.object, sideEffects) : sideEffects;
+  }
+
   // parenthesized optional member followed by a NON-optional outer call: `(arr?.includes)(1)`.
   // native semantics:
   //   - arr nullish: `(undefined)(1)` -> TypeError ("not a function") - chain ENDS at `?.`,
@@ -318,17 +342,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike({ path, id, skipOptional, sideEffects }) {
-    // SequenceExpression-receiver double-emit guard - `classifyReceiverSE` decides
-    // between two strategies (see helper docs). composite receiver-SE + key-SE on
-    // optional chain is a rare edge case where suppress would lose key-SE; accepted
-    // trade-off vs the more common bug class
-    const seMode = classifyReceiverSE(path.node.object,
-      path.node.optional || path.isOptionalMemberExpression(), sideEffects);
-    if (seMode === 'peel') {
-      const peeled = peelReceiverSequenceTail(path.node.object);
-      if (peeled !== path.node.object) path.node.object = peeled;
-    }
-    const effectiveSE = seMode === 'suppress' ? null : sideEffects;
+    const effectiveSE = applyReceiverSeMode(path, sideEffects);
     const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
     const [check, object, embed] = extractCheck(path, skipOptional);
     if (isParenLookupOnly) {
@@ -362,6 +376,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   function replaceCallWithSimple(path, id, skipOptional, sideEffects) {
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const { callerPath, isParenLookupOnly } = classifyCallerContext(path);
+    const effectiveSE = applyReceiverSeMode(path, sideEffects);
     // `(arr?.[Symbol.iterator])()`: parens terminate the optional chain, so on nullish `arr`
     // native evaluates `(undefined)()` and throws TypeError - the standard `check == null ?
     // void 0 : _id(arr)` ternary would instead yield `void 0` and swallow the throw (unlike
@@ -376,16 +391,16 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // so no memoization / null-guard is needed
     if (isParenLookupOnly) {
       callerPath.parentPath.replaceWith(
-        withSideEffects(t.callExpression(id, [t.cloneNode(path.node.object)]), sideEffects),
+        withSideEffects(t.callExpression(id, [t.cloneNode(path.node.object)]), effectiveSE),
       );
       return;
     }
     const [check, object, embed] = extractCheck(path, skipOptional);
     replaceAndWrap({
       replacePath: callerPath.parentPath,
-      // wrap with the caller's accumulated `sideEffects` (e.g. computed-key SE from
+      // wrap with the caller's accumulated side effects (e.g. computed-key SE from
       // detect-usage) so they don't drop when the original call is fully replaced
-      result: withSideEffects(t.callExpression(id, [t.cloneNode(object)]), sideEffects),
+      result: withSideEffects(t.callExpression(id, [t.cloneNode(object)]), effectiveSE),
       check, embedGuard: embed,
     });
   }
@@ -425,8 +440,16 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
       [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
 
-    const tests = [nullTest(anAssign),
-      nullTest(assign(mRef, t.callExpression(t.cloneNode(innerId), [t.cloneNode(aRef)])))];
+    // `arr.flat?.()`: the `?.` guards the CALL, not the `.flat` access - reading `.flat` on a
+    // nullish `arr` must THROW like native, so emit NO `null == receiver` test (it would swallow
+    // the throw into void 0). guard the receiver only when ITS access is optional too
+    // (`arr?.flat?.()`). either way the method-get assigns `mRef`; fold the receiver assignment
+    // into it in the non-optional case so a non-bare receiver still evaluates exactly once
+    const methodGet = t.callExpression(t.cloneNode(innerId),
+      [innerCallee.optional ? t.cloneNode(aRef) : anAssign]);
+    const tests = innerCallee.optional
+      ? [nullTest(anAssign), nullTest(assign(mRef, methodGet))]
+      : [nullTest(assign(mRef, methodGet))];
     // thread surviving non-optional hops (`.map(...)` between inner `flat?.()` and outer
     // `filter?.()`): splice the memoized inner result into the outer receiver sub-chain so the
     // hops re-emit (own pass polyfills them on the inner result) rather than being dropped

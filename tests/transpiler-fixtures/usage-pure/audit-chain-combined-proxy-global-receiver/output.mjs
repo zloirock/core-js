@@ -6,4 +6,4 @@ var _ref, _ref2, _ref3;
 // the imported binding (`_globalThis`) inside the memoized receiver, not emit raw `globalThis` (a
 // ReferenceError on engines without it). the receiver subtree is left visitable so the substitution
 // reaches it - the combine no longer blanket-skips the whole inner callee
-null == (_ref = _globalThis.list) || null == (_ref2 = _flatMaybeArray(_ref)) ? void 0 : _includes(_ref3 = _ref2.call(_ref)).call(_ref3, 3);
+null == (_ref2 = _flatMaybeArray(_ref = _globalThis.list)) ? void 0 : _includes(_ref3 = _ref2.call(_ref)).call(_ref3, 3);

@@ -7,4 +7,4 @@ var _ref, _ref2, _ref3;
 // (`cond ? a : b[0]`), stranding the null path; the wrap targets the conditional result. the
 // intermediate `.map(...)` hop is threaded onto the inner result, not dropped
 const arr = [1, 2];
-(null == arr || null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2))[0];
+(null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2))[0];
