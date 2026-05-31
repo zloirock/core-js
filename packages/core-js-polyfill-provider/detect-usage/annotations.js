@@ -4,8 +4,9 @@
 //   - `walkTypeAnnotationGlobals(annotation, onGlobal)` walker (entry-global needs to pull
 //     `Foo` from `let x: Foo` so `es.foo.constructor` lands at file level)
 //   - `checkTypeAnnotations(node, onGlobal)` helper for class / function annotation slots
-//   - `isPolyfillableOptional({ node: member, scope, adapter, resolve })` - the polyfill replacement
-//     consumes `?.`, so the receiver null-check is redundant
+//   - `isPolyfillableOptional({ node, scope, adapter, resolve })` - the polyfill replacement
+//     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
+//     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import { getSuperTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { unwrapParens } from './resolve.js';
 
@@ -239,10 +240,14 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 // `skipOptional` callback hop; legacy callers without a path-aware adapter still work
 // because the third argument is optional on `hasBinding`
 export function isPolyfillableOptional({ node, scope, adapter, resolve, path }) {
-  const obj = unwrapRuntimeExpr(unwrapParens(node.object));
+  // an optional CALL (`Array.from?.(...)`) carries the polyfillable target on its `callee`, not
+  // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
+  // a non-member callee (`foo?.()`) leaves `.object` undefined and falls through to false
+  const member = node.type === 'OptionalCallExpression' || node.type === 'CallExpression' ? node.callee : node;
+  const obj = unwrapRuntimeExpr(unwrapParens(member.object));
   if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name, path)) return false;
   if (resolve({ kind: 'global', name: obj.name })) return true;
-  const key = !node.computed && node.property?.type === 'Identifier' && node.property.name;
+  const key = !member.computed && member.property?.type === 'Identifier' && member.property.name;
   const resolved = key && resolve({ kind: 'property', object: obj.name, key, placement: 'static' });
   return resolved?.kind === 'static' || resolved?.kind === 'global';
 }

@@ -694,6 +694,24 @@ export default class TransformQueue {
     return splices;
   }
 
+  // drain every overwrite/split entry fully contained in [start, end] and return them as
+  // splices ({ start, end, content }). counterpart to `drainInsertsInRange` for the case where
+  // an outer rewrite replaces [start, end] with text NOT derived from the original source (e.g.
+  // a catch param overwritten to bare `_ref`): inner polyfill transforms then can't compose via
+  // `#substituteInners` (their needle is absent from the replacement) and would orphan, so the
+  // caller bakes the returned splices into the relocated text via its own `spliceInRange`.
+  // split-pairs surface as their two component entries (adjacent, non-overlapping splices)
+  drainOverwritesInRange(start, end) {
+    const splices = [];
+    for (const entry of this.#transforms) {
+      if (entry.start >= start && entry.end <= end) {
+        splices.push({ start: entry.start, end: entry.end, content: entry.content });
+        this.#removeEntry(entry);
+      }
+    }
+    return splices;
+  }
+
   #removeEntry(entry) {
     this.#transforms.delete(entry);
     const rKey = rangeKey(entry.start, entry.end);
