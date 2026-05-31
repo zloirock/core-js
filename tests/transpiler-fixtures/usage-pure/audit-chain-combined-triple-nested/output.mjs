@@ -8,4 +8,4 @@ var _ref, _ref2, _ref3;
 // duplicate chain emit queues at each one. the trailing native `.reduce?.(...)` and
 // `.toString()` read off the parenthesized chain result; TS-annotated args pass through verbatim
 const arr = [1, 2];
-(null == arr || null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2)).reduce?.((a: number, b: number) => a + b, 0).toString();
+(null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2)).reduce?.((a: number, b: number) => a + b, 0).toString();
