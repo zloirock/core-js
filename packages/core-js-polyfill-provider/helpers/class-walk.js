@@ -1,5 +1,9 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { markAndPeelSkippableWrappers, singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
+import { markAndPeelSkippableWrappers, memberKeyName, singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
+
+// re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
+// import path; canonical definition lives in `ast-patterns.js` next to `singleQuasiString`
+export { memberKeyName };
 
 // peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
 // to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`
@@ -45,22 +49,6 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path) {
   const init = unwrapInitForResolution(decl?.init);
   if (init?.type !== 'Identifier') return false;
   return isProxyGlobalIdentifierNode({ node: init, scope: binding.path?.scope ?? scope, adapter, path });
-}
-
-// raw-AST static key extractor: Identifier (non-computed), StringLiteral / ESTree Literal
-// (computed), single-quasi TemplateLiteral. null for dynamic shapes. adapter-aware callers
-// should route through `adapter.isStringLiteral`
-export function memberKeyName(node) {
-  const { property, computed } = node;
-  if (!computed && property?.type === 'Identifier') return property.name;
-  if (computed && property?.type === 'StringLiteral') return property.value;
-  // ESTree (oxc) uses `Literal` with a string value for string literals
-  if (computed && property?.type === 'Literal' && typeof property.value === 'string') return property.value;
-  if (computed) {
-    const quasi = singleQuasiString(property);
-    if (quasi !== null) return quasi;
-  }
-  return null;
 }
 
 // `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis.self.X` -> 'X', else null.
@@ -186,11 +174,14 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     for (let cur = path.parentPath; cur; cur = cur.parentPath) {
       const { node } = cur;
       if (enclosingCache.has(node)) return backfill(visited, enclosingCache.get(node));
-      // computed-key slot evaluates at class-def time in the OUTER scope - skip the member
-      // when prev's node IS the key so `class C { [this.X]() {} }` doesn't resolve to C.
-      // skip BEFORE the push so body-side walks reaching the same node fresh resolve to the
-      // class context instead of inheriting this walk's outer-null conclusion via the cache
-      if (isClassMember(node) && prev && node.computed && node.key === prev.node) {
+      // computed-key slot AND member decorators evaluate at class-def time in the OUTER scope
+      // (this !== the class) - skip the member when prev's node is the key or one of its
+      // decorators so `class C { [this.X]() {} }` / `class C { @(this.X) m() {} }` don't resolve
+      // `this` to C (mirrors resolveThisAnchor's Decorator bail). skip BEFORE the push so
+      // body-side walks reaching the same node fresh resolve to the class context instead of
+      // inheriting this walk's outer-null conclusion via the cache
+      if (isClassMember(node) && prev
+        && ((node.computed && node.key === prev.node) || node.decorators?.includes(prev.node))) {
         prev = cur;
         continue;
       }
