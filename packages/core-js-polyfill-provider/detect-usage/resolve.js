@@ -88,6 +88,19 @@ export function classifyReceiverSE(receiver, isOptional, sideEffects) {
   return isOptional ? 'suppress' : 'peel';
 }
 
+// `suppress` mode (optional receiver) keeps the whole receiver in the null-guard memoize
+// (`_ref = recv`), where its side effects already run, and folds only the trailing computed-key
+// SE into the guard's alternate. the meta's `sideEffects` carry the receiver-SE first (source
+// order), so recompute the receiver-SE count off the receiver node - the same collection the
+// resolver performed - and drop that leading slice. returns `sideEffects` unchanged when the
+// receiver contributed none (the whole list is key-SE)
+export function keySideEffectsOnly(receiver, sideEffects) {
+  if (!sideEffects?.length) return sideEffects;
+  const receiverEffects = [];
+  unwrapParensCollectingEffects(receiver, receiverEffects);
+  return receiverEffects.length ? sideEffects.slice(receiverEffects.length) : sideEffects;
+}
+
 // peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
 // outermost assignment (evaluating it covers every nested `=` step in source). used by
 // static-method dispatch to recover the actual constructor identifier from a receiver like
