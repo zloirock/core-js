@@ -499,32 +499,30 @@ export default class ImportInjector extends ImportInjectorState {
         && stmt.declarations.every(d => !d.init);
     }
 
-    const refs = [];
-    const refIndices = [];
+    // collect EVERY ref-only `var` in the body, not just a leading run. scope.push tags each
+    // declaration `_blockHoist: 2`, so Babel's end-of-pipeline block-hoist would otherwise lift
+    // it ABOVE the (unhoisted) import header - violating import/first - whenever a ref landed
+    // after a lifted side-effect statement and the old leading-run scan stopped short of it.
+    // they are initless vars (runtime-hoisted regardless of textual position), so merging them
+    // into one fresh declaration placed just past the import header is semantically inert and
+    // matches unplugin's layout. the fresh `merged` node carries no `_blockHoist`, so block-hoist
+    // leaves it in place; removing the original `bh2` nodes drops their lift entirely
+    const refDecls = body.filter(isRefOnly);
+    if (!refDecls.length) return;
+    const refSet = new Set(refDecls);
+    const kept = body.filter(s => !refSet.has(s));
     let importEnd = 0;
-    for (let i = 0; i < body.length; i++) {
-      if (isRefOnly(body[i])) {
-        refs.push(body[i]);
-        refIndices.push(i);
-        continue;
-      }
-      if (isImportRegion(body[i])) {
+    for (let i = 0; i < kept.length; i++) {
+      if (isImportRegion(kept[i])) {
         importEnd = i + 1;
         continue;
       }
       // sibling-injected initless var: scan past without extending the import region
-      if (isInitlessVarDecl(body[i])) continue;
+      if (isInitlessVarDecl(kept[i])) continue;
       break;
     }
-    if (!refs.length || importEnd === 0) return;
-    const refSet = new Set(refs);
-    const kept = body.filter(s => !refSet.has(s));
-    // importEnd counted against original indices including refs; subtract refs that preceded it
-    let refsBeforeImportEnd = 0;
-    for (const idx of refIndices) if (idx < importEnd) refsBeforeImportEnd++;
-    const insertAt = importEnd - refsBeforeImportEnd;
-    const merged = this.#t.variableDeclaration('var', refs.flatMap(s => s.declarations));
-    kept.splice(insertAt, 0, merged);
+    const merged = this.#t.variableDeclaration('var', refDecls.flatMap(s => s.declarations));
+    kept.splice(importEnd, 0, merged);
     this.#programPath.node.body = kept;
   }
 }
