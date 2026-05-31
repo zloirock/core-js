@@ -157,6 +157,10 @@ export function createPolyfillEmitter({
     }
 
     function isPoly(n) {
+      // when the optional's polyfillable static / global is always defined post-rewrite the `?.`
+      // is dead, so the root deopts (root:null) rather than emitting a guard over the bare callee
+      // that overlaps the static visitor's `?.`-inclusive rewrite range and trips the "could not
+      // locate inner needle" composition invariant (`isPolyfillableOptional` unwraps a call callee)
       return isPolyfillableOptional({ node: n, scope, adapter: estreeAdapter, resolve: resolveBuiltIn });
     }
 
