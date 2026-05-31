@@ -16,6 +16,7 @@ import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/clas
 import {
   classifyReceiverSE,
   findProxyGlobal,
+  keySideEffectsOnly,
   peelReceiverSequenceTail,
   prependChainAssignmentEffect,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -38,11 +39,12 @@ export function createPolyfillEmitter({
   isEntryNeeded,
   NEEDS_GUARD_PARENS,
   NO_REF_NEEDED,
+  enclosingExpressionStatementPath,
+  isBodylessStatementBody,
   resolveGlobalPolyfill,
   resolvePureOrGlobalFallback,
   scopeTracker,
   skippedNodes,
-  startsEnclosingStatement,
   transforms,
 }) {
   // bare-Identifier shape (`globalThis`, `_Promise`, `$X`); excludes member chains, parens,
@@ -74,13 +76,15 @@ export function createPolyfillEmitter({
   }
 
   // a `(`-leading replacement at a statement-leading slot can fuse with the previous
-  // line into a call (`a\n(...)` -> `a(...)`); inject `;` only when both conditions hit
+  // line into a call (`a\n(...)` -> `a(...)`); inject `;` only when all conditions hit.
+  // an unbraced control body (`if (x) (...)`) is excluded: there the leading `(` can't fuse
+  // with the control header, and a prepended `;` would empty the body - hoisting the
+  // polyfilled call out of the conditional / loop to run unconditionally
   function asiGuardLeadingParen(replacement, metaPath, start) {
-    return replacement[0] === '('
-      && startsEnclosingStatement(metaPath, start)
-      && canFuseWithOpenParen(code, start)
-      ? `;${ replacement }`
-      : replacement;
+    if (replacement[0] !== '(') return replacement;
+    const stmtPath = enclosingExpressionStatementPath(metaPath);
+    if (stmtPath?.node?.start !== start || isBodylessStatementBody(stmtPath)) return replacement;
+    return canFuseWithOpenParen(code, start) ? `;${ replacement }` : replacement;
   }
 
   // source of `node` with its outer `ParenthesizedExpression` wrapper dropped - except
@@ -408,17 +412,14 @@ export function createPolyfillEmitter({
   // never emits a ChainExpression in receiver position (it inlines optional markers), but
   // estree-style trees do; the check stays for parser-agnostic robustness.
   //
-  // `peel` is downgraded to `null` for the bare (`binding(receiver)`) shape. peeling is sound
-  // only in the `.call(this)` shape, where the memoize re-references the receiver and
-  // `sideEffects` re-supplies the peeled prefix. the bare shape (e.g. Symbol.iterator
-  // get-iterator with no args) passes the receiver verbatim as the sole arg, and the incoming
-  // `sideEffects` carry only the computed-KEY prefix - NOT the receiver's own. peeling there
-  // would strand the receiver prefix (`(a(), arr)[Symbol[(b(), 'iterator')]]()` would drop
-  // `a()`). keeping the whole SequenceExpression receiver mirrors babel's bare get-iterator emit
-  function resolveReceiverSeMode({ node, parent, replacementIsCall, sideEffects }) {
+  // `peel` applies to the bare (`binding(receiver)`) shape too: the resolver collects the
+  // receiver's own SE into `sideEffects` ordered before the computed-key SE (see members.js),
+  // so peeling the receiver to its SE tail and re-supplying the whole prefix via the prepended
+  // SequenceExpression keeps `(a(), arr)[Symbol[(b(), 'iterator')]]()` -> `(a(), b(),
+  // _getIterator(arr))` in source eval order rather than duplicating / reordering the receiver SE
+  function resolveReceiverSeMode({ node, parent, sideEffects }) {
     const isOptional = node.optional || parent?.optional || node.object?.type === 'ChainExpression';
-    const seMode = classifyReceiverSE(node.object, isOptional, sideEffects);
-    return seMode === 'peel' && !replacementIsCall ? null : seMode;
+    return classifyReceiverSE(node.object, isOptional, sideEffects);
   }
 
   // build replacement, wrap guard if needed, add to transform queue
@@ -426,9 +427,14 @@ export function createPolyfillEmitter({
     binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
     sideEffects = null, parenLookupOnly = false,
   }) {
-    const seMode = resolveReceiverSeMode({ node, parent, replacementIsCall, sideEffects });
+    const seMode = resolveReceiverSeMode({ node, parent, sideEffects });
+    // `peel` (non-optional): peel the receiver to its SE tail; the prepended SequenceExpression
+    // replays the full receiver-SE + key-SE the resolver collected. `suppress` (optional): leave
+    // the receiver intact - its SE runs inside the null-guard memoize (`_ref = recv`) - and fold
+    // only the trailing key-SE into the guard's alternate (`null == (_ref = recv) ? void 0 :
+    // (keySE, body)`), so the memoized receiver-SE isn't emitted twice
     const receiverObj = seMode === 'peel' ? peelReceiverSequenceTail(node.object) : node.object;
-    if (seMode === 'suppress') sideEffects = null;
+    if (seMode === 'suppress') sideEffects = keySideEffectsOnly(node.object, sideEffects);
     const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
     const { optionalRoot: resolvedRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot({
@@ -895,9 +901,18 @@ export function createPolyfillEmitter({
     const innerCall = `${ mRef }.call(${ aRef }${ commaArgs(innerArgs) })`;
     const threaded = buildThreadedReceiver(innerCall, hops);
 
-    const tests = [
+    // `recv.method?.()`: the `?.` guards the CALL, not the `.method` access - a nullish recv must
+    // throw on the `.method` read like native, so omit the `null == recv` test (it would swallow
+    // the throw into void 0). keep it only when the receiver access is itself optional
+    // (`recv?.method?.()`). the method-get assigns mRef either way; in the non-optional non-safe
+    // case it also carries the receiver assignment so a side-effecting receiver evaluates once.
+    // mirrors babel-compat.js's `replaceInstanceChainCombined`
+    const methodArg = innerCallee.optional || isReceiverSafe ? aRef : `${ aRef } = ${ receiver }`;
+    const tests = innerCallee.optional ? [
       `null == ${ anAssign }`,
       `null == (${ mRef } = ${ innerBinding }(${ aRef }))`,
+    ] : [
+      `null == (${ mRef } = ${ innerBinding }(${ methodArg }))`,
     ];
     let outerObj;
     if (node.optional) {

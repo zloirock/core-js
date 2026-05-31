@@ -126,6 +126,18 @@ export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 // `$` already listed explicitly because it's not in ID_Continue but IS a valid ident char
 const FUSES_WITH_OPEN_PAREN = /[\p{ID_Continue}"$')/\]`}]/u;
 
+// an expression emitted at STATEMENT position parses as a block / declaration (not an expression)
+// when its first token is `{` (ObjectExpression -> block), `function` / `function*` (-> function
+// declaration), `class` (-> class declaration), or `async function`. wrap such a verbatim slice in
+// parens so it stays an ExpressionStatement. babel's `t.expressionStatement` does this implicitly;
+// the unplugin emits raw source slices (entry SE-prefix removal + minifier-sequence split) and must
+// guard explicitly, else the slice reparses as a block / nameless declaration (SyntaxError or
+// silently dropped pass)
+const EXPR_STMT_HAZARD_START = /^\s*(?:\{|class\b|(?:async\s+)?function\b)/;
+export function parenthesizeExprStmtHazard(text) {
+  return EXPR_STMT_HAZARD_START.test(text) ? `(${ text })` : text;
+}
+
 // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). per-char check for
 // hot loops where a regex-per-test would allocate the match array
 export function isLineTerminator(ch) {
@@ -209,27 +221,123 @@ export function varScopeAnchor(node, code) {
   return null;
 }
 
+// keywords after which a `/` opens a regex literal (expression position), not division
+const REGEX_PRECEDING_KEYWORDS = new Set([
+  'await',
+  'case',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'in',
+  'instanceof',
+  'new',
+  'of',
+  'return',
+  'throw',
+  'typeof',
+  'void',
+  'yield',
+]);
+
+const IDENT_START_RE = /[\p{ID_Start}$_]/u;
+const IDENT_PART_RE = /[\p{ID_Continue}$]/u;
+
 // one-pass lexer-like scan: classify every char of `src` into literal regions (strings,
-// templates, comments) so backward walks (`prevSignificantPos`) can skip past them with
-// a single binary-search lookup instead of re-scanning per char. each region is a half-
+// templates, comments, regexes) so backward walks (`prevSignificantPos`) can skip past them
+// with a single binary-search lookup instead of re-scanning per char. each region is a half-
 // open `[start, end)` range carrying `kind`:
 //   - 'string'        - `'...'` / `"..."` (with `\` escapes + `\<LineTerminator>` continuation)
 //   - 'template'      - `` `...` `` text-content portions (split around `${...}` expressions
 //     so expression bodies remain JS context where `//` IS a real line comment)
 //   - 'block-comment' - `/* ... */`
 //   - 'line-comment'  - `// ...` up to (not including) line terminator
-// regex literals `/.../` are NOT tracked - regex vs division disambiguation requires
-// prior-token analysis that this raw-text scanner doesn't perform. covered by the
-// `prevSignificantPos` regex-closer escape hatch (the `/` is significant whether regex
-// closer or unknown)
+//   - 'regex'         - `/.../flags` in expression position
+// regex tracking is needed because a `` ` `` / quote inside a pattern would otherwise open a
+// phantom template / string region spanning newlines, swallowing the next statement boundary
+// and defeating the ASI guard. regex-vs-division is decided by the previous significant token
+// (conservative: an unterminated candidate or a `}` is treated as division, never tracked, so
+// a misread can only LEAVE a `/` untracked - the existing escape hatch - never fabricate a
+// region over real code). `${...}` bodies keep simpler quote-only classification
 function scanLiteralRegions(src) {
   const regions = [];
   let i = 0;
+  // whether a `/` here opens a regex (expression position) vs division. true at input start
+  // and after operators / opening punctuators / `,` `;` `:` / expression keywords
+  let regexAllowed = true;
+  let prevSignificant = null;
   while (i < src.length) {
-    const after = tryScanLiteralAt(src, i, regions);
-    i = after !== null ? after : i + 1;
+    const ch = src[i];
+    // comments win over regex: `//` and `/*` are never regex openers. regions recorded,
+    // regex-allowed state unchanged (a comment is transparent to token context)
+    if (ch === '/' && (src[i + 1] === '/' || src[i + 1] === '*')) {
+      i = tryScanLiteralAt(src, i, regions);
+      continue;
+    }
+    if (ch === '/' && regexAllowed) {
+      const end = scanRegexRegion(src, i, regions);
+      if (end !== null) {
+        i = end;
+        regexAllowed = false;
+        prevSignificant = src[end - 1];
+        continue;
+      }
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const end = tryScanLiteralAt(src, i, regions);
+      regexAllowed = false;
+      prevSignificant = src[end - 1];
+      i = end;
+      continue;
+    }
+    if (WS_OR_LT_RE.test(ch)) {
+      i++;
+      continue;
+    }
+    if (IDENT_START_RE.test(ch)) {
+      let j = i + 1;
+      while (j < src.length && IDENT_PART_RE.test(src[j])) j++;
+      // a name after `.` / `?.` is a property access (a value), never the bare keyword
+      regexAllowed = prevSignificant !== '.' && REGEX_PRECEDING_KEYWORDS.has(src.slice(i, j));
+      prevSignificant = src[j - 1];
+      i = j;
+      continue;
+    }
+    // value-ending tokens (`)` `]` `}` digit) -> next `/` is division; every other punctuator
+    // / operator -> next `/` opens a regex. `}` errs toward division to avoid fabricating a
+    // region after object / arrow literals (block-then-regex stays untracked, as before)
+    regexAllowed = !(ch === ')' || ch === ']' || ch === '}' || (ch >= '0' && ch <= '9'));
+    prevSignificant = ch;
+    i++;
   }
   return regions;
+}
+
+// scan a regex literal from its opening `/` at `start`; push a 'regex' region and return the
+// position after the closing `/` and flags. returns null when the candidate isn't a regex
+// (unescaped LineTerminator or EOF before the closer -> the `/` was division). `[...]` char
+// classes are tracked so a `/` inside them stays literal
+function scanRegexRegion(src, start, regions) {
+  let p = start + 1;
+  let inClass = false;
+  while (p < src.length) {
+    const c = src[p];
+    if (isLineTerminator(c)) return null;
+    if (c === '\\') {
+      p += 2;
+      continue;
+    }
+    if (c === '[') inClass = true;
+    else if (c === ']') inClass = false;
+    else if (c === '/' && !inClass) {
+      p++;
+      while (p < src.length && IDENT_PART_RE.test(src[p])) p++;
+      regions.push({ start, end: p, kind: 'regex' });
+      return p;
+    }
+    p++;
+  }
+  return null;
 }
 
 // scan ONE literal starting at `p` - string, template, block comment, line comment - and
@@ -353,18 +461,17 @@ function findRegionContaining(regions, pos) {
 }
 
 // scan backwards past whitespace and comments; -1 if we walked off the start. queries the
-// pre-computed literal-region map: positions inside string / template literals return the
-// closing quote (significant - fuses with `(`); positions inside comments skip to before
-// the opener and continue. regex literals fall through to the "non-region" branch where
-// the `/` reads as significant (correct - regex closer fuses with `(`)
+// pre-computed literal-region map: positions inside string / template / regex literals
+// return the closing char (significant - all fuse with `(`: closing quote / backtick, or
+// regex closer / flag); positions inside comments skip to before the opener and continue
 export function prevSignificantPos(src, pos) {
   const regions = literalRegionsOf(src);
   let i = pos - 1;
   while (i >= 0) {
     const region = findRegionContaining(regions, i);
     if (region) {
-      if (region.kind === 'string' || region.kind === 'template') {
-        // closing quote / backtick IS the significant boundary - fuses with `(`
+      if (region.kind === 'string' || region.kind === 'template' || region.kind === 'regex') {
+        // closing quote / backtick / regex-closer IS the significant boundary - fuses with `(`
         return region.end - 1;
       }
       // block/line comment - skip past the opener
@@ -385,12 +492,13 @@ export function canFuseWithOpenParen(src, pos) {
   return i >= 0 && FUSES_WITH_OPEN_PAREN.test(src[i]);
 }
 
-// does `pos` sit at the start of the transform's enclosing ExpressionStatement? only then
-// does ASI at this boundary matter for the injected `(...)` wrapper
-export function startsEnclosingStatement(path, pos) {
+// walk up to the nearest enclosing ExpressionStatement path (null when a function / program
+// boundary is hit first). consumers test `.node.start` for statement-leading position and
+// the slot shape (unbraced control body) to decide ASI `;` injection vs verbatim emission
+export function enclosingExpressionStatementPath(path) {
   let p = path;
   while (p && p.node?.type !== 'ExpressionStatement') p = p.parentPath;
-  return p?.node?.start === pos;
+  return p ?? null;
 }
 
 // RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare

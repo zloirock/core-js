@@ -50,7 +50,10 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   const sideEffects = [];
   // `obj` is then passed to `resolveObjectName` which calls `unwrapParens` again - idempotent
   // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
-  // walk is cheap; avoids threading an "already-unwrapped" flag through every caller
+  // walk is cheap; avoids threading an "already-unwrapped" flag through every caller.
+  // receiver-SE comes first (source eval order). the emit decides how to replay it: peel +
+  // prepend (non-optional) vs the null-guard memoize (optional, where it re-runs) - in the
+  // memoize case the suppress path drops this prefix and folds only the trailing key-SE
   const obj = unwrapParensCollectingEffects(node.object, sideEffects);
   // `this.#foo` / `obj.#field` - private field access; not a candidate for any polyfill
   // table (keys never carry `#` prefix). skip explicitly so downstream resolver scans
@@ -132,12 +135,15 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // usage-global keeps the member-expression, so the proxy-global stays visible and earns
     // its own polyfill (same mode split as `handleBinaryIn`)
     if (suppressProxyGlobals) markSubsumedProxyChain(symbolKey.ref.unwrapped, handledObjects, scope, adapter, path);
-    // computed-key side effects (`recv[Symbol[(fn(), 'iterator')]]`) propagate through meta.
-    // recv side effects survive naturally - the polyfill rewrite uses `node.object` as the
-    // `_getIterator(...)` argument, so the SE wrapping the receiver evaluates at call time.
-    // attaching them here would double-emit
+    // re-emit side effects in source eval order: receiver first, then computed-key
+    // (`(recv(), arr)[Symbol[(key(), 'iterator')]]`). the emit replays the receiver-SE by either
+    // peeling + prepending (non-optional) or via the null-guard memoize (optional - where the
+    // suppress path drops this prefix and folds only the key-SE), so collect both here in order
     const meta = { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
-    if (symbolKey.sideEffects.length) meta.sideEffects = symbolKey.sideEffects;
+    const sideEffects = [];
+    unwrapParensCollectingEffects(node.object, sideEffects);
+    sideEffects.push(...symbolKey.sideEffects);
+    if (sideEffects.length) meta.sideEffects = sideEffects;
     return meta;
   }
   const meta = buildMemberMeta({ node, scope, adapter, path });

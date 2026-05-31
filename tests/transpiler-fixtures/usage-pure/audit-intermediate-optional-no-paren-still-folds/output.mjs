@@ -7,4 +7,4 @@ var _ref, _ref2;
 // short-circuit the entire chain to undefined - and the polyfilled inner and outer calls
 // SHOULD fold into one short-circuiting OR-chain. This proves the paren gate stays narrow
 // and does not over-bail on ordinary mid-chain optionals.
-const r = null == arr || null == (_ref = _flatMapMaybeArray(arr)) ? void 0 : _includes(_ref2 = _ref.call(arr, x => x)).call(_ref2, 3);
+const r = null == (_ref = _flatMapMaybeArray(arr)) ? void 0 : _includes(_ref2 = _ref.call(arr, x => x)).call(_ref2, 3);
