@@ -93,14 +93,29 @@ const SIBLING_LEXICAL_DECL_KINDS = new Set([
 // share the same comma. legacy "idx=0 trailing, idx>0 leading" rule fought over the
 // middle comma when two adjacent props were both removed (`{from, of, [SYM]:x}` with
 // from+of both polyfilled), tripping `transform-queue: partial overlap`
-function getPropRemovalRange(props, propNode) {
+// `precededByRemoved` signals the immediately-preceding sibling was already removed (its
+// trailing-comma range ran up to this prop's start, consuming the shared comma). for the LAST
+// prop that flips the leading-comma rule to "own span only", since the leading comma is already
+// gone - emitting `[prevEnd, propEnd)` there would partially overlap the predecessor's range and
+// trip `transform-queue: partial overlap`. a contiguous tail-run thus leaves a harmless trailing
+// comma (`{ x, }`, valid in a binding pattern); single tail removals keep the clean leading-comma
+function getPropRemovalRange(props, propNode, precededByRemoved) {
   const idx = props.indexOf(propNode);
   if (idx === -1) return null;
   if (props.length === 1) return { start: propNode.start, end: propNode.end };
   const hasNext = idx < props.length - 1;
-  const start = hasNext ? propNode.start : props[idx - 1].end;
+  const start = hasNext || precededByRemoved ? propNode.start : props[idx - 1].end;
   const end = hasNext ? props[idx + 1].start : propNode.end;
   return start < end ? { start, end } : null;
+}
+
+// pure helper: the `<value> === void 0 ? <default> : <value>` default-guard RHS for a destructured
+// entry. when `ref` is given the value is memoized into it (`(ref = value) === void 0 ? d : ref`)
+// so an instance-polyfill receiver (`_at(x)`) isn't evaluated twice. shared by the catch-prelude
+// and byStatement comma-list emitters; each builds its own LHS / ref-declaration around this
+function defaultGuardedRhs({ valueSrc, defaultSrc, ref }) {
+  const test = ref ? `(${ ref } = ${ valueSrc })` : valueSrc;
+  return `${ test } === void 0 ? ${ defaultSrc } : ${ ref || valueSrc }`;
 }
 
 // destructure-emit factory: orchestrates 20+ helpers across handleDestructuringPure /
@@ -144,6 +159,10 @@ export function createDestructureEmitter({
   //   - IIFE `(({p}) => body)(R)`: receiver = CallExpression.arguments[i]
   // entry shape: `{ receiver, objectPattern, polyfills: Map<key, binding> }`
   const pendingSynthSwaps = new Map();
+  // ObjectPattern -> Set of its props already removed by param body-extract. lets each removal
+  // see whether the preceding sibling was also removed, so a contiguous tail-run avoids the
+  // shared-comma overlap (see `getPropRemovalRange`)
+  const removedParamProps = new WeakMap();
 
   // ---------- nested proxy-global flatten ----------
 
@@ -173,6 +192,11 @@ export function createDestructureEmitter({
   // transforms.add to flush time lets us drain those inserts and bake them into the
   // pre-segment source first
   const pendingCascade = [];
+  // declarator node -> its skipped pendingDestructuring info, for declarators that share a
+  // VariableDeclaration with a proxy-global flatten declarator. the byStatement emit skips them
+  // (a second whole-declaration overwrite would collide on the flatten's range); instead the
+  // flatten render emits their instance/static-method rewrite so the polyfill isn't lost
+  const flattenSiblingInfos = new Map();
   // cascade-rewrite cache for AssignmentExpression hosts: stores `{result, unusedIds}`
   // computed once via `rewriteDeclarator` over a synthetic mock-declarator. unusedIds
   // are captured by tracking `injector.generateUnusedName()` calls during the first plan
@@ -300,6 +324,16 @@ export function createDestructureEmitter({
     const refs = scopeTracker.consumeRefBindingsInRange(start, end);
     const inserts = transforms.drainInsertsInRange(start, end);
     return inserts.length ? refs.concat(inserts) : refs;
+  }
+
+  // polyfilled source text for a sub-expression whose inner transforms would otherwise be
+  // orphaned when an outer rewrite replaces the enclosing span with non-original text (the
+  // catch-param `_ref` overwrite): drain the contained overwrites/inserts/ref-bindings and bake
+  // them into the node's slice. returns the verbatim slice when nothing was queued inside it
+  function composedRangeSrc(node) {
+    const splices = transforms.drainOverwritesInRange(node.start, node.end)
+      .concat(consumeRefsAndInserts(node.start, node.end));
+    return splices.length ? spliceInRange(nodeSrc(node), node.start, splices) : nodeSrc(node);
   }
 
   function flushPendingCascade() {
@@ -489,6 +523,28 @@ export function createDestructureEmitter({
     }
   }
 
+  // render the instance/static-method rewrite (`{ at } = getArr()` -> `at = _at(getArr())`) for a
+  // flatten-shared destructure sibling, as decl bodies the flatten emits like its own extractions.
+  // the byStatement emit skipped this declarator (its whole-declaration overwrite would collide
+  // with the flatten's), so without this the sibling renders verbatim and its polyfill is lost.
+  // scoped to the simple shape: complex shapes (rest, residual props, defaults, computed /
+  // symbol-key entries, multiple instance receivers needing a memo, or an instance receiver that
+  // references a polyfillable global) return null and fall back to the verbatim render
+  function renderFlattenSiblingDecls(info) {
+    const { entries, allProps, initSrc, initNode, initIdentName } = info;
+    if (!entries.length) return null;
+    const consumed = new Set(entries.map(e => e.propNode));
+    if (allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
+    if (allProps.some(p => !consumed.has(p))) return null;
+    if (entries.some(e => e.defaultSrc || e.kind === 'symbol-key' || e.propNode.computed)) return null;
+    const instanceEntries = entries.filter(e => e.kind === 'instance');
+    if (instanceEntries.length > 1) return null;
+    // an instance entry keeps the receiver verbatim; bail if it references a polyfillable global
+    // (would need in-place root substitution we don't do here, risking a bare global on old engines)
+    if (instanceEntries.length && (initIdentName || globalProxyMemberName({ node: unwrapParens(initNode) }))) return null;
+    return entries.map(e => `${ e.localName } = ${ e.kind === 'instance' ? `${ e.binding }(${ initSrc })` : e.binding }`);
+  }
+
   // post-traverse render: dispatches on host shape. for-init folds extractions + SE-embedded
   // preserved declarators into a comma-joined single declaration (for-loop header forbids
   // newlines between declarators); block-level emits one statement per slot with SE
@@ -496,6 +552,15 @@ export function createDestructureEmitter({
   function flushPendingFlatten() {
     for (const entry of pendingFlatten) {
       const { declaration, declPath, perDecl, isForInit } = entry;
+      // a non-flatten declarator sharing this declaration may carry an instance/static-method
+      // destructure the byStatement emit skipped; render its rewrite here (as synthetic
+      // extractions) so the polyfill survives instead of emitting the pattern verbatim
+      for (let i = 0; i < perDecl.length; i++) {
+        if (perDecl[i].extractions.length) continue;
+        const sibInfo = flattenSiblingInfos.get(declaration.declarations[i]);
+        const decls = sibInfo && renderFlattenSiblingDecls(sibInfo);
+        if (decls) perDecl[i] = { extractions: decls.map(decl => ({ decl })), preservedSrc: null, receiver: null };
+      }
       drainRefBindingsByDeclarator(declaration, perDecl);
       const replacement = isForInit
         ? renderForInitFlatten(declaration, perDecl)
@@ -1370,6 +1435,22 @@ export function createDestructureEmitter({
   // consumes the adjacent comma. user-written default is dropped (dead code under polyfill-
   // always-wins). preserves "polyfill always wins" at the cost of caller-passed
   // `{from: customFrom}` being ignored
+  // remove a body-extracted param prop from its pattern (no ...rest sibling). props are visited
+  // in source order, so a removed predecessor is recorded in `removedParamProps` before the
+  // current prop; `getPropRemovalRange` consults that to keep a contiguous tail-run
+  // (`{ ..., from, of }`) from overlapping on the shared comma. returns false when no removal
+  // range applies, so the caller falls through to inline-default
+  function removeBodyExtractedParamProp(objectPattern, props, propNode) {
+    let removed = removedParamProps.get(objectPattern);
+    if (!removed) removedParamProps.set(objectPattern, removed = new Set());
+    const idx = props.indexOf(propNode);
+    const range = getPropRemovalRange(props, propNode, idx > 0 && removed.has(props[idx - 1]));
+    if (!range) return false;
+    transforms.add(range.start, range.end, '');
+    removed.add(propNode);
+    return true;
+  }
+
   function tryBodyExtractFromParamDestructurePure({ propPath, propNode, binding, objectPattern, entry }) {
     // re-entry guard: a previous call's `skippedNodes.add(propNode)` at the bottom signals
     // already-extracted. without it, a second dispatch (e.g. Symbol.iterator + regular prop
@@ -1391,10 +1472,8 @@ export function createDestructureEmitter({
     const props = objectPattern.properties;
     if (hasRestSiblingExcept(props, propNode)) {
       transforms.add(propNode.start, propNode.end, `${ propNode.key.name }: ${ injector.generateUnusedName() }`);
-    } else {
-      const range = getPropRemovalRange(props, propNode);
-      if (!range) return false;
-      transforms.add(range.start, range.end, '');
+    } else if (!removeBodyExtractedParamProp(objectPattern, props, propNode)) {
+      return false;
     }
     transforms.insert(bodyOpenAfter, `\n  let ${ localId.name } = ${ binding };`);
     // register the local name -> entry path so receiver-narrowing through this binding
@@ -1601,6 +1680,20 @@ export function createDestructureEmitter({
     }
   }
 
+  // standalone `let X = ...;` extracting an instance / static entry from the catch `ref`. a user
+  // default is guarded via `defaultGuardedRhs` with the COMPOSED default (`composedRangeSrc` baked
+  // any polyfill in the default expr): the raw `e.defaultSrc` can't compose against the bare `_ref`
+  // overwrite - there's no original-text needle for `#substituteInners` (unlike the non-catch path,
+  // where the parts text IS the needle), so emitting raw would drop the polyfill and orphan its
+  // drained scoped-var. instance entries memo the receiver into a fresh ref to avoid double-eval
+  function catchEntryLetDecl(e, ref) {
+    const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
+    if (!e.defaultSrc) return `let ${ e.localName } = ${ valueSrc };`;
+    const testRef = e.kind === 'instance' ? injector.generateLocalRef() : null;
+    const rhs = defaultGuardedRhs({ valueSrc, defaultSrc: e.composedDefaultSrc, ref: testRef });
+    return `let ${ testRef ? `${ testRef }, ` : '' }${ e.localName } = ${ rhs };`;
+  }
+
   // catch clause: replace param with ref, insert polyfilled + remaining in source order.
   // computed keys must have their pending polyfill rewrites extracted upfront - the catch
   // param overwrite below would otherwise contain orphan inner transforms -> compose throws
@@ -1610,22 +1703,16 @@ export function createDestructureEmitter({
   function emitCatchClause(infos, catchNode) {
     const [{ initSrc: ref, allProps }] = infos;
     const entryByProp = new Map(infos.flatMap(i => i.entries.map(e => [e.propNode, e])));
-    const computedKeyContent = new Map();
-    for (const p of allProps) {
-      if (p.type !== 'Property' || !p.computed) continue;
-      const content = transforms.extractContent(p.key.start, p.key.end);
-      if (content !== null) computedKeyContent.set(p, content);
-    }
+    // the catch param is overwritten to bare `_ref`, so EVERY polyfill transform inside the
+    // pattern (a computed-key sub-expression like `[[1].at(0)]`, a default value like
+    // `code = arr.at(-1)`) must be drained and baked into the relocated prelude / rebuilt
+    // pattern text - left in the queue it can't compose against `_ref` and trips the
+    // "could not locate inner needle" invariant. compose key + default per entry prop; whole
+    // non-entry props compose as a unit below. the ranges are disjoint, so no double-drain
     for (const e of entryByProp.values()) {
-      if (e.propNode.computed) e.polyfillKeyContent = computedKeyContent.get(e.propNode) ?? null;
-    }
-    // non-entry prop source: use polyfilled key when extracted, else original slice.
-    // shared between no-rest prelude and hasRest pattern rebuild
-    function nonEntryPropSrc(p) {
-      const polyfilledKey = computedKeyContent.get(p);
-      return polyfilledKey === undefined
-        ? nodeSrc(p)
-        : `[${ polyfilledKey }]: ${ nodeSrc(p.value) }`;
+      e.polyfillKeyContent = e.propNode.computed ? composedRangeSrc(e.propNode.key) : null;
+      const dflt = e.propNode.value?.type === 'AssignmentPattern' ? e.propNode.value.right : null;
+      e.composedDefaultSrc = dflt ? composedRangeSrc(dflt) : null;
     }
 
     const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
@@ -1633,26 +1720,21 @@ export function createDestructureEmitter({
     for (const p of allProps) {
       if (p.type === 'RestElement' || p.type === 'SpreadElement') continue;
       const e = entryByProp.get(p);
+      // non-entry prop: emit the composed whole-prop slice (any polyfilled key / default baked in)
+      // so it survives the `_ref` overwrite. under rest it stays in the rebuilt pattern instead
       if (!e) {
-        if (!hasRest) lines.push(`let { ${ nonEntryPropSrc(p) } } = ${ ref };`);
+        if (!hasRest) lines.push(`let { ${ composedRangeSrc(p) } } = ${ ref };`);
         continue;
       }
       // `symbol-key` entries don't extract a value - the rebuilt pattern keeps the prop
       // (with original localName) so `_ref[polyfilledKey]` is bound by destructuring directly
       if (e.kind === 'symbol-key') continue;
-      const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
-      if (e.defaultSrc) {
-        const testRef = e.kind === 'instance' ? injector.generateLocalRef() : null;
-        const test = testRef ? `(${ testRef } = ${ valueSrc })` : valueSrc;
-        lines.push(`let ${ testRef ? `${ testRef }, ` : '' }${ e.localName } = ${ test } === void 0 ? ${ e.defaultSrc } : ${ testRef || valueSrc };`);
-      } else {
-        lines.push(`let ${ e.localName } = ${ valueSrc };`);
-      }
+      lines.push(catchEntryLetDecl(e, ref));
     }
     if (hasRest) {
       const rebuiltProps = allProps.map(p => {
         const e = entryByProp.get(p);
-        if (!e) return nonEntryPropSrc(p);
+        if (!e) return composedRangeSrc(p);
         const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : nodeSrc(p.key);
         // symbol-key keeps original localName (the destructure binds it directly);
         // other entries already extracted via standalone let-decl above, so reserve a
@@ -1663,7 +1745,13 @@ export function createDestructureEmitter({
       lines.push(`let { ${ rebuiltProps.join(', ') } } = ${ ref };`);
     }
     transforms.add(catchNode.param.start, catchNode.param.end, ref);
-    transforms.insert(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
+    // declare the prelude's own temp vars (memo refs from polyfills baked into the keys / defaults
+    // above) at the TOP of the relocated prelude. they were genRef'd into the catch BODY scope, so
+    // applyTransforms would otherwise insert `var _ref;` AFTER this prelude - valid via hoisting
+    // but reads as use-before-declare. claiming them here mirrors babel's temps-at-top layout
+    const hoistedVars = scopeTracker.claimBlockScopedVars(catchNode.body);
+    const prelude = hoistedVars.length ? [`var ${ hoistedVars.join(', ') };`, ...lines] : lines;
+    transforms.insert(catchNode.body.start + 1, `\n${ prelude.join('\n') }`);
   }
 
   // byte-precise swap of a chain's proxy-global ROOT identifier (`globalThis` in
@@ -1753,6 +1841,18 @@ export function createDestructureEmitter({
     const byStatement = new Map();
     for (const [, info] of pendingDestructuring) {
       if (!info.declPath?.node || !info.declaratorPath?.node) continue;
+      // a declarator sharing a VariableDeclaration with a proxy-global flatten declarator
+      // (`const { at } = getArr(), { Array: { from } } = globalThis`) can't emit its own
+      // whole-declaration replacement here: it would collide with the flatten's overwrite on the
+      // shared range (`mergeEqualRange`). the early `flattenedNestedDecls` bail in
+      // `handleDestructuringPure` is order-dependent (misses a destructuring declarator visited
+      // before the flatten sibling); this post-traverse skip is order-independent. hand the info
+      // to `flushPendingFlatten`, which renders its instance/static-method rewrite inline so the
+      // polyfill survives (simple shapes; complex ones still render verbatim)
+      if (flattenedNestedDecls.has(info.declPath.node)) {
+        flattenSiblingInfos.set(info.declaratorPath.node, info);
+        continue;
+      }
       const key = info.declPath.node;
       if (!byStatement.has(key)) byStatement.set(key, []);
       byStatement.get(key).push(info);
@@ -1774,7 +1874,15 @@ export function createDestructureEmitter({
     flushPendingFlatten();
     flushPendingCascade();
 
-    for (const [, infos] of byStatement) {
+    // emit innermost-first: a declaration nested inside another's init (an inner destructure in a
+    // lifted SE-prefix IIFE body - `const { from } = ((() => { const { at } = o; return Array })(),
+    // X)`) must emit BEFORE its container, so the container's `consumeRefsAndInserts` over its init
+    // range drains the inner's genRef'd scoped-var. left un-drained, `scopeTracker.applyTransforms`
+    // re-wraps the inner scope's block over a range overlapping the container overwrite, tripping
+    // "could not locate inner needle". start-descending puts the higher-start (nested) declaration
+    // first; independent sibling declarations don't overlap, so their relative order is immaterial
+    const orderedStatements = [...byStatement].sort(([a], [b]) => b.start - a.start);
+    for (const [, infos] of orderedStatements) {
       const [{ declPath, isAssignment, isCatchClause }] = infos;
 
       if (isCatchClause) continue;
@@ -1910,8 +2018,9 @@ export function createDestructureEmitter({
           if (e.defaultSrc) {
             let ref = null;
             if (isInstance) ref = scopeTracker.genRef(scopeSnapshot);
-            const test = ref ? `(${ ref } = ${ valueSrc })` : valueSrc;
-            parts.push(`${ stmtPrefix }${ e.localName } = ${ test } === void 0 ? ${ e.defaultSrc } : ${ ref || valueSrc }`);
+            // raw `e.defaultSrc` here (not composed): the parts text stays the original-source
+            // needle `#substituteInners` splices any default-expr polyfill into
+            parts.push(`${ stmtPrefix }${ e.localName } = ${ defaultGuardedRhs({ valueSrc, defaultSrc: e.defaultSrc, ref }) }`);
           } else {
             parts.push(`${ stmtPrefix }${ e.localName } = ${ valueSrc }`);
           }

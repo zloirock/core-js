@@ -223,6 +223,24 @@ export default class ScopeTracker {
     return splices;
   }
 
+  // claim (remove + return) the var names anchored DIRECTLY in `braceNode`'s own block scope.
+  // a caller that emits its own block-leading prelude (catch-clause) declares them at the top of
+  // that prelude instead of letting `applyTransforms` insert `var X;` AFTER the prelude - valid
+  // via hoisting but reads as use-before-declare. only the exact block is claimed (matched by
+  // brace range); nested-block vars keep their own anchors. no body-wrap interaction: a wrapped
+  // block (arrow / bodyless stmt) isn't a brace-delimited scope tracked in `#scopedVarBlocks`
+  claimBlockScopedVars(braceNode) {
+    for (const [insertPos, block] of this.#scopedVarBlocks) {
+      if (block.start !== braceNode.start || block.end !== braceNode.end) continue;
+      const names = this.#scopedVars.get(insertPos);
+      if (!names?.length) return [];
+      this.#scopedVars.delete(insertPos);
+      this.#scopedVarBlocks.delete(insertPos);
+      return names;
+    }
+    return [];
+  }
+
   // build body-wrap text with DIRECT descendant body-wraps + scopedVar inserts composed into
   // the slice. recursion handles deeper-level body-wraps - each level composes only its
   // immediate children, child's own compose handles grandchildren. scopedVars inside any
