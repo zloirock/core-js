@@ -49,6 +49,7 @@ import {
   canFuseWithOpenParen,
   collectAllBindingNames,
   directivePrologueEnd,
+  enclosingExpressionStatementPath,
   hasCoreJSImport,
   isBodylessStatementBody,
   isChunkLoaderBundler,
@@ -58,7 +59,7 @@ import {
   liftSfcLangSuffix,
   NEEDS_GUARD_PARENS,
   NO_REF_NEEDED,
-  startsEnclosingStatement,
+  parenthesizeExprStmtHazard,
   stripLeadingBOMs,
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
@@ -147,7 +148,7 @@ function applyMinifierSequenceSplitPass(code, ast) {
   let lastKeptEnd = -1;
   for (const match of matches) {
     if (match.start < lastKeptEnd) continue;
-    const splitText = match.expressions.map(expr => `${ code.slice(expr.start, expr.end) };`).join('\n');
+    const splitText = match.expressions.map(expr => `${ parenthesizeExprStmtHazard(code.slice(expr.start, expr.end)) };`).join('\n');
     mutated.overwrite(match.start, match.end, splitText);
     lastKeptEnd = match.end;
   }
@@ -678,8 +679,10 @@ export default function createPlugin(options) {
         const emitter = createPolyfillEmitter({
           canFuseWithOpenParen,
           code,
+          enclosingExpressionStatementPath,
           estreeAdapter,
           injectPureImport,
+          isBodylessStatementBody,
           isEntryNeeded,
           NEEDS_GUARD_PARENS,
           NO_REF_NEEDED,
@@ -687,7 +690,6 @@ export default function createPlugin(options) {
           resolvePureOrGlobalFallback,
           scopeTracker,
           skippedNodes,
-          startsEnclosingStatement,
           transforms,
         });
         const {
