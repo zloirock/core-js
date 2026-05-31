@@ -24,6 +24,7 @@ import {
   memberWriteTargetPath,
 } from './class-member-shapes.js';
 import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { isLoopStatement, nodeRangeContains } from './ast-shapes.js';
 
 export function createClassFields({
   t,
@@ -124,6 +125,19 @@ export function createClassFields({
     return false;
   }
 
+  // a write inside a loop whose body ALSO contains the temporal `bound` (the observable use)
+  // re-executes on the back-edge before the next-iteration use - its source position is past the
+  // bound, but the loop makes it live, so it must NOT be dropped. a write in a SEPARATE loop after
+  // the use (loop range excludes the bound) is genuinely dead and still drops
+  function isWriteInsideLoopSpanningBound(writePath, bound) {
+    if (bound === undefined || bound === null || !Number.isFinite(bound)) return false;
+    for (let p = writePath.parentPath; p && !t.isProgram(p.node); p = p.parentPath) {
+      if (t.isFunction(p.node)) return false;
+      if (isLoopStatement(p.node) && nodeRangeContains(p.node, { start: bound, end: bound })) return true;
+    }
+    return false;
+  }
+
   // walk module-wide `<expr>.<fieldName> = Y` writes (already filtered to `fieldName` via
   // `getModuleFieldIndex`), drop straight-line writes past the temporal `bound` (in-function
   // writes always fold - see above), fold remaining receivers matching `predicate` into `out`.
@@ -131,7 +145,9 @@ export function createClassFields({
   function foldExternalWrites({ fieldName, predicate, bound, program, out }) {
     const index = getModuleFieldIndex(program);
     for (const writePath of index.writesByField.get(fieldName) ?? []) {
-      if ((writePath.node.start ?? Infinity) >= bound && !isWriteInsideFunction(writePath)) continue;
+      if ((writePath.node.start ?? Infinity) >= bound
+        && !isWriteInsideFunction(writePath)
+        && !isWriteInsideLoopSpanningBound(writePath, bound)) continue;
       pushIfWriteMatches(writePath, predicate, out);
     }
   }
@@ -262,6 +278,8 @@ export function createClassFields({
   // narrow polyfills that break at runtime when the field has been mutated to a different type
   function collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate }) {
     let closure = null;
+    let descendant = null;
+    const descendantClosures = [];
     return collectFieldCandidates({
       earlyBail: () => !isPrivate && isClassExported(classPath),
       initPath: member.get('value'),
@@ -271,12 +289,32 @@ export function createClassFields({
       programGate: program => {
         if (isPrivate) return false;
         closure = getClassBindingClosure(classPath, program);
-        return closure === null;
+        if (closure === null) return true;
+        // a descendant inherits the static slot: `Sub.<field> = Y` and subclass static
+        // `this.<field> = Y` mutate it just like a base write. mirror the instance path -
+        // when the subclass universe is not enumerable, bail (an unknown subclass could write)
+        descendant = closedDescendants(classPath, program);
+        if (!descendant) return true;
+        for (const sub of descendant.paths) {
+          if (sub === classPath) continue;
+          const subClosure = getClassBindingClosure(sub, program);
+          if (subClosure === null) return true;
+          descendantClosures.push(subClosure);
+        }
+        return false;
       },
       programWritesPush: (program, candidates) => {
+        // every descendant's static surface - subclass static `this.<field> = Y` / static-block
+        // writes feed the inherited slot. skip the base (internalThisScan already covered it)
+        for (const sub of descendant.paths) {
+          if (sub === classPath) continue;
+          appendThisWritesFor(getStaticMethodThisWrites(sub), fieldName, candidates);
+        }
         // static-field temporal narrow not yet modeled (any `<C>.<X>` use could be a deferred
-        // call observing static state). bound = Infinity keeps the existing fold-all behavior
-        foldExternalWrites({ fieldName, predicate: p => isReceiverInClosure(p, closure), bound: Infinity, program, out: candidates });
+        // call observing static state). bound = Infinity keeps the existing fold-all behavior.
+        // predicate matches the base class binding OR any descendant class binding (`Sub.<field> = Y`)
+        const predicate = p => isReceiverInClosure(p, closure) || descendantClosures.some(c => isReceiverInClosure(p, c));
+        foldExternalWrites({ fieldName, predicate, bound: Infinity, program, out: candidates });
       },
     });
   }

@@ -152,3 +152,37 @@ export const LOOP_STATEMENT_TYPES = new Set([
 export function isLoopStatement(node) {
   return LOOP_STATEMENT_TYPES.has(node?.type);
 }
+
+// byte-range containment: `inner`'s span sits within `outer`'s span (both need source positions)
+function hasRange(node) {
+  return node && node.start !== null && node.start !== undefined && node.end !== null && node.end !== undefined;
+}
+export function nodeRangeContains(outer, inner) {
+  return hasRange(outer) && hasRange(inner) && inner.start >= outer.start && inner.end <= outer.end;
+}
+
+// does `loopNode`'s re-executing region (body / test / for-update slot, but NOT the once-only
+// for-init slot) contain a reassignment that survives the back-edge? `bindingScopeNode` (the
+// binding's declaration-scope node) gates it: a binding whose scope lives INSIDE the loop is
+// re-created each iteration (block-scoped `let`/`const` in the body), so its in-loop reassignment is
+// straight-line, not a back-edge; a `var` scopes to the enclosing function (scope node outside the
+// loop), so it stays live. shared soundness core for the value-flow walk and the discriminant walk
+export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingScopeNode) {
+  if (bindingScopeNode && nodeRangeContains(loopNode, bindingScopeNode)) return false;
+  const initNode = loopNode.type === 'ForStatement' ? loopNode.init : null;
+  return violationNodes.some(v => nodeRangeContains(loopNode, v) && !(initNode && nodeRangeContains(initNode, v)));
+}
+
+// loop back-edge soundness for source-position-based narrows. a reassignment that re-executes on
+// the back-edge before the next-iteration use makes a narrow chosen purely by source position
+// ("last assignment before the use" / declarator-init fallback / preceding guard) stale from
+// iteration 2 onward. true when `usagePath` sits inside a loop whose re-executing region contains
+// one of `violationNodes` (a reassignment of the binding). walk stops at the function boundary -
+// mirrors the crossedBackEdgeLoop guard in narrow-by-guards.js
+export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, bindingScopeNode) {
+  if (!violationNodes?.length) return false;
+  for (let cur = usagePath, parent; (parent = cur.parentPath) && !t.isFunction(parent.node); cur = parent) {
+    if (isLoopStatement(parent.node) && loopReExecRegionHasViolation(parent.node, violationNodes, bindingScopeNode)) return true;
+  }
+  return false;
+}

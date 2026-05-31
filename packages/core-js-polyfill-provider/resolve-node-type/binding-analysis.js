@@ -360,9 +360,14 @@ export function createBindingAnalysis({
   // field, so field-flow can fold or ignore it. dynamic keys (`o[i]`, `o[f()]`) are unknowable
   function isStaticComputedKey(property) {
     const type = property?.type;
-    if (type === 'StringLiteral' || type === 'NumericLiteral' || type === 'BigIntLiteral') return true;
-    if (type === 'Literal') return true; // estree (oxc): string / number / bigint / boolean / null / regex
-    return type === 'TemplateLiteral' && property.expressions?.length === 0;
+    // ONLY a string / number literal key (`o['f']`, `o[0]`) names a field field-flow can fold or
+    // ignore. babel: StringLiteral / NumericLiteral. estree (oxc): a `Literal` whose value is a
+    // string or number. BigInt / boolean / null / regex / template keys are treated as DYNAMIC
+    // (their fold isn't reliable, so the write stays a leak that bails the narrow) - this also
+    // aligns the parsers, which disagreed on the bool case (babel had no BooleanLiteral entry,
+    // oxc's bare `type === 'Literal'` admitted it)
+    if (type === 'StringLiteral' || type === 'NumericLiteral') return true;
+    return type === 'Literal' && (typeof property.value === 'string' || typeof property.value === 'number');
   }
 
   // `o[k] = v` / `o[k]++` / `delete o[k]` with a dynamic key: an unmonitored write to ANY field
