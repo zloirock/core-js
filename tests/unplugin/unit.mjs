@@ -1902,6 +1902,46 @@ function checkUsagePurePhasePostWrapperEmitsImports() {
 }
 checkUsagePurePhasePostWrapperEmitsImports();
 
+// --- usage-pure standalone phase: 'pre' wrapper dispatches `pass='single'` ---
+// regression lock for the 70-1 test gap: the wrapper at unplugin/index.js maps a standalone
+// `phase: 'pre'` to `pass='single'`, NOT `pass='pre'`. dispatching `'pre'` for a standalone
+// build sets `deferImports=true` (it expects a follow-up post pass that never comes) and
+// emits zero imports silently. mirrors the phase:'post' lock above on the pre side
+function checkUsagePurePhasePreWrapperEmitsImports() {
+  const subs = unplugin.raw({ method: 'usage-pure', phase: 'pre', targets: { ie: '11' } }, { framework: 'vite' });
+  check('usage-pure phase: pre yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  const result = subs[0]?.transform?.call({ warn: msg => msg }, 'export var x = "test".at(-1);', '/pre-probe.mjs');
+  const importLines = (result?.code ?? '').split('\n').filter(l => l.startsWith('import '));
+  check('usage-pure phase: pre wrapper emits pure imports (pass=single, not deferred)', importLines.length > 0, true);
+}
+checkUsagePurePhasePreWrapperEmitsImports();
+
+// --- deeply-nested body-wraps compose correctly (iterative post-order) ---
+// regression lock for the scope-tracker body-wrap composition: `#composeBodyWrapText` walks the
+// wrap nesting iteratively (heap stack, no per-level re-filter, no recursion-depth footgun). the
+// input nests `depth` genuine body-wraps - the triply-nested flatten-sibling fixture shape scaled
+// up well past any handful. every level must emit exactly one `var _ref`; a composition that
+// truncated deep wraps (e.g. a re-introduced depth cap below `depth`) would emit fewer
+function checkDeeplyNestedBodyWrapsCompose() {
+  const depth = 500;
+  let expr = `[${ depth }].at(0)`;
+  for (let k = depth - 1; k >= 1; k--) expr = `[${ k }].at(0) + ((() => ${ expr })())`;
+  const source = `const { Array: { from } } = globalThis, sibling = () => ${ expr };\nconsole.log(from, sibling());`;
+  const subs = unplugin.raw({ method: 'usage-pure', targets: { ie: '11' } }, { framework: 'vite' });
+  let result = null;
+  let threw = false;
+  try {
+    result = subs[0]?.transform?.call({ warn: msg => msg }, source, '/deep-nest-probe.mjs');
+  } catch {
+    threw = true;
+  }
+  check('deeply-nested body-wraps transform without throwing', threw, false);
+  // one `var _ref` per composed wrap; the substring also matches `var _ref2` etc.
+  const refCount = (result?.code ?? '').split('var _ref').length - 1;
+  check('deeply-nested body-wraps emit one var _ref per level (all composed)', refCount, depth);
+}
+checkDeeplyNestedBodyWrapsCompose();
+
 // --- bundler diagnostic captured by warn hijack ---
 // `unknown bundler` value triggers `console.warn` at plugin instantiation. unit test
 // asserts that the warn is observable via console.warn (test-runner's captureTransform
