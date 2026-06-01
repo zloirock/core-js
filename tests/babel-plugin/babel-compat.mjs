@@ -590,33 +590,49 @@ for (const { kind, code, pick, to } of DEOPT_CASES) {
 
 // --- replaceInstanceChainCombined ---
 
-// outer call with non-optional inner: emits a ConditionalExpression with `||`-chained tests.
+// non-optional inner (`arr.at`) + non-optional outer: reading `.at` on a nullish receiver must
+// THROW like native, so the receiver guard folds INTO the method-get assignment rather than
+// emitting a separate `null == arr` test. with no `?.` anywhere in the chain there is a single
+// `null == (_m = _at(arr))` test, so `.test` is a bare BinaryExpression, not an OR-chain.
 // `scope.push({id})` for memoized refs injects `var _refN, ...;` at program top; rewritten
 // expression lives at the trailing ExpressionStatement
 {
   const { helpers, program, ast } = setup('arr.at(0).includes(1);');
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', outerId: '_includes', innerId: '_at' });
-  // shape: `(<test1> || <test2>) ? void 0 : _includes.call(<obj>, 1)`
+  // shape: `null == (_m = _at(arr)) ? void 0 : _includes(...).call(...)`
   checkTruthy('replaceInstanceChainCombined/emits ConditionalExpression',
     exprStmt.expression.type === 'ConditionalExpression');
-  checkTruthy('replaceInstanceChainCombined/test is OR-chain',
-    exprStmt.expression.test.type === 'LogicalExpression'
-    && exprStmt.expression.test.operator === '||');
+  checkTruthy('replaceInstanceChainCombined/non-optional folds receiver into single test',
+    exprStmt.expression.test.type === 'BinaryExpression'
+    && exprStmt.expression.test.operator === '==');
 }
 
-// outer `?.method` optional: extra v-ref intermediate null-test in the OR-chain
+// count OR-chained tests by walking the left spine of the `||` chain
+function countOr(n) {
+  return n.type === 'LogicalExpression' && n.operator === '||'
+    ? countOr(n.left) + 1
+    : 1;
+}
+
+// non-optional inner + optional outer (`?.includes`): the outer `?.` adds a v-ref null-test for
+// the inner result, but the non-optional inner still folds its receiver - so 2 OR-tests
+// (m-ref null, v-ref null), NOT 3
 {
   const { helpers, program, ast } = setup('arr.at(0)?.includes(1);');
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', optional: true, outerId: '_includes', innerId: '_at' });
-  // OR-chain has 3 tests (a-ref null, m-ref null, v-ref null) - count by walking left chain
-  function countOr(n) {
-    return n.type === 'LogicalExpression' && n.operator === '||'
-      ? countOr(n.left) + 1
-      : 1;
-  }
   check('replaceInstanceChainCombined/optional outer adds v-ref test',
+    countOr(exprStmt.expression.test), 2);
+}
+
+// optional inner (`arr?.at`) + optional outer: the optional inner access emits its own
+// `null == arr` receiver guard, so the full OR-chain has 3 tests (a-ref, m-ref, v-ref null)
+{
+  const { helpers, program, ast } = setup('arr?.at(0)?.includes(1);');
+  const exprStmt = runChainCombined(helpers, program, ast,
+    { outerName: 'includes', optional: true, outerId: '_includes', innerId: '_at' });
+  check('replaceInstanceChainCombined/optional inner adds receiver test',
     countOr(exprStmt.expression.test), 3);
 }
 
