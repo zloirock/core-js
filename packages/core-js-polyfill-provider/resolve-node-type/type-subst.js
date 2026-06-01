@@ -291,10 +291,16 @@ export function createTypeSubst({
   // TSTypeLiteral case routes through here to avoid duplicating the slot-iteration pattern
   function substMemberAnnotations({ member, subst, depth = 0, visited = null }) {
     if (!member || typeof member !== 'object') return member;
+    // a method-like member's signature-local typeParameters (`bar<T>(): T`) shadow the outer subst.
+    // for the return / value annotation, remap them to `unknown` (not just drop): a dropped `T`
+    // stays a bare reference that the downstream resolver re-binds to the receiver's concrete arg
+    // via scope lookup, mis-narrowing the unconstrained return; `unknown` keeps it generic.
+    // identity-preserving for non-generic members so property / index signatures are unaffected
+    const returnSubst = shadowMethodTypeParams(member.typeParameters, subst);
     let cloned = null;
     for (const slot of MEMBER_ANNOTATION_SLOTS) {
       if (!member[slot]) continue;
-      const next = applyAliasSubstDeep(member[slot], subst, depth, visited);
+      const next = applyAliasSubstDeep(member[slot], returnSubst, depth, visited);
       if (next === member[slot]) continue;
       cloned ??= { ...member };
       cloned[slot] = next;
@@ -338,10 +344,28 @@ export function createTypeSubst({
   // TSMethodSignature path in `substMemberAnnotations`. inner names listed in `typeParameters`
   // shadow outer subst entries of the same name; identity-preserving when no collision so
   // memoize keys remain stable
+  // a signature's own type-parameter names (`<T, U>`), filtered to plain string identifiers
+  function signatureTypeParamNames(typeParameters) {
+    return typeParameters?.params?.map(typeParamName).filter(n => typeof n === 'string');
+  }
+
   function dropTypeParamSubst(typeParameters, subst) {
-    const innerNames = typeParameters?.params
-      ?.map(typeParamName).filter(n => typeof n === 'string');
+    const innerNames = signatureTypeParamNames(typeParameters);
     return innerNames?.length ? dropMapKeys(subst, new Set(innerNames)) : subst;
+  }
+
+  // like `dropTypeParamSubst`, but for a return / value annotation: remaps each signature-local
+  // `<T>` to `unknown` instead of dropping it. a bare dropped `T` re-binds to the receiver's
+  // concrete arg via the downstream scope lookup (`o.bar()` on `C<string>` narrows the
+  // unconstrained `bar<T>(): T` return to string); remapping to `unknown` keeps it generic.
+  // identity-preserving when the signature declares no own type-params
+  function shadowMethodTypeParams(typeParameters, subst) {
+    const innerNames = signatureTypeParamNames(typeParameters);
+    if (!innerNames?.length) return subst;
+    // `new Map(null)` yields an empty map, so this handles both a null outer subst and a Map
+    const out = new Map(subst);
+    for (const name of innerNames) out.set(name, { type: 'TSUnknownKeyword' });
+    return out;
   }
 
   function reset() {

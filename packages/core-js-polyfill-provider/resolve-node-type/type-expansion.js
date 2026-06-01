@@ -24,6 +24,7 @@ import {
   RENAME_SKIP,
   SINGLE_ELEMENT_COLLECTIONS,
   STRUCTURAL_WALK_SKIP_KEYS,
+  literalNodeValue,
   quasiText,
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
@@ -458,19 +459,6 @@ export function createTypeExpansion({
     return null;
   }
 
-  // extract the runtime value of a TS-literal-type's inner literal node. handles both bare
-  // literals (`5`, `'s'`, `true`) and `-N`-style numeric negations (parsed as UnaryExpression
-  // with a positive NumericLiteral child). returns undefined when the shape isn't a
-  // statically-known literal value (template strings, expressions, ...)
-  function literalNodeValue(literal) {
-    if (!literal) return undefined;
-    if (literal.value !== undefined) return literal.value;
-    if (literal.type === 'UnaryExpression' && literal.operator === '-' && literal.argument?.value !== undefined) {
-      return -literal.argument.value;
-    }
-    return undefined;
-  }
-
   // detect AST-level concrete-empty shapes (`[]`, `{}`) that signal a syntactically definite
   // disjoint check vs a non-empty inner. peeled-from-Paren so `([])` matches too. post-resolve
   // inner-less artefacts (e.g. `[infer X, X]` where infer doesn't bind) DON'T match this
@@ -502,6 +490,13 @@ export function createTypeExpansion({
     // another primitive and return false (wrong branch). symmetric to `extends never`
     // handled by the "object check vs primitive extend" rule already returning false
     if (check.type === 'never') return true;
+    // literal precision: `2 extends 1` is false even though both widen to `number`.
+    // resolveLiteralType stamps each side's source literal value; two literal-bearing
+    // primitives are disjoint unless their values are strictly equal (cross-family `2`
+    // vs `'2'` also disjoint). only fires when BOTH carry a literal - a bare-keyword side
+    // (`number extends 1`) has no stamp and folds through the family rules below. mirrors
+    // pickConditionalBranchByAST's literal comparison for the direct-binding (Type-object) path
+    if (check.literal !== undefined && extend.literal !== undefined) return check.literal === extend.literal;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
       // extends has no inner constraint. three sub-cases distinguished by caller-supplied flags:
