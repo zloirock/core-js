@@ -180,7 +180,7 @@ export function createNameResolution({ t }) {
   // `leafMatch` is the predicate the LEAF declaration must satisfy - defaults to type-bearing
   // (alias / interface / class / enum) for findTypeDeclaration; typeof-name resolution swaps
   // in `isFunctionOrClassDeclaration` to also surface `declare function fn` inside a namespace
-  function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration }) {
+  function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration, visited = new Set() }) {
     if (!Array.isArray(statements) || !segments.length) return null;
     const [head, ...rest] = segments;
     for (const statement of statements) {
@@ -196,10 +196,16 @@ export function createNameResolution({ t }) {
       // (`import X = require('m')`) has TSExternalModuleReference which `collectQualified
       // Segments` rejects (non-Identifier slot), so it correctly bails without misrouting
       if (decl.type === 'TSImportEqualsDeclaration' && decl.id?.name === head && rest.length) {
+        // cyclic alias (`import A = A.B`, mutual `import A = B; import B = A`) re-walks the same
+        // statement list with an ever-growing segment array - without a visited-set the recursion
+        // never bottoms out and throws RangeError, aborting the whole transform. bail on re-entry
+        // of the same alias decl so a cyclic alias degrades to null (generic narrow) instead
+        if (visited.has(decl)) continue;
+        visited.add(decl);
         const refSegments = collectQualifiedSegments(decl.moduleReference);
         if (refSegments?.length) {
           const inner = walkStatementsForDecl({
-            segments: [...refSegments, ...rest], statements, collect, leafMatch,
+            segments: [...refSegments, ...rest], statements, collect, leafMatch, visited,
           });
           if (inner && !collect) return inner;
         }
@@ -212,7 +218,7 @@ export function createNameResolution({ t }) {
       // of segment count so both `Box` (bare) and `NS.Foo` (qualified via `declare global {
       // namespace NS {} }`) resolve through it
       if (isGlobalAugmentation(decl)) {
-        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch });
+        const inner = walkStatementsForDecl({ segments, statements: moduleStatements(decl), collect, leafMatch, visited });
         if (inner && !collect) return inner;
         continue;
       }
@@ -225,7 +231,7 @@ export function createNameResolution({ t }) {
       if (rest.length === 0) continue;
       if (!startsWithSegments(segments, moduleSegs)) continue;
       const inner = walkStatementsForDecl({
-        segments: segments.slice(moduleSegs.length), statements: moduleStatements(decl), collect, leafMatch,
+        segments: segments.slice(moduleSegs.length), statements: moduleStatements(decl), collect, leafMatch, visited,
       });
       if (inner && !collect) return inner;
     }
