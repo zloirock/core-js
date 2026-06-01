@@ -584,6 +584,17 @@ export function createUsageVisitors({
             return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
           }
         }
+        // inner-default inside an ArrayPattern wrapper (`[{ from } = {}]` / `[, { from } = {}]`):
+        // the AssignmentPattern is transparent, resolve via the array-wrapper resolver (which peels
+        // it). mirrors babel-plugin's detect-usage ArrayPattern branch
+        if (parent.parentPath?.node?.type === 'ArrayPattern' && parent.node.left === objectPattern.node) {
+          const innerKey = extractPropertyKey(propNode, scope);
+          const constructor = innerKey
+            ? sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter) : null;
+          if (constructor) {
+            return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
+          }
+        }
         break;
       case 'Property': {
         // nested pattern - shared `resolveNestedDestructureReceiver` walks outer-prop chain
