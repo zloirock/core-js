@@ -451,13 +451,22 @@ function findShorthandKey(objectPattern, bindingName, scope, adapter) {
 function peelDestructureWrappers(pattern) {
   let prev = pattern.node;
   let parent = pattern.parentPath;
-  let arrayDepth = 0;
-  while (parent && isTransparentDestructureWrapper(parent.node, prev)) {
-    if (parent.node.type === 'ArrayPattern') arrayDepth++;
+  // element index at each ArrayPattern wrapper (outermost-first via unshift) so the init
+  // descent picks the matching slot. multi-element ArrayPatterns are see-through HERE (this is
+  // read-only receiver resolution, not the flatten emit that must preserve sibling bindings),
+  // so `[{Array:{from}}, other] = [globalThis, ...]` resolves `from` to globalThis.Array.from
+  const indices = [];
+  for (;;) {
+    if (!parent) break;
+    if (parent.node.type === 'ArrayPattern') {
+      const idx = parent.node.elements.indexOf(prev);
+      if (idx === -1) break;
+      indices.unshift(idx);
+    } else if (!isTransparentDestructureWrapper(parent.node, prev)) break;
     prev = parent.node;
     parent = parent.parentPath;
   }
-  return { parent, arrayDepth };
+  return { parent, indices };
 }
 
 // follow const-bound Identifier through its init at each hop, peeling parens / chain / TS /
@@ -507,24 +516,16 @@ function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = 
 // counting depth; descends the host's init slot through Identifier aliases and ArrayExpression
 // layers. returns the leaf constructor name when it's a recognised static placement
 export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, adapter) {
-  let cur = innerObjectPattern;
-  // record the element index at each ArrayPattern wrapper (innermost-first) so the init
+  // peel ArrayPattern wrappers (and transparent inner-default AssignmentPattern / single-element
+  // wrappers) up to the host, collecting each wrapper's element index outermost-first so the init
   // descent picks the matching slot, not a blind `[0]` - `const [, { from }] = [Set, Array]`
-  const innerFirstIndices = [];
-  while (cur.parentPath?.node?.type === 'ArrayPattern') {
-    const index = cur.parentPath.node.elements.indexOf(cur.node);
-    if (index === -1) return null;
-    innerFirstIndices.push(index);
-    cur = cur.parentPath;
-  }
-  if (innerFirstIndices.length === 0) return null;
-  const host = cur.parentPath;
+  const { parent: host, indices } = peelDestructureWrappers(innerObjectPattern);
+  if (indices.length === 0) return null;
   const slot = flattenableHostSlot(host?.node, host);
   if (!slot) return null;
   const slotNode = host.node[slot];
   if (!slotNode) return null;
-  // descent runs outermost-first; the walk-up collected innermost-first, so reverse
-  const descended = descendArrayWrapperInit(slotNode, innerFirstIndices.toReversed(), host.scope, adapter, host);
+  const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host);
   if (!descended) return null;
   const leaf = unwrapExpressionChain(descended);
   if (leaf?.type !== 'Identifier') return null;
@@ -559,28 +560,27 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
 function computeNestedDestructureReceiver(outerProp, adapter) {
   const keys = [];
   let cur = outerProp;
-  // arrayDepth accumulates across iterations - ArrayPattern wrappers between
-  // intermediate Property hops contribute to the host-level descent. without accumulation,
-  // an inner-iteration ArrayPattern wrapper would be silently dropped when `cur = parent`
-  // advances to the next outer Property, and the host descent would lie about the
-  // runtime structure
-  let totalArrayDepth = 0;
+  // ArrayPattern wrapper indices accumulate across iterations (outermost-first) - a wrapper at an
+  // outer Property hop is more outer than one at an inner hop, so its indices go in front. without
+  // accumulation an inner-iteration wrapper would be dropped when `cur = parent` advances to the
+  // next outer Property, and the host descent would lie about the runtime structure
+  let allIndices = [];
   for (;;) {
     const pattern = cur.parentPath;
     if (pattern?.node?.type !== 'ObjectPattern') return null;
     const key = sharedResolveKey({ node: cur.node.key, computed: cur.node.computed, scope: pattern.scope, adapter });
     if (!key) return null;
     keys.unshift(key);
-    const { parent, arrayDepth } = peelDestructureWrappers(pattern);
-    totalArrayDepth += arrayDepth;
+    const { parent, indices } = peelDestructureWrappers(pattern);
+    allIndices = [...indices, ...allIndices];
     // shared `flattenableHostSlot` returns 'init' for VariableDeclarator,
     // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise
     const slot = flattenableHostSlot(parent?.node, parent);
     const slotNode = slot ? parent.node[slot] : null;
-    // transparent ArrayPattern wrappers are single-element (isTransparentDestructureWrapper),
-    // so every level descends index 0 - pass a zeros vector for descendArrayWrapperInit's index list
-    const receiverNode = totalArrayDepth
-      ? descendArrayWrapperInit(slotNode, Array.from({ length: totalArrayDepth }, () => 0))
+    // descend the init through each ArrayPattern wrapper at its recorded element index
+    // (`[, { from }]` descends index 1, not a blind 0)
+    const receiverNode = allIndices.length
+      ? descendArrayWrapperInit(slotNode, allIndices)
       : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`

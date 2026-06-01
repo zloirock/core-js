@@ -310,10 +310,14 @@ export function createUsageVisitors({
     } else if (parent.isObjectProperty()) {
       emitNestedDestructureMeta(path, parent);
       return;
-    } else if (parent.isArrayPattern()) {
-      // ArrayPattern-rooted nested destructure `const [{from}] = wrapper` - walk up the
-      // ArrayPattern stack to the host and descend Identifier-aliased ArrayExpression wrappers
-      // to find the leaf constructor. fall through to typeless meta when no resolution
+    } else if (parent.isArrayPattern()
+      || (parent.isAssignmentPattern() && parent.node.left === objectPattern.node
+        && parent.parentPath?.isArrayPattern())) {
+      // ArrayPattern-rooted nested destructure `const [{from}] = wrapper` (or with a transparent
+      // inner-default `const [{from} = {}] = wrapper`, where the AssignmentPattern wraps the
+      // ObjectPattern as an ArrayPattern element) - walk up the ArrayPattern stack to the host
+      // and descend Identifier-aliased ArrayExpression wrappers to find the leaf constructor;
+      // the shared resolver peels the inner-default wrapper. fall through to typeless when none
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
       const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
