@@ -151,13 +151,23 @@ export function createGlobalResolve({
     });
   }
 
+  // oxc preserves ParenthesizedExpression (babel drops it at parse); peel it off a path so a
+  // parenthesized global / proxy-global callee (`(Array)`, `(globalThis).Map`, member object
+  // `(globalThis.Array).from`, `class C extends (Array)`) resolves identically on both parsers
+  // instead of under-narrowing on the oxc path
+  function peelParenthesizedPath(path) {
+    while (path.node?.type === 'ParenthesizedExpression') path = path.get('expression');
+    return path;
+  }
+
   function resolveGlobalName(path) {
+    path = peelParenthesizedPath(path);
     if (t.isIdentifier(path.node)) {
       if (!hasRuntimeBinding(path.scope, path.node.name)) return path.node.name;
       return resolveAliasedGlobalName(path) ?? resolveDestructuredGlobalName(path);
     }
     if (!isMemberLike(path)) return null;
-    const object = path.get('object');
+    const object = peelParenthesizedPath(path.get('object'));
     if (!isGlobalProxy(object)) return null;
     // memberKeyName covers `globalThis.Map` and `globalThis['Map']` (literal computed key),
     // returning null for dynamic computed keys so they keep generic dispatch

@@ -14,8 +14,8 @@
 // and `resolveNonNullableAnnotation` live in the factory (they're consumed both inside this
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
-import { $Object, $Primitive } from './base.js';
-import { typeRefSegments } from './ast-shapes.js';
+import { $Object, $Primitive, literalNodeValue } from './base.js';
+import { isMethodShapeMember, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -284,19 +284,26 @@ export function createTypeAnnotationResolve({
   // TS literal types: 'hello', 42, true, etc.
   function resolveLiteralType(node) {
     if (!node.literal) return null;
-    switch (babelNodeType(node.literal)) {
-      case 'StringLiteral':
+    const { literal } = node;
+    switch (babelNodeType(literal)) {
+      // TemplateLiteral has no single static value - widen to `string` with no literal stamp
       case 'TemplateLiteral':
         return new $Primitive('string');
+      case 'StringLiteral':
+        return new $Primitive('string', literal.value);
       case 'NumericLiteral':
-        return new $Primitive('number');
+        return new $Primitive('number', literal.value);
       case 'BooleanLiteral':
-        return new $Primitive('boolean');
+        return new $Primitive('boolean', literal.value);
       case 'BigIntLiteral':
-        return new $Primitive('bigint');
-      // signed-numeric literal types: `-1` / `-1n` wrap UnaryExpression around the magnitude
-      case 'UnaryExpression':
-        return new $Primitive(isLiteralOf(node.literal.argument, 'BigInt') ? 'bigint' : 'number');
+        return new $Primitive('bigint', literal.value);
+      // signed-numeric literal types: `-1` / `-1n` wrap UnaryExpression around the magnitude.
+      // stamp the negated number via the shared extractor; bigint magnitudes stay unstamped
+      // (literalNodeValue would coerce the string magnitude to a number, the wrong family)
+      case 'UnaryExpression': {
+        const isBig = isLiteralOf(literal.argument, 'BigInt');
+        return new $Primitive(isBig ? 'bigint' : 'number', isBig ? undefined : literalNodeValue(literal));
+      }
     }
     return null;
   }
@@ -340,6 +347,10 @@ export function createTypeAnnotationResolve({
     const members = getTypeMembers({ objectType: node.objectType, scope });
     if (!members) return null;
     const valueAnnotations = members
+      // a (non-getter) method's value is a Function with no instance-method narrow, not its return
+      // type - mirrors the single-key `T['method']` path. getters / property signatures contribute
+      // their value / return type as usual
+      .filter(m => !(isMethodShapeMember(m.type) && m.kind !== 'get'))
       .map(m => m.typeAnnotation ?? m.returnType)
       .filter(Boolean);
     if (!valueAnnotations.length) return null;
