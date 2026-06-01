@@ -66,8 +66,14 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
   // outer `exitTypes` set
   if (node.type === 'SwitchStatement') {
     let hasDefault = false;
-    for (const $case of node.cases) {
+    const { cases } = node;
+    for (let i = 0; i < cases.length; i++) {
+      const $case = cases[i];
       if ($case.test === null) hasDefault = true;
+      // empty consequent falls through to the next case - defer its exit status (a stacked
+      // `case 1: case 2: return;` exits via case 2). only the trailing case can't fall through
+      // past the switch, so an empty consequent there is a real non-exit
+      if (!$case.consequent.length && i < cases.length - 1) continue;
       if (!$case.consequent.some(stmt => alwaysExitsWithKind(stmt, depth + 1, FUNCTION_EXIT_STATEMENTS, blockedLabels))) {
         return false;
       }
