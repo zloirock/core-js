@@ -4,6 +4,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // as a regular identifier access and polyfills through Array.from
 class C extends Array {
   static {
-    _Array$from([1, 2, 3]);
+    _Array$from.call(this, [1, 2, 3]);
   }
 }
