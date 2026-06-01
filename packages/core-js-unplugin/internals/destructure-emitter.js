@@ -10,6 +10,7 @@
 import {
   findEnclosingFunctionLikePath,
   FUNCTION_LIKE_NODE_TYPES,
+  findArrayWrappedDestructureHost,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
   isBindingPosition,
@@ -1501,6 +1502,37 @@ export function createDestructureEmitter({
     return { kind: pureResult.kind, binding: injectPureImport(pureResult.entry, pureResult.hintName) };
   }
 
+  // multi-element ArrayPattern wrapping the consumed ObjectPattern (`const [, { from }] = [Set, Array]`,
+  // or nested `const [{ Array: { from } }, other] = [globalThis, {...}]`): the cascade flatten can't
+  // drop the declarator without losing the sibling / hole bindings, so extract the static into a
+  // `const <local> = _Polyfill` before the host and rename the consumed key to `_unused` in place,
+  // leaving the residual array destructure (siblings, holes, init array) intact - "polyfill always
+  // wins" without disturbing the other targets. mirrors babel-plugin's `tryExtractArrayWrappedStatic`.
+  // static keys only: an instance method needs a concrete receiver the residual array slot can't supply
+  function tryExtractArrayWrappedStaticPure(meta, metaPath, propNode) {
+    const localId = propBindingIdentifier(propNode.value);
+    if (!localId) return false;
+    const pureResult = resolvePure(meta, metaPath);
+    // static keys only: an instance method needs a concrete receiver the residual array can't supply
+    if (!pureResult || pureResult.kind === 'instance') return false;
+    const host = findArrayWrappedDestructureHost(metaPath.parentPath);
+    if (!host?.hasMultiElementArray) return false;
+    const declaration = host.declarator.parentPath;
+    if (declaration?.node?.type !== 'VariableDeclaration') return false;
+    const isExport = declaration.parentPath?.node?.type === 'ExportNamedDeclaration';
+    const hostNode = isExport ? declaration.parentPath.node : declaration.node;
+    const binding = injectPureImport(pureResult.entry, pureResult.hintName);
+    const kw = isExport ? `export ${ declaration.node.kind }` : declaration.node.kind;
+    transforms.insert(hostNode.start, `${ kw } ${ localId.name } = ${ binding };\n`);
+    // rename the consumed key to `_unused`: the residual array destructure keeps its shape
+    const keySrc = propNode.computed ? `[${ nodeSrc(propNode.key) }]` : propNode.key.name;
+    transforms.add(propNode.start, propNode.end, `${ keySrc }: ${ injector.generateUnusedName() }`);
+    injector.registerBodyExtractAlias(localId.name, pureResult.entry, metaPath.scope.getBinding(localId.name));
+    skippedNodes.add(propNode);
+    if (propNode.value) skippedNodes.add(propNode.value);
+    return true;
+  }
+
   function handleDestructuringPure(meta, metaPath, propNode) {
     if (isFunctionParamDestructureParent(metaPath.parentPath)) {
       return handleParameterDestructurePure(meta, metaPath, propNode);
@@ -1521,6 +1553,9 @@ export function createDestructureEmitter({
         && outerHost.node.elements[0] === metaPath.parentPath?.node) {
       outerHost = outerHost.parentPath;
     }
+    // multi-element ArrayPattern wrapper (`[, {from}]` / `[{Array:{from}}, other]`): extract the
+    // static + keep the residual; the cascade / inline-default paths below can't preserve siblings
+    if (tryExtractArrayWrappedStaticPure(meta, metaPath, propNode)) return;
     if (outerHost?.node?.type === 'Property') {
       if (tryFlattenNestedProxy(metaPath)) return;
       if (tryFlattenAssignmentExpression(metaPath)) return;
@@ -1539,8 +1574,9 @@ export function createDestructureEmitter({
     if (meta.fromFallback) return tryFromFallbackPerBranchSynth(metaPath, propNode);
     const patternHasRest = metaPath.parent?.properties?.some(
       p => p.type === 'RestElement' || p.type === 'SpreadElement');
-    if (patternHasRest && metaPath.parentPath?.parentPath?.parentPath?.parentPath?.node?.type
-        === 'ExportNamedDeclaration') return;
+    // export + rest of a static polyfills like the nested-proxy export+rest path: the consumed
+    // key renames to `_unused` (a named export, as nested also emits) rather than skipping and
+    // leaving the static native ("polyfill always wins"). matches babel-plugin
     const { value } = propNode;
     // bail BEFORE seeding `skippedNodes` below: a nested ObjectPattern value
     // (`{[Symbol.iterator]: {next}}`) fails `propBindingIdentifier` and exits here. seeding the
@@ -1736,11 +1772,15 @@ export function createDestructureEmitter({
         const e = entryByProp.get(p);
         if (!e) return composedRangeSrc(p);
         const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : nodeSrc(p.key);
-        // symbol-key keeps original localName (the destructure binds it directly);
-        // other entries already extracted via standalone let-decl above, so reserve a
+        // symbol-key keeps original localName (the destructure binds it directly) and must
+        // re-attach its captured default - the standalone let-decl path that folds defaults is
+        // skipped for symbol-key, so omitting it here binds the local to undefined when the key
+        // is absent. other entries already extracted via standalone let-decl above, so reserve a
         // `_unused` slot just for the rest gather to skip the polyfilled key
-        const valueName = e.kind === 'symbol-key' ? e.localName : injector.generateUnusedName();
-        return `${ keySrc }: ${ valueName }`;
+        if (e.kind === 'symbol-key') {
+          return `${ keySrc }: ${ e.localName }${ e.composedDefaultSrc ? ` = ${ e.composedDefaultSrc }` : '' }`;
+        }
+        return `${ keySrc }: ${ injector.generateUnusedName() }`;
       });
       lines.push(`let { ${ rebuiltProps.join(', ') } } = ${ ref };`);
     }
