@@ -386,6 +386,25 @@ function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObj
 // `meta.object === null` (receiver Identifier didn't match `isStaticPlacement` - bound local
 // variable), marking the receiver is correct: a local binding shouldn't produce a polyfill
 // import via the identifier visitor, so suppression is the right behaviour
+// findProxyGlobal only matches a LITERAL proxy-global root (`globalThis.Map`). a root bound to a
+// proxy-global through an alias (`var g = globalThis; g.Map`) is NOT matched, so the intermediate
+// `g.Map` constructor member stays unmarked and unplugin queues a `g.Map -> _Map` rewrite that
+// overlaps the outer `_Map$groupBy` substitution -> transform-queue composition crash. resolve the
+// chain root's binding so an aliased proxy-global root is recognised like a literal one
+function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
+  if (!scope || !adapter) return false;
+  let obj = unwrapParens(node);
+  let depth = 0;
+  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
+    if (++depth > MAX_KEY_DEPTH) return false;
+    obj = unwrapParens(obj.object);
+  }
+  if (obj.type !== 'Identifier') return false;
+  const resolved = resolveObjectName({ objectNode: obj, scope, adapter, path });
+  // null / undefined resolved name is not in the set, so no explicit nullish guard needed
+  return POSSIBLE_GLOBAL_OBJECTS.has(resolved);
+}
+
 function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path) {
   const obj = unwrapParens(node.object);
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
@@ -401,7 +420,7 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
   // is a real runtime dependency (bare `self` is undefined in workers / strict envs otherwise)
   let current = obj;
   while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
-    && findProxyGlobal(current)) {
+    && (findProxyGlobal(current) || chainRootResolvesToProxyGlobal({ node: current, scope, adapter, path }))) {
     handledObjects.add(current);
     current = unwrapParens(current.object);
   }
