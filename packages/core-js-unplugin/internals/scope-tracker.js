@@ -22,26 +22,44 @@ function bodyContains(body, pos) {
   return pos >= body.start && pos <= body.end;
 }
 
-// pure helper: from a list of `[body, entry]` wraps, return those NOT enclosed by any
-// other wrap in the same list. shared by `consumeRefBindingsInRange` (outermost wraps in
-// the drained range) and `#composeBodyWrapText` (direct descendants within a body slice).
-// O(N log N): sort by start asc + end desc, then sweep tracking the max end seen so far.
-// after sort, all prior wraps have start <= current.start, so a current wrap is enclosed
-// iff max_end_seen >= current.end (some prior wrap's range covers it). minified single-
-// expression bundles can pile thousands of arrow body-wraps under one flatten host, so
-// quadratic enclosure-check turns destructure-flatten into a quadratic-in-AST hotspot
-function findOutermostWraps(wraps) {
-  if (wraps.length <= 1) return wraps.slice();
-  const sorted = [...wraps].sort(
-    (a, b) => a[0].start - b[0].start || b[0].end - a[0].end);
-  const result = [];
-  let maxEnd = -1;
+function pushToMap(map, key, value) {
+  const arr = map.get(key);
+  if (arr) arr.push(value);
+  else map.set(key, [value]);
+}
+
+// precompute the wrap nesting for one drained range in a single outer-first sweep (sort by
+// start asc + end desc, so every wrap lands after its ancestors): a stack of still-open
+// ancestors yields each wrap's immediate parent in one pass, and the parentless ones are the
+// outermost roots. lets `#composeBodyWrapText` do O(1) child lookups instead of re-filtering
+// the full wrap + scopedVar lists at every level (was O(W^2 + W*S) - quadratic on the
+// thousands-of-arrows minified-bundle shape). returns:
+//   roots        - outermost wraps (not enclosed by any other), emitted as top-level splices
+//   childrenMap  - body -> its immediate child wraps
+//   scopedVarMap - body -> scopedVar splices whose innermost enclosing wrap it is (ones inside
+//                  no wrap stay out of the map and are emitted as plain splices by the caller)
+function buildWrapNesting(wraps, scopedVarSplices) {
+  const sorted = [...wraps].sort((a, b) => a[0].start - b[0].start || b[0].end - a[0].end);
+  const childrenMap = new Map();
+  const roots = [];
+  const stack = [];
   for (const wrap of sorted) {
-    if (maxEnd >= wrap[0].end) continue;
-    result.push(wrap);
-    maxEnd = wrap[0].end;
+    const [body] = wrap;
+    while (stack.length && stack.at(-1)[0].end < body.end) stack.pop();
+    const parent = stack.at(-1);
+    if (parent) pushToMap(childrenMap, parent[0], wrap);
+    else roots.push(wrap);
+    stack.push(wrap);
   }
-  return result;
+  // scopedVars are rare (catch-clause / block-scoped emit), so the last-container scan stays
+  // cheap; the eliminated cost was the per-level wrap re-filter, not this
+  const scopedVarMap = new Map();
+  for (const sv of scopedVarSplices) {
+    let innermost = null;
+    for (const wrap of sorted) if (bodyContains(wrap[0], sv.start)) innermost = wrap;
+    if (innermost) pushToMap(scopedVarMap, innermost[0], sv);
+  }
+  return { roots, childrenMap, scopedVarMap };
 }
 
 export default class ScopeTracker {
@@ -210,14 +228,14 @@ export default class ScopeTracker {
     // so a sibling scopedVar (insert at later pos) applies first then the bodyWrap overwrite
     // [B,E] uses ORIGINAL-source coords to slice the post-insert string, dropping the
     // scopedVar text entirely AND truncating the body content shifted by the insert length
-    const outermostWraps = findOutermostWraps(wrapsInRange);
+    const { roots, childrenMap, scopedVarMap } = buildWrapNesting(wrapsInRange, scopedVarSplices);
     const splices = scopedVarSplices.filter(
-      sv => !outermostWraps.some(([body]) => bodyContains(body, sv.start)));
-    for (const [body, entry] of outermostWraps) {
+      sv => !roots.some(([body]) => bodyContains(body, sv.start)));
+    for (const [body, entry] of roots) {
       splices.push({
         start: body.start,
         end: body.end,
-        content: this.#composeBodyWrapText(body, entry, wrapsInRange, scopedVarSplices),
+        content: this.#composeBodyWrapText(body, entry, childrenMap, scopedVarMap),
       });
     }
     return splices;
@@ -241,42 +259,49 @@ export default class ScopeTracker {
     return [];
   }
 
-  // build body-wrap text with DIRECT descendant body-wraps + scopedVar inserts composed into
-  // the slice. recursion handles deeper-level body-wraps - each level composes only its
-  // immediate children, child's own compose handles grandchildren. scopedVars inside any
-  // nested wrap pass through to that wrap's recursive call instead of landing here so each
-  // var declaration appears exactly once at the right block level. splicing iterates
-  // descendants in descending start order so earlier-position splices don't shift later-
-  // position offsets
-  #composeBodyWrapText(body, entry, allWrapsInRange, allScopedVarSplices = []) {
-    const inside = allWrapsInRange.filter(([other]) => other !== body
-      && other.start >= body.start && other.end <= body.end);
-    const direct = findOutermostWraps(inside).sort((a, b) => b[0].start - a[0].start);
-    // scopedVars inside this body but NOT inside any nested wrap (the nested wrap's
-    // recursive call will absorb its own scopedVars). without this filter, the same var
-    // declaration would appear at multiple block levels
-    const directScopedVars = allScopedVarSplices.filter(
-      sv => bodyContains(body, sv.start)
-        && !inside.some(([innerBody]) => bodyContains(innerBody, sv.start)));
-    let slice = this.#code.slice(body.start, body.end);
-    // merge body-wraps + scopedVars sorted descending by start so each splice's local offset
-    // stays valid throughout the loop (earlier positions don't shift later-iteration coords)
-    const composed = [
-      ...direct.map(([b, e]) => ({
-        start: b.start,
-        end: b.end,
-        content: this.#composeBodyWrapText(b, e, allWrapsInRange, allScopedVarSplices),
-      })),
-      ...directScopedVars,
-    ].sort((a, b) => b.start - a.start);
-    for (const sp of composed) {
-      const localStart = sp.start - body.start;
-      const localEnd = sp.end - body.start;
-      slice = slice.slice(0, localStart) + sp.content + slice.slice(localEnd);
+  // build body-wrap text with each wrap's IMMEDIATE child body-wraps + its own scopedVar inserts
+  // composed into the slice. nesting comes from `childrenMap` / `scopedVarMap` (precomputed once
+  // by buildWrapNesting) so each wrap is O(1) lookup, not a re-filter of the whole range. the
+  // traversal is ITERATIVE post-order (an explicit heap `stack`, not call recursion) so wrap
+  // nesting of ANY depth composes correctly without risking a call-stack overflow - a child's
+  // composed text is computed and cached in `textOf` before its parent splices it in. each wrap
+  // merges its children + own scopedVars in descending start order so an earlier-position splice
+  // doesn't shift a later one's local offset
+  #composeBodyWrapText(rootBody, rootEntry, childrenMap, scopedVarMap) {
+    const textOf = new Map();
+    // DFS frame: [body, entry, expanded]. first visit pushes children, second visit composes
+    // (post-order) - so every child's text is in `textOf` by the time its parent is composed
+    const stack = [[rootBody, rootEntry, false]];
+    while (stack.length) {
+      const frame = stack.at(-1);
+      const [body, entry, expanded] = frame;
+      const children = childrenMap.get(body) ?? [];
+      if (!expanded) {
+        frame[2] = true;
+        for (const child of children) stack.push([child[0], child[1], false]);
+        continue;
+      }
+      stack.pop();
+      let slice = this.#code.slice(body.start, body.end);
+      const directScopedVars = scopedVarMap.get(body) ?? [];
+      const composed = [
+        ...children.map(([childBody]) => ({
+          start: childBody.start,
+          end: childBody.end,
+          content: textOf.get(childBody),
+        })),
+        ...directScopedVars,
+      ].sort((a, b) => b.start - a.start);
+      for (const sp of composed) {
+        const localStart = sp.start - body.start;
+        const localEnd = sp.end - body.start;
+        slice = slice.slice(0, localStart) + sp.content + slice.slice(localEnd);
+      }
+      textOf.set(body, entry.kind === WRAP_KIND_ARROW
+        ? `{ var ${ entry.names.join(', ') }; return ${ slice }; }`
+        : `{ var ${ entry.names.join(', ') }; ${ slice } }`);
     }
-    return entry.kind === WRAP_KIND_ARROW
-      ? `{ var ${ entry.names.join(', ') }; return ${ slice }; }`
-      : `{ var ${ entry.names.join(', ') }; ${ slice } }`;
+    return textOf.get(rootBody);
   }
 
   applyTransforms(queue) {
