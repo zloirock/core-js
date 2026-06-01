@@ -46,6 +46,7 @@ import {
   isStaticPlacement,
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
+  proxyGlobalWrappedRoot,
   resolveObjectName as sharedResolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isViableBranchForKey, walkStaticReceiverChain } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -332,8 +333,18 @@ export function createDestructureEmitter({
   // catch-param `_ref` overwrite): drain the contained overwrites/inserts/ref-bindings and bake
   // them into the node's slice. returns the verbatim slice when nothing was queued inside it
   function composedRangeSrc(node) {
-    const splices = transforms.drainOverwritesInRange(node.start, node.end)
-      .concat(consumeRefsAndInserts(node.start, node.end));
+    // body-wrap splices (start < end, e.g. an arrow body-wrap around an instance-method call)
+    // can cover the SAME range as a queue overwrite on that call; flat-splicing both would have
+    // them overlap and corrupt output. re-queue them as overwrites FIRST so composeAndDrainRange
+    // folds them via the same equal-range/nesting logic apply() uses (mirrors how applyTransforms
+    // re-adds body-wraps to the queue). zero-length inserts (scoped-var / catch-prelude) can't be
+    // overwrites - they stay as splices the caller bakes after composition
+    const inserts = [];
+    for (const s of consumeRefsAndInserts(node.start, node.end)) {
+      if (s.start < s.end) transforms.add(s.start, s.end, s.content);
+      else inserts.push(s);
+    }
+    const splices = transforms.composeAndDrainRange(node.start, node.end).concat(inserts);
     return splices.length ? spliceInRange(nodeSrc(node), node.start, splices) : nodeSrc(node);
   }
 
@@ -1363,7 +1374,10 @@ export function createDestructureEmitter({
   function collapseRetainedProxyDefault(receiver) {
     const prefix = receiver && maximalProxyGlobalHop(receiver);
     if (!prefix) return;
-    transforms.add(findProxyGlobal(receiver).end, prefix.end, '');
+    // start the hop-deletion at the WRAPPER-inclusive root end, not the peeled identifier's:
+    // for a parenthesized root (`(globalThis).self.Array`) the identifier end lies inside the
+    // `)`, so the deletion would overlap the paren-inclusive root substitution and throw
+    transforms.add(proxyGlobalWrappedRoot(receiver).end, prefix.end, '');
   }
 
   // AssignmentPattern value (`{from = []}`): accept and polyfill via synth-swap - the
@@ -1813,7 +1827,10 @@ export function createDestructureEmitter({
     // undefined property off the global object on hosts without it (`_globalThis.self` on ie:11
     // pure / Node), breaking the emitted receiver across the target range
     const prefixEnd = maximalProxyGlobalPrefix(node).end;
-    const start = proxyRoot.start - baseStart;
+    // slice from the WRAPPER-inclusive root start, not the peeled identifier's: for a
+    // parenthesized root (`(globalThis).self.Array`) the identifier start lies after the `(`,
+    // so `src.slice(0, start)` would keep a dangling open paren while `prefixEnd` drops its match
+    const start = proxyGlobalWrappedRoot(node).start - baseStart;
     return src.slice(0, start) + injectPureImport(rootPure.entry, rootPure.hintName)
       + src.slice(prefixEnd - baseStart);
   }
@@ -1893,6 +1910,12 @@ export function createDestructureEmitter({
         flattenSiblingInfos.set(info.declaratorPath.node, info);
         continue;
       }
+      // AE analog of the bail above: a standalone-emit prop (`[Symbol.iterator]: it`, global-
+      // shorthand `Map`) sharing an assignment-expression destructure with a nested-flatten prop
+      // (`Array: { from }`) would queue a second whole-statement overwrite competing with the
+      // cascade's -> mergeEqualRange crash. when the cascade already claimed this assignment, drop
+      // the standalone overwrite and let cascadeAssignmentExpression emit the sibling prop too
+      if (info.isAssignment && flattenedAssignments.has(info.declaratorPath.node)) continue;
       const key = info.declPath.node;
       if (!byStatement.has(key)) byStatement.set(key, []);
       byStatement.get(key).push(info);
@@ -2010,10 +2033,16 @@ export function createDestructureEmitter({
         // into the lifted init text so the replaceNode-spanning overwrite below stays queue-safe.
         // both arise during sibling traversal: inner instance-method polyfills (`[1].at(0)` in an
         // IIFE-bodied init) seed the ref-binding, a catch-clause prelude seeds the insert. left in
-        // the queue either lands inside our overwrite and MagicString rejects the chunk split
-        if (initStart !== undefined && initEnd !== undefined) {
+        // the queue either lands inside our overwrite and MagicString rejects the chunk split.
+        // ONLY when the init renders from its RAW source (no split was extracted): position-aligned
+        // spliceInRange maps these original-coord splices into the verbatim slice. when extraction
+        // already returned COMPOSED split text the coords no longer align - leave them in their
+        // queues so applyTransforms re-adds body-wraps as range overwrites that fold into our
+        // statement overwrite by needle (the split text embeds the raw arg), just like the nested
+        // instance-method polyfill. baking here would mis-map; draining-then-discarding would drop it
+        if (initStart !== undefined && initEnd !== undefined && initTransformed === initSrc) {
           const splices = consumeRefsAndInserts(initStart, initEnd);
-          if (splices.length && initTransformed === initSrc) {
+          if (splices.length) {
             initTransformed = spliceInRange(initSrc, initStart, splices);
           }
         }

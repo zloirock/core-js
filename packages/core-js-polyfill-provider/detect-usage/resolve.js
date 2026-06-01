@@ -665,6 +665,24 @@ export function findProxyGlobal(node) {
   return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
 }
 
+// like `findProxyGlobal`, but returns the root WITH any wrapper directly around it (paren /
+// TS-cast / pure-sequence) retained, so `.start` / `.end` span the wrapper bytes. the unplugin
+// text-emit layer slices source on these offsets; using `findProxyGlobal`'s peeled-identifier
+// offsets leaves an unbalanced paren - a partial-overlap throw (deletion starts inside the
+// root substitution) or a dangling `(` - when the root is parenthesized (`(globalThis).self.X`).
+// returns the bare identifier (same span as `findProxyGlobal`) when no wrapper sits directly
+// around the root, including the parens-around-prefix shape (`(globalThis.self).X`)
+export function proxyGlobalWrappedRoot(node) {
+  if (!findProxyGlobal(node)) return null;
+  let wrapped = unwrapParens(node);
+  let root = wrapped;
+  while (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') {
+    wrapped = root.object;
+    root = unwrapParens(wrapped);
+  }
+  return wrapped;
+}
+
 // the largest pure proxy-global navigation sub-expression of `node`: the root proxy-global
 // identifier plus any consecutive member hops whose key is itself a proxy-global (`globalThis.self`
 // - `self` is a proxy-global alias of the global object). a non-proxy key (a constructor leaf or a
