@@ -372,10 +372,12 @@ export default function plugin(api, options) {
         }
       }
 
-      // super.method(args) / super.method!(args) / super.method?.(args) -> id.call(this, args)
+      // inherited-static dispatch -- super.method(args) or this.method(args) in static ctx
+      // (plain / ! / ?.()) -> id.call(this, args). the subclass constructor must stay the
+      // receiver, else the pure static result downgrades to the base class.
       // sideEffects channel covers computed-key SE: `super[(fn(),'X')](args)` collected fn()
       // into meta.sideEffects via members.js; emit wraps the call in SequenceExpression
-      function replaceSuperStatic(path, id, sideEffects) {
+      function replaceInheritedStatic(path, id, sideEffects) {
         const callerPath = unwrapTSExpressionParent(path);
         const callParent = callerPath.parentPath;
         if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
@@ -591,8 +593,10 @@ export default function plugin(api, options) {
             const callType = isCallParent ? resolveNodeType(callParent) : null;
             replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional, sideEffects: meta.sideEffects });
             if (callType && callParent.node) resolvedType.set(callParent.node, callType);
-          } else if (t.isSuper(path.node.object)) {
-            replaceSuperStatic(path, id, meta.sideEffects);
+          } else if (inheritedStatic) {
+            // super.X and unshadowed this.X in static ctx (this = subclass ctor): emit
+            // id.call(this, ...) so the receiver is preserved, else the result downgrades to base
+            replaceInheritedStatic(path, id, meta.sideEffects);
           } else {
             const wasOptional = (annotateCallReturnType(path), path.node.optional);
             const replacePath = unwrapTSExpressionParent(path);
