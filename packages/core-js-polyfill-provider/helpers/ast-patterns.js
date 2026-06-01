@@ -591,6 +591,32 @@ export function isTransparentDestructureWrapper(parentNode, childNode) {
   return false;
 }
 
+// walk up from an ObjectPattern path through Property / transparent (AssignmentPattern default,
+// single-element ArrayPattern) / multi-element ArrayPattern wrappers to the host VariableDeclarator.
+// returns { declarator, hasMultiElementArray } or null when the chain doesn't bottom out at a
+// declarator. parser-agnostic (reads `.parentPath` / `.node`, tolerates babel `ObjectProperty` +
+// estree `Property`). both emitters gate their multi-element ArrayPattern partial-extraction on
+// `hasMultiElementArray` (single-element / array-free shapes flatten via the cascade instead)
+export function findArrayWrappedDestructureHost(objectPatternPath) {
+  let cur = objectPatternPath;
+  let hasMultiElementArray = false;
+  for (;;) {
+    const parent = cur?.parentPath;
+    const node = parent?.node;
+    if (!node) return null;
+    if (node.type === 'ArrayPattern') {
+      if (node.elements.length > 1) hasMultiElementArray = true;
+      cur = parent;
+    } else if (node.type === 'AssignmentPattern' && node.left === cur.node) {
+      cur = parent;
+    } else if (node.type === 'Property' || node.type === 'ObjectProperty') {
+      cur = parent.parentPath;
+    } else if (node.type === 'VariableDeclarator') {
+      return { declarator: parent, hasMultiElementArray };
+    } else return null;
+  }
+}
+
 // chain assignment `foo = X` / `obj.foo = X` evaluates to `X` at runtime - peel through
 // these to find the destructure receiver. peel only `=` with Identifier or MemberExpression
 // LHS:
