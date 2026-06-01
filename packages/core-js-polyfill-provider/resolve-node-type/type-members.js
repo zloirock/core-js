@@ -130,6 +130,11 @@ export function createTypeMembers({
 
   function computeGetTypeMembers({ objectType, scope, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
+    // leading TSParenthesizedType (`({ ... })['k']`) - passthrough to the inner type's members
+    // (oxc preserves the wrapper; babel keeps it in member position)
+    if (objectType.type === 'TSParenthesizedType') {
+      return getTypeMembers({ objectType: peelTSParenthesized(objectType), scope, depth: depth + 1, visited });
+    }
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
     // both TS `T[K]` and Flow `T[K]` (IndexedAccessType) route through the same resolver
@@ -176,6 +181,13 @@ export function createTypeMembers({
       const params = getTypeArgs(objectType)?.params;
       if (params?.[1]) return [{
         type: 'TSIndexSignature',
+        // carry a `parameters` slot (the Record key type, defaulting to string) so
+        // resolveIndexedAccessType's `T[string]` discriminator
+        // (`parameters[0].typeAnnotation.typeAnnotation === TSStringKeyword`) matches it
+        parameters: [{
+          type: 'Identifier',
+          typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: params[0] ?? { type: 'TSStringKeyword' } },
+        }],
         typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: params[1] },
       }];
     }
@@ -504,6 +516,9 @@ export function createTypeMembers({
 
   function findTypeMember({ objectType, key, scope, depth = 0 }) {
     if (!objectType || depth > MAX_DEPTH) return null;
+    // peel a leading TSParenthesizedType (`(A | B)['k']`) so the union / intersection / structural
+    // dispatch below sees the raw discriminated shape, not the wrapper (branch-level peel is withSubst)
+    objectType = peelTSParenthesized(objectType);
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
     // union member may itself be a wrapped generic (`Inner<T>` / `T[]`); deep subst
     // descends into the inner type-param
