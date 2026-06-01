@@ -8,7 +8,7 @@ function fn() {
 }
 class C extends Array {
   static m() {
-    return fn(), _Array$from.call(this, [1, 2, 3]);
+    return (fn(), _Array$from.call(this, [1, 2, 3]));
   }
 }
 C.m();

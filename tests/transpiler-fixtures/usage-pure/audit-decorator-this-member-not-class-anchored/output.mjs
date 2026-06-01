@@ -8,7 +8,7 @@ class C extends Array {
   @(this.from([1]))
   static foo() {}
   static bar() {
-    return _Array$of(2);
+    return _Array$of.call(this, 2);
   }
 }
 export { C };
