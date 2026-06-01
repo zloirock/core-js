@@ -5,7 +5,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 class Child extends Array<number> {
   static probe(xs: Iterable<number>) {
     const KEY = 'from';
-    return _Array$from(xs);
+    return _Array$from.call(this, xs);
   }
 }
 Child.probe([1, 2, 3]);

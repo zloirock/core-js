@@ -9,6 +9,6 @@ class C extends _Promise {
     return x;
   }
   static run() {
-    return _Promise$try(() => 1);
+    return _Promise$try.call(this, () => 1);
   }
 }
