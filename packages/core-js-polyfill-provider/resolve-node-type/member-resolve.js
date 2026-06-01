@@ -213,6 +213,9 @@ export function createMemberResolve({
   // mirrors findTypeMember's handling for properties
   function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0 }) {
     if (depth > MAX_DEPTH) return null;
+    // peel a leading TSParenthesizedType (`(A | B).m()`) so followTypeAliasChain sees the raw
+    // union / intersection instead of bailing on the wrapper (branch-level peel is peelBranch)
+    annotation = peelTSParenthesized(annotation);
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
     // peel TSParenthesizedType so a method call on a parenthesized union / intersection branch
     // (`(A | B).m()`, `A & (B)`) resolves through the branch instead of bailing on the wrapper
