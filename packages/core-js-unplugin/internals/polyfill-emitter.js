@@ -972,10 +972,10 @@ export function createPolyfillEmitter({
   // (preserves source-map column precision - breakpoints / stack traces resolve to the
   // original arg slot instead of collapsing to super's start). closing `)` is overwritten
   // only when sideEffects need the extra `))` wrap. `sep` branches on AST arity so
-  // `super.foo(/* c */)` (no args, comment round-trips inside source) doesn't get a
-  // dangling leading comma. SE-wrap leads with `(` at a statement-leading slot - the ASI
-  // guard injects `;` (no-op for empty sideEffects on the bare call shape)
-  function emitSuperCallSplit({ binding, parent, sideEffects, metaPath }) {
+  // a no-arg inherited-static call (`super.foo(/* c */)` / `this.foo(/* c */)`, comment
+  // round-trips inside source) doesn't get a dangling leading comma. SE-wrap leads with `(`
+  // at a statement-leading slot - the ASI guard injects `;` (no-op for empty sideEffects)
+  function emitInheritedStaticCallSplit({ binding, parent, sideEffects, metaPath }) {
     const args = parent.arguments;
     // splitPoint: position after `(` - first arg's start, or one before `)` for no-args.
     // closingParen at parent.end - 1 holds the source `)` token; preserving it keeps the
@@ -996,7 +996,7 @@ export function createPolyfillEmitter({
   // shorthand / export / super early-returns don't carry side effects (Identifier /
   // Super can't host a SequenceExpression); only the final MemberExpression replacement
   // wraps with `sideEffects` from the receiver / computed-key
-  function replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects }) {
+  function replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects, inheritedStatic }) {
     // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
     // same source range for shorthand `{ Promise }` and bare `export { Promise }`
     const directParent = metaPath.parent;
@@ -1011,9 +1011,11 @@ export function createPolyfillEmitter({
         && directParent.local === node && directParent.exported === node) {
       return transforms.add(node.start, node.end, `${ binding } as ${ node.name }`);
     }
-    // super.method(args) -> binding.call(this, args) to preserve this-binding
-    if (node.object?.type === 'Super' && parent?.type === 'CallExpression' && isCallee(node, parent)) {
-      emitSuperCallSplit({ binding, parent, sideEffects, metaPath });
+    // inherited-static dispatch -> binding.call(this, args) to preserve the this-binding:
+    // super.method(args) AND this.method(args) in static ctx (this = subclass ctor); a dropped
+    // receiver downgrades the pure static result to the base class
+    if ((node.object?.type === 'Super' || inheritedStatic) && parent?.type === 'CallExpression' && isCallee(node, parent)) {
+      emitInheritedStaticCallSplit({ binding, parent, sideEffects, metaPath });
       return;
     }
     // strip TS wrappers (satisfies, as, !) - meaningless after polyfill replacement
