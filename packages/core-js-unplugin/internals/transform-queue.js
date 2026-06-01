@@ -667,12 +667,39 @@ export default class TransformQueue {
   extractContent(start, end) {
     const rKey = rangeKey(start, end);
     const rList = this.#byRange.get(rKey);
-    if (!rList?.length) return null;
-    const entry = rList.shift();
-    if (!rList.length) this.#byRange.delete(rKey);
+    if (rList?.length) {
+      const entry = rList.shift();
+      if (!rList.length) this.#byRange.delete(rKey);
+      this.#dropEntryAndPeer(entry);
+      return entry.content;
+    }
+    // no whole-range entry: try a split pair, whose two halves are keyed by their PHYSICAL ranges
+    // (start|mid, mid|end), never the logical start|end - so the lookup above misses them and a
+    // caller would then bake body-wrap inserts into the raw init, desyncing the still-queued split
+    // needle (apply throws "could not locate inner needle"). assemble prefix+suffix and drop both
+    const prefix = this.#splitPrefixByLogicalRange(start, end);
+    if (!prefix) return null;
+    const content = prefix.content + prefix.splitInfo.peer.content;
+    this.#dropEntryAndPeer(prefix);
+    return content;
+  }
+
+  // the split prefix half starting at `start` whose two physical halves logically span [start, end],
+  // or null. split halves live in `#sorted` by physical start; the prefix carries `splitInfo.logicalEnd`
+  #splitPrefixByLogicalRange(start, end) {
+    const sorted = this.#sorted;
+    for (let i = lowerBound(sorted, start); i < sorted.length && sorted[i].start === start; i++) {
+      const e = sorted[i];
+      if (e.splitInfo?.role === 'prefix' && e.splitInfo.logicalEnd === end) return e;
+    }
+    return null;
+  }
+
+  // remove an entry and, when it is one half of a split pair, its peer - extracting either half
+  // alone would leave the other an orphan covering only part of the logical range
+  #dropEntryAndPeer(entry) {
     this.#removeEntry(entry);
     if (entry.splitInfo?.peer) this.#removeEntry(entry.splitInfo.peer);
-    return entry.content;
   }
 
   // drain every point-insert whose pos falls within [start, end] and return them as
@@ -694,21 +721,26 @@ export default class TransformQueue {
     return splices;
   }
 
-  // drain every overwrite/split entry fully contained in [start, end] and return them as
-  // splices ({ start, end, content }). counterpart to `drainInsertsInRange` for the case where
-  // an outer rewrite replaces [start, end] with text NOT derived from the original source (e.g.
-  // a catch param overwritten to bare `_ref`): inner polyfill transforms then can't compose via
-  // `#substituteInners` (their needle is absent from the replacement) and would orphan, so the
-  // caller bakes the returned splices into the relocated text via its own `spliceInRange`.
-  // split-pairs surface as their two component entries (adjacent, non-overlapping splices)
-  drainOverwritesInRange(start, end) {
-    const splices = [];
+  // compose every overwrite/split entry fully contained in [start, end] using the SAME nesting +
+  // equal-range-dup folding apply() performs, then return the OUTERMOST composed transforms as
+  // non-overlapping splices ({ start, end, content }) and drain ALL consumed entries. counterpart
+  // to `drainInsertsInRange` for the case where an outer rewrite replaces [start, end] with text
+  // NOT derived from the original source (e.g. a catch param overwritten to bare `_ref`): inner
+  // polyfill transforms can't compose via `#substituteInners` (their needle is absent from the
+  // replacement) and would orphan, so the caller bakes the returned splices into the relocated
+  // text via its own `spliceInRange`. composing FIRST is essential: a flat drain of nested entries
+  // (e.g. `[9].flat().at(0)` - inner `.flat` inside outer `.at`) would have spliceInRange overlay
+  // the inner over its enclosing outer and corrupt output; folding inners into their outer here
+  // yields disjoint outermost splices spliceInRange can apply safely
+  composeAndDrainRange(start, end) {
+    const inRange = [];
     for (const entry of this.#transforms) {
-      if (entry.start >= start && entry.end <= end) {
-        splices.push({ start: entry.start, end: entry.end, content: entry.content });
-        this.#removeEntry(entry);
-      }
+      if (entry.start >= start && entryLogicalEnd(entry) <= end) inRange.push(entry);
     }
+    if (!inRange.length) return [];
+    const { composed, composedContent } = this.#composeEntries(inRange);
+    const splices = this.#outermostComposed(composed, composedContent);
+    for (const entry of inRange) this.#removeEntry(entry);
     return splices;
   }
 
@@ -825,19 +857,27 @@ export default class TransformQueue {
   // - sort by logical span so split's outer-iteration runs AFTER inners contained in its
   // logical range, matching the wrap order non-split entries naturally produce
   #applyComposed(transforms) {
-    transforms.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b) || b.start - a.start);
+    const { composed, composedContent } = this.#composeEntries(transforms);
+    // phase 2: overwrite outermost transforms only (split prefix owns its full logical range;
+    // its suffix peer was excluded from `composed` via the role==='suffix' skip in phase 1)
+    for (const { start, end, content } of this.#outermostComposed(composed, composedContent)) {
+      this.#ms.overwrite(start, end, content);
+    }
+  }
 
-    // phase 1: compose - #sorted is already maintained asc by start.
-    // if an outer transform content ALREADY contains a formatted guard (e.g. from a prior
-    // compose iteration on the same outer), the second pass below would detect the inner
-    // needle inside the formatted string and replace again, producing a double-guard.
-    // bounded by `rewriteHint` shape: guardRef-bearing hints mean the outer already
-    // consumed its guard, and `substituteInner` rebuilds the guard-prefixed needle rather
-    // than the bare root - no second fold applies
+  // phase 1 of composition: fold each transform's inners + equal-range dups into its content.
+  // returns the OUTER transforms (dups that ceded their merge to a sibling are dropped) plus a
+  // transform -> composed-content map. shared by `#applyComposed` (overwrites outermost onto the
+  // magic-string) and `composeAndDrainRange` (returns outermost as splices for relocated text).
+  // sorts ascending by LOGICAL span so inners compose before the outer that contains them.
+  // note on double-guard: if an outer's content ALREADY holds a formatted guard from a prior
+  // compose pass, a second fold could re-detect the inner needle - bounded by `rewriteHint` shape
+  // (guardRef-bearing hints rebuild the guard-prefixed needle rather than the bare root)
+  #composeEntries(transforms) {
+    transforms.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b) || b.start - a.start);
     const byStart = this.#sorted;
     const composedContent = new Map(); // transform -> composed content string
     const composed = [];
-
     for (const t of transforms) {
       // suffix-half of a split pair: composed via prefix (`composedContent` will hold the
       // logical inner against the prefix entry). skip outer-iteration here since suffix's
@@ -849,19 +889,26 @@ export default class TransformQueue {
       composedContent.set(t, result);
       composed.push(t);
     }
+    return { composed, composedContent };
+  }
 
-    // phase 2: apply outermost transforms only. split prefix overwrites the FULL logical
-    // range [start, logicalEnd] with composed content (suffix peer was excluded from
-    // composed via the role==='suffix' continue at the top of the compose loop)
+  // phase 2 of composition: from the `composed` set keep only the OUTERMOST transforms (drop any
+  // whose logical range is swallowed by an earlier-starting wider sibling) as ordered, disjoint
+  // { start, end, content } splices. shared by `#applyComposed` (overwrites each onto the
+  // magic-string) and `composeAndDrainRange` (bakes them into relocated text). a split prefix
+  // overwrites its FULL logical range; its suffix peer was already excluded in phase 1
+  #outermostComposed(composed, composedContent) {
     composed.sort((a, b) => a.start - b.start || b.end - a.end);
+    const splices = [];
     let maxEnd = -1;
     for (const t of composed) {
       const tEnd = entryLogicalEnd(t);
       if (tEnd > maxEnd) {
-        this.#ms.overwrite(t.start, tEnd, composedContent.get(t) ?? t.content);
+        splices.push({ start: t.start, end: tEnd, content: composedContent.get(t) ?? t.content });
         maxEnd = tEnd;
       }
     }
+    return splices;
   }
 
   // compose a single transform `t` with its inners + dups. returns the composed content
