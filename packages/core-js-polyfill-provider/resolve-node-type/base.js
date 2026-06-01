@@ -100,11 +100,16 @@ export function peelAssignmentPattern(node) {
   return node?.type === 'AssignmentPattern' ? node.left : node;
 }
 
-export function $Primitive(type) {
+export function $Primitive(type, literal) {
   this.type = type;
   this.constructor = null;
   // inner stored as a hint string, resolved lazily via resolveInnerType
   this.inner = type === 'string' ? 'string' : null;
+  // source literal value when widened from a literal type (`2` -> number with literal 2).
+  // undefined for bare keyword primitives (`number`). lets conditional-type evaluation keep
+  // `2 extends 1` = false even though both sides widen to the same primitive family; ignored
+  // by typesEqual / innersEqual / commonType so it never affects family-level equality
+  this.literal = literal;
 }
 
 $Primitive.prototype.primitive = true;
@@ -116,6 +121,20 @@ export function $Object(constructor, inner) {
 }
 
 $Object.prototype.primitive = false;
+
+// extract the runtime value of a literal node: bare literals (`5`, `'s'`, `true`) and `-N`
+// numeric negations (parsed as UnaryExpression around a positive NumericLiteral). returns
+// undefined for non-statically-known shapes (template strings, expressions). shared by the
+// conditional-type AST branch-pick and the literal-type primitive stamp so `2` / `-1` compare
+// consistently across both the AST and Type-object paths
+export function literalNodeValue(literal) {
+  if (!literal) return undefined;
+  if (literal.value !== undefined) return literal.value;
+  if (literal.type === 'UnaryExpression' && literal.operator === '-' && literal.argument?.value !== undefined) {
+    return -literal.argument.value;
+  }
+  return undefined;
+}
 
 const { hasOwn } = Object;
 
