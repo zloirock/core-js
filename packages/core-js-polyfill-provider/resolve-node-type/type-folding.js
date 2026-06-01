@@ -105,12 +105,15 @@ export function createTypeFolding({
     return null;
   }
 
-  function findTupleElement(objectType, index, scope) {
-    if (index < 0) return null;
+  function findTupleElement(objectType, index, scope, depth = 0) {
+    // self-recursive alias behind a structure-preserving wrapper (`type R<T> = Readonly<R<T>>;
+    // R<number>[0]`) re-enters with a FRESH followTypeAliasChain on each peel, escaping that
+    // function's own cycle guard - cap depth here so it bails to null instead of overflowing
+    if (index < 0 || depth > MAX_DEPTH) return null;
     // peel BEFORE alias chain catches direct `Readonly<[T, U]>` indexing. mirrors
     // `findTypeMember`'s peel-then-follow-then-peel pattern
     const peeledBefore = peelStructurePreservingWrapper(objectType);
-    if (peeledBefore) return findTupleElement(peeledBefore, index, scope);
+    if (peeledBefore) return findTupleElement(peeledBefore, index, scope, depth + 1);
     // follow alias chain BEFORE the Parameters check so `type P = Parameters<typeof fn>;
     // P[0]` reaches the Parameters branch - `resolveParametersParams` matches by typeRefName
     // and would see "P" instead of "Parameters" without the alias walk
@@ -141,7 +144,7 @@ export function createTypeFolding({
     const peeledAfter = peelStructurePreservingWrapper(target);
     if (peeledAfter) {
       const substituted = applySubst(peeledAfter, subst);
-      return findTupleElement(substituted, index, scope);
+      return findTupleElement(substituted, index, scope, depth + 1);
     }
     if (target.type !== 'TSTupleType' && target.type !== 'TupleTypeAnnotation') return null;
     const elements = tupleElements(target);
