@@ -1,6 +1,6 @@
-// `this.X` in a static method of a class that extends Array - `this` is the class ctor,
-// unshadowed `this.of` reads the super-class's static surface (Array.of). plugin polyfills
-// through Array.of, same as it would for `super.of` or `this.of` in a static block
+// `this.X` in a static method of a class that extends Array - `this` is the class ctor, so
+// unshadowed `this.of` resolves to Array.of and is emitted as `_Array$of.call(this, ...)`
+// (same as `super.of`), keeping the subclass as the constructor for the result
 class A extends Array {
   static make(x, y) {
     return this.of(x, y);
