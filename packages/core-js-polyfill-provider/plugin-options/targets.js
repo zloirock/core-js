@@ -27,6 +27,11 @@ export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, 
   // via Proxy or custom getter) reaches the user without plugin identification
   try {
     if (targets) return targetsParser(targets);
+    // babel's own resolution (`api.targets()`) is authoritative when present. on @babel/core@8
+    // it may already fold in `.browserslistrc`, so `ignoreBrowserslistConfig` does NOT suppress
+    // it here - that option only gates core-js's OWN browserslist read (the targetsParser call
+    // below). by design: inside a babel pipeline babel decides the targets, and an explicit
+    // plugin `targets` still wins via the early return above
     if (typeof getBabelTargets === 'function') {
       const babelTargets = getBabelTargets();
       if (babelTargets && keys(babelTargets).length) return targetsParser(babelTargets);
