@@ -79,7 +79,7 @@ export function createDiscriminantNarrow({
     const isNeq = test.operator === '!==' || test.operator === '!=';
     if (!isEq && !isNeq) return null;
     // `unwrapRuntimeExpr` peels parens, `ChainExpression` (oxc optional-chain wrapper),
-    // и TS expression wrappers (`as` / `satisfies` / `!`) - covers all transparent
+    // and TS expression wrappers (`as` / `satisfies` / `!`) - covers all transparent
     // adapters that may sit on either side of the equality. earlier `peelParensAndChain`
     // missed TS wrappers, so `(box as A).kind === 'a'` dropped narrow
     const left = unwrapRuntimeExpr(test.left);
@@ -190,7 +190,7 @@ export function createDiscriminantNarrow({
     const siblings = getStatementSiblings(current);
     if (!siblings) return;
     for (let i = current.key - 1; i >= 0; i--) {
-      // peel LabeledStatement wrap symmetric с typeof-guards.parseSiblingGuards. without
+      // peel LabeledStatement wrap symmetric with typeof-guards.parseSiblingGuards. without
       // the peel `outer: if (kind !== 'a') return;` would skip discriminant narrow
       // (resolveExitCondition gates on IfStatement type)
       const sibling = peelLabeledStatementPath(siblings[i]);
