@@ -9,6 +9,7 @@
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
 import {
+  findArrayWrappedDestructureHost,
   findEnclosingFunctionLikePath,
   hasRestSiblingExcept,
   isBindingPosition,
@@ -64,18 +65,12 @@ export default function createDestructureEmitter({
 }) {
   // original body index of each declaration, before insertBefore shifts it
   const originalDeclKeys = new WeakMap();
-  // per-function bookkeeping for body-extract emission: chains `insertAfter` on the previous
-  // extract decl (preserves source order; bare directive-anchor.insertAfter on every visit
-  // would stack subsequent extracts in REVERSE at body[directiveCount]). matches unplugin's
-  // single-pass emission shape so the babel and unplugin outputs share byte-for-byte
-  // declaration ordering on multi-polyfilled-param functions
-  const bodyExtractLastInsert = new WeakMap();
-  // per-host bookkeeping for AssignmentExpression cascade emission: chains `insertAfter`
-  // on previous polyfill-assignment (preserves declaration order; bare host.insertAfter on
-  // every visit would stack subsequent insertions in REVERSE at parent.body[idx+1]) and
-  // appends `_unused*` declarators to a shared `var _unused, _unused2;` (single combined
-  // statement, not split per visitor). matches unplugin's single-pass emission shape
-  const assignHostBookkeeping = new WeakMap();
+  // per-function (body-extract) and per-host (AssignmentExpression cascade) emission bookkeeping:
+  // each chains `insertAfter` on the previous inserted node to preserve source order (a bare
+  // anchor.insertAfter every visit stacks subsequent inserts in REVERSE) and shares one
+  // `var _unused, _unused2;`. matches unplugin's single-pass shape for byte-identical ordering
+  const bodyExtractLastInsert = new WeakMap(),
+        assignHostBookkeeping = new WeakMap();
   function getAssignHostBookkeeping(assignNode) {
     let bk = assignHostBookkeeping.get(assignNode);
     if (!bk) {
@@ -564,6 +559,38 @@ export default function createDestructureEmitter({
     if (initNode) skippedNodes.add(initNode);
   }
 
+  // multi-element ArrayPattern wrapping the consumed ObjectPattern (`const [, { from }] = [Set, Array]`,
+  // or nested `const [{ Array: { from } }, other] = [globalThis, {...}]`): the cascade flatten bails
+  // because dropping the whole declarator would lose the sibling / hole bindings. extract the static
+  // into a `const <local> = _Polyfill` before the host and rename the consumed key to `_unused` in
+  // place, leaving the residual array destructure (siblings, holes, init array) intact so every other
+  // target keeps binding - "polyfill always wins" without disturbing them. static keys only: an
+  // instance method needs a concrete receiver the residual array slot can't supply here
+  function tryExtractArrayWrappedStatic(prop, entry, hintName, kind) {
+    // static keys only: an instance method needs a concrete receiver the residual array can't supply
+    if (kind === 'instance') return false;
+    const valueNode = propBindingIdentifier(prop.node.value);
+    if (!valueNode) return false;
+    const host = findArrayWrappedDestructureHost(prop.parentPath);
+    if (!host?.hasMultiElementArray) return false;
+    const declaration = host.declarator.parentPath;
+    if (!declaration?.isVariableDeclaration()) return false;
+    // export host re-exports the extracted binding too (`export const from = _Array$from`)
+    const isExport = declaration.parentPath?.isExportNamedDeclaration();
+    injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
+    const id = injectPureImport(entry, hintName);
+    const extracted = t.variableDeclaration(declaration.node.kind,
+      [t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id))]);
+    (isExport ? declaration.parentPath : declaration)
+      .insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
+    // rename the consumed key to `_unused`: the residual array destructure keeps its shape
+    // (siblings / holes / the init array survive) and the new `const <local>` shadows it
+    prop.get('value').replaceWith(generateUnusedId());
+    prop.node.shorthand = false;
+    skippedNodes.add(prop.node);
+    return true;
+  }
+
   // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
   // function-parameter destructure path (`function({ from }) {}` form) or the regular
   // VariableDeclarator / AssignmentExpression destructure path.
@@ -595,6 +622,10 @@ export default function createDestructureEmitter({
       handleParameterDestructure({ prop, kind, entry, hintName });
       return;
     }
+    // multi-element ArrayPattern wrapper around the consumed pattern (`[, { from }] = [Set, Array]`,
+    // nested `[{ Array: { from } }, other] = [globalThis, ...]`): the cascade flatten can't drop the
+    // declarator without losing sibling / hole bindings, so extract the static and keep the residual
+    if (tryExtractArrayWrappedStatic(prop, entry, hintName, kind)) return;
     // nested proxy-global destructure: `{ Array: { from } } = globalThis`. default
     // (`from = _Array$from`) wouldn't fire - `globalThis.Array` is always present and
     // `Array.from` is non-undefined on every engine we target (may just be buggy).
@@ -626,10 +657,10 @@ export default function createDestructureEmitter({
       return;
     }
     if (!canTransformDestructuring(prop)) return;
-    // export + rest: skip - `_unused` rename would pollute the module's export namespace
-    if (objectPattern.node.properties.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')
-      && objectPattern.parentPath?.isVariableDeclarator()
-      && objectPattern.parentPath.parentPath?.parentPath?.isExportNamedDeclaration()) return;
+    // export + rest of a static: polyfill it like the nested-proxy export+rest path - the
+    // consumed key renames to `_unused` (a named export, as the nested path also emits) and the
+    // extracted static binds via the new `const <local> = _Polyfill`. skipping here would leave
+    // the static native and undefined on engines without it ("polyfill always wins")
     let value;
     if (kind === 'instance') {
       const objectNode = resolveDestructuringObject(prop, resolvePropertyObjectType(prop));
