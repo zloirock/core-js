@@ -869,7 +869,7 @@ export default function createPlugin(options) {
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-            replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
+            replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects, inheritedStatic });
             // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`):
             // without skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol` whose
             // needle composes into the outer's `_Symbol$iterator` replacement as `__Symbol$iterator`
