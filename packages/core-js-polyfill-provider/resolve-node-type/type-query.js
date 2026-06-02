@@ -25,6 +25,7 @@ export function createTypeQuery({
   constantBindingPath,
   findEnumDeclaration,
   findDeclPathBySegments,
+  withLookupPath,
   resolveEnumMemberType,
   isFunctionOrClassDeclaration,
   isFunctionLike,
@@ -274,8 +275,12 @@ export function createTypeQuery({
       // when either side is empty / missing, in which case we fall back to body inference
       const ret = resolved.node.returnType ?? resolved.node.typeAnnotation;
       const subst = ret && buildCallSiteSubst(resolved.node, param);
-      if (subst) return resolveTypeAnnotation(applyAliasSubstDeep(unwrapTypeAnnotation(ret), subst), scope);
-      return resolveReturnType(resolved);
+      // anchor the return-type resolution at the resolved (possibly in-namespace) fn path: a
+      // `typeof NS.fn` whose declared return references an IN-NAMESPACE type alias (`(): Local`
+      // where `Local` is a sibling in NS) needs NS's module body as the lookup anchor - the
+      // recovered path's scope chain doesn't reach it on estree, so `Local` would bail to generic
+      if (subst) return withLookupPath(resolved, () => resolveTypeAnnotation(applyAliasSubstDeep(unwrapTypeAnnotation(ret), subst), scope));
+      return withLookupPath(resolved, () => resolveReturnType(resolved));
     }
     if (param?.type !== 'TSTypeQuery') return null;
     // `resolveTypeQueryBinding` returns null for no-init `declare const` shapes; fall back to
