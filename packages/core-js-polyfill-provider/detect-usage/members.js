@@ -268,9 +268,14 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     return { kind: 'in', key: resolvedLeft, object: null, placement: null, symbolSourced: true };
   }
   // 'key' in Object - string key in static/global object. fresh `seen` Set because this
-  // is a top-level entry point; downstream recursion through `resolveObjectName` reuses it
+  // is a top-level entry point; downstream recursion through `resolveObjectName` reuses it.
+  // peel a SequenceExpression tail off the RHS (`'k' in (fn(), Object)`): the `in` detection
+  // only decides whether to inject (the expression is never rewritten), so the SE prefix runs
+  // as written at runtime and the tail names the object to classify
+  let rightObject = unwrapParens(node.right);
+  if (rightObject?.type === 'SequenceExpression') rightObject = unwrapParens(rightObject.expressions.at(-1));
   if (resolvedLeft) {
-    const objectName = resolveObjectName({ objectNode: node.right, scope, adapter, seen: new Set(), path });
+    const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path });
     if (objectName) {
       const placement = isStaticPlacement(objectName);
       if (placement) return { kind: 'in', key: resolvedLeft, object: objectName, placement };
