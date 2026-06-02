@@ -314,12 +314,38 @@ export function createTypeAnnotationResolve({
   // inferred name, falseType is never-like. match first so `First<string[]>` resolves to
   // `string` instead of collapsing through the generic branches (which can't resolve the
   // naked `U` reference)
+  // a non-reducing conditional folds BOTH branches; N nested aliased conditionals expand a binary
+  // tree of 2^N branch resolutions, because each sibling branch re-hops to the same downstream
+  // conditional and `resolveCache` (keyed at the resolveNodeType entry) is bypassed by the
+  // resolveTypeAnnotation branch recursion. memoize each conditional's result per (node, scope) -
+  // collapsing the tree to O(distinct subterms) - so a single polyfillable call on a receiver
+  // typed by deep distributive conditionals can't wedge the transform. depth is a recursion-safety
+  // cutoff only; the resolved result is a pure function of (node, scope) below MAX_DEPTH. WeakMap on
+  // the AST node auto-evicts across files (fresh AST per file); also cleared in reset()
+  let conditionalResultCache = new WeakMap();
+
   function resolveConditionalType(node, scope, depth) {
-    const inferred = resolveInferElementPattern({ node, typeParamMap: null, scope, depth, seen: null });
-    if (inferred) return inferred;
-    return resolveConditionalBranches(
-      resolveTypeAnnotation(node.trueType, scope, depth + 1),
-      resolveTypeAnnotation(node.falseType, scope, depth + 1));
+    let byScope = conditionalResultCache.get(node);
+    const cached = byScope?.get(scope);
+    // a `stable` result is depth-independent - it came from the infer pattern or from BOTH branches
+    // resolving, so it is reused regardless of remaining budget. an unstable result (a lenient
+    // single-branch fold or a null) may be a depth-cutoff artifact - the deepest branch-path hits
+    // MAX_DEPTH first - so it is reused only when the current call has no more budget than the
+    // cached one (depth >= cached.depth); a shallower reach has more budget and recomputes
+    if (cached && (cached.stable || depth >= cached.depth)) return cached.result;
+    let result = resolveInferElementPattern({ node, typeParamMap: null, scope, depth, seen: null });
+    let stable = !!result;
+    if (!result) {
+      const trueBranch = resolveTypeAnnotation(node.trueType, scope, depth + 1);
+      const falseBranch = resolveTypeAnnotation(node.falseType, scope, depth + 1);
+      result = resolveConditionalBranches(trueBranch, falseBranch);
+      stable = !!(trueBranch && falseBranch);
+    }
+    // store the verdict computed with the most remaining budget; we only reach here when there was
+    // no entry or the cached one was unstable + computed with less budget, so this dominates
+    if (!byScope) conditionalResultCache.set(node, byScope = new Map());
+    byScope.set(scope, { result, depth, stable });
+    return result;
   }
 
   // does `idx` (the indexType of `T[idx]`) collapse to `keyof T` against `target`?
@@ -341,10 +367,12 @@ export function createTypeAnnotationResolve({
 
   // TS indexed access type: Config["items"], [string, number[]][1], Items[number], Dict[string]
   // `T[keyof T]` shape: fold each property's value annotation into a union (mirrors TS
-  // evaluation). returns resolved Type / null on hit, undefined when shape doesn't match
-  function resolveKeyofSelfValueUnion(node, scope, depth) {
-    if (!isKeyofTargeting(node.indexType, node.objectType, scope)) return undefined;
-    const members = getTypeMembers({ objectType: node.objectType, scope });
+  // evaluation). returns resolved Type / null on hit, undefined when shape doesn't match.
+  // `objectType` is the caller's already-paren-peeled operand: the `isKeyofTargeting` self-match
+  // compares the keyof operand against it, so an unpeeled `(T)` wrapper would fail the match
+  function resolveKeyofSelfValueUnion(node, objectType, scope, depth) {
+    if (!isKeyofTargeting(node.indexType, objectType, scope)) return undefined;
+    const members = getTypeMembers({ objectType, scope });
     if (!members) return null;
     const valueAnnotations = members
       // a (non-getter) method's value is a Function with no instance-method narrow, not its return
@@ -358,11 +386,15 @@ export function createTypeAnnotationResolve({
   }
 
   function resolveIndexedAccessType(node, scope, depth) {
+    // peel a parenthesized object operand once (`(T)['a']`, `([A,B])[0]`, `({[k:string]:V})[string]`):
+    // both parsers keep `(T)` as TSParenthesizedType in type position, and the member / tuple /
+    // index-sig helpers below would otherwise see the wrapper and bail to null
+    const objectType = peelParens(node.objectType);
     // T[number] - element type of array/tuple
-    if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
+    if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(objectType, scope, depth + 1);
     // T[string] - string index signature type
     if (node.indexType?.type === 'TSStringKeyword') {
-      const members = getTypeMembers({ objectType: node.objectType, scope });
+      const members = getTypeMembers({ objectType, scope });
       if (members) for (const member of members) {
         if (member.type === 'TSIndexSignature' && member.typeAnnotation
           && member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword') {
@@ -373,14 +405,14 @@ export function createTypeAnnotationResolve({
     }
     // `T[keyof T]` self-indexed access folds to value-union of T's properties.
     // delegated to helper to keep dispatcher under max-statements lint
-    const keyofSelf = resolveKeyofSelfValueUnion(node, scope, depth);
+    const keyofSelf = resolveKeyofSelfValueUnion(node, objectType, scope, depth);
     if (keyofSelf !== undefined) return keyofSelf;
     // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
     // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to the
     // widest common type, handing us precise inference when all branches agree
     if (node.indexType?.type === 'TSUnionType') {
       return foldUnionTypes(node.indexType.types, branch => resolveTypeAnnotation(
-        { type: 'TSIndexedAccessType', objectType: node.objectType, indexType: branch },
+        { type: 'TSIndexedAccessType', objectType, indexType: branch },
         scope,
         depth + 1,
       ));
@@ -393,13 +425,13 @@ export function createTypeAnnotationResolve({
     const literalIndex = node.indexType?.type === 'TSLiteralType' ? node.indexType.literal : node.indexType;
     const quasi = singleQuasiString(literalIndex);
     if (quasi !== null) {
-      const member = findTypeMember({ objectType: node.objectType, key: quasi, scope });
+      const member = findTypeMember({ objectType, key: quasi, scope });
       return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
     }
     if (node.indexType?.type !== 'TSLiteralType') return null;
     const { literal } = node.indexType;
     let member;
-    if (isLiteralOf(literal, 'String')) member = findTypeMember({ objectType: node.objectType, key: literal.value, scope });
+    if (isLiteralOf(literal, 'String')) member = findTypeMember({ objectType, key: literal.value, scope });
     else if (isLiteralOf(literal, 'Numeric')) {
       // tuple positional lookup first - findTupleElement is the only path that handles
       // rest-element extension and Parameters / ConstructorParameters dispatch. fall back
@@ -407,8 +439,8 @@ export function createTypeAnnotationResolve({
       // which findTupleElement rejects since they're TSTypeLiteral not TSTupleType.
       // findTypeMember matches via `getKeyName` which stringifies numeric literal keys
       // (`{0: T}.key` -> `'0'`); coerce here so the comparison hits the string side
-      member = findTupleElement(node.objectType, literal.value, scope)
-        ?? findTypeMember({ objectType: node.objectType, key: String(literal.value), scope });
+      member = findTupleElement(objectType, literal.value, scope)
+        ?? findTypeMember({ objectType, key: String(literal.value), scope });
     }
     return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
   }
@@ -547,6 +579,10 @@ export function createTypeAnnotationResolve({
     return null;
   }
 
+  function reset() {
+    conditionalResultCache = new WeakMap();
+  }
+
   return {
     resolveTypeAnnotation,
     resolveConstructorType,
@@ -554,5 +590,6 @@ export function createTypeAnnotationResolve({
     resolveKnownContainerType,
     resolveNamedType,
     isKeyofTargeting,
+    reset,
   };
 }
