@@ -21,7 +21,13 @@
 // `walkStaticReceiverChain` for `extends NS.Inner.Class` lookups
 import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
 import { createMemberWriteShape, memberWriteTargetPath } from './class-member-shapes.js';
-import { isTSTypeOnlyIdentifierPath, peelParenAndTSParentPath, unwrapExpressionChain, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import {
+  isMemberAccessNode,
+  isTSTypeOnlyIdentifierPath,
+  peelParenAndTSParentPath,
+  unwrapExpressionChain,
+  unwrapRuntimeExpr,
+} from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
@@ -88,10 +94,18 @@ export function createClosureAnalysis({
     // be a wrapped reference to the identifier (`{object: TSAsExpression{expression: p.node}}`)
     const memberPath = peelParenAndTSParentPath(p);
     const memberNode = memberPath?.node;
-    if ((memberNode?.type !== 'MemberExpression' && memberNode?.type !== 'OptionalMemberExpression')
+    if (!isMemberAccessNode(memberNode)
       || unwrapRuntimeExpr(memberNode.object) !== p.node) return { kind: 'extraction' };
     const ctx = peelParenAndTSParentPath(memberPath)?.node;
     if ((ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression') && unwrapRuntimeExpr(ctx.callee) === memberNode) {
+      // a `<name>.<X>(...)` call lexically nested inside a function body is a DEFERRED invocation -
+      // it fires whenever that function runs, not at the call's source position - so its position
+      // cannot bound external writes. treat it as an extraction (Infinity bound), mirroring the
+      // write-side `isWriteInsideFunction` guard in class-fields.js. `p` is the call's receiver
+      // root, so an enclosing function on its ancestor chain means the call is deferred
+      for (let fp = p.parentPath; fp && !t.isProgram(fp.node); fp = fp.parentPath) {
+        if (t.isFunction(fp.node)) return { kind: 'extraction' };
+      }
       return { kind: 'call', start: ctx.start };
     }
     if (ctx?.type === 'AssignmentExpression' && ctx.operator === '='
