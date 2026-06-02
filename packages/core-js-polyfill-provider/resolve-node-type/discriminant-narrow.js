@@ -93,8 +93,12 @@ export function createDiscriminantNarrow({
   // to the underlying binding identity. returns the property name or null when shape
   // doesn't match: not a member, computed without resolvable key, or object-path
   // diverges from `targetKey`
-  function matchTargetField(memberExpr, targetKey) {
-    const field = getMemberProperty(memberExpr);
+  function matchTargetField(memberExpr, targetKey, scope) {
+    let field = getMemberProperty(memberExpr);
+    // computed alias-key discriminant (`box[K]` with `const K = 'kind'`): getMemberProperty resolves
+    // only literal keys, so fall back to the scope-aware resolver - mirroring the value side, which
+    // already routes through resolveComputedKeyName for identifier-alias / enum-member literals
+    if (field === null && memberExpr.computed && scope) field = resolveComputedKeyName(memberExpr.property, scope);
     if (field === null) return null;
     if (pathKey(unwrapRuntimeExpr(memberExpr.object)) !== targetKey) return null;
     return field;
@@ -109,7 +113,7 @@ export function createDiscriminantNarrow({
   }
 
   function memberLiteralPair({ memberExpr, literalNode, targetKey, scope }) {
-    const field = matchTargetField(memberExpr, targetKey);
+    const field = matchTargetField(memberExpr, targetKey, scope);
     if (field === null) return null;
     const value = resolveLiteralOrComputed(literalNode, scope);
     return value === null ? null : { field, value };
