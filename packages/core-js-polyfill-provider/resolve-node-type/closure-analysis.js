@@ -22,6 +22,7 @@
 import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
 import { createMemberWriteShape, memberWriteTargetPath } from './class-member-shapes.js';
 import {
+  forEachPatternWriteMember,
   isMemberAccessNode,
   isTSTypeOnlyIdentifierPath,
   peelParenAndTSParentPath,
@@ -419,6 +420,18 @@ export function createClosureAnalysis({
         if (list) list.push(value);
         else map.set(key, [value]);
       }
+      // index member-write targets reachable through a destructuring-assignment LHS
+      // (`({ k: o.field } = src)`) or a for-of/for-in head (`for (o.field of iter)`). these
+      // rebind `o.field` to a destructuring-source / iteration value of indeterminate type, but
+      // the member never appears as an AssignmentExpression `.left`, so the bare-member visitors
+      // miss them. push the member PATH itself - `writePathContributedType` returns `unknown` for
+      // a non-`=` write, widening the field flow (the sound direction for an opaque write)
+      function indexPatternWriteMembers(leftPath) {
+        forEachPatternWriteMember(leftPath, mp => {
+          const name = memberWriteFieldName(mp.node);
+          if (name) pushMultimap(writesByField, name, mp);
+        });
+      }
       programPath.traverse({
         'ClassDeclaration|ClassExpression'(p) {
           // collect EVERY candidate base name reachable through the superClass shape:
@@ -444,11 +457,23 @@ export function createClosureAnalysis({
         // from compound / Update (push `unknown`) at consume time via `writePathContributedType`
         AssignmentExpression(p) {
           const name = memberWriteFieldName(p.node.left);
-          if (name) pushMultimap(writesByField, name, p);
+          if (name) {
+            pushMultimap(writesByField, name, p);
+            return;
+          }
+          // destructuring-assignment LHS (`({ k: o.field } = src)` / `[o.field] = src`) carries
+          // member write targets the bare-member name check above misses
+          const leftType = p.node.left?.type;
+          if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') indexPatternWriteMembers(p.get('left'));
         },
         UpdateExpression(p) {
           const name = memberWriteFieldName(p.node.argument);
           if (name) pushMultimap(writesByField, name, p);
+        },
+        // `for (o.field of iter)` / `for (o.field in obj)` rebind `o.field` each iteration. a
+        // VariableDeclaration head binds a fresh local (not a member write), so skip it
+        'ForOfStatement|ForInStatement'(p) {
+          if (p.node.left.type !== 'VariableDeclaration') indexPatternWriteMembers(p.get('left'));
         },
       });
       return { writesByField, subclassesBySuper };
