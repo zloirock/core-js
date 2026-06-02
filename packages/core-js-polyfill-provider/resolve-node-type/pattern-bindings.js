@@ -521,6 +521,14 @@ export function createPatternBindings({
     return null;
   }
 
+  // a TS callback / method signature can declare a leading `this` pseudo-parameter
+  // (`(this: void, x: T) => ...`) which `functionTypeParams` includes, but a runtime arrow /
+  // function carries no `this` in its `params`; drop it so the runtime param index aligns with the
+  // type-level slots (else the off-by-one reads the `this` slot and mis-narrows the real param)
+  function dropLeadingThisParam(params) {
+    return params?.[0]?.type === 'Identifier' && params[0].name === 'this' ? params.slice(1) : params;
+  }
+
   // callback-param inference for unannotated arrow / function params passed as a call argument.
   // shape: `recv.method(arg => arg.X)` where `recv: Alias<Arg>` with `method(cb: (a: ParamT) => void)`.
   // `findTypeMember` deep-substitutes the receiver's alias type-args into the returned method
@@ -551,10 +559,10 @@ export function createPatternBindings({
     if (!receiver) return null;
     const method = findTypeMember({ objectType: receiver, key: propName, scope: objInfo.scope });
     if (method?.type !== 'TSMethodSignature') return null;
-    const cbParam = functionTypeParams(method)?.[argIndex];
+    const cbParam = dropLeadingThisParam(functionTypeParams(method))?.[argIndex];
     const cbFnType = unwrapTypeAnnotation(cbParam?.typeAnnotation);
     if (cbFnType?.type !== 'TSFunctionType' && cbFnType?.type !== 'FunctionTypeAnnotation') return null;
-    const target = functionTypeParams(cbFnType)?.[paramIndex];
+    const target = dropLeadingThisParam(functionTypeParams(cbFnType))?.[paramIndex];
     const annotation = unwrapTypeAnnotation(target?.typeAnnotation);
     if (!annotation) return null;
     return resolveTypeAnnotation(annotation, objInfo.scope);
