@@ -37,6 +37,7 @@ export function createClassObjectMember({
   buildSubstMap,
   unwrapTypeAnnotation,
   typesEqual,
+  commonType,
   collectReturnPaths,
   resolveRuntimeExpression,
   resolveNodeType,
@@ -248,8 +249,28 @@ export function createClassObjectMember({
   function resolveMethodOrGetterCallReturn({ methodFn, kind, callPath, classSubst }) {
     if (kind !== 'get') return resolveReturnType(methodFn, callPath, classSubst);
     const value = resolveBodyReturnValue(methodFn);
-    if (t.isFunction(value?.node)) return resolveReturnType(value, callPath, classSubst);
-    return null;
+    if (!t.isFunction(value?.node)) return null;
+    // `obj.getter()` invokes the function the getter returns. `value` is ONE representative -
+    // resolveBodyReturnValue accepted the getter's return branches as type-equal, but two
+    // functions can be type-equal yet return different types (`()=>number[]` vs `()=>string`).
+    // invoking must reflect EVERY branch, so fold each branch's invoke-return via commonType; a
+    // mismatch / unresolvable branch bails to null (generic receiver) rather than narrowing to
+    // the first branch. a non-block getter body has the single returned value `value`
+    const body = methodFn.get('body');
+    if (!t.isBlockStatement(body.node)) return resolveReturnType(value, callPath, classSubst);
+    let folded = null;
+    for (const returnPath of collectReturnPaths(body)) {
+      // resolve the returned expression to its function value first (it may be an identifier
+      // alias like `return createItems`, not a literal `() => ...`), then invoke - mirrors how
+      // resolveBodyReturnValue resolved the representative
+      const branchFn = resolveRuntimeExpression(returnPath.get('argument'));
+      if (!t.isFunction(branchFn?.node)) return null;
+      const branchReturn = resolveReturnType(branchFn, callPath, classSubst);
+      if (!branchReturn) return null;
+      folded = commonType(folded, branchReturn);
+      if (!folded) return null;
+    }
+    return folded;
   }
 
   // path resolveReturnType should read for a bodyless method's declared signature, or null. babel

@@ -11,9 +11,14 @@ import { $Primitive } from './base.js';
 // shape unification of `<expr>.<field> = ...` / `<expr>.<field>++` writes: AssignmentExpression
 // target on `.left`, UpdateExpression target on `.argument`. callers ask "is this a member-
 // target write, what's the field name, what's the RHS type?" without re-implementing the
-// AST shape switch. parser-agnostic - reads `.node.type` strings and uses path navigation
+// AST shape switch. parser-agnostic - reads `.node.type` strings and uses path navigation.
+// a bare MemberExpression IS its own target: destructure-pattern / for-x heads index member
+// write paths directly (no enclosing assignment node), so the path stands in for the target
 export function memberWriteTargetPath(writePath) {
-  return writePath.node.type === 'UpdateExpression' ? writePath.get('argument') : writePath.get('left');
+  const { type } = writePath.node;
+  if (type === 'UpdateExpression') return writePath.get('argument');
+  if (type === 'MemberExpression' || type === 'OptionalMemberExpression') return writePath;
+  return writePath.get('left');
 }
 
 // class-member kind predicates. babel emits distinct node types for public / private /
