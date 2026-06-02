@@ -1,0 +1,15 @@
+import _at from "@core-js/pure/actual/instance/at";
+// `for (c.items in obj)` rebinds `c.items` to each enumerable key (a string) of `obj` - an external
+// field write in for-in head shape. Folding it into the field flow widens `items`, so `.at` gets
+// the generic polyfill.
+declare const obj: object;
+class C {
+  items = [1, 2, 3];
+  getFirst() {
+    var _ref;
+    return _at(_ref = this.items).call(_ref, 0);
+  }
+}
+const c = new C();
+for (c.items in obj) {}
+c.getFirst();

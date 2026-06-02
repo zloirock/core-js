@@ -9,4 +9,3 @@ if (obj.a.kind === "x") {
   obj.b = 9;
   _atMaybeString(_ref = obj.a.data).call(_ref, 0);
 }
-
