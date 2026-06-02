@@ -1807,9 +1807,9 @@ function memberShapeEqual(a, b) {
   return false;
 }
 
-// flatten a for-of/for-in LHS (bare member, or nested in object / array / rest / default
-// patterns) into every MemberExpression that receives a write on each iteration
-function collectForXWriteMembers(node, out) {
+// flatten a for-of/for-in LHS or destructuring-assignment LHS (bare member, or nested in
+// object / array / rest / default patterns) into every MemberExpression that receives a write
+export function collectForXWriteMembers(node, out) {
   if (!node) return;
   switch (node.type) {
     case 'MemberExpression':
@@ -1832,6 +1832,28 @@ function collectForXWriteMembers(node, out) {
     case 'RestElement':
       collectForXWriteMembers(node.argument, out);
   }
+}
+
+// invoke `visit(memberPath)` for every write-target MemberExpression reachable through a
+// destructuring-assignment / for-x LHS rooted at `leftPath`. a bare member LHS is its own single
+// target (passed as `leftPath`); nested patterns are traversed and gated to the EXACT write-target
+// members (computed keys and default-value RHS are excluded by `collectForXWriteMembers`, so a
+// member nested in those is never visited). shared by the per-program external-write index and the
+// per-method `this`-write index so both enumerate the same member set
+export function forEachPatternWriteMember(leftPath, visit) {
+  const targets = [];
+  collectForXWriteMembers(leftPath.node, targets);
+  if (!targets.length) return;
+  if (targets.length === 1 && targets[0] === leftPath.node) {
+    visit(leftPath);
+    return;
+  }
+  const targetSet = new Set(targets);
+  leftPath.traverse({
+    MemberExpression(mp) {
+      if (targetSet.has(mp.node)) visit(mp);
+    },
+  });
 }
 
 // key: for-x `parent.left` AST node; value: collected write-target MemberExpressions.

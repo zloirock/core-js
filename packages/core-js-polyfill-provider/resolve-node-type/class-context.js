@@ -143,16 +143,19 @@ export function createClassContext({
       const classPath = resolveRuntimeExpression(objectPath.get('callee'));
       if (t.isClass(classPath.node)) return { classPath, isStatic: false };
     }
-    // `Reflect.construct(C, args)` is structurally equivalent to `new C(...args)` -
-    // returns an instance of C. callee shape: bare `Reflect.construct` (no local shadow)
-    // or post-rewrite alias. recognising it lets `inst.X` on the result reach the same
-    // class-context resolution as the new-expression path. `get('arguments')[0]` is the
+    // `Reflect.construct(target, args[, newTarget])` is structurally equivalent to
+    // `new target(...args)`, EXCEPT the created object's prototype is `newTarget.prototype`
+    // when the 3rd argument is present - so a 3-arg call returns an instance of newTarget, not
+    // target. resolve the constructor from `arguments[2]` when given (else `arguments[0]`) so
+    // `inst.X` reaches the right class's members / polyfill family. callee shape: bare
+    // `Reflect.construct` (no local shadow) or post-rewrite alias. `get('arguments')[i]` is the
     // parser-agnostic form (the dotted child-key `'arguments.0'` works in babel but not
     // estree-toolkit)
     if ((t.isCallExpression(node) || t.isOptionalCallExpression(node))
       && isReflectConstructCallee(node.callee, objectPath.scope)
       && node.arguments?.[0]) {
-      const classPath = resolveRuntimeExpression(objectPath.get('arguments')[0]);
+      const ctorIndex = node.arguments[2] ? 2 : 0;
+      const classPath = resolveRuntimeExpression(objectPath.get('arguments')[ctorIndex]);
       if (t.isClass(classPath.node)) return { classPath, isStatic: false };
     }
     // this.prop inside a class member

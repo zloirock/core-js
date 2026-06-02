@@ -23,12 +23,14 @@ import {
   createMemberWriteShape,
   memberWriteTargetPath,
 } from './class-member-shapes.js';
-import { unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { forEachPatternWriteMember, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { isLoopStatement, nodeRangeContains } from './ast-shapes.js';
 
 export function createClassFields({
   t,
   getKeyName,
+  literalKeyValue,
+  singleQuasiString,
   memoize,
   findProgramPath,
   methodFnPath,
@@ -227,6 +229,23 @@ export function createClassFields({
     return false;
   }
 
+  // does a class-body member shadow `fieldName`? a computed key only names a fixed slot when it
+  // is a static literal (`['x']` / `[`x`]` / `[0]`); a dynamic `[expr]` could evaluate to
+  // `fieldName` at runtime and can't be ruled out, so it counts as a possible shadow
+  // (conservative - an unrecognised dynamic-key override would otherwise keep an unsound narrow).
+  // getKeyName can't decide this: for a computed `[k]` it returns the identifier name `k`,
+  // indistinguishable from the literal `['k']`, so computed keys route through literalKeyValue
+  function declaresPossibleShadow(node, fieldName) {
+    if (node.computed) {
+      const staticKey = literalKeyValue(node.key) ?? singleQuasiString(node.key);
+      // a fixed-slot key is a string / number literal; anything else is a dynamic `[expr]` that
+      // could be `fieldName` at runtime, so it counts as a possible shadow
+      if (typeof staticKey !== 'string' && typeof staticKey !== 'number') return true;
+      return staticKey === fieldName;
+    }
+    return getKeyName(node.key) === fieldName;
+  }
+
   // does the class body declare an own static member named `fieldName`? any same-named static
   // slot (data field, method, accessor) in a subclass shadows the inherited field read - a
   // same-kind override of incompatible type is rejected by TS, but widening to a method /
@@ -234,7 +253,7 @@ export function createClassFields({
   function declaresStaticMember(classPath, fieldName) {
     for (const bodyMember of classPath.get('body').get('body')) {
       const { node } = bodyMember;
-      if (node?.static && getKeyName(node.key) === fieldName) return true;
+      if (node?.static && declaresPossibleShadow(node, fieldName)) return true;
     }
     return false;
   }
@@ -265,7 +284,7 @@ export function createClassFields({
   function declaresInstanceMember(classPath, fieldName) {
     for (const bodyMember of classPath.get('body').get('body')) {
       const { node } = bodyMember;
-      if (node && !node.static && node.type !== 'StaticBlock' && getKeyName(node.key) === fieldName) return true;
+      if (node && !node.static && node.type !== 'StaticBlock' && declaresPossibleShadow(node, fieldName)) return true;
     }
     return false;
   }
@@ -477,6 +496,16 @@ export function createClassFields({
       const contributed = writePathContributedType(p);
       if (contributed) types.push(contributed);
     };
+    // a destructuring-assignment LHS (`({ v: this.x } = src)`) or for-of/for-in head
+    // (`for (this.x of it)`) writes `this.x` to an opaque destructure / iteration value, but the
+    // member never appears as a bare assignment LHS. route each write-target member through
+    // `handle` (its bare-member branch contributes `unknown`, widening the flow) so an internal
+    // `this`-write in external write shape isn't silently dropped
+    const handleAssignment = p => {
+      const leftType = p.node.left?.type;
+      if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') forEachPatternWriteMember(p.get('left'), handle);
+      else handle(p);
+    };
     // skip ANY function-shaped sub-tree whose body rebinds `this`: FunctionDeclaration /
     // Expression / ObjectMethod / class wrappers. nested ClassMethod / ClassPrivateMethod /
     // MethodDefinition are reached only through their enclosing Class node, which is
@@ -487,8 +516,13 @@ export function createClassFields({
       'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
         p.skip();
       },
-      AssignmentExpression: handle,
+      AssignmentExpression: handleAssignment,
       UpdateExpression: handle,
+      // `for (this.x of/in ...)` rebinds `this.x` each iteration; a VariableDeclaration head
+      // binds a fresh local (not a member write), so skip it
+      'ForOfStatement|ForInStatement'(p) {
+        if (p.node.left.type !== 'VariableDeclaration') forEachPatternWriteMember(p.get('left'), handle);
+      },
     };
     for (const path of methodPaths) {
       if (!path?.node) continue;
@@ -497,9 +531,8 @@ export function createClassFields({
       target.traverse(visitors);
       // arrow expression-body root: body IS the AssignmentExpression / UpdateExpression
       // and isn't visited by path.traverse (which walks descendants only)
-      if (target.node.type === 'AssignmentExpression' || target.node.type === 'UpdateExpression') {
-        handle(target);
-      }
+      if (target.node.type === 'AssignmentExpression') handleAssignment(target);
+      else if (target.node.type === 'UpdateExpression') handle(target);
     }
     return index;
   }
