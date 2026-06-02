@@ -245,6 +245,14 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       normalizeOptionalChain(replacePath);
     } else {
       replacePath.replaceWith(result);
+      // a replacement that introduced its OWN optional (`_X(recv)?.call(recv)` from an `arr.flat?.()`
+      // optional CALL, with no receiver-level guard) leaves a trailing chain continuation
+      // (`...?.().next()` / `...?.().length`) as an in-chain OptionalMember/Call straight from the
+      // parse - it must STAY optional to short-circuit with the new `?.`. normalizeOptionalChain
+      // would deoptionalize the trailing to a PLAIN member, and babel codegen then parenthesizes the
+      // optional result off it (`(_X?.call(recv)).next()`), severing the trailing from the chain so
+      // it throws on the short-circuit path where native yields void 0 (matches unplugin once skipped)
+      if (!check && result.type === 'OptionalCallExpression') return;
       const wrapPath = normalizeOptionalChain(replacePath) || replacePath;
       if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
     }
@@ -283,8 +291,8 @@ export default function (t, { getInjector, typeResolvers } = {}) {
 
   // wrap a result expression in a SequenceExpression preserving side effects collected
   // from the receiver / computed-key. noop when sideEffects is empty - callers can pass
-  // unconditionally. mirrors babel-plugin/index.js `withSideEffects` (kept here to avoid
-  // a back-edge import; same one-line shape)
+  // unconditionally. single source of truth: index.js imports this off the compat factory
+  // (destructured at plugin top-level), it has no own copy
   function withSideEffects(result, sideEffects) {
     return sideEffects?.length
       ? t.sequenceExpression([...sideEffects.map(e => t.cloneNode(e)), result])
@@ -454,10 +462,13 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // `filter?.()`): splice the memoized inner result into the outer receiver sub-chain so the
     // hops re-emit (own pass polyfills them on the inner result) rather than being dropped
     let outerObject = hasHops ? spliceChainInner(outerPath.node.object, chainStartNode, mCall) : mCall;
-    // `?.method` as outer: nullish inner result must short-circuit the outer call too
+    // `?.method` as outer: nullish receiver of the outer call must short-circuit it. capture
+    // the hop-spliced `outerObject` (inner result + surviving non-optional hops), NOT the bare
+    // `mCall` - testing/binding `mCall` would discard the hops (`arr.flat?.().map(f)?.at(0)`
+    // would drop `.map(f)` and call `.at` on the flat() result). with no hops outerObject === mCall
     if (outerPath.node.optional) {
       const vRef = generateRef(scope);
-      tests.push(nullTest(assign(vRef, mCall)));
+      tests.push(nullTest(assign(vRef, outerObject)));
       outerObject = t.cloneNode(vRef);
     }
     const testOr = tests.reduce((a, b) => t.logicalExpression('||', a, b));
