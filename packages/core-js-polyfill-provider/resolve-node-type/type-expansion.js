@@ -695,7 +695,16 @@ export function createTypeExpansion({
         ? substituteTypeParams(match.constraint, typeParamMap, scope, depth + 1, seen)
         : resolveTypeAnnotation(match.constraint, scope))
       : null;
-    const inner = resolveInnerType(checkType) ?? fromConstraint;
+    const concreteInner = resolveInnerType(checkType);
+    // `infer U extends C`: when the matched element is concrete, TS evaluates the candidate
+    // against the constraint - a candidate definitively NOT assignable to C makes the conditional
+    // FALSE. without this, a constraint-violating concrete element (`Array<number>` against
+    // `Array<infer U extends string>`) wrongly fires the true branch and binds the disqualified
+    // element, keying a polyfill to a foreign receiver. only the cheaply-decidable disjoint case
+    // bails; an undecidable (null) relation stays permissive / over-emit-safe
+    if (concreteInner && fromConstraint
+      && pickConditionalBranch({ check: concreteInner, extend: fromConstraint }) === false) return INFER_PATTERN_FALSE;
+    const inner = concreteInner ?? fromConstraint;
     if (!inner) return null;
     const inferMap = typeParamMap ? new Map(typeParamMap) : new Map();
     inferMap.set(match.name, inner);
