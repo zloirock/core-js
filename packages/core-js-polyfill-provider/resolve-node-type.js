@@ -1418,6 +1418,7 @@ function createResolveNodeType(babelNodeType, t, {
     findLastStraightLineAssignment,
     withLookupPath,
     functionTypeParams: (...args) => functionTypeParams(...args),
+    collectBindingReferences,
   });
   const {
     findArrayPatternKeyPath,
