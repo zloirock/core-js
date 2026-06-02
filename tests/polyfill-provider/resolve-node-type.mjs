@@ -3843,4 +3843,25 @@ runBoth('invoked getter with divergent branch-function returns folds to null',
     check(`${ lbl } folds to null`, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
+// a parameter's array default narrows the receiver ONLY when no call site overrides it. a call
+// passing a real argument (`f(foreign)`) makes the runtime value the argument, not the default, so
+// the `.at` receiver inside the body widens to generic (null). the call-site scan enumerates the
+// function's references through the parser-agnostic helper, so the override is seen on oxc too -
+// reading babel's `referencePaths` directly would leave the estree adapter narrowing off a dead default
+runBoth('default-param array narrow widens when a call site passes an overriding argument',
+  'function f(x = [1, 2, 3]) { return x.at(0); }\ndeclare const foreign: any;\nf(foreign);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// control: the only call site passes no argument (`f()`), so the default applies and the receiver
+// keeps the array narrow - proves the null above is the call-site override, not a blanket bail
+runBoth('default-param array narrow holds when no call site overrides it',
+  'function f(x = [1, 2, 3]) { return x.at(0); }\nf();',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
 finish();

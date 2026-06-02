@@ -1,5 +1,11 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { markAndPeelSkippableWrappers, memberKeyName, singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
+import {
+  markAndPeelSkippableWrappers,
+  memberKeyName,
+  peelZeroArgIifeReturn,
+  singleQuasiString,
+  unwrapRuntimeExpr,
+} from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
 // import path; canonical definition lives in `ast-patterns.js` next to `singleQuasiString`
@@ -51,17 +57,31 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path) {
   return isProxyGlobalIdentifierNode({ node: init, scope: binding.path?.scope ?? scope, adapter, path });
 }
 
+// unwrap paren / TS / SE wrappers AND a zero-arg IIFE returning a proxy-global: at runtime
+// `(function(){return globalThis})().Array` accesses `Array` on `globalThis` exactly like the
+// bare `globalThis.Array` chain. owns the unwrap so callers pass the raw `.object` node;
+// non-IIFE callees (`getGlobal().Array`) return unchanged and keep generic dispatch.
+// `peelZeroArgIifeReturn` already bails on async / generator / spread / control-flow bodies,
+// so only sound pass-through wrappers peel
+function peelProxyGlobalObject(node) {
+  node = unwrapRuntimeExpr(node);
+  if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
+  const ret = peelZeroArgIifeReturn(node);
+  return ret ? unwrapRuntimeExpr(ret) : node;
+}
+
 // `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis.self.X` -> 'X', else null.
-// walks intermediate proxy-global links so deeper chains resolve to the leaf key.
+// walks intermediate proxy-global links so deeper chains resolve to the leaf key; peels a
+// zero-arg IIFE-return at each hop so `(()=>globalThis)().Array` resolves like `globalThis.Array`.
 // empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
 export function globalProxyMemberName({ node, scope, adapter, path }) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-  let object = unwrapRuntimeExpr(node.object);
+  let object = peelProxyGlobalObject(node.object);
   while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
     const linkName = memberKeyName(object);
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
-    object = unwrapRuntimeExpr(object.object);
+    object = peelProxyGlobalObject(object.object);
   }
   if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path })) return null;
   return memberKeyName(node) || null;

@@ -80,7 +80,14 @@ export function createGlobalResolve({
   function isProxyGlobalIifeReturn(callPath) {
     const ret = peelIIFEReturn(callPath.node);
     if (!ret) return false;
-    const fnPath = peelSkippableWrapperPath(callPath.get('callee'));
+    let fnPath = peelSkippableWrapperPath(callPath.get('callee'));
+    // peel a SequenceExpression-callee tail on the PATH side too (`(0, function(){...})()` /
+    // `(spy(), () => globalThis)()`): peelIIFEReturn already unwraps it on the node side, so
+    // without this the path walk stalls at the SE and the return path is never found - the two
+    // peels must agree or the proxy-global IIFE goes unrecognized
+    if (fnPath?.node?.type === 'SequenceExpression') {
+      fnPath = peelSkippableWrapperPath(fnPath.get('expressions').at(-1));
+    }
     if (!fnPath?.node) return false;
     const fnBody = fnPath.get('body');
     const retPath = fnBody?.node === ret ? fnBody : findReturnPath(fnBody, ret);

@@ -528,6 +528,14 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
   const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host);
   if (!descended) return null;
   const leaf = unwrapExpressionChain(descended);
+  // proxy-global member leaf (`const [{ from }] = [globalThis.Array]`): resolve the member
+  // chain to its constructor name, same as the non-wrappered `const { from } = globalThis.Array`
+  // path. without this the static-placement gate below only fired on a bare-Identifier leaf
+  // (`[Array]`), so usage-global dropped the dep and babel usage-pure dropped the substitution
+  if (leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
+    const resolved = resolveObjectName({ objectNode: leaf, scope: host.scope, adapter, path: host });
+    return resolved && isStaticPlacement(resolved) ? resolved : null;
+  }
   if (leaf?.type !== 'Identifier') return null;
   if (isStaticPlacement(leaf.name)) return leaf.name;
   // polyfill-substituted alias (`_Promise` for `Promise` after the standalone Identifier
