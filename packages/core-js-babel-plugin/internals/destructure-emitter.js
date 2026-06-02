@@ -26,6 +26,7 @@ import {
   peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiverPath,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -44,10 +45,81 @@ import {
 // `globalThis.Array` keeps its natural global-rewrite path. the actual AST rewrite is the shared
 // `collapseProxyGlobalReceiver` (the same helper the synth-swap path uses via `buildSynthLiteral`)
 function collapseRetainedProxyReceiver(synthSwap, hostNode, key) {
-  const receiver = hostNode?.[key];
+  if (!hostNode) return;
+  // peel SE-tail + Paren/TS wrappers to the inner member chain, tracking the slot it lives in so
+  // the collapsed receiver writes back UNDER the wrapper - the `(se(), ...)` prefix and the `as`
+  // cast must survive. without the peel, `maximalProxyGlobalHop` (it inspects MemberExpression
+  // chains only) returns null on an SE/TS-wrapped multi-hop receiver and the collapse is skipped,
+  // emitting `_globalThis.self.Array` whose `_globalThis.self` is runtime-undefined (ie:11 / Node)
+  let slotParent = hostNode;
+  let slotKey = key;
+  for (;;) {
+    const node = slotParent[slotKey];
+    if (node?.type === 'SequenceExpression' && node.expressions.length) {
+      slotParent = node.expressions;
+      slotKey = node.expressions.length - 1;
+    } else if (node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type)) {
+      slotParent = node;
+      slotKey = 'expression';
+    } else break;
+  }
+  const receiver = slotParent[slotKey];
   if (!receiver || !maximalProxyGlobalHop(receiver)) return;
   const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver);
-  if (collapsed) hostNode[key] = collapsed;
+  if (collapsed) slotParent[slotKey] = collapsed;
+}
+
+// descend a transparent single-element array wrapper (`[{...}] = [(se(), R)]`) to the element
+// that carries the receiver's SE prefix - one ArrayExpression level down where the bare
+// top-level peel (which only sees a top-level SequenceExpression) would miss it. mirrors the
+// unplugin `peelArrayWrapperPair` init descent. returns `{ prefix, tail, arr }` (arr = the
+// innermost ArrayExpression whose first element holds the SE) or null when there is no wrapper
+// or no nested SE. takes `t` since it sits at module scope, outside the factory closure
+function descendArrayWrapperToSE(t, declaratorNode) {
+  let pattern = declaratorNode.id;
+  let arr = declaratorNode.init;
+  while (t.isArrayPattern(pattern) && pattern.elements.length === 1 && pattern.elements[0]
+    && t.isArrayExpression(arr) && arr.elements.length === 1 && arr.elements[0]) {
+    const [patternElement] = pattern.elements;
+    const [arrElement] = arr.elements;
+    const { prefix, tail } = peelNestedSequenceExpressions(arrElement);
+    if (prefix.length) return { prefix, tail, arr };
+    pattern = t.isAssignmentPattern(patternElement) ? patternElement.left : patternElement;
+    arr = arrElement;
+  }
+  return null;
+}
+
+// build per-SE-expr ExpressionStatements (one per peeled prefix expr) for `insertBefore`.
+// matches unplugin's `cascadeAssignmentExpression` which emits each SE as a standalone
+// `se();` segment - multi-SE chains land as `se1(); se2(); ...` in both pipelines.
+// cloning preserves sibling visitors' path references through AST sub-tree relocation
+function buildSEPrefixStatements(t, prefix) {
+  return prefix.map(e => t.expressionStatement(t.cloneNode(e)));
+}
+
+// generic SE-prefix lift: peels prefix from `node[key]`, emits ExpressionStatements before
+// `hostPath`, and collapses the slot to the bare tail. used for the AssignmentExpression
+// (`right`) host and - via `liftDeclaratorInitSE` - the VariableDeclarator (`init`) host.
+// mutating the slot is essential: multiple polyfilled props sharing one SE-bearing receiver
+// each visit independently; without the swap, every visit re-peels the prefix, duplicating `se();`
+function liftSEPrefixSwap(t, node, key, hostPath) {
+  const { prefix, tail } = peelNestedSequenceExpressions(node[key]);
+  if (!prefix.length) return;
+  hostPath.insertBefore(buildSEPrefixStatements(t, prefix));
+  node[key] = tail;
+}
+
+// declarator-`init` SE lift that ALSO descends a transparent array wrapper hiding the receiver
+// SE one ArrayExpression level down (`[{...}] = [(se(), R)]`), where the top-level peel can't
+// see it. the wrapper is discarded by the flatten, so lift the nested-element SE and swap the
+// element to its bare tail (stops a multi-prop host re-visit from re-lifting). no wrapper ->
+// the plain top-level `liftSEPrefixSwap`
+function liftDeclaratorInitSE(t, declaratorNode, hostPath) {
+  const descended = descendArrayWrapperToSE(t, declaratorNode);
+  if (!descended) return liftSEPrefixSwap(t, declaratorNode, 'init', hostPath);
+  hostPath.insertBefore(buildSEPrefixStatements(t, descended.prefix));
+  descended.arr.elements[0] = descended.tail;
 }
 
 export default function createDestructureEmitter({
@@ -239,26 +311,6 @@ export default function createDestructureEmitter({
     );
   }
 
-  // build per-SE-expr ExpressionStatements (one per peeled prefix expr) for `insertBefore`.
-  // matches unplugin's `cascadeAssignmentExpression` which emits each SE as a standalone
-  // `se();` segment - multi-SE chains land as `se1(); se2(); ...` in both pipelines.
-  // cloning preserves sibling visitors' path references through AST sub-tree relocation
-  function buildSEPrefixStatements(prefix) {
-    return prefix.map(e => t.expressionStatement(t.cloneNode(e)));
-  }
-
-  // generic SE-prefix lift: peels prefix from `node[key]`, emits ExpressionStatements before
-  // `hostPath`, and collapses the slot to the bare tail. used for both VariableDeclarator
-  // (`init`) and AssignmentExpression (`right`) hosts. mutating the slot is essential -
-  // multiple polyfilled props sharing one SE-bearing receiver each visit independently;
-  // without the swap, every visit re-peels the same prefix and duplicates `se();`
-  function liftSEPrefixSwap(node, key, hostPath) {
-    const { prefix, tail } = peelNestedSequenceExpressions(node[key]);
-    if (!prefix.length) return;
-    hostPath.insertBefore(buildSEPrefixStatements(prefix));
-    node[key] = tail;
-  }
-
   // hoist `_unused` sentinel names into a shared `var _unused, _unused2;` declaration ahead
   // of the destructure host. first call creates the declaration via `insertBefore`, subsequent
   // calls APPEND to the same VariableDeclaration node (single combined statement, not split).
@@ -362,16 +414,24 @@ export default function createDestructureEmitter({
     // a removed-from-parent node. receiver tail stays visible so its proxy-global Identifier
     // (`globalThis`) can substitute via the normal visitor pass
     t.traverseFast(prop.node, node => { skippedNodes.add(node); });
-    liftSEPrefixSwap(assignPath.node, 'right', exprStmt);
+    liftSEPrefixSwap(t, assignPath.node, 'right', exprStmt);
     const bk = getAssignHostBookkeeping(assignPath.node);
     appendUnusedVarDeclarators(bk, exprStmt, applyRestAwareCascade(chain));
     appendPolyfillAssignment(bk, exprStmt, buildPolyfillAssignmentStatement(valueNode, id));
     // outer pattern fully emptied (every prop in the host destructure was polyfillable, no
-    // rest siblings): the surviving `({} = receiver)` is dead code. SE prefix already lifted
-    // above, bare receiver has no observable effect. remove the host. only the visitor that
-    // empties the outermost pattern reaches this point - earlier siblings break out of the
+    // rest siblings): the surviving `({} = receiver)` is dead destructuring. only the visitor
+    // that empties the outermost pattern reaches this point - earlier siblings break out of the
     // cascade with non-empty outer
-    if (chain.at(-1).pattern.node?.properties?.length === 0) exprStmt.remove();
+    if (chain.at(-1).pattern.node?.properties?.length === 0) {
+      // a receiver whose side effects survived liftSEPrefixSwap (it lifts only a TOP-LEVEL
+      // SequenceExpression - an SE nested inside an ArrayExpression element like
+      // `[(sideEffect(), globalThis)]` is NOT hoistable that way) must still EVALUATE. emit the
+      // bare receiver as a standalone statement instead of dropping it with the host; a side-
+      // effect-free receiver (the common case - the SE was already lifted, or never present)
+      // is dead and removed
+      if (mayHaveSideEffects(assignPath.node.right)) exprStmt.get('expression').replaceWith(assignPath.node.right);
+      else exprStmt.remove();
+    }
     return true;
   }
 
@@ -504,7 +564,9 @@ export default function createDestructureEmitter({
     // insert would wrap for-init in an arrow-IIFE and duplicate the bound name inside.
     // for-init can't host external statements either, so SE-prefix lift below is gated
     // on this same predicate
-    if (!isForInit) liftSEPrefixSwap(declarator.node, 'init', declaration);
+    // lift the receiver SE, descending a transparent array wrapper that hides it one
+    // ArrayExpression level down where the top-level peel can't see it
+    if (!isForInit) liftDeclaratorInitSE(t, declarator.node, declaration);
     // host wrapped in `export const { ... } = X` - every emitted statement re-exports its
     // bindings, mirror `splitDeclarators`' isExport wrap. for-init can't host export
     // statements (loop header) so gate on `!isForInit`
@@ -1096,7 +1158,11 @@ export default function createDestructureEmitter({
     if (!willRemoveDeclarator || declCount <= 1 || isForInit) return false;
     const idx = declaration.node.declarations.indexOf(declarator.node);
     if (idx === -1) return false;
-    const { prefix } = peelNestedSequenceExpressions(declarator.node.init);
+    // descend a transparent array wrapper so a nested-element SE lifts too; the split drops
+    // the consumed declarator outright, so no element swap is needed (unlike the single-decl
+    // lift). non-wrapper inits fall back to the bare top-level prefix
+    const { prefix } = descendArrayWrapperToSE(t, declarator.node)
+      ?? peelNestedSequenceExpressions(declarator.node.init);
     splitDeclarationAtSlot({ declaration, idx, sePrefix: prefix, extractedDeclarator });
     return true;
   }
