@@ -186,7 +186,16 @@ export function createAwaited({
       };
     }
     if (element.type === 'TSRestType') {
-      const inner = peelAwaitedArgument({ arg: element.typeAnnotation, scope, depth: depth + 1, typeParamMap, seen });
+      // `[...Promise<X>[]]`: the rest's typeAnnotation is a TSArrayType whose elementType is the
+      // Promise to peel - not the Promise directly. peel the array's element and rebuild the array
+      // so the rest position distributes like the fixed / optional ones (peelAwaitedArgument has no
+      // array case, so peeling the TSArrayType node itself would leave the inner Promise untouched)
+      const rest = element.typeAnnotation;
+      if (rest?.type === 'TSArrayType') {
+        const innerElement = peelAwaitedArgument({ arg: rest.elementType, scope, depth: depth + 1, typeParamMap, seen });
+        return { ...element, typeAnnotation: { ...rest, elementType: innerElement } };
+      }
+      const inner = peelAwaitedArgument({ arg: rest, scope, depth: depth + 1, typeParamMap, seen });
       return { ...element, typeAnnotation: inner };
     }
     // `[A, B?]` form - TSOptionalType wraps the inner annotation. peel into the wrapper
@@ -391,25 +400,27 @@ export function createAwaited({
   // unified through `memberThenCbParam`. both sides end in `cbFirstArgAnnotation`, then
   // `resolveThenableCbArgAwaited` for the recursive Awaited flatten
   function peelUserThenable(annotation, scope) {
-    // accept qualified-name TSTypeReference (`NS.MyThenable<T>`): downstream
-    // `findClassPathForTypeReference` and `getTypeMembers` both resolve qualified
-    // segments via `typeRefSegments`, so the Identifier-only guard was over-restrictive
-    if (annotation?.type !== 'TSTypeReference') return null;
-    const classPath = findClassPathForTypeReference(annotation, scope);
-    if (classPath) {
-      const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
-      const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
-      if (found) {
-        const valueAnn = cbFirstArgAnnotation(memberThenCbParam(found.member.node));
-        // subst applied to the AST BEFORE the awaited walk so a generic cb-arg
-        // (`(v: T) => any`) is concrete when the recursive Promise-peel runs
-        if (valueAnn) return resolveThenableCbArgAwaited(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
+    // accept a qualified-name TSTypeReference (`NS.MyThenable<T>`) and a structural object-literal
+    // thenable (`{ then(cb: (v: T) => any): void }` or an alias resolving to one): getTypeMembers
+    // handles TSTypeLiteral directly, so the structural peel below works for it. only the class-path
+    // lookup is TSTypeReference-specific (findClassPathForTypeReference resolves typeRefSegments)
+    if (annotation?.type === 'TSTypeReference') {
+      const classPath = findClassPathForTypeReference(annotation, scope);
+      if (classPath) {
+        const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
+        const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
+        if (found) {
+          const valueAnn = cbFirstArgAnnotation(memberThenCbParam(found.member.node));
+          // subst applied to the AST BEFORE the awaited walk so a generic cb-arg
+          // (`(v: T) => any`) is concrete when the recursive Promise-peel runs
+          if (valueAnn) return resolveThenableCbArgAwaited(found.subst ? applySubst(valueAnn, found.subst) : valueAnn, scope);
+        }
+        // class body lacks `then` - fall through to interface-path because TS
+        // declaration-merging puts `then` on a merged `interface Foo {}` companion.
+        // `getTypeMembers` (collectClassLikeMembers) includes merged-iface members
+        // alongside class body, so the structural peel catches the merged-only shape
       }
-      // class body lacks `then` - fall through to interface-path because TS
-      // declaration-merging puts `then` on a merged `interface Foo {}` companion.
-      // `getTypeMembers` (collectClassLikeMembers) includes merged-iface members
-      // alongside class body, so the structural peel catches the merged-only shape
-    }
+    } else if (annotation?.type !== 'TSTypeLiteral') return null;
     const members = getTypeMembers({ objectType: annotation, scope });
     const thenMember = members?.find(m => keyMatchesName(m.key, 'then'));
     const valueAnn = cbFirstArgAnnotation(memberThenCbParam(thenMember));
@@ -424,11 +435,14 @@ export function createAwaited({
     const type = resolveNodeType(argument);
     const annotationInfo = findExpressionAnnotation(argument);
     const annotation = annotationInfo && unwrapTypeAnnotation(annotationInfo.annotation);
-    // non-Promise: try structural Thenable peel (user class with `then(cb: (v:T) => ...)`);
-    // fall back to returning the type unchanged when no thenable shape detected
-    if (type && type.constructor !== 'Promise') {
+    // structural Thenable peel (`then(cb: (v:T) => ...)`) applies whenever the receiver is not a
+    // Promise: both when it resolved to a non-Promise nominal (interface / class -> Object) AND
+    // when it didn't resolve to a nominal at all (an object-literal `{ then() }`, or an alias to
+    // one, resolves to a null receiver type). a non-Promise type with no thenable returns unchanged
+    if (type?.constructor !== 'Promise') {
       const thenable = annotation && peelUserThenable(annotation, annotationInfo.scope);
-      return thenable ?? type;
+      if (thenable) return thenable;
+      if (type) return type;
     }
     // recursively unwrap Promise<Promise<...T>> -> T
     const peeled = unwrapPromise(type);
