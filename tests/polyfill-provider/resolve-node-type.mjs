@@ -222,6 +222,15 @@ runBoth('Array.from(...) -> Array', 'const x = Array.from([]);', (adapter, prog,
     { primitive: false, ctor: 'Array' });
 });
 
+// aliased static via assignment-destructure: the call-return type must resolve identically on
+// both adapters. estree-toolkit reports the constant-violation as the LHS Identifier, babel as
+// the AssignmentExpression - the destructure walk normalizes to the enclosing AE so both agree
+runBoth('aliased static via assignment-destructure -> Array', 'let x; ({ from: x } = Array); x([1]);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(call),
+    { primitive: false, ctor: 'Array' });
+});
+
 runBoth('String(...) (coerce) -> string primitive', 'const x = String(42);', (adapter, prog, lbl) => {
   const call = adapter.pickPath(prog, 'CallExpression');
   checkType(lbl, adapter.makeResolver().resolveNodeType(call),
