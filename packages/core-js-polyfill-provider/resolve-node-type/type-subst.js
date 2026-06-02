@@ -258,12 +258,20 @@ export function createTypeSubst({
     // FunctionExpression substitution covers the .value descent from substMemberAnnotations'
     // slot iteration. without these handlers, `returnMemberMethodNode(member, subst)` returns
     // method members unchanged - downstream class type-arg subst is silently lost for
-    // findTypeMember consumers (e.g. T['method'] indexed-access resolution)
+    // findTypeMember consumers (e.g. T['method'] indexed-access resolution).
+    // oxc emits a body-LESS method's `.value` as TSEmptyBodyFunctionExpression (a `declare class`
+    // method or overload signature carries the returnType on `.value`, where babel's TSDeclareMethod
+    // carries it on the node); without this entry the return-type subst is dropped on oxc only - a
+    // babel-vs-unplugin divergence for the same `declare class C<T> { m(): T[] }` -> `C<X>['m']`.
+    // an oxc `abstract m(): T[]` is a TSAbstractMethodDefinition with the same `.value` wrap as
+    // MethodDefinition (babel uses TSDeclareMethod, already handled), so it routes the same way
     ClassMethod: substFunctionType,
     ClassPrivateMethod: substFunctionType,
     TSDeclareMethod: substFunctionType,
     FunctionExpression: substFunctionType,
+    TSEmptyBodyFunctionExpression: substFunctionType,
     MethodDefinition: substMethodDefinition,
+    TSAbstractMethodDefinition: substMethodDefinition,
     TSIndexedAccessType: substIndexedAccess,
     TSMappedType: substMappedType,
     TSTypeQuery: (n, s, d, v) => withSubstitutedTypeArgs(n, n, s, d, v),
