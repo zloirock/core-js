@@ -11,4 +11,3 @@ if (obj.a.kind === "x") {
   obj.a = dynInner;
   _at(_ref = obj.a.data).call(_ref, 0);
 }
-

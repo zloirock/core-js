@@ -1,0 +1,15 @@
+import _at from "@core-js/pure/actual/instance/at";
+// `for (this.items of [...])` inside a method rebinds the instance field `items` to each iteration
+// value - an internal `this`-write that never appears as an assignment LHS. Folding the for-of
+// head's member target into the field flow widens `items`, so `.at` gets the generic polyfill.
+class C {
+  items = [1, 2, 3];
+  load() {
+    for (this.items of ["a", "b"]) {}
+  }
+  getFirst() {
+    var _ref;
+    return _at(_ref = this.items).call(_ref, 0);
+  }
+}
+new C().getFirst();
