@@ -8,6 +8,7 @@
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import { getSuperTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { unwrapParens } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
@@ -214,9 +215,20 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     // gated to TSTypeQuery: a qualified TSTypeReference (`x: NS.Foo`) roots at a type-only
     // namespace, not a runtime value, so it must NOT be treated as a global reference
     else if (node.type === 'TSTypeQuery' && ref?.type === 'TSQualifiedName') {
-      let root = ref.left;
-      while (root?.type === 'TSQualifiedName') root = root.left;
+      // collect the qualified chain root-first: `globalThis.Map.prototype` -> [globalThis, Map, ...]
+      const segments = [];
+      for (let cur = ref; cur; cur = cur.left) {
+        if (cur.type === 'TSQualifiedName') segments.unshift(cur.right);
+        else { segments.unshift(cur); break; }
+      }
+      const [root, next] = segments;
       if (root?.type === 'Identifier') onGlobal(root.name);
+      // when the root is a proxy-global (`globalThis` / `self` / `window` / ...), the segment
+      // directly on it IS the real global ctor (`typeof globalThis.Map` -> Map) - surface it so
+      // the Map polyfill injects, matching babel which sees `globalThis.Map` as a Map reference.
+      // a non-proxy-global root (`typeof NS.X`) surfaces only the root, as before
+      if (root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name)
+        && next?.type === 'Identifier') onGlobal(next.name);
     }
     for (const key of TYPE_CHILD_KEYS) {
       const child = node[key];
