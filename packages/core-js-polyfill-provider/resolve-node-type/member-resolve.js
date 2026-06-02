@@ -284,6 +284,17 @@ export function createMemberResolve({
       }
     }
     if (!annotation) return null;
+    // a bare type-parameter that SHADOWS a same-named class/interface (`function f<Box extends Strs>`
+    // over an outer `class Box`) is NOT that declaration: its apparent type is the CONSTRAINT. resolve
+    // through the constraint so members come from `Strs`, not the unrelated shadowed `Box`. gated on an
+    // actual shadowing decl so non-colliding type-params keep their existing constraint-fallback path
+    if (annotation.type === 'TSTypeReference' && annotation.typeName?.type === 'Identifier') {
+      const typeParam = findTypeParameter(annotation.typeName.name, scope);
+      if (typeParam && findTypeDeclaration([annotation.typeName.name], scope)) {
+        if (!typeParam.constraint) return null;
+        annotation = typeParam.constraint;
+      }
+    }
     // discriminated union narrowing: `if (x.kind === 'a') { x.data }` - restrict Foo
     // to the `{ kind:'a'; data: T }` branch. works for any serialisable LHS path
     // (Identifier / `this.x` / `obj.a.b`); computed / call-expression paths bail
@@ -346,6 +357,10 @@ export function createMemberResolve({
     if (annotation?.type !== 'TSTypeReference') return null;
     const { typeName } = annotation;
     if (typeName?.type === 'Identifier') {
+      // a type parameter shadowing an outer `class` of the same name (`function f<Box extends ...>`)
+      // is NOT that class: babel registers no value binding for the type-param, so getBinding would
+      // wrongly return the outer class. bail so the caller resolves the type-param via its constraint
+      if (findTypeParameter(typeName.name, scope)) return null;
       const binding = scope?.getBinding(typeName.name);
       return binding && t.isClassDeclaration(binding.path.node) ? binding.path : null;
     }
