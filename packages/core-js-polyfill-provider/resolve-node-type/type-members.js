@@ -218,7 +218,7 @@ export function createTypeMembers({
       // the concrete `typeof Cls` (otherwise raw T fails the typeof-only gate on the
       // recursive InstanceType branch). InstanceType's synthesized class reference has no
       // type-param to substitute - subst is a no-op there
-      const subst = buildCallSiteSubst(resolved.node, arg);
+      const subst = buildCallSiteSubst(resolved.node, arg, scope);
       return getTypeMembers({ objectType: applySubst(target, subst), scope, depth: depth + 1, visited });
     }
     // fast path first; only re-walk for the rare interface-merging case
@@ -367,24 +367,27 @@ export function createTypeMembers({
     return out;
   }
 
-  // mixed `{[k:number]:A; [k:string]:B}` index signatures resolve per-lookup: numeric keys ->
-  // number sig, string keys -> string sig (permissive fallback when only one sig is declared).
-  // unwrap the TSTypeAnnotation wrapper THEN peel TSParenthesizedType - oxc preserves
-  // `(string)` as TSParenthesizedType, and the discriminator check below compares against
-  // bare keyword types
+  // mixed `{[k:number]:A; [k:string]:B}` index signatures resolve per-lookup: a numeric key may
+  // fall back to the string signature (numeric keys coerce to string keys), but a non-numeric
+  // string key resolves only via the string signature. unwrap the TSTypeAnnotation wrapper THEN
+  // peel TSParenthesizedType - oxc preserves `(string)` as TSParenthesizedType, and the
+  // discriminator check below compares against bare keyword types
   function pickIndexSignature(members, key) {
     let numberSig = null;
     let stringSig = null;
-    let symbolSig = null;
     for (const member of members) {
       if (member.type !== 'TSIndexSignature' || !member.typeAnnotation) continue;
       const keyType = peelTSParenthesized(unwrapTypeAnnotation(member.parameters?.[0]?.typeAnnotation))?.type;
       if (keyType === 'TSNumberKeyword') numberSig ??= member.typeAnnotation;
-      else if (keyType === 'TSSymbolKeyword') symbolSig ??= member.typeAnnotation;
+      // a symbol index signature is never selectable by a string / number property key; skip it so
+      // it cannot be mistaken for the (otherwise permissive) string signature in the final fallback
+      else if (keyType === 'TSSymbolKeyword') continue;
       else stringSig ??= member.typeAnnotation;
     }
     const isNumericKey = typeof key === 'number' || /^-?\d+$/.test(String(key));
-    return isNumericKey ? (numberSig ?? stringSig) : (stringSig ?? numberSig ?? symbolSig);
+    // a number-only / symbol-only index type has no member for a non-numeric string key, so
+    // returning the number / symbol value type there would be over-emission, not a real member
+    return isNumericKey ? (numberSig ?? stringSig) : stringSig;
   }
 
   // element AST of an array-shaped type (`X[]` / `Array<X>` / `ReadonlyArray<X>`, readonly-peeled)
@@ -558,14 +561,17 @@ export function createTypeMembers({
       if (found.length === 1) return found[0];
       return { type: aliased.type, types: found };
     }
-    // intersection: first match wins - parts contribute disjoint keys (duplicate-key
-    // intersections are ill-formed at the TS level anyway)
+    // intersection: `(A & B)['k']` is `A['k'] & B['k']` - a key declared in several constituents
+    // contributes the INTERSECTION of its per-constituent member types, not the first hit. collect
+    // every constituent's member and fold into a synthetic intersection (mirrors the union branch
+    // and the additive `getTypeMembers` intersection semantics); the downstream
+    // `foldIntersectionTypes` prefers the array / string-like constituent over a bare object, so a
+    // non-array member listed before an array member no longer shadows the array polyfill
     if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
-      for (const member of aliased.types) {
-        const resolved = resolveBranch(member);
-        if (resolved) return resolved;
-      }
-      return null;
+      const found = aliased.types.map(resolveBranch).filter(Boolean);
+      if (!found.length) return null;
+      if (found.length === 1) return found[0];
+      return { type: aliased.type, types: found };
     }
     const indexedElement = tryIndexedElementMember({ aliased, key, scope, subst });
     if (indexedElement) return indexedElement;
@@ -610,11 +616,14 @@ export function createTypeMembers({
           }
           break;
         // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
-        // babel carries it directly). setter: `break` so iteration continues to a paired getter
+        // babel carries it directly). setter: `break` so iteration continues to a paired getter.
+        // oxc models `abstract m(): T` as TSAbstractMethodDefinition (same `.value` wrap as
+        // MethodDefinition; babel uses TSDeclareMethod, already listed) - matched identically
         case 'ClassMethod':
         case 'ClassPrivateMethod':
         case 'TSDeclareMethod':
         case 'MethodDefinition':
+        case 'TSAbstractMethodDefinition':
           if (member.computed || !keyMatchesName(member.key, key)) break;
           if (member.kind === 'get') return withSubst(member.returnType ?? member.value?.returnType);
           if (member.kind === 'set') break;
