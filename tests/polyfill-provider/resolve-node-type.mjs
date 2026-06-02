@@ -3812,4 +3812,35 @@ runBoth('member sub-path narrow holds without reassign on both parsers',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { kind: 'string' });
   });
 
+// `Reflect.construct(target, args, newTarget)` builds an object with newTarget.prototype, so the
+// 3-arg form is an instance of newTarget - its members resolve against newTarget's class, not the
+// target's. resolving the constructor from arguments[2] reaches D.m's string return on both parsers
+runBoth('Reflect.construct 3-arg newTarget resolves the instance to the newTarget class',
+  'class C { m() { return [1, 2, 3]; } } class D { m() { return "s"; } } const r = Reflect.construct(C, [], D).m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { kind: 'string' });
+  });
+
+// control: the 2-arg form has no newTarget, so the result is a target (C) instance and resolves
+// against C.m's array return - confirms the newTarget branch does not hijack the plain case
+runBoth('Reflect.construct 2-arg resolves the instance to the target class',
+  'class C { m() { return [1, 2, 3]; } } const r = Reflect.construct(C, []).m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// a getter returning DIFFERENT functions per branch (one -> number[], one -> string) is type-equal
+// as a bare function but differs on invoke; folding every branch's invoke-return yields no common
+// type, so `obj.getter()` resolves to null (generic) instead of narrowing to the first branch
+runBoth('invoked getter with divergent branch-function returns folds to null',
+  'declare const cond: boolean;\n'
+  + 'class C { get f() { if (cond) return () => [1, 2, 3]; return () => "s"; } }\n'
+  + 'const c = new C(); const r = c.f();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    check(`${ lbl } folds to null`, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
 finish();
