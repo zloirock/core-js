@@ -1092,6 +1092,7 @@ function createResolveNodeType(babelNodeType, t, {
   });
   const {
     buildProgramIndex,
+    collectBindingReferences,
     classBindingName,
     isClassExported,
     isReceiverNewOfClass,
@@ -1329,6 +1330,7 @@ function createResolveNodeType(babelNodeType, t, {
     findTypeMember: (...args) => findTypeMember(...args),
     followTypeAliasChain,
     applySubst,
+    collectBindingReferences,
   });
 
   // post-rewrite alias `const from = _Array$from`: injector exposes the canonical entry
