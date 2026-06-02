@@ -2059,6 +2059,8 @@ const packageJSON = {
   'package-json/exports-subpaths-style': [ERROR, { prefer: 'explicit' }],
   // reports on unnecessary empty arrays and objects
   'package-json/no-empty-fields': ERROR,
+  // requires that dependencies do not use local file paths, which will likely result in errors when installing from a registry
+  'package-json/no-local-dependencies': ERROR,
   // prevents adding unnecessary / redundant files
   'package-json/no-redundant-files': ERROR,
   // warns when `publishConfig.access` is used in unscoped packages
