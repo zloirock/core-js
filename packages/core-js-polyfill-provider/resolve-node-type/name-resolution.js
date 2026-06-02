@@ -77,6 +77,36 @@ export function createNameResolution({ t }) {
   // return an outer overload while TS would have used the inner shadow exclusively
   function walkAmbientDeclarationPath({ name, scope, matchType, firstMatch = true }) {
     const out = firstMatch ? null : [];
+    // scan a statement-array for the named decl. descends into `declare global { ... }` so a
+    // `class` / `function` declared inside the global augmentation is visible (mirrors the
+    // global-augmentation branch in `walkStatementsForDecl` - without it the babel pipeline
+    // misses an in-global class used as a static-call receiver while oxc's binding fallback finds it)
+    const scanStatements = (stmtPaths, match) => {
+      for (const stmtPath of stmtPaths) {
+        const { type } = stmtPath.node ?? {};
+        const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
+          ? stmtPath.get('declaration') : stmtPath;
+        const { node } = declPath;
+        if (node?.type === 'TSModuleDeclaration' && isGlobalAugmentation(node)) {
+          const innerBody = declPath.get('body');
+          const innerPaths = innerBody?.node?.type === 'TSModuleDeclaration' ? [innerBody] : innerBody?.get?.('body');
+          if (Array.isArray(innerPaths)) {
+            // contents of `declare global { ... }` are ambient even without their own `declare`
+            // flag (the class is a plain ClassDeclaration). relax the matcher so an in-global class
+            // is recognized as ambient; a no-op for the function matcher (ClassDeclaration never
+            // satisfies it). functions inside the augmentation already parse as TSDeclareFunction
+            const ambientMatch = n => match(n) || (n?.type === 'ClassDeclaration' && match({ ...n, declare: true }));
+            const found = scanStatements(innerPaths, ambientMatch);
+            if (found) return found;
+          }
+          continue;
+        }
+        if (node?.id?.name !== name || !match(node)) continue;
+        if (firstMatch) return declPath;
+        out.push(declPath);
+      }
+      return null;
+    };
     for (let cur = scope; cur; cur = cur.parent) {
       // Program / BlockStatement / TSModuleBlock - `path.get('body')` already returns the
       // statement array. Function / method scopes wrap statements in a BlockStatement, so
@@ -93,15 +123,8 @@ export function createNameResolution({ t }) {
       }
       if (!Array.isArray(bodyPaths)) continue;
       const before = out?.length;
-      for (const stmtPath of bodyPaths) {
-        const { type } = stmtPath.node ?? {};
-        const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
-          ? stmtPath.get('declaration') : stmtPath;
-        const { node } = declPath;
-        if (node?.id?.name !== name || !matchType(node)) continue;
-        if (firstMatch) return declPath;
-        out.push(declPath);
-      }
+      const found = scanStatements(bodyPaths, matchType);
+      if (found) return found;
       // collect-mode: stop at the innermost scope that produced any matches so outer-scope
       // overloads don't bleed past a shadow. mirrors `walkScopesForDecl`'s collect-then-stop.
       // `out?.length` short-circuits to undefined for firstMatch (we never reach here when
@@ -463,7 +486,7 @@ export function createNameResolution({ t }) {
     return null;
   }
 
-  function walkDeclPathsBySegments(segments, stmtPaths, matchType) {
+  function walkDeclPathsBySegments(segments, stmtPaths, matchType, visited = new Set()) {
     const [head, ...rest] = segments;
     for (const stmtPath of stmtPaths) {
       const { type } = stmtPath.node ?? {};
@@ -472,6 +495,19 @@ export function createNameResolution({ t }) {
       const decl = declPath.node;
       if (!decl) continue;
       if (rest.length === 0 && decl.id?.name === head && matchType(decl)) return declPath;
+      // qualified ref reached through a namespace alias (`import IM = M; class C extends IM.Base`):
+      // re-walk with the alias target's segments prepended. mirrors `walkStatementsForDecl`'s
+      // TSImportEqualsDeclaration branch; visited-guard bails on cyclic aliases (shared with PP11-2)
+      if (decl.type === 'TSImportEqualsDeclaration' && decl.id?.name === head && rest.length) {
+        if (visited.has(decl)) continue;
+        visited.add(decl);
+        const refSegments = collectQualifiedSegments(decl.moduleReference);
+        if (refSegments?.length) {
+          const found = walkDeclPathsBySegments([...refSegments, ...rest], stmtPaths, matchType, visited);
+          if (found) return found;
+        }
+        continue;
+      }
       // mirrors `walkStatementsForDecl`: bare-name segments only resolve via top-level
       // decls in this iteration. without the guard nested namespaces would re-enter their
       // own body on every bare segment query, doubling work on deep TSModuleDeclaration trees

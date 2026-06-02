@@ -109,8 +109,8 @@ export function createTypeMembers({
   // repeated across alias / interface / class collectors. zero-arity decls return null
   // (buildSubstMap guards on declParams length), so siblings without type-params skip
   // substitution cleanly
-  function declSubst(decl, receiverArgs) {
-    return buildSubstMap(decl.typeParameters?.params, receiverArgs);
+  function declSubst(decl, receiverArgs, scope) {
+    return buildSubstMap(decl.typeParameters?.params, receiverArgs, scope);
   }
 
   // memoize `(objectType, scope)` -> members. without it every `findTypeMember` re-walks
@@ -239,7 +239,7 @@ export function createTypeMembers({
       // `type Dict<V> = { [k: string]: V }` + `Dict<number[]>[string]` resolves V to number[]
       return substMembers(
         getTypeMembers({ objectType: unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth: depth + 1, visited }),
-        declSubst(declaration, receiverArgs),
+        declSubst(declaration, receiverArgs, scope),
       );
     }
     return null;
@@ -256,7 +256,7 @@ export function createTypeMembers({
     for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
       if (seen.has(iface)) continue;
       seen.add(iface);
-      const ifaceSubst = declSubst(iface, receiverArgs);
+      const ifaceSubst = declSubst(iface, receiverArgs, scope);
       out.push(...substMembers(interfaceBodyMembers(iface), ifaceSubst));
       appendInterfaceExtendsMembers({ iface, scope, depth, out, ifaceSubst, visited: seen });
     }
@@ -271,7 +271,7 @@ export function createTypeMembers({
     const merged = [];
     const seen = new Set();
     let cur = declaration;
-    let curSubst = declSubst(declaration, receiverArgs);
+    let curSubst = declSubst(declaration, receiverArgs, scope);
     let curReceiverArgs = receiverArgs;
     while (cur && !seen.has(cur)) {
       seen.add(cur);
