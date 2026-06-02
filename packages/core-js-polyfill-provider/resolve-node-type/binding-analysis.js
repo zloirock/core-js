@@ -30,6 +30,7 @@
 import { REBIND_ASSIGNMENT_OPERATORS } from './base.js';
 import {
   isBindingPosition,
+  isMemberAccessNode,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   peelTransparentExprAncestorPath,
@@ -279,7 +280,10 @@ export function createBindingAnalysis({
     const parent = effectivePath.parentPath?.node;
     const isDeclaratorInit = parent?.type === 'VariableDeclarator' && parent.init === effective;
     const isExprStmt = parent?.type === 'ExpressionStatement' && parent.expression === effective;
-    const isMemberRecv = parent?.type === 'MemberExpression' && parent.object === effective;
+    // babel models `new C()?.m()` with the new-expr parent as OptionalMemberExpression; oxc as
+    // MemberExpression{optional:true}. accept both so a transient optional-chain receiver classifies
+    // identically across parsers (a read-only transient can't mutate, so the narrow stays sound)
+    const isMemberRecv = isMemberAccessNode(parent) && parent.object === effective;
     const assignmentInitName = assignmentInitNameOf(effectivePath);
     return {
       path: originalPath,
@@ -388,8 +392,14 @@ export function createBindingAnalysis({
       case 'ArrayPattern': return true;
       case 'AssignmentPattern': return host.left === parent;
       case 'RestElement': return host.argument === parent;
+      // a property VALUE is a write only inside a destructuring ObjectPattern (`({ x: c[k] } = v)`);
+      // inside an ObjectExpression value (`{ x: c[k] }`) the member is a READ and must not bail the
+      // alias closure. both parsers tag the destructuring-LHS object as ObjectPattern (the member's
+      // path is refPath -> MemberExpression -> ObjectProperty/Property -> enclosing object)
       case 'ObjectProperty':
-      case 'Property': return host.value === parent;
+      case 'Property':
+        return host.value === parent
+          && refPath?.parentPath?.parentPath?.parent?.type === 'ObjectPattern';
       // `for (c[k] of it)` / `for (c[k] in o)` rebinds the dynamic key each iteration
       case 'ForOfStatement':
       case 'ForInStatement': return host.left === parent;
@@ -539,9 +549,10 @@ export function createBindingAnalysis({
   // cluster-private helpers (used only by other cluster functions, not by the factory
   // or other clusters): `getExportedNames` / `isBindingExportedByName` / `isMemberRefReceiver` /
   // `resolveStaticCalleePair` / `resolveKnownStaticEntry` / `isKnownNonMutatingCallSite` /
-  // `collectBindingReferences` / `defaultAliasRefClassifier` / `isTypePositionParent`
+  // `defaultAliasRefClassifier` / `isTypePositionParent`
   return {
     buildProgramIndex,
+    collectBindingReferences,
     classBindingName,
     isClassExported,
     isNewOfClass,
