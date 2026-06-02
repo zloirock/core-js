@@ -729,6 +729,8 @@ function createResolveNodeType(babelNodeType, t, {
   } = createUserTypeResolve({
     typeParamName,
     findTypeDeclaration,
+    findDeclPathBySegments,
+    withLookupPath,
     findTypeParameter,
     isClassLikeDeclaration,
     extendsClauseName: (...args) => extendsClauseName(...args),
@@ -1416,6 +1418,7 @@ function createResolveNodeType(babelNodeType, t, {
     constantBindingPath,
     findEnumDeclaration,
     findDeclPathBySegments,
+    withLookupPath,
     resolveEnumMemberType,
     isFunctionOrClassDeclaration,
     isFunctionLike,

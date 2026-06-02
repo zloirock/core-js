@@ -61,6 +61,8 @@ function runParentWalkWithCycleIsolation(visited, walk) {
 export function createUserTypeResolve({
   typeParamName,
   findTypeDeclaration,
+  findDeclPathBySegments,
+  withLookupPath,
   findTypeParameter,
   isClassLikeDeclaration,
   extendsClauseName,
@@ -118,9 +120,13 @@ export function createUserTypeResolve({
     // `<T, U = T[]>`: U sees already-resolved T from earlier iterations
     let map = null;
     for (let i = 0; i < declParams.length; i++) {
-      const arg = callArgs?.[i] ?? declParams[i].default;
+      const explicit = callArgs?.[i];
+      const arg = explicit ?? declParams[i].default;
       if (!arg) continue;
-      const resolved = map
+      // explicit call-args resolve in the CALLER scope (no local map) - a bare ref whose name
+      // collides with an earlier declParam (`Wrap<string, A>` where param 0 is also named `A`)
+      // must not be captured by the progressive map. only DEFAULTS see earlier-resolved params
+      const resolved = !explicit && map
         ? substituteTypeParams(arg, map, scope, 0)
         : resolveTypeAnnotation(arg, scope);
       if (resolved) {
@@ -138,6 +144,16 @@ export function createUserTypeResolve({
   //     array-form path to locate the parent interface, recurse with its declaration scope
   // without the qualified branch, namespace extends bails to Object hint and member
   // dispatch loses the parent's structural members
+  // resolve a qualified parent (interface-`extends` / class-`extends`) with its module body anchored
+  // as the type-name lookup path, so the parent's bare sibling-type heritage (`Base extends Inner`
+  // inside `namespace NS`) resolves against NS rather than the caller scope. `parentPath` is null for
+  // a bare / unfound name -> withLookupPath is a no-op and the caller scope is used unchanged
+  function resolveParentAnchored(parentPath, { name, node, scope, depth, typeParamMap, seen }) {
+    return withLookupPath(parentPath, () => resolveUserDefinedType({
+      name, node, scope: parentPath?.scope ?? scope, depth: depth + 1, typeParamMap, seen,
+    }));
+  }
+
   function resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }) {
     const base = extendsId(parent);
     if (!base) return null;
@@ -153,9 +169,12 @@ export function createUserTypeResolve({
     // sibling-scope declaration sharing the same short name
     const parentDecl = findTypeDeclaration(segments, scope);
     if (!parentDecl || !isInterfaceDeclaration(parentDecl)) return null;
-    return resolveUserDefinedType({
-      name: segments, node: parent, scope: parentDecl.scope ?? scope, depth: depth + 1, typeParamMap, seen: visited,
-    });
+    // a namespace-qualified parent (`extends NS.Base`) whose heritage references a sibling by its
+    // bare name (`Base extends Inner`) needs NS's module body as the lookup anchor - findTypeDeclaration
+    // returns a raw node with no `.scope`, so `parentDecl.scope` is always undefined and bare `Inner`
+    // would resolve in the caller scope (missed). recover the parent's NodePath and anchor the lookup there
+    const parentPath = findDeclPathBySegments(segments, scope, isInterfaceDeclaration);
+    return resolveParentAnchored(parentPath, { name: segments, node: parent, scope, depth, typeParamMap, seen: visited });
   }
 
   function resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen }) {
@@ -247,9 +266,14 @@ export function createUserTypeResolve({
       const ctor = resolveKnownConstructor(superName);
       if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
       const cycleFlipped = cycleFlipDetector(visited);
-      const result = runParentWalkWithCycleIsolation(visited, () => resolveUserDefinedType({
-        name: superName, node: parentRef, scope, depth: depth + 1, typeParamMap, seen: visited,
-      }));
+      // namespace-qualified super (`class Sub extends NS.Base`) whose own heritage references a
+      // sibling by bare name (`Base extends Inner`): anchor the lookup at the parent's NodePath so
+      // NS's module body supplies `Inner` (same gap as the interface branch). no-op for bare supers
+      const parentSegments = superName.split('.');
+      const parentPath = parentSegments.length > 1
+        ? findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration) : null;
+      const result = runParentWalkWithCycleIsolation(visited, () => resolveParentAnchored(parentPath,
+        { name: superName, node: parentRef, scope, depth, typeParamMap, seen: visited }));
       if (result) return result;
       if (cycleFlipped()) return null;
       return new $Object('Object');
@@ -275,12 +299,25 @@ export function createUserTypeResolve({
   // name. values are RAW AST nodes (TSTypeReference / TSArrayType / etc.) ready to be
   // spliced into a deep-cloned tree by `applyAliasSubstDeep`. distinct from
   // `resolveTypeArgs` which builds Type-object-valued binding maps for `substituteTypeParams`
-  function buildSubstMap(declParams, usageArgs) {
+  function buildSubstMap(declParams, usageArgs, scope) {
     if (!declParams?.length) return null;
     const subst = new Map();
+    const paramNames = scope ? new Set(declParams.map(typeParamName)) : null;
     for (let i = 0; i < declParams.length; i++) {
-      const arg = usageArgs?.[i] ?? declParams[i].default;
-      if (arg) subst.set(typeParamName(declParams[i]), arg);
+      const usageArg = usageArgs?.[i];
+      let arg = usageArg ?? declParams[i].default;
+      if (!arg) continue;
+      // capture-avoidance: an EXPLICIT usage-arg that is a bare reference COLLIDING with a sibling
+      // type-param name (`Wrap<string, A>` over `interface Wrap<A, Q>`) would be re-captured by that
+      // sibling's mapping under the transitive substitution in applyAliasSubstDeep (Q -> A -> string).
+      // resolve such a colliding alias arg to its body in the usage scope so the stored value is
+      // concrete + unambiguous. gated on an exact collision so the common no-collision path is unchanged
+      if (paramNames && usageArg && arg.type === 'TSTypeReference' && arg.typeName?.type === 'Identifier'
+          && paramNames.has(arg.typeName.name)) {
+        const aliased = findTypeDeclaration([arg.typeName.name], scope);
+        if (aliased?.type === 'TSTypeAliasDeclaration' && aliased.typeAnnotation) arg = aliased.typeAnnotation;
+      }
+      subst.set(typeParamName(declParams[i]), arg);
     }
     return subst.size ? subst : null;
   }
