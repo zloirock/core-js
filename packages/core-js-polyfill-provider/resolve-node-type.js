@@ -222,6 +222,12 @@ function createResolveNodeType(babelNodeType, t, {
     const peeled = resolveRuntimeExpression(argPath)?.node ?? argPath.node;
     if (isLiteralOf(peeled, 'String')) return synthLiteralIndex('StringLiteral', peeled.value);
     if (isLiteralOf(peeled, 'Numeric')) return synthLiteralIndex('NumericLiteral', peeled.value);
+    // negated numeric arg (`pick(-1)`): parses as a UnaryExpression wrapper whose `value` slot is
+    // undefined, so the Numeric check above misses it. mirror the type-side `literalKeyValue`, which
+    // already unwraps `-N`, so `Items[K]` with `K = -1` resolves the `{ "-1": ... }` member
+    if (peeled?.type === 'UnaryExpression' && peeled.operator === '-' && isLiteralOf(peeled.argument, 'Numeric')) {
+      return synthLiteralIndex('NumericLiteral', -peeled.argument.value);
+    }
     const quasi = singleQuasiString(peeled);
     if (quasi !== null) return synthLiteralIndex('StringLiteral', quasi);
     return indexType;
@@ -285,13 +291,27 @@ function createResolveNodeType(babelNodeType, t, {
   // (the LATER literal wins even after the spread). returns null when no key matches, when
   // a spread sits before the latest match, or when the matched value is a leaf method
   // shorthand (`onMethod` returns the leaf decision so callers split method/value semantics)
+  // a getter / setter and a method shorthand both normalise to `ObjectMethod` via babelNodeType,
+  // but a getter contributes its RETURN type (not a Function value): resolve the getter function's
+  // declared / inferred return. babel models the getter as the ObjectMethod node; oxc as a Property
+  // whose `.value` is the FunctionExpression
+  function resolveObjectGetterReturn(prop) {
+    return resolveReturnType(prop.node.value ? prop.get('value') : prop);
+  }
+
   function findObjectLiteralKey(propsPath, key, onMethod) {
     for (let i = propsPath.length - 1; i >= 0; i--) {
       const prop = propsPath[i];
       const { node } = prop;
       if (node.type === 'SpreadElement') return null;
       if (node.computed || getKeyName(node.key) !== key) continue;
-      if (babelNodeType(node) === 'ObjectMethod') return onMethod();
+      if (babelNodeType(node) === 'ObjectMethod') {
+        // a setter has no readable value - skip to a paired getter later in the literal. a getter
+        // or plain method shorthand goes to the caller's onMethod, which resolves a getter to its
+        // return type and a method to a Function value
+        if (node.kind === 'set') continue;
+        return onMethod(prop);
+      }
       return prop.get('value');
     }
     return null;
@@ -341,11 +361,15 @@ function createResolveNodeType(babelNodeType, t, {
       return resolveNodeType(elementPath);
     }
     if (argPath?.node?.type !== 'ObjectExpression') return null;
-    // babel-only `ObjectMethod` shorthand: `{ foo() {...} }`. oxc emits `Property { value: FunctionExpression }`
-    // and falls through to `resolveNodeType(prop.get('value'))` which returns Function via FunctionExpression
-    const valuePath = findObjectLiteralKey(argPath.get('properties'), key, () => new $Object('Function'));
+    // method shorthand (`{ foo() {...} }`) resolves to a Function value; an accessor `{ get k() {...} }`
+    // (which babelNodeType also reports as ObjectMethod on BOTH parsers) resolves to the getter's
+    // return type. onMethod returns the resolved Type for these; a plain key returns its value path
+    const valuePath = findObjectLiteralKey(argPath.get('properties'), key,
+      prop => prop.node.kind === 'get' ? resolveObjectGetterReturn(prop) : new $Object('Function'));
     if (valuePath === null) return null;
-    return valuePath instanceof $Object ? valuePath : resolveNodeType(valuePath);
+    // onMethod yields a resolved Type ($Object / $Primitive both carry a boolean `primitive`); a
+    // plain-key hit yields a NodePath to resolve
+    return typeof valuePath.primitive === 'boolean' ? valuePath : resolveNodeType(valuePath);
   }
 
   // [key] where key is a string/number literal, a const binding (chain) to one, or an
@@ -1841,6 +1865,7 @@ function createResolveNodeType(babelNodeType, t, {
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();
     typeMembersCluster.reset();
+    typeAnnotationResolveCluster.reset();
     callResolutionCluster.resetExpressionAnnotationCache();
     resolveCache = new WeakMap();
     resolvedTypeCache = new WeakMap();

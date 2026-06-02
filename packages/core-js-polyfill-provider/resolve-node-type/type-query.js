@@ -274,7 +274,7 @@ export function createTypeQuery({
       // `buildCallSiteSubst` zips fn.typeParameters with param.typeParameters - returns null
       // when either side is empty / missing, in which case we fall back to body inference
       const ret = resolved.node.returnType ?? resolved.node.typeAnnotation;
-      const subst = ret && buildCallSiteSubst(resolved.node, param);
+      const subst = ret && buildCallSiteSubst(resolved.node, param, scope);
       // anchor the return-type resolution at the resolved (possibly in-namespace) fn path: a
       // `typeof NS.fn` whose declared return references an IN-NAMESPACE type alias (`(): Local`
       // where `Local` is a sibling in NS) needs NS's module body as the lookup anchor - the

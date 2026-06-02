@@ -233,9 +233,19 @@ export function createTypeFolding({
     return foldTypes(types, resolve, r => !r ? 0 : isNullableOrNever(r) ? 1 : 2);
   }
 
-  // fold intersection members: unresolvable or plain Object -> skip, rest -> fold
+  // a "weak" intersection constituent carries no useful instance-method narrow: null / unresolvable,
+  // a bare object (`{}`), or a Function value (a method-typed member such as `(() => T) & C[]`). a
+  // concrete container present in the intersection governs member dispatch, so weak members are
+  // SKIPped and must not block it from folding in
+  function isWeakIntersectionMember(resolved) {
+    if (!resolved) return true;
+    if (resolved.primitive) return false;
+    return !resolved.constructor || resolved.constructor === 'Object' || resolved.constructor === 'Function';
+  }
+
+  // fold intersection members: weak constituent -> skip, rest -> fold
   function foldIntersectionTypes(types, resolve) {
-    return foldTypes(types, resolve, r => !r || (!r.primitive && (!r.constructor || r.constructor === 'Object')) ? 1 : 2);
+    return foldTypes(types, resolve, r => isWeakIntersectionMember(r) ? 1 : 2);
   }
 
   // compute common inner type from tuple elements using a parameterized resolver
