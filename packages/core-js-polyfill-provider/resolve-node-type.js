@@ -1199,6 +1199,8 @@ function createResolveNodeType(babelNodeType, t, {
   const classFieldsCluster = createClassFields({
     t,
     getKeyName,
+    literalKeyValue,
+    singleQuasiString,
     memoize,
     findProgramPath,
     methodFnPath: (...args) => methodFnPath(...args),
@@ -1239,6 +1241,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildSubstMap,
     unwrapTypeAnnotation,
     typesEqual,
+    commonType,
     collectReturnPaths,
     resolveRuntimeExpression,
     resolveNodeType,
