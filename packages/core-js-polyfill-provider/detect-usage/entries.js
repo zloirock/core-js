@@ -50,8 +50,10 @@ export function getEntrySource(node, adapter, scope) {
   const expr = unwrapParens(node.expression);
   // require('core-js/...'); also handles webpack-style `(0, require)('core-js/...')` by
   // peeling the SequenceExpression tail (side-effect-free preceding elements drop out) so
-  // tool-generated indirect-require wrappers still register as entries
-  if (expr?.type === 'CallExpression' && expr.arguments?.length === 1) {
+  // tool-generated indirect-require wrappers still register as entries. `require?.('core-js/...')`
+  // counts too: babel models it as OptionalCallExpression, oxc folds the optional marker into a
+  // CallExpression - accept both so the entry registers identically across parsers
+  if ((expr?.type === 'CallExpression' || expr?.type === 'OptionalCallExpression') && expr.arguments?.length === 1) {
     // peel parens / TS wrappers / chain so `(require as any)('core-js/...')` and
     // `require!('core-js/...')` reach the same Identifier check. SequenceExpression peeled
     // unconditionally: entry-detection doesn't rewrite the source, SE prefix's side effects
