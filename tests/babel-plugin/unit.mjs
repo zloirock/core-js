@@ -3,3 +3,4 @@
 // on import, calls `finish()` to print the per-suite summary and throws on failure.
 // failures surface as load-time errors here, then `test-babel-plugin-unit` exits non-zero
 import './babel-compat.mjs';
+import './import-injector.mjs';
