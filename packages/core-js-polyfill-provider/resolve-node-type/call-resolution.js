@@ -204,9 +204,10 @@ export function createCallResolution({
   // oxc TSFunctionType / Flow FunctionTypeAnnotation: `returnType` (raw type).
   // TSMethodSignature / TSDeclareMethod / ClassMethod / ClassPrivateMethod use the same
   // slot pair (babel `typeAnnotation`, oxc `returnType`) directly on the member node.
-  // ESTree MethodDefinition wraps the function in `.value` so the return type lives one
-  // level deeper. consumers (e.g. ReturnType<typeof X.method>) call into this when
-  // `findTypeMember` returns the raw signature instead of a synthetic stub
+  // ESTree MethodDefinition and its abstract sibling TSAbstractMethodDefinition wrap the function
+  // in `.value` so the return type lives one level deeper (oxc emits `abstract m(): T` as the
+  // latter). consumers (e.g. ReturnType<typeof X.method>) call into this when `findTypeMember`
+  // returns the raw signature instead of a synthetic stub
   function functionTypeReturnAnnotation(node) {
     if (!node) return null;
     switch (node.type) {
@@ -218,6 +219,7 @@ export function createCallResolution({
       case 'ClassPrivateMethod':
         return node.typeAnnotation ?? node.returnType;
       case 'MethodDefinition':
+      case 'TSAbstractMethodDefinition':
         return node.value?.returnType ?? node.value?.typeAnnotation;
       case 'FunctionTypeAnnotation':
         return node.returnType;
@@ -390,7 +392,7 @@ export function createCallResolution({
       if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
         // explicit `<...>` args; argument inference fallback (`makeBox(arr)` lifts arr's
         // annotation onto T). without subst, generic return `{value: T}` leaks unsubstituted
-        const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node);
+        const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node, path.scope);
         const rawReturn = unwrapTypeAnnotation(fnPath.node.returnType);
         const annotation = subst ? applyAliasSubstDeep(rawReturn, subst) : rawReturn;
         return { annotation, scope: fnPath.scope };
@@ -420,8 +422,11 @@ export function createCallResolution({
   }
 
   // call-site explicit type args (`makeBox<number>()`) -> {paramName -> argNode}
-  function buildCallSiteSubst(fnNode, callNode) {
-    return buildSubstMap(fnNode.typeParameters?.params, getTypeArgs(callNode)?.params);
+  // `scope` threads to buildSubstMap's capture-avoidance: an explicit instantiation arg that is a
+  // bare reference colliding with a function type-param name (`fn<T, U>` called `<X, T>`) is resolved
+  // to its declaration body so the transitive subst can't recapture it (`U -> T -> X`)
+  function buildCallSiteSubst(fnNode, callNode, scope) {
+    return buildSubstMap(fnNode.typeParameters?.params, getTypeArgs(callNode)?.params, scope);
   }
 
   // infer T -> argAnnotation from runtime arg annotations when caller omits `<...>`
