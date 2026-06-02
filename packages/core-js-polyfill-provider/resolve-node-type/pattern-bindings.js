@@ -13,7 +13,7 @@
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
 import { $Object, $Primitive, PATTERN_WRAPPERS, peelAssignmentPattern } from './base.js';
-import { collectQualifiedSegments } from './ast-shapes.js';
+import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 
 export function createPatternBindings({
@@ -44,6 +44,7 @@ export function createPatternBindings({
   findLastStraightLineAssignment,
   withLookupPath,
   functionTypeParams,
+  collectBindingReferences,
 }) {
   // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
   // sentinel conventions:
@@ -568,6 +569,36 @@ export function createPatternBindings({
     return resolveTypeAnnotation(annotation, objInfo.scope);
   }
 
+  // is `function f(x = default)` never called with a real overriding arg at this param's slot?
+  // only then does the default's TYPE soundly describe the param at runtime (a foreign arg would
+  // make a type-specific Maybe forward to a missing native method). scans the enclosing function's
+  // call sites via the parser-agnostic enumerator: an `undefined` / `void` arg triggers the default
+  // (not an override), a missing arg is fine, but a real arg or a non-callee reference (the function
+  // escapes, so external calls are unknown) makes the default non-authoritative
+  function defaultParamNeverOverridden(bindingPath) {
+    const fnPath = bindingPath.parentPath;
+    if (!fnPath?.node || !t.isFunction(fnPath.node)) return false;
+    const paramIndex = fnPath.node.params.indexOf(bindingPath.node);
+    if (paramIndex === -1) return false;
+    let fnName = fnPath.node.id?.name;
+    if (!fnName && fnPath.parentPath?.node?.type === 'VariableDeclarator'
+      && fnPath.parentPath.node.id?.type === 'Identifier') fnName = fnPath.parentPath.node.id.name;
+    if (!fnName) return false;
+    const binding = fnPath.scope?.getBinding(fnName);
+    if (!binding || binding.constantViolations?.length) return false;
+    for (const ref of collectBindingReferences(binding, fnName, fnPath) ?? []) {
+      const callNode = ref.parentPath?.node;
+      if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')
+        || callNode.callee !== ref.node) return false;
+      const arg = callNode.arguments?.[paramIndex];
+      if (!arg) continue;
+      if (arg.type === 'UnaryExpression' && arg.operator === 'void') continue;
+      if (isBareUndefinedIdentifier(arg) && !ref.scope?.getBinding?.('undefined')) continue;
+      return false;
+    }
+    return true;
+  }
+
   // resolve a binding's type via the most precise source available: rest-param ->
   // destructure -> annotation -> for-of element -> straight-line assignment -> const init.
   // single Identifier path; never recurses through the resolver entry-point on the binding
@@ -611,13 +642,14 @@ export function createPatternBindings({
       const inferred = inferCallbackParamType(bindingPath);
       if (inferred) return inferred;
     }
-    // unannotated Identifier param with default value (`function f(x = [])`). babel binds
-    // the param to the AssignmentPattern wrapper (same convention as RestElement above), so
-    // the default expression lives at `bindingPath.get('right')`. annotated form caught by
-    // `findBindingAnnotation` above. caller-passed arg overrides at runtime, but polyfill
-    // emit follows the declared default's TYPE shape
+    // unannotated Identifier param with default value (`function f(x = [1,2,3])`). the default's
+    // TYPE narrows the param ONLY if no call site overrides it with a real arg: a caller-passed
+    // foreign arg makes the runtime receiver foreign, and a type-specific Maybe (`_atMaybeArray`)
+    // would forward it to the native method and throw on engines lacking it. so narrow from the
+    // default only when every call omits the arg (or passes `undefined` / `void`, which trigger
+    // the default), else resolve generic
     if (node?.type === 'AssignmentPattern' && node.left?.type === 'Identifier' && node.left.name === name) {
-      return resolveNodeType(bindingPath.get('right'));
+      return defaultParamNeverOverridden(bindingPath) ? resolveNodeType(bindingPath.get('right')) : null;
     }
     // for-in / for-of (only for direct bindings - destructured bindings return early above)
     const forLoopParent = findForLoopParent(bindingPath);

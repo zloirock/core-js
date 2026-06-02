@@ -865,7 +865,8 @@ export function isMemberMutationContext(node, parent, grandparent) {
 function staticStringKey(node) {
   if (node?.type === 'StringLiteral') return node.value;
   if (node?.type === 'Literal' && typeof node.value === 'string') return node.value;
-  return null;
+  // single-quasi template key (`Object.defineProperty(Array, `from`, d)`) is a static string too
+  return singleQuasiString(node);
 }
 
 // resolve a non-computed property's key to its static string name. accepts both bare
@@ -946,10 +947,12 @@ function collectReflectMutations(call, mutated, isShadowed) {
 // names a node introduces into its OWN scope (params / id / direct declarations / catch
 // param / for-init / class name), or null when it opens no scope. used to drive a binding
 // stack so `collectMutatedStaticMembers` skips a mutation whose receiver is a LOCAL shadow
-// (`const patch = Object => { Object.assign = x }`) rather than a genuine global. errs toward
-// UNDER-collecting (e.g. var-hoist across sibling blocks isn't modelled): a missed shadow
-// keeps the conservative mutation bail; a FALSE binding would wrongly drop the bail on a real
-// monkey-patch, so only true binding positions are recorded
+// (`const patch = Object => { Object.assign = x }`) rather than a genuine global. a function /
+// Program / StaticBlock frame also folds in `var`s hoisted from nested blocks (a `var Array`
+// buried in a block shadows the global across the WHOLE function, including a mutation site
+// OUTSIDE that block). only TRUE binding positions are recorded - a hoisted `var` genuinely
+// shadows, so it can't drop the bail on a real monkey-patch; under-collecting it instead
+// suppressed the legitimate pure substitution at a real-global use site
 const SCOPE_FUNCTION_TYPES = new Set([
   'ArrowFunctionExpression',
   'ClassMethod',
@@ -972,17 +975,29 @@ function addDeclarationNames(stmt, set) {
   }
 }
 
+// fold every `var` hoisted to `scopeNode`'s var scope into `set`. a per-block frame is pushed
+// and popped on block exit, so a nested-block `var` would otherwise be invisible at a sibling
+// statement in the same function - `collectScopeVars` walks the whole body (stopping at nested
+// var-scope boundaries) so the function / Program / StaticBlock frame carries it everywhere
+function addHoistedVarNames(scopeNode, set) {
+  for (const name of collectScopeVars(scopeNode).keys()) set.add(name);
+}
+
 function scopeBoundNames(node) {
   const { type } = node;
   if (SCOPE_FUNCTION_TYPES.has(type)) {
     const set = new Set();
     for (const p of node.params ?? []) walkPatternIdentifiers(p, id => set.add(id.name));
     if (node.id?.name) set.add(node.id.name);
+    addHoistedVarNames(node, set);
     return set;
   }
   if (type === 'BlockStatement' || type === 'Program' || type === 'StaticBlock') {
     const set = new Set();
     for (const stmt of node.body ?? []) addDeclarationNames(stmt, set);
+    // Program / StaticBlock own a var scope, so a nested-block `var` hoists up to them; a plain
+    // BlockStatement does NOT - its `var`s hoist past it to the enclosing function frame above
+    if (type !== 'BlockStatement') addHoistedVarNames(node, set);
     return set;
   }
   if (type === 'CatchClause' && node.param) {
@@ -1031,11 +1046,14 @@ export function collectMutatedStaticMembers(programNode) {
     if (bound) scopeStack.push(bound);
     if (node.type === 'MemberExpression'
       && node.object?.type === 'Identifier'
-      && node.property?.type === 'Identifier'
-      && !node.computed
       && !isShadowed(node.object.name)
       && isMemberMutationContext(node, parent, grandparent)) {
-      mutated.add(`${ node.object.name }.${ node.property.name }`);
+      // accept a non-computed `Array.from` key AND a computed STATIC-literal key
+      // (`Array["from"]`, `Array[`from`]`) via memberKeyName; a dynamic computed key (`Array[k]`)
+      // resolves to null and stays out of scope (proxy-global chains are excluded too - the
+      // object here is a bare Identifier, not a `globalThis.Array` member access)
+      const keyName = memberKeyName(node);
+      if (keyName !== null) mutated.add(`${ node.object.name }.${ keyName }`);
     }
     if (node.type === 'CallExpression') {
       collectObjectMutations(node, mutated, isShadowed);
