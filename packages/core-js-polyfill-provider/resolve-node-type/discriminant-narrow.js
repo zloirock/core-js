@@ -18,7 +18,8 @@
 // search; weaker invariant than `findLastStraightLineAssignment` from straight-line-flow,
 // because it requires only block-child preceding-sibling reachability, not var-scope-wide
 // straight-line execution).
-import { peelLabeledStatementPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { isMemberAccessNode, peelLabeledStatementPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { memberWriteTargetPath } from './class-member-shapes.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { isLoopStatement, loopReExecRegionHasViolation } from './ast-shapes.js';
 
@@ -63,6 +64,7 @@ export function createDiscriminantNarrow({
   findTypeMember,
   followTypeAliasChain,
   applySubst,
+  collectBindingReferences,
 }) {
   // --- Guards collector ---
 
@@ -119,6 +121,27 @@ export function createDiscriminantNarrow({
     return value === null ? null : { field, value };
   }
 
+  // a member sub-path narrow (`obj.a`) is invalidated by a write to that exact sub-path
+  // (`obj.a = other` / `obj.a++`), which is NOT a `constantViolation` of the root binding `obj`.
+  // collect such writes from the root binding's references (each `obj.a = ...` mentions `obj`) so
+  // the positional interval check drops the narrow just like a whole-binding rebind would.
+  // `collectBindingReferences` is the parser-agnostic enumerator (babel `referencePaths`,
+  // estree-toolkit program-index fallback) - reading `binding.referencePaths` directly would
+  // miss every reference under the oxc adapter and silently keep the stale narrow
+  function memberPathWriteViolations({ objectBinding, rootName, anchorPath, targetKey }) {
+    const out = [];
+    for (const ref of collectBindingReferences(objectBinding, rootName, anchorPath) ?? []) {
+      // climb to the top of the member-access chain rooted at this `obj` reference
+      let p = ref;
+      while (isMemberAccessNode(p.parentPath?.node) && p.parentPath.node.object === p.node) p = p.parentPath;
+      const host = p.parentPath;
+      const hostType = host?.node?.type;
+      if (hostType !== 'AssignmentExpression' && hostType !== 'UpdateExpression') continue;
+      if (pathKey(memberWriteTargetPath(host).node) === targetKey) out.push({ node: host.node });
+    }
+    return out;
+  }
+
   // narrowing-context: snapshot of varPath's binding-identity + reassignment history that
   // each candidate guard must clear before contributing. extracted into a single record so
   // both walk-up and preceding-exit collectors share one signature. `this` receivers are
@@ -127,12 +150,11 @@ export function createDiscriminantNarrow({
   function buildDiscriminantContext(varPath, targetKey) {
     const [rootName] = targetKey.split('.', 1);
     const objectBinding = rootName === 'this' ? null : varPath.scope?.getBinding(rootName);
-    return {
-      rootName,
-      objectBinding,
-      violations: objectBinding?.constantViolations ?? [],
-      objectStart: varPath.node?.start,
-    };
+    const violations = [...objectBinding?.constantViolations ?? []];
+    if (targetKey.includes('.') && objectBinding) {
+      violations.push(...memberPathWriteViolations({ objectBinding, rootName, anchorPath: varPath, targetKey }));
+    }
+    return { rootName, objectBinding, violations, objectStart: varPath.node?.start };
   }
 
   // ANY constantViolation whose `.node.start` falls inside one of `intervals`. each entry is
