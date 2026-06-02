@@ -147,11 +147,28 @@ export function createCallResolution({
     const binding = scope?.getBinding(name);
     if (!binding?.path) return null;
     if (binding.constantViolations?.length) {
-      return binding.constantViolations.length === 1 && !binding.path.node?.init
-        ? pairFromAssignmentDestructure(binding.constantViolations[0], name, binding.scope)
-        : null;
+      if (binding.constantViolations.length !== 1 || binding.path.node?.init) return null;
+      // normalize the violation up to its enclosing AssignmentExpression: babel reports the AE
+      // itself, but estree-toolkit reports the LHS Identifier (walk up Property / ObjectPattern).
+      // without this the assignment-destructure aliased-static return resolves on babel but null
+      // on unplugin - asymmetric injection for identical source
+      const assignment = violationToAssignment(binding.constantViolations[0]);
+      return assignment ? pairFromAssignmentDestructure(assignment, name, binding.scope) : null;
     }
     return pairFromDeclaratorDestructure(binding, name);
+  }
+
+  // walk a constant-violation NodePath up to its enclosing AssignmentExpression (babel: the
+  // violation already IS the AE; estree: it is the LHS Identifier nested in Property/ObjectPattern)
+  function violationToAssignment(violation) {
+    let p = violation;
+    for (let i = 0; i < MAX_DEPTH && p; i++) {
+      const type = babelNodeType(p.node);
+      if (type === 'AssignmentExpression') return p;
+      if (type === 'ExpressionStatement' || type === 'Program') return null;
+      p = p.parentPath;
+    }
+    return null;
   }
 
   function pairFromDeclaratorDestructure(binding, name) {
