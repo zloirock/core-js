@@ -294,16 +294,22 @@ export function createDestructureEmitter({
     // imports during traversal
     walkAstNodes({ root: assignNode.left, visit: node => skippedNodes.add(node) });
     const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
-    skipReceiverTailSubtree(receiverTail);
+    // full consume but the retained tail still carries a side effect not liftable as a
+    // top-level SE prefix (`[(sideEffect(), globalThis)]` - the SE is nested in an array
+    // element): emit the tail as a standalone statement so the effect still runs, and leave
+    // its proxy-global root visible for the natural visitor to substitute. otherwise the tail
+    // is dropped (effect-free) or folded into preservedSrc, so skip it from the visitor pass
+    const emitReceiverTail = result.preservedSrc === null && mayHaveSideEffects(receiverTail);
+    if (!emitReceiverTail) skipReceiverTailSubtree(receiverTail);
     // defer render + transforms.add: scope-tracker may register `var _ref;` inside the
     // SE-prefix IIFE body during sibling visits AFTER this point. flushPendingCascade
     // drains those inserts and bakes them into per-prefix nodeSrc before adding the
     // statement-range overwrite, keeping the transform queue overlap-free
-    pendingCascade.push({ stmtNode, stmtPath, outerSequencePrefix, seExprs, unusedIds, result });
+    pendingCascade.push({ stmtNode, stmtPath, outerSequencePrefix, seExprs, unusedIds, result, receiverTail, emitReceiverTail });
     return true;
   }
 
-  function renderCascadeSegments({ outerSequencePrefix, seExprs, unusedIds, result }, drainedRefs) {
+  function renderCascadeSegments({ outerSequencePrefix, seExprs, unusedIds, result, receiverTail, emitReceiverTail }, drainedRefs) {
     const segments = [];
     // outer SE wrappers (minifier-shape `(prefix, ({...}=R))` lift) AND RHS-internal SE
     // prefix exprs share the same emit shape: nodeSrc with ref-binding splices baked in.
@@ -313,6 +319,8 @@ export function createDestructureEmitter({
     for (const expr of seExprs) segments.push(`${ bakeRefSplicesInRange(expr, drainedRefs) };`);
     if (unusedIds.length) segments.push(`var ${ unusedIds.join(', ') };`);
     if (result.preservedSrc !== null) segments.push(`(${ result.preservedSrc });`);
+    // full-consume receiver with a non-liftable nested side effect: evaluate it for effect
+    else if (emitReceiverTail) segments.push(`${ bakeRefSplicesInRange(receiverTail, drainedRefs) };`);
     for (const e of result.extractions) segments.push(`${ e.decl };`);
     return segments;
   }
@@ -463,7 +471,13 @@ export function createDestructureEmitter({
   function liftExtractedSEPrefixesByIdx(declaration, perDecl) {
     return declaration.declarations.map((decl, i) => {
       if (!perDecl[i].extractions.length) return [];
-      const { prefix } = peelNestedSequenceExpressions(decl.init);
+      // peel a single-element array wrapper first so a side effect nested in the array
+      // element (`[(sideEffect(), globalThis)]`) lifts like a top-level SE prefix - the
+      // wrapper is transparent (planDeclarator descended through it to reach the receiver),
+      // and the raw array init carries no top-level SE of its own. non-array inits peel to
+      // themselves, leaving the bare-receiver path unchanged
+      const { initSource } = peelArrayWrapperPair(decl.id, decl.init);
+      const { prefix } = peelNestedSequenceExpressions(initSource);
       const refSplices = perDecl[i].drainedRefs ?? [];
       return prefix.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
     });
@@ -1818,7 +1832,11 @@ export function createDestructureEmitter({
   // each caller picks its own fallback. whole-chain-polyfillable chains (`globalThis.Map`)
   // never reach here: they're rewritten to `_Map` upstream and stay bare Identifiers
   function substituteProxyGlobalRoot({ node, src, baseStart }) {
-    const proxyRoot = findProxyGlobal(node);
+    // an SE init (`(track(), globalThis.self.Array)`) keeps its side-effecting prefix verbatim -
+    // the proxy-global receiver to collapse is the tail. non-SE nodes peel to themselves, so the
+    // member / identifier callers (`synthMemberReceiverSrc`, logical operands) are unaffected
+    const target = peelNestedSequenceExpressions(node).tail ?? node;
+    const proxyRoot = findProxyGlobal(target);
     if (!proxyRoot) return null;
     const rootPure = resolveGlobalPolyfill(proxyRoot.name);
     if (!rootPure) return null;
@@ -1826,11 +1844,11 @@ export function createDestructureEmitter({
     // the `self` in `globalThis.self.Array`), not just the root id: keeping `.self` would read an
     // undefined property off the global object on hosts without it (`_globalThis.self` on ie:11
     // pure / Node), breaking the emitted receiver across the target range
-    const prefixEnd = maximalProxyGlobalPrefix(node).end;
+    const prefixEnd = maximalProxyGlobalPrefix(target).end;
     // slice from the WRAPPER-inclusive root start, not the peeled identifier's: for a
     // parenthesized root (`(globalThis).self.Array`) the identifier start lies after the `(`,
     // so `src.slice(0, start)` would keep a dangling open paren while `prefixEnd` drops its match
-    const start = proxyGlobalWrappedRoot(node).start - baseStart;
+    const start = proxyGlobalWrappedRoot(target).start - baseStart;
     return src.slice(0, start) + injectPureImport(rootPure.entry, rootPure.hintName)
       + src.slice(prefixEnd - baseStart);
   }
