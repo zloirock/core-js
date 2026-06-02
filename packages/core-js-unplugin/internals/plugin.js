@@ -148,7 +148,15 @@ function applyMinifierSequenceSplitPass(code, ast) {
   let lastKeptEnd = -1;
   for (const match of matches) {
     if (match.start < lastKeptEnd) continue;
-    const splitText = match.expressions.map(expr => `${ parenthesizeExprStmtHazard(code.slice(expr.start, expr.end)) };`).join('\n');
+    const splitText = match.expressions.map((expr, index) => {
+      const slice = code.slice(expr.start, expr.end);
+      // a bare leading string-literal operand, once split off, lands at Directive Prologue
+      // position and silently flips the enclosing block into strict mode. a `0,` sequence
+      // prefix keeps it a plain expression statement (matches the babel-plugin split).
+      // a parenthesized operand already prints its parens, so it can never become a directive
+      if (index === 0 && expr?.type === 'Literal' && typeof expr.value === 'string') return `0, ${ slice };`;
+      return `${ parenthesizeExprStmtHazard(slice) };`;
+    }).join('\n');
     mutated.overwrite(match.start, match.end, splitText);
     lastKeptEnd = match.end;
   }

@@ -60,8 +60,18 @@ function splitMinifierSequenceDestructure(programPath, t) {
     for (const bodyPath of statementPaths) {
       const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
       if (!expressions) continue;
-      bodyPath.replaceWithMultiple(expressions.map(e => {
-        const stmt = t.expressionStatement(e);
+      bodyPath.replaceWithMultiple(expressions.map((e, i) => {
+        // a leading StringLiteral operand promoted to its own statement at a prologue position
+        // (Program / function body[0]) re-parses as a Directive Prologue entry - flipping a sloppy
+        // script into strict mode (`"use strict"`), enabling asm.js (`"use asm"`), etc. - a semantic
+        // shift the original SequenceExpression operand never carried. wrap it in `(0, str)` so it
+        // stays a plain ExpressionStatement and the prologue ends before it; only the first operand
+        // can land in prologue position (a later string operand is already post-prologue)
+        let head = e;
+        while (head?.type === 'ParenthesizedExpression') head = head.expression;
+        const node = i === 0 && head?.type === 'StringLiteral'
+          ? t.sequenceExpression([t.numericLiteral(0), e]) : e;
+        const stmt = t.expressionStatement(node);
         // carry the wrapped expression's source position onto the synthesized statement so split
         // products read as genuine user code, not loc-less sibling-plugin synthesis. without it
         // entry-global's loc gate skips a collapsed `require('core-js/...')` entry and the
@@ -543,7 +553,13 @@ export default function plugin(api, options) {
           // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`
           const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects);
           path.get('object').replaceWith(withSideEffects(id, allEffects));
-          normalizeOptionalChain(path, true);
+          // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
+          // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
+          // is a GENUINE guard for the possibly-undefined member and must survive. stripFirstOptional
+          // would deoptionalize that trailing `?.(` (the first optional ancestor), turning native
+          // `undefined` into a TypeError. pass `false` so only the now-defined receiver's own `?.`
+          // (dead after the swap) is left as-is and the trailing guard is preserved (matches unplugin)
+          normalizeOptionalChain(path, false);
           return;
         }
         if (!result) {
@@ -712,13 +728,6 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
-        // minifier-shape `(prefixExpr, ..., ({pat} = R));` collapses to a single
-        // ExpressionStatement-wrapped SequenceExpression. `canTransformDestructuring` peels
-        // only Paren+TS so the destructure rewrite silently bails on this shape. splitting
-        // the SequenceExpression into consecutive ExpressionStatements before any usage /
-        // entry visitor sees the program makes the destructure visible to the standard flow,
-        // and side-effecting prefix expressions stay in source order as preceding statements
-        splitMinifierSequenceDestructure(path, t);
         // pre-walk for monkey-patches. cheap single AST traversal; result consulted by
         // `usagePureCallback` before substituting `Object.key` reads. internal core-js
         // files don't need the gate (they manage their own globals)
@@ -772,6 +781,14 @@ export default function plugin(api, options) {
         const fileDisabled = directives === true;
         skipFile = isInternalCoreJS || fileDisabled;
         disabledLines = fileDisabled ? null : directives;
+        // minifier-shape `(prefixExpr, ..., ({pat} = R));` collapses a destructure assignment into
+        // the last slot of an ExpressionStatement-wrapped SequenceExpression. `canTransformDestructuring`
+        // peels only Paren+TS so the rewrite silently bails on this shape; split it into consecutive
+        // ExpressionStatements before any usage / entry visitor sees the program (side-effecting prefix
+        // expressions stay in source order). gated below skipFile so a `core-js-disable-file` directive
+        // or internal core-js source is returned verbatim, not rewritten (entry-global needs it too,
+        // so the gate is `!skipFile`, not the narrower entry exclusion below)
+        if (!skipFile) splitMinifierSequenceDestructure(path, t);
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();

@@ -433,9 +433,19 @@ export default class ImportInjector extends ImportInjectorState {
     if (!body?.length) return;
     const refsSet = this.#refs;
 
-    function isRefOnly(stmt) {
+    // a `var` node whose declarators are all bare (initless Identifier) and includes at least
+    // one of our generated refs. covers the pure `var _ref1, _ref2;` shape AND a shared node
+    // where a sibling `scope.push` merged its own initless helper into the same reused
+    // `declaration:var:N` node our `_ref` landed in. bare `var` bindings hoist regardless of
+    // textual position, so migrating the whole node past the import header is inert - and it
+    // drops the scope.push `_blockHoist: 2` that Babel's end-of-pipeline block-hoist would
+    // otherwise use to lift our ref above the (unhoisted) imports (an import/first violation).
+    // a node with NO ref, or any init-bearing declarator, is left untouched
+    function isMovableRefVar(stmt) {
       return stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
-        && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier' && refsSet.has(d.id.name));
+        && stmt.declarations.length > 0
+        && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier')
+        && stmt.declarations.some(d => refsSet.has(d.id.name));
     }
 
     // import-region members - the reorder loop accumulates `importEnd` over them and bails
@@ -499,7 +509,7 @@ export default class ImportInjector extends ImportInjectorState {
         && stmt.declarations.every(d => !d.init);
     }
 
-    // collect EVERY ref-only `var` in the body, not just a leading run. scope.push tags each
+    // collect EVERY movable ref `var` in the body, not just a leading run. scope.push tags each
     // declaration `_blockHoist: 2`, so Babel's end-of-pipeline block-hoist would otherwise lift
     // it ABOVE the (unhoisted) import header - violating import/first - whenever a ref landed
     // after a lifted side-effect statement and the old leading-run scan stopped short of it.
@@ -507,7 +517,7 @@ export default class ImportInjector extends ImportInjectorState {
     // into one fresh declaration placed just past the import header is semantically inert and
     // matches unplugin's layout. the fresh `merged` node carries no `_blockHoist`, so block-hoist
     // leaves it in place; removing the original `bh2` nodes drops their lift entirely
-    const refDecls = body.filter(isRefOnly);
+    const refDecls = body.filter(isMovableRefVar);
     if (!refDecls.length) return;
     const refSet = new Set(refDecls);
     const kept = body.filter(s => !refSet.has(s));
