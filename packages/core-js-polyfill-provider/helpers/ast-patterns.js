@@ -254,6 +254,14 @@ export function markAndPeelSkippableWrappers(node, skippedNodes) {
   return node;
 }
 
+// a member-access node in EITHER parser: babel keeps OptionalMemberExpression distinct, while
+// estree-toolkit (oxc) folds the optional marker into a MemberExpression under a ChainExpression.
+// centralizes the two-type check that every member-receiver / member-write walk repeats so the
+// pair stays in lockstep across the cluster
+export function isMemberAccessNode(node) {
+  return node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression';
+}
+
 // tracking-free peel of `SKIPPABLE_WRAPPER_TYPES` (TS_EXPR_WRAPPERS + ParenthesizedExpression
 // + ChainExpression). used wherever a caller needs the semantically meaningful node and
 // doesn't care which wrappers were skipped. consolidates the peel-loop that previously
@@ -1333,7 +1341,7 @@ export function visitSymbolInLhsSe(node, visit) {
       n = n.expression;
     }
     if (!n) return;
-    if (n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression') {
+    if (isMemberAccessNode(n)) {
       walk(n.object);
       if (n.computed) walk(n.property);
       return;
@@ -1439,7 +1447,7 @@ function collectParamBindingNames(params) {
 function bodyHasParamReference(node, paramNames) {
   if (paramNames.size === 0 || !node || typeof node !== 'object' || typeof node.type !== 'string') return false;
   if (node.type === 'Identifier') return paramNames.has(node.name);
-  if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+  if (isMemberAccessNode(node)) {
     return bodyHasParamReference(node.object, paramNames)
       || (node.computed && bodyHasParamReference(node.property, paramNames));
   }

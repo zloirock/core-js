@@ -3785,4 +3785,31 @@ runBoth('deep nested non-reducing conditional type resolves via memoization',
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
   });
 
+// a member sub-path narrow (`obj.a` via `obj.a.kind === 'x'`) is dropped when that exact sub-path
+// is reassigned inside the guarded block (`obj.a = other`): the receiver widens back to the full
+// union, so the type resolves to null (generic) rather than the narrowed `data: string` branch.
+// the reassign is a property write, NOT a `constantViolation` of the root binding, so it is
+// recovered from the binding's references via the parser-agnostic enumerator - reading babel's
+// `referencePaths` directly would leave the estree-toolkit (oxc) adapter with the stale narrow
+runBoth('member sub-path reassign drops discriminant narrow on both parsers',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: Inner };\ndeclare const dynInner: Inner;\n'
+  + 'if (obj.a.kind === "x") {\n  obj.a = dynInner;\n  obj.a.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// control: without the sub-path reassign the discriminant narrow holds, so the receiver resolves
+// to the `kind: "x"` branch's `data: string` - proves the null above is the dropped narrow, not a
+// blanket resolution bail on this shape
+runBoth('member sub-path narrow holds without reassign on both parsers',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: Inner };\n'
+  + 'if (obj.a.kind === "x") {\n  obj.a.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { kind: 'string' });
+  });
+
 finish();
