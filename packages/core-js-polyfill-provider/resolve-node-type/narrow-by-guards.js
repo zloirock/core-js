@@ -173,8 +173,11 @@ export function createNarrowByGuards({
       const { cases } = switchStmt.node;
       const idx = cases.indexOf(switchCase.node);
       for (let i = idx - 1; i >= 0; i--) {
-        if (violatesInsideNode(cases[i])) return true;
+        // gate FIRST: a case that cannot fall through (ends in break/return/throw) neither feeds its
+        // own body mutation nor any earlier case's into the current case, so stop before counting it
+        // as a violation - checking the mutation first would wrongly invalidate a break/return-ended case
         if (!canFallThrough(cases[i])) break;
+        if (violatesInsideNode(cases[i])) return true;
       }
       return false;
     }
