@@ -82,7 +82,12 @@ export function resolveBatchDirectivePromotionPolicy({ body, candidateIndices, h
 // expected. returns an empty array when the shape doesn't match OR every prefix slot is
 // side-effect-free
 export function extractIndirectRequireSEPrefix(stmtNode) {
-  const { expression } = stmtNode ?? {};
+  // peel the outer expression through the same wrapper set `getEntrySource` peels before the
+  // CallExpression check: oxc preserves a whole-call paren (`((spy(), require)('core-js/...'))`)
+  // as a ParenthesizedExpression, which `getEntrySource` unwraps to still detect+remove the
+  // entry - so the SE prefix recovery must peel it too, else `spy()` is silently dropped (babel
+  // drops the redundant paren node, so its expression is already the bare CallExpression)
+  const expression = peelSkippableWrappers(stmtNode?.expression);
   if (expression?.type !== 'CallExpression') return [];
   // peel the SAME wrapper set `getEntrySource` peels (TS as/!/<>/satisfies + paren + chain): a
   // TS-wrapped indirect require `((spy(), require) as any)('core-js/...')` is detected+removed as an
@@ -370,6 +375,12 @@ function findNearestVarScopeOwner(path) {
   return null;
 }
 
+// a real AST node (string `.type`), not a primitive / null / position number that the generic
+// child-walk in the collectors below would otherwise recurse into
+function isAstNode(value) {
+  return !!value && typeof value === 'object' && typeof value.type === 'string';
+}
+
 // recursively collect `var` bindings inside `scopeNode`, descending through arbitrary
 // non-boundary node shapes (block / if / loop / switch / try-catch / etc). stops at
 // nested var-scope boundaries so inner-function vars don't leak. returns a Map of
@@ -381,7 +392,7 @@ export function collectScopeVars(scopeNode) {
   const locals = new Map();
 
   function visit(node) {
-    if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+    if (!isAstNode(node)) return;
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
       // `declare var X` is tsc-elided - the reference resolves to the global, so the ambient
       // declaration must not register as a hoisted-var shadow that suppresses polyfill emission
@@ -424,6 +435,182 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
 // complements `findTSRuntimeBindingInPath`)
 export function findFunctionScopeVarInPath(path, name) {
   return findFunctionScopeVarDeclaratorInPath(path, name) !== null;
+}
+
+// reassignment sites for a nested-block-hoisted `var` surfaced by the synthetic var-hoist
+// binding (see `findFunctionScopeVarDeclaratorInPath`). estree-toolkit's `scope.getBinding`
+// misses that var, so its binding carries no `constantViolations` and the shared resolver's
+// reassignment guard never fires - resolving a REASSIGNED proxy-global alias to the global
+// (over-inject / wrong rewrite) where babel's native binding bails. recover the violations so
+// the synthetic binding matches babel: walk the enclosing var-scope owner for `name = ...` /
+// `name++` writes, descending into nested scopes that don't re-bind `name` (a closure can
+// reassign the outer var) but stopping at ones that shadow it (param / hoisted var of the same
+// name is a distinct binding). empty result is falsy-length like the prior `undefined`, so the
+// non-reassigned common case still resolves. cached per owner node (same staleness contract as
+// `scopeVarsCache`: valid while this file isn't re-traversed after sibling-plugin mutation)
+const scopeReassignCache = new WeakMap();
+export function collectFunctionScopeVarReassignments(path, name) {
+  const owner = findNearestVarScopeOwner(path);
+  if (!owner) return [];
+  let perName = scopeReassignCache.get(owner.node);
+  if (!perName) scopeReassignCache.set(owner.node, perName = new Map());
+  if (perName.has(name)) return perName.get(name);
+  const violations = [];
+  function shadowsName(scopeNode) {
+    for (const p of scopeNode.params ?? []) {
+      let hit = false;
+      walkPatternIdentifiers(p, id => { if (id.name === name) hit = true; });
+      if (hit) return true;
+    }
+    return collectScopeVars(scopeNode).has(name);
+  }
+  function visit(node, atOwnerRoot) {
+    if (!isAstNode(node)) return;
+    if (!atOwnerRoot && isVarScopeBoundary(node.type) && shadowsName(node)) return;
+    if ((node.type === 'AssignmentExpression' && node.left?.type === 'Identifier' && node.left.name === name)
+      || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)) {
+      violations.push(node);
+    }
+    for (const key of Object.keys(node)) {
+      const value = node[key];
+      if (Array.isArray(value)) for (const v of value) visit(v, false);
+      else visit(value, false);
+    }
+  }
+  visit(owner.node, true);
+  perName.set(name, violations);
+  return violations;
+}
+
+// loop bodies re-run their contents each iteration; a loop's INIT / test / update run at most once
+// per entry, so a `for (var M = ...; ;)` init is not a re-run - only the body field is one
+const LOOP_BODY_FIELD = {
+  ForStatement: 'body',
+  ForInStatement: 'body',
+  ForOfStatement: 'body',
+  WhileStatement: 'body',
+  DoWhileStatement: 'body',
+};
+
+// does `name`'s function-scoped `var` declarator sit inside a loop BODY (re-run each iteration)?
+// a self-ref `var X = X` re-run by a loop reads the local binding (undefined on iteration 1), so it
+// must NOT be resolved to the global there - babel bails it natively, and this brings the unplugin
+// var-hoist path (which otherwise reads a clean binding) into line. only the loop body counts: a
+// `for (var X = ...; ;)` init or a plain `if` runs the declarator at most once per entry
+export function isVarDeclaratorInLoopBody(path, name) {
+  const owner = findNearestVarScopeOwner(path);
+  const target = owner && collectScopeVars(owner.node).get(name);
+  if (!target) return false;
+  let result = false;
+  function visit(node, inLoopBody) {
+    if (result || !isAstNode(node)) return;
+    if (node === target) {
+      result = inLoopBody;
+      return;
+    }
+    if (node !== owner.node && isVarScopeBoundary(node.type)) return;
+    const loopField = LOOP_BODY_FIELD[node.type];
+    for (const key of Object.keys(node)) {
+      if (result) return;
+      const value = node[key];
+      const childInLoopBody = inLoopBody || key === loopField;
+      if (Array.isArray(value)) for (const v of value) visit(v, childInLoopBody);
+      else if (isAstNode(value)) visit(value, childInLoopBody);
+    }
+  }
+  visit(owner.node, false);
+  return result;
+}
+
+// statement-level branches whose body runs only on some control-flow paths. a `var` declarator
+// nested under one assigns conditionally, so resolving its alias to a global is sound only when
+// the use site also sits under the SAME branch. the recorded guard is the specific branch node
+// (if-consequent / loop body / catch body) so a use in a sibling branch (the `else`) isn't
+// contained; switch-case bodies are arrays with no wrapper, so the SwitchCase itself is recorded.
+// `var` is statement-only - expression short-circuits (`&&`, `?:`) never guard a declarator.
+// try-block / catch-body are conditional (a throw can skip them); `finally` always runs, so it
+// guards nothing and is absent
+const CONDITIONAL_BRANCH_FIELDS = {
+  IfStatement: ['consequent', 'alternate'],
+  ForStatement: ['body'],
+  ForInStatement: ['body'],
+  ForOfStatement: ['body'],
+  WhileStatement: ['body'],
+  DoWhileStatement: ['body'],
+  SwitchCase: ['consequent'],
+  TryStatement: ['block'],
+  CatchClause: ['body'],
+};
+
+// locate `target` in `ownerNode`'s var scope and return the ordered conditional-branch nodes
+// guarding it, or null when not found. don't descend past nested var-scope boundaries (`var`
+// doesn't hoist across them). array-valued branch fields record the parent node as the guard
+function collectVarGuardsToDeclarator(ownerNode, target) {
+  let result = null;
+  function visit(node, guards) {
+    if (result !== null || !isAstNode(node)) return;
+    if (node === target) {
+      result = guards;
+      return;
+    }
+    if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
+    const branchFields = CONDITIONAL_BRANCH_FIELDS[node.type];
+    for (const key of Object.keys(node)) {
+      if (result !== null) return;
+      const value = node[key];
+      const isBranch = branchFields?.includes(key);
+      // an array-valued branch (switch-case body) has no wrapper node, so record the parent
+      if (Array.isArray(value)) {
+        const childGuards = isBranch ? [...guards, node] : guards;
+        for (const v of value) visit(v, childGuards);
+      } else if (isAstNode(value)) {
+        visit(value, isBranch ? [...guards, value] : guards);
+      }
+    }
+  }
+  visit(ownerNode, []);
+  return result;
+}
+
+// the use must sit inside every conditional branch the declarator does, else the assignment can be
+// skipped on a path that still reaches the use. an unconditional declarator (no branches) passes
+function usageSitsUnderAllBranches(usagePath, ownerNode, guards) {
+  if (!guards.length) return true;
+  const ancestors = new Set();
+  for (let cur = usagePath.parentPath; cur && cur.node !== ownerNode; cur = cur.parentPath) {
+    ancestors.add(cur.node);
+  }
+  return guards.every(branch => ancestors.has(branch));
+}
+
+// `var` hoists the declaration but not the assignment, so a use textually before the declarator
+// reads `undefined`. a parser that omits positions can't be ordered - don't over-bail there
+function declaratorPrecedesUsage(declaratorNode, usagePath) {
+  const declEnd = declaratorNode?.end;
+  const useStart = usagePath.node?.start;
+  if (typeof declEnd !== 'number' || typeof useStart !== 'number') return true;
+  return declEnd <= useStart;
+}
+
+// SOUND gate for resolving a function-scoped `var` alias to a global. `var` hoists to the whole
+// function, so `if (c) { var M = globalThis } M.Map()` binds M everywhere - but M holds the global
+// only when `c` was truthy; usage-pure would rewrite the use to a receiver-less polyfill and mask
+// the native TypeError on the c-falsy path. holds iff the assignment DOMINATES the use: it sits
+// under every conditional branch the declarator does AND textually precedes it.
+//
+// scoped to the reported shape: a declarator NOT in the use's own var-scope owner is an outer-scope
+// binding captured across a function boundary (e.g. a module-top `const A = Array` read inside an
+// IIFE) - those run before the capturing function and stay resolvable. callers without a use-site
+// path likewise resolve as before (they never surface a nested-block `var` - the var-hoist fallback
+// that does needs the path too)
+export function varInitDominatesUsage({ declaratorNode, usagePath }) {
+  if (!usagePath) return true;
+  const owner = findNearestVarScopeOwner(usagePath);
+  if (!owner) return true;
+  const guards = collectVarGuardsToDeclarator(owner.node, declaratorNode);
+  if (guards === null) return true;
+  return usageSitsUnderAllBranches(usagePath, owner.node, guards)
+    && declaratorPrecedesUsage(declaratorNode, usagePath);
 }
 
 // does this native scope binding describe a `var` whose declaration is namespace-scoped
