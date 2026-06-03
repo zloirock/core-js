@@ -166,8 +166,9 @@ export default function plugin(api, options) {
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
-  // per-plugin-instance adapter - closure reads current `injector` without module-level state
-  const adapter = createBabelAdapter(() => injector);
+  // per-plugin-instance adapter - closure reads current `injector` without module-level state.
+  // `method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
+  const adapter = createBabelAdapter(() => injector, method);
 
   // third arg `path` (when supplied by `extractCheck`) anchors `adapter.hasBinding` at
   // the reference site so TS-runtime shadows (`enum`, `namespace`, `import X = require()`)

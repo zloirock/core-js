@@ -61,8 +61,10 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
 // regex-or-div / template-tag / TS TypeAssertion-or-JSX). complementary to
 // `FUSES_WITH_OPEN_PAREN` (plugin-helpers.js) which lists ENDING chars that fuse only
 // with `(`. over-injecting `;` on a benign prev (e.g. already `;`) is filtered downstream
-// by `guardAsiAtBoundary`'s prev-char check. `<` over-fires on real less-than comparisons
-// but `a; <b` is grammar-equivalent to `a<b` so the spurious `;` is harmless
+// by `guardAsiAtBoundary`'s prev-char check. `<` over-fires on real less-than comparisons,
+// but a statement can only START with `<` as a TS type-assertion (`<T>x`) or a JSX element -
+// never a less-than continuation (the parser already split the boundary; `a; <b` is a
+// SyntaxError, NOT equivalent to `a<b`) - so the spurious `;` only precedes those and is harmless
 const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
 
 // factory: `remove(node)` closure that drops a top-level statement plus its trailing
