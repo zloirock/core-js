@@ -271,9 +271,15 @@ export default class ImportInjector extends ImportInjectorState {
   #collectImportLines() {
     const lines = [];
     const newGlobals = sortByPolyfillOrder([...this.globalImports.difference(this.existingGlobalImports)]);
-    const activePure = this.referencedInSource
-      ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
-      : [...this.pureImports];
+    // drop sources already imported in the current text (keyed by source path). symmetric with
+    // the global `difference(existingGlobalImports)` above. needed when `pureImports` carries a
+    // source that's ALSO present as an existing import - the pre+post inherit path: pre emits its
+    // pure imports inline AND seeds `pureImports` via the snapshot, then post re-scans the inline
+    // line into `existingPureImports`; without this filter post would re-emit a second identical
+    // line. `addPureImport`'s own early-return covers the single-pass case but never sees the
+    // inherited `pureImports` entries
+    const activePure = [...this.pureImports].filter(([source, name]) => !this.existingPureImports.has(source)
+      && (!this.referencedInSource || this.referencedInSource.has(name)));
     // canonical-sort pure imports by source path (lex). insertion order alone produces
     // batch-dependent layout that diverges across plugins / files with different timing
     // of registrations; babel-plugin canonicalises the union of all flushed imports too
