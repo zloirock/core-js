@@ -1265,6 +1265,42 @@ function checkFlushPastChainedComments() {
 }
 checkFlushPastChainedComments();
 
+// --- flush() lands imports on a fresh line when the directive line carries trailing code ---
+// `"use strict"; /*x*/ foo();` has real code after the block comment with no line terminator on
+// the directive's physical line, so skipLineEnd returns a mid-line position. the import block
+// must still land on its own line below the directive, not jam onto `"use strict"; /*x*/ <import>`
+function checkFlushPastDirectiveSameLineCode() {
+  const src = '"use strict"; /*x*/ foo();';
+  const ms = new MagicString(src);
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms, directiveEnd: 13 });
+  inj.globalImports.add('es.promise.try');
+  inj.flush();
+  const out = ms.toString();
+  const firstLine = out.slice(0, out.indexOf('\n'));
+  // the import must NOT be jammed onto the directive+comment line
+  check('skipLineEnd/import not jammed on directive+code line', firstLine.includes('import "core-js'), false);
+}
+checkFlushPastDirectiveSameLineCode();
+
+// --- flush() keeps a trailing same-line comment attached to the last user import ---
+// `import x from 'y' // trailing` ends (oxc stmt.end) before ` // trailing`, so anchoring
+// `var _ref;` at that offset would split the comment off its import onto a line below the ref.
+// the ref block must skip past the trailing comment so the comment stays on the import line
+function checkFlushRefAfterTrailingImportComment() {
+  const src = "import x from 'y' // trailing\nfoo();";
+  const ms = new MagicString(src);
+  // userImportEnd = closing-quote offset of `import x from 'y'`, before ` // trailing`
+  const userImportEnd = src.indexOf("'y'") + 3;
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, userImportEnd });
+  inj.generateDeclaredRef();
+  inj.flush();
+  const out = ms.toString();
+  const importLine = out.slice(0, out.indexOf('\n'));
+  check('refBlock/trailing comment stays on import line', importLine.includes('// trailing'), true);
+  check('refBlock/var _ref lands below the trailing comment', out.indexOf('var _ref') > out.indexOf('// trailing'), true);
+}
+checkFlushRefAfterTrailingImportComment();
+
 // sibling plugin may overwrite a range that contains the prologueEnd insertion point.
 // `appendRight` then throws "Cannot split a chunk that has already been edited"; the build
 // dies with a stack pointing into MagicString rather than the import emission. fallback to
@@ -1436,6 +1472,19 @@ function checkSnapshotKeyNormalization() {
   cache.store('C:/win/View.vue?vue&type=script', { tag: 'win-sfc-script' });
   check('SnapshotCache/win drive sfc sub-block',
     cache.take('/@fs/C:/win/View.vue?vue&type=script')?.tag, 'win-sfc-script');
+  // marker-LESS SFC sub-blocks (admitted by shouldTransform via JS/TS `lang=` alone, no
+  // framework marker) of one file must keep DISTINCT keys - else the second pre's store
+  // overwrites the first at the shared stripped path key and post inherits the wrong imports
+  cache.store('/src/App.vue?type=script&lang=ts', { tag: 'sfc-markerless-a' });
+  check('SnapshotCache/marker-less SFC sub-block distinct key',
+    cache.take('/src/App.vue?type=script&setup=true&lang=ts'), null);
+  check('SnapshotCache/marker-less SFC same sub-block hits',
+    cache.take('/src/App.vue?type=script&lang=ts')?.tag, 'sfc-markerless-a');
+  // a generic `?lang=en` (non-JS/TS) is NOT an SFC sub-block - its query still strips so an
+  // unrelated bundler visiting the same file under different generic queries keeps one key
+  cache.store('/src/data.js?lang=en', { tag: 'generic-lang' });
+  check('SnapshotCache/generic non-JS lang query still strips',
+    cache.take('/src/data.js?lang=fr')?.tag, 'generic-lang');
   // peekWithParse leaves the snapshot intact: callers (post pass with disable-file detection)
   // can inspect cached AST before committing to `take()`. bail paths leave the entry so a
   // subsequent retry can still consume it
@@ -2855,10 +2904,15 @@ function checkCollectMutatedStaticMembers() {
   // full receiver resolution; pre-pass intentionally fast-and-direct
   check('collectMutatedStaticMembers/proxy-global chain not tracked',
     collect('globalThis.Array.from = X;').has('Array.from'), false);
-  // computed key (`Array["from"] = X`) NOT detected - resolving computed keys is out of
-  // scope for the fast pre-walk
-  check('collectMutatedStaticMembers/computed key not tracked',
-    collect('Array["from"] = X;').has('Array.from'), false);
+  // computed STRING-LITERAL key (`Array["from"] = X`) IS detected - dot and bracket access
+  // target the same property, so a bracket-key monkey-patch must suppress the polyfill too
+  // (staticMemberKey normalizes the literal bracket key to its dot form for write detection)
+  check('collectMutatedStaticMembers/computed string-literal key tracked',
+    collect('Array["from"] = X;').has('Array.from'), true);
+  // NON-literal computed key (`Array[k] = X`) stays out of scope - resolving a dynamic key
+  // would need full value analysis the fast pre-walk doesn't do
+  check('collectMutatedStaticMembers/dynamic computed key not tracked',
+    collect('Array[k] = X;').has('Array.from'), false);
 }
 checkCollectMutatedStaticMembers();
 
