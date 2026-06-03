@@ -744,13 +744,13 @@ function pureImportSource(node) {
 // bare-specifier prefix only - a relative `./vendor/` copy wouldn't be emitted by us.
 // matches a core-js import in either specifier shape - usage-pure default (`import _Map from
 // "@core-js/pure/..."`) or usage-global side-effect (`import "core-js/modules/..."`) - reading
-// `ImportDeclaration.source.value` regardless of shape. CAVEAT: in `phase: 'pre+post'` the pre
-// pass DEFERS its imports (ImportInjector `deferImports`), so pre-output carries no core-js import
-// and this fingerprint does NOT re-detect our own deferred pre-output when the in-memory snapshot
-// is lost (webpack persistent-cache pre-cached+post-fresh / worker_threads / Vite --force). the
-// orphan-adoption-without-inherit gate it guards therefore fires only for inputs that already
-// carry EMITTED core-js imports, not for deferred pre-output - a known gap; closing it would
-// need a stable pre-output fingerprint the deferred pass leaves behind for post to re-detect
+// `ImportDeclaration.source.value` regardless of shape. usage-pure emits its imports INLINE in
+// `pre` (it rewrites source text, so the output must carry its own imports to stay valid if post
+// bails or loses the snapshot), so this fingerprint DOES re-detect a usage-pure pre-output on a
+// snapshot-lost post / cache-miss run - the inherited orphan-adoption gate fires correctly there.
+// usage-global still DEFERS its side-effect imports to post, so a usage-global pre-output carries
+// no core-js import and isn't re-detected here; that path strands at most a missing side-effect
+// polyfill (not a dangling reference), so the gap is benign
 export function hasCoreJSImport(ast, packages) {
   for (const node of ast.body) {
     const source = pureImportSource(node);
