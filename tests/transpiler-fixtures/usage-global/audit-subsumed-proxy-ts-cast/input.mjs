@@ -1,5 +1,6 @@
-// when the outer `in` rewrite already covers a `globalThis as any` chain, the inner
-// `globalThis` must be marked handled so it does not double-emit.
+// `(globalThis as any).Symbol.iterator in x`: the TS as-cast wrapper must be unwrapped so the
+// chain is recognised as a `globalThis` proxy and the iterator-protocol polyfill fires. usage-global
+// keeps the `in` text verbatim, so the surviving `globalThis` leaf also earns `es.global-this`.
 function check(x: unknown): boolean {
   return (globalThis as any).Symbol.iterator in x;
 }
