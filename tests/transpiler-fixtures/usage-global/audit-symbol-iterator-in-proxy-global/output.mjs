@@ -1,9 +1,12 @@
 import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // `Symbol.iterator in <array>` through a proxy-global (`globalThis.Symbol`). Resolves to the
 // Symbol global behind the proxy, triggering the iterator-protocol polyfill on both plugins.
+// usage-global keeps the `in` text verbatim, so the surviving `globalThis` leaf also earns
+// `es.global-this`; usage-pure rewrites the whole check to is-iterable and the leaf disappears.
 // parity counterpart to the const-alias and bare forms.
 globalThis.Symbol.iterator in [];
