@@ -3,6 +3,7 @@ import {
   markAndPeelSkippableWrappers,
   memberKeyName,
   peelZeroArgIifeReturn,
+  reassignmentBlocksGlobalResolve,
   singleQuasiString,
   unwrapRuntimeExpr,
 } from './ast-patterns.js';
@@ -225,6 +226,13 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return backfill(visited, null);
   }
 
+  // the ancestor path (inclusive) whose node === `node`, walking up from `from`, or null. used to
+  // anchor the usage-pure reassignment proof at the class node rather than the method-nested super site
+  function ancestorPathOf(from, node) {
+    for (let cur = from; cur; cur = cur.parentPath) if (cur.node === node) return cur;
+    return null;
+  }
+
   // find `{ key: binding }` / shorthand `{ key }` in ObjectPattern where value binds to
   // targetName. returns the property key; accepts Identifier and StringLiteral keys
   function findDestructureKeyForBinding(objectPattern, targetName) {
@@ -242,7 +250,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // follow `const X = Y` aliases to the first unshadowed global; null on real local bindings.
   // ES imports pass through for `resolveSuperImportName` to remap via injector's `#byName`.
   // `seen` is shared with `resolveBindingToGlobalName` so namespace-cycle detection survives
-  function resolveSuperClassName(startName, scope, seen = new Set(), path = null) {
+  function resolveSuperClassName(startName, scope, seen = new Set(), path = null, pureAnchor = null) {
     let name = startName;
     while (!seen.has(name)) {
       seen.add(name);
@@ -259,7 +267,12 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         if (path && adapter.hasBinding?.(scope, name, path)) return null;
         return name;
       }
-      if (binding.constantViolations?.length) return null;
+      // method-aware reassignment bail: usage-global keeps resolving the super-class alias when the
+      // reassignment does not dominate the use (init still live); usage-pure resolves only when no
+      // reassignment reaches the CAPTURE point. the super site is nested in a method, but `extends`
+      // evaluates the base at class-definition time - so pure anchors the proof at the class node
+      // (`pureAnchor`), letting a post-class `A = Object` still resolve. global keeps the super site
+      if (reassignmentBlocksGlobalResolve({ binding, adapter, path: pureAnchor ?? path })) return null;
       const decl = binding.path?.node;
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
         || decl?.type === 'ImportNamespaceSpecifier') {
@@ -283,7 +296,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
           object: init,
           property: { type: 'Identifier', name: keyName },
           computed: false,
-        }, scope, seen, path);
+        }, scope, seen, path, pureAnchor);
       }
       if (init?.type === 'Identifier') {
         name = init.name;
@@ -291,7 +304,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       }
       // delegate proxy-global / namespace-member chains; share `seen` so namespace-member
       // recursion can't loop
-      return resolveBindingToGlobalName(init, scope, seen, path);
+      return resolveBindingToGlobalName(init, scope, seen, path, pureAnchor);
     }
     return null;
   }
@@ -318,11 +331,15 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
 
   // Identifier -> reachable static container (ClassDeclaration / ClassExpression /
   // ObjectExpression via `const X = ...`). seen guards alias cycles
-  function bindingContainerValue(name, scope, seen) {
+  function bindingContainerValue(name, scope, seen, pureAnchor = null) {
     if (seen.has(name)) return null;
     seen.add(name);
     const binding = scope?.getBinding?.(name);
-    if (!binding || binding.constantViolations?.length) return null;
+    // method-aware reassignment bail. usage-global resolves the static container regardless (over-
+    // inject-safe; its anchor stays null, so dominance can't be proven and the inject-if-maybe-needed
+    // bias wins). usage-pure resolves only when no reassignment reaches the class-definition capture
+    // point - `pureAnchor` (the class node) for the `class C extends NS.Base` path - else bails
+    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path: pureAnchor })) return null;
     const declNode = binding.path?.node;
     return declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression'
       ? declNode
@@ -331,10 +348,10 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
 
   // member-access value lookup: outer -> container, look up leaf property. shared by
   // resolveToContainer (recurses on value) and resolveBindingToGlobalName (maps to global)
-  function resolveMemberAccess(memberNode, scope, seen) {
+  function resolveMemberAccess(memberNode, scope, seen, pureAnchor = null) {
     const propName = resolveKey({ node: memberNode.property, computed: memberNode.computed, scope, adapter });
     if (!propName) return null;
-    const outer = resolveToContainer(memberNode.object, scope, seen);
+    const outer = resolveToContainer(memberNode.object, scope, seen, pureAnchor);
     if (!outer) return null;
     return findNamespaceMemberValue(outer, propName);
   }
@@ -342,12 +359,12 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // any expression -> namespace container that `findNamespaceMemberValue` can index by name.
   // handles bare Identifier (lookup), nested member chain (recurse + property lookup), direct
   // container literals. null when no static container is reachable
-  function resolveToContainer(node, scope, seen) {
+  function resolveToContainer(node, scope, seen, pureAnchor = null) {
     const peeled = unwrapRuntimeExpr(node);
-    if (peeled?.type === 'Identifier') return bindingContainerValue(peeled.name, scope, seen);
+    if (peeled?.type === 'Identifier') return bindingContainerValue(peeled.name, scope, seen, pureAnchor);
     if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
-      const value = resolveMemberAccess(peeled, scope, seen);
-      return value ? resolveToContainer(value, scope, seen) : null;
+      const value = resolveMemberAccess(peeled, scope, seen, pureAnchor);
+      return value ? resolveToContainer(value, scope, seen, pureAnchor) : null;
     }
     // direct container - inline `({Promise}).Promise`. rare but free via the same path
     if (peeled?.type === 'ClassExpression' || peeled?.type === 'ObjectExpression') return peeled;
@@ -358,15 +375,15 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // alias chains, proxy-global member chains, user-namespace object literals, static
   // class-as-namespace, and any N-level composition through them. shared `seen` enables
   // mutually-recursive alias cycle detection; `path` anchors TS-runtime shadow checks
-  function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null) {
+  function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null, pureAnchor = null) {
     const peeled = unwrapRuntimeExpr(node);
-    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen, path);
+    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen, path, pureAnchor);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
     const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter, path });
     if (proxyKey !== null) return proxyKey;
     // namespace-member: feed leaf value back through self so deeper chains compose
-    const value = resolveMemberAccess(peeled, scope, seen);
-    return value ? resolveBindingToGlobalName(value, scope, seen, path) : null;
+    const value = resolveMemberAccess(peeled, scope, seen, pureAnchor);
+    return value ? resolveBindingToGlobalName(value, scope, seen, path, pureAnchor) : null;
   }
 
   // `super.X` and `this.X`-in-static both look up `<SuperClass>.X` on the parent's static
@@ -377,8 +394,11 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
+    // usage-pure anchors its reassignment proof at the class node (where `extends` captures the base),
+    // not the method-nested super site; global / narrowing keep the super site (anchor stays null)
+    const pureAnchor = adapter?.method === 'usage-pure' ? ancestorPathOf(path, info.classNode) : null;
     return buildSuperStaticMeta(info.classNode, key,
-      superClass => resolveBindingToGlobalName(superClass, path.scope, new Set(), path));
+      superClass => resolveBindingToGlobalName(superClass, path.scope, new Set(), path, pureAnchor));
   }
 
   let ownNamesCache = new WeakMap();
