@@ -556,7 +556,7 @@ export function createDestructureEmitter({
   // scoped to the simple shape: complex shapes (rest, residual props, defaults, computed /
   // symbol-key entries, multiple instance receivers needing a memo, or an instance receiver that
   // references a polyfillable global) return null and fall back to the verbatim render
-  function renderFlattenSiblingDecls(info) {
+  function renderFlattenSiblingDecls(info, drainedRefs) {
     const { entries, allProps, initSrc, initNode, initIdentName } = info;
     if (!entries.length) return null;
     const consumed = new Set(entries.map(e => e.propNode));
@@ -568,7 +568,12 @@ export function createDestructureEmitter({
     // an instance entry keeps the receiver verbatim; bail if it references a polyfillable global
     // (would need in-place root substitution we don't do here, risking a bare global on old engines)
     if (instanceEntries.length && (initIdentName || globalProxyMemberName({ node: unwrapParens(initNode) }))) return null;
-    return entries.map(e => `${ e.localName } = ${ e.kind === 'instance' ? `${ e.binding }(${ initSrc })` : e.binding }`);
+    // bake the scope-tracker body-wrap (`var _ref;`, drained from the init's IIFE arrow body)
+    // into the receiver text so the instance rewrite's `_ref` use stays declared - the
+    // byStatement overwrite this render replaces would have composed it, but the per-declarator
+    // drain pulled it out (to keep it off the parent overwrite range), so re-bake it here
+    const receiverSrc = drainedRefs?.length ? spliceInRange(initSrc, initNode.start, drainedRefs) : initSrc;
+    return entries.map(e => `${ e.localName } = ${ e.kind === 'instance' ? `${ e.binding }(${ receiverSrc })` : e.binding }`);
   }
 
   // post-traverse render: dispatches on host shape. for-init folds extractions + SE-embedded
@@ -578,16 +583,22 @@ export function createDestructureEmitter({
   function flushPendingFlatten() {
     for (const entry of pendingFlatten) {
       const { declaration, declPath, perDecl, isForInit } = entry;
+      // drain BEFORE the sibling-render below: a sibling's instance-method init can host a
+      // scope-tracker body-wrap (`var _ref;` inside an IIFE arrow body), and the render bakes
+      // that drained splice into its extraction text - otherwise the `var _ref;` is discarded
+      // (its extraction slot's `preservedSrc` is null, so the post-render bake skips it)
+      drainRefBindingsByDeclarator(declaration, perDecl);
       // a non-flatten declarator sharing this declaration may carry an instance/static-method
       // destructure the byStatement emit skipped; render its rewrite here (as synthetic
       // extractions) so the polyfill survives instead of emitting the pattern verbatim
       for (let i = 0; i < perDecl.length; i++) {
         if (perDecl[i].extractions.length) continue;
         const sibInfo = flattenSiblingInfos.get(declaration.declarations[i]);
-        const decls = sibInfo && renderFlattenSiblingDecls(sibInfo);
-        if (decls) perDecl[i] = { extractions: decls.map(decl => ({ decl })), preservedSrc: null, receiver: null };
+        const decls = sibInfo && renderFlattenSiblingDecls(sibInfo, perDecl[i].drainedRefs);
+        // drainedRefs already baked into the rendered extraction text -> clear so the
+        // post-render bake doesn't try to re-apply them against the null preservedSrc
+        if (decls) perDecl[i] = { extractions: decls.map(decl => ({ decl })), preservedSrc: null, receiver: null, drainedRefs: [] };
       }
-      drainRefBindingsByDeclarator(declaration, perDecl);
       const replacement = isForInit
         ? renderForInitFlatten(declaration, perDecl)
         : renderBlockFlatten(declaration, declPath, perDecl);
