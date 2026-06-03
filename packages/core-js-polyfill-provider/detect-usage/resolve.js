@@ -7,11 +7,14 @@
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
 import {
   isDirectiveStatement,
+  isReassignedBeyondDeclarator,
   isVarDeclaratorInLoopBody,
   kebabToCamel,
   mayHaveSideEffects,
   peelZeroArgIifeReturn,
-  reassignmentDominatesUsage,
+  reachingReassignmentValueNode,
+  reassignBailApplies,
+  reassignmentBlocksGlobalResolve,
   singleQuasiString,
   singleReturnBodyExpression,
   TS_EXPR_WRAPPERS,
@@ -185,7 +188,7 @@ const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // path must EITHER start with a known core-js package prefix OR with an internal core-js
 // namespace (`actual/`, `es/`, etc.). babel's injector stores importSource without the
 // package prefix (`actual/symbol/iterator`); unplug stores the full path. without this
-// constraint, `my-lib/symbol/iterator` was misclassified as Symbol.iterator (DUI-9-03)
+// constraint, `my-lib/symbol/iterator` was misclassified as Symbol.iterator
 const CORE_JS_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.[cm]?js)?$/;
 
@@ -195,10 +198,12 @@ const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier
 // before recurse, reject reassigned bindings. precomputes `VariableDeclarator` init for
 // the common "follow alias" step so callsites converge on `entry.init ? recurse : fallback`.
 // returns `{ binding, init, nextSeen }` on success, null on miss
-export function enterIdentifierBindingFollow({ node, scope, adapter, seen }) {
+export function enterIdentifierBindingFollow({ node, scope, adapter, seen, path = null }) {
   if (seen?.has(node.name)) return null;
   const binding = adapter.getBinding(scope, node.name);
-  if (!binding || binding.constantViolations?.length) return null;
+  // method-aware reassignment bail: usage-global keeps following a reassigned key/value
+  // alias when the reassignment does not dominate the use; pure / narrowing keep the flat bail
+  if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
   const nextSeen = new Set(seen);
   nextSeen.add(node.name);
   const init = binding.node?.type === 'VariableDeclarator' ? binding.node.init : null;
@@ -278,40 +283,13 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
   return null;
 }
 
-// a constantViolation entry is a babel NodePath (carries `.node`) from the babel adapter but a raw
-// node from the unplugin var-hoist synthetic binding - normalize to the underlying node
-function violationNode(violation) {
-  return violation.node ?? violation;
-}
-
-// a violation node equal to the binding's own declarator is a loop re-init: babel models the
-// per-iteration re-run of `var x = init` as a write, but the init is fixed so it can't change what
-// the alias resolves to - only a write at a DIFFERENT node is a real reassignment. mirrors the
-// unplugin var-hoist scan (which never records declarators), so a use after the in-body assignment
-// of `while (c) { var M = globalThis; M.Array.from(...) }` resolves on both plugins
-function isReassignedBeyondDeclarator(binding) {
-  return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
-}
-
-// the real reassignment site nodes (every violation other than the loop-reinit declarator-self).
-// computed only on the usage-global branch that feeds them to the domination check; the cheap
-// existence probe above stays a `.some` so the common no-reassignment path allocates nothing
-function reassignmentNodesBeyondDeclarator(binding) {
-  return binding.constantViolations.map(violationNode).filter(node => node !== binding.node);
-}
-
 function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path }) {
   // a real reassignment (a constantViolation beyond a loop-reinit declarator-self) makes the alias
-  // flow-dependent. usage-pure rewrites the use to a receiver-less helper, so ANY reassignment is
-  // unsound -> bail. usage-global / entry keep the call site (side-effect import only), so they bail
-  // ONLY when a reassignment DOMINATES the use (declarator-init provably dead); a CONDITIONAL or
-  // after-the-use reassignment leaves the init live on the reaching path, and the inject-if-maybe-
-  // needed bias keeps resolving it (a dropped polyfill would TypeError there). the dominated / pure
-  // bails return early, before the `.node.init/.id` deref below (malformed binding shapes)
-  if (isReassignedBeyondDeclarator(binding)) {
-    if (adapter.method === 'usage-pure') return null;
-    if (reassignmentDominatesUsage({ reassignmentNodes: reassignmentNodesBeyondDeclarator(binding), usagePath: path })) return null;
-  }
+  // flow-dependent. usage-pure bails on ANY reassignment (its receiver-dropping rewrite is unsound);
+  // usage-global bails ONLY when a reassignment DOMINATES the use (init provably dead) - a
+  // conditional / after-use reassignment leaves the init live, and inject-if-maybe-needed keeps
+  // resolving it. the bail returns early, before the `.node.init/.id` deref below (malformed shapes)
+  if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path })) return null;
   // a function-scoped `var` whose assignment is conditional (`if (c) { var M = globalThis }`)
   // holds the global only on paths through that branch. usage-pure rewrites `M.Array.from` to a
   // receiver-less helper, DROPPING the guard - so a non-dominating assignment would mask the
@@ -487,7 +465,9 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
     const { name } = callee;
     if (!adapter.hasBinding(scope, name, path) || seen.has(name)) return null;
     const binding = adapter.getBinding(scope, name);
-    if (!binding || binding.constantViolations?.length) return null;
+    // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when
+    // the binding's reassignment does not dominate the use (init still live); pure / narrowing bail
+    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
     if (adapter.getBindingNodeType(scope, name) !== 'VariableDeclarator') return null;
     const initNode = binding.node?.init;
     if (!initNode) return null;
@@ -596,13 +576,23 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   // (`polyfillHint` in-place mutation / `core-js/.../symbol/X` import, incl. user-aliased
   // polyfill packages from `additionalPackages`)
   if (node.type === 'Identifier' && computed) {
-    const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen });
+    const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
     if (entry) {
       if (entry.init) return resolveKey({
         node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
       });
       const key = bindingSymbolKey(entry.binding, adapter.packages);
       if (key) return key;
+    } else if (!seen?.has(node.name)) {
+      // the alias-follow bailed on a reassignment (declarator init dead at the use). resolve the key
+      // from the value the use actually sees - the reaching definition (`K = 'of'` in
+      // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
+      const binding = adapter.getBinding(scope, node.name);
+      const reaching = binding && isReassignedBeyondDeclarator(binding)
+        ? reachingReassignmentValueNode({ binding, usagePath: path }) : null;
+      if (reaching) return resolveKey({
+        node: reaching, computed: true, scope, adapter, seen: new Set(seen).add(node.name), path, depth: depth + 1,
+      });
     }
   }
   // string concatenation: 'a' + 'b'

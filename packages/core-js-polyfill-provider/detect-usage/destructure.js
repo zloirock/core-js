@@ -13,6 +13,7 @@ import {
   peelFallbackReceiver,
   peelFallbackBranchInner,
   peelZeroArgIifeReturn,
+  reassignmentBlocksGlobalResolve,
   resolveFallbackReceiver,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
@@ -325,8 +326,10 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     if (bindingType !== 'VariableDeclarator') return null;
     // `binding.constant` may be undefined depending on adapter (babel computes it lazily,
     // estree-toolkit doesn't expose it). use the underlying `constantViolations` list which
-    // both adapters surface; empty / missing means no reassignment - shape holds at use site
-    if (!binding || binding.constantViolations?.length) return null;
+    // both adapters surface; empty / missing means no reassignment - shape holds at use site.
+    // method-aware: usage-global keeps resolving the static receiver when the reassignment
+    // does not dominate the use; usage-pure / narrowing keep the flat bail
+    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
     // adapter divergence: babel exposes the VariableDeclarator at `binding.path.node`,
     // estree-toolkit at `binding.node` directly. fall through both shapes
     let initNode = binding.path?.node?.init ?? binding.node?.init;
@@ -480,7 +483,9 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
   while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
     visited.add(cur.name);
     const binding = adapter.getBinding(scope, cur.name);
-    if (!binding || binding.constantViolations?.length) break;
+    // method-aware reassignment bail: usage-global keeps following the const-init chain
+    // when the reassignment does not dominate the use; usage-pure / narrowing keep the flat bail
+    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) break;
     const initNode = binding.path?.node?.init ?? binding.node?.init;
     if (!initNode) break;
     cur = unwrapExpressionChain(peelChainAssignmentDeep(initNode));
