@@ -258,7 +258,47 @@ const IDENT_PART_RE = /[\p{ID_Continue}$]/u;
 // and defeating the ASI guard. regex-vs-division is decided by the previous significant token
 // (conservative: an unterminated candidate or a `}` is treated as division, never tracked, so
 // a misread can only LEAVE a `/` untracked - the existing escape hatch - never fabricate a
-// region over real code). `${...}` bodies keep simpler quote-only classification
+// region over real code). `${...}` bodies use the SAME regex-aware classification (the body is
+// JS context), so a quote or `}` inside an interpolation regex can't fabricate a phantom region
+// or close the interpolation early
+
+// advance ONE token from `p`, recording any literal / regex / comment region, and return the
+// next position plus the updated regex-vs-division state (`regexAllowed`, `prevSignificant`).
+// comments are transparent to that state; a regex is tracked only in expression position;
+// identifiers re-enable regex iff they're an expression keyword; any other punctuator follows
+// the value-ending rule (`)` `]` `}` digit -> division next, else regex next). shared by the
+// top-level scan AND the template `${...}` body so both classify identically
+function advanceToken({ src, p, regexAllowed, prevSignificant, regions }) {
+  const ch = src[p];
+  if (ch === '/' && (src[p + 1] === '/' || src[p + 1] === '*')) {
+    return { next: tryScanLiteralAt(src, p, regions), regexAllowed, prevSignificant };
+  }
+  if (ch === '/' && regexAllowed) {
+    const end = scanRegexRegion(src, p, regions);
+    if (end !== null) return { next: end, regexAllowed: false, prevSignificant: src[end - 1] };
+  }
+  if (ch === '"' || ch === "'" || ch === '`') {
+    const end = tryScanLiteralAt(src, p, regions);
+    return { next: end, regexAllowed: false, prevSignificant: src[end - 1] };
+  }
+  if (WS_OR_LT_RE.test(ch)) return { next: p + 1, regexAllowed, prevSignificant };
+  if (IDENT_START_RE.test(ch)) {
+    let j = p + 1;
+    while (j < src.length && IDENT_PART_RE.test(src[j])) j++;
+    // a name after `.` / `?.` is a property access (a value), never the bare keyword
+    return {
+      next: j,
+      regexAllowed: prevSignificant !== '.' && REGEX_PRECEDING_KEYWORDS.has(src.slice(p, j)),
+      prevSignificant: src[j - 1],
+    };
+  }
+  return {
+    next: p + 1,
+    regexAllowed: !(ch === ')' || ch === ']' || ch === '}' || (ch >= '0' && ch <= '9')),
+    prevSignificant: ch,
+  };
+}
+
 function scanLiteralRegions(src) {
   const regions = [];
   let i = 0;
@@ -267,48 +307,7 @@ function scanLiteralRegions(src) {
   let regexAllowed = true;
   let prevSignificant = null;
   while (i < src.length) {
-    const ch = src[i];
-    // comments win over regex: `//` and `/*` are never regex openers. regions recorded,
-    // regex-allowed state unchanged (a comment is transparent to token context)
-    if (ch === '/' && (src[i + 1] === '/' || src[i + 1] === '*')) {
-      i = tryScanLiteralAt(src, i, regions);
-      continue;
-    }
-    if (ch === '/' && regexAllowed) {
-      const end = scanRegexRegion(src, i, regions);
-      if (end !== null) {
-        i = end;
-        regexAllowed = false;
-        prevSignificant = src[end - 1];
-        continue;
-      }
-    }
-    if (ch === '"' || ch === "'" || ch === '`') {
-      const end = tryScanLiteralAt(src, i, regions);
-      regexAllowed = false;
-      prevSignificant = src[end - 1];
-      i = end;
-      continue;
-    }
-    if (WS_OR_LT_RE.test(ch)) {
-      i++;
-      continue;
-    }
-    if (IDENT_START_RE.test(ch)) {
-      let j = i + 1;
-      while (j < src.length && IDENT_PART_RE.test(src[j])) j++;
-      // a name after `.` / `?.` is a property access (a value), never the bare keyword
-      regexAllowed = prevSignificant !== '.' && REGEX_PRECEDING_KEYWORDS.has(src.slice(i, j));
-      prevSignificant = src[j - 1];
-      i = j;
-      continue;
-    }
-    // value-ending tokens (`)` `]` `}` digit) -> next `/` is division; every other punctuator
-    // / operator -> next `/` opens a regex. `}` errs toward division to avoid fabricating a
-    // region after object / arrow literals (block-then-regex stays untracked, as before)
-    regexAllowed = !(ch === ')' || ch === ']' || ch === '}' || (ch >= '0' && ch <= '9'));
-    prevSignificant = ch;
-    i++;
+    ({ next: i, regexAllowed, prevSignificant } = advanceToken({ src, p: i, regexAllowed, prevSignificant, regions }));
   }
   return regions;
 }
@@ -404,22 +403,37 @@ function scanTemplateRegion(src, start, regions) {
       return p;
     }
     if (c === '$' && src[p + 1] === '{') {
-      // close current text-content chunk; `${...}` body is JS context (not a region here),
-      // so a `//` or `/*` inside it gets recorded as a real comment via `tryScanLiteralAt`.
-      // brace-depth tracking with recursive literal scan inside the expression
+      // close current text-content chunk; the `${...}` body is JS context (not a region here)
       regions.push({ start: chunkStart, end: p, kind: 'template' });
       p += 2;
+      // classify the body via `advanceToken` (the same regex-aware scan as top level) while
+      // tracking brace depth for the matching `}`. a regex / string / comment inside the body
+      // is recorded as its own region, so a quote or `}` buried in one can't fabricate a phantom
+      // region or decrement `depth` to close the interpolation early. `${` opens expression position
       let depth = 1;
+      let regexAllowed = true;
+      let prevSignificant = null;
       while (p < src.length && depth > 0) {
         const ec = src[p];
-        if (ec === '{') depth++;
-        else if (ec === '}') depth--;
-        if (ec === '{' || ec === '}') {
+        if (ec === '{') {
+          depth++;
+          regexAllowed = true;
+          prevSignificant = '{';
           p++;
           continue;
         }
-        const after = tryScanLiteralAt(src, p, regions);
-        p = after !== null ? after : p + 1;
+        if (ec === '}') {
+          depth--;
+          if (depth === 0) {
+            p++;
+            break;
+          }
+          regexAllowed = false;
+          prevSignificant = '}';
+          p++;
+          continue;
+        }
+        ({ next: p, regexAllowed, prevSignificant } = advanceToken({ src, p, regexAllowed, prevSignificant, regions }));
       }
       chunkStart = p;
       continue;
@@ -728,11 +742,15 @@ function pureImportSource(node) {
 // source as our own output, not user code that happens to contain `_ref = ...` assignments.
 // `packages` is the resolver's already-normalised list (pkg + additionalPackages, lowercased);
 // bare-specifier prefix only - a relative `./vendor/` copy wouldn't be emitted by us.
-// covers BOTH modes: usage-pure (`import _Map from "@core-js/pure/..."`) AND usage-global
-// (`import "core-js/modules/..."`). the extractor reads `ImportDeclaration.source.value`
-// regardless of specifier shape, so side-effect-only imports match the same as default /
-// named imports - webpack persistent-cache flow (pre cached + post fresh) re-detects pre's
-// fingerprint in both modes when orphan adoption needs to fire without inherit
+// matches a core-js import in either specifier shape - usage-pure default (`import _Map from
+// "@core-js/pure/..."`) or usage-global side-effect (`import "core-js/modules/..."`) - reading
+// `ImportDeclaration.source.value` regardless of shape. CAVEAT: in `phase: 'pre+post'` the pre
+// pass DEFERS its imports (ImportInjector `deferImports`), so pre-output carries no core-js import
+// and this fingerprint does NOT re-detect our own deferred pre-output when the in-memory snapshot
+// is lost (webpack persistent-cache pre-cached+post-fresh / worker_threads / Vite --force). the
+// orphan-adoption-without-inherit gate it guards therefore fires only for inputs that already
+// carry EMITTED core-js imports, not for deferred pre-output - a known gap; closing it would
+// need a stable pre-output fingerprint the deferred pass leaves behind for post to re-detect
 export function hasCoreJSImport(ast, packages) {
   for (const node of ast.body) {
     const source = pureImportSource(node);

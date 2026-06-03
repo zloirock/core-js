@@ -219,7 +219,8 @@ export default function createPlugin(options) {
   // observe the WRONG injector after their await point if introduced later - oxc is sync,
   // MagicString is sync, all current visitors are sync. enforce by inspection
   let currentInjector = null;
-  const estreeAdapter = createEstreeAdapter(() => currentInjector);
+  // `options.method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
+  const estreeAdapter = createEstreeAdapter(() => currentInjector, options.method);
   const typeResolvers = createResolveNodeType(nodeType, types, {
     getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
     getPolyfillBindingHint: (scope, name) => currentInjector?.getBindingInfo?.(name)?.hint ?? null,

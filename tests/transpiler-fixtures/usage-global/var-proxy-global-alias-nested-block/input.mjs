@@ -1,5 +1,10 @@
-// a `var` alias of a proxy-global declared in a nested non-function block hoists to the
-// enclosing function scope, so a static call through it must still resolve and inject
+// a `var` proxy-global alias declared in a CONDITIONAL nested block, used OUTSIDE the branch. the
+// var-hoist fallback surfaces it (estree-toolkit misses nested-block vars) and usage-global INJECTS
+// the Map statics: the call site `g.Map.groupBy` is preserved, so a falsy `flag` throws natively at
+// `g.Map` (sound) and a truthy one finds the polyfill present. contrast the usage-pure twin
+// audit-conditional-block-var-alias-escapes-branch-bails, which BAILS the same shape because its
+// receiver-dropping rewrite (`-> _groupBy`) would mask that native throw - the dominance gate is
+// pure-only
 function run(flag) {
   if (flag) {
     var g = globalThis;
