@@ -223,7 +223,7 @@ export function resolveSymbolIteratorEntry(node, parent) {
 // MemberExpression-fallback path. without the predicate (legacy callers), seed on the
 // pure-string `symbolKeyToEntry` shape - older callers lose the fallback but stay
 // behaviour-compatible
-export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAvailable, path }) {
+export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path }) {
   if (node.operator !== 'in') return null;
   const left = unwrapParens(node.left);
   // peel SequenceExpression-tail on the receiver: `(fn(), Symbol).iterator in obj`
@@ -248,11 +248,15 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
         handledObjects.add(left);
         handledObjects.add(ref.raw);
         handledObjects.add(ref.unwrapped);
-        // proxy-global LHS (`globalThis.Symbol.iterator in x`) - the outer `_isIterable(x)`
-        // rewrite subsumes the entire chain, so the leaf `globalThis` identifier must not
-        // trigger its own polyfill. without this, unplugin's transform-queue fails to compose
-        // the inner `globalThis`-replacement into the outer's eliminated-needle content
-        markSubsumedProxyChain(ref.unwrapped, handledObjects, scope, adapter, path);
+        // proxy-global LHS (`globalThis.Symbol.iterator in x`): usage-pure rewrites the whole
+        // BinaryExpression to `_isIterable(x)`, subsuming the chain, so the leaf `globalThis`
+        // identifier must not trigger its own polyfill - else unplugin's transform-queue can't
+        // compose the inner `globalThis`-replacement into the outer's eliminated-needle content.
+        // usage-global keeps the `in` text verbatim, so the proxy-global leaf survives at runtime
+        // and must still earn its own polyfill (`es.global-this` / `web.self` / `web.window`);
+        // suppressing it there would UNDER-inject and ReferenceError in strict-env / IE11. same
+        // mode split as `handleMemberExpressionNode`
+        if (suppressProxyGlobals) markSubsumedProxyChain(ref.unwrapped, handledObjects, scope, adapter, path);
       }
       return { kind: 'in', key, object: null, placement: null, symbolSourced: true };
     }
