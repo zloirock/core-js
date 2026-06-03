@@ -1894,6 +1894,125 @@ function checkSinglePostPassEmitsPureImports() {
 }
 checkSinglePostPassEmitsPureImports();
 
+// count non-overlapping occurrences of a literal substring (no regex - avoids backtracking
+// lint and substring-in-name surprises). shared by the pre+post import-emission checks
+function occurrencesOf(haystack, needle) {
+  return haystack.split(needle).length - 1;
+}
+
+// default-import binding name for the line importing `sourceSubstr`, or null. line-scoped so the
+// pattern stays anchored (`import <name> from "...sourceSubstr..."`) with no cross-line backtracking
+function defaultImportNameFor(code, sourceSubstr) {
+  for (const line of code.split('\n')) {
+    if (!line.startsWith('import ') || !line.includes(sourceSubstr)) continue;
+    const name = /^import (?<name>\S+) from /.exec(line)?.groups?.name;
+    if (name) return name;
+  }
+  return null;
+}
+
+// every `name(` call site in `code` is backed by an `import name from ...` line. the usage-pure
+// rewrites emit `_flat(arr)` / `_flat(_ref)` call shapes, so a referenced-but-unimported binding
+// surfaces as a dangling reference (ReferenceError at runtime)
+function rewriteBindingsAreImported(code) {
+  const declared = new Set();
+  for (const line of code.split('\n')) {
+    const name = line.startsWith('import ') ? /^import (?<name>\S+) from /.exec(line)?.groups?.name : null;
+    if (name) declared.add(name);
+  }
+  // plugin UID call sites start `_` + identifier chars then `(` (`_flatMaybeArray(`, `_ref(`).
+  // bounded length keeps the scan linear (UIDs are short); `$` rarely appears mid-UID but is
+  // matched by `\w`-adjacent ids via the explicit alternation char class
+  for (const { groups } of code.matchAll(/(?<name>_[\w$]{1,60})\(/g)) {
+    if (!declared.has(groups.name)) return false;
+  }
+  return true;
+}
+
+// --- usage-pure pre output is self-contained (imports inline, not deferred) ---
+// usage-pure rewrites source text in `pre` (`arr.flat()` -> `_flat(arr).call(arr)`), so the pre
+// output references a polyfill binding. the import is emitted INLINE in pre rather than deferred,
+// so the pre output is valid standalone even if the matching post never lands anything
+function checkUsagePurePreEmitsInlineImports() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', '/inline-pre.js', 'pre');
+  const code = pre?.code ?? '';
+  const name = defaultImportNameFor(code, 'instance/flat');
+  check('usage-pure pre/emits inline import', !!name, true);
+  // the rewrite that references it is present and backed, so the output runs standalone
+  check('usage-pure pre/rewrite references the inline import', !!name && code.includes(`${ name }(a)`), true);
+}
+checkUsagePurePreEmitsInlineImports();
+
+// --- pre+post: disable-file injected between passes leaves no dangling reference ---
+// a sibling plugin (or other skip-eligibility) introduces `core-js-disable-file` AFTER pre ran.
+// post bails on the directive, but pre already rewrote `arr.flat()` -> `_flat(arr).call(arr)`.
+// because pre emits its import inline, the pre output (which is what gets bundled when post bails)
+// still carries the import - no `_flat` reference is left without a backing import
+function checkPrePostDisableFileBetweenPassesNoDangling() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const id = '/disable-between.js';
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', id, 'pre');
+  // sibling prepends the disable directive between passes; post sees it and bails (null)
+  const post = plugin.transform(`// core-js-disable-file\n${ pre?.code ?? '' }`, id, 'post');
+  check('pre+post disable-between/post bails on injected directive', post, null);
+  // the bundled output is pre's (post returned null) - every referenced binding stays backed
+  check('pre+post disable-between/referenced binding has a backing import',
+    rewriteBindingsAreImported(pre?.code ?? ''), true);
+}
+checkPrePostDisableFileBetweenPassesNoDangling();
+
+// --- pre+post: snapshot lost before post (fresh worker / cache eviction / --force) ---
+// post runs on a FRESH plugin instance whose SnapshotCache never saw pre's snapshot (webpack
+// persistent-cache pre-cached + post-fresh worker). pre's inline import makes the output
+// re-detectable + self-contained: post re-scans the import as existing and dedups, so the
+// optional-chain rewrite (`null == (_ref = foo()) ? ... : _flat(_ref)?.call(_ref)`) keeps its
+// backing import - no dangling reference
+function checkPrePostSnapshotLostNoDangling() {
+  const id = '/snapshot-lost.js';
+  const pre = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform('const r = foo()?.flat?.();\n', id, 'pre');
+  // fresh instance: no in-memory snapshot for this id
+  const post = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
+    .transform(pre?.code ?? '', id, 'post');
+  const finalCode = post?.code ?? pre?.code ?? '';
+  check('pre+post snapshot-lost/rewrite present', !!defaultImportNameFor(finalCode, 'instance/flat'), true);
+  check('pre+post snapshot-lost/referenced binding has a backing import',
+    rewriteBindingsAreImported(finalCode), true);
+}
+checkPrePostSnapshotLostNoDangling();
+
+// --- pre+post: inline-then-inherit must not double-emit the same import ---
+// post inherits `pureImports` from pre's snapshot AND re-scans pre's inline import into
+// `existingPureImports`. without the pure-import difference against `existingPureImports` in
+// `#collectImportLines`, post would emit a second identical `import _flat ...` line on top of
+// pre's. assert exactly one occurrence survives the full pre->post round-trip
+function checkPrePostNoDoubleImport() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const id = '/no-double.js';
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', id, 'pre');
+  const post = plugin.transform(pre?.code ?? '', id, 'post');
+  const finalCode = post?.code ?? pre?.code ?? '';
+  check('pre+post no-double/exactly one flat import after round-trip', occurrencesOf(finalCode, 'instance/flat'), 1);
+}
+checkPrePostNoDoubleImport();
+
+// --- pre+post: post still adds polyfills for usages siblings injected between passes ---
+// the core pre+post purpose: post scans sibling-emitted output for polyfills pre couldn't see.
+// pre emits its own import inline; a sibling then adds a NEW usage; post must KEEP pre's import
+// AND emit the new one - both present, neither duplicated
+function checkPrePostPostAddsSiblingInjectedUsage() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const id = '/sibling-injected.js';
+  const pre = plugin.transform('const a = [1, 2, 3];\na.flat();\n', id, 'pre');
+  // sibling appends a usage (`Symbol.iterator`) that wasn't in pre's view
+  const post = plugin.transform(`${ pre?.code ?? '' }const s = Symbol.iterator;\n`, id, 'post');
+  const finalCode = post?.code ?? '';
+  check('pre+post sibling-injected/keeps pre flat import', occurrencesOf(finalCode, 'instance/flat'), 1);
+  check('pre+post sibling-injected/adds new symbol-iterator import', occurrencesOf(finalCode, 'symbol/iterator'), 1);
+}
+checkPrePostPostAddsSiblingInjectedUsage();
+
 // --- entry-global phase gate ---
 // `entry-global` always runs at pre, but the d.ts contract advertises `phase?: 'pre'`
 // as a legal explicit value. runtime must accept `'pre'` (no-op redundant with default)

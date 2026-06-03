@@ -292,7 +292,18 @@ export default function createPlugin(options) {
     // but defensively pin it here so direct callers (tests, bespoke integrations) can't
     // end up with an empty output from `deferImports=true` suppressing resolution.
     if (method === 'entry-global') pass = 'single';
-    const deferImports = pass === 'pre';
+    // usage-pure rewrites source text in `pre` (e.g. `arr.flat()` -> `_flat(arr).call(arr)`),
+    // so its pre output references the polyfill binding. emit that import INLINE in pre rather
+    // than deferring it to post: a post pass that bails (a `core-js-disable-file` directive or
+    // other skip-eligibility appearing between passes) or runs without the pre snapshot
+    // (persistent-cache eviction, fresh worker, `--force`) would otherwise leave the pre rewrite
+    // dangling with no import -> ReferenceError. inline imports keep pre's output self-contained
+    // and re-detectable: post re-scans them as existing and dedups (see ImportInjector's pure-import
+    // difference against `existingPureImports`), so the combined set stays single-emitted.
+    // usage-global only injects side-effect imports (no text rewrite), so a dropped post leaves a
+    // missing polyfill rather than a dangling reference - it keeps deferring so post emits the
+    // canonical merged side-effect block once
+    const deferImports = pass === 'pre' && method !== 'usage-pure';
     let inherit = null;
     let cachedAst = null;
     let cachedComments = null;
