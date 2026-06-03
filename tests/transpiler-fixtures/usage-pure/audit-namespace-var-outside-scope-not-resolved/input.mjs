@@ -1,0 +1,8 @@
+// `var g` declared inside `namespace N` is namespace-scoped; the scope tracker over-hoists it to
+// the enclosing module scope, so a use OUTSIDE the namespace must NOT resolve `g` to its
+// `globalThis` initializer and rewrite `g.Array.from` to a pure import (the var is unreachable
+// there). the genuine `globalThis` read inside the namespace body is still substituted
+namespace N {
+  var g = globalThis;
+}
+g.Array.from(iter);
