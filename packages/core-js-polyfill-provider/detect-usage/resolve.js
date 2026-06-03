@@ -7,12 +7,14 @@
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
 import {
   isDirectiveStatement,
+  isVarDeclaratorInLoopBody,
   kebabToCamel,
   mayHaveSideEffects,
   peelZeroArgIifeReturn,
   singleQuasiString,
   singleReturnBodyExpression,
   TS_EXPR_WRAPPERS,
+  varInitDominatesUsage,
 } from '../helpers/ast-patterns.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
@@ -275,10 +277,32 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
   return null;
 }
 
+// a constantViolation entry is a babel NodePath (carries `.node`) from the babel adapter but a raw
+// node from the unplugin var-hoist synthetic binding - normalize to the underlying node
+function violationNode(violation) {
+  return violation.node ?? violation;
+}
+
+// a violation node equal to the binding's own declarator is a loop re-init: babel models the
+// per-iteration re-run of `var x = init` as a write, but the init is fixed so it can't change what
+// the alias resolves to - only a write at a DIFFERENT node is a real reassignment. mirrors the
+// unplugin var-hoist scan (which never records declarators), so a use after the in-body assignment
+// of `while (c) { var M = globalThis; M.Array.from(...) }` resolves on both plugins
+function isReassignedBeyondDeclarator(binding) {
+  return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
+}
+
 function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path }) {
-  // check constantViolations before dereferencing `.node.init/.id` - malformed
-  // binding shapes can leave those undefined
-  if (binding.constantViolations?.length) return null;
+  // bail on a real reassignment before dereferencing `.node.init/.id` (malformed binding shapes can
+  // leave those undefined); a loop-reinit declarator-self-violation is not one - see the helper
+  if (isReassignedBeyondDeclarator(binding)) return null;
+  // a function-scoped `var` whose assignment is conditional (`if (c) { var M = globalThis }`)
+  // holds the global only on paths through that branch. usage-pure rewrites `M.Array.from` to a
+  // receiver-less helper, DROPPING the guard - so a non-dominating assignment would mask the
+  // native undefined-access on the skipped-branch path. global / entry modes keep the call site
+  // (side-effect import only) and stay sound regardless, so the gate is pure-only
+  if (adapter.method === 'usage-pure'
+    && !varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path })) return null;
   const { init } = binding.node;
   const pattern = binding.node.id;
   // `{ from, ...rest } = Array` - rest !=== init
@@ -647,7 +671,11 @@ export function createSelfRefVarGuard(getKind) {
     const result = getKind(binding) === 'var'
       && id?.type === 'Identifier'
       && peeled?.type === 'Identifier'
-      && peeled.name === id.name;
+      && peeled.name === id.name
+      // a self-ref re-run by a loop reads the local (undefined on iteration 1), so it must NOT map
+      // to the global there. babel's native binding flags this via constantViolations (bailed
+      // above); estree-toolkit's doesn't, so check the declarator's loop nesting to keep parity
+      && !(binding.path && isVarDeclaratorInLoopBody(binding.path, id.name));
     cache.set(decl, result);
     return result;
   };
