@@ -2,7 +2,7 @@ import {
   stripQueryHash,
   WINDOWS_UNC_PREFIX_RE,
 } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { SFC_FRAMEWORK_GROUP } from './sfc-shapes.js';
+import { SFC_FRAMEWORK_GROUP, SFC_LANG_RE, SFC_NON_JS_TYPE_RE } from './sfc-shapes.js';
 
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
 // output emits `_ref = ...` free assignments; post lands the matching `var _ref;` via
@@ -107,9 +107,21 @@ function normalizeSFCQueryTail(tail) {
   return `?${ tokens.join('&') }${ hash }`;
 }
 
+// an id earns the query-preserving (sub-block) key when it is a transformable SFC sub-block:
+// either framework-marked (`?vue&type=script&lang=ts`) OR a `lang=`-admitted block with no
+// marker (`?type=script&lang=ts`). this MUST mirror `shouldTransform`'s SFC admission - any id
+// the plugin transforms as a distinct sub-block needs a distinct snapshot key, else two marker-
+// less sub-blocks of one file collapse to the stripped path key and cross-contaminate imports
+// in `phase: 'pre+post'` (last pre write wins, post inherits the wrong deferred imports).
+// `SFC_LANG_RE` matches only JS/TS langs (`[cm]?[jt]sx?`), so a generic `?lang=en` / `?type=
+// module` on a non-SFC bundler still falls through to the query-stripping path as before
+function isTransformableSfcSubBlock(id) {
+  return SFC_QUERY_MARKER_RE.test(id) || (SFC_LANG_RE.test(id) && !SFC_NON_JS_TYPE_RE.test(id));
+}
+
 function normalizeKey(id) {
   const cleanId = stripHMRTimestamp(id);
-  if (SFC_QUERY_MARKER_RE.test(cleanId)) {
+  if (isTransformableSfcSubBlock(cleanId)) {
     // strip Windows UNC verbatim prefix (`\\?\C:\...` / `//?/C:/...`) BEFORE the SFC split,
     // otherwise `cleanId.search(/[#?]/)` matches the embedded `?` of the UNC prefix at index
     // 2 instead of the SFC `?vue&type=...` boundary. without this, pre-on-Windows-UNC and
