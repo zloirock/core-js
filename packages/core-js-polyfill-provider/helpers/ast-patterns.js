@@ -583,34 +583,55 @@ function usageSitsUnderAllBranches(usagePath, ownerNode, guards) {
   return guards.every(branch => ancestors.has(branch));
 }
 
-// `var` hoists the declaration but not the assignment, so a use textually before the declarator
-// reads `undefined`. a parser that omits positions can't be ordered - don't over-bail there
-function declaratorPrecedesUsage(declaratorNode, usagePath) {
-  const declEnd = declaratorNode?.end;
+// textual order via positions: does `node` end at or before `usagePath` begins? a `var` hoists the
+// declaration but not the assignment, so a use before the declarator reads `undefined`; symmetrically
+// a reassignment AFTER the use can't have changed the value read there. a parser that omits positions
+// can't be ordered - don't over-bail (return true)
+function nodePrecedesUsage(node, usagePath) {
+  const nodeEnd = node?.end;
   const useStart = usagePath.node?.start;
-  if (typeof declEnd !== 'number' || typeof useStart !== 'number') return true;
-  return declEnd <= useStart;
+  if (typeof nodeEnd !== 'number' || typeof useStart !== 'number') return true;
+  return nodeEnd <= useStart;
+}
+
+// core single-node domination check within the use's own var-scope `owner`: does `node` lie on
+// EVERY control-flow path reaching `usagePath`? a node not found in that scope (guards === null)
+// sits beyond a var-scope boundary, so the caller's `crossBoundary` policy decides - an init
+// captured from an outer scope ran first (dominates -> true), a reassignment in a nested scope
+// might not have run by the use (does not dominate -> false). otherwise it dominates iff the use
+// sits under every conditional branch the node does AND the node textually precedes it
+function nodeDominatesUsage({ node, usagePath, owner, crossBoundary }) {
+  const guards = collectVarGuardsToDeclarator(owner.node, node);
+  if (guards === null) return crossBoundary;
+  return usageSitsUnderAllBranches(usagePath, owner.node, guards) && nodePrecedesUsage(node, usagePath);
 }
 
 // SOUND gate for resolving a function-scoped `var` alias to a global. `var` hoists to the whole
 // function, so `if (c) { var M = globalThis } M.Map()` binds M everywhere - but M holds the global
 // only when `c` was truthy; usage-pure would rewrite the use to a receiver-less polyfill and mask
-// the native TypeError on the c-falsy path. holds iff the assignment DOMINATES the use: it sits
-// under every conditional branch the declarator does AND textually precedes it.
-//
-// scoped to the reported shape: a declarator NOT in the use's own var-scope owner is an outer-scope
-// binding captured across a function boundary (e.g. a module-top `const A = Array` read inside an
-// IIFE) - those run before the capturing function and stay resolvable. callers without a use-site
-// path likewise resolve as before (they never surface a nested-block `var` - the var-hoist fallback
-// that does needs the path too)
+// the native TypeError on the c-falsy path. holds iff the assignment DOMINATES the use. a declarator
+// NOT in the use's own var-scope owner is an outer-scope capture (e.g. a module-top `const A = Array`
+// read inside an IIFE) that ran first, so it dominates (crossBoundary true); callers without a
+// use-site path resolve as before (they never surface a nested-block `var`)
 export function varInitDominatesUsage({ declaratorNode, usagePath }) {
   if (!usagePath) return true;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return true;
-  const guards = collectVarGuardsToDeclarator(owner.node, declaratorNode);
-  if (guards === null) return true;
-  return usageSitsUnderAllBranches(usagePath, owner.node, guards)
-    && declaratorPrecedesUsage(declaratorNode, usagePath);
+  return nodeDominatesUsage({ node: declaratorNode, usagePath, owner, crossBoundary: true });
+}
+
+// does some node in `reassignmentNodes` provably overwrite a `var` / `let` alias on EVERY path
+// reaching `usagePath` (so the declarator-init value is dead at the use)? a write beyond the use's
+// var-scope boundary is NOT counted (crossBoundary false - it may not have run by the use). returns
+// false when no write dominates: lets usage-global keep resolving an alias whose init is still live
+// on a non-reassigned / after-use / nested-scope path (inject-if-maybe-needed) while bailing on a
+// definite (dominating) overwrite. usage-pure ignores this and bails on any reassignment - its
+// receiver-dropping rewrite is unsound the moment the value is flow-dependent
+export function reassignmentDominatesUsage({ reassignmentNodes, usagePath }) {
+  if (!usagePath || !reassignmentNodes?.length) return false;
+  const owner = findNearestVarScopeOwner(usagePath);
+  if (!owner) return false;
+  return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, crossBoundary: false }));
 }
 
 // does this native scope binding describe a `var` whose declaration is namespace-scoped
