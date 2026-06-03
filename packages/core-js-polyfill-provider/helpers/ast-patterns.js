@@ -497,10 +497,10 @@ const LOOP_BODY_FIELD = {
 // must NOT be resolved to the global there - babel bails it natively, and this brings the unplugin
 // var-hoist path (which otherwise reads a clean binding) into line. only the loop body counts: a
 // `for (var X = ...; ;)` init or a plain `if` runs the declarator at most once per entry
-export function isVarDeclaratorInLoopBody(path, name) {
-  const owner = findNearestVarScopeOwner(path);
-  const target = owner && collectScopeVars(owner.node).get(name);
-  if (!target) return false;
+// does `target` sit inside a loop BODY within `ownerNode`'s var scope (re-run each iteration)?
+// stops at nested var-scope boundaries. shared by the named-declarator check below and the
+// usage-pure reachability gate - a use re-run by a loop back-edge can observe a textually-later write
+function nodeSitsInLoopBodyWithin(ownerNode, target) {
   let result = false;
   function visit(node, inLoopBody) {
     if (result || !isAstNode(node)) return;
@@ -508,7 +508,7 @@ export function isVarDeclaratorInLoopBody(path, name) {
       result = inLoopBody;
       return;
     }
-    if (node !== owner.node && isVarScopeBoundary(node.type)) return;
+    if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
     const loopField = LOOP_BODY_FIELD[node.type];
     for (const key of Object.keys(node)) {
       if (result) return;
@@ -518,18 +518,29 @@ export function isVarDeclaratorInLoopBody(path, name) {
       else if (isAstNode(value)) visit(value, childInLoopBody);
     }
   }
-  visit(owner.node, false);
+  visit(ownerNode, false);
   return result;
 }
 
-// statement-level branches whose body runs only on some control-flow paths. a `var` declarator
-// nested under one assigns conditionally, so resolving its alias to a global is sound only when
-// the use site also sits under the SAME branch. the recorded guard is the specific branch node
-// (if-consequent / loop body / catch body) so a use in a sibling branch (the `else`) isn't
-// contained; switch-case bodies are arrays with no wrapper, so the SwitchCase itself is recorded.
-// `var` is statement-only - expression short-circuits (`&&`, `?:`) never guard a declarator.
-// try-block / catch-body are conditional (a throw can skip them); `finally` always runs, so it
-// guards nothing and is absent
+export function isVarDeclaratorInLoopBody(path, name) {
+  const owner = findNearestVarScopeOwner(path);
+  const target = owner && collectScopeVars(owner.node).get(name);
+  if (!target) return false;
+  return nodeSitsInLoopBodyWithin(owner.node, target);
+}
+
+// branches whose body runs only on some control-flow paths. a target nested under one is
+// conditional, so it dominates a use only when the use also sits under the SAME branch. the
+// recorded guard is the specific branch node (if-consequent / loop body / catch body) so a use in a
+// sibling branch (the `else`) isn't contained; switch-case bodies are arrays with no wrapper, so the
+// SwitchCase itself is recorded. try-block / catch-body are conditional (a throw can skip them);
+// `finally` always runs, so it guards nothing and is absent.
+// the EXPRESSION short-circuits (`a && b`, `a || b`, `a ?? b` right operand; `c ? x : y` branches)
+// never guard a `var` DECLARATOR (var is statement-only, so they are inert for varInitDominatesUsage)
+// but DO guard a REASSIGNMENT - `c && (M = x)` reassigns M only when c is truthy - so
+// reassignmentDominatesUsage needs them to avoid treating an expr-guarded conditional reassign as
+// dominating. only the conditionally-evaluated operand is a branch: `&&`/`||`/`??` left + `?:` test
+// always run, so they are NOT recorded
 const CONDITIONAL_BRANCH_FIELDS = {
   IfStatement: ['consequent', 'alternate'],
   ForStatement: ['body'],
@@ -540,6 +551,8 @@ const CONDITIONAL_BRANCH_FIELDS = {
   SwitchCase: ['consequent'],
   TryStatement: ['block'],
   CatchClause: ['body'],
+  LogicalExpression: ['right'],
+  ConditionalExpression: ['consequent', 'alternate'],
 };
 
 // locate `target` in `ownerNode`'s var scope and return the ordered conditional-branch nodes
@@ -583,15 +596,28 @@ function usageSitsUnderAllBranches(usagePath, ownerNode, guards) {
   return guards.every(branch => ancestors.has(branch));
 }
 
-// textual order via positions: does `node` end at or before `usagePath` begins? a `var` hoists the
-// declaration but not the assignment, so a use before the declarator reads `undefined`; symmetrically
-// a reassignment AFTER the use can't have changed the value read there. a parser that omits positions
-// can't be ordered - don't over-bail (return true)
+// `a` ends at or before `b` begins (textual order by source positions). a parser that omits
+// positions can't be ordered, so the caller passes the `whenUnknown` result that is SAFE for its
+// direction (see the two wrappers below)
+function endsBeforeStart(a, b, whenUnknown) {
+  const aEnd = a?.end;
+  const bStart = b?.start;
+  if (typeof aEnd !== 'number' || typeof bStart !== 'number') return whenUnknown;
+  return aEnd <= bStart;
+}
+
+// does `node` end at or before `usagePath` begins? a `var` hoists the declaration but not the
+// assignment, so a use before the declarator reads `undefined`; symmetrically a reassignment AFTER
+// the use can't have changed the value read there. unknown positions -> true: don't over-bail the
+// global-dominance check
 function nodePrecedesUsage(node, usagePath) {
-  const nodeEnd = node?.end;
-  const useStart = usagePath.node?.start;
-  if (typeof nodeEnd !== 'number' || typeof useStart !== 'number') return true;
-  return nodeEnd <= useStart;
+  return endsBeforeStart(node, usagePath.node, true);
+}
+
+// inverse direction for the usage-pure reachability gate: the write `node` lies textually STRICTLY
+// after the read. unknown positions -> false: pure can't prove the write is after the read, so bail
+function usagePrecedesNode(usagePath, node) {
+  return endsBeforeStart(usagePath.node, node, false);
 }
 
 // core single-node domination check within the use's own var-scope `owner`: does `node` lie on
@@ -632,6 +658,130 @@ export function reassignmentDominatesUsage({ reassignmentNodes, usagePath }) {
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
   return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, crossBoundary: false }));
+}
+
+// per-node counterpart to nodeDominatesUsage for the SUBSTITUTE direction: does reassignment `node`
+// lie strictly AFTER `usagePath` within its OWN var-scope `owner`? a node beyond that boundary
+// (guards === null - a nested closure) could run before the read, so it does NOT qualify as after
+function nodeFollowsUsageInScope({ node, usagePath, owner }) {
+  return collectVarGuardsToDeclarator(owner.node, node) !== null && usagePrecedesNode(usagePath, node);
+}
+
+// SOUND gate for the SUBSTITUTE (usage-pure) direction: does the declarator-init value provably
+// reach `usagePath` UNMODIFIED on every path - i.e. can NO reassignment run before the read? pure
+// rewrites to a receiver-less polyfill, so a wrong "yes" masks the native value - resolve only on
+// PROOF. holds iff the read runs at most once (not in a loop body, where a back-edge re-runs a
+// textually-later write before it) AND every reassignment sits in the read's OWN var-scope owner (a
+// write beyond it lives in a closure that may run earlier) textually STRICTLY after the read. no
+// reassignment -> the init trivially reaches. mirror of reassignmentDominatesUsage (global bails only
+// when the init is provably DEAD; pure resolves only when it is provably the LIVE value)
+export function noReassignmentReachesUsage({ reassignmentNodes, usagePath }) {
+  if (!usagePath) return false;
+  if (!reassignmentNodes?.length) return true;
+  const owner = findNearestVarScopeOwner(usagePath);
+  if (!owner) return false;
+  if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return false;
+  return reassignmentNodes.every(node => nodeFollowsUsageInScope({ node, usagePath, owner }));
+}
+
+// the RHS of the `=` assignment for a reassignment site, normalized across adapters: babel records
+// the AssignmentExpression node directly; estree-toolkit records the target Identifier (the LHS), so
+// locate the enclosing `name = <expr>` in `ownerNode` to read its right operand. null for a non-plain
+// write (`name++` / `name += x`) whose value isn't a simple replacement
+function reassignmentRhs(node, ownerNode) {
+  if (node.type === 'AssignmentExpression') return node.operator === '=' ? node.right : null;
+  if (node.type !== 'Identifier') return null;
+  let found = null;
+  function visit(n) {
+    if (found || !isAstNode(n)) return;
+    if (n.type === 'AssignmentExpression' && n.operator === '=' && n.left === node) {
+      found = n.right;
+      return;
+    }
+    for (const key of Object.keys(n)) {
+      if (found) return;
+      const value = n[key];
+      if (Array.isArray(value)) for (const v of value) visit(v);
+      else visit(value);
+    }
+  }
+  visit(ownerNode);
+  return found;
+}
+
+// reaching-definition VALUE node of a reassigned variable at `usagePath`: the RHS of the last
+// assignment textually before the use, when that value is unambiguous - the last before-use write
+// runs UNCONDITIONALLY (it overwrites every earlier write) and the use runs at most once (not in a
+// loop body, where a back-edge could expose a later write). null when the value is flow-dependent (a
+// conditional / nested-closure / non-plain `=` write reaches the use). consulted AFTER the declarator-
+// init follow bails on the reassignment: the init is dead, so this recovers the live value the use
+// actually sees (`let K = 'from'; K = 'of'; Array[K]()` -> the `'of'` node). caller resolves the
+// returned node (a literal / concat for a computed key)
+export function reachingReassignmentValueNode({ binding, usagePath }) {
+  if (!usagePath) return null;
+  const owner = findNearestVarScopeOwner(usagePath);
+  if (!owner) return null;
+  if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return null;
+  const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, usagePath));
+  if (!before.length) return null;
+  // every before-use write must be a plain `name = <expr>` (not `name++`) inside the read's var-scope
+  // (a write beyond it lives in a closure that may run at call time) - else the value is indeterminate
+  for (const node of before) {
+    if (reassignmentRhs(node, owner.node) === null || collectVarGuardsToDeclarator(owner.node, node) === null) return null;
+  }
+  // the textually-last before-use write overwrites every earlier one - it is the reaching definition
+  // only if it ALWAYS runs (unconditional: no guards); a conditional last write leaves it ambiguous
+  const last = before.reduce((a, b) => b.start > a.start ? b : a);
+  if (collectVarGuardsToDeclarator(owner.node, last).length) return null;
+  return reassignmentRhs(last, owner.node);
+}
+
+// a constantViolation entry is a babel NodePath (carries `.node`) from the babel adapter but a raw
+// node from the unplugin var-hoist synthetic binding - normalize to the underlying node
+export function violationNode(violation) {
+  return violation.node ?? violation;
+}
+
+// a violation node equal to the binding's own declarator is a loop re-init: babel models the
+// per-iteration re-run of `var x = init` as a write, but the init is fixed so it can't change what
+// the alias resolves to - only a write at a DIFFERENT node is a real reassignment. mirrors the
+// unplugin var-hoist scan (which never records declarators), so a use after the in-body assignment
+// of `while (c) { var M = globalThis; M.Array.from(...) }` resolves on both plugins
+export function isReassignedBeyondDeclarator(binding) {
+  return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
+}
+
+// the real reassignment site nodes (every violation other than the loop-reinit declarator-self)
+export function reassignmentNodesBeyondDeclarator(binding) {
+  return binding.constantViolations.map(violationNode).filter(node => node !== binding.node);
+}
+
+// shared method-aware reassignment-bail decision for a resolver that has already found
+// `binding.constantViolations?.length` truthy: should it still bail? both usage methods are now
+// flow-sensitive, with OPPOSITE proof obligations matching their injection bias:
+//   - usage-global injects a side-effect import (inject-if-maybe-needed, over-inject-safe), so it
+//     keeps resolving UNLESS a reassignment provably DOMINATES the use (declarator-init dead).
+//   - usage-pure rewrites the reference to a receiver-less polyfill (wrong-substitution-unsafe), so
+//     it resolves ONLY when NO reassignment can reach the use (init provably the live value) -
+//     leaving a genuinely ambiguous `c && (P = other); P.x()` to bail.
+// the type-resolver (narrowing, whose binding adapter carries no `.method`) and entry keep the
+// conservative flat bail. both branches exclude the loop-reinit declarator-self via
+// reassignmentNodesBeyondDeclarator
+export function reassignBailApplies({ binding, adapter, path }) {
+  const method = adapter?.method;
+  if (method !== 'usage-global' && method !== 'usage-pure') return true;
+  const reassignmentNodes = reassignmentNodesBeyondDeclarator(binding);
+  if (method === 'usage-global') return reassignmentDominatesUsage({ reassignmentNodes, usagePath: path });
+  return !noReassignmentReachesUsage({ reassignmentNodes, usagePath: path });
+}
+
+// for the sibling resolvers that historically bailed on a flat `binding.constantViolations?.length`:
+// returns whether the reassignment should block resolution. false when there is no reassignment;
+// otherwise delegates to the method-aware `reassignBailApplies`. (resolveVariableBindingToGlobal
+// uses isReassignedBeyondDeclarator + reassignBailApplies instead - it excludes the loop-reinit
+// declarator-self for BOTH methods, where these sites keep the conservative flat bail off-global)
+export function reassignmentBlocksGlobalResolve({ binding, adapter, path }) {
+  return !!binding.constantViolations?.length && reassignBailApplies({ binding, adapter, path });
 }
 
 // does this native scope binding describe a `var` whose declaration is namespace-scoped
