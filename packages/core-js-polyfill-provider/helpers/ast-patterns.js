@@ -444,8 +444,9 @@ export function findFunctionScopeVarInPath(path, name) {
 // (over-inject / wrong rewrite) where babel's native binding bails. recover the violations so
 // the synthetic binding matches babel: walk the enclosing var-scope owner for `name = ...` /
 // `name++` writes, descending into nested scopes that don't re-bind `name` (a closure can
-// reassign the outer var) but stopping at ones that shadow it (param / hoisted var of the same
-// name is a distinct binding). empty result is falsy-length like the prior `undefined`, so the
+// reassign the outer var) but stopping at ones that shadow it - a function param / hoisted var, OR a
+// block-scoped `let`/`const`/`class`/`function` / catch param of the same name is a distinct binding.
+// empty result is falsy-length like the prior `undefined`, so the
 // non-reassigned common case still resolves. cached per owner node (same staleness contract as
 // `scopeVarsCache`: valid while this file isn't re-traversed after sibling-plugin mutation)
 const scopeReassignCache = new WeakMap();
@@ -456,17 +457,31 @@ export function collectFunctionScopeVarReassignments(path, name) {
   if (!perName) scopeReassignCache.set(owner.node, perName = new Map());
   if (perName.has(name)) return perName.get(name);
   const violations = [];
+  function bindsName(patternNode) {
+    let hit = false;
+    walkPatternIdentifiers(patternNode, id => { if (id.name === name) hit = true; });
+    return hit;
+  }
   function shadowsName(scopeNode) {
-    for (const p of scopeNode.params ?? []) {
-      let hit = false;
-      walkPatternIdentifiers(p, id => { if (id.name === name) hit = true; });
-      if (hit) return true;
-    }
+    if ((scopeNode.params ?? []).some(bindsName)) return true;
     return collectScopeVars(scopeNode).has(name);
+  }
+  // a block-scoped statement re-binding `name`: `let`/`const` declarator, or a class / function
+  // declaration. for-head let/const is left conservative (still recorded: safe over-bail)
+  function stmtRebindsName(stmt) {
+    if (stmt.type === 'VariableDeclaration' && stmt.kind !== 'var') return stmt.declarations.some(d => bindsName(d.id));
+    return (stmt.type === 'ClassDeclaration' || stmt.type === 'FunctionDeclaration') && stmt.id?.name === name;
+  }
+  // a nested BLOCK / catch that re-binds `name` block-scoped shadows the outer var inside it -
+  // writes there are to the inner binding, not the var
+  function blockShadowsName(node) {
+    if (node.type === 'CatchClause') return !!node.param && bindsName(node.param);
+    if (node.type !== 'BlockStatement' && node.type !== 'StaticBlock') return false;
+    return (node.body ?? []).some(stmtRebindsName);
   }
   function visit(node, atOwnerRoot) {
     if (!isAstNode(node)) return;
-    if (!atOwnerRoot && isVarScopeBoundary(node.type) && shadowsName(node)) return;
+    if (!atOwnerRoot && ((isVarScopeBoundary(node.type) && shadowsName(node)) || blockShadowsName(node))) return;
     if ((node.type === 'AssignmentExpression' && node.left?.type === 'Identifier' && node.left.name === name)
       || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)) {
       violations.push(node);
@@ -2047,6 +2062,19 @@ export function isInUpdateOperand(parentPath) {
 export function isForXHeadAssignTarget(path) {
   const parent = path?.parentPath?.node;
   return (parent?.type === 'ForOfStatement' || parent?.type === 'ForInStatement') && parent.left === path.node;
+}
+
+// usage-pure: a global at an assignment / for-x-head LHS cannot be rewritten to a frozen
+// import binding (the write TypeErrors at runtime). a transparent wrapper (`Map! = x`,
+// `(Map) ||= x`, `for (Map! of arr)`) keeps the identifier in a read-looking position so
+// the adapter's `isReferenced` stays true; peel transparent ancestors before testing the
+// LHS shapes. plain `=` and every compound form (`||=`, `+=`, ...) write the LHS, so any
+// AssignmentExpression carrying the peeled node as `.left` qualifies
+export function isAssignOrForXWriteTargetPath(path) {
+  const anchor = peelTransparentExprAncestorPath(path);
+  const parent = anchor?.parentPath?.node;
+  if (parent?.type === 'AssignmentExpression') return parent.left === anchor.node;
+  return isForXHeadAssignTarget(anchor);
 }
 
 // function-like types that carry `params` - ObjectPattern used as a parameter lives
