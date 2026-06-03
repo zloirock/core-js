@@ -11,6 +11,7 @@ import {
   kebabToCamel,
   mayHaveSideEffects,
   peelZeroArgIifeReturn,
+  reassignmentDominatesUsage,
   singleQuasiString,
   singleReturnBodyExpression,
   TS_EXPR_WRAPPERS,
@@ -292,10 +293,25 @@ function isReassignedBeyondDeclarator(binding) {
   return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
 }
 
+// the real reassignment site nodes (every violation other than the loop-reinit declarator-self).
+// computed only on the usage-global branch that feeds them to the domination check; the cheap
+// existence probe above stays a `.some` so the common no-reassignment path allocates nothing
+function reassignmentNodesBeyondDeclarator(binding) {
+  return binding.constantViolations.map(violationNode).filter(node => node !== binding.node);
+}
+
 function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path }) {
-  // bail on a real reassignment before dereferencing `.node.init/.id` (malformed binding shapes can
-  // leave those undefined); a loop-reinit declarator-self-violation is not one - see the helper
-  if (isReassignedBeyondDeclarator(binding)) return null;
+  // a real reassignment (a constantViolation beyond a loop-reinit declarator-self) makes the alias
+  // flow-dependent. usage-pure rewrites the use to a receiver-less helper, so ANY reassignment is
+  // unsound -> bail. usage-global / entry keep the call site (side-effect import only), so they bail
+  // ONLY when a reassignment DOMINATES the use (declarator-init provably dead); a CONDITIONAL or
+  // after-the-use reassignment leaves the init live on the reaching path, and the inject-if-maybe-
+  // needed bias keeps resolving it (a dropped polyfill would TypeError there). the dominated / pure
+  // bails return early, before the `.node.init/.id` deref below (malformed binding shapes)
+  if (isReassignedBeyondDeclarator(binding)) {
+    if (adapter.method === 'usage-pure') return null;
+    if (reassignmentDominatesUsage({ reassignmentNodes: reassignmentNodesBeyondDeclarator(binding), usagePath: path })) return null;
+  }
   // a function-scoped `var` whose assignment is conditional (`if (c) { var M = globalThis }`)
   // holds the global only on paths through that branch. usage-pure rewrites `M.Array.from` to a
   // receiver-less helper, DROPPING the guard - so a non-dominating assignment would mask the
