@@ -1227,10 +1227,28 @@ export function collectMutatedStaticMembers(programNode) {
     for (const scope of scopeStack) if (scope.has(name)) return true;
     return false;
   }
-  function visit(node, parent, grandparent) {
-    if (!node || typeof node !== 'object') return;
+  // iterative post-order DFS over a heap stack - a recursive walk overflows the call stack on
+  // pathologically deep ASTs (hundreds of nested expressions, esp. on engines with a smaller
+  // default stack). a depth cap is NOT an option here: this is a soundness pre-pass, and missing
+  // a deep `Array.from = X` would let the main visitor wrongly substitute the mutated global.
+  // each work item is a node visit; a scope-bearing node pushes its bound-name Set plus a
+  // `popScope` sentinel so the scope is dropped only after its whole subtree is processed (LIFO
+  // keeps the sentinel below the just-pushed children). sibling order is reversed vs the recursive
+  // walk, which is irrelevant - `mutated` is a Set and `isShadowed` only reads enclosing scopes
+  const work = [{ node: programNode, parent: null, grandparent: null }];
+  while (work.length) {
+    const item = work.pop();
+    if (item.popScope) {
+      scopeStack.pop();
+      continue;
+    }
+    const { node, parent, grandparent } = item;
+    if (!node || typeof node !== 'object') continue;
     const bound = scopeBoundNames(node);
-    if (bound) scopeStack.push(bound);
+    if (bound) {
+      scopeStack.push(bound);
+      work.push({ popScope: true });
+    }
     if (node.type === 'MemberExpression'
       && node.object?.type === 'Identifier'
       && !isShadowed(node.object.name)
@@ -1246,10 +1264,8 @@ export function collectMutatedStaticMembers(programNode) {
       collectObjectMutations(node, mutated, isShadowed);
       collectReflectMutations(node, mutated, isShadowed);
     }
-    walkAstChildren(node, child => visit(child, node, parent));
-    if (bound) scopeStack.pop();
+    walkAstChildren(node, child => work.push({ node: child, parent: node, grandparent: parent }));
   }
-  visit(programNode, null, null);
   return mutated;
 }
 
