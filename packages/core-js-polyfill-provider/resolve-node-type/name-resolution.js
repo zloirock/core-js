@@ -497,7 +497,7 @@ export function createNameResolution({ t }) {
       if (rest.length === 0 && decl.id?.name === head && matchType(decl)) return declPath;
       // qualified ref reached through a namespace alias (`import IM = M; class C extends IM.Base`):
       // re-walk with the alias target's segments prepended. mirrors `walkStatementsForDecl`'s
-      // TSImportEqualsDeclaration branch; visited-guard bails on cyclic aliases (shared with PP11-2)
+      // TSImportEqualsDeclaration branch; visited-guard bails on cyclic aliases
       if (decl.type === 'TSImportEqualsDeclaration' && decl.id?.name === head && rest.length) {
         if (visited.has(decl)) continue;
         visited.add(decl);
