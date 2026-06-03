@@ -30,12 +30,16 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
     getDebugOutput()?.add(moduleName);
   }
 
+  // returns the count of modules the entry resolved to (after mode + target filtering) so callers
+  // can distinguish a recognized-but-out-of-current-layer entry (0 modules) from one that injected
   function injectModulesForEntry(entry) {
-    for (const mod of getModulesForEntry(entry)) injectModule(mod);
+    const mods = getModulesForEntry(entry);
+    for (const mod of mods) injectModule(mod);
+    return mods.length;
   }
 
   function injectModulesForModeEntry(entry) {
-    injectModulesForEntry(`${ mode }/${ entry }`);
+    return injectModulesForEntry(`${ mode }/${ entry }`);
   }
 
   function outputDebug() {
