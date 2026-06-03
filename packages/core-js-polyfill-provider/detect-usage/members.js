@@ -191,7 +191,7 @@ function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
     return true;
   }
   if (type !== 'Identifier') return false;
-  const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen });
+  const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
   if (!entry) return false;
   // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
   // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
