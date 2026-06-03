@@ -111,7 +111,14 @@ export default class ImportInjector extends ImportInjectorState {
 
   generateDeclaredRef(scope) {
     const id = this.#generateRefId(scope);
-    scope.push({ id });
+    // `scope.push` unshifts `var _ref;` into the scope's block. a loop scope whose body is a BLOCK
+    // means the memo sits in the loop HEADER - a memo in the body would scope to that body block,
+    // not the loop - so push would land the `var` in the body, after its header use (works only by
+    // var hoisting). push to the loop's parent so the declaration precedes the loop, matching
+    // unplugin's enclosing-scope anchor. bodyless-body loops are ambiguous (header vs body use both
+    // scope to the loop), so leave babel's default placement there
+    const headerOfBlockBodyLoop = scope.path.isLoop() && scope.path.node.body?.type === 'BlockStatement';
+    (headerOfBlockBodyLoop ? scope.parent : scope).push({ id });
     return id;
   }
 
