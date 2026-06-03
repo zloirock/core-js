@@ -417,8 +417,13 @@ export function createPolyfillEmitter({
   // so peeling the receiver to its SE tail and re-supplying the whole prefix via the prepended
   // SequenceExpression keeps `(a(), arr)[Symbol[(b(), 'iterator')]]()` -> `(a(), b(),
   // _getIterator(arr))` in source eval order rather than duplicating / reordering the receiver SE
-  function resolveReceiverSeMode({ node, parent, sideEffects }) {
-    const isOptional = node.optional || parent?.optional || node.object?.type === 'ChainExpression';
+  function resolveReceiverSeMode({ node, sideEffects }) {
+    // member-access optionality ONLY (mirror babel-compat's `classifyReceiverSE` call): a
+    // non-optional access under an optional CALL (`(a(), arr)[(k(), 'flat')]?.()`) must still
+    // 'peel' and prepend the FULL ordered receiver-then-key SE list. folding the parent call's
+    // `?.` in here flipped it to 'suppress', emitting the key SE ahead of the receiver SE (`k, a`
+    // instead of native `a, k`)
+    const isOptional = node.optional || node.object?.type === 'ChainExpression';
     return classifyReceiverSE(node.object, isOptional, sideEffects);
   }
 
@@ -427,7 +432,7 @@ export function createPolyfillEmitter({
     binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
     sideEffects = null, parenLookupOnly = false,
   }) {
-    const seMode = resolveReceiverSeMode({ node, parent, sideEffects });
+    const seMode = resolveReceiverSeMode({ node, sideEffects });
     // `peel` (non-optional): peel the receiver to its SE tail; the prepended SequenceExpression
     // replays the full receiver-SE + key-SE the resolver collected. `suppress` (optional): leave
     // the receiver intact - its SE runs inside the null-guard memoize (`_ref = recv`) - and fold
@@ -449,7 +454,21 @@ export function createPolyfillEmitter({
     // the guard into `(guard binding(_ref)).call(...)`, which still throws via the `.call`
     // access on `void 0`, so it keeps its root and deopt
     const bareParenLookup = parenLookupOnly && !replacementIsCall;
-    const optionalRoot = bareParenLookup ? null : resolvedRoot;
+    let optionalRoot = bareParenLookup ? null : resolvedRoot;
+    // proxy-global guard root: when the receiver path did NOT already substitute the leaf
+    // (`recv.substituted` false - e.g. a CALL receiver `globalThis.list?.flat().m()` hides the
+    // proxy-global below a call), the optionalRoot is raw source AND `skipProxyGlobal(node)` below
+    // suppresses the Identifier visitor that would otherwise rewrite it - so the guard emits raw
+    // `globalThis` and IE11 ReferenceErrors on the lookup. resolve the guard text through the
+    // proxy-global resolver here (the body already binds the memoized `_ref`, and rootRaw stays raw
+    // so the body-tail slice math against the raw receiver source still holds)
+    if (optionalRoot && !recv.substituted && rootNode) {
+      const rootLeaf = unwrapNode(rootNode);
+      const directRoot = rootLeaf?.type === 'Identifier' ? resolveReceiverPolyfill(rootLeaf, metaPath) : null;
+      const chainRoot = directRoot ? null : resolveProxyGlobalChainSrc(rootNode, metaPath);
+      if (directRoot) optionalRoot = injectPureImport(directRoot.entry, directRoot.hintName);
+      else if (chainRoot) optionalRoot = chainRoot.src;
+    }
     const effectiveDeopt = bareParenLookup ? null : deoptPositions;
     const rootIsReceiver = rootNode === node.object;
     const optionalRootCapturesIntoRef = optionalRoot && !isBareIdentifier(optionalRoot);
@@ -750,6 +769,8 @@ export function createPolyfillEmitter({
           poly: hopResult?.kind === 'instance' ? hopResult : null,
           args: sliceBetweenParens(current) ?? '',
           rawSrc: code.slice(hopCallee.object.end, current.end),
+          // member-optional call hop (`recv?.m(...)`): a nullish receiver short-circuits the whole chain
+          optional: hopCallee.optional,
         });
         step = peelChainStep(hopCallee.object, hopCalleePath.get('object'));
       } else {
@@ -832,23 +853,45 @@ export function createPolyfillEmitter({
     return n?.type === 'Identifier' ? n : null;
   }
 
-  // thread collected non-optional hops onto the inner result. polyfillable hops re-emit inline
-  // (`binding(_ref = prev).call(_ref, args)`) so the receiver binds; non-poly hops and member
-  // accesses append their verbatim source. refs allocate OUTERMOST-first (hops array order, after
-  // the caller's mRef / outerRef) to match babel's spliced re-traversal, while the receiver is
-  // built INNERMOST-first - keeping the emit byte-for-byte with babel even for multiple hops
-  function buildThreadedReceiver(innerCall, hops) {
-    const slots = hops.map(hop => hop.poly
+  // thread collected hops onto the inner result. polyfillable hops re-emit inline
+  // (`binding(_ref = prev).call(_ref, args)`) so the receiver binds; non-poly hops append their
+  // verbatim source. a member-optional call hop (`recv?.m(...)`) lifts a `null == (_ref = recv)`
+  // guard into `extraTests`: a nullish receiver short-circuits the WHOLE chain to void 0, not just
+  // the `.m` access, so the hop threads on the guarded ref and its verbatim source is deoptionalized
+  // (the guard already covers the nullish case). `innermostGuardFolded` (set when the caller folds the
+  // call-optional chainStart into a `?.call` test): the chainStart-adjacent hop's short-circuit is
+  // already covered by that folded `null == mRef`, so it skips its own guard AND reuses the memoized
+  // result `mRef` verbatim instead of a redundant memo - matching babel's `_at(_ref).call(_ref)`.
+  // non-poly-hop refs allocate OUTERMOST-first (hops array order, after the caller's mRef / outerRef),
+  // receiver built INNERMOST-first
+  function buildThreadedReceiver(innerCall, hops, { innermostGuardFolded = false } = {}) {
+    const innermost = hops.length - 1;
+    const slots = hops.map((hop, i) => hop.poly && !(innermostGuardFolded && i === innermost)
       ? { ref: scopeTracker.genRef(), binding: injectPureImport(hop.poly.entry, hop.poly.hintName) }
       : null);
+    const extraTests = [];
     let acc = innerCall;
-    for (let i = hops.length - 1; i >= 0; i--) {
+    for (let i = innermost; i >= 0; i--) {
       const slot = slots[i];
-      acc = slot
-        ? `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ commaArgs(hops[i].args) })`
-        : `${ acc }${ hops[i].rawSrc }`;
+      const hop = hops[i];
+      const guardFolded = innermostGuardFolded && i === innermost;
+      if (hop.optional && !guardFolded) {
+        const guardRef = scopeTracker.genRef();
+        extraTests.push(`null == (${ guardRef } = ${ acc })`);
+        acc = guardRef;
+      }
+      if (slot) {
+        acc = `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ commaArgs(hop.args) })`;
+      } else if (hop.poly) {
+        // folded innermost poly hop: `acc` is the memoized chainStart result (mRef), safe to reuse
+        // verbatim rather than allocate a redundant `_refN = mRef` memo (mirrors babel)
+        const binding = injectPureImport(hop.poly.entry, hop.poly.hintName);
+        acc = `${ binding }(${ acc }).call(${ acc }${ commaArgs(hop.args) })`;
+      } else {
+        acc = `${ acc }${ hop.optional ? hop.rawSrc.replace(/^\s*\?\./, '.') : hop.rawSrc }`;
+      }
     }
-    return acc;
+    return { threaded: acc, extraTests };
   }
 
   function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain, sideEffects }) {
@@ -898,8 +941,6 @@ export function createPolyfillEmitter({
     const outerRef = scopeTracker.genRef();
     const innerArgs = sliceBetweenParens(chainStart) ?? '';
     const outerArgs = sliceBetweenParens(parent) ?? '';
-    const innerCall = `${ mRef }.call(${ aRef }${ commaArgs(innerArgs) })`;
-    const threaded = buildThreadedReceiver(innerCall, hops);
 
     // `recv.method?.()`: the `?.` guards the CALL, not the `.method` access - a nullish recv must
     // throw on the `.method` read like native, so omit the `null == recv` test (it would swallow
@@ -908,12 +949,26 @@ export function createPolyfillEmitter({
     // case it also carries the receiver assignment so a side-effecting receiver evaluates once.
     // mirrors babel-compat.js's `replaceInstanceChainCombined`
     const methodArg = innerCallee.optional || isReceiverSafe ? aRef : `${ aRef } = ${ receiver }`;
+    // byte-parity with babel for `recv.m?.()?.hop...` (call-optional chainStart + member-optional
+    // ADJACENT hop): babel folds the inner call into the chainStart test via `?.call`, so mRef holds
+    // the call RESULT and a single `null == mRef` covers BOTH the `m?.()` short-circuit (the `?.call`)
+    // and the adjacent `?.hop` short-circuit; the hop then threads on the memoized result. every other
+    // chainStart keeps the method-test form (which already matches babel's output)
+    const foldInnerCall = !innerCallee.optional && hops.length > 0 && hops.at(-1).optional;
+    const innerCall = foldInnerCall ? mRef : `${ mRef }.call(${ aRef }${ commaArgs(innerArgs) })`;
+    const { threaded, extraTests } = buildThreadedReceiver(innerCall, hops, { innermostGuardFolded: foldInnerCall });
+
     const tests = innerCallee.optional ? [
       `null == ${ anAssign }`,
       `null == (${ mRef } = ${ innerBinding }(${ aRef }))`,
+    ] : foldInnerCall ? [
+      `null == (${ mRef } = ${ innerBinding }(${ methodArg })?.call(${ aRef }${ commaArgs(innerArgs) }))`,
     ] : [
       `null == (${ mRef } = ${ innerBinding }(${ methodArg }))`,
     ];
+    // member-optional hop guards sit between the chainStart tests and the outer-optional test,
+    // innermost-first - matching native left-to-right short-circuit order
+    tests.push(...extraTests);
     let outerObj;
     if (node.optional) {
       tests.push(`null == (${ outerRef } = ${ threaded })`);

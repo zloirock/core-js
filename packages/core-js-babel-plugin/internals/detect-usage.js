@@ -53,8 +53,13 @@ function stringLiteralValue(node) {
 // factory for a Babel scope adapter bound to a specific plugin-instance injector.
 // the closure over `getInjector` avoids module-level mutable state, which would race
 // under parallel transforms (Vite/Rollup/thread-loader)
-export function createBabelAdapter(getInjector = () => null) {
+export function createBabelAdapter(getInjector = () => null, method = null) {
   return {
+    // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
+    // a receiver-less helper (dropping the receiver), so the shared resolver gates the
+    // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
+    // inject side-effect imports, which is sound regardless of where the alias was assigned
+    method,
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
     // detection in `bindingSymbolKey`. null when injector hasn't published packages or
     // adapter constructed without an injector closure (entry-only detect path)
