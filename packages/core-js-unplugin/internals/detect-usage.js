@@ -75,6 +75,15 @@ const LABEL_TYPES = new Set([
 // pass `false` here or `Map++` wouldn't inject its polyfill and would ReferenceError in IE 11
 function isReferenced({ node, parent, parentKey, parentPath, skipUpdateTargets }) {
   if (!parent) return true;
+  // a transparent expression wrapper (`Map!` TSNonNull / `(Map)` paren) occupies the identifier's
+  // syntactic position, so its parent decides read-vs-write. peel up to it - else `Map! ||= X` /
+  // `for (Map! of arr)` miss the write-LHS reject below and usage-pure over-substitutes a frozen import
+  while ((parent.type === 'TSNonNullExpression' || parent.type === 'ParenthesizedExpression') && parentPath?.parentPath) {
+    parentKey = parentPath.key;
+    parentPath = parentPath.parentPath;
+    parent = parentPath.node;
+  }
+  if (!parent) return true;
   // TS type-only positions: `type X = ...` ids, `export { type X }` specifiers
   if (isTSTypeOnlyIdentifierPath({ parent, key: parentKey, parentPath })) return false;
   // property key positions
@@ -134,6 +143,17 @@ function isAmbientBinding(binding) {
   return isAmbientBindingShape(binding?.path?.node, binding?.path?.parent);
 }
 
+// estree-toolkit over-hoists a `var` declared inside `namespace N {}` / `declare global {}`
+// (a TSModuleBlock) to the enclosing function / program scope, so `scope.getBinding` surfaces
+// it for a use OUTSIDE the namespace body. true when `native` is such a binding that does NOT
+// reach `path`: the position walk treats TSModuleBlock as a boundary, finding the var only
+// inside the block. hasRuntimeBinding + getBinding + getBindingNodeType share this so they stay
+// consistent (a desync resolves `g.Array.from` to a null binding the shared resolver then derefs)
+// and the boundary-respecting var-hoist fallback governs - matching babel, which scopes it correctly
+function isOverHoistedNamespaceVar(native, name, path) {
+  return !!native && !!path && isNamespaceScopedVarBinding(native) && !findFunctionScopeVarInPath(path, name);
+}
+
 function hasRuntimeBinding(scope, name, path = null) {
   // pass `path` through to `scope.hasBinding` / `scope.getBinding`: native estree-toolkit
   // scopes ignore the extra arg (their signature is name-only), but `makeFrameScope` uses
@@ -156,12 +176,8 @@ function hasRuntimeBinding(scope, name, path = null) {
   const native = scope?.getBinding?.(name, path);
   if (!native) return true;
   if (isAmbientBinding(native)) return false;
-  // estree-toolkit over-hoists a `var` declared inside `namespace N {}` / `declare global {}`
-  // (a TSModuleBlock) to the enclosing function / program scope, so its hasBinding falsely
-  // reports a shadow for a use-site OUTSIDE the namespace body. re-validate with the
-  // position-aware var walk (TSModuleBlock is a boundary there): the namespace-local var only
-  // shadows references INSIDE its body, where the walk still finds it
-  if (path && isNamespaceScopedVarBinding(native)) return findFunctionScopeVarInPath(path, name);
+  // a namespace-local var over-hoisted by estree-toolkit doesn't shadow a use OUTSIDE the block
+  if (isOverHoistedNamespaceVar(native, name, path)) return false;
   return true;
 }
 
@@ -190,7 +206,10 @@ export function createEstreeAdapter(getInjector = () => null, method = null) {
       return hasRuntimeBinding(scope, name, path);
     },
     getBinding(scope, name, path = null) {
-      const b = scope?.getBinding?.(name);
+      let b = scope?.getBinding?.(name);
+      // a namespace-local var over-hoisted by estree-toolkit doesn't reach an out-of-namespace
+      // use: drop it so the boundary-respecting var-hoist fallback governs (matches babel)
+      if (isOverHoistedNamespaceVar(b, name, path)) b = null;
       if (!b) {
         // var-hoist fallback (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var`
         // from a nested non-function block to its function scope, so `function f(){ if (c) {
@@ -239,8 +258,11 @@ export function createEstreeAdapter(getInjector = () => null, method = null) {
       };
     },
     getBindingNodeType(scope, name, path = null) {
-      const native = scope?.getBinding(name)?.path?.node?.type;
-      if (native) return native;
+      const nativeBinding = scope?.getBinding?.(name);
+      // stay consistent with getBinding: an over-hoisted namespace var doesn't reach an
+      // outside use, so don't report its declarator type (else the resolver type-gates into
+      // resolveVariableBindingToGlobal with the null binding getBinding returned)
+      if (nativeBinding && !isOverHoistedNamespaceVar(nativeBinding, name, path)) return nativeBinding.path?.node?.type;
       // var-hoist fallback parity with getBinding: a nested-block `var` surfaces as a declarator
       return path && findFunctionScopeVarDeclaratorInPath(path, name) ? 'VariableDeclarator' : null;
     },

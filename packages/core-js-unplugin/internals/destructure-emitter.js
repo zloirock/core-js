@@ -2118,19 +2118,38 @@ export function createDestructureEmitter({
       // nested logical -> recurse; any other operand keeps its verbatim source. returns the
       // reassembled init source, or null when no operand referenced a polyfillable global.
       // ternary inits are handled by the per-branch synth-swap path, not here
-      function polyfillLogicalInitOperands(node, src, baseStart) {
+      // the global name a substitution decision must shadow-check: the proxy-global root
+      // (`globalThis` in `globalThis.Array`) when present, else a bare global identifier. a
+      // local binding of that name (`function f(globalThis) {}` param, a `let`/`const`) means
+      // the reference is NOT the global, so the pure rewrite must bail - matching the
+      // main-visitor shadow gate babel honors. position-anchored at the declarator/assignment
+      function globalSubstitutionShadowed(info, node) {
+        // the live estree-toolkit scope rides on the declarator path; `scopeSnapshot` is the
+        // scope-tracker frame (genRef plumbing) and exposes no binding lookup
+        const anchorPath = info.declaratorPath;
+        const scope = anchorPath?.scope;
+        if (!scope) return false;
+        const proxyRoot = findProxyGlobal(node);
+        const name = proxyRoot ? proxyRoot.name : node.type === 'Identifier' ? node.name : null;
+        return name !== null && estreeAdapter.hasBinding(scope, name, anchorPath);
+      }
+
+      function polyfillLogicalInitOperands(node, src, baseStart, info) {
         let any = false;
         const renderOperand = operand => {
           const peeled = unwrapParens(operand);
           const rawSrc = src.slice(operand.start - baseStart, operand.end - baseStart);
           let out = null;
           if (peeled.type === 'LogicalExpression') {
-            out = polyfillLogicalInitOperands(peeled, src, baseStart);
-          } else if (peeled.type === 'Identifier') {
-            const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
-            if (pure) out = injectPureImport(pure.entry, pure.hintName);
-          } else if (findProxyGlobal(peeled)) {
-            out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start });
+            out = polyfillLogicalInitOperands(peeled, src, baseStart, info);
+          } else if (!globalSubstitutionShadowed(info, peeled)) {
+            // a shadowed proxy-root / bare global is the user's own binding, not the global
+            if (peeled.type === 'Identifier') {
+              const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
+              if (pure) out = injectPureImport(pure.entry, pure.hintName);
+            } else if (findProxyGlobal(peeled)) {
+              out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start });
+            }
           }
           if (out === null) return rawSrc;
           any = true;
@@ -2147,8 +2166,10 @@ export function createDestructureEmitter({
       function polyfillInitGlobals(info) {
         const initNode = unwrapParens(info.initNode);
         if (initNode.type === 'LogicalExpression' && info.initStart !== undefined) {
-          return polyfillLogicalInitOperands(initNode, info.initSrc, info.initStart);
+          return polyfillLogicalInitOperands(initNode, info.initSrc, info.initStart, info);
         }
+        // a shadowed proxy-root / bare global is the user's own binding, not the global
+        if (globalSubstitutionShadowed(info, initNode)) return null;
         const leafName = info.initIdentName || globalProxyMemberName({ node: initNode });
         if (leafName) {
           const leafPolyfill = resolvePure({ kind: 'global', name: leafName }, null);
