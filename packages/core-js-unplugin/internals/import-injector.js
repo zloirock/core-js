@@ -195,8 +195,12 @@ export default class ImportInjector extends ImportInjectorState {
     const refs = this.#collectRefLines();
     if (!imports.length && !refs.length) return;
     const importPos = this.#prologueEnd();
-    const refPos = this.#userImportEnd ?? importPos;
     const src = this.#ms.original;
+    // a trailing same-line comment on the last user import (`import x from 'y' // c`) sits past
+    // `#userImportEnd` (oxc's stmt.end stops at the source token, before the comment), so anchoring
+    // `var _ref;` there would split the comment off its import onto a line below the ref block.
+    // skip the trailing comment chain so the ref block lands after it - the comment stays attached
+    const refPos = typeof this.#userImportEnd === 'number' ? skipTrailingComments(src, this.#userImportEnd) : importPos;
     const lead = needsLeadingNewlineAt(src, importPos) ? '\n' : '';
     // when imports and refs share the same anchor, combine into one block so MagicString
     // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
@@ -321,13 +325,14 @@ function skipShebang(src, pos) {
   return src.length;
 }
 
-// shebang-only / EOF-anchor insertion needs explicit `\n` prefix - blockify-emit appends
-// to `pos`, so without a separator the inserted block concatenates onto the prior token
-// (`#!/usr/bin/env nodeimport "core-js/...";` syntax error). detection: insert position
-// is at end-of-source AND prev char is not a line terminator. callers prepend `\n` to
-// the emitted block when this returns true
+// insertion needs an explicit `\n` prefix when `pos` is NOT at the start of a line - blockify-
+// emit appends at `pos`, so without a separator the block concatenates onto the prior token.
+// two cases: (1) shebang-only / EOF anchor (`#!/usr/bin/env nodeimport "core-js/...";` syntax
+// error), and (2) a directive line carrying trailing code / comments past which `skipLineEnd`
+// found no terminator, so `pos` sits mid-line and the import would otherwise jam onto the
+// directive line. detection: pos is past file start and the previous char is not a line terminator
 function needsLeadingNewlineAt(src, pos) {
-  return pos > 0 && pos === src.length && !isLineTerminator(src[pos - 1]);
+  return pos > 0 && !isLineTerminator(src[pos - 1]);
 }
 
 // ref-block emission lands at `refPos` (right after the trailing user import). when that
@@ -343,11 +348,12 @@ function needsRefLeadingNewlineAt(src, pos) {
   return prev !== ';' && !isLineTerminator(prev);
 }
 
-// land insertion on the next line: skip trailing whitespace and any chain of inline
-// comments, then advance past the line terminator. without multi-comment handling,
-// `"use strict"; /*a*/ //b\nfoo()` would land between `/*a*/` and `//b`, shredding `//b`
-// (or injecting import INTO the line comment so it gets commented out at runtime)
-function skipLineEnd(src, pos) {
+// skip trailing whitespace + any chain of inline comments from `pos`, returning the position
+// where the chain ends (at the line terminator, or the first real-code char), WITHOUT consuming
+// the terminator. shared by `skipLineEnd` (which then advances past the LT) and the ref-block
+// anchor (which keeps a trailing same-line comment attached to its user import rather than
+// splitting `var _ref;` between the import and its comment)
+function skipTrailingComments(src, pos) {
   let p = pos;
   for (;;) {
     while (src[p] === ' ' || src[p] === '\t') p++;
@@ -355,15 +361,23 @@ function skipLineEnd(src, pos) {
       // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). `isLineTerminator`
       // covers all four; literal `\n`/`\r` check misses LS/PS mid-source
       while (p < src.length && !isLineTerminator(src[p])) p++;
-      break;
+      return p;
     }
     if (src[p] === '/' && src[p + 1] === '*') {
       p = skipBlockComment(src, p);
       if (p === src.length) return p;
       continue;
     }
-    break;
+    return p;
   }
+}
+
+// land insertion on the next line: skip trailing whitespace and any chain of inline
+// comments, then advance past the line terminator. without multi-comment handling,
+// `"use strict"; /*a*/ //b\nfoo()` would land between `/*a*/` and `//b`, shredding `//b`
+// (or injecting import INTO the line comment so it gets commented out at runtime)
+function skipLineEnd(src, pos) {
+  const p = skipTrailingComments(src, pos);
   if (src[p] === '\r' && src[p + 1] === '\n') return p + 2;
   if (isLineTerminator(src[p])) return p + 1;
   return p;
