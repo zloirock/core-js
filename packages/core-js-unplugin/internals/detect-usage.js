@@ -729,7 +729,7 @@ export function createUsageVisitors({
 
   function binaryExpressionVisitor(path) {
     const meta = handleBinaryIn({
-      node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, path,
+      node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path,
     });
     if (meta) onUsage(meta, path);
   }
