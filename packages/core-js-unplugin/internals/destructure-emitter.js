@@ -286,13 +286,13 @@ export function createDestructureEmitter({
     const { result, unusedIds } = cached;
     if (!result.extractions.length) return false;
     flattenedAssignments.add(assignNode);
-    // skip both halves of the assignment from the normal visitor pass: LHS pattern's
-    // identifiers are now superseded by the rebuilt destructure text, RHS receiver tail
-    // is already substituted to the polyfilled binding inside `result.preservedSrc`.
-    // SE prefix expressions (RHS-internal AND outer SequenceExpression wrappers) stay
-    // visitable so their inner Identifiers (`Promise.resolve`) emit their own polyfill
-    // imports during traversal
-    walkAstNodes({ root: assignNode.left, visit: node => skippedNodes.add(node) });
+    // residual siblings kept verbatim (`other = [1].at(0)` default, a static-method value) stay
+    // visible so the natural visitor polyfills them in place; `flushPendingCascade` drains those
+    // rewrites and splices them into `result.preservedSrc`. the RHS receiver tail is handled
+    // separately below. SE prefix expressions (RHS-internal AND outer SequenceExpression wrappers)
+    // stay visitable so their inner Identifiers (`Promise.resolve`) emit their own polyfill imports
+    const residualTargets = result.residualTargets ?? [];
+    skipPatternExceptResidual(assignNode.left, residualTargets);
     const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
     // full consume but the retained tail still carries a side effect not liftable as a
     // top-level SE prefix (`[(sideEffect(), globalThis)]` - the SE is nested in an array
@@ -300,7 +300,11 @@ export function createDestructureEmitter({
     // its proxy-global root visible for the natural visitor to substitute. otherwise the tail
     // is dropped (effect-free) or folded into preservedSrc, so skip it from the visitor pass
     const emitReceiverTail = result.preservedSrc === null && mayHaveSideEffects(receiverTail);
-    if (!emitReceiverTail) skipReceiverTailSubtree(receiverTail);
+    // a verbatim init tail (static-object receiver) is a residual target whose contents the
+    // natural visitor polyfills in place, so leave it visible; otherwise the tail collapses
+    // into preservedSrc or is dropped, so skip it from the visitor pass
+    const tailIsResidual = receiverTail && isInsideResidualTarget(receiverTail, residualTargets);
+    if (!emitReceiverTail && !tailIsResidual) skipReceiverTailSubtree(receiverTail);
     // defer render + transforms.add: scope-tracker may register `var _ref;` inside the
     // SE-prefix IIFE body during sibling visits AFTER this point. flushPendingCascade
     // drains those inserts and bakes them into per-prefix nodeSrc before adding the
@@ -358,6 +362,10 @@ export function createDestructureEmitter({
 
   function flushPendingCascade() {
     for (const entry of pendingCascade) {
+      // bake residual-sibling polyfill rewrites (left visible for the natural visitor) into
+      // preservedSrc and drain their queued overwrites before the statement-range overwrite
+      // below, so the two don't collide
+      bakeResidualIntoSlot(entry.result);
       const drainedRefs = consumeRefsAndInserts(entry.stmtNode.start, entry.stmtNode.end);
       const segments = renderCascadeSegments(entry, drainedRefs);
       transforms.add(entry.stmtNode.start, entry.stmtNode.end,
@@ -516,6 +524,48 @@ export function createDestructureEmitter({
     slot.preservedInitSrc = bakedInit;
   }
 
+  // bake polyfill rewrites the natural visitor queued inside verbatim residual content
+  // (a residual sibling prop's default / computed-key / value, or a verbatim init tail)
+  // into preservedSrc. those ranges were left UNskipped by `seedSkippedForExtractedDeclarators`
+  // so the visitor produced its normal instance/static-method rewrite; drain it here and
+  // remap from original-source coords to the rebuilt-text offset captured in the target.
+  // runs BEFORE `bakePendingSplicesIntoPreserved` so the residual rewrites land first and
+  // the trailing-init bake / ref-binding bake operate on the residual-baked text.
+  // `composeAndDrainRange` folds nested rewrites into disjoint outermost splices; passing
+  // `srcStart - dstStart` as the splice base maps each original-coord splice into preservedSrc
+  function bakeResidualIntoSlot(slot) {
+    if (slot.preservedSrc === null || !slot.residualTargets?.length) return;
+    // `dstStart` is the offset into the pre-bake preservedSrc; `spliceInRange` applies the
+    // collected splices descending, so lower-offset targets aren't shifted by higher ones.
+    // accumulate the trailing init target's length delta separately to recompute
+    // preservedInitSrc (everything spliced before it shifts its start in the baked text)
+    const remapped = [];
+    // the trailing init target (when present) sits at the end of preservedSrc; its dstStart
+    // equals preservedSrc.length minus the verbatim init length. preservedInitSrc is always
+    // set alongside a non-null preservedSrc (the early return above guarantees we're past that)
+    const initTarget = slot.residualTargets.find(t => t.dstStart === slot.preservedSrc.length - slot.preservedInitSrc.length);
+    let initDelta = 0;
+    for (const target of slot.residualTargets) {
+      const base = target.srcStart - target.dstStart;
+      for (const s of transforms.composeAndDrainRange(target.srcStart, target.srcEnd)) {
+        remapped.push({ start: s.start - base, end: s.end - base, content: s.content });
+        if (initTarget && target !== initTarget && s.start - base < initTarget.dstStart) {
+          initDelta += s.content.length - (s.end - s.start);
+        }
+      }
+    }
+    if (!remapped.length) return;
+    slot.preservedSrc = spliceInRange(slot.preservedSrc, 0, remapped);
+    // recompute preservedInitSrc so the downstream trailing-init / for-init slices stay
+    // length-aligned. when the init tail itself was a residual target its baked content
+    // is the new init; otherwise the init shifted only by preceding residual deltas
+    if (initTarget) slot.preservedInitSrc = slot.preservedSrc.slice(initTarget.dstStart + initDelta);
+  }
+
+  function bakeResidualContentIntoPreserved(perDecl) {
+    for (const slot of perDecl) bakeResidualIntoSlot(slot);
+  }
+
   // bake `var _ref;` ref-binding splices (from scope-tracker, drained per-declarator into
   // `perDecl[i].drainedRefs` in `flushPendingFlatten`) into preservedSrc at original-source
   // positions. dispatch on extraction shape:
@@ -620,6 +670,7 @@ export function createDestructureEmitter({
   // _globalThis`) into their preservedSrc. single-declaration emit: `kind d1, d2, d3` -
   // newline-separated declarators would parse the middle as the for-test slot, syntax error
   function renderForInitFlatten(declaration, perDecl) {
+    bakeResidualContentIntoPreserved(perDecl);
     injectForInitSESinks(declaration, perDecl);
     bakePendingSplicesIntoPreserved(declaration, perDecl, { isForInit: true });
     const parts = [];
@@ -638,6 +689,7 @@ export function createDestructureEmitter({
   // when both halves call log()). bodyless control parent (`if (cond) <decl>`) needs
   // `{ ... }` wrap when more than one statement is emitted
   function renderBlockFlatten(declaration, declPath, perDecl) {
+    bakeResidualContentIntoPreserved(perDecl);
     bakePendingSplicesIntoPreserved(declaration, perDecl);
     const sePrefixesByIdx = liftExtractedSEPrefixesByIdx(declaration, perDecl);
     // `export const { Array: { from }, includes } = X` - each emitted statement must
@@ -668,24 +720,44 @@ export function createDestructureEmitter({
     if (tail) walkAstNodes({ root: tail, visit: n => skippedNodes.add(n) });
   }
 
+  // true when [node.start, node.end) is fully contained in some residual target's source
+  // range. residual targets carry verbatim source whose polyfillable contents the natural
+  // visitor must still rewrite, so their inner nodes stay UNskipped (the seed below leaves
+  // them visible; `bakeResidualContentIntoPreserved` drains the queued rewrites afterward)
+  function isInsideResidualTarget(node, residualTargets) {
+    return residualTargets.some(t => node.start >= t.srcStart && node.end <= t.srcEnd);
+  }
+
+  // skip a destructure pattern subtree EXCEPT nodes inside a residual target. consumed parts are
+  // superseded by the rebuilt flatten/cascade text, so skipping them keeps the natural visitor
+  // from queuing transforms that overlap the rewrite's range (MagicString chunk-split). residual
+  // targets carry verbatim source whose inner polyfillable content the visitor must still rewrite,
+  // so their nodes stay visible (drained back into preservedSrc afterward)
+  function skipPatternExceptResidual(root, residualTargets) {
+    walkAstNodes({
+      root,
+      visit(node) {
+        if (!isInsideResidualTarget(node, residualTargets)) skippedNodes.add(node);
+      },
+    });
+  }
+
   function seedSkippedForExtractedDeclarators(declaration, perDecl) {
     const flattenedReceivers = new Set();
     for (let i = 0; i < perDecl.length; i++) {
       if (!perDecl[i].extractions.length) continue;
       const decl = declaration.declarations[i];
-      // skip the WHOLE pattern subtree: the rebuilt flatten text comes from `nodeSrc`
-      // for preserved outer props and synth strings for consumed ones, so original
-      // Identifier visits inside any part of the pattern would queue transforms that
-      // overlap the flatten's overwrite range (MagicString chunk-split). this drops
-      // polyfills for refs inside preserved-sibling computed keys (`[Symbol.iterator]:
-      // iter` next to a flatten extraction won't emit `_Symbol$iterator`) - acceptable
-      // trade-off: `handleDestructuringPure` for that sibling bails on the
-      // already-flattened host (see `if (flattenedNestedDecls.has(...))` guard) so the
-      // pattern stays verbatim. covering this miss requires splice-rebuild infrastructure
-      // similar to `polyfillSiblingReceiverRefs` to merge inner substitutions into
-      // preservedSrc - deferred architectural change
-      walkAstNodes({ root: decl.id, visit: n => skippedNodes.add(n) });
-      skipReceiverTailSubtree(decl.init);
+      const residualTargets = perDecl[i].residualTargets ?? [];
+      // the rebuilt flatten text comes from `nodeSrc` for preserved outer props and synth
+      // strings for consumed ones; residual siblings stay visible for in-place polyfill, drained
+      // back into preservedSrc by `bakeResidualContentIntoPreserved`
+      skipPatternExceptResidual(decl.id, residualTargets);
+      // the receiver tail collapses into the flatten's rebuilt init unless it was kept
+      // verbatim (a residual target), in which case its polyfillable contents stay visible
+      const initTail = decl.init && peelNestedSequenceExpressions(decl.init).tail;
+      if (!initTail || !isInsideResidualTarget(initTail, residualTargets)) {
+        skipReceiverTailSubtree(decl.init);
+      }
       if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
     }
     if (flattenedReceivers.size) {
@@ -1066,27 +1138,55 @@ export function createDestructureEmitter({
     // plan.pattern is the effective ObjectPattern (peeled past ArrayPattern wrapper for
     // `[{...}] = [globalThis]`); declarator.id may be the ArrayPattern wrapper itself
     const hasRest = plan.pattern.properties.some(p => p.type === 'RestElement');
+    // verbatim residual outer props (and the verbatim init tail) carry the original source
+    // slice unchanged. their polyfillable contents (`other = [1].at(0)` default, a computed
+    // key, a static-method value) stay VISIBLE to the natural visitor so it queues the
+    // polyfill rewrite; `bakeResidualContentIntoPreserved` later drains those queued
+    // transforms and splices them into `preservedSrc`. each target records the original
+    // source range plus its offset inside the rebuilt `preservedSrc` for the remap
+    const residualTargets = [];
+    // running offset into the rebuilt `{ ... } = init` text: opens with `{ ` (2 chars),
+    // each emitted prop is followed by `, ` except the last
+    let dstOffset = 2;
     for (let i = 0; i < plan.outerProps.length; i++) {
       const outer = plan.outerProps[i];
       for (const e of outer.extractions ?? []) {
         extractions.push(emitOuterExtraction(e, scope, receiverEmitSrc));
       }
+      let emitted = null;
       if (outer.preservedSrc !== null) {
-        preservedOuter.push(outer.preservedSrc);
+        emitted = outer.preservedSrc;
+        // verbatim source slice (planOuterProp returned `nodeSrc(prop)`): a residual sibling
+        // whose inner polyfillable content the natural visitor must still rewrite
+        const sourceProp = plan.pattern.properties[i];
+        if (sourceProp && emitted === nodeSrc(sourceProp)) {
+          residualTargets.push({ srcStart: sourceProp.start, srcEnd: sourceProp.end, dstStart: dstOffset });
+        }
       } else if (hasRest) {
-        const sentinel = emitRestSentinel(outer, plan.pattern.properties[i]);
-        if (sentinel) preservedOuter.push(sentinel);
+        emitted = emitRestSentinel(outer, plan.pattern.properties[i]);
+      }
+      if (emitted !== null) {
+        preservedOuter.push(emitted);
+        dstOffset += emitted.length + 2;
       }
     }
-    if (!preservedOuter.length) return { extractions, preservedSrc: null, receiver: plan.receiver };
+    if (!preservedOuter.length) return { extractions, preservedSrc: null, receiver: plan.receiver, residualTargets: [] };
     const initSrc = receiverEmitSrc();
+    const preservedSrc = `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`;
+    // init tail kept verbatim (receiver not polyfilled, e.g. a static-object receiver): its
+    // polyfillable contents stay visible to the natural visitor like a residual prop
+    const initTail = peelNestedSequenceExpressions(declarator.init).tail;
+    if (initTail && initSrc === nodeSrc(initTail)) {
+      residualTargets.push({ srcStart: initTail.start, srcEnd: initTail.end, dstStart: preservedSrc.length - initSrc.length });
+    }
     return {
       extractions,
-      preservedSrc: `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`,
+      preservedSrc,
       // captured separately so `injectForInitSESinks` (for-init partial-consume SE re-embed)
       // can slice off the trailing init slot by length without text-searching
       preservedInitSrc: initSrc,
       receiver: plan.receiver,
+      residualTargets,
     };
   }
 
