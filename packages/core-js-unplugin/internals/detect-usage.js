@@ -18,6 +18,7 @@ import {
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
+  collectFunctionScopeVarReassignments,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findIifeArgForParam,
@@ -175,8 +176,13 @@ function hasRuntimeBinding(scope, name, path = null) {
 // runTransform try/finally - early-returns before the save leave the outer injector intact.
 // no-injector instances (default callback) are safe for adapter consumers that only need
 // pure literal / binding checks (detect-entry's require/import scan)
-export function createEstreeAdapter(getInjector = () => null) {
+export function createEstreeAdapter(getInjector = () => null, method = null) {
   return {
+    // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
+    // a receiver-less helper (dropping the receiver), so the shared resolver gates the
+    // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
+    // inject side-effect imports, which is sound regardless of where the alias was assigned
+    method,
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
     // detection in `bindingSymbolKey`. null between transforms (no injector active)
     get packages() { return getInjector()?.packages ?? null; },
@@ -191,9 +197,17 @@ export function createEstreeAdapter(getInjector = () => null) {
         // var g = globalThis } g.Map.groupBy(...) }` finds no native binding and the proxy-global
         // alias is lost (babel hoists the var natively, so it diverged). surface a synthetic
         // binding off the declarator found by walking `path` ancestors so alias resolution can
-        // read its `.init`. path-less callers get null as before
+        // read its `.init`. path-less callers get null as before. surface the reassignment sites
+        // too (babel's native binding carries them): without `constantViolations` the resolver's
+        // reassignment guard never fires for a REASSIGNED nested-block var, resolving it to the
+        // global where babel bails (over-inject / wrong pure rewrite dropping the receiver)
         const declarator = path ? findFunctionScopeVarDeclaratorInPath(path, name) : null;
-        return declarator ? { node: declarator, constantViolations: undefined, importSource: null, polyfillHint: null } : null;
+        return declarator ? {
+          node: declarator,
+          constantViolations: collectFunctionScopeVarReassignments(path, name),
+          importSource: null,
+          polyfillHint: null,
+        } : null;
       }
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
