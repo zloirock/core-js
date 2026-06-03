@@ -2089,9 +2089,13 @@ checkUsagePurePhasePreWrapperEmitsImports();
 // wrap nesting iteratively (heap stack, no per-level re-filter, no recursion-depth footgun). the
 // input nests `depth` genuine body-wraps - the triply-nested flatten-sibling fixture shape scaled
 // up well past any handful. every level must emit exactly one `var _ref`; a composition that
-// truncated deep wraps (e.g. a re-introduced depth cap below `depth`) would emit fewer
+// truncated deep wraps (e.g. a re-introduced depth cap below `depth`) would emit fewer.
+// `depth` is bounded by the RECURSIVE AST walk inside our parser dependency (estree-toolkit's
+// `Traverser.visitPath`), which overflows the call stack on far deeper nesting regardless of our
+// own iterative composition - that ceiling belongs to the traversal library, not the code under
+// test. 64 stays well clear of it on every CI runner while still scaling far past any handful
 function checkDeeplyNestedBodyWrapsCompose() {
-  const depth = 500;
+  const depth = 64;
   let expr = `[${ depth }].at(0)`;
   for (let k = depth - 1; k >= 1; k--) expr = `[${ k }].at(0) + ((() => ${ expr })())`;
   const source = `const { Array: { from } } = globalThis, sibling = () => ${ expr };\nconsole.log(from, sibling());`;
