@@ -279,7 +279,7 @@ export function createDestructureEmitter({
       // `var _unused;` declarations in the AssignmentExpression context (VariableDeclaration
       // host declares them via the destructure binding itself)
       const unusedIds = [];
-      const result = withTrackedUnusedNames(unusedIds, () => rewriteDeclarator(fake, scope));
+      const result = withTrackedUnusedNames(unusedIds, () => rewriteDeclarator(fake, scope, stmtPath));
       cached = { result, unusedIds };
       trackedUnusedNamesByAssign.set(assignNode, cached);
     }
@@ -442,7 +442,7 @@ export function createDestructureEmitter({
     if (flattenedNestedDecls.has(declaration)) return true;
     const parentNode = declPath.parentPath?.node;
     const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
-    const perDecl = declaration.declarations.map(d => rewriteDeclarator(d, metaPath.scope));
+    const perDecl = declaration.declarations.map(d => rewriteDeclarator(d, metaPath.scope, declPath));
     if (!perDecl.some(r => r.extractions.length)) return false;
     flattenedNestedDecls.add(declaration);
     seedSkippedForExtractedDeclarators(declaration, perDecl);
@@ -851,7 +851,7 @@ export function createDestructureEmitter({
   //     locate it. mirrors babel-plugin's `tryFlattenNestedProxyDestructure` so both
   //     pipelines emit the same `const from = _Array$from` extraction (full polyfill-wins
   //     semantics) instead of unplugin's older inline-default fallback
-  function planDeclarator(declarator, scope) {
+  function planDeclarator(declarator, scope, usePath = null) {
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
     const originalId = declarator.id;
@@ -862,7 +862,7 @@ export function createDestructureEmitter({
       // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
       // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
       const init = unwrapExpressionChain(initSource);
-      const receiver = init ? sharedResolveObjectName({ objectNode: init, scope, adapter: estreeAdapter }) : null;
+      const receiver = init ? sharedResolveObjectName({ objectNode: init, scope, adapter: estreeAdapter, path: usePath }) : null;
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
         const outerProps = pattern.properties.map(planOuterProp);
         if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern };
@@ -879,7 +879,7 @@ export function createDestructureEmitter({
         }
       } else if (init) {
         const outerProps = pattern.properties.map(p => planOuterPropStatic({
-          outerProp: p, hostInit: init, path: [], scope,
+          outerProp: p, hostInit: init, path: [], scope, usePath,
         }));
         if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps, pattern };
       }
@@ -905,7 +905,7 @@ export function createDestructureEmitter({
   // non-Property / computed / non-ObjectPattern values bail to opaque preservedSrc.
   // shorthand / Identifier-valued outer props are NOT supported here - they would name a
   // local binding outside the static path, so static-object descent doesn't apply
-  function planOuterPropStatic({ outerProp, hostInit, path, scope }) {
+  function planOuterPropStatic({ outerProp, hostInit, path, scope, usePath = null }) {
     if (outerProp.type !== 'Property' || outerProp.computed
       || outerProp.key?.type !== 'Identifier') {
       return { preservedSrc: nodeSrc(outerProp) };
@@ -913,8 +913,12 @@ export function createDestructureEmitter({
     const value = peelInnerDefault(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { preservedSrc: nodeSrc(outerProp) };
     const newPath = [...path, outerProp.key.name];
+    // `usePath` (the declaration / assignment site) lets the usage-pure reassignment gate inside
+    // walkStaticReceiverStep prove a reassigned RECEIVER (`w = {}` after `{Arr:{from}} = w`) is
+    // written AFTER the read - so the flatten resolves and collapses to `const from = _Array$from`
+    // (polyfill-always-wins) instead of bailing to the native-wins default-injection
     const constructor = walkStaticReceiverChain({
-      receiverNode: hostInit, walkPath: newPath, scope, adapter: estreeAdapter,
+      receiverNode: hostInit, walkPath: newPath, scope, adapter: estreeAdapter, path: usePath,
     });
     // proxy-global hop (`{root: {Array: {from}}} = {root: globalThis}`): walkStaticReceiverChain
     // resolves the first segment to `globalThis` / `self` / `window` — that's a proxy-global
@@ -926,7 +930,7 @@ export function createDestructureEmitter({
       return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
     }
     return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic({
-      outerProp: innerProp, hostInit, path: newPath, scope,
+      outerProp: innerProp, hostInit, path: newPath, scope, usePath,
     }));
   }
 
@@ -1099,8 +1103,8 @@ export function createDestructureEmitter({
   // `{ extractions: [{ decl }], preservedSrc }` where `preservedSrc` is null when the
   // declarator is fully consumed, raw src when there's no plan to touch, or a rebuilt
   // `{ ... } = init` source when outer siblings remain
-  function rewriteDeclarator(declarator, scope) {
-    const plan = planDeclarator(declarator, scope);
+  function rewriteDeclarator(declarator, scope, usePath = null) {
+    const plan = planDeclarator(declarator, scope, usePath);
     if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator), receiver: null };
     const extractions = [];
     const preservedOuter = [];
@@ -1192,8 +1196,8 @@ export function createDestructureEmitter({
 
   // pre-pass helper: true when every outer prop was fully consumed - flatten will
   // discard the declarator's init, so `_globalThis` injection can be suppressed
-  function canFullyConsumeProxyDeclarator(d, scope) {
-    const plan = planDeclarator(d, scope);
+  function canFullyConsumeProxyDeclarator(d, scope, usePath = null) {
+    const plan = planDeclarator(d, scope, usePath);
     return !!plan && plan.outerProps.every(p => p.preservedSrc === null);
   }
 

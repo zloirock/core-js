@@ -929,7 +929,7 @@ export default function createPlugin(options) {
           Program(path) { injector.rootScope = path.scope; },
           VariableDeclaration(path) {
             for (const d of path.node.declarations) {
-              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope)) skippedNodes.add(d.init);
+              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) skippedNodes.add(d.init);
             }
           },
         }, createUsageVisitors({
