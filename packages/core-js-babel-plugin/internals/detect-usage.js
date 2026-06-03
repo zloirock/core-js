@@ -21,7 +21,7 @@ import {
   findIifeCallSite,
   findTSRuntimeBindingInPath,
   isAmbientBindingShape,
-  isForXHeadAssignTarget,
+  isAssignOrForXWriteTargetPath,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
@@ -212,9 +212,12 @@ export function createUsageVisitors({
     // import LHS for TSImportEquals)
     if (isTSTypeOnlyIdentifierPath(path)) return;
     // usage-pure cannot rewrite a global at a write position to a frozen import binding (the
-    // write would TypeError): UpdateExpression operand (`Map++`, `--Map`, `(Map)++`) or a
-    // for-of / for-in head bare-Identifier LHS (`for (Map of arr)` / `for (Map in obj)`)
-    if (skipUpdateTargets && (isInUpdateOperand(path.parentPath) || isForXHeadAssignTarget(path))) return;
+    // write would TypeError): UpdateExpression operand (`Map++`, `--Map`, `(Map)++`), an
+    // assignment LHS (`Map = x`, `Map ||= x`), or a for-of / for-in head bare-Identifier LHS
+    // (`for (Map of arr)`). a TS-non-null / paren wrapper (`Map! ||= x`, `for (Map! of arr)`)
+    // keeps `isReferencedIdentifier` true so the read reaches here; both checks peel transparent
+    // ancestors before testing the write shapes
+    if (skipUpdateTargets && (isInUpdateOperand(path.parentPath) || isAssignOrForXWriteTargetPath(path))) return;
     const { node } = path;
     // adapter.hasBinding folds in two filters: skips type-only TSImportEquals (elided by
     // tsc - runtime resolves to global) and recognises plugin-managed bindings (pure-import

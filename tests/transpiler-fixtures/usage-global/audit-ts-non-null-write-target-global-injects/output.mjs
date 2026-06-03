@@ -6,4 +6,7 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-Map.from(arr).has('k').toString();
+// the write-position bail is usage-pure only (a frozen import cannot be the `||=` target). in
+// usage-global there is no identifier rewrite, and the `||=` still reads `Map`, so the base
+// `Map` constructor suite is injected as a side-effect import (over-injection is safe in global mode)
+Map! ||= 1;
