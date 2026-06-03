@@ -5,8 +5,7 @@ Using targets: {
 }
 
 Using polyfills with `usage-pure` method:
-The core-js@4 polyfill added the following polyfills:
-  map/constructor
+Based on your code and targets, the core-js@4 polyfill did not add any polyfill.
 
 Warnings:
   `Map ||= ...` left-hand side cannot be polyfilled (read-only import binding); expected runtime engine to provide `Map`
