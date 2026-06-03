@@ -40,6 +40,16 @@ export function createUsageGlobalCallback({
   isShadowedByClassOwnMember,
   enumerateFallbackBranches,
 }) {
+  // recognized-but-out-of-layer static (`Symbol.metadata` / `Map.from` at mode=actual) OR an
+  // unrecognized property on a known global (`Map.foo`): the bare constructor still needs
+  // polyfilling so the read/write target exists at runtime (a polyfilled `Symbol` yields
+  // `undefined` for `.metadata` instead of throwing). no-op for non-static / receiver-less metas
+  function injectBaseConstructor(meta, path) {
+    if (meta.kind !== 'property' || meta.placement !== 'static' || !meta.object) return;
+    const constructorDeps = resolveUsage({ kind: 'global', name: meta.object }, path);
+    if (constructorDeps) for (const entry of constructorDeps) injectModulesForModeEntry(entry);
+  }
+
   function dispatch(meta, path) {
     if (shouldSkipUsageDispatch(meta, path, isDisabled)) return;
     if (meta.kind === 'in') {
@@ -57,15 +67,13 @@ export function createUsageGlobalCallback({
     }
     const deps = resolveUsage(meta, path);
     if (deps) {
-      for (const entry of deps) injectModulesForModeEntry(entry);
-      return;
+      let injected = 0;
+      for (const entry of deps) injected += injectModulesForModeEntry(entry);
+      if (injected) return;
+      // deps resolved but mode-filtered to nothing: a RECOGNIZED static OUT of the current layer
+      // (`Symbol.metadata` / `Map.from` at mode=actual). fall through to the base-constructor branch
     }
-    // unknown property on a known global constructor (`Map.foo`, `Map.foo++`) - the constructor
-    // itself still needs polyfilling so the read/write target exists at runtime
-    if (meta.kind === 'property' && meta.placement === 'static' && meta.object) {
-      const constructorDeps = resolveUsage({ kind: 'global', name: meta.object }, path);
-      if (constructorDeps) for (const entry of constructorDeps) injectModulesForModeEntry(entry);
-    }
+    injectBaseConstructor(meta, path);
   }
   return (meta, path) => {
     // shadow check for `this.X` - polyfill would bypass the user's own member

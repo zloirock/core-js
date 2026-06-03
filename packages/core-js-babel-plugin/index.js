@@ -4,8 +4,8 @@ import {
   extractIndirectRequireSEPrefix,
   hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
+  isAssignOrForXWriteTargetPath,
   isDeleteTarget,
-  isForXHeadAssignTarget,
   isForXWriteTarget,
   isInUpdateOperand,
   isThisReceiver,
@@ -939,8 +939,11 @@ export default function plugin(api, options) {
             if (adapter.hasBinding(idPath.scope, idPath.node.name, idPath)) return;
             // post-sweep is usage-pure only: skip a global at a write position a frozen import
             // binding cannot occupy (same rationale as the primary pass) - UpdateExpression
-            // operand (`Map++`) or for-of / for-in head bare-Identifier LHS (`for (Map of arr)`)
-            if (isInUpdateOperand(idPath.parentPath) || isForXHeadAssignTarget(idPath)) return;
+            // operand (`Map++`), for-of / for-in head bare-Identifier LHS (`for (Map of arr)`),
+            // or assignment LHS (`Map = x`, `Map ||= x`). a TS-non-null / paren wrapper
+            // (`Map! ||= x`, `for (Map! of arr)`) keeps `isReferencedIdentifier` true, so the
+            // for-x / assignment checks peel transparent ancestors first
+            if (isInUpdateOperand(idPath.parentPath) || isAssignOrForXWriteTargetPath(idPath)) return;
             // same predicate as the primary visitor - skip disabled / type-annotation /
             // delete-target positions so this sweep doesn't overrule their exclusions
             if (shouldSkipPath(idPath)) return;
