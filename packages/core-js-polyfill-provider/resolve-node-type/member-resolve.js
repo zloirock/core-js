@@ -65,6 +65,7 @@ export function createMemberResolve({
   findTypeParameter,
   isKeyofTargeting,
   resolveIndexSignatureValue,
+  indexAccessKeyKind,
   resolveMemberPropertyName,
   resolveRuntimeExpression,
   resolveThisObject,
@@ -393,14 +394,15 @@ export function createMemberResolve({
   // computed dynamic-key member access via TSIndexSignature: `obj[k]` where
   // `obj: { [key: string]: V }` resolves to V. unions are peeled (skip null/undefined),
   // first remaining branch's index signature wins. returns Type Object or null
-  function resolveIndexSignatureMember(path) {
+  function resolveIndexSignatureMember(path, callPath) {
     const objInfo = findExpressionAnnotation(path.get('object'));
     if (!objInfo) return null;
     const unwrapped = unwrapTypeAnnotation(objInfo.annotation);
     if (!unwrapped) return null;
     const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
     const target = aliased ?? unwrapped;
-    const lookup = typeNode => resolveIndexSignatureValue(typeNode, objInfo.scope, subst);
+    const keyKind = indexAccessKeyKind(path);
+    const lookup = typeNode => resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind);
     const info = (target.type === 'TSUnionType' || target.type === 'UnionTypeAnnotation')
       ? target.types
         .map(b => applySubst(unwrapTypeAnnotation(b), subst))
@@ -408,7 +410,15 @@ export function createMemberResolve({
         .map(lookup)
         .find(Boolean)
       : lookup(target);
-    if (info) return resolveTypeAnnotation(info.annotation, info.scope);
+    if (info) {
+      // a function-valued index signature CALLED via a computed key (`d[k]()`) yields the
+      // function's RETURN, not the function value itself - peel the return when resolving a call
+      if (callPath) {
+        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(info.annotation));
+        if (ret) return resolveTypeAnnotation(ret, info.scope);
+      }
+      return resolveTypeAnnotation(info.annotation, info.scope);
+    }
     return resolveKeyofSelfMemberViaTypeParam(path, unwrapped, objInfo.scope);
   }
 
@@ -420,7 +430,7 @@ export function createMemberResolve({
       // computed access without a statically-resolvable key (`obj[k]` where k is a
       // dynamic Identifier): if obj has a TSIndexSignature, resolve to its value type.
       // routed via the same annotation-based path as named member access for symmetry
-      if (path.node.computed) return resolveIndexSignatureMember(path);
+      if (path.node.computed) return resolveIndexSignatureMember(path, callPath);
       return null;
     }
     const originalObjectPath = path.get('object');

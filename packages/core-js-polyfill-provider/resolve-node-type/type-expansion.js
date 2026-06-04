@@ -497,6 +497,12 @@ export function createTypeExpansion({
     // (`number extends 1`) has no stamp and folds through the family rules below. mirrors
     // pickConditionalBranchByAST's literal comparison for the direct-binding (Type-object) path
     if (check.literal !== undefined && extend.literal !== undefined) return check.literal === extend.literal;
+    // wide-vs-literal: `number extends 1` / `string extends "a"` / `boolean extends true` /
+    // `bigint extends 1n` - a wide primitive (or any non-literal-stamped type) is NOT assignable
+    // to a narrower literal of the same family, so it takes the FALSE branch. only the extend side
+    // carries a literal here (both-literal handled above; the reverse `1 extends number` is true
+    // and folds through the family rules below)
+    if (extend.literal !== undefined && check.literal === undefined) return false;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
       // extends has no inner constraint. three sub-cases distinguished by caller-supplied flags:
