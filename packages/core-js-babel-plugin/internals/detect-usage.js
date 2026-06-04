@@ -261,7 +261,11 @@ export function createUsageVisitors({
     const meta = handleMemberExpressionNode({
       node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path,
     });
-    if (meta) onUsage(meta, path);
+    if (meta) {
+      onUsage(meta, path);
+      // usage-global union: extra reachable receiver / key targets each earn a side-effect import
+      for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
+    }
   }
 
   // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
