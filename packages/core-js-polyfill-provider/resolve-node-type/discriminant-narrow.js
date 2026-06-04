@@ -122,13 +122,14 @@ export function createDiscriminantNarrow({
     return value === null ? null : { field, value };
   }
 
-  // a member sub-path narrow (`obj.a`) is invalidated by a write to that exact sub-path
-  // (`obj.a = other` / `obj.a++`), which is NOT a `constantViolation` of the root binding `obj`.
-  // collect such writes from the root binding's references (each `obj.a = ...` mentions `obj`) so
-  // the positional interval check drops the narrow just like a whole-binding rebind would.
-  // `collectBindingReferences` is the parser-agnostic enumerator (babel `referencePaths`,
-  // estree-toolkit program-index fallback) - reading `binding.referencePaths` directly would
-  // miss every reference under the oxc adapter and silently keep the stale narrow
+  // a member sub-path narrow (`obj.a.b`) is invalidated by a write to that exact sub-path
+  // (`obj.a.b = other` / `obj.a.b++`) OR to any strict PREFIX of it (`obj.a = other`): rebinding
+  // an intermediate object changes the object `obj.a.b` reads from, so the narrow no longer holds.
+  // neither is a `constantViolation` of the root binding `obj`. collect such writes from the root
+  // binding's references (each `obj.a... = ...` mentions `obj`) so the positional interval check
+  // drops the narrow just like a whole-binding rebind would. `collectBindingReferences` is the
+  // parser-agnostic enumerator (babel `referencePaths`, estree-toolkit program-index fallback) -
+  // reading `binding.referencePaths` directly would miss every reference under the oxc adapter
   function memberPathWriteViolations({ objectBinding, rootName, anchorPath, targetKey }) {
     const out = [];
     for (const ref of collectBindingReferences(objectBinding, rootName, anchorPath) ?? []) {
@@ -138,7 +139,10 @@ export function createDiscriminantNarrow({
       const host = p.parentPath;
       const hostType = host?.node?.type;
       if (hostType !== 'AssignmentExpression' && hostType !== 'UpdateExpression') continue;
-      if (pathKey(memberWriteTargetPath(host).node) === targetKey) out.push({ node: host.node });
+      // exact narrowed path, or a strict segment-prefix of it (`obj.a` vs target `obj.a.b`); a
+      // deeper write (`obj.a.b.c`) only mutates a property OF the narrowed object, so it is excluded
+      const writeKey = pathKey(memberWriteTargetPath(host).node);
+      if (writeKey !== null && (writeKey === targetKey || targetKey.startsWith(`${ writeKey }.`))) out.push({ node: host.node });
     }
     return out;
   }
