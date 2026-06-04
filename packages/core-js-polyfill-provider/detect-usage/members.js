@@ -5,6 +5,7 @@ import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk
 import {
   asSymbolRef,
   bindingSymbolKey,
+  collectMemberUnionCandidates,
   enterIdentifierBindingFollow,
   findProxyGlobal,
   inlineCallHasObservableEffects,
@@ -81,10 +82,11 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   // receiver classifies as a collapsing static) can be ordered before it - source eval runs the
   // receiver, including its nested computed keys, before this property key
   const keyEffects = [];
+  // peel the computed key once (the SE side channel must not double-collect); reused below to
+  // enumerate the usage-global key union when it is a conditionally reassigned alias
+  const computedKeyNode = node.computed ? unwrapParensCollectingEffects(node.property, keyEffects) : null;
   const key = node.computed
-    ? resolveKey({
-      node: unwrapParensCollectingEffects(node.property, keyEffects), computed: true, scope, adapter, path,
-    })
+    ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path })
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
   let meta = tryBuildPrototypeMeta({ obj, key, scope, adapter, path });
@@ -105,6 +107,12 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     }
     const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
     meta = { kind: 'property', object: objectName, key, placement };
+    // usage-global: a conditionally reassigned receiver / computed-key reaches more than the
+    // declarator-init primary - emit a side-effect import for each reachable target too
+    const extraCandidates = collectMemberUnionCandidates({
+      objectNode: classifyTarget, computedKeyNode, primaryObject: objectName, primaryKey: key, scope, adapter, path,
+    });
+    if (extraCandidates.length) meta.extraCandidates = extraCandidates;
     // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
     // (including these nested keys) via the preserved assignment - collecting here too double-runs it
     if (placement === 'static' && !chainAssignOuter) collectCollapsingReceiverEffects(classifyTarget, sideEffects);
