@@ -20,7 +20,6 @@ import { varInitStaleByRedecl } from '../helpers/ast-patterns.js';
 export function createPatternBindings({
   t,
   babelNodeType,
-  isRestBinding,
   resolveNodeType,
   resolveRuntimeExpression,
   resolveInnerType,
@@ -262,12 +261,36 @@ export function createPatternBindings({
       || (t.isAssignmentPattern(bindingPath.node) && node.left?.typeAnnotation);
   }
 
+  // classify a rest binding at any depth of an array destructuring: an array-rest (`[...v]`,
+  // `[[...v]]`) always yields Array, an object-rest (`[{...v}]`) always yields Object -
+  // independent of the iterable's element type. catches the top-level and nested forms uniformly;
+  // without it a nested rest falls through to the for-of element/runtime fallback and is mis-typed
+  // as the iterable element (`for (const [[...rest]] of strings[][]` -> string instead of Array)
+  function nestedRestType(pattern, varName) {
+    if (pattern?.type === 'ObjectPattern') return bindsObjectRest(pattern, varName) ? new $Object('Object') : null;
+    if (pattern?.type !== 'ArrayPattern') return null;
+    for (const el of pattern.elements ?? []) {
+      if (!el) continue;
+      if (el.type === 'RestElement') {
+        if (el.argument?.type === 'Identifier' && el.argument.name === varName) return new $Object('Array');
+        const nested = nestedRestType(el.argument, varName);
+        if (nested) return nested;
+      } else {
+        const nested = nestedRestType(peelAssignmentPattern(el), varName);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
   // resolve array destructuring from any annotation source: pattern, init, or for-of iterable.
   // `resolveArrayPatternBinding` handles top-level Identifier AND nested-pattern element
   // shapes against a single annotation, so each annotation source needs just one call
   function resolveArrayBinding(arrayPattern, varName, bindingPath) {
-    // array rest: const [a, ...rest] = items -> rest is always Array
-    if (isRestBinding(arrayPattern.elements ?? [], varName)) return new $Object('Array');
+    // array/object rest at any depth: `[...rest]`, `[[...rest]]`, `[{...rest}]` - depth-independent,
+    // resolve before the init / for-of fallbacks which would mis-type it as the element type
+    const restType = nestedRestType(arrayPattern, varName);
+    if (restType) return restType;
     // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
     if (arrayPattern.typeAnnotation) {
       const result = resolveArrayPatternBinding({
@@ -313,9 +336,11 @@ export function createPatternBindings({
       });
       if (elemResult) return elemResult;
     }
-    // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
+    // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries()). the
+    // element's inner type is the binding type only for a DIRECT positional element - a nested
+    // or rest binding (rest handled above) must not pick up the iterable element type here
     const forOfPath = findForLoopParent(bindingPath);
-    if (t.isForOfStatement(forOfPath?.node)) {
+    if (t.isForOfStatement(forOfPath?.node) && findPatternIndex(arrayPattern, varName) >= 0) {
       // resolve for-of element, then unwrap one more level for array destructuring
       const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
       if (inner) return inner;
@@ -469,8 +494,8 @@ export function createPatternBindings({
 
   // walk an ObjectPattern (and any nested ObjectPatterns under its property values) looking
   // for a RestElement whose argument identifier matches `varName`. covers both top-level
-  // (`{ ...rest } = obj`) and nested (`{ x: {...rest} } = obj`) cases - shared `isRestBinding`
-  // only inspects the immediate properties array, so without the recursive walk the resolver
+  // (`{ ...rest } = obj`) and nested (`{ x: {...rest} } = obj`) cases - a single-level rest
+  // check only inspects the immediate properties array, so without the recursive walk the resolver
   // falls through to keyPath logic and nested `rest` ends up null. narrow to `$Object('Object')`
   // lets the `arg-is-object` filter (e.g. on `Object.keys`) subsume the polyfill when the user
   // passes a provably non-primitive rest binding
@@ -570,6 +595,34 @@ export function createPatternBindings({
     return resolveTypeAnnotation(annotation, objInfo.scope);
   }
 
+  // an exported function escapes the module: external callers can pass any arg, so a defaulted
+  // param's default type is not authoritative. babel records the export as a reference (which bails
+  // the call-site scan below); the oxc program-index fallback drops the export-specifier slot, so
+  // detect the export form directly for cross-parser parity. covers declaration exports
+  // (`export function f` / `export default function f` / `export const f = () =>`, reached via the
+  // decl wrappers) AND a separate `export { f }` / `export default f` specifier elsewhere in the module
+  function isExportedFunction(fnPath, fnName) {
+    let program = null;
+    for (let p = fnPath; p; p = p.parentPath) {
+      const type = p.node?.type;
+      if (type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration') return true;
+      if (t.isProgram(p.node)) {
+        program = p;
+        break;
+      }
+    }
+    if (!program || !fnName) return false;
+    for (const stmt of program.node.body ?? []) {
+      // a re-export (`export { f } from './x'`) carries a source and re-exports a DIFFERENT module's
+      // binding, so it does not make THIS function escape - require no source
+      if (stmt.type === 'ExportNamedDeclaration' && !stmt.source) {
+        for (const spec of stmt.specifiers ?? []) if (spec.local?.name === fnName) return true;
+      } else if (stmt.type === 'ExportDefaultDeclaration'
+        && stmt.declaration?.type === 'Identifier' && stmt.declaration.name === fnName) return true;
+    }
+    return false;
+  }
+
   // is `function f(x = default)` never called with a real overriding arg at this param's slot?
   // only then does the default's TYPE soundly describe the param at runtime (a foreign arg would
   // make a type-specific Maybe forward to a missing native method). scans the enclosing function's
@@ -587,6 +640,7 @@ export function createPatternBindings({
     if (!fnName) return false;
     const binding = fnPath.scope?.getBinding(fnName);
     if (!binding || binding.constantViolations?.length) return false;
+    if (isExportedFunction(fnPath, fnName)) return false;
     for (const ref of collectBindingReferences(binding, fnName, fnPath) ?? []) {
       const callNode = ref.parentPath?.node;
       if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')

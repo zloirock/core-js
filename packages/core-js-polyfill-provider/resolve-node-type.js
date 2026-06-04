@@ -470,13 +470,6 @@ function createResolveNodeType(babelNodeType, t, {
     return path;
   }
 
-  function isRestBinding(elements, varName) {
-    for (const element of elements) {
-      if (element?.type === 'RestElement' && element.argument?.type === 'Identifier' && element.argument.name === varName) return true;
-    }
-    return false;
-  }
-
   function unwrapTypeAnnotation(node) {
     if (!node) return null;
     if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') return unwrapTypeAnnotation(node.typeAnnotation);
@@ -1430,7 +1423,6 @@ function createResolveNodeType(babelNodeType, t, {
   const patternBindingsCluster = createPatternBindings({
     t,
     babelNodeType,
-    isRestBinding,
     resolveNodeType,
     resolveRuntimeExpression,
     resolveInnerType,
@@ -1564,7 +1556,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveIndexedAccessMemberAnnotationAST,
   });
   ({ functionTypeReturnAnnotation, findExpressionAnnotation, buildCallSiteSubst } = callResolutionCluster);
-  const { resolveCallReturnType, resolveIndexSignatureValue } = callResolutionCluster;
+  const { resolveCallReturnType, resolveIndexSignatureValue, indexAccessKeyKind } = callResolutionCluster;
 
   // type-annotation-resolve cluster: ResolveTypeAnnotation + named-utility-type dispatch.
   // instantiated here because it consumes typeQuery / call-resolution / element-types
@@ -1710,6 +1702,7 @@ function createResolveNodeType(babelNodeType, t, {
     findTypeParameter,
     isKeyofTargeting,
     resolveIndexSignatureValue,
+    indexAccessKeyKind,
     resolveMemberPropertyName,
     resolveRuntimeExpression,
     resolveThisObject,
