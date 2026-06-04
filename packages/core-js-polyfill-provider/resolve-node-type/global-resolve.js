@@ -25,7 +25,6 @@ import {
   objectPatternLiteralKeyPath,
   peelIIFEReturn,
   peelSkippableWrapperPath,
-  unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
@@ -226,7 +225,14 @@ export function createGlobalResolve({
   function resolveSuperGlobalName(superPath) {
     const direct = resolveGlobalName(superPath);
     if (direct) return direct;
-    const peeled = unwrapRuntimeExpr(superPath.node);
+    // `resolveGlobalName` peels parens only; peel the full TS/Flow wrapper chain off the PATH
+    // (`(Base as any)`, `Base!`, `<Base>x`, `Base satisfies Ctor`) so we keep a real path
+    const peeledPath = peelSkippableWrapperPath(superPath);
+    const peeled = peeledPath?.node;
+    // a bare global base under a wrapper (`extends (Array as any)`) peels to a plain Identifier:
+    // re-run resolveGlobalName on it so it resolves identically to the paren-only `extends (Array)`
+    // form through the same unbound-global / alias logic
+    if (peeled?.type === 'Identifier') return resolveGlobalName(peeledPath);
     if (!peeled || (peeled.type !== 'MemberExpression' && peeled.type !== 'OptionalMemberExpression')) return null;
     return globalProxyMemberName({ node: peeled, scope: superPath.scope, adapter: babelBindingAdapter, path: superPath });
   }

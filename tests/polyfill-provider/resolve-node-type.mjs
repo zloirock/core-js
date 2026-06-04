@@ -3864,4 +3864,89 @@ runBoth('default-param array narrow holds when no call site overrides it',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
+// --- cluster-G edge coverage ---
+
+// a rest binding nested under an inner OBJECT pattern in for-of (`[{ ...rest }]`) is always an
+// Object, independent of the iterable element type - it must not pick up the element type
+runBoth('for-of nested object-rest binding resolves to Object',
+  'declare const items: Array<[{ a: number }]>;\nfor (const [{ ...rest }] of items) {\n  rest.x;\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Object' });
+  });
+
+// control: a rest binding nested under an inner ARRAY pattern (`[[...rest]]`) is always an Array -
+// proves the depth-recursive rest classifier handles both pattern kinds
+runBoth('for-of nested array-rest binding resolves to Array',
+  'declare const items: string[][];\nfor (const [[...rest]] of items) {\n  rest.x;\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a wide primitive does NOT extend a narrower literal of the same family, so the conditional takes
+// the FALSE branch across every literal family (not just `number extends 1`)
+for (const [variant, src] of [
+  ['boolean extends true', 'type D<T> = T extends true ? string : number[];\ndeclare const w: D<boolean>;\nw.x;'],
+  ['bigint extends 1n', 'type D<T> = T extends 1n ? string : number[];\ndeclare const w: D<bigint>;\nw.x;'],
+]) {
+  runBoth(`conditional wide-extends-literal takes the false branch: ${ variant }`, src,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+    });
+}
+
+// control: the assignable direction `1 extends number` is TRUE (a literal IS assignable to the wide
+// primitive), so it keeps the true branch - proves the fix only flips the non-assignable direction
+runBoth('conditional literal-extends-wide keeps the true branch',
+  'type D<T> = T extends number ? string : number[];\ndeclare const w: D<1>;\nw.x;',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { kind: 'string' });
+  });
+
+// a dynamic computed-key index access selects the index signature matching the access-key type, not
+// the first signature - a number key picks the number sig, a symbol key picks the symbol sig
+for (const [variant, src] of [
+  ['number key', 'declare const o: { [k: symbol]: string; [k: number]: number[]; [k: string]: string };\ndeclare const k: number;\no[k].x;'],
+  ['symbol key', 'declare const o: { [k: string]: string; [k: symbol]: number[] };\ndeclare const k: symbol;\no[k].x;'],
+]) {
+  runBoth(`index-signature dynamic key selection: ${ variant }`, src,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'x');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+    });
+}
+
+// control: a write to a DEEPER path than the narrowed one (`obj.a.b.data = x` under a narrow on
+// `obj.a.b`) only mutates a property of the narrowed object, so the discriminant narrow holds -
+// proves the prefix-write invalidation is strict (descendants do not count)
+runBoth('discriminant narrow holds when a deeper path is written',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: { b: Inner } };\n'
+  + 'if (obj.a.b.kind === "y") {\n  obj.a.b.data = [9];\n  obj.a.b.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// control: a callable field with a SINGLE-family declared return (`() => number[]`) resolves the
+// call to that family - the union-bail fires only for differing families, not for every annotation
+runBoth('callable-field call with single-family annotation keeps the family',
+  'class C {\n  make: () => number[] = () => [1, 2, 3];\n  read() { return this.make().at(0); }\n}\nnew C().read();',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a spread arg at the defaulted param's OWN slot makes its runtime value unknown (the spread may or
+// may not supply it), so the body receiver widens to generic - same bail as a spread before the slot
+runBoth('default-param narrow widens when a spread arg covers its slot',
+  'declare const arr: string[];\nfunction f(b = [1, 2, 3]) { return b.at(0); }\nf(...arr);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
 finish();
