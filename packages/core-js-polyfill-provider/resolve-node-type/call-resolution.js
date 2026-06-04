@@ -275,8 +275,9 @@ export function createCallResolution({
     if (!unwrapped) return null;
     const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
     const target = aliased ?? unwrapped;
+    const keyKind = propName === null ? indexAccessKeyKind(path) : null;
     const lookup = typeNode => propName === null
-      ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst)
+      ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind)
       : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst });
     if (target.type === 'TSUnionType' || target.type === 'UnionTypeAnnotation') {
       for (const branch of target.types) {
@@ -308,16 +309,41 @@ export function createCallResolution({
     return null;
   }
 
-  // `obj[k]` where `obj: { [key: string]: V }` - resolve to V via TSIndexSignature member.
-  // null on miss (no signature, or signature key type unsupported)
-  function resolveIndexSignatureValue(typeNode, scope, subst) {
+  // classify the dynamic key of a computed member access (`obj[k]`) as 'string' | 'number' |
+  // 'symbol' so the matching index signature is selected; null when the key type is unresolvable
+  function indexAccessKeyKind(memberPath) {
+    const kind = resolveNodeType(memberPath.get('property'))?.type;
+    return kind === 'string' || kind === 'number' || kind === 'symbol' ? kind : null;
+  }
+
+  // `obj[k]` where `obj: { [key: K]: V }` - resolve to V via TSIndexSignature member, selecting
+  // the signature whose key type matches the access-key kind: a symbol key picks only a symbol
+  // signature, a number key prefers number then string (numeric keys coerce to string), a string
+  // key never picks number/symbol. an unresolvable key falls back to the first signature; null on
+  // miss. mirrors the static-key `pickIndexSignature` (type-members) which the dynamic path bypassed
+  function resolveIndexSignatureValue(typeNode, scope, subst, keyKind) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
+    let numberSig = null;
+    let stringSig = null;
+    let symbolSig = null;
+    let firstSig = null;
     for (const m of members) {
       if (m.type !== 'TSIndexSignature' || !m.typeAnnotation) continue;
-      return { annotation: applySubst(m.typeAnnotation, subst), scope };
+      firstSig ??= m.typeAnnotation;
+      const sigKey = unwrapTypeAnnotation(m.parameters?.[0]?.typeAnnotation)?.type;
+      if (sigKey === 'TSNumberKeyword') numberSig ??= m.typeAnnotation;
+      else if (sigKey === 'TSSymbolKeyword') symbolSig ??= m.typeAnnotation;
+      else stringSig ??= m.typeAnnotation;
     }
-    return null;
+    let picked;
+    switch (keyKind) {
+      case 'symbol': picked = symbolSig; break;
+      case 'number': picked = numberSig ?? stringSig; break;
+      case 'string': picked = stringSig; break;
+      default: picked = firstSig;
+    }
+    return picked ? { annotation: applySubst(picked, subst), scope } : null;
   }
 
   // find the raw type annotation of an expression (follows bindings and const chains).
@@ -475,6 +501,7 @@ export function createCallResolution({
     staticPairFromDestructure,
     findExpressionAnnotation,
     resolveIndexSignatureValue,
+    indexAccessKeyKind,
     buildCallSiteSubst,
     resetExpressionAnnotationCache,
   };
