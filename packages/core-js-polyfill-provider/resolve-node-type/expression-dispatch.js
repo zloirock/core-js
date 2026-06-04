@@ -54,7 +54,14 @@ export function createExpressionDispatch({
   function resolveNewExpressionType(path) {
     const callee = path.get('callee');
     const name = resolveGlobalName(callee);
-    if (name) return resolveConstructorType(name, path) || new $Object(name);
+    // a known global / class name resolves to its constructor type directly. an ambient binding
+    // (`declare const Ctor: new () => T`) also resolves via resolveGlobalName to its bare name but
+    // is NOT a known constructor (resolveConstructorType -> null) - fall through to the class /
+    // construct-signature fallbacks below instead of short-circuiting to a foreign $Object(name)
+    if (name) {
+      const ctorType = resolveConstructorType(name, path);
+      if (ctorType) return ctorType;
+    }
     const resolved = resolveRuntimeExpression(callee);
     if (t.isClass(resolved.node)) return resolveClassInheritance(resolved) || new $Object('Object');
     // callee resolves to a TSConstructorType signature (or TSFunctionType - they share the
@@ -72,7 +79,9 @@ export function createExpressionDispatch({
       if (t.isFunction(resolved.node) && ctorReturn.primitive) return new $Object('Object');
       return ctorReturn;
     }
-    return new $Object(null);
+    // a resolved global name with no constructor type and no construct-signature fallback keeps its
+    // foreign nominal ($Object(name)); a fully unresolvable callee stays unknown ($Object(null))
+    return new $Object(name ?? null);
   }
 
   function resolveCallExpressionType(path) {
