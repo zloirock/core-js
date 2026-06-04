@@ -5,7 +5,9 @@ import {
   getTypeArgs,
   kebabToCamel,
   singleQuasiString,
+  staleVarRedeclNodes,
   unwrapRuntimeExpr,
+  varInitStaleByRedecl,
 } from './helpers/ast-patterns.js';
 import {
   $Object,
@@ -906,6 +908,28 @@ function createResolveNodeType(babelNodeType, t, {
     return cur;
   }
 
+  // the init path of a `var name = X` re-declaration that reaches `usagePath` straight-line, when
+  // estree-toolkit block-scoped the var and never recorded the redecl as a constantViolation (babel
+  // records it and narrows to its RHS: `var x=[]; { var x='hi' } x.at()` -> string). locate the redecl
+  // declarators' paths (matched by node identity against the AST-walk result) and reuse the shared
+  // straight-line analysis over BOTH the parser-recorded reassignments AND the redecls, so the
+  // genuine reaching write wins regardless of order. returns the init ONLY when that reaching write
+  // is a redecl - a recorded reassignment reaching instead returns null, leaving the caller's
+  // recorded-violation branch (which handles `=` + destructure-assignment slots) to take over
+  function reachingStaleVarRedeclInit(binding, usagePath, name) {
+    const gapNodes = new Set(staleVarRedeclNodes(binding, usagePath, name));
+    if (!gapNodes.size) return null;
+    let owner = usagePath;
+    while (owner && !t.isProgram(owner.node) && !t.isFunction(owner.node) && !t.isStaticBlock?.(owner.node)) owner = owner.parentPath;
+    if (!owner) return null;
+    const redeclPaths = [];
+    owner.traverse({ VariableDeclarator(p) { if (gapNodes.has(p.node)) redeclPaths.push(p); } });
+    if (!redeclPaths.length) return null;
+    const combined = [...binding.constantViolations ?? [], ...redeclPaths];
+    const reaching = findLastStraightLineAssignment({ ...binding, constantViolations: combined }, usagePath);
+    return reaching?.node?.type === 'VariableDeclarator' && reaching.node.init ? reaching.get('init') : null;
+  }
+
   // --- Type utilities & runtime expression resolver ---
   function resolvePath(path) {
     let depth = MAX_DEPTH;
@@ -921,6 +945,19 @@ function createResolveNodeType(babelNodeType, t, {
       // to) doesn't dispatch type-specific instance polyfills for a value whose runtime
       // identity is no longer guaranteed
       if (isReassignedBinding(path.node.name, binding)) break;
+      // estree-toolkit block-scopes a `var`, so `binding.path` may be a STALE declarator whose init
+      // was overwritten by a nested-block `var name = X` re-declaration it never recorded (babel
+      // records it). when such a redecl is the reaching write, narrow to its init - covers both empty
+      // and mixed constantViolations. else (no redecl reaches): empty -> generic; recorded violations
+      // -> fall through to the branch below. no-op on babel, whose violations already carry the redecl
+      if (varInitStaleByRedecl(binding, path, path.node.name)) {
+        const reachingInit = reachingStaleVarRedeclInit(binding, path, path.node.name);
+        if (reachingInit?.node) {
+          path = reachingInit;
+          continue;
+        }
+        if (!binding.constantViolations?.length) break;
+      }
       // mutable binding with reassignments: follow the last preceding-block `=` assignment
       // before `path` so `let f: Foo = init; f = { kind:'b', data:'str' }; f.data.at(0)`
       // (and `if (...) { f = {...}; f.data.at(0); }`) narrows `f` to the RHS shape, not the
