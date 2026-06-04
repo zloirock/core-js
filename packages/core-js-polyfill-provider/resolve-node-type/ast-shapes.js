@@ -8,6 +8,7 @@
 // Public surface mirrors what was previously inlined in the factory body. Move-not-rewrite
 // to preserve cross-parser shape compatibility (babel/oxc/flow) without re-discovery cost
 import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { isLoopStatement } from '../destructure-host-shape.js';
 
 // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
 // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
@@ -138,21 +139,6 @@ export const OPEN_KEYWORD_ANNOTATION_TYPES = new Set([
 
 export function isOpenKeywordAnnotation(node) {
   return OPEN_KEYWORD_ANNOTATION_TYPES.has(node?.type);
-}
-
-// loop heads whose body re-executes - a write inside any of them feeds back to a use on the
-// next iteration (back-edge). `t.isLoop` is a babel-types alias the hand-written estree adapter
-// doesn't expose, so the shared resolver carries its own set
-export const LOOP_STATEMENT_TYPES = new Set([
-  'ForStatement',
-  'ForInStatement',
-  'ForOfStatement',
-  'WhileStatement',
-  'DoWhileStatement',
-]);
-
-export function isLoopStatement(node) {
-  return LOOP_STATEMENT_TYPES.has(node?.type);
 }
 
 // byte-range containment: `inner`'s span sits within `outer`'s span (both need source positions)
