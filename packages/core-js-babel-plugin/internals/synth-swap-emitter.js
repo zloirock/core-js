@@ -124,13 +124,14 @@ export default function createSynthSwapEmitter({
       // optional-chain shapes. without OME the OME-default silently bails to inline-default
       if (!t.isIdentifier(rightPath.node) && !t.isMemberExpression(rightPath.node)
         && !t.isOptionalMemberExpression(rightPath.node)) return null;
-      // IIFE caller-arg overrides only when the default is an Identifier (resolution layer
-      // requires a classifiable name); MemberExpression default has no caller-arg path,
-      // falls straight through to rightPath
-      if (t.isIdentifier(rightPath.node)) {
-        const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
-        if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
-      }
+      // IIFE caller-arg overrides the wrapper-default whenever the caller passes a statically
+      // classifiable receiver - the default fires only on caller-omitted invocation, so the
+      // live arg is what actually runs. applies to (Optional)MemberExpression defaults too
+      // (`({of} = globalThis.Iterator)(Array)`): the meta layer consults the caller-arg
+      // unconditionally, so synthesising onto the dead default here would leave the live
+      // caller-arg native and throw at runtime
+      const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
+      if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
       return rightPath;
     }
     // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
