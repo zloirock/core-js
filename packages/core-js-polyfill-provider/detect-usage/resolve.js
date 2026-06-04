@@ -488,7 +488,7 @@ export function inlineCallReturnExpression({ callNode, scope, adapter, seen, pat
   return callee ? singleReturnBodyExpression(callee.body) : null;
 }
 
-function isCallShape(node) {
+export function isCallShape(node) {
   return node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression';
 }
 
