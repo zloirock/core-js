@@ -305,7 +305,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     if (++hops > STATIC_WALK_DEPTH) return null;
     if (visited.has(current.name)) return null;
     visited.add(current.name);
-    const binding = adapter.getBinding(currentScope, current.name);
+    const binding = adapter.getBinding(currentScope, current.name, path);
     // plugin-rewritten proxy-global alias (`_globalThis`): substitute current to the SOURCE
     // proxy-global name so the post-loop mid-chain lift can match, then break - the import
     // binding's init isn't an ObjectExpression and would otherwise bail at the bindingType
@@ -315,7 +315,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
       current = { type: 'Identifier', name: proxyName };
       break;
     }
-    const bindingType = adapter.getBindingNodeType(currentScope, current.name);
+    const bindingType = adapter.getBindingNodeType(currentScope, current.name, path);
     // class-bound leaf at empty walkPath: classes are stable bindings (no reassignment
     // legal), so the identifier name reliably identifies the declaration. accept as the
     // leaf without further dereferencing - matches the empty-walkPath / unbound-Identifier
@@ -482,7 +482,7 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
   const visited = new Set();
   while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
     visited.add(cur.name);
-    const binding = adapter.getBinding(scope, cur.name);
+    const binding = adapter.getBinding(scope, cur.name, path);
     // method-aware reassignment bail: usage-global keeps following the const-init chain
     // when the reassignment does not dominate the use; usage-pure / narrowing keep the flat bail
     if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) break;

@@ -33,7 +33,7 @@ export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalPro
 function isProxyGlobalIdentifierNode({ node, scope, adapter, path }) {
   if (node?.type !== 'Identifier') return false;
   if (!scope || !adapter) return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
-  const binding = adapter.getBinding(scope, node.name);
+  const binding = adapter.getBinding(scope, node.name, path);
   // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
   // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
   // no entry in babel's scope chain, so the init-follow path never observes them
