@@ -42,8 +42,10 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return t.isIdentifier(node) || t.isThisExpression(node);
   }
 
-  function generateRef(scope) {
-    return getInjector().generateDeclaredRef(scope);
+  // useNode (optional) - the source node at the use site, so generateDeclaredRef can place a
+  // loop-header memo `var` before the loop (not inside a block-converted bodyless body)
+  function generateRef(scope, useNode) {
+    return getInjector().generateDeclaredRef(scope, useNode);
   }
 
   function generateLocalRef(scope) {
@@ -56,7 +58,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
 
   function memoize(node, scope) {
     if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
-    const ref = generateRef(scope);
+    const ref = generateRef(scope, node);
     return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
   }
 
@@ -443,7 +445,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     }
 
     const [anAssign, aRef] = memoize(innerCallee.object, scope);
-    const mRef = generateRef(scope);
+    const mRef = generateRef(scope, innerCallee.object);
     const mCall = t.callExpression(
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
       [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
@@ -467,7 +469,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // `mCall` - testing/binding `mCall` would discard the hops (`arr.flat?.().map(f)?.at(0)`
     // would drop `.map(f)` and call `.at` on the flat() result). with no hops outerObject === mCall
     if (outerPath.node.optional) {
-      const vRef = generateRef(scope);
+      const vRef = generateRef(scope, outerPath.node);
       tests.push(nullTest(assign(vRef, outerObject)));
       outerObject = t.cloneNode(vRef);
     }
