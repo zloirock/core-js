@@ -7,7 +7,7 @@ import _at from "@core-js/pure/actual/instance/at";
 function probe(arr) {
   try {
     throw {};
-  } catch ({ a = null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref()) }) {
+  } catch ({ a = null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr)) }) {
     var _ref;
     return a;
   }

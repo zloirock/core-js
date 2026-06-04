@@ -157,7 +157,7 @@ export function createPolyfillEmitter({
         if (cur === optionalNode) break;
         cur = chainChild(cur);
       }
-      return { root: unwrapParensSrc(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
+      return { root: unwrapParensSrc(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode, optionalNode };
     }
 
     function isPoly(n) {
@@ -176,6 +176,44 @@ export function createPolyfillEmitter({
       current = chainChild(current);
     }
     return { root: null };
+  }
+
+  // build the emit recipe for an optional method call (`recv.m?.()`), or null when this isn't one.
+  // when the optional node is the call and the guarded root is its member callee, memoizing the
+  // callee into `_ref` and emitting `_ref()` would invoke with `this === undefined`; the body must
+  // route through `_ref.call(recv)`. recv is bound to `this` for `super`, re-read for a safe
+  // receiver, and memoized first when side-effecting (its ref precedes the method ref, matching
+  // babel). `methodTail` keeps any inner `?.` for short-circuit
+  function resolveMethodCall({ optionalRoot, optionalNode, rootNode }) {
+    if (!optionalRoot || !optionalNode
+      || (optionalNode.type !== 'CallExpression' && optionalNode.type !== 'OptionalCallExpression')) return null;
+    // peel transparent wrappers (parens, chain, TS as/!/satisfies) off the callee so a wrapped
+    // method `(obj.m as any)?.()` is still recognized as a method call - `methodSrc`/`methodTail`
+    // come from the peeled member, so the type-only wrapper drops out and babel/unplugin agree
+    let callee = rootNode;
+    while (callee && (callee.type === 'ParenthesizedExpression' || callee.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(callee.type))) callee = callee.expression;
+    if (callee?.type !== 'MemberExpression' && callee?.type !== 'OptionalMemberExpression') return null;
+    // a side-effecting computed key (`arr[(eff(), 'flat')]`) makes a polyfilled callee compose
+    // into the call BODY (so the key's SE rides along) instead of the guard slot; rewriting the
+    // body to `_ref.call(recv)` would strand that composition. leave such callees on the default
+    // path - the inner `?.call(recv)` from that composition already preserves `this`. peel the
+    // parser-preserved paren wrapper (oxc keeps `(...)`, babel strips it) before the SE check
+    let keyNode = callee.computed ? callee.property : null;
+    while (keyNode?.type === 'ParenthesizedExpression') keyNode = keyNode.expression;
+    if (keyNode?.type === 'SequenceExpression') return null;
+    const receiverNode = callee.object;
+    const isSuper = receiverNode.type === 'Super';
+    const receiverSafe = receiverNode.type === 'Identifier' || receiverNode.type === 'ThisExpression';
+    return {
+      isSuper,
+      receiverSafe,
+      recvRef: !isSuper && !receiverSafe ? scopeTracker.genRef() : null,
+      receiverText: nodeSrc(receiverNode),
+      methodSrc: nodeSrc(callee),
+      methodTail: code.slice(receiverNode.end, callee.end),
+      argsText: sliceBetweenParens(optionalNode),
+    };
   }
 
   // allocate a `_ref` memoization slot for the call's receiver when bodyObj is non-trivial
@@ -282,7 +320,7 @@ export function createPolyfillEmitter({
 
   function buildReplacement(binding, objectSrc, opts) {
     const { optionalRoot, rootRaw, deoptPositions, objectStart, preAllocatedGuardRef,
-      substituted, rootIsReceiver, sideEffects, rootNodeEnd, receiverEnd } = opts;
+      substituted, rootIsReceiver, sideEffects, rootNodeEnd, receiverEnd, methodCall } = opts;
 
     let bodyObj = deoptPositions?.length ? stripOptionalDots(objectSrc, objectStart ?? 0, deoptPositions) : objectSrc;
     let guard = '';
@@ -291,6 +329,18 @@ export function createPolyfillEmitter({
     if (optionalRoot) {
       if (isBareIdentifier(optionalRoot)) {
         guard = `${ optionalRoot } == null ? void 0 : `;
+      } else if (methodCall) {
+        guardRef = preAllocatedGuardRef ?? scopeTracker.genRef();
+        const callReceiver = methodCall.isSuper ? 'this'
+          : methodCall.receiverSafe ? methodCall.receiverText : methodCall.recvRef;
+        guard = methodCall.recvRef
+          // side-effecting receiver: memoize it first, then read the method off the memo so the
+          // receiver evaluates exactly once (the tail keeps any inner `?.` for short-circuit)
+          ? `null == (${ methodCall.recvRef } = ${ methodCall.receiverText }, ${ guardRef } = ${ methodCall.recvRef }${ methodCall.methodTail }) ? void 0 : `
+          // `methodSrc` is the peeled member (drops any TS/paren wrapper), so a wrapped callee
+          // `(obj.m as any)?.()` memoizes the bare method - matching babel
+          : `null == (${ guardRef } = ${ methodCall.methodSrc }) ? void 0 : `;
+        bodyObj = `${ guardRef }.call(${ callReceiver }${ commaArgs(methodCall.argsText) })`;
       } else {
         guardRef = preAllocatedGuardRef ?? scopeTracker.genRef();
         guard = `null == (${ guardRef } = ${ optionalRoot }) ? void 0 : `;
@@ -335,13 +385,13 @@ export function createPolyfillEmitter({
 
   // resolve optional root + skip redundant guard when nested inside an outer transform
   function resolveOptionalRoot({ node, parent, isCall, scope }) {
-    let { root, rootRaw, deoptPositions, rootNode } = findChainRoot(node, scope);
+    let { root, rootRaw, deoptPositions, rootNode, optionalNode } = findChainRoot(node, scope);
     if (root) {
       const start = isCall ? parent.start : node.start;
       const end = isCall ? parent.end : node.end;
       if (transforms.hasGuardFor(start, end, rootNode)) root = null;
     }
-    return { optionalRoot: root, rootRaw, deoptPositions, rootNode };
+    return { optionalRoot: root, rootRaw, deoptPositions, rootNode, optionalNode };
   }
 
   // slice the original source between a call expression's parentheses, preserving every byte
@@ -442,7 +492,7 @@ export function createPolyfillEmitter({
     if (seMode === 'suppress') sideEffects = keySideEffectsOnly(node.object, sideEffects);
     const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
-    const { optionalRoot: resolvedRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot({
+    const { optionalRoot: resolvedRoot, rootRaw, deoptPositions, rootNode, optionalNode } = resolveOptionalRoot({
       node, parent, isCall, scope: metaPath?.scope,
     });
     // bare paren-lookup (`(arr?.[Symbol.iterator])()` -> `_getIterator(arr)`): the receiver is
@@ -489,11 +539,23 @@ export function createPolyfillEmitter({
       skippedNodes.add(recv.skipNode);
     }
     let reusedOuterRef = null;
-    if (!optionalRoot && rootNode && rootIsReceiver) {
+    if (!optionalRoot && rootNode) {
       const outerRef = transforms.findOuterGuardRef(rootNode);
       if (outerRef) {
-        objectSrc = outerRef;
-        isNonIdent = false;
+        if (rootIsReceiver) {
+          // root IS the receiver: reuse the memoized ref verbatim (bare ident, no further memo)
+          objectSrc = outerRef;
+          isNonIdent = false;
+        } else {
+          // root is a strict sub-node of the receiver (`a.b?.c` hop with root `a.b`, or
+          // `getO()?.p`): reuse the outer guard ref for the root and stitch the receiver tail so
+          // this hop reads `_ref.c` instead of re-evaluating the raw root - the latter double-evals
+          // a side-effecting root and reads through a now-nullish prefix. isNonIdent stays true so
+          // the body memoizes the stitched `_ref.c` for its own `.call(...)` receiver
+          objectSrc = outerRef + stripOptionalDots(
+            code.slice(rootNode.end, node.object.end), rootNode.end, deoptPositions,
+          );
+        }
         reusedOuterRef = outerRef;
       }
     }
@@ -501,6 +563,9 @@ export function createPolyfillEmitter({
     const start = isCall ? parent.start : node.start;
     const end = isCall ? parent.end : node.end;
     const isNew = parent?.type === 'NewExpression';
+    // optional method call (`recv.m?.()`): keep `this` by routing the body through `_ref.call(recv)`.
+    // computed before the guard ref so a memoized receiver ref precedes it (matches babel order)
+    const methodCall = resolveMethodCall({ optionalRoot, optionalNode, rootNode });
     const preAllocatedGuardRef = optionalRootCapturesIntoRef ? scopeTracker.genRef() : null;
 
     const built = buildReplacement(binding, objectSrc, {
@@ -519,7 +584,7 @@ export function createPolyfillEmitter({
       // by the binding-length delta and corrupts the tail (e.g. `.Y` -> `Y`)
       rootNodeEnd: rootNode?.end,
       receiverEnd: node.object.end,
-      parenLookupOnly,
+      parenLookupOnly, methodCall,
     });
     let { replacement } = built;
     const { split } = built;
