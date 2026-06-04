@@ -21,7 +21,8 @@
 import { isMemberAccessNode, peelLabeledStatementPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { isLoopStatement, loopReExecRegionHasViolation } from './ast-shapes.js';
+import { loopReExecRegionHasViolation } from './ast-shapes.js';
+import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
 // would TypeError on these at runtime, so the branch is unreachable in the guarded
