@@ -71,7 +71,6 @@ export function canTransformDestructuring(metaPath) {
   if (!sharedCanTransformDestructuring({
     parentType: declaratorPath.node.type,
     parentInit: declaratorPath.node.init,
-    grandParentType: declaratorPath.parentPath?.parentPath?.node?.type,
   })) return false;
   if (declaratorPath.node.type === 'AssignmentExpression') {
     // walk past Paren AND TS expression wrappers to the host. without TS peel
