@@ -22,6 +22,11 @@ import {
   isTypeAnnotationNodeType,
   walkTypeAnnotationGlobals,
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
+import {
+  noReassignmentReachesUsage,
+  reassignmentDominatesUsage,
+  varInitDominatesUsage,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
@@ -306,5 +311,105 @@ runBoth('walkTypeAnnotationGlobals/method-sig param', 'let o: { run(items: Set<n
   walkTypeAnnotationGlobals(lit.node, name => found.push(name));
   checkTruthy(lbl, found.includes('Set'), `expected Set in [${ found.join(',') }]`);
 });
+
+// --- varInitDominatesUsage: usage-pure init-dominance gate, incl. outer-scope closure capture ---
+
+// resolve the `M = <init>` declarator node + the `M.<method>` member use path from parsed source
+function pickVarInit(adapter, prog, method) {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'M');
+  const use = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === method);
+  return { declaratorNode: decl?.node ?? null, usagePath: use };
+}
+
+// conditional `var` in an OUTER scope, read by a nested closure: holds the global only on the
+// branch path, so it does NOT dominate - pure must bail
+runBoth('varInitDominatesUsage/conditional outer var in closure -> false',
+  'function f(c){ if (c) var M = Object; return () => M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), false);
+  });
+
+// unconditional outer var read by a closure: ran before the closure can be invoked -> dominates
+runBoth('varInitDominatesUsage/unconditional outer var in closure -> true',
+  'function f(){ var M = Object; return () => M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), true);
+  });
+
+// in-scope unconditional declarator preceding the use -> dominates
+runBoth('varInitDominatesUsage/in-scope unconditional -> true',
+  'function f(){ var M = Object; return M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), true);
+  });
+
+// in-scope conditional declarator, use OUTSIDE the branch -> does not dominate
+runBoth('varInitDominatesUsage/in-scope conditional, use outside branch -> false',
+  'function f(c){ if (c) var M = Object; M.fromEntries(); }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), false);
+  });
+
+// in-scope conditional declarator, use INSIDE the same branch -> dominates
+runBoth('varInitDominatesUsage/in-scope conditional, use inside branch -> true',
+  'function f(c){ if (c) { var M = Object; M.fromEntries(); } }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), true);
+  });
+
+// --- reassignmentDominatesUsage: usage-global reassignment-bail gate, incl. for-x head writes ---
+
+// the reassignment site node(s) + the `M.foo()` member use path
+function pickReassignUse(adapter, prog, reassignType) {
+  const node = reassignType === 'AssignmentExpression'
+    ? adapter.pickPath(prog, 'AssignmentExpression', p => p.node.left?.name === 'M')?.node
+    : adapter.pickPath(prog, reassignType)?.node;
+  const use = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'foo');
+  return { reassignmentNodes: node ? [node] : [], usagePath: use };
+}
+
+// for-of head writes M only when the iterable yields, so it does NOT dominate a use after the loop
+runBoth('reassignmentDominatesUsage/for-of head, use after loop -> false',
+  'function f(arr){ var M = Map; for (M of arr) {} M.foo(); }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'ForOfStatement');
+    check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
+  });
+
+// for-in head: same conditional-write reasoning as for-of
+runBoth('reassignmentDominatesUsage/for-in head, use after loop -> false',
+  'function f(o){ var M = Map; for (M in o) {} M.foo(); }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'ForInStatement');
+    check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
+  });
+
+// unconditional straight-line reassignment before the use -> dominates
+runBoth('reassignmentDominatesUsage/unconditional reassign -> true',
+  'function f(){ var M = Map; M = Set; M.foo(); }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
+    check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), true);
+  });
+
+// conditional reassignment under an if -> does not dominate
+runBoth('reassignmentDominatesUsage/conditional reassign -> false',
+  'function f(c){ var M = Map; if (c) M = Set; M.foo(); }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
+    check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
+  });
+
+// --- noReassignmentReachesUsage: usage-pure substitute gate (mirror direction) ---
+
+// a for-of head write before the use can run before the read -> init not provably live -> bail
+runBoth('noReassignmentReachesUsage/for-of head before use -> false',
+  'function f(arr){ var M = Map; for (M of arr) {} M.foo(); }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'ForOfStatement');
+    check(lbl, noReassignmentReachesUsage({ reassignmentNodes, usagePath }), false);
+  });
+
+// reassignment strictly AFTER the use can't change the read value -> init reaches unmodified
+runBoth('noReassignmentReachesUsage/reassign after use -> true',
+  'function f(){ var M = Map; M.foo(); M = Set; }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
+    check(lbl, noReassignmentReachesUsage({ reassignmentNodes, usagePath }), true);
+  });
 
 finish();
