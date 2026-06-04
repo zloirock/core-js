@@ -6,7 +6,7 @@ import _at from "@core-js/pure/actual/instance/at";
 function probe(arr) {
   if (arr) {
     var _ref;
-    const head = new (null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref()))(0);
+    const head = new (null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr)))(0);
     return head;
   }
   return null;

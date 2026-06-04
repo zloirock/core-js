@@ -13,7 +13,7 @@ const val = function () {
   const x = _globalThis;
   return function inner() {
     var _ref;
-    return null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref());
+    return null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr));
   }();
 }();
 console.log(from, val);

@@ -206,3 +206,19 @@ QUnit.test('class: post-declaration static tags survive extends chain', assert =
   assert.same(Child.tags.length, 3);
   assert.same(new Child().kind(), 'base');
 });
+
+// optional super-method call must invoke the inherited method with `this === instance`, not
+// `this === undefined` - the inherited method reads `this`, so a lost receiver would throw
+QUnit.test('class: optional super-method call preserves this', assert => {
+  class Base {
+    getArr() { return this.data; }
+  }
+  class C extends Base {
+    constructor() {
+      super();
+      this.data = [1, 2, 3];
+    }
+    m() { return super.getArr?.().at(0); }
+  }
+  assert.same(new C().m(), 1);
+});

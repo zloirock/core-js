@@ -116,14 +116,13 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // only when caller-arg is undefined), preserving caller-passed values
     const peeled = unwrapSafeSequenceTail(wrapper.right);
     if (peeled?.type !== 'Identifier' && peeled?.type !== 'MemberExpression') return null;
-    // IIFE caller-arg overrides only when default is an Identifier (resolution layer needs
-    // a classifiable name); MemberExpression default has no caller-arg path, falls through
-    // to peeled. trade-off accepted: side effect of receiver chain evaluation (`window`)
-    // is skipped on caller-omitted invocation, polyfill always wins
-    if (peeled.type === 'Identifier') {
-      const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
-      if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
-    }
+    // IIFE caller-arg overrides the wrapper-default whenever the caller passes a statically
+    // classifiable receiver - the default fires only on caller-omitted invocation, so the live
+    // arg is what actually runs. applies to MemberExpression defaults too (`({of} = globalThis
+    // .Iterator)(Array)`): the meta layer consults the caller-arg unconditionally, so
+    // synthesising onto the dead default here would leave the live caller-arg native and throw
+    const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
+    if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
     return peeled;
   }
   // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
