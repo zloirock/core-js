@@ -15,7 +15,7 @@ import {
   resolveKey as sharedResolveKey,
   unwrapParens,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
+import { handleBinaryIn, handleMemberExpressionNode, markGlobalWriteReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   collectFunctionScopeVarReassignments,
@@ -759,6 +759,12 @@ export function createUsageVisitors({
       // update. run for marking only (discard meta, no emit)
       if (skipUpdateTargets && isInUpdateOperand(path.parentPath)) {
         handleMemberExpressionNode({ node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path });
+      }
+      // usage-pure: a write-only member whose receiver is a global keeps that receiver bare so a
+      // static write lands on the global (the same-key read bails to the global for a mutated
+      // static); mark the receiver so the identifier visitor doesn't rewrite it to the pure import
+      if (method === 'usage-pure' && isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
+        markGlobalWriteReceiver({ node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path });
       }
       return;
     }

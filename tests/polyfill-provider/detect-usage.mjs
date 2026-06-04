@@ -14,6 +14,7 @@ import {
   bindsModuleDefault,
   isStaticPlacement,
   isTransparentWrapper,
+  returnedReceiverHasEffects,
   unwrapParens,
   unwrapParensCollectingEffects,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
@@ -411,5 +412,38 @@ runBoth('noReassignmentReachesUsage/reassign after use -> true',
     const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
     check(lbl, noReassignmentReachesUsage({ reassignmentNodes, usagePath }), true);
   });
+
+// --- returnedReceiverHasEffects: an inlined call's returned expr carries droppable side effects ---
+// (the receiver value the caller resolves is excluded; only writes / SE-prefixes around it count)
+
+// a chain-assignment return wraps the receiver in a binding write - observable, must be preserved
+runBoth('returnedReceiverHasEffects/assignment -> true', 'a = Array;', (adapter, prog, lbl) => {
+  check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'AssignmentExpression')?.node), true);
+});
+
+// an update expression (`a++`) writes its operand - observable
+runBoth('returnedReceiverHasEffects/update -> true', 'a++;', (adapter, prog, lbl) => {
+  check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'UpdateExpression')?.node), true);
+});
+
+// a sequence whose leading element has a side effect - observable
+runBoth('returnedReceiverHasEffects/SE-prefixed sequence -> true', 'fn(), Array;', (adapter, prog, lbl) => {
+  check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'SequenceExpression')?.node), true);
+});
+
+// a sequence with no side-effecting leading element (`0, Array`) bottoms out on the bare receiver
+runBoth('returnedReceiverHasEffects/SE-free sequence -> false', '0, Array;', (adapter, prog, lbl) => {
+  check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'SequenceExpression')?.node), false);
+});
+
+// a bare Identifier receiver has no own effect
+runBoth('returnedReceiverHasEffects/bare identifier -> false', 'Array;', (adapter, prog, lbl) => {
+  check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'Identifier')?.node), false);
+});
+
+// a proxy-global member receiver (`globalThis.Array`) is a read - no own effect
+runBoth('returnedReceiverHasEffects/member receiver -> false', 'globalThis.Array;', (adapter, prog, lbl) => {
+  check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'MemberExpression')?.node), false);
+});
 
 finish();
