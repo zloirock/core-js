@@ -13,7 +13,8 @@
 // narrow; mutation inside a nested captured function also invalidates (deferred calls
 // may fire between the guard and the usage)
 import { peelLabeledStatementNode } from '../helpers/ast-patterns.js';
-import { OPEN_KEYWORD_ANNOTATION_TYPES, isLoopStatement } from './ast-shapes.js';
+import { OPEN_KEYWORD_ANNOTATION_TYPES } from './ast-shapes.js';
+import { isLoopStatement } from '../destructure-host-shape.js';
 import { $Object, $Primitive, PRIMITIVES } from './base.js';
 
 export function createNarrowByGuards({
