@@ -28,6 +28,22 @@ export function isBodylessStatementSlot(parent, host) {
   return BODY_SLOT_TYPES.has(parent.type) && parent.body === host;
 }
 
+// iteration statements: `continue <label>` can target a label on one of these, and value flow has
+// a back-edge here. `t.isLoop` is a babel-types alias the hand-written estree adapter doesn't
+// expose, so this shared classifier owns the predicate - imported by the resolver's flow analysis
+// (class-fields / narrow-by-guards / discriminant-narrow) and the unplugin scope tracker
+const LOOP_STATEMENT_TYPES = new Set([
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+]);
+
+export function isLoopStatement(node) {
+  return LOOP_STATEMENT_TYPES.has(node?.type);
+}
+
 // classify a VariableDeclaration host's enclosing context. returns the parser-agnostic
 // booleans the plugin's strategy planner consumes:
 //   isExport     - declaration is wrapped in `export` (`ExportNamedDeclaration`)
