@@ -15,6 +15,7 @@
 import { $Object, $Primitive, PATTERN_WRAPPERS, peelAssignmentPattern } from './base.js';
 import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
+import { varInitStaleByRedecl } from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
   t,
@@ -678,6 +679,10 @@ export function createPatternBindings({
     }
     // no assignment found - resolve from init when either const or all mutations are after usage
     if (t.isVariableDeclarator(node) && node.init) {
+      // estree-toolkit block-scopes a `var`, so `binding.path` can be a stale declarator overwritten
+      // by a `var name = X` re-declaration before the use that it never recorded - don't trust its
+      // init then (babel records the redecl, so this only fires on the estree var-hoist gap)
+      if (varInitStaleByRedecl(binding, path, name)) return null;
       const violations = binding.constantViolations;
       if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
       // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
