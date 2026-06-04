@@ -14,7 +14,7 @@ import {
   resolveKey as sharedResolveKey,
   unwrapParens,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
+import { handleBinaryIn, handleMemberExpressionNode, markGlobalWriteReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   findIifeArgForParam,
@@ -257,7 +257,14 @@ export function createUsageVisitors({
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
-    if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) return;
+    if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
+      // usage-pure: keep a global write-receiver on the global so the static lands on the same
+      // object a same-key read sees (the read-side bails to the global for a mutated static)
+      if (method === 'usage-pure') {
+        markGlobalWriteReceiver({ node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path });
+      }
+      return;
+    }
     const meta = handleMemberExpressionNode({
       node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path,
     });
