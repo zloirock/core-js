@@ -10,7 +10,7 @@ function probe(arr) {
   } catch (_ref) {
     var _ref2;
     let {
-      a = null == (_ref2 = _flatMaybeArray(arr)) ? void 0 : _at(_ref2())
+      a = null == (_ref2 = _flatMaybeArray(arr)) ? void 0 : _at(_ref2.call(arr))
     } = _ref;
     return a;
   }
