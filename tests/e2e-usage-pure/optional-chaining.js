@@ -213,3 +213,43 @@ QUnit.test('paren lookup: array literal + (arr?.at)(args)', assert => {
   // eslint-disable-next-line no-unsafe-optional-chaining -- testing exact paren-optional pattern
   assert.same(([1, 2, 3]?.at)(0), 1);
 });
+
+// --- optional method call preserves `this` (receiver binding through the call guard) ---
+
+// `recv.m?.()` guards the method but must invoke it with `this === recv`; a method reading
+// `this` throws if the receiver is lost (emitting `_ref()` instead of `_ref.call(recv)`)
+QUnit.test('optional method call preserves this: obj.getArr?.().at(0)', assert => {
+  const obj = {
+    data: [10, 20, 30],
+    getArr() { return this.data; },
+  };
+  assert.same(obj.getArr?.().at(0), 10);
+  // eslint-disable-next-line @stylistic/no-extra-parens -- testing
+  assert.same(({ getArr: null }).getArr?.().at(0), undefined);
+});
+
+// side-effecting receiver: `this` preserved AND the receiver evaluated exactly once
+QUnit.test('optional method call: side-effect receiver once + this kept', assert => {
+  let calls = 0;
+  const make = () => {
+    calls += 1;
+    return {
+      data: [7, 8, 9],
+      getArr() { return this.data; },
+    };
+  };
+  assert.same(make().getArr?.().at(0), 7);
+  assert.same(calls, 1);
+});
+
+// non-bare optional root + non-optional polyfilled hops: root memoized once, not re-read
+QUnit.test('optional non-bare root single-eval: getO()?.p.slice(1).flat(2)', assert => {
+  let calls = 0;
+  const getO = () => {
+    calls += 1;
+    return { p: [[1], [2], [3]] };
+  };
+  assert.deepEqual(getO()?.p.slice(1).flat(2), [2, 3]);
+  assert.same(calls, 1);
+  assert.same(null?.p.slice(1).flat(2), undefined);
+});
