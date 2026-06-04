@@ -6,7 +6,7 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 class C extends Array {
   m() {
     var _ref, _ref2;
-    null == (_ref = super.flat) ? void 0 : _mapMaybeArray(_ref2 = _ref())?.call(_ref2, x => x);
+    null == (_ref = super.flat) ? void 0 : _mapMaybeArray(_ref2 = _ref.call(this))?.call(_ref2, x => x);
   }
 }
 new C().m();
