@@ -97,6 +97,19 @@ function neutralizeTSDeclareFunctions(node) {
     }
     return;
   }
+  // a constructor parameter-property with a default (`constructor(public m = 1)`) parses as
+  // `TSParameterProperty { parameter: AssignmentPattern }`; estree-toolkit's scope crawler has no
+  // AssignmentPattern handler in that position and throws during crawl, aborting the whole file. a
+  // plain AssignmentPattern param (no accessibility wrapper) crawls fine, so unwrap to the inner
+  // pattern in place - the default expression survives (so usage inside it like `= new WeakMap()`
+  // is still detected), and accessibility / readonly modifiers are irrelevant to polyfill detection
+  if (node.type === 'TSParameterProperty' && node.parameter?.type === 'AssignmentPattern') {
+    const inner = node.parameter;
+    for (const key of Object.keys(node)) delete node[key];
+    Object.assign(node, inner);
+    neutralizeTSDeclareFunctions(node);
+    return;
+  }
   if (Array.isArray(node)) {
     for (const child of node) neutralizeTSDeclareFunctions(child);
     return;

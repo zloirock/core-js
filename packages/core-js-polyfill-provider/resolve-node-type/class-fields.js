@@ -24,7 +24,8 @@ import {
   memberWriteTargetPath,
 } from './class-member-shapes.js';
 import { forEachPatternWriteMember, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
-import { isLoopStatement, nodeRangeContains } from './ast-shapes.js';
+import { nodeRangeContains } from './ast-shapes.js';
+import { isLoopStatement } from '../destructure-host-shape.js';
 
 export function createClassFields({
   t,
