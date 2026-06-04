@@ -245,11 +245,12 @@ const FN_TYPES_FOR_IIFE = new Set([
   'FunctionExpression',
 ]);
 
-export function canTransformDestructuring({ parentType, parentInit, grandParentType }) {
+export function canTransformDestructuring({ parentType, parentInit }) {
   if (parentType === 'VariableDeclarator') {
-    if (!parentInit) return false; // for-of/for-in - no init
-    if (grandParentType === 'ForInStatement' || grandParentType === 'ForOfStatement') return false;
-    return true;
+    // a for-in / for-of HEAD binding (`for (var { from } of arr)`) has no init - bail. an init-bearing
+    // declarator under a for-x grandparent is the unbraced BODY slot (`for (k in obj) var { from } =
+    // Array`), a normal substitutable destructure (the head-with-init form is a syntax error for a pattern)
+    return !!parentInit;
   }
   return parentType === 'AssignmentExpression';
 }
@@ -591,9 +592,11 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
     const slot = flattenableHostSlot(parent?.node, parent);
     const slotNode = slot ? parent.node[slot] : null;
     // descend the init through each ArrayPattern wrapper at its recorded element index
-    // (`[, { from }]` descends index 1, not a blind 0)
+    // (`[, { from }]` descends index 1, not a blind 0). thread scope/adapter/path so a const-bound
+    // array-literal wrapper (`const wrapper = [{ a: Array }]; const [{ a: { from } }] = wrapper`)
+    // dereferences to its init, mirroring resolveArrayWrapperedDestructureReceiver
     const receiverNode = allIndices.length
-      ? descendArrayWrapperInit(slotNode, allIndices)
+      ? descendArrayWrapperInit(slotNode, allIndices, parent.scope, adapter, parent)
       : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
