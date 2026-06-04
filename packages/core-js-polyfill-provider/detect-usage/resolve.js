@@ -15,6 +15,7 @@ import {
   reachingReassignmentValueNode,
   reassignBailApplies,
   reassignmentBlocksGlobalResolve,
+  reassignmentValueNodes,
   singleQuasiString,
   singleReturnBodyExpression,
   TS_EXPR_WRAPPERS,
@@ -448,6 +449,50 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path }) {
   return resolveProxyGlobalRoot({ receiver: objectNode.object, scope, adapter, seen, path }) ? propertyName : null;
 }
 
+// the distinct values an alias can hold at the use for the usage-global union: the resolved primary
+// (declarator init) plus every reachable reassignment RHS that resolves, deduped. a non-Identifier
+// alias or one with no reassignment contributes only the primary. `resolve` maps a value node to its
+// receiver name / key string
+function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path }) {
+  const values = primary ? [primary] : [];
+  if (aliasNode?.type === 'Identifier') {
+    const binding = adapter.getBinding(scope, aliasNode.name, path);
+    if (binding && isReassignedBeyondDeclarator(binding)) {
+      for (const rhs of reassignmentValueNodes({ binding, usagePath: path })) {
+        const value = resolve(rhs);
+        if (value) values.push(value);
+      }
+    }
+  }
+  return [...new Set(values)];
+}
+
+// usage-global UNION of reachable member-dispatch targets for a conditionally reassigned receiver
+// and/or computed-key. `let K='from'; if(c) K='of'; Array[K]()` can call Array.from OR Array.of;
+// `var M={}; if(c) M=Array; M.from()` may dispatch on Array. when BOTH vary the reachable targets
+// are the cross product, so each is emitted (over-inject-safe; an impossible pair just resolves to no
+// polyfill). returns extra `{ kind:'property', object, key, placement }` metas minus the primary pair
+// the caller already emits, empty in the common no-reassignment case. global-only: usage-pure bails
+// on any reassignment upstream, so a reassigned alias never reaches a receiver-dropping substitute
+export function collectMemberUnionCandidates(options) {
+  const { objectNode, computedKeyNode, primaryObject, primaryKey, scope, adapter, path } = options;
+  if (adapter.method !== 'usage-global') return [];
+  const objects = reachableAliasValues({
+    aliasNode: objectNode, primary: primaryObject, scope, adapter, path,
+    resolve: rhs => resolveObjectName({ objectNode: rhs, scope, adapter, path }),
+  });
+  const keys = reachableAliasValues({
+    aliasNode: computedKeyNode, primary: primaryKey, scope, adapter, path,
+    resolve: rhs => resolveKey({ node: rhs, computed: true, scope, adapter, path }),
+  });
+  const extras = [];
+  for (const object of objects) for (const key of keys) {
+    if ((object === primaryObject && key === primaryKey) || key === 'prototype') continue;
+    extras.push({ kind: 'property', object, key, placement: isStaticPlacement(object) ? 'static' : 'prototype' });
+  }
+  return extras;
+}
+
 // resolve a call-expression callee to a function-like node (arrow / fn-expr) suitable
 // for inlining. handles direct IIFE (callee = arrow/fn-expr) AND identifier-bound callees
 // (`const f = () => X; f()` walks through the binding's init to the same form).
@@ -578,9 +623,17 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   if (node.type === 'Identifier' && computed) {
     const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
     if (entry) {
-      if (entry.init) return resolveKey({
-        node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
-      });
+      if (entry.init) {
+        // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
+        // the literal only on the guarded path, so following it would rewrite `Builtin[K]()` to a
+        // receiver-less polyfill and mask the native TypeError on the skipped path. gate on
+        // init-dominance like the receiver branch (usage-global over-injects, so it keeps following)
+        if (adapter.method === 'usage-pure'
+          && !varInitDominatesUsage({ declaratorNode: entry.binding.node, usagePath: path })) return null;
+        return resolveKey({
+          node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
+        });
+      }
       const key = bindingSymbolKey(entry.binding, adapter.packages);
       if (key) return key;
     } else if (!seen?.has(node.name)) {

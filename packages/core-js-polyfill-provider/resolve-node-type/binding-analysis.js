@@ -30,6 +30,7 @@
 import { REBIND_ASSIGNMENT_OPERATORS } from './base.js';
 import {
   isBindingPosition,
+  isForXStatement,
   isMemberAccessNode,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
@@ -428,8 +429,7 @@ export function createBindingAnalysis({
     // for-of / for-in iteration source: `for (const x of o) {}` invokes
     // `o[Symbol.iterator]()`; `for (const k in o) {}` reads enumerable keys. neither
     // mutates `o` through any standard channel
-    if ((parent?.type === 'ForOfStatement' || parent?.type === 'ForInStatement')
-      && parent.right === refNode) return 'trivial';
+    if (isForXStatement(parent) && parent.right === refNode) return 'trivial';
     // direct (`o = v`) and logical (`o ||= v` / `o ??= v` / `o &&= v`) rebindings
     // change which value the binding points at, not the captured anchor's identity.
     // see `REBIND_ASSIGNMENT_OPERATORS` for the full operator set + soundness rationale
