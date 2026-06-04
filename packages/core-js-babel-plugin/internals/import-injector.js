@@ -109,16 +109,27 @@ export default class ImportInjector extends ImportInjectorState {
     return this.#t.identifier(name);
   }
 
-  generateDeclaredRef(scope) {
+  generateDeclaredRef(scope, useNode) {
     const id = this.#generateRefId(scope);
-    // `scope.push` unshifts `var _ref;` into the scope's block. a loop scope whose body is a BLOCK
-    // means the memo sits in the loop HEADER - a memo in the body would scope to that body block,
-    // not the loop - so push would land the `var` in the body, after its header use (works only by
-    // var hoisting). push to the loop's parent so the declaration precedes the loop, matching
-    // unplugin's enclosing-scope anchor. bodyless-body loops are ambiguous (header vs body use both
-    // scope to the loop), so leave babel's default placement there
-    const headerOfBlockBodyLoop = scope.path.isLoop() && scope.path.node.body?.type === 'BlockStatement';
-    (headerOfBlockBodyLoop ? scope.parent : scope).push({ id });
+    // `scope.push` unshifts `var _ref;` into the scope's block. a loop scope is the scope of a memo
+    // used in the loop HEADER - a block-body loop gives body uses their own block scope, and only a
+    // bodyless-body loop shares its scope with the body. a header memo must PRECEDE the loop:
+    // pushing into the loop scope block-converts a bodyless body and lands the `var` after its
+    // header use (works only by var hoisting) while leaving the ref in the loop's nested scope.
+    // push to the loop's parent so it matches unplugin's enclosing-scope anchor. distinguish a
+    // genuine bodyless-body use by source range - that one keeps babel's default block-convert
+    let target = scope;
+    if (scope.path.isLoop()) {
+      const { body } = scope.path.node;
+      // a block-body loop scope is always a header use (body uses get the block's own scope); a
+      // bodyless loop shares its scope with the body, so confirm a header use by source range.
+      // either way a header memo must precede the loop, not sit in the loop's nested scope
+      const headerUse = body?.type === 'BlockStatement'
+        || (useNode?.start !== undefined && body
+          && !(useNode.start >= body.start && useNode.end <= body.end));
+      if (headerUse) target = scope.parent;
+    }
+    target.push({ id });
     return id;
   }
 
