@@ -364,6 +364,13 @@ function isVarScopeBoundary(type) {
   return VAR_SCOPE_OWNER_TYPES.has(type);
 }
 
+// for-of / for-in iteration heads ("for-x"): their `left` slot is a per-iteration write target.
+// shared by the reassignment scan, the dominance guards, and the write-context detectors below
+const FOR_X_STATEMENT_TYPES = new Set(['ForOfStatement', 'ForInStatement']);
+export function isForXStatement(node) {
+  return FOR_X_STATEMENT_TYPES.has(node?.type);
+}
+
 // walk `path`'s ancestor chain (inclusive) and return the first path whose node owns a
 // var scope - the boundary a `var` declared anywhere below it hoists to. returns null if
 // the chain reaches the root without one (shouldn't happen for an attached node: Program
@@ -500,7 +507,7 @@ export function collectFunctionScopeVarReassignments(path, name) {
       || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)
       || (node.type === 'AssignmentExpression'
         && (node.left?.type === 'ArrayPattern' || node.left?.type === 'ObjectPattern') && bindsName(node.left))
-      || ((node.type === 'ForOfStatement' || node.type === 'ForInStatement') && forXHeadWritesName(node.left))) {
+      || (isForXStatement(node) && forXHeadWritesName(node.left))) {
       violations.push(node);
     }
     // a `var name = <init>` re-declaration other than the binding's own declarator overwrites the
@@ -602,7 +609,13 @@ function collectVarGuardsToDeclarator(ownerNode, target) {
   function visit(node, guards) {
     if (result !== null || !isAstNode(node)) return;
     if (node === target) {
-      result = guards;
+      // a for-of / for-in HEAD write assigns the loop variable only when the iterable yields at
+      // least once; both adapters record the LOOP node itself as the reassignment site (not its
+      // `left`), so treat such a loop as its own guard - a use after the loop never sits under it,
+      // so the head write doesn't dominate (usage-global keeps resolving the alias, over-inject-safe;
+      // usage-pure still bails since the write isn't after the use). a use INSIDE the body is already
+      // excluded by nodeDominatesUsage's precedence check (the loop doesn't end before it)
+      result = isForXStatement(node) ? [...guards, node] : guards;
       return;
     }
     if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
@@ -674,15 +687,27 @@ function nodeDominatesUsage({ node, usagePath, owner, crossBoundary }) {
 // SOUND gate for resolving a function-scoped `var` alias to a global. `var` hoists to the whole
 // function, so `if (c) { var M = globalThis } M.Map()` binds M everywhere - but M holds the global
 // only when `c` was truthy; usage-pure would rewrite the use to a receiver-less polyfill and mask
-// the native TypeError on the c-falsy path. holds iff the assignment DOMINATES the use. a declarator
-// NOT in the use's own var-scope owner is an outer-scope capture (e.g. a module-top `const A = Array`
-// read inside an IIFE) that ran first, so it dominates (crossBoundary true); callers without a
-// use-site path resolve as before (they never surface a nested-block `var`)
+// the native TypeError on the c-falsy path. holds iff the assignment DOMINATES the use.
+// in the use's OWN var scope: the use must sit under every branch the declarator does AND the
+// declarator must textually precede it. a declarator in an OUTER scope is captured by a nested
+// closure (e.g. a module-top `const A = Array` read inside an IIFE), invoked after the outer init
+// runs - but only when that init is UNCONDITIONAL: `function f(c){ if (c) var M = Object; return
+// () => M.fromEntries() }` holds the global on just the c-true path, so the closure may read
+// undefined and pure must bail. callers without a use-site path resolve true (no nested-block var)
 export function varInitDominatesUsage({ declaratorNode, usagePath }) {
   if (!usagePath) return true;
-  const owner = findNearestVarScopeOwner(usagePath);
-  if (!owner) return true;
-  return nodeDominatesUsage({ node: declaratorNode, usagePath, owner, crossBoundary: true });
+  const useOwner = findNearestVarScopeOwner(usagePath);
+  if (!useOwner) return true;
+  const ownGuards = collectVarGuardsToDeclarator(useOwner.node, declaratorNode);
+  if (ownGuards !== null) {
+    return usageSitsUnderAllBranches(usagePath, useOwner.node, ownGuards) && nodePrecedesUsage(declaratorNode, usagePath);
+  }
+  // climb to the declarator's own outer owner; the captured init dominates only if unconditional there
+  for (let owner = findNearestVarScopeOwner(useOwner.parentPath); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
+    const guards = collectVarGuardsToDeclarator(owner.node, declaratorNode);
+    if (guards !== null) return guards.length === 0;
+  }
+  return true;
 }
 
 // does some node in `reassignmentNodes` provably overwrite a `var` / `let` alias on EVERY path
@@ -773,6 +798,29 @@ export function reachingReassignmentValueNode({ binding, usagePath }) {
   const last = before.reduce((a, b) => b.start > a.start ? b : a);
   if (collectVarGuardsToDeclarator(owner.node, last).length) return null;
   return reassignmentRhs(last, owner.node);
+}
+
+// every plain-`=` reassignment RHS value node of a `var` / `let` alias that can REACH `usagePath` -
+// the usage-global UNION source. a conditionally reassigned receiver / computed-key (`if (c) M =
+// Array`) can hold any of these at the use, and over-inject-safe global mode emits a polyfill for
+// each (the declarator-init is the caller's primary candidate, resolved separately). a write
+// strictly AFTER the use can't change the value read there (`Array[K](); K = 'of'` still reads
+// 'from'), so it is excluded - unless the use sits in a loop body whose back-edge re-runs it after
+// the write. skips non-plain writes (`x++`, `x += y`, for-x head) whose value isn't a simple
+// replacement, and the loop-reinit declarator-self. the use's own var-scope owner locates each
+// `name = <expr>` for adapters that record the LHS Identifier
+export function reassignmentValueNodes({ binding, usagePath }) {
+  if (!usagePath || !binding?.constantViolations?.length) return [];
+  const owner = findNearestVarScopeOwner(usagePath);
+  if (!owner) return [];
+  const useInLoop = nodeSitsInLoopBodyWithin(owner.node, usagePath.node);
+  const out = [];
+  for (const node of reassignmentNodesBeyondDeclarator(binding)) {
+    if (!useInLoop && usagePrecedesNode(usagePath, node)) continue;
+    const rhs = reassignmentRhs(node, owner.node);
+    if (rhs) out.push(rhs);
+  }
+  return out;
 }
 
 // a constantViolation entry is a babel NodePath (carries `.node`) from the babel adapter but a raw
@@ -1193,11 +1241,7 @@ export function peelToExpressionStatement(startPath) {
 // for-await-of fall under separate branches (covered in `isMemberMutationContext`).
 // for-await-of shares the ForOfStatement type with `await: true` flag - the predicate
 // captures it implicitly via the type check
-const WRITE_LEFT_SLOT_TYPES = new Set([
-  'AssignmentPattern',
-  'ForOfStatement',
-  'ForInStatement',
-]);
+const WRITE_LEFT_SLOT_TYPES = new Set(['AssignmentPattern', ...FOR_X_STATEMENT_TYPES]);
 
 // MemberExpression in a position where the prototype-method polyfill can be skipped because
 // the receiver method is never read at runtime: pure assignment (`obj.at = v`), destructure-LHS
@@ -2103,7 +2147,7 @@ export function isInUpdateOperand(parentPath) {
 // binds a fresh name and never reaches here as a global reference
 export function isForXHeadAssignTarget(path) {
   const parent = path?.parentPath?.node;
-  return (parent?.type === 'ForOfStatement' || parent?.type === 'ForInStatement') && parent.left === path.node;
+  return isForXStatement(parent) && parent.left === path.node;
 }
 
 // usage-pure: a global at an assignment / for-x-head LHS cannot be rewritten to a frozen
@@ -2352,7 +2396,7 @@ export function isForXWriteTarget(path) {
     // guard `for (obj.x of arr) { function nested() { obj.x } }` would false-positive
     // mark inner reads as part of the for-write set (different lexical scope)
     if (FUNCTION_LIKE_NODE_TYPES.has(parent.type)) return false;
-    if (parent.type !== 'ForOfStatement' && parent.type !== 'ForInStatement') continue;
+    if (!isForXStatement(parent)) continue;
     const writes = getForXWrites(parent.left);
     if (writes.some(m => m === node || memberShapeEqual(m, node))) return true;
   }
