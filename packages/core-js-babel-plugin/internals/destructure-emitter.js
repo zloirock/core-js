@@ -159,7 +159,6 @@ export default function createDestructureEmitter({
     if (!sharedCanTransformDestructuring({
       parentType: parent?.node?.type,
       parentInit: parent?.node?.init,
-      grandParentType: parent?.parentPath?.parentPath?.node?.type,
     })) return false;
     if (parent?.isAssignmentExpression()) {
       // walk past Paren / TS wrappers between Assignment and its ExpressionStatement host.
@@ -213,10 +212,15 @@ export default function createDestructureEmitter({
   // (polyfill id is always defined) but stays syntactically intact in the output
   function handleParameterDestructure({ prop, kind, entry, hintName }) {
     if (kind === 'instance') return;
-    if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
     if (!isIdentifierPropValue(prop.node.value)) return;
     const objectPattern = prop.parentPath;
-    const targetPath = isSynthSimpleObjectPattern(objectPattern.node)
+    // synth-swap keys by `prop.node.key.name`, so it only fits a plain Identifier key. a computed key
+    // resolved to a static (`{ [k]: of } = Array`, k='of') or a non-Identifier (string-literal) key
+    // routes to the body-extract / inline-default fallback below instead of bailing - that fallback
+    // binds via `prop.node.value` and keeps the key text intact (matching unplugin; babel's
+    // declarator / assignment forms already resolve a computed key, so the param-only bail under-injected)
+    const synthKey = !prop.node.computed && t.isIdentifier(prop.node.key);
+    const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
       // synth-swap bailed (computed key / non-Identifier shape sibling) - try body-extract
