@@ -285,6 +285,30 @@ export function createClassObjectMember({
     return null;
   }
 
+  // a callable field's CALL return follows its DECLARED signature when annotated, not the init
+  // function body alone: `make: () => number[] | string` yields the folded union return, so a
+  // reassignment to a different-family function (which TS permits only under such a union) leaks
+  // no init-body narrowing. returns the folded return type, `null` to bail (union spanning
+  // differing polyfill families -> ambiguous), or `undefined` when there's no function-type
+  // annotation to read (caller falls back to inferring from the init body)
+  function declaredCallableReturn(annotationNode, scope) {
+    const fnType = annotationNode && unwrapTypeAnnotation(annotationNode);
+    if (fnType?.type !== 'TSFunctionType' && fnType?.type !== 'TSConstructorType') return undefined;
+    // babel stores the function-type return on `.typeAnnotation`, oxc/ESTree on `.returnType`
+    const retAnno = fnType.typeAnnotation ?? fnType.returnType;
+    const ret = retAnno && unwrapTypeAnnotation(retAnno);
+    if (!ret) return undefined;
+    if (ret.type !== 'TSUnionType') return resolveTypeAnnotation(ret, scope);
+    let folded = null;
+    for (const branch of ret.types) {
+      const resolved = resolveTypeAnnotation(branch, scope);
+      if (!resolved) return null;
+      folded = folded ? commonType(folded, resolved) : resolved;
+      if (!folded) return null;
+    }
+    return folded;
+  }
+
   function resolveClassMemberNode(member, callPath, classSubst) {
     const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
     // bodyless method (ambient `declare class` / `abstract`) - no body, only the return-type
@@ -305,6 +329,12 @@ export function createClassObjectMember({
         // and degrades `_atMaybeArray` to generic `_at`)
         return resolveReturnType(declaredReturnPath, callPath, classSubst);
       } else if (isPropertyMember(member.node)) {
+        // resolve the CALL return from the declared signature when annotated (folds a union return
+        // across families); only an un-annotated field falls back to inferring from the init body
+        if (member.node.typeAnnotation) {
+          const declared = declaredCallableReturn(classSubstInner(member.node.typeAnnotation, classSubst), member.scope);
+          if (declared !== undefined) return declared;
+        }
         const value = resolveRuntimeExpression(member.get('value'));
         if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath, classSubst);
       }
