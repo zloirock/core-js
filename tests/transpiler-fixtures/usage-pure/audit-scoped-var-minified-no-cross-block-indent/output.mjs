@@ -5,7 +5,7 @@ import _at from "@core-js/pure/actual/instance/at";
 // indent (`  nextLine` belongs to a sibling scope, not this body)
 function probe(arr) {
   var _ref;
-  return new (null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref()))(0);
+  return new (null == (_ref = _flatMaybeArray(arr)) ? void 0 : _at(_ref.call(arr)))(0);
 }
 function nextLine() {}
 export { probe, nextLine };
