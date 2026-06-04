@@ -74,7 +74,9 @@ export function createClosureAnalysis({
 
   // classify a closure-binding-name reference's contribution to temporal-flow bounding:
   //   null         - declaration site or alias-creation (no temporal contribution)
-  //   'call'       - direct method call `<name>.<X>(...)` - extends call bound to ctx.start
+  //   'call'       - direct method call `<name>.<X>(...)` - extends call bound to the call's
+  //                  END (post-args position): arguments evaluate before the method body runs,
+  //                  so a write nested in the bounding call's own arg list is still observed
   //   'write'      - assignment / update on `<name>.<X>` - external write, fold separately
   //   'extraction' - any other use (`f(name)`, `name.X.Y`, `name.X.bind(...)`, ...) - the
   //                  binding's value escapes, deferred invocation can happen at any time
@@ -107,7 +109,7 @@ export function createClosureAnalysis({
       for (let fp = p.parentPath; fp && !t.isProgram(fp.node); fp = fp.parentPath) {
         if (t.isFunction(fp.node)) return { kind: 'extraction' };
       }
-      return { kind: 'call', start: ctx.start };
+      return { kind: 'call', end: ctx.end };
     }
     if (ctx?.type === 'AssignmentExpression' && ctx.operator === '='
       && unwrapRuntimeExpr(ctx.left) === memberNode) return { kind: 'write' };
@@ -140,9 +142,9 @@ export function createClosureAnalysis({
           const ctx = entry.path.parentPath?.parent;
           if (ctx?.type !== 'CallExpression' && ctx?.type !== 'OptionalCallExpression') continue;
           if (ctx.callee !== entry.path.parent) continue;
-          let starts = newCallsByName.get(name);
-          if (!starts) newCallsByName.set(name, starts = []);
-          starts.push(ctx.start);
+          let ends = newCallsByName.get(name);
+          if (!ends) newCallsByName.set(name, ends = []);
+          ends.push(ctx.end);
         }
       }
       return { classifiedByBinding, newCallsByName };
@@ -154,23 +156,23 @@ export function createClosureAnalysis({
   // every observable invocation, so they cannot be observed at any call site of any method
   // on the closure. returns:
   //   `Infinity` - method extraction detected; deferred invocation can happen any time
-  //   numeric    - latest start of `<closure-name>.<X>(...)` direct call expression
+  //   numeric    - latest END of `<closure-name>.<X>(...)` direct call expression
   //   `-Infinity` - no calls AND no extractions: closure methods are never invoked
   // shared between object-literal and class-instance closures. cached by closure Map identity
   let closureTemporalBoundCache = new WeakMap();
   function getClosureTemporalBound(closure, programPath) {
     return memoize(closureTemporalBoundCache, closure, () => {
       const { classifiedByBinding } = buildProgramClosureIndex(programPath);
-      let latestCallStart = -Infinity;
+      let latestCallEnd = -Infinity;
       for (const binding of closure.keys()) {
         const refs = classifiedByBinding.get(binding);
         if (!refs) continue;
         for (const cls of refs) {
           if (cls.kind === 'extraction') return Infinity;
-          if (cls.start > latestCallStart) latestCallStart = cls.start;
+          if (cls.end > latestCallEnd) latestCallEnd = cls.end;
         }
       }
-      return latestCallStart;
+      return latestCallEnd;
     });
   }
 
@@ -186,13 +188,13 @@ export function createClosureAnalysis({
       const base = getClosureTemporalBound(closure, programPath);
       if (base === Infinity) return Infinity;
       const { newCallsByName } = buildProgramClosureIndex(programPath);
-      let latestCallStart = base;
+      let latestCallEnd = base;
       for (const name of classNames) {
-        const starts = newCallsByName.get(name);
-        if (!starts) continue;
-        for (const start of starts) if (start > latestCallStart) latestCallStart = start;
+        const ends = newCallsByName.get(name);
+        if (!ends) continue;
+        for (const end of ends) if (end > latestCallEnd) latestCallEnd = end;
       }
-      return latestCallStart;
+      return latestCallEnd;
     });
   }
 

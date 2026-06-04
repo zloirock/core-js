@@ -49,13 +49,22 @@ export function createTypeQuery({
   buildCallSiteSubst,
   functionTypeReturnAnnotation,
 }) {
+  // `typeof name` resolves `name` in the VALUE namespace. an enum contributes a value, but a
+  // lexically-nearer const/let/var of the same name shadows an outer enum. the enum is the
+  // nearest value declaration only when there's no value binding, OR the enum sits BELOW the
+  // binding's scope - searching up from the binding's scope then no longer reaches it
+  function enumIsNearestValue(name, scope, bindingPath) {
+    if (!findEnumDeclaration(name, scope)) return false;
+    return !bindingPath || !findEnumDeclaration(name, bindingPath.scope);
+  }
+
   // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
   function resolveTypeofBinding(name, scope) {
-    // `typeof Enum` (alone in annotation) - enum's runtime value is the enum object itself.
-    // TSEnumDeclaration has no typeAnnotation slot so the bindingPath walk below returns null;
-    // treat it as $Object('Object') so downstream member inference uses the enum as a receiver
-    if (findEnumDeclaration(name, scope)) return new $Object('Object');
     const bindingPath = constantBindingPath(name, scope);
+    // `typeof Enum` (alone in annotation) - enum's runtime value is the enum object itself.
+    // TSEnumDeclaration has no typeAnnotation slot, so treat it as $Object('Object') for
+    // downstream member inference - but only when a nearer value binding doesn't shadow it
+    if (enumIsNearestValue(name, scope, bindingPath)) return new $Object('Object');
     if (!bindingPath) return null;
     if (t.isVariableDeclarator(bindingPath.node)) {
       const annotation = bindingPath.node.id?.typeAnnotation;
@@ -76,15 +85,12 @@ export function createTypeQuery({
   // declarations dispatch to `resolveClassMember` for the (single-step) static member case;
   // other shapes fall through to the binding's type annotation
   function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
-    // `typeof Enum.Member` - TSEnumDeclaration has no typeAnnotation and its bindingPath
-    // fallthrough returns null. look it up via findEnumDeclaration and map the member to
-    // the enum's value kind ($Primitive('string'|'number'))
-    if (memberPath.length === 1) {
-      const enumDecl = findEnumDeclaration(objectName, scope);
-      if (enumDecl) {
-        const type = resolveEnumMemberType(enumDecl, memberPath[0]);
-        if (type) return type;
-      }
+    const bindingPath = constantBindingPath(objectName, scope);
+    // `typeof Enum.Member` - map the member to the enum's value kind ($Primitive('string'|
+    // 'number')), but only when a nearer value binding doesn't shadow the enum head
+    if (memberPath.length === 1 && enumIsNearestValue(objectName, scope, bindingPath)) {
+      const type = resolveEnumMemberType(findEnumDeclaration(objectName, scope), memberPath[0]);
+      if (type) return type;
     } else if (memberPath.length > 1) {
       // namespaced `typeof NS.E.Member` - traverse namespace segments to the enum decl
       // then map the trailing segment as enum member. `findDeclPathBySegments` returns
@@ -96,7 +102,6 @@ export function createTypeQuery({
         if (type) return type;
       }
     }
-    const bindingPath = constantBindingPath(objectName, scope);
     if (!bindingPath || !memberPath.length) return null;
     const initPath = t.isVariableDeclarator(bindingPath.node) ? bindingPath.get('init')
       : t.isClassDeclaration(bindingPath.node) ? bindingPath : null;
