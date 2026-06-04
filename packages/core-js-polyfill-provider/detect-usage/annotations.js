@@ -259,7 +259,15 @@ export function isPolyfillableOptional({ node, scope, adapter, resolve, path }) 
   const obj = unwrapRuntimeExpr(unwrapParens(member.object));
   if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name, path)) return false;
   if (resolve({ kind: 'global', name: obj.name })) return true;
-  const key = !member.computed && member.property?.type === 'Identifier' && member.property.name;
+  // a static-string computed key (`Array["from"]`) resolves to the same static as the dotted
+  // form (`Array.from`), so the optional callee is equally always-defined post-rewrite. without
+  // recognising it, the instance-method transform claims the `?.` and deopts it, colliding with
+  // the static visitor's `?.`-absorbing rewrite range and crashing the compose. a dynamic key
+  // (`Array[k]`) stays unresolved -> false (correct: the static visitor never collapses it)
+  const prop = member.property;
+  const key = member.computed
+    ? ((prop?.type === 'Literal' || prop?.type === 'StringLiteral') && typeof prop.value === 'string' && prop.value)
+    : (prop?.type === 'Identifier' && prop.name);
   const resolved = key && resolve({ kind: 'property', object: obj.name, key, placement: 'static' });
   return resolved?.kind === 'static' || resolved?.kind === 'global';
 }

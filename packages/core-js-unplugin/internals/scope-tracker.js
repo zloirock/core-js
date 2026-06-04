@@ -5,7 +5,7 @@
 // block body / program). callers that emit their own `const X = Y` (e.g. memo decls inside
 // destructure parts) go straight to `injector.generateLocalRef` with `hoisted: false` to
 // avoid a duplicate bare `var X;`
-import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
+import { isBodylessStatementSlot, isLoopStatement } from '@core-js/polyfill-provider/destructure-host-shape';
 import { skipDirectivePrologue, varScopeAnchor } from './plugin-helpers.js';
 
 // arrow expression body wraps to `{ var ...; return expr; }` (host is Expression);
@@ -116,6 +116,12 @@ export default class ScopeTracker {
       // hoisting to the enclosing function would visually divorce the ref from its uses
       // and diverge from babel-plugin's per-block wrap
       if (prev.node.type !== 'BlockStatement' && isBodylessStatementSlot(p.node, prev.node)) {
+        // a labeled loop must keep its label ON the loop: wrapping it in a memo block
+        // (`lab: { var _ref; <loop> }`) makes the label name the block, so a `continue <label>`
+        // inside becomes an illegal continue (V8 rejects it; the oxc runner does not). skip the
+        // wrap and let the memo hoist to the enclosing scope before the LabeledStatement, keeping
+        // the label on the loop. a labeled non-loop (`lab: expr;`) can still wrap safely
+        if (p.node.type === 'LabeledStatement' && isLoopStatement(prev.node)) continue;
         this.bodyWrap ??= { body: prev.node, kind: WRAP_KIND_STMT };
         continue;
       }
