@@ -27,6 +27,7 @@ import {
   peelParenAndTSParentPath,
   peelToExpressionStatement,
   propBindingIdentifier,
+  reassignmentBlocksGlobalResolve,
   resolveFallbackReceiver,
   TS_EXPR_WRAPPERS,
   unwrapExpressionChain,
@@ -599,31 +600,217 @@ export function createDestructureEmitter({
     }
   }
 
-  // render the instance/static-method rewrite (`{ at } = getArr()` -> `at = _at(getArr())`) for a
-  // flatten-shared destructure sibling, as decl bodies the flatten emits like its own extractions.
-  // the byStatement emit skipped this declarator (its whole-declaration overwrite would collide
-  // with the flatten's), so without this the sibling renders verbatim and its polyfill is lost.
-  // scoped to the simple shape: complex shapes (rest, residual props, defaults, computed /
-  // symbol-key entries, multiple instance receivers needing a memo, or an instance receiver that
-  // references a polyfillable global) return null and fall back to the verbatim render
+  // the global name a substitution decision must shadow-check: the proxy-global root
+  // (`globalThis` in `globalThis.Array`) when present, else a bare global identifier. a
+  // local binding of that name (`function f(globalThis) {}` param, a `let`/`const`) means
+  // the reference is NOT the global, so the pure rewrite must bail - matching the
+  // main-visitor shadow gate babel honors. position-anchored at the declarator/assignment
+  function globalSubstitutionShadowed(info, node) {
+    // the live estree-toolkit scope rides on the declarator path; `scopeSnapshot` is the
+    // scope-tracker frame (genRef plumbing) and exposes no binding lookup
+    const anchorPath = info.declaratorPath;
+    const scope = anchorPath?.scope;
+    if (!scope) return false;
+    const proxyRoot = findProxyGlobal(node);
+    const name = proxyRoot ? proxyRoot.name : node.type === 'Identifier' ? node.name : null;
+    return name !== null && estreeAdapter.hasBinding(scope, name, anchorPath);
+  }
+
+  // polyfill each operand of a retained `||` / `??` / `&&` init in place, so neither side
+  // ReferenceErrors on old engines: `globalThis.Array || Set` -> `_globalThis.Array || _Set`.
+  // bare-global operand -> pure import; proxy-global member chain -> root substitution (keeps
+  // the `_globalThis.Array` member shape, matching babel's in-place per-operand rewrite);
+  // nested logical -> recurse; any other operand keeps its verbatim source. returns the
+  // reassembled init source, or null when no operand referenced a polyfillable global
+  function polyfillLogicalInitOperands(node, src, baseStart, info) {
+    let any = false;
+    const renderOperand = operand => {
+      const peeled = unwrapParens(operand);
+      const rawSrc = src.slice(operand.start - baseStart, operand.end - baseStart);
+      let out = null;
+      if (peeled.type === 'LogicalExpression') {
+        out = polyfillLogicalInitOperands(peeled, src, baseStart, info);
+      } else if (!globalSubstitutionShadowed(info, peeled)) {
+        // a shadowed proxy-root / bare global is the user's own binding, not the global
+        if (peeled.type === 'Identifier') {
+          const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
+          if (pure) out = injectPureImport(pure.entry, pure.hintName);
+        } else if (findProxyGlobal(peeled)) {
+          out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start });
+        }
+      }
+      if (out === null) return rawSrc;
+      any = true;
+      return out;
+    };
+    const leftSrc = renderOperand(node.left);
+    const rightSrc = renderOperand(node.right);
+    if (!any) return null;
+    // the operator + surrounding whitespace between the two operands, verbatim
+    const between = src.slice(node.left.end - baseStart, node.right.start - baseStart);
+    return leftSrc + between + rightSrc;
+  }
+
+  // when the init expression is retained in emitted output (instance dispatch receiver / rest
+  // objRef / flatten-sibling receiver), polyfill any global identifiers it references so older
+  // engines don't ReferenceError. cases: whole chain resolves to a known polyfillable global
+  // (`globalThis.Array` -> `_Array`); proxy-global root with unknown leaf (`globalThis.unknownArr`
+  // -> root-only swap, chain tail survives for instance dispatch); logical operands via the helper
+  // above. ternary inits are handled by the per-branch synth-swap path, not here. returns the
+  // polyfilled init source or null when no substitution applies
+  function polyfillInitGlobals(info) {
+    const initNode = unwrapParens(info.initNode);
+    if (initNode.type === 'LogicalExpression' && info.initStart !== undefined) {
+      return polyfillLogicalInitOperands(initNode, info.initSrc, info.initStart, info);
+    }
+    // a shadowed proxy-root / bare global is the user's own binding, not the global
+    if (globalSubstitutionShadowed(info, initNode)) return null;
+    const leafName = info.initIdentName || globalProxyMemberName({ node: initNode });
+    if (leafName) {
+      const leafPolyfill = resolvePure({ kind: 'global', name: leafName }, null);
+      if (leafPolyfill) return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
+    }
+    if (info.initStart === undefined) return null;
+    return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart });
+  }
+
+  // FOR-INIT-only renderer for a flatten-shared destructure sibling: a for-init's single comma-list
+  // can't host the separate memo / SE statements emitPolyfilled emits, so the comma-joined declarator
+  // form is rendered directly here (`{ at } = getArr()` -> `at = _at(getArr())`). handles single-receiver
+  // shapes incl. defaults (`{ at = d }`) and a retained receiver referencing a polyfillable global
+  // (`{ values } = globalThis.navigator`). returns null for shapes needing the memo/residual/rest
+  // machinery (rest, residual props, computed / symbol-key entries, multiple instance receivers) - a
+  // for-init sibling of that shape stays verbatim (vanishingly rare). block-level siblings skip this
+  // entirely and go through the full emitPolyfilled (single emit path for every block-level shape)
   function renderFlattenSiblingDecls(info, drainedRefs) {
-    const { entries, allProps, initSrc, initNode, initIdentName } = info;
+    const { entries, allProps, initSrc, initNode } = info;
     if (!entries.length) return null;
     const consumed = new Set(entries.map(e => e.propNode));
     if (allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
     if (allProps.some(p => !consumed.has(p))) return null;
-    if (entries.some(e => e.defaultSrc || e.kind === 'symbol-key' || e.propNode.computed)) return null;
+    if (entries.some(e => e.kind === 'symbol-key' || e.propNode.computed)) return null;
     const instanceEntries = entries.filter(e => e.kind === 'instance');
     if (instanceEntries.length > 1) return null;
-    // an instance entry keeps the receiver verbatim; bail if it references a polyfillable global
-    // (would need in-place root substitution we don't do here, risking a bare global on old engines)
-    if (instanceEntries.length && (initIdentName || globalProxyMemberName({ node: unwrapParens(initNode) }))) return null;
     // bake the scope-tracker body-wrap (`var _ref;`, drained from the init's IIFE arrow body)
     // into the receiver text so the instance rewrite's `_ref` use stays declared - the
     // byStatement overwrite this render replaces would have composed it, but the per-declarator
     // drain pulled it out (to keep it off the parent overwrite range), so re-bake it here
-    const receiverSrc = drainedRefs?.length ? spliceInRange(initSrc, initNode.start, drainedRefs) : initSrc;
-    return entries.map(e => `${ e.localName } = ${ e.kind === 'instance' ? `${ e.binding }(${ receiverSrc })` : e.binding }`);
+    let receiverSrc = drainedRefs?.length ? spliceInRange(initSrc, initNode.start, drainedRefs) : initSrc;
+    // a retained instance receiver referencing a polyfillable global (`globalThis.navigator`) needs
+    // its proxy-root substituted in place - markInitGlobals suppressed the natural visitor on non-SE
+    // inits, so a bare global would leak. gating on `!mayHaveSideEffects` matches that suppression:
+    // SE inits keep the IIFE-body splice baked above and let the natural visitor polyfill their globals
+    if (instanceEntries.length && !mayHaveSideEffects(initNode)) {
+      receiverSrc = polyfillInitGlobals(info) ?? receiverSrc;
+    }
+    return entries.map(e => {
+      const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ receiverSrc })` : e.binding;
+      if (!e.defaultSrc) return `${ e.localName } = ${ valueSrc }`;
+      // memo an instance receiver so the default-guard doesn't evaluate `_at(recv)` twice
+      const ref = e.kind === 'instance' ? scopeTracker.genRef(info.scopeSnapshot) : null;
+      return `${ e.localName } = ${ defaultGuardedRhs({ valueSrc, defaultSrc: e.defaultSrc, ref }) }`;
+    });
+  }
+
+  function propKeySource(p) {
+    return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
+  }
+
+  // render one destructure declarator's polyfilled binding-assignment `parts` (memo + per-entry
+  // rewrites + residual/rest pattern). drives both the byStatement block/for-init emit (via `ctx`
+  // carrying the `const `/`export ` prefixes) and the flatten-sibling fallback (empty prefixes ->
+  // bare `lhs = rhs` parts that renderBlockStatements re-prefixes). `preDrainedSplices`, when given,
+  // supplies the init's already-consumed body-wrap/insert splices (the flatten path drains per
+  // declarator up front) instead of re-draining the queue here
+  function emitPolyfilled(info, parts, forInitSESinks, ctx, preDrainedSplices = null) {
+    const { stmtPrefix, memoPrefix, isForInit, isAssignment } = ctx;
+    const { entries, allProps, initSrc, initStart, initEnd, scopeSnapshot } = info;
+    let initTransformed = (initStart !== undefined && initEnd !== undefined
+        ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
+    // bake `var _ref;` ref-bindings AND point-inserts anchored inside [initStart, initEnd)
+    // into the lifted init text so the replaceNode-spanning overwrite below stays queue-safe.
+    // both arise during sibling traversal: inner instance-method polyfills (`[1].at(0)` in an
+    // IIFE-bodied init) seed the ref-binding, a catch-clause prelude seeds the insert. left in
+    // the queue either lands inside our overwrite and MagicString rejects the chunk split.
+    // ONLY when the init renders from its RAW source (no split was extracted): position-aligned
+    // spliceInRange maps these original-coord splices into the verbatim slice. when extraction
+    // already returned COMPOSED split text the coords no longer align - leave them in their
+    // queues so applyTransforms re-adds body-wraps as range overwrites that fold into our
+    // statement overwrite by needle (the split text embeds the raw arg), just like the nested
+    // instance-method polyfill. baking here would mis-map; draining-then-discarding would drop it
+    if (initStart !== undefined && initEnd !== undefined && initTransformed === initSrc) {
+      const splices = preDrainedSplices?.length ? preDrainedSplices : consumeRefsAndInserts(initStart, initEnd);
+      if (splices.length) {
+        initTransformed = spliceInRange(initSrc, initStart, splices);
+      }
+    }
+    for (const e of entries) {
+      if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
+    }
+    const polyfillKeys = new Set(entries.map(e => e.propNode));
+    const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
+    const remaining = allProps.filter(p => !polyfillKeys.has(p));
+    const hasInstance = entries.some(e => e.kind === 'instance');
+    // gate global-identifier substitution on init-being-used to avoid emitting unused
+    // proxy-global imports for the all-bindings-discarded case (`const { from } = globalThis`)
+    const initIsUsed = remaining.length > 0 || hasRest || hasInstance;
+    if (initIsUsed && initTransformed === initSrc) {
+      const polyfilled = polyfillInitGlobals(info);
+      if (polyfilled !== null) initTransformed = polyfilled;
+    }
+    // memo the receiver for multi-use instance entries unless the SUBSTITUTED init is already a bare
+    // binding: a lone identifier (`_Array`, `_globalThis`, a user var) is free to re-reference, but a
+    // member chain (`_globalThis.navigator`, the proxy-root-swap of a non-polyfillable leaf) or a call
+    // would be re-evaluated once per entry - memo it to a single `_ref`, matching babel's receiver memo
+    const initIsBareRef = !!initTransformed && !/[^\w$]/.test(initTransformed);
+    const needsMemo = hasInstance && !initIsBareRef && (entries.length > 1 || remaining.length > 0 || hasRest);
+    let objRef = initTransformed;
+    if (needsMemo && initTransformed) {
+      objRef = injector.generateLocalRef();
+      parts.push(`${ memoPrefix }${ objRef } = ${ initTransformed }`);
+    }
+
+    // lift the static-init SE so its evaluation point survives extraction. non-for-init
+    // hosts inline the SE at this declarator's slot in `parts` so sibling evaluation
+    // order (pre-sibling -> SE -> extracted -> post-sibling) is preserved. for-init
+    // can't host statement-level SE (the whole declaration is one comma-list), so the
+    // SE is wrapped as `_unused = SE` and routed through `forInitSESinks` to be
+    // prepended into the comma-list by the outer drain
+    const liftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
+        && mayHaveSideEffects(info.initNode);
+    if (liftSE) {
+      if (isForInit) forInitSESinks.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
+      else parts.push(initTransformed);
+    }
+
+    for (const e of entries) {
+      const isInstance = e.kind === 'instance' && initSrc;
+      const valueSrc = isInstance ? `${ e.binding }(${ objRef })` : e.binding;
+      if (e.defaultSrc) {
+        let ref = null;
+        if (isInstance) ref = scopeTracker.genRef(scopeSnapshot);
+        // raw `e.defaultSrc` here (not composed): the parts text stays the original-source
+        // needle `#substituteInners` splices any default-expr polyfill into
+        parts.push(`${ stmtPrefix }${ e.localName } = ${ defaultGuardedRhs({ valueSrc, defaultSrc: e.defaultSrc, ref }) }`);
+      } else {
+        parts.push(`${ stmtPrefix }${ e.localName } = ${ valueSrc }`);
+      }
+    }
+
+    const entryByProp = hasRest ? new Map(entries.map(e => [e.propNode, e])) : null;
+    const rebuiltProps = hasRest
+        ? allProps.map(p => {
+          const e = entryByProp.get(p);
+          if (!e) return nodeSrc(p);
+          const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : propKeySource(p);
+          return `${ keySrc }: ${ injector.generateUnusedName() }`;
+        })
+        : remaining.map(p => nodeSrc(p));
+    if (rebuiltProps.length > 0) {
+      parts.push(isAssignment
+          ? `({ ${ rebuiltProps.join(', ') } } = ${ objRef })`
+          : `${ stmtPrefix }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`);
+    }
   }
 
   // post-traverse render: dispatches on host shape. for-init folds extractions + SE-embedded
@@ -644,7 +831,23 @@ export function createDestructureEmitter({
       for (let i = 0; i < perDecl.length; i++) {
         if (perDecl[i].extractions.length) continue;
         const sibInfo = flattenSiblingInfos.get(declaration.declarations[i]);
-        const decls = sibInfo && renderFlattenSiblingDecls(sibInfo, perDecl[i].drainedRefs);
+        if (!sibInfo) continue;
+        let decls;
+        if (isForInit) {
+          // a for-init's single comma-list can't host the separate memo / SE statements emitPolyfilled
+          // emits, so the simple per-declarator render is the only safe path (complex for-init siblings
+          // that need a memo bail it and stay verbatim - vanishingly rare)
+          decls = renderFlattenSiblingDecls(sibInfo, perDecl[i].drainedRefs);
+        } else {
+          // block-level: the full byStatement emit covers every shape (simple + memo/residual/rest)
+          // so the sibling's polyfill survives instead of rendering verbatim. bare entry prefix
+          // (renderBlockStatements re-adds the declaration / export keyword), but a non-empty memoPrefix
+          // so the receiver-memo carries its own non-exported `const ` and stays out of any `export` list
+          const parts = [];
+          const siblingCtx = { stmtPrefix: '', memoPrefix: 'const ', isForInit: false, isAssignment: false };
+          emitPolyfilled(sibInfo, parts, [], siblingCtx, perDecl[i].drainedRefs);
+          if (parts.length) decls = parts;
+        }
         // drainedRefs already baked into the rendered extraction text -> clear so the
         // post-render bake doesn't try to re-apply them against the null preservedSrc
         if (decls) perDecl[i] = { extractions: decls.map(decl => ({ decl })), preservedSrc: null, receiver: null, drainedRefs: [] };
@@ -788,7 +991,11 @@ export function createDestructureEmitter({
         flushPreserveBuffer();
         const slotSEPrefixes = sePrefixesByIdx?.[i];
         if (slotSEPrefixes) for (const p of slotSEPrefixes) lines.push(`${ p };`);
-        for (const e of r.extractions) lines.push(`${ exportPrefix }${ kind } ${ e.decl };`);
+        // a sibling-fallback memo extraction carries its own `const ` keyword - an internal ref temp
+        // must stay out of the `export` list (mirrors babel's non-exported memo); emit it verbatim
+        for (const e of r.extractions) {
+          lines.push(/^(?:const|let|var) /.test(e.decl) ? `${ e.decl };` : `${ exportPrefix }${ kind } ${ e.decl };`);
+        }
       }
       if (r.preservedSrc !== null) preserveBuffer.push(r.preservedSrc);
     }
@@ -811,7 +1018,7 @@ export function createDestructureEmitter({
   // check will reject ambiguous shapes. when scope is passed, dereferences const-bound
   // Identifier init through its binding so `const wrapper = [Array]; const [{x}] = wrapper`
   // descends to the leaf via the wrapper's init
-  function peelArrayWrapperPair(pattern, initSource, scope = null) {
+  function peelArrayWrapperPair(pattern, initSource, scope = null, usePath = null) {
     const visited = new Set();
     for (;;) {
       // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
@@ -824,12 +1031,15 @@ export function createDestructureEmitter({
         return { pattern, initSource };
       }
       let effectiveInit = initSource;
-      // dereference const-bound Identifier (`= wrapper` where `const wrapper = [Array]`)
+      // dereference const-bound Identifier (`= wrapper` where `const wrapper = [Array]`).
+      // flow-sensitive bail mirrors the object-wrapper static-receiver walk: only a reassignment
+      // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
+      // value provably `[Array]`), instead of bailing on every constantViolation
       if (scope) {
         while (effectiveInit?.type === 'Identifier' && !visited.has(effectiveInit.name)) {
           visited.add(effectiveInit.name);
-          const binding = estreeAdapter.getBinding(scope, effectiveInit.name);
-          if (!binding || binding.constantViolations?.length) break;
+          const binding = estreeAdapter.getBinding(scope, effectiveInit.name, usePath);
+          if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter: estreeAdapter, path: usePath })) break;
           const bindingInit = binding.path?.node?.init ?? binding.node?.init;
           if (!bindingInit) break;
           effectiveInit = bindingInit;
@@ -855,7 +1065,7 @@ export function createDestructureEmitter({
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
     const originalId = declarator.id;
-    const { pattern, initSource } = peelArrayWrapperPair(originalId, declarator.init, scope);
+    const { pattern, initSource } = peelArrayWrapperPair(originalId, declarator.init, scope, usePath);
     const arrayPeelHappened = pattern !== originalId;
     if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
@@ -1615,7 +1825,10 @@ export function createDestructureEmitter({
     const bodyOpenAfter = skipDirectivePrologue(fnPath.node.body.body, fnPath.node.body.start + 1);
     const props = objectPattern.properties;
     if (hasRestSiblingExcept(props, propNode)) {
-      transforms.add(propNode.start, propNode.end, `${ propNode.key.name }: ${ injector.generateUnusedName() }`);
+      // keep a computed consumed key in bracket form (`[k]`, not `k`) so the `...rest` exclusion set
+      // still excludes the resolved property, not a literal-`k` one (mirror tryExtractArrayWrappedStaticPure)
+      const keySrc = propNode.computed ? `[${ nodeSrc(propNode.key) }]` : propNode.key.name;
+      transforms.add(propNode.start, propNode.end, `${ keySrc }: ${ injector.generateUnusedName() }`);
     } else if (!removeBodyExtractedParamProp(objectPattern, props, propNode)) {
       return false;
     }
@@ -1705,10 +1918,13 @@ export function createDestructureEmitter({
       return handleParameterDestructurePure(meta, metaPath, propNode);
     }
     // transparent wrap between ObjectPattern and host (ArrayPattern / AssignmentPattern):
-    // no outer Property to inline default on, so flatten-or-bail. tryFlattenNestedProxy
-    // walks the same wrappers internally via the shared intermediate set
+    // no outer Property to inline default on, so flatten-or-bail. tryFlattenNestedProxy handles a
+    // VariableDeclaration host; tryFlattenAssignmentExpression handles an AssignmentExpression host
+    // (`[{ from }] = [Array]`) - without it the single-element array-wrap assignment renders verbatim
+    // and silently drops the static polyfill. both walk the same wrappers via the shared intermediate set
     if (directParent?.node !== outerHost?.node) {
       if (tryFlattenNestedProxy(metaPath)) return;
+      if (tryFlattenAssignmentExpression(metaPath)) return;
       return;
     }
     if (propNode.value?.type === 'Identifier'
@@ -2098,184 +2314,19 @@ export function createDestructureEmitter({
       const stmtPrefix = isForInit ? '' : `${ prefix }${ keyword }`;
       const memoPrefix = isForInit ? '' : 'const ';
 
-      function propKeySource(p) {
-        return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
-      }
-
-      // when the init expression is retained in emitPolyfilled output (instance dispatch
-      // receiver / rest objRef), polyfill any global identifiers it references so older
-      // engines don't ReferenceError. two cases handled:
-      //   1. whole chain resolves to a known polyfillable global (`globalThis.Array`) -
-      //      replace entire init with the polyfill binding (`_Array`)
-      //   2. proxy-global root with unknown leaf (`globalThis.unknownArr`) - replace just
-      //      the root identifier in-place via byte-precise slice so the rest of the chain
-      //      text (`.unknownArr`) survives for instance dispatch
-      // returns the polyfilled init source or null when no substitution applies
-      // polyfill each operand of a retained `||` / `??` / `&&` init in place, so neither side
-      // ReferenceErrors on old engines: `globalThis.Array || Set` -> `_globalThis.Array || _Set`.
-      // bare-global operand -> pure import; proxy-global member chain -> root substitution (keeps
-      // the `_globalThis.Array` member shape, matching babel's in-place per-operand rewrite);
-      // nested logical -> recurse; any other operand keeps its verbatim source. returns the
-      // reassembled init source, or null when no operand referenced a polyfillable global.
-      // ternary inits are handled by the per-branch synth-swap path, not here
-      // the global name a substitution decision must shadow-check: the proxy-global root
-      // (`globalThis` in `globalThis.Array`) when present, else a bare global identifier. a
-      // local binding of that name (`function f(globalThis) {}` param, a `let`/`const`) means
-      // the reference is NOT the global, so the pure rewrite must bail - matching the
-      // main-visitor shadow gate babel honors. position-anchored at the declarator/assignment
-      function globalSubstitutionShadowed(info, node) {
-        // the live estree-toolkit scope rides on the declarator path; `scopeSnapshot` is the
-        // scope-tracker frame (genRef plumbing) and exposes no binding lookup
-        const anchorPath = info.declaratorPath;
-        const scope = anchorPath?.scope;
-        if (!scope) return false;
-        const proxyRoot = findProxyGlobal(node);
-        const name = proxyRoot ? proxyRoot.name : node.type === 'Identifier' ? node.name : null;
-        return name !== null && estreeAdapter.hasBinding(scope, name, anchorPath);
-      }
-
-      function polyfillLogicalInitOperands(node, src, baseStart, info) {
-        let any = false;
-        const renderOperand = operand => {
-          const peeled = unwrapParens(operand);
-          const rawSrc = src.slice(operand.start - baseStart, operand.end - baseStart);
-          let out = null;
-          if (peeled.type === 'LogicalExpression') {
-            out = polyfillLogicalInitOperands(peeled, src, baseStart, info);
-          } else if (!globalSubstitutionShadowed(info, peeled)) {
-            // a shadowed proxy-root / bare global is the user's own binding, not the global
-            if (peeled.type === 'Identifier') {
-              const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
-              if (pure) out = injectPureImport(pure.entry, pure.hintName);
-            } else if (findProxyGlobal(peeled)) {
-              out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start });
-            }
-          }
-          if (out === null) return rawSrc;
-          any = true;
-          return out;
-        };
-        const leftSrc = renderOperand(node.left);
-        const rightSrc = renderOperand(node.right);
-        if (!any) return null;
-        // the operator + surrounding whitespace between the two operands, verbatim
-        const between = src.slice(node.left.end - baseStart, node.right.start - baseStart);
-        return leftSrc + between + rightSrc;
-      }
-
-      function polyfillInitGlobals(info) {
-        const initNode = unwrapParens(info.initNode);
-        if (initNode.type === 'LogicalExpression' && info.initStart !== undefined) {
-          return polyfillLogicalInitOperands(initNode, info.initSrc, info.initStart, info);
-        }
-        // a shadowed proxy-root / bare global is the user's own binding, not the global
-        if (globalSubstitutionShadowed(info, initNode)) return null;
-        const leafName = info.initIdentName || globalProxyMemberName({ node: initNode });
-        if (leafName) {
-          const leafPolyfill = resolvePure({ kind: 'global', name: leafName }, null);
-          if (leafPolyfill) return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
-        }
-        if (info.initStart === undefined) return null;
-        return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart });
-      }
-
-      function emitPolyfilled(info, parts, forInitSESinks) {
-        const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
-        let initTransformed = (initStart !== undefined && initEnd !== undefined
-            ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
-        // bake `var _ref;` ref-bindings AND point-inserts anchored inside [initStart, initEnd)
-        // into the lifted init text so the replaceNode-spanning overwrite below stays queue-safe.
-        // both arise during sibling traversal: inner instance-method polyfills (`[1].at(0)` in an
-        // IIFE-bodied init) seed the ref-binding, a catch-clause prelude seeds the insert. left in
-        // the queue either lands inside our overwrite and MagicString rejects the chunk split.
-        // ONLY when the init renders from its RAW source (no split was extracted): position-aligned
-        // spliceInRange maps these original-coord splices into the verbatim slice. when extraction
-        // already returned COMPOSED split text the coords no longer align - leave them in their
-        // queues so applyTransforms re-adds body-wraps as range overwrites that fold into our
-        // statement overwrite by needle (the split text embeds the raw arg), just like the nested
-        // instance-method polyfill. baking here would mis-map; draining-then-discarding would drop it
-        if (initStart !== undefined && initEnd !== undefined && initTransformed === initSrc) {
-          const splices = consumeRefsAndInserts(initStart, initEnd);
-          if (splices.length) {
-            initTransformed = spliceInRange(initSrc, initStart, splices);
-          }
-        }
-        for (const e of entries) {
-          if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
-        }
-        const polyfillKeys = new Set(entries.map(e => e.propNode));
-        const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
-        const remaining = allProps.filter(p => !polyfillKeys.has(p));
-        const hasInstance = entries.some(e => e.kind === 'instance');
-        const resolvedGlobalName = initIdentName || globalProxyMemberName({ node: unwrapParens(info.initNode) });
-        // gate global-identifier substitution on init-being-used to avoid emitting unused
-        // proxy-global imports for the all-bindings-discarded case (`const { from } = globalThis`)
-        const initIsUsed = remaining.length > 0 || hasRest || hasInstance;
-        if (initIsUsed && initTransformed === initSrc) {
-          const polyfilled = polyfillInitGlobals(info);
-          if (polyfilled !== null) initTransformed = polyfilled;
-        }
-        const needsMemo = hasInstance && !resolvedGlobalName && (entries.length > 1 || remaining.length > 0 || hasRest);
-        let objRef = initTransformed;
-        if (needsMemo && initTransformed) {
-          objRef = injector.generateLocalRef();
-          parts.push(`${ memoPrefix }${ objRef } = ${ initTransformed }`);
-        }
-
-        // lift the static-init SE so its evaluation point survives extraction. non-for-init
-        // hosts inline the SE at this declarator's slot in `parts` so sibling evaluation
-        // order (pre-sibling -> SE -> extracted -> post-sibling) is preserved. for-init
-        // can't host statement-level SE (the whole declaration is one comma-list), so the
-        // SE is wrapped as `_unused = SE` and routed through `forInitSESinks` to be
-        // prepended into the comma-list by the outer drain
-        const liftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
-            && mayHaveSideEffects(info.initNode);
-        if (liftSE) {
-          if (isForInit) forInitSESinks.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
-          else parts.push(initTransformed);
-        }
-
-        for (const e of entries) {
-          const isInstance = e.kind === 'instance' && initSrc;
-          const valueSrc = isInstance ? `${ e.binding }(${ objRef })` : e.binding;
-          if (e.defaultSrc) {
-            let ref = null;
-            if (isInstance) ref = scopeTracker.genRef(scopeSnapshot);
-            // raw `e.defaultSrc` here (not composed): the parts text stays the original-source
-            // needle `#substituteInners` splices any default-expr polyfill into
-            parts.push(`${ stmtPrefix }${ e.localName } = ${ defaultGuardedRhs({ valueSrc, defaultSrc: e.defaultSrc, ref }) }`);
-          } else {
-            parts.push(`${ stmtPrefix }${ e.localName } = ${ valueSrc }`);
-          }
-        }
-
-        const entryByProp = hasRest ? new Map(entries.map(e => [e.propNode, e])) : null;
-        const rebuiltProps = hasRest
-            ? allProps.map(p => {
-              const e = entryByProp.get(p);
-              if (!e) return nodeSrc(p);
-              const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : propKeySource(p);
-              return `${ keySrc }: ${ injector.generateUnusedName() }`;
-            })
-            : remaining.map(p => nodeSrc(p));
-        if (rebuiltProps.length > 0) {
-          parts.push(isAssignment
-              ? `({ ${ rebuiltProps.join(', ') } } = ${ objRef })`
-              : `${ stmtPrefix }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`);
-        }
-      }
+      const emitCtx = { stmtPrefix, memoPrefix, isForInit, isAssignment };
 
       const parts = [];
       // populated only when `isForInit` (the only path that can't inline SE at its slot);
       // outer drain prepends as synthesized `_unused = SE` declarators into the comma-list
       const forInitSESinks = [];
       if (isAssignment) {
-        for (const info of infos) emitPolyfilled(info, parts, forInitSESinks);
+        for (const info of infos) emitPolyfilled(info, parts, forInitSESinks, emitCtx);
       } else {
         const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
         for (const dec of declPath.node.declarations) {
           const info = polyfilledByDecl.get(dec);
-          if (info) emitPolyfilled(info, parts, forInitSESinks);
+          if (info) emitPolyfilled(info, parts, forInitSESinks, emitCtx);
           else parts.push(`${ stmtPrefix }${ nodeSrc(dec) }`);
         }
       }
