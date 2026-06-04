@@ -200,7 +200,7 @@ const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier
 // returns `{ binding, init, nextSeen }` on success, null on miss
 export function enterIdentifierBindingFollow({ node, scope, adapter, seen, path = null }) {
   if (seen?.has(node.name)) return null;
-  const binding = adapter.getBinding(scope, node.name);
+  const binding = adapter.getBinding(scope, node.name, path);
   // method-aware reassignment bail: usage-global keeps following a reassigned key/value
   // alias when the reassignment does not dominate the use; pure / narrowing keep the flat bail
   if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
@@ -464,11 +464,11 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
   if (callee.type === 'Identifier') {
     const { name } = callee;
     if (!adapter.hasBinding(scope, name, path) || seen.has(name)) return null;
-    const binding = adapter.getBinding(scope, name);
+    const binding = adapter.getBinding(scope, name, path);
     // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when
     // the binding's reassignment does not dominate the use (init still live); pure / narrowing bail
     if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
-    if (adapter.getBindingNodeType(scope, name) !== 'VariableDeclarator') return null;
+    if (adapter.getBindingNodeType(scope, name, path) !== 'VariableDeclarator') return null;
     const initNode = binding.node?.init;
     if (!initNode) return null;
     callee = unwrapParens(initNode);
@@ -587,7 +587,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       // the alias-follow bailed on a reassignment (declarator init dead at the use). resolve the key
       // from the value the use actually sees - the reaching definition (`K = 'of'` in
       // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
-      const binding = adapter.getBinding(scope, node.name);
+      const binding = adapter.getBinding(scope, node.name, path);
       const reaching = binding && isReassignedBeyondDeclarator(binding)
         ? reachingReassignmentValueNode({ binding, usagePath: path }) : null;
       if (reaching) return resolveKey({
