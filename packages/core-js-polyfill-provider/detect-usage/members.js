@@ -9,10 +9,12 @@ import {
   findProxyGlobal,
   inlineCallHasObservableEffects,
   inlineCallReturnExpression,
+  isCallShape,
   isStaticPlacement,
   isTransparentWrapper,
   MAX_KEY_DEPTH,
   peelChainAssignment,
+  peelChainAssignmentDeep,
   peelReceiverSequenceTail,
   resolveKey,
   resolveObjectName,
@@ -40,7 +42,21 @@ function findChainRootCallExpression(node) {
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     cur = unwrapParens(cur.object);
   }
-  return cur?.type === 'CallExpression' || cur?.type === 'OptionalCallExpression' ? cur : null;
+  return isCallShape(cur) ? cur : null;
+}
+
+// a static dispatch on a member-chain receiver collapses the WHOLE receiver into a single
+// polyfill call (`globalThis[(o.push(1), 'Array')].from(x)` -> `_Array$from(x)`), so any side
+// effect buried in the receiver's nested computed keys (or paren / sequence wrappers) would be
+// silently dropped. walk the chain object-first (source eval order) collecting those effects so
+// the emit's SequenceExpression wrap re-emits them once. instance dispatch memoizes the receiver
+// (`_ref = receiver`), preserving its source and side effects, so only the static path needs this
+function collectCollapsingReceiverEffects(node, effects) {
+  const peeled = unwrapParensCollectingEffects(node, effects);
+  if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
+    collectCollapsingReceiverEffects(peeled.object, effects);
+    if (peeled.computed) unwrapParensCollectingEffects(peeled.property, effects);
+  }
 }
 
 function buildMemberMeta({ node, scope, adapter, path }) {
@@ -60,10 +76,14 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   // don't chase a doomed key lookup
   if (!node.computed && node.property?.type === 'PrivateIdentifier') return null;
   // computed keys may arrive wrapped in TS constructs (`obj[(k) as any]`, `obj[k!]`) -
-  // resolveKey can't walk identifier-alias chain through a TS expression wrapper root
+  // resolveKey can't walk identifier-alias chain through a TS expression wrapper root.
+  // the outer key SE goes into a separate list so receiver-chain SE (collected below once the
+  // receiver classifies as a collapsing static) can be ordered before it - source eval runs the
+  // receiver, including its nested computed keys, before this property key
+  const keyEffects = [];
   const key = node.computed
     ? resolveKey({
-      node: unwrapParensCollectingEffects(node.property, sideEffects), computed: true, scope, adapter, path,
+      node: unwrapParensCollectingEffects(node.property, keyEffects), computed: true, scope, adapter, path,
     })
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
@@ -85,6 +105,9 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     }
     const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
     meta = { kind: 'property', object: objectName, key, placement };
+    // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
+    // (including these nested keys) via the preserved assignment - collecting here too double-runs it
+    if (placement === 'static' && !chainAssignOuter) collectCollapsingReceiverEffects(classifyTarget, sideEffects);
     // inline-resolved receiver call (`(() => Promise)()`, `f()` where `const f = () => Promise`)
     // carries through to the polyfill emit if the body block has a prefix expression statement
     // (`() => { calls++; return Promise; }`). without preserving the original call here, emit
@@ -108,6 +131,8 @@ function buildMemberMeta({ node, scope, adapter, path }) {
       }
     }
   }
+  // outer key SE runs after the receiver (including any nested key SE collected above)
+  sideEffects.push(...keyEffects);
   if (sideEffects.length) meta.sideEffects = sideEffects;
   return meta;
 }
@@ -211,8 +236,7 @@ export function resolveSymbolInEntry(key) {
 }
 
 export function resolveSymbolIteratorEntry(node, parent) {
-  const isCall = (parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
-    && parent.callee === node;
+  const isCall = isCallShape(parent) && parent.callee === node;
   return isCall && parent.arguments.length === 0 && !parent.optional ? 'get-iterator' : 'get-iterator-method';
 }
 
@@ -348,6 +372,13 @@ function markSubsumedProxyChain(node, handledObjects, scope, adapter, path) {
   if (current?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name)
     && !(adapter ? adapter.hasBinding(scope, current.name, path) : scope?.getBinding?.(current.name))) {
     handledObjects.add(current);
+  } else if (scope && adapter && isCallShape(current)) {
+    // IIFE-rooted proxy-global receiver (`(() => globalThis)().Symbol.iterator in obj`): the
+    // chain bottoms on a CallExpression that inlines to a proxy global. mark the call + its
+    // inner identifier so the inner visitor doesn't queue a parallel `globalThis -> _globalThis`
+    // rewrite overlapping the outer subsumption, the same way markHandledObjects treats an
+    // IIFE-rooted constructor chain. without it unplugin's text-emit crashes the compose
+    markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects });
   }
 }
 
@@ -380,7 +411,7 @@ function markChainLinksAndProxyLeaf(node, handledObjects) {
 // itself a CallExpression, continue marking the inner IIFE the same way
 function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObjects }) {
   let current = callNode;
-  while (current?.type === 'CallExpression' || current?.type === 'OptionalCallExpression') {
+  while (isCallShape(current)) {
     if (inlineCallHasObservableEffects({ callNode: current, scope, adapter, path })) return;
     const inlined = inlineCallReturnExpression({ callNode: current, scope, adapter, path, seen: new Set() });
     if (!inlined) return;
@@ -402,11 +433,15 @@ function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObj
 // chain root's binding so an aliased proxy-global root is recognised like a literal one
 function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
   if (!scope || !adapter) return false;
-  let obj = unwrapParens(node);
+  // peel chain-assignments at every hop (matching resolveProxyGlobalRoot): a chain-assignment
+  // root (`(a = globalThis).Promise.resolve`) hides the proxy-global identifier behind an
+  // AssignmentExpression that plain unwrapParens can't see through, so without the peel the
+  // mid-chain constructor member stays unmarked and unplugin queues an overlapping rewrite
+  let obj = peelChainAssignmentDeep(unwrapParens(node));
   let depth = 0;
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
     if (++depth > MAX_KEY_DEPTH) return false;
-    obj = unwrapParens(obj.object);
+    obj = peelChainAssignmentDeep(unwrapParens(obj.object));
   }
   if (obj.type !== 'Identifier') return false;
   const resolved = resolveObjectName({ objectNode: obj, scope, adapter, path });
@@ -449,7 +484,7 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
       handledObjects.add(current);
       current = unwrapParens(current.object);
     }
-    if (current?.type === 'CallExpression' || current?.type === 'OptionalCallExpression') {
+    if (isCallShape(current)) {
       markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects });
     }
   }

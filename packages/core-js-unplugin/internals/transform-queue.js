@@ -1015,6 +1015,14 @@ export default class TransformQueue {
       let result = substituteInner({
         content, needle, needleStart: inner.start, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix,
       });
+      // inner already swallowed by an enclosing inner processed earlier: its slot is gone from
+      // content. skip the phantom HERE, before the recovery loop below - otherwise that loop
+      // decrements nth and re-targets a still-pending sibling's identical needle (sibling
+      // conditional / logical branches sharing the same polyfilled sub-expression), corrupting
+      // that sibling's slot and crashing a later locate. only the first substituteInner failing
+      // reaches this - a legit re-substitution finds its own slot, so chained-polyfill /
+      // equal-range-dup / split-pair are unaffected. recovery now only handles the strip case
+      if (!result.found && processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
       // rebuild-outer recovery: source-position nth assumes outer's content preserves every
       // source needle match. multi-decl flatten REWRITES earlier declarators (`{X:{m}}=globalThis`
       // -> `const m = _polyfill`), stripping some source-level needle matches from content
@@ -1030,8 +1038,6 @@ export default class TransformQueue {
         }
       }
       if (!result.found) {
-        // inner was already swallowed by an enclosing inner we processed earlier
-        if (processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
         // identifier-boundary rejection: scan ALL occurrences of needle in content. if a
         // STANDALONE one exists (identifier boundary on both sides), the inner SHOULD have
         // matched it - nth count is off, this is a real bug. if all occurrences sit inside
