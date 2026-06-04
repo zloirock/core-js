@@ -217,3 +217,14 @@ QUnit.test('destructuring: deeply nested with Array.from / array defaults', asse
   assert.deepEqual(b, ['x', 'y', 'z']);
   assert.same(first, 'none');
 });
+
+// IIFE-invoked param destructure with a member-expression default + a classifiable caller-arg:
+// the caller passes the receiver, so the member default never fires; the polyfill must be wired
+// onto the live caller-arg, not the dead default (else the destructured method is undefined)
+QUnit.test('destructuring: IIFE member-default overridden by caller-arg', assert => {
+  // eslint-disable-next-line es/no-nonstandard-iterator-properties -- testing
+  const result = (function ({ of } = globalThis.Iterator) {
+    return of(1);
+  })(Array);
+  assert.deepEqual(result, [1]);
+});

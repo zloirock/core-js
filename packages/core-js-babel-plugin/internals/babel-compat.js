@@ -170,6 +170,41 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return cur;
   }
 
+  // optional method call (`recv.m?.()`): the callee is a member, so memoizing it into `_ref` and
+  // rebinding the call to `_ref()` would invoke with `this === undefined` and break the receiver
+  // binding. instead null-guard the method but keep the receiver: rewrite chainStart's call to
+  // `_ref.call(recv)` and return the guard `check`. recv is bound to `this` for `super` (the call
+  // arg cannot be `super`), re-read for a safe Identifier/this receiver, and memoized first when
+  // side-effecting so it evaluates once. transparent wrappers (TS as/!/satisfies, parens, chain)
+  // are peeled so `(obj.m as any)?.()` still counts as a method call - memoizing the peeled member
+  // drops the type-only wrapper. returns null when chainStart's callee isn't a method member (a
+  // free function `fn?.()` or a receiver-key chainStart), leaving the caller's plain-memo path
+  function rewriteOptionalMethodCall(chainStart, key, scope, memoType) {
+    const calleePath = key === 'callee' ? peelTransparentChildPath(chainStart.get(key)) : null;
+    if (!calleePath || (!calleePath.isMemberExpression() && !calleePath.isOptionalMemberExpression())) return null;
+    const receiverNode = calleePath.node.object;
+    const methodNode = t.cloneNode(calleePath.node);
+    let callReceiver;
+    let receiverMemo = null;
+    if (t.isSuper(receiverNode)) {
+      callReceiver = t.thisExpression();
+    } else if (isSafeToReuse(receiverNode)) {
+      callReceiver = t.cloneNode(receiverNode);
+    } else {
+      const [assign, receiverRef] = memoize(receiverNode, scope);
+      receiverMemo = assign;
+      callReceiver = t.cloneNode(receiverRef);
+      // rebind the method's receiver to the memoized ref so it (and any inner `?.`) evaluates once
+      methodNode.object = t.cloneNode(receiverRef);
+    }
+    const [methodMemo, methodRef] = memoize(methodNode, scope);
+    if (memoType) resolvedType?.set(t.cloneNode(methodRef), memoType);
+    chainStart.node.callee = t.memberExpression(t.cloneNode(methodRef), t.identifier('call'));
+    chainStart.node.arguments = [callReceiver, ...chainStart.node.arguments.map(arg => t.cloneNode(arg))];
+    // when recv is memoized, fold its assignment ahead of the method memo so it runs first
+    return receiverMemo ? t.sequenceExpression([receiverMemo, methodMemo]) : methodMemo;
+  }
+
   function extractCheck(path, skipOptional) {
     const { node } = path;
     if (node.optional) {
@@ -208,21 +243,19 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     let check = null;
     if (!skipOptional?.(chainStart.node, path.scope, chainStart)) {
       const memoType = pathType(chainStart.get(key));
-      let ref;
-      [check, ref] = memoize(chainStart.node[key], path.scope);
-      // cache memoized value's Type keyed on the cloned `_ref` identifier so the synthesized
-      // ref (replacing chainStart's receiver/callee) resolves back to the memoized value's
-      // type via `resolveNodeType`'s WeakMap short-circuit. without this, `?.at` (optional
-      // chain trigger) loses its receiver's type once extractCheck rewrites M2.object to
-      // the ref: `resolveBindingType` can't recover it because the generated `_ref`
-      // identifier has no source-start position, so `findLastStraightLineAssignment` bails
-      // on the ordering check and enhanceMeta falls through to the generic `common` variant
-      const refClone = t.cloneNode(ref);
-      // `resolvedType` may be undefined when factory wired without `typeResolvers` (raw
-      // AST-rewrite tooling); symmetric with `pathType`'s null-fallback so the cache
-      // write doesn't TypeError on the optional dependency
-      if (memoType) resolvedType?.set(refClone, memoType);
-      chainStart.node[key] = refClone;
+      check = rewriteOptionalMethodCall(chainStart, key, path.scope, memoType);
+      if (check === null) {
+        let ref;
+        [check, ref] = memoize(chainStart.node[key], path.scope);
+        // cache the memoized value's Type keyed on the cloned `_ref` so the synthesized ref
+        // (replacing chainStart's receiver/callee) resolves back to the memoized value's type via
+        // `resolveNodeType`'s WeakMap short-circuit - the generated `_ref` has no source position,
+        // so without this the receiver's type is lost and enhanceMeta falls to the generic variant.
+        // `resolvedType` may be undefined when wired without typeResolvers (raw AST-rewrite tooling)
+        const refClone = t.cloneNode(ref);
+        if (memoType) resolvedType?.set(refClone, memoType);
+        chainStart.node[key] = refClone;
+      }
     }
     deoptionalizeNode(chainStart);
     // `p && p !== path` guard: on orphaned paths parentPath chain can bottom out at null
@@ -254,7 +287,17 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       // would deoptionalize the trailing to a PLAIN member, and babel codegen then parenthesizes the
       // optional result off it (`(_X?.call(recv)).next()`), severing the trailing from the chain so
       // it throws on the short-circuit path where native yields void 0 (matches unplugin once skipped)
-      if (!check && result.type === 'OptionalCallExpression') return;
+      if (!check && result.type === 'OptionalCallExpression') {
+        // an OptionalCallExpression standing in NewExpression.callee (`new (arr.flat?.())(z)`)
+        // mis-prints without parens under babel codegen: `new _X(arr)?.call(arr)(z)` round-trips
+        // to CONSTRUCT the helper instead of calling it. force the grouping so `new` applies to
+        // the call's result (oxc/unplugin preserves the source parens, so this is babel-only)
+        if (replacePath.parentPath?.isNewExpression()
+          && replacePath.parentPath.node.callee === replacePath.node) {
+          replacePath.replaceWith(t.parenthesizedExpression(replacePath.node));
+        }
+        return;
+      }
       const wrapPath = normalizeOptionalChain(replacePath) || replacePath;
       if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
     }
