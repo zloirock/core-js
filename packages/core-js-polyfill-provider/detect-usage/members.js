@@ -497,3 +497,14 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
     }
   }
 }
+
+// usage-pure: a member WRITE whose receiver resolves to a global (`Map.foo = x`, `globalThis.Map.x
+// = y`) must keep that receiver on the global. left unmarked, the identifier visitor rewrites the
+// bare global to its pure import (`_Map.foo = x`), so the static is written onto the import binding
+// while a same-key READ stays on the global (the read-side bails for a mutated static) - write and
+// read land on different objects. seed handledObjects for the receiver, mirroring the read-side bail.
+// gated on a resolvable global receiver, so a local / non-global write target is left untouched
+export function markGlobalWriteReceiver({ node, scope, adapter, handledObjects, suppressProxyGlobals, path }) {
+  if (!resolveObjectName({ objectNode: unwrapParens(node.object), scope, adapter, path })) return;
+  markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path);
+}

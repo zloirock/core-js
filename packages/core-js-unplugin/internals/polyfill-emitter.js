@@ -19,6 +19,7 @@ import {
   keySideEffectsOnly,
   peelReceiverSequenceTail,
   prependChainAssignmentEffect,
+  receiverSideEffectsOnly,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
@@ -1183,8 +1184,11 @@ export function createPolyfillEmitter({
   // `meta.sideEffects` (computed-key SE captured by detect-usage) compose into the
   // replacement so `called++` in `(called++, Promise).noSuchStatic` doesn't drop
   function replaceStaticFallback({ binding, node, metaPath, sideEffects }) {
-    transforms.add(node.object.start, node.object.end,
-      composeBindingReplacement({ binding, receiverObj: node.object, sideEffects, metaPath, start: node.object.start }));
+    // receiver-only swap: the computed `[key]` property survives and re-runs its own SE, so prepend
+    // only the receiver-SE (drop the trailing computed-key SE) to avoid double-evaluating it
+    transforms.add(node.object.start, node.object.end, composeBindingReplacement({
+      binding, receiverObj: node.object, sideEffects: receiverSideEffectsOnly(node.object, sideEffects), metaPath, start: node.object.start,
+    }));
   }
 
   // peel a SequenceExpression's preceding elements when at least one carries an observable
@@ -1247,13 +1251,18 @@ export function createPolyfillEmitter({
         // previous unterminated line into the new `(...)` as a call. `'true'` bare path
         // is no-op for the guard
         transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
-        // marking nested identifiers (`foo.bar.baz` -> `foo`) as skipped prevents child
-        // visitors from emitting spurious polyfill imports for code the `'true'` replacement
-        // has discarded. EXCEPT when RHS is an AssignmentExpression rescue: the entire RHS
-        // text is preserved verbatim in the replacement (`(y = Map, true)`), so inner
-        // polyfills there must still emit (`Map` -> `_Map`). skipping the RHS subtree in
-        // that case strands raw proxy-globals in the replacement
-        if (rhs?.type !== 'AssignmentExpression') {
+        // marking nested identifiers (`foo.bar.baz` -> `foo`) as skipped prevents child visitors
+        // from emitting spurious polyfill imports for code the `'true'` replacement discarded. but
+        // any subtree preserved verbatim in the replacement must stay visitable so its inner
+        // polyfills still emit: a SequenceExpression prefix keeps its leading elements
+        // (`(arr.at(0), true)`) and drops only the in-operand tail, so skip ONLY that tail; an
+        // AssignmentExpression rescue keeps the whole RHS (`(y = Map, true)`) so skip nothing; a
+        // plain RHS (`'from' in Array`) is dropped entirely
+        if (rhsSeqPrefix) {
+          const dropped = rhs.expressions.at(-1);
+          walkAstNodes({ root: dropped, visit: n => skippedNodes.add(n) });
+          skipProxyGlobal(dropped);
+        } else if (rhs?.type !== 'AssignmentExpression') {
           walkAstNodes({ root: node.right, visit: n => skippedNodes.add(n) });
           skipProxyGlobal(node.right);
         }
