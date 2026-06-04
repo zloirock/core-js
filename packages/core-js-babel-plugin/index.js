@@ -29,7 +29,11 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { prependChainAssignmentEffect, resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  prependChainAssignmentEffect,
+  receiverSideEffectsOnly,
+  resolveKey as sharedResolveKey,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
 import { resolveSymbolIteratorEntry, resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -551,8 +555,10 @@ export default function plugin(api, options) {
           // original member access) AND `prependChainAssignmentEffect` over the receiver
           // (chain-assignment `(a = X).noStatic` writes to `a` are observable; the receiver
           // replacement drops them). without this, `(called++, Promise).noSuchStatic`
-          // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`
-          const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects);
+          // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`.
+          // receiver-only: the computed `[key]` property SURVIVES this swap and re-runs its own SE,
+          // so prepend only the receiver-SE (dropping the trailing key-SE) to avoid double-eval
+          const allEffects = prependChainAssignmentEffect(path.node.object, receiverSideEffectsOnly(path.node.object, meta.sideEffects));
           path.get('object').replaceWith(withSideEffects(id, allEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
