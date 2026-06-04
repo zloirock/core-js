@@ -95,17 +95,31 @@ export function classifyReceiverSE(receiver, isOptional, sideEffects) {
   return isOptional ? 'suppress' : 'peel';
 }
 
-// `suppress` mode (optional receiver) keeps the whole receiver in the null-guard memoize
-// (`_ref = recv`), where its side effects already run, and folds only the trailing computed-key
-// SE into the guard's alternate. the meta's `sideEffects` carry the receiver-SE first (source
-// order), so recompute the receiver-SE count off the receiver node - the same collection the
-// resolver performed - and drop that leading slice. returns `sideEffects` unchanged when the
-// receiver contributed none (the whole list is key-SE)
-export function keySideEffectsOnly(receiver, sideEffects) {
-  if (!sideEffects?.length) return sideEffects;
+// meta `sideEffects` carry the receiver-SE first then the computed-key SE (source order); the split
+// point is the count of effects the receiver contributes, recomputed off the receiver node via the
+// same collection the resolver performed
+function receiverEffectCount(receiver) {
   const receiverEffects = [];
   unwrapParensCollectingEffects(receiver, receiverEffects);
-  return receiverEffects.length ? sideEffects.slice(receiverEffects.length) : sideEffects;
+  return receiverEffects.length;
+}
+
+// `suppress` mode (optional receiver) keeps the whole receiver in the null-guard memoize
+// (`_ref = recv`), where its side effects already run, and folds only the trailing computed-key SE
+// into the guard's alternate - so drop the leading receiver-SE slice (returns the whole list when
+// the receiver contributed none, i.e. every effect is key-SE)
+export function keySideEffectsOnly(receiver, sideEffects) {
+  if (!sideEffects?.length) return sideEffects;
+  return sideEffects.slice(receiverEffectCount(receiver));
+}
+
+// inverse of keySideEffectsOnly: keep ONLY the leading receiver-SE, drop the trailing computed-key
+// SE. a static-FALLBACK receiver-only swap (member name not a known static) replaces just the object
+// slot and leaves the computed `[key]` property in place, so the key-SE re-runs there - prepending
+// it to the receiver replacement too would double-evaluate it. returns [] when the receiver had none
+export function receiverSideEffectsOnly(receiver, sideEffects) {
+  if (!sideEffects?.length) return sideEffects;
+  return sideEffects.slice(0, receiverEffectCount(receiver));
 }
 
 // peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
@@ -561,10 +575,29 @@ function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
   // block w/ anything beyond a single `return X;` carries observable effects directly
   if (isBlock && (stmts.length !== 1 || stmts[0].type !== 'ReturnStatement')) return true;
   // chain target: block-body extracts return arg, expression-body is itself the target.
-  // recurse only when next is an inline-resolvable call - else chain bottoms out on a
-  // value (constructor / literal) with no own effects
   const next = isBlock ? stmts[0].argument : body;
-  return isCallShape(next) && hasObservableEffectsRec({ callNode: next, scope, adapter, path, seen });
+  // recurse when next is an inline-resolvable call (`() => inner()` with its own prefix effects)
+  if (isCallShape(next)) return hasObservableEffectsRec({ callNode: next, scope, adapter, path, seen });
+  // else the returned value IS the inlined receiver; it carries observable effects only when the
+  // receiver is wrapped in a write or an SE-prefixed sequence (`a = Array`, `(eff(), Array)`) - the
+  // substitution drops the whole call, so those must be preserved. a bare receiver ref has none
+  return returnedReceiverHasEffects(next);
+}
+
+// the returned expression of an inlined call, beyond the receiver value the caller resolves: a
+// chain-assignment / update writes a binding, an SE-prefixed sequence runs its leading elements -
+// both are dropped when the call is replaced by the polyfill. a bare Identifier / member receiver
+// has no such effect (a CallExpression receiver is handled by the recursion above). peel transparent
+// wrappers first: oxc keeps the arrow-body parens (`() => (a = Array)`) babel strips, so the write
+// hides under a ParenthesizedExpression on one adapter only
+export function returnedReceiverHasEffects(node) {
+  node &&= unwrapParens(node);
+  if (!node) return false;
+  if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') return true;
+  if (node.type === 'SequenceExpression') {
+    return node.expressions.slice(0, -1).some(mayHaveSideEffects) || returnedReceiverHasEffects(node.expressions.at(-1));
+  }
+  return false;
 }
 
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
