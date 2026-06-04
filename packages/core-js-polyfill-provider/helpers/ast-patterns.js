@@ -413,22 +413,31 @@ export function collectScopeVars(scopeNode) {
   return locals;
 }
 
-// walk path's ancestor chain to the first var-scope owner and return `name`'s VariableDeclarator
-// (callers read its `.init`), or null. `var` doesn't propagate past function boundaries, so an
-// inner-function miss is final - no need to continue walking. estree-toolkit doesn't hoist a
-// `var` from a nested non-function block to the enclosing function scope, so its `scope.getBinding`
-// misses `function f(){ if (c) { var g = globalThis } g.Map.groupBy(...) }`; the adapter surfaces
-// a synthetic binding off this declarator so proxy-global alias resolution survives. result cached
-// per-node via WeakMap (caller stays correct under sibling-plugin AST mutation only when this file
-// isn't re-traversed after the mutation - same constraint as `tsRuntimeBindingsCache`)
+// climb `path`'s ancestor chain through each enclosing var-scope owner and return the owner that
+// hoists `name` as a `var` plus its VariableDeclarator (callers read the declarator's `.init`), or
+// null. a `var` hoists to its nearest function / program / static-block owner yet stays visible
+// from nested functions below it, so a use in an inner closure must keep climbing when the nearest
+// owner doesn't declare the name - estree-toolkit stops at the nearest owner and misses this; babel
+// resolves it natively. a TSModuleBlock is a hard boundary (a namespace var doesn't leak out, and a
+// use outside one doesn't reach in). no param / lexical shadow can intervene on this path: the
+// var-hoist fallback runs only when the native estree binding is null, which already proves no
+// param / let / const / class / function binds the name on the visible scope chain. result cached
+// per-node via WeakMap (same sibling-mutation staleness constraint as `tsRuntimeBindingsCache`)
 const scopeVarsCache = new WeakMap();
+function findVarOwnerDeclaring(path, name) {
+  for (let owner = findNearestVarScopeOwner(path); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
+    const { node } = owner;
+    let vars = scopeVarsCache.get(node);
+    if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
+    const declarator = vars.get(name);
+    if (declarator) return { owner, declarator };
+    if (node.type === 'TSModuleBlock') break;
+  }
+  return null;
+}
+
 export function findFunctionScopeVarDeclaratorInPath(path, name) {
-  const owner = findNearestVarScopeOwner(path);
-  if (!owner) return null;
-  const { node } = owner;
-  let vars = scopeVarsCache.get(node);
-  if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
-  return vars.get(name) ?? null;
+  return findVarOwnerDeclaring(path, name)?.declarator ?? null;
 }
 
 // boolean wrapper for callers that only need presence (runtime vs TS-ambient shadow detection;
@@ -437,22 +446,21 @@ export function findFunctionScopeVarInPath(path, name) {
   return findFunctionScopeVarDeclaratorInPath(path, name) !== null;
 }
 
-// reassignment sites for a nested-block-hoisted `var` surfaced by the synthetic var-hoist
-// binding (see `findFunctionScopeVarDeclaratorInPath`). estree-toolkit's `scope.getBinding`
-// misses that var, so its binding carries no `constantViolations` and the shared resolver's
-// reassignment guard never fires - resolving a REASSIGNED proxy-global alias to the global
-// (over-inject / wrong rewrite) where babel's native binding bails. recover the violations so
-// the synthetic binding matches babel: walk the enclosing var-scope owner for `name = ...` /
-// `name++` writes, descending into nested scopes that don't re-bind `name` (a closure can
-// reassign the outer var) but stopping at ones that shadow it - a function param / hoisted var, OR a
-// block-scoped `let`/`const`/`class`/`function` / catch param of the same name is a distinct binding.
-// empty result is falsy-length like the prior `undefined`, so the
-// non-reassigned common case still resolves. cached per owner node (same staleness contract as
-// `scopeVarsCache`: valid while this file isn't re-traversed after sibling-plugin mutation)
+// reassignment sites for a function-scoped `var`, recovering the `constantViolations` set babel's
+// native binding records but estree-toolkit's misses for a nested-block-hoisted var (so the shared
+// resolver's reassignment guard fires identically on both). resolve the owner that hoists the var
+// (climbing for an inner-closure use), then walk it for every write of `name`: plain `name = ...` /
+// `name++`, a destructuring assignment (`[name] = e` / `({ x: name } = e)`), a for-of / for-in head,
+// and a `var name = <init>` re-declaration other than the binding's own declarator. descend into
+// nested scopes that don't re-bind `name` (a closure can reassign the outer var) but stop at ones
+// that shadow it - a param / hoisted var, or a block-scoped `let`/`const`/`class`/`function` / catch
+// param of the same name is a distinct binding. empty result is falsy-length so the non-reassigned
+// common case still resolves. cached per owner node (same staleness contract as `scopeVarsCache`)
 const scopeReassignCache = new WeakMap();
 export function collectFunctionScopeVarReassignments(path, name) {
-  const owner = findNearestVarScopeOwner(path);
-  if (!owner) return [];
+  const found = findVarOwnerDeclaring(path, name);
+  if (!found) return [];
+  const { owner, declarator: ownDeclarator } = found;
   let perName = scopeReassignCache.get(owner.node);
   if (!perName) scopeReassignCache.set(owner.node, perName = new Map());
   if (perName.has(name)) return perName.get(name);
@@ -479,12 +487,28 @@ export function collectFunctionScopeVarReassignments(path, name) {
     if (node.type !== 'BlockStatement' && node.type !== 'StaticBlock') return false;
     return (node.body ?? []).some(stmtRebindsName);
   }
+  // for-of / for-in head writing `name`: a bare-Identifier / destructuring-pattern target
+  // (`for (name of ...)`, `for ([name] of ...)`) or a `var` head (`for (var name in ...)`)
+  function forXHeadWritesName(left) {
+    if (left?.type === 'VariableDeclaration') return left.declarations.some(d => bindsName(d.id));
+    return bindsName(left);
+  }
   function visit(node, atOwnerRoot) {
     if (!isAstNode(node)) return;
     if (!atOwnerRoot && ((isVarScopeBoundary(node.type) && shadowsName(node)) || blockShadowsName(node))) return;
     if ((node.type === 'AssignmentExpression' && node.left?.type === 'Identifier' && node.left.name === name)
-      || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)) {
+      || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)
+      || (node.type === 'AssignmentExpression'
+        && (node.left?.type === 'ArrayPattern' || node.left?.type === 'ObjectPattern') && bindsName(node.left))
+      || ((node.type === 'ForOfStatement' || node.type === 'ForInStatement') && forXHeadWritesName(node.left))) {
       violations.push(node);
+    }
+    // a `var name = <init>` re-declaration other than the binding's own declarator overwrites the
+    // value; a bare `var name;` (no init) keeps it. a same-name `let`/`const` can't co-exist
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+      for (const d of node.declarations ?? []) {
+        if (d !== ownDeclarator && d.init && bindsName(d.id)) violations.push(d);
+      }
     }
     for (const key of Object.keys(node)) {
       const value = node[key];
@@ -757,6 +781,26 @@ export function violationNode(violation) {
   return violation.node ?? violation;
 }
 
+// the `var name = X` re-declaration NODES sitting textually BETWEEN the type-resolver `binding`'s
+// declarator and the use. estree-toolkit block-scopes a `var`, so `scope.getBinding` may surface a
+// declarator whose init was overwritten by one of these (it records none as a constantViolation;
+// babel hoists correctly and records them all). a non-empty result means the declarator init no
+// longer describes the receiver at the use. shared by the staleness predicate and the reaching-redecl
+// narrow so both bound the gap identically; only augments the estree var-hoist gap (babel: complete)
+export function staleVarRedeclNodes(binding, usagePath, name) {
+  const declStart = binding?.path?.node?.start;
+  const useStart = usagePath?.node?.start;
+  if (typeof declStart !== 'number' || typeof useStart !== 'number') return [];
+  return collectFunctionScopeVarReassignments(usagePath, name)
+    .map(violationNode)
+    .filter(node => { const { start } = node; return typeof start === 'number' && start > declStart && start < useStart; });
+}
+
+// does a stale `var name = X` re-declaration sit between `binding`'s declarator and `usagePath`?
+export function varInitStaleByRedecl(binding, usagePath, name) {
+  return staleVarRedeclNodes(binding, usagePath, name).length > 0;
+}
+
 // a violation node equal to the binding's own declarator is a loop re-init: babel models the
 // per-iteration re-run of `var x = init` as a write, but the init is fixed so it can't change what
 // the alias resolves to - only a write at a DIFFERENT node is a real reassignment. mirrors the
@@ -799,23 +843,21 @@ export function reassignmentBlocksGlobalResolve({ binding, adapter, path }) {
   return !!binding.constantViolations?.length && reassignBailApplies({ binding, adapter, path });
 }
 
-// does this native scope binding describe a `var` whose declaration is namespace-scoped
-// (sits inside a TSModuleBlock - `namespace N { var X }` / `declare global { var X }`)?
-// estree-toolkit's scope tracker over-hoists such a `var` to the enclosing function / program,
-// so its `scope.hasBinding` falsely reports a shadow for a use-site OUTSIDE the namespace body.
-// callers re-validate the over-hoist with the position-aware var walk (which now treats
-// TSModuleBlock as a boundary) so the namespace-local var only shadows references inside it.
-// requires the binding's `path` to expose `parentPath` (estree-toolkit native bindings do)
-export function isNamespaceScopedVarBinding(binding) {
-  const declarator = binding?.path;
-  if (declarator?.node?.type !== 'VariableDeclarator') return false;
-  if (declarator.parent?.type !== 'VariableDeclaration' || declarator.parent.kind !== 'var') return false;
-  // the binding is namespace-scoped iff the var's nearest enclosing scope owner is a
-  // TSModuleBlock; a genuine function / program-scope `var` resolves to a function-like /
-  // Program / StaticBlock owner instead. start above the declarator so we classify the
-  // scope that CONTAINS it, not the declarator itself
-  const owner = findNearestVarScopeOwner(declarator.parentPath);
-  return owner?.node.type === 'TSModuleBlock';
+// if this native scope binding is declared DIRECTLY inside a namespace / declare-global block
+// (a TSModuleBlock - `namespace N { ... }` / `declare global { ... }`), return that block node;
+// else null. estree-toolkit's scope tracker over-hoists EVERY such binding - var/let/const, class,
+// function - to the enclosing function / program scope, so its `scope.hasBinding` falsely reports a
+// shadow for a use-site OUTSIDE the namespace body. callers re-validate position so the
+// namespace-local binding only shadows references that actually sit inside the block. requires the
+// binding's `path` to expose `parentPath` (estree-toolkit native bindings do)
+export function namespaceScopedBindingBlock(binding) {
+  const decl = binding?.path;
+  if (!decl?.parentPath) return null;
+  // start ABOVE the declaration so we classify the scope that CONTAINS it: its nearest enclosing
+  // var-scope owner is the TSModuleBlock only when the binding is declared in the namespace body
+  // (a function-scoped declaration resolves to a function-like / Program / StaticBlock owner)
+  const owner = findNearestVarScopeOwner(decl.parentPath);
+  return owner?.node.type === 'TSModuleBlock' ? owner.node : null;
 }
 
 // resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
