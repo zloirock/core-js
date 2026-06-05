@@ -31,7 +31,7 @@ export default class ImportInjector extends ImportInjectorState {
   // to compute newGlobals; drives `hasFlushed` for postHook's late-CJS diagnostic).
   // `#suppressedGlobals`: user's pre-existing imports (subtract from `globalImports` to
   // avoid duplicate-emit; does NOT drive `hasFlushed` - user imports don't count as plugin
-  // activity). split previously was a single `#flushedGlobals` Set with dual semantics
+  // activity). two sets keep the emitted-vs-suppressed semantics separate
   #emittedGlobals = new Set();
   #suppressedGlobals = new Set();
   #flushedPure = new Set();
@@ -529,8 +529,8 @@ export default class ImportInjector extends ImportInjectorState {
 
     // collect EVERY movable ref `var` in the body, not just a leading run. scope.push tags each
     // declaration `_blockHoist: 2`, so Babel's end-of-pipeline block-hoist would otherwise lift
-    // it ABOVE the (unhoisted) import header - violating import/first - whenever a ref landed
-    // after a lifted side-effect statement and the old leading-run scan stopped short of it.
+    // it ABOVE the (unhoisted) import header - violating import/first - whenever a ref lands
+    // after a lifted side-effect statement that a leading-run-only scan would stop short of.
     // they are initless vars (runtime-hoisted regardless of textual position), so merging them
     // into one fresh declaration placed just past the import header is semantically inert and
     // matches unplugin's layout. the fresh `merged` node carries no `_blockHoist`, so block-hoist
