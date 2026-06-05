@@ -15,7 +15,6 @@ import {
   isTaggedTemplateTag,
   isThisReceiver,
   isUpdateTarget,
-  peelSkippableWrappers,
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -42,7 +41,7 @@ import TransformQueue from './transform-queue.js';
 import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js';
 import { createEstreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
-import { isOutermostOptionalChainMember } from './emit-utils.js';
+import { isCallee, isOutermostOptionalChainMember } from './emit-utils.js';
 import { createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
@@ -254,16 +253,10 @@ export default function createPlugin(options) {
     typeResolvers,
     astPredicates: {
       isMemberLike: path => path.node?.type === 'MemberExpression',
-      // peel parens + TS expression wrappers from `parent.callee` before identity-checking
-      // against `node`. without the peel, the resolver's `filter()` walks through wrappers
-      // to find the outer Call but then this identity check fails (parent.callee is the
-      // wrapper, not the inner MemberExpression), arg-count / arg-shape filters silently
-      // over-inject. shared `peelSkippableWrappers` also handles ChainExpression which oxc
-      // emits around optional chains (`(obj?.fn)()`)
-      isCallee: (node, parent) => {
-        if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
-        return peelSkippableWrappers(parent.callee) === node;
-      },
+      // `isCallee` peels parens / TS wrappers / ChainExpression from `parent.callee` before the
+      // identity check, so the resolver's wrapper-walking `filter()` doesn't over-inject when
+      // `parent.callee` is a wrapper around the member (`(obj?.fn)()`)
+      isCallee,
       isSpreadElement: node => node?.type === 'SpreadElement',
     },
   });

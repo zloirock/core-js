@@ -13,7 +13,7 @@
 // narrow; mutation inside a nested captured function also invalidates (deferred calls
 // may fire between the guard and the usage)
 import { peelLabeledStatementNode } from '../helpers/ast-patterns.js';
-import { OPEN_KEYWORD_ANNOTATION_TYPES } from './ast-shapes.js';
+import { isUnionType, OPEN_KEYWORD_ANNOTATION_TYPES } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 import { $Object, $Primitive, PRIMITIVES } from './base.js';
 
@@ -307,7 +307,7 @@ export function createNarrowByGuards({
     if (!annotation) return { kind: 'none' };
     const { scope } = binding.path;
     const { node: resolved, subst } = followTypeAliasChain(annotation, scope);
-    if (resolved?.type === 'TSUnionType' || resolved?.type === 'UnionTypeAnnotation') {
+    if (isUnionType(resolved)) {
       return { kind: 'union', types: resolved.types, subst, scope };
     }
     if (isOpenAnnotation(resolved)) return { kind: 'open' };

@@ -6,12 +6,43 @@ import { MAX_DEPTH } from '../resolve-node-type/base.js';
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
 // directive-prologue detection ('use strict' etc.). oxc surfaces directives as top-of-body
-// ExpressionStatement nodes with `.directive: string`; babel separates module-level directives
-// into `Program.directives[]` but inline function-body directives still appear as
-// ExpressionStatement w/ `.directive`. empty-string `""` is parser-emitable but NOT a valid
-// prologue token - reject so it doesn't count as directive
+// ExpressionStatement nodes with `.directive: string` on the statement; babel lifts real
+// directives into `Program.directives[]` / block `.directives[]`, so a directive that survives
+// in `body[]` is a sibling-plugin synth shape (`'use strict'` re-emitted as a raw statement)
+// whose `.directive` marker may sit on the ExpressionStatement OR on the inner StringLiteral /
+// Literal - accept either. empty-string `""` is parser-emitable but NOT a valid prologue token,
+// so require a non-empty marker
 export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
-  && typeof node.directive === 'string' && node.directive.length > 0;
+  && (typeof node.directive === 'string' && node.directive.length > 0
+    || typeof node.expression?.directive === 'string' && node.expression.directive.length > 0);
+
+// indirect-require call: `require('m')`, `require('m').default` (MemberExpression tail),
+// `(0, require)('m')` / `((0, require))('m')` (SequenceExpression callee through paren / TS /
+// chain wrappers oxc keeps but babel strips). shared by both plugins to classify a statement
+// as part of the leading import region so `var _ref;` lands AFTER the user's import block
+export function isRequireCall(expr) {
+  let cur = expr;
+  if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
+  if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
+  let callee = peelSkippableWrappers(cur.callee);
+  if (callee?.type === 'SequenceExpression') callee = peelSkippableWrappers(callee.expressions?.at(-1));
+  return callee?.type === 'Identifier' && callee.name === 'require';
+}
+
+// leading-import-region statement: ImportDeclaration, `export ... from 'mod'` re-export,
+// `export * [as ns] from 'mod'`, a top-level `require(...)` ExpressionStatement, or a
+// VariableDeclaration with at least one `require()` initializer. re-exports count because the
+// module record fetches them before the body runs, so `var _ref;` placed before them would
+// trip `import/first`. directive-prologue handling is the CALLER's concern - it differs:
+// unplugin's `lastUserImportEnd` skips directives mid-scan, babel folds them into its region check
+export function isTopLevelImportLike(stmt) {
+  if (stmt?.type === 'ImportDeclaration') return true;
+  if (stmt?.type === 'ExportNamedDeclaration' && stmt.source) return true;
+  if (stmt?.type === 'ExportAllDeclaration') return true;
+  if (stmt?.type === 'ExpressionStatement' && isRequireCall(stmt.expression)) return true;
+  if (stmt?.type === 'VariableDeclaration') return stmt.declarations.some(d => isRequireCall(d.init));
+  return false;
+}
 
 // any ExpressionStatement whose expression peels to a StringLiteral - includes already-promoted
 // directives AND raw string-literal expressions that would BECOME directives if their position
@@ -120,15 +151,10 @@ export function singleQuasiString(node) {
 // its only dependency); `class-walk.js` re-exports it so its consumers keep their import path
 export function memberKeyName(node) {
   const { property, computed } = node;
-  if (!computed && property?.type === 'Identifier') return property.name;
-  if (computed && property?.type === 'StringLiteral') return property.value;
-  // ESTree (oxc) uses `Literal` with a string value for string literals
-  if (computed && property?.type === 'Literal' && typeof property.value === 'string') return property.value;
-  if (computed) {
-    const quasi = singleQuasiString(property);
-    if (quasi !== null) return quasi;
-  }
-  return null;
+  if (!computed) return property?.type === 'Identifier' ? property.name : null;
+  // computed key resolves through the same static-string extraction as a property key
+  // (string literal under babel `StringLiteral` / oxc `Literal`, or single-quasi template)
+  return staticStringKey(property);
 }
 
 // `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
@@ -249,7 +275,7 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
 // destructure-emitter's per-branch peel) and by `unwrapRuntimeExpr`. ChainExpression
 // is the oxc-side wrapper for optional chains (babel folds the marker into
 // OptionalMemberExpression directly) - both adapters see the same flat shape after peel
-const SKIPPABLE_WRAPPER_TYPES = new Set([
+export const SKIPPABLE_WRAPPER_TYPES = new Set([
   ...TRANSPARENT_EXPR_WRAPPER_TYPES,
   'ChainExpression',
 ]);
@@ -320,7 +346,10 @@ function peelIifeCallee(callee, fnNode) {
   return callee;
 }
 
-const FN_NODE_TYPES = new Set([
+// IIFE-callable shapes: the only function forms that can sit at the callee position of an
+// immediately-invoked expression. narrower than FUNCTION_LIKE_NODE_TYPES (declarations /
+// methods can't be IIFE callees)
+export const FN_NODE_TYPES = new Set([
   'FunctionExpression',
   'ArrowFunctionExpression',
 ]);

@@ -25,7 +25,7 @@ import {
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { isFunctionParamDestructureParent, paramListReadsName } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { isDirectiveStatement, isFunctionParamDestructureParent, paramListReadsName } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
 
@@ -907,5 +907,21 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
   check('paramListReadsName/empty name', paramListReadsName(patternDefaultReadsOf, ''), false);
   check('paramListReadsName/non-array params', paramListReadsName(null, 'of'), false);
 }
+
+// --- isDirectiveStatement (widened: `.directive` marker on the statement OR the inner literal) ---
+// oxc + babel real directives carry `.directive` on the ExpressionStatement
+check('isDirectiveStatement/stmt marker', isDirectiveStatement({ type: 'ExpressionStatement', directive: 'use strict' }), true);
+// sibling-plugin synth shape: marker on the inner StringLiteral / Literal instead of the statement
+check('isDirectiveStatement/inner-literal marker',
+  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } }), true);
+// empty-string directive is not a valid prologue token in either slot
+check('isDirectiveStatement/empty stmt marker', isDirectiveStatement({ type: 'ExpressionStatement', directive: '' }), false);
+check('isDirectiveStatement/empty inner marker',
+  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: '', directive: '' } }), false);
+// a bare non-directive string-literal statement must NOT qualify (would wrongly extend the import region)
+check('isDirectiveStatement/non-directive string',
+  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), false);
+check('isDirectiveStatement/non-expression-statement', isDirectiveStatement({ type: 'ReturnStatement' }), false);
+check('isDirectiveStatement/nullish', isDirectiveStatement(null), false);
 
 finish();
