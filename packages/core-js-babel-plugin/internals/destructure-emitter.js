@@ -368,8 +368,8 @@ export default function createDestructureEmitter({
   // such a slot internally wraps the slot but DOES NOT update the original path's listKey/
   // key; subsequent `path.remove()` then targets the stale slot key and silently removes
   // the whole synthetic block. wrap via `path.replaceWith(BlockStatement)` so babel updates
-  // the slot's path state, then re-resolve to the inner body[0] path. avoids the direct
-  // `parent.node[key] = ...` AST write previously used here - replaceWith keeps the path
+  // the slot's path state, then re-resolve to the inner body[0] path. a direct
+  // `parent.node[key] = ...` AST write would break that path state - replaceWith keeps the path
   // API contract intact while still wrapping the slot atomically
   function ensureExprStmtInBlock(exprStmt) {
     const parent = exprStmt.parentPath;
@@ -480,9 +480,9 @@ export default function createDestructureEmitter({
       const { parent, leftmost } = peelTransparentWrappers(pattern);
       if (parent?.isVariableDeclarator()) break;
       // AssignmentExpression in ExpressionStatement context: cascade-rewrite for ALL chain
-      // shapes. previously a simple-flatten short-cut full-replaced the statement when no
-      // rest sibling was present, but per-prop visitor invocations on multi-prop hosts
-      // (`({Array: {from}, Object: {fromEntries}} = globalThis)`) sealed the WHOLE LHS in
+      // shapes. a simple-flatten short-cut full-replacing the statement when no rest sibling
+      // is present would, on multi-prop hosts
+      // (`({Array: {from}, Object: {fromEntries}} = globalThis)`), seal the WHOLE LHS in
       // skippedNodes after the first prop's emit, silently dropping `fromEntries` polyfill.
       // unified cascade walks each prop's chain inner-to-outer independently, dispatching
       // to `_unused` sentinel emission when any rest sibling is present (rest exclusion
@@ -930,7 +930,7 @@ export default function createDestructureEmitter({
   // becomes a no-op read once extraction leaves no destructure target. trim it so the
   // emitted ExpressionStatement reads `inner();` instead of `inner(), Array;`. nested SE
   // (`(x++, (y++, Array))`) is flattened first so the inner trailing identifier strips too -
-  // pre-fix `flatten` was missing and the outer trim stopped at `(y++, Array)` (which has
+  // without the flatten the outer trim stops at `(y++, Array)` (which has
   // its own `mayHaveSideEffects` from `y++`), leaving a useless `Array` read in the output
   function trimSideEffectTail(node) {
     if (!t.isSequenceExpression(node)) return node;
