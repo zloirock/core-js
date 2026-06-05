@@ -138,7 +138,7 @@ function nonEmptyString(value) {
 // AST-level mutation: oxc AST positions must stay valid for downstream MagicString edits, so
 // we rewrite the text and re-parse. walks Program body AND every descendant statement-list
 // host (BlockStatement / TSModuleBlock / StaticBlock) so function / loop / try / namespace
-// bodies are covered too - a Program-only walk silently bailed inside non-Program lists.
+// bodies are covered too - a Program-only walk would silently bail inside non-Program lists.
 // splits only the OUTERMOST matching statements per pass; the caller loops to a fixpoint to
 // reach nested matches (see the call site for why one pass can't take them all)
 function applyMinifierSequenceSplitPass(code, ast) {
@@ -365,7 +365,7 @@ export default function createPlugin(options) {
       // a FRESH AST. when the pre-pass cached the AST for post-reuse, its WeakMap
       // entries are still valid - clearing them wastes a per-file warm-up. `createClassHelpers`
       // is per-transform-fresh below; only the persistent resolver needs clearing here.
-      // moved below `cachedAst` resolution so the reset is gated correctly
+      // sits below `cachedAst` resolution so the reset is gated correctly (fresh parse only)
       typeResolvers.reset();
       // parse with oxc-parser (sync is the only available API)
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API

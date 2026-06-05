@@ -150,9 +150,9 @@ export function createValueOps({
 
   // `isLiteralOf(node, 'String')` routes through `babelNodeType` which normalises ESTree
   // `Literal{value: 'undefined'}` (string-typed) to `StringLiteral` - one check covers
-  // both parsers. earlier second branch on raw `node.type === 'Literal'` was dead since
-  // babel emits `StringLiteral` for strings and the normalised first branch already
-  // matched ESTree's raw `Literal` shape
+  // both parsers. a second branch on raw `node.type === 'Literal'` would be dead - babel
+  // emits `StringLiteral` for strings and the normalised first branch already
+  // matches ESTree's raw `Literal` shape
   function isUndefinedString(node) {
     return isLiteralOf(node, 'String') && node.value === 'undefined';
   }
