@@ -165,7 +165,7 @@ export function createUserTypeResolve({
     const segments = collectQualifiedSegments(base);
     if (!segments) return null;
     // pass full segments array (not last segment only) - findTypeDeclaration's namespace walk
-    // honours nested module paths. previously segments.at(-1) could match an unrelated
+    // honours nested module paths; the bare last segment could match an unrelated
     // sibling-scope declaration sharing the same short name
     const parentDecl = findTypeDeclaration(segments, scope);
     if (!parentDecl || !isInterfaceDeclaration(parentDecl)) return null;
