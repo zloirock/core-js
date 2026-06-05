@@ -58,6 +58,13 @@ export function isInterfaceDeclaration(decl) {
   return decl?.type === 'TSInterfaceDeclaration' || decl?.type === 'InterfaceDeclaration';
 }
 
+// TS + Flow union-type predicate. the discriminant narrower, the alias-walk flattener, and
+// several member / call / annotation resolvers all gate on this exact pair - shape parity
+// must stay in sync, so it lives here as the single source
+export function isUnionType(node) {
+  return node?.type === 'TSUnionType' || node?.type === 'UnionTypeAnnotation';
+}
+
 // node-type set for "structurally a method signature on a member slot": interface methods
 // (TSMethodSignature), ambient class methods (babel TSDeclareMethod), babel ClassMethod /
 // ClassPrivateMethod, ESTree MethodDefinition wrap and its abstract sibling
