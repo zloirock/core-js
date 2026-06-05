@@ -391,7 +391,7 @@ export function createAwaited({
     return resolveAwaitedAnnotation({ node: valueAnn, scope, depth: 0 });
   }
 
-  // structural Thenable peel (V4-AWAIT-2): `await x` where x has `then(cb: (v: T) => ...): any`
+  // structural Thenable peel: `await x` where x has `then(cb: (v: T) => ...): any`
   // resolves to T per TS Thenable contract. plugin's named-PROMISE_SYNONYMS covers Promise /
   // PromiseLike / Thenable aliases but misses user classes / interfaces with structural .then.
   // class path via `findClassMember` (handles babel + ESTree shapes); fall-through via
