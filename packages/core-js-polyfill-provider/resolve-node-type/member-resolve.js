@@ -27,7 +27,7 @@
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
-import { collectQualifiedSegments, isQualifiedNameNode, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import { collectQualifiedSegments, isQualifiedNameNode, isUnionType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { memberKeyName } from '../helpers/class-walk.js';
@@ -221,7 +221,7 @@ export function createMemberResolve({
     // (`(A | B).m()`, `A & (B)`) resolves through the branch instead of bailing on the wrapper
     const peelBranch = branch => applySubst(peelTSParenthesized(unwrapTypeAnnotation(branch)), subst);
     const recurse = peeled => resolveMemberCallReturn({ annotation: peeled, name, scope, resolve, depth: depth + 1 });
-    if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
+    if (isUnionType(aliased)) {
       let result = null;
       for (const branch of aliased.types) {
         const peeled = peelBranch(branch);
@@ -411,7 +411,7 @@ export function createMemberResolve({
     const target = aliased ?? unwrapped;
     const keyKind = indexAccessKeyKind(path);
     const lookup = typeNode => resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind);
-    const info = (target.type === 'TSUnionType' || target.type === 'UnionTypeAnnotation')
+    const info = isUnionType(target)
       ? target.types
         .map(b => applySubst(unwrapTypeAnnotation(b), subst))
         .filter(b => !isNullableOrNeverAnnotation(b))
