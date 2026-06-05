@@ -104,7 +104,7 @@ function matchEntrySubpath(source, pkgs, subPrefix) {
     // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
     // the sub-prefix doesn't match (`a/` matches but `a/stable/x` isn't under `modules/`), a
     // LATER package that IS a full match (`a/b/` over `a/b/modules/x`) must still be tried -
-    // bailing here made matching order-dependent
+    // bailing here would make matching order-dependent
     if (!afterPkg.startsWith(subPrefix)) continue;
     return canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
   }

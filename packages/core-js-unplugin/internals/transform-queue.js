@@ -496,7 +496,7 @@ export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectSta
 export default class TransformQueue {
   #code;
   #ms;
-  // Set gives O(1) delete + insertion-order iteration (array had O(N) findIndex/splice)
+  // Set gives O(1) delete + insertion-order iteration (vs O(N) findIndex/splice on an array)
   #transforms = new Set();
   // sorted snapshot + prefix max maintained incrementally for O(log n) containsRange
   #sorted = [];
@@ -676,7 +676,7 @@ export default class TransformQueue {
     return isStrictlyContained({ ranges: this.#sorted, start, end, prefixMaxEnd: this.#prefixMaxEnd });
   }
 
-  // O(log n) via indexed lookup + sorted binary search; was 3 x O(n) linear scans.
+  // O(log n) via indexed lookup + sorted binary search (vs 3 x O(n) linear scans).
   // split-pair handling: extracting just one half (prefix OR suffix) leaves the peer in
   // the queue as an orphan with a now-invalid splitInfo cycle. apply() would emit the
   // peer alone and corrupt output (peer covers only half the logical range). drop BOTH
