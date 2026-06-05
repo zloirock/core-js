@@ -572,6 +572,7 @@ function createResolveNodeType(babelNodeType, t, {
     extractElementAnnotation: (...args) => extractElementAnnotation(...args),
     resolveTypeQueryBinding: (...args) => resolveTypeQueryBinding(...args),
     pickLastAmbientOverload: (...args) => pickLastAmbientOverload(...args),
+    findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
   });
 
   // value-ops cluster: per-shape runtime resolvers - binary-operator narrowing, union /
@@ -707,6 +708,13 @@ function createResolveNodeType(babelNodeType, t, {
     if (!scope) return null;
     const binding = scope.getBinding(name);
     return binding?.constant ? binding.path : null;
+  }
+
+  // the binding's declaration path regardless of const-ness. `typeof X` reads X's DECLARED type
+  // (TS uses the annotation, not the narrowed value), which is stable even when X is reassigned -
+  // so the const gate of `constantBindingPath` is wrong for that annotation lookup
+  function bindingDeclaratorPath(name, scope) {
+    return scope?.getBinding(name)?.path ?? null;
   }
 
   // type-query cluster (`resolveTypeQuery`, `resolveTypeofFromSegments`,
@@ -1475,6 +1483,7 @@ function createResolveNodeType(babelNodeType, t, {
   const typeQueryCluster = createTypeQuery({
     t,
     constantBindingPath,
+    bindingDeclaratorPath,
     findEnumDeclaration,
     findDeclPathBySegments,
     withLookupPath,
