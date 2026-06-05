@@ -2,11 +2,12 @@ import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-
 import {
   isASTNode,
   isDirectiveStatement,
-  peelSkippableWrappers,
+  isTopLevelImportLike,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { liftSfcLangSuffix } from './sfc-shapes.js';
+import { codePointEndingAt, IDENT_PART_RE, IDENT_START_RE, isLineTerminator, skipBlockComment, skipGap } from './text-scan.js';
 
 // re-export the shared `isDirectiveStatement` so existing unplugin consumers
 // (`directivePrologueEnd`, `lastUserImportEnd`, `plugin.js`) keep working without
@@ -16,6 +17,10 @@ export { isDirectiveStatement };
 // re-export `liftSfcLangSuffix` so `plugin.js` and the test runner keep their import path
 // stable; canonical impl lives in `sfc-shapes.js` alongside the regexes it consumes
 export { liftSfcLangSuffix };
+
+// re-export the lexical scanners so sibling modules (`detect-entry`, `import-injector`) keep
+// importing them from here; canonical impls live in `text-scan.js`
+export { isLineTerminator, skipBlockComment, skipGap };
 
 // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
 // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
@@ -54,41 +59,10 @@ export function skipDirectivePrologue(statements, fallback) {
   return end;
 }
 
-// peel `(0, require)('m')` SequenceExpression-wrapped callee + `require('m').default`
-// MemberExpression-tail + `require?.('m')` OptionalCallExpression so webpack /
-// esbuild-style indirect-require shapes still register as import-region statements.
-// mirror of babel-plugin's `isRequireCall` in `import-injector.js`. peels paren / TS / chain
-// wrappers off the callee (oxc keeps the ParenthesizedExpression babel strips) so the webpack
-// indirect-require idiom `((0, require))('m')` reaches the SequenceExpression-tail check too
-function isRequireCall(expr) {
-  let cur = expr;
-  if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
-  if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
-  let callee = peelSkippableWrappers(cur.callee);
-  if (callee?.type === 'SequenceExpression') callee = peelSkippableWrappers(callee.expressions?.at(-1));
-  return callee?.type === 'Identifier' && callee.name === 'require';
-}
-
-// matches the leading import region (top-of-body contiguous run): ImportDeclaration,
-// `export ... from 'mod'` re-export, `require(...)` ExpressionStatement, or
-// VariableDeclaration with at least one `require()` initializer. mirrors babel-plugin's
-// `reorderRefsAfterImports.isImport` so the `var _ref;` placement decision uses the same
-// boundary on both pipelines. re-exports counted as imports because TC39 module records
-// fetch the re-exported module before evaluating user body - placing `var _ref;` before
-// them would interleave with the fetch order lint (`import/first`) flags
-export function isTopLevelImportLike(stmt) {
-  if (stmt?.type === 'ImportDeclaration') return true;
-  // `export { x } from 'mod'` / `export * from 'mod'` / `export * as ns from 'mod'`.
-  // `ExportNamedDeclaration` without `.source` is a local re-export of an already-bound
-  // identifier and is NOT an import - exclude via the `.source` check
-  if (stmt?.type === 'ExportNamedDeclaration' && stmt.source) return true;
-  if (stmt?.type === 'ExportAllDeclaration') return true;
-  if (stmt?.type === 'ExpressionStatement' && isRequireCall(stmt.expression)) return true;
-  if (stmt?.type === 'VariableDeclaration') {
-    return stmt.declarations.some(d => isRequireCall(d.init));
-  }
-  return false;
-}
+// `isRequireCall` + `isTopLevelImportLike` are shared with babel-plugin (the `var _ref;`
+// placement boundary), so they live in provider helpers; re-export the region predicate so
+// unplugin consumers + the unit tests keep importing it from here
+export { isTopLevelImportLike };
 
 // end position of the trailing user import / require statement in the leading import
 // region; null if no imports. used to position `var _ref;` after the user's import block
@@ -145,12 +119,6 @@ export function parenthesizeExprStmtHazard(text) {
   return EXPR_STMT_HAZARD_START.test(text) ? `(${ text })` : text;
 }
 
-// ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). per-char check for
-// hot loops where a regex-per-test would allocate the match array
-export function isLineTerminator(ch) {
-  return ch === '\n' || ch === '\r' || ch === '\u2028' || ch === '\u2029';
-}
-
 // consume ONE logical line ending starting at `pos`: a CRLF or LFCR pair (2 chars), or
 // a single LF / CR / LS (U+2028) / PS (U+2029) (1 char). returns the position AFTER the
 // terminator, or `pos` unchanged if `src[pos]` is not a LineTerminator. callers use this
@@ -166,42 +134,11 @@ export function consumeOneLineEnding(src, pos) {
   return pos;
 }
 
-// forward-scan past a block comment whose opener is at `p` (caller has verified
-// `src[p]==='/' && src[p+1]==='*'`). returns position after `*/`, or `src.length`
-// when the comment is unterminated (defensive; parser would have rejected the source,
-// but raw-text scanners upstream of parse must not loop forever)
-export function skipBlockComment(src, p) {
-  const end = src.indexOf('*/', p + 2);
-  return end === -1 ? src.length : end + 2;
-}
-
-// JS WhiteSpace + LineTerminator per spec - `\s` covers space / tab / NBSP / FF / VT / BOM /
-// ogham / Mongolian / EM / punctuation / ideographic separators / LF / CR / LS (U+2028) /
-// PS (U+2029). shared by `skipGap` (forward) and `prevSignificantPos` (backward) - a 6-char
-// explicit allowlist would miss NBSP / BOM / FF / VT etc, treating them as significant
+// JS WhiteSpace + LineTerminator - `\s` covers space / tab / NBSP / FF / VT / BOM / ogham /
+// Mongolian / EM / ideographic separators / LF / CR / LS (U+2028) / PS (U+2029). used by
+// `prevSignificantPos` (backward scan) - a 6-char explicit allowlist would miss NBSP / BOM /
+// FF / VT etc, treating them as significant
 const WS_OR_LT_RE = /\s/;
-
-// scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char
-export function skipGap(src, pos) {
-  let p = pos;
-  while (p < src.length) {
-    const ch = src[p];
-    if (WS_OR_LT_RE.test(ch)) {
-      p++;
-      continue;
-    }
-    if (ch === '/' && src[p + 1] === '/') {
-      while (p < src.length && !isLineTerminator(src[p])) p++;
-      continue;
-    }
-    if (ch === '/' && src[p + 1] === '*') {
-      p = skipBlockComment(src, p);
-      continue;
-    }
-    break;
-  }
-  return p;
-}
 
 // anchor for `var _ref;` as { statements, insertPos }, or null. `var` hoists to the
 // enclosing function regardless of placement, so we pick the innermost braced block
@@ -246,9 +183,6 @@ const REGEX_PRECEDING_KEYWORDS = new Set([
   'void',
   'yield',
 ]);
-
-const IDENT_START_RE = /[\p{ID_Start}$_]/u;
-const IDENT_PART_RE = /[\p{ID_Continue}$]/u;
 
 // one-pass lexer-like scan: classify every char of `src` into literal regions (strings,
 // templates, comments, regexes) so backward walks (`prevSignificantPos`) can skip past them
@@ -509,21 +443,12 @@ export function prevSignificantPos(src, pos) {
 }
 
 // the previous significant position may land on the trailing low surrogate of an astral
-// identifier char; pair it with the leading high surrogate so the ID_Continue test sees the
-// whole code point instead of a lone surrogate (which matches nothing, skipping the ASI guard
-// and letting a leading `(` fuse into the prior identifier -> runtime TypeError)
-function significantCodePoint(src, i) {
-  const code = src.charCodeAt(i);
-  if (code >= 0xDC00 && code <= 0xDFFF && i > 0) {
-    const lead = src.charCodeAt(i - 1);
-    if (lead >= 0xD800 && lead <= 0xDBFF) return src.slice(i - 1, i + 1);
-  }
-  return src[i];
-}
-
+// identifier char; `codePointEndingAt` pairs it with the leading high surrogate so the
+// fuse test sees the whole code point instead of a lone surrogate (which matches nothing,
+// skipping the ASI guard and letting a leading `(` fuse into the prior identifier)
 export function canFuseWithOpenParen(src, pos) {
   const i = prevSignificantPos(src, pos);
-  return i >= 0 && FUSES_WITH_OPEN_PAREN.test(significantCodePoint(src, i));
+  return i >= 0 && FUSES_WITH_OPEN_PAREN.test(codePointEndingAt(src, i));
 }
 
 // walk up to the nearest enclosing ExpressionStatement path (null when a function / program
