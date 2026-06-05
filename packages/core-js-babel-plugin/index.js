@@ -16,6 +16,7 @@ import {
   isTaggedTemplateTag,
   mayHaveSideEffects,
   peelSkippableWrappers,
+  BRACE_STATEMENT_HOST_TYPES,
   TS_EXPR_WRAPPERS,
   visitSymbolInLhsSe,
   wouldPromoteDirectiveAfterRemoval,
@@ -91,10 +92,12 @@ function splitMinifierSequenceDestructure(programPath, t) {
     splitStatementList(blockPath.get('body'));
   }
   splitInBody(programPath);
-  // SwitchCase's `consequent` slot hosts the case body statement list; SwitchCase is not in
-  // STATEMENT_LIST_BODY_HOSTS (different slot name) so a separate visitor reaches it
+  // the brace-delimited statement-list hosts as a babel-traverse union visitor key (Program is the
+  // traverse root, handled by the direct splitInBody(programPath) above). SwitchCase's `consequent`
+  // slot hosts the case body under a different slot name, so a separate visitor reaches it
+  const braceHostVisitorKey = [...BRACE_STATEMENT_HOST_TYPES].join('|');
   programPath.traverse({
-    'BlockStatement|StaticBlock|TSModuleBlock': splitInBody,
+    [braceHostVisitorKey]: splitInBody,
     SwitchCase(path) {
       splitStatementList(path.get('consequent'));
     },

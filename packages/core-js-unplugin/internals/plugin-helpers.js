@@ -501,9 +501,22 @@ export function prevSignificantPos(src, pos) {
   return -1;
 }
 
+// the previous significant position may land on the trailing low surrogate of an astral
+// identifier char; pair it with the leading high surrogate so the ID_Continue test sees the
+// whole code point instead of a lone surrogate (which matches nothing, skipping the ASI guard
+// and letting a leading `(` fuse into the prior identifier -> runtime TypeError)
+function significantCodePoint(src, i) {
+  const code = src.charCodeAt(i);
+  if (code >= 0xDC00 && code <= 0xDFFF && i > 0) {
+    const lead = src.charCodeAt(i - 1);
+    if (lead >= 0xD800 && lead <= 0xDBFF) return src.slice(i - 1, i + 1);
+  }
+  return src[i];
+}
+
 export function canFuseWithOpenParen(src, pos) {
   const i = prevSignificantPos(src, pos);
-  return i >= 0 && FUSES_WITH_OPEN_PAREN.test(src[i]);
+  return i >= 0 && FUSES_WITH_OPEN_PAREN.test(significantCodePoint(src, i));
 }
 
 // walk up to the nearest enclosing ExpressionStatement path (null when a function / program

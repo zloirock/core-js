@@ -24,7 +24,7 @@ import {
   nodePathInScope,
 } from './base.js';
 import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias } from './ast-shapes.js';
-import { unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
+import { STATEMENT_LIST_HOST_TYPES, unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
 
 // visitor-key list for recovering a real NodePath of a namespaced declaration via
 // `nodePathInScope` - the union of every node type `isFunctionOrClassDeclaration` /
@@ -396,9 +396,7 @@ export function createNameResolution({ t }) {
     let result = null;
     for (let cur = path; cur; cur = cur.parentPath) {
       const { node } = cur;
-      const statements = node?.type === 'TSModuleBlock' || node?.type === 'Program'
-        || node?.type === 'BlockStatement' || node?.type === 'StaticBlock'
-        ? node.body : null;
+      const statements = STATEMENT_LIST_HOST_TYPES.has(node?.type) ? node.body : null;
       if (!statements) continue;
       const found = walkStatementsForDecl({
         segments, statements, collect: null, leafMatch: isTypeBearingDeclaration,
