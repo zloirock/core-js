@@ -32,7 +32,7 @@
 // it; factory has its own `functionTypeParams` declaration that this cluster's caller-side
 // `unwrap` / `resolve` already work past.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
-import { isMethodShapeMember, typeRefSegments } from './ast-shapes.js';
+import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createAwaited({
@@ -272,7 +272,7 @@ export function createAwaited({
     // union / intersection / Promise check or distribution misses the inner shape
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(node));
     const recurse = next => resolveAwaitedAnnotation({ node: next, scope, depth: depth + 1, typeParamMap, seen });
-    if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation') {
+    if (isUnionType(peeled)) {
       return foldUnionTypes(peeled.types, recurse);
     }
     if (peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {

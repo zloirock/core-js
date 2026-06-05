@@ -5,6 +5,7 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
+  FN_NODE_TYPES,
   destructureReceiverSlot,
   flattenableHostSlot,
   getFallbackBranchSlots,
@@ -213,7 +214,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   const wrapperNode = wrapperPath?.node;
   let receiverNode = null;
   if (wrapperNode?.type === 'AssignmentPattern' && wrapperPath.parentPath?.node
-      && FN_TYPES_FOR_IIFE.has(wrapperPath.parentPath.node.type)) {
+      && FN_NODE_TYPES.has(wrapperPath.parentPath.node.type)) {
     // AssignmentPattern is an IIFE param wrapper - prefer the call-arg over the default ONLY
     // when it is a classifiable receiver; a non-classifiable arg (notably `undefined`, which
     // makes the runtime apply the default) keeps the default so its branches are enumerated.
@@ -236,14 +237,6 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   });
   return out.length ? out : null;
 }
-
-// IIFE-callable shapes (arrow / FunctionExpression) - the only function shapes that can
-// appear as the callee of an immediately-invoked expression. mirrors `FN_NODE_TYPES` in
-// helpers; declarations / methods can't sit at the callee position so they're excluded
-const FN_TYPES_FOR_IIFE = new Set([
-  'ArrowFunctionExpression',
-  'FunctionExpression',
-]);
 
 export function canTransformDestructuring({ parentType, parentInit }) {
   if (parentType === 'VariableDeclarator') {

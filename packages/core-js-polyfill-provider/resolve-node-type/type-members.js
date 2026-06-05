@@ -16,6 +16,7 @@ import { KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from
 import {
   isInterfaceDeclaration,
   isTypeAlias,
+  isUnionType,
   synthInterfaceExtendsRef,
   typeAliasBody,
   typeRefName,
@@ -156,7 +157,7 @@ export function createTypeMembers({
       const all = [];
       function pushIntersectionPart(node) {
         const inner = unwrapTypeAnnotation(node);
-        if (inner?.type === 'TSUnionType' || inner?.type === 'UnionTypeAnnotation') {
+        if (isUnionType(inner)) {
           for (const branch of inner.types) pushIntersectionPart(branch);
           return;
         }
@@ -555,7 +556,7 @@ export function createTypeMembers({
       return findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst });
     }
     const resolveBranch = member => findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
-    if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
+    if (isUnionType(aliased)) {
       const found = aliased.types.map(resolveBranch).filter(Boolean);
       if (!found.length) return null;
       if (found.length === 1) return found[0];

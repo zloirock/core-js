@@ -34,7 +34,7 @@
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH } from './base.js';
-import { typeRefName } from './ast-shapes.js';
+import { isUnionType, typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -278,7 +278,7 @@ export function createCallResolution({
     const lookup = typeNode => propName === null
       ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind)
       : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst });
-    if (target.type === 'TSUnionType' || target.type === 'UnionTypeAnnotation') {
+    if (isUnionType(target)) {
       for (const branch of target.types) {
         const peeled = applySubst(unwrapTypeAnnotation(branch), subst);
         if (isNullableOrNeverAnnotation(peeled)) continue;
