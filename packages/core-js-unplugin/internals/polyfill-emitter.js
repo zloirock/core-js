@@ -23,7 +23,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
-import { createRewriteHint } from './transform-queue.js';
+import { createRewriteHint, deoptionalizeNeedleAtPositions } from './transform-queue.js';
 import {
   isCallee,
   isCalleeWrappedInParens,
@@ -95,23 +95,9 @@ export function createPolyfillEmitter({
       && node.expression.type !== 'SequenceExpression' ? node.expression : node);
   }
 
-  // strip `?.` at known absolute positions within a source slice
-  function stripOptionalDots(src, baseOffset, positions) {
-    if (!positions?.length) return src;
-    const sorted = [...positions].sort((a, b) => a - b);
-    let result = '';
-    let prev = 0;
-    for (const absPos of sorted) {
-      let rel = absPos - baseOffset;
-      if (rel < 0 || rel >= src.length) continue;
-      rel = skipGap(src, rel);
-      if (rel >= src.length || src[rel] !== '?' || src[rel + 1] !== '.') continue;
-      result += src.slice(prev, rel);
-      const afterQ = skipGap(src, rel + 2);
-      prev = (src[afterQ] === '[' || src[afterQ] === '(') ? rel + 2 : rel + 1;
-    }
-    return result + src.slice(prev);
-  }
+  // strip `?.` at known absolute positions within a source slice - the same operation the
+  // compose layer applies to a needle, so reuse its single implementation
+  const stripOptionalDots = deoptionalizeNeedleAtPositions;
 
   // single descent step through chain shapes: MemberExpression.object / CallExpression.callee /
   // TS expression wrapper unwrap. used by all chain-walking helpers (findChainRoot,

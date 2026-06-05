@@ -1,3 +1,5 @@
+import { codePointEndingAt, IDENT_PART_RE, skipGap } from './text-scan.js';
+
 // is [start, end] strictly contained within any range in the start-sorted array?
 // (equal ranges are not considered contained - both transforms must be applied).
 // binary search + prefix maxEnd resolves in O(log n); falls through to a linear scan only
@@ -83,35 +85,15 @@ function createNeedleScanner(haystack) {
 // a corrupt slice from `str.slice(0, -1) + replacement + ...` falling through the empty loop.
 // empty needle: `indexOf('', 0)` returns 0 on any string, so without a guard we'd splice
 // `replacement` in at position 0 repeatedly - silent corruption. bail early instead
-// JS identifier-character set: word-boundary check ensures `Promise` (the inner
-// needle from a polyfill substitution) doesn't match SUBSTRING inside an already-
-// substituted `_Promise` token in the outer's content - that double-substitution would
-// produce `__Promise` (extra underscore, ReferenceError). when needle starts or ends
-// with an identifier char, require the neighbour chars on the surrounding sides of
-// each candidate match to be non-identifier (or absent at string boundaries).
-// Unicode-aware: ASCII `\w` (= `[A-Za-z0-9_]`) misses ID_Continue chars (`α`, `_x`-suffix
-// chars with non-ASCII letters), causing `Map` substring inside `Mapα` to slip through
-// the boundary check as a standalone match - then needle substitution corrupts the
-// `Mapα` identifier into `_Mapα`. `$` is explicitly listed because it's not in
-// `ID_Continue` but IS a valid identifier char per JS spec
-const IDENT_CHAR_RE = /[\p{ID_Continue}$]/u;
-
+// JS identifier-boundary check: when `needle` starts or ends with an identifier char, require
+// the neighbour chars to be non-identifier (or absent at string boundaries), so the inner needle
+// `Promise` doesn't match the SUBSTRING inside an already-substituted `_Promise` (that double-
+// substitution would emit `__Promise` - an extra underscore, ReferenceError). `IDENT_PART_RE` is
+// Unicode-aware (ID_Continue) so a non-ASCII letter suffix can't slip the boundary as standalone
 function isIdentifierEdge(needle, edge) {
   if (!needle?.length) return false;
-  return edge === 'start' ? IDENT_CHAR_RE.test(needle[0])
-    : IDENT_CHAR_RE.test(needle.at(-1));
-}
-
-// the code point ENDING at `i`: pairs a trailing low surrogate with its lead so an astral
-// identifier char tests as one unit, not a lone surrogate half (which matches nothing). mirrors
-// plugin-helpers' ASI-fuse surrogate handling (same root as the leading-`(` fuse check)
-function codePointEndingAt(str, i) {
-  const code = str.charCodeAt(i);
-  if (code >= 0xDC00 && code <= 0xDFFF && i > 0) {
-    const lead = str.charCodeAt(i - 1);
-    if (lead >= 0xD800 && lead <= 0xDBFF) return str.slice(i - 1, i + 1);
-  }
-  return str[i];
+  return edge === 'start' ? IDENT_PART_RE.test(needle[0])
+    : IDENT_PART_RE.test(needle.at(-1));
 }
 
 export function hasIdentifierBoundary(str, idx, needle) {
@@ -119,10 +101,10 @@ export function hasIdentifierBoundary(str, idx, needle) {
   // `codePointEndingAt` handles the char BEFORE the needle (trailing low surrogate); the built-in
   // `codePointAt` handles the char AFTER (leading high surrogate). a lone surrogate would test as
   // a boundary and mis-classify the needle as standalone
-  if (isIdentifierEdge(needle, 'start') && idx > 0 && IDENT_CHAR_RE.test(codePointEndingAt(str, idx - 1))) return false;
+  if (isIdentifierEdge(needle, 'start') && idx > 0 && IDENT_PART_RE.test(codePointEndingAt(str, idx - 1))) return false;
   const tail = idx + needle.length;
   if (isIdentifierEdge(needle, 'end') && tail < str.length
-    && IDENT_CHAR_RE.test(String.fromCodePoint(str.codePointAt(tail)))) return false;
+    && IDENT_PART_RE.test(String.fromCodePoint(str.codePointAt(tail)))) return false;
   return true;
 }
 
@@ -140,52 +122,6 @@ function replaceNthOccurrence({ str, needle, replacement, n }) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
-// fast single-char whitespace test - covers space, tab, CR, LF; no need for the full
-// `\s` lexicon (vertical tabs, exotic Unicode whitespace) because parsers normalize
-// optional-chain tokens through standard ECMAScript whitespace
-const WS_RE = /\s/;
-
-// ECMAScript line terminator code points: LF, CR, LS (U+2028), PS (U+2029). all four
-// terminate a `//` line comment per spec - LF-only scan walks past LS/PS into real code
-// and would misclassify the next significant char (turning `obj?.// h (args)` into
-// `obj.// h (args)` instead of `obj// h (args)`). charcode loop avoids both regex
-// `lastIndex` mutation and the `\s` superset that matches non-terminator whitespace
-function indexOfLineTerminator(src, from) {
-  for (let i = from; i < src.length; i++) {
-    const c = src.charCodeAt(i);
-    if (c === 0x0A || c === 0x0D || c === 0x2028 || c === 0x2029) return i;
-  }
-  return -1;
-}
-
-// scan past whitespace + line/block comments starting at `from`. returns first index of a
-// non-gap char or `src.length` for unterminated trailing run. parser-tolerant boundary -
-// source can hold `obj ?. (args)`, `obj?./*c*/(args)`, `obj?.// hint\n(args)` between
-// `?.` and the token, and a single-char lookahead would misclassify all three
-function skipWhitespaceAndComments(src, from) {
-  let i = from;
-  while (i < src.length) {
-    if (WS_RE.test(src[i])) {
-      i++;
-      continue;
-    }
-    if (src[i] === '/' && src[i + 1] === '*') {
-      const end = src.indexOf('*/', i + 2);
-      if (end === -1) return src.length;
-      i = end + 2;
-      continue;
-    }
-    if (src[i] === '/' && src[i + 1] === '/') {
-      const nl = indexOfLineTerminator(src, i + 2);
-      if (nl === -1) return src.length;
-      i = nl + 1;
-      continue;
-    }
-    return i;
-  }
-  return i;
-}
-
 // `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` - naive `replaceAll('?.', '.')`
 // produces `.(` that never matches the `(` emitted by the inner transform.
 // raw text transform - not AST-aware. `?.` inside a template literal (`` `a?.b` ``) or a
@@ -194,7 +130,7 @@ function skipWhitespaceAndComments(src, from) {
 // position - the malformed-needle risk is bounded by the caller supplying correct ranges
 export function deoptionalizeNeedle(needle) {
   return needle.replaceAll('?.', (_, offset) => {
-    const next = needle[skipWhitespaceAndComments(needle, offset + 2)];
+    const next = needle[skipGap(needle, offset + 2)];
     return next === '(' || next === '[' ? '' : '.';
   });
 }
@@ -213,10 +149,10 @@ export function deoptionalizeNeedleAtPositions(needle, baseOffset, positions) {
   for (const absPos of sorted) {
     let rel = absPos - baseOffset;
     if (rel < 0 || rel >= needle.length) continue;
-    rel = skipWhitespaceAndComments(needle, rel);
+    rel = skipGap(needle, rel);
     if (rel >= needle.length || needle[rel] !== '?' || needle[rel + 1] !== '.') continue;
     result += needle.slice(prev, rel);
-    const afterQ = skipWhitespaceAndComments(needle, rel + 2);
+    const afterQ = skipGap(needle, rel + 2);
     prev = needle[afterQ] === '[' || needle[afterQ] === '(' ? rel + 2 : rel + 1;
   }
   return result + needle.slice(prev);

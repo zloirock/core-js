@@ -5,19 +5,10 @@ import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usag
 import { classifyReceiverSE, keySideEffectsOnly, peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   createTypeAnnotationChecker,
+  SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-
-// runtime-transparent wrappers for optional-chain detection: TS expression wrappers +
-// ParenthesizedExpression + ChainExpression. ChainExpression is ESTree's wrapper around
-// optional chains (oxc / acorn shape); babel-parser inlines optionals via the `optional`
-// flag and never emits ChainExpression itself, but accepting it here keeps the helpers
-// parser-agnostic for cross-AST tooling
-const OPTIONAL_CHAIN_TRANSPARENT_TYPES = new Set([
-  ...TRANSPARENT_EXPR_WRAPPER_TYPES,
-  'ChainExpression',
-]);
 
 export default function (t, { getInjector, typeResolvers } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
@@ -131,7 +122,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // walk past TS / Paren / Chain wrappers between the replaced node and the optional
     // chain. without these peels, `(arr.includes)?.(1)` / ESTree-wrapped chains wouldn't
     // deopt. symmetric with `peelTransparentChildPath` (extractCheck's child-walk)
-    while (parentPath && OPTIONAL_CHAIN_TRANSPARENT_TYPES.has(parentPath.node?.type)) {
+    while (parentPath && SKIPPABLE_WRAPPER_TYPES.has(parentPath.node?.type)) {
       ({ parentPath } = parentPath);
     }
     if (!parentPath || !isOptionalOperand(path, parentPath)) return null;
@@ -164,7 +155,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // every hop (TS `!` mid-chain between optional links would otherwise abort detection)
   function peelTransparentChildPath(p) {
     let cur = p;
-    while (cur.node && OPTIONAL_CHAIN_TRANSPARENT_TYPES.has(cur.node.type)) {
+    while (cur.node && SKIPPABLE_WRAPPER_TYPES.has(cur.node.type)) {
       cur = cur.get('expression');
     }
     return cur;
