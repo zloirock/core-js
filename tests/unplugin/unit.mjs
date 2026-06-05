@@ -1576,6 +1576,21 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/data.js?lang=en', { tag: 'generic-lang' });
   check('SnapshotCache/generic non-JS lang query still strips',
     cache.take('/src/data.js?lang=fr')?.tag, 'generic-lang');
+  // case-fold is scoped to the Windows DRIVE LETTER only - the rest of the path stays
+  // case-sensitive (on Linux `SRC` and `src` are different dirs). guards against an over-broad
+  // whole-path `.toLowerCase()` that would collide genuinely-distinct files on case-sensitive fs
+  cache.store('c:/src/keep-case.js', { tag: 'drive-only-fold' });
+  check('SnapshotCache/non-drive path segment stays case-sensitive',
+    cache.take('c:/SRC/keep-case.js'), null);
+  // recognized sub-block hash is preserved VERBATIM (sliced at the first `#`, never sorted): an
+  // in-hash query is NOT folded into the sortable pre-hash tokens. the `#z?b=1&a=2` vs `#z?a=2&b=1`
+  // pair would COLLIDE if the whole tail were sorted, so distinct keys here pin verbatim handling -
+  // guards against both hash-drop and whole-tail-sort regressions
+  cache.store('/src/Hash.vue?vue&type=script#z?b=1&a=2', { tag: 'hash-verbatim' });
+  check('SnapshotCache/in-hash query not sorted (verbatim, distinct)',
+    cache.take('/src/Hash.vue?vue&type=script#z?a=2&b=1'), null);
+  check('SnapshotCache/identical sub-block hash round-trips',
+    cache.take('/src/Hash.vue?vue&type=script#z?b=1&a=2')?.tag, 'hash-verbatim');
   // peekWithParse leaves the snapshot intact: callers (post pass with disable-file detection)
   // can inspect cached AST before committing to `take()`. bail paths leave the entry so a
   // subsequent retry can still consume it
