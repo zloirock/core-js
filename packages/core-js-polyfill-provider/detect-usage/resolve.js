@@ -203,7 +203,7 @@ const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // path must EITHER start with a known core-js package prefix OR with an internal core-js
 // namespace (`actual/`, `es/`, etc.). babel's injector stores importSource without the
 // package prefix (`actual/symbol/iterator`); unplug stores the full path. without this
-// constraint, `my-lib/symbol/iterator` was misclassified as Symbol.iterator
+// constraint, `my-lib/symbol/iterator` would be misclassified as Symbol.iterator
 const CORE_JS_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.[cm]?js)?$/;
 
@@ -747,7 +747,7 @@ export function asSymbolRef({ node, scope, adapter, seen, path }) {
 // constantViolations check: `var X = X; X = mock; X.method()` reassigns the binding before
 // the use site, so subsequent reads MUST not be rewritten to the polyfill - mock would be
 // silently ignored. without the check `Promise.try` after `var Promise = Promise; Promise = mock`
-// rewrote to `_Promise.try`, dropping the user's reassignment
+// would rewrite to `_Promise.try`, dropping the user's reassignment
 export function createSelfRefVarGuard(getKind) {
   const cache = new WeakMap();
   return function isSelfRefVarBinding(binding) {
