@@ -344,14 +344,17 @@ function needsLeadingNewlineAt(src, pos) {
 // ref-block emission lands at `refPos` (right after the trailing user import). when that
 // user import ends without `;` (ASI), refPos sits on whatever token came next - inserting
 // `var _ref;` here would fuse the prior statement into `import x from "y"var _ref;` and
-// crash the next parse pass. detection: prev char is neither `;` nor a line terminator.
+// crash the next parse pass. detection: prev char is not a line terminator (a `;` terminator
+// still needs the newline so the memo doesn't stick to the import line).
 // blank-line trade-off accepted: when next char is already `\n`, the inserted leading `\n`
 // produces a stylistic blank line BEFORE the block, but the terminator is still required -
 // removing it would let `import "y"<block>` fuse the import into our `var _ref` declaration
 function needsRefLeadingNewlineAt(src, pos) {
   if (pos <= 0) return false;
-  const prev = src[pos - 1];
-  return prev !== ';' && !isLineTerminator(prev);
+  // a leading `\n` puts the `var _ref;` memo on its own line. needed unless the prior char is
+  // already a line terminator (refPos sits at a newline). a `;` terminator still needs it - without
+  // the newline the memo sticks to the trailing import line (`import x from "y";var _ref;`)
+  return !isLineTerminator(src[pos - 1]);
 }
 
 // skip trailing whitespace + any chain of inline comments from `pos`, returning the position
