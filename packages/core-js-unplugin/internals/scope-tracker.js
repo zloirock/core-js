@@ -6,6 +6,7 @@
 // destructure parts) go straight to `injector.generateLocalRef` with `hoisted: false` to
 // avoid a duplicate bare `var X;`
 import { isBodylessStatementSlot, isLoopStatement } from '@core-js/polyfill-provider/destructure-host-shape';
+import { RUNTIME_BLOCK_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { skipDirectivePrologue, varScopeAnchor } from './plugin-helpers.js';
 
 // arrow expression body wraps to `{ var ...; return expr; }` (host is Expression);
@@ -132,7 +133,7 @@ export default class ScopeTracker {
         // itself; catch / namespace wrap their block in `.body`) so applyTransforms can re-emit
         // the scoped `var` as a composing body-overwrite when its insert would land inside an
         // enclosing overwrite
-        const braceNode = p.node.type === 'BlockStatement' || p.node.type === 'StaticBlock' ? p.node : p.node.body;
+        const braceNode = RUNTIME_BLOCK_TYPES.has(p.node.type) ? p.node : p.node.body;
         if (braceNode) this.#scopedVarBlocks.set(this.scope, { start: braceNode.start, end: braceNode.end });
         break;
       }
