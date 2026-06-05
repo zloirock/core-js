@@ -60,6 +60,10 @@ check('isKnownGlobalName/Promise', isKnownGlobalName('Promise'), true);
 check('isKnownGlobalName/Symbol', isKnownGlobalName('Symbol'), true);
 check('isKnownGlobalName/Math', isKnownGlobalName('Math'), true);
 check('isKnownGlobalName/notAGlobal', isKnownGlobalName('notAGlobal_xyz'), false);
+// the injectable-globals catalogue is keyed off built-in-definitions, so newer constructor
+// globals (Iterator / AsyncIterator) are recognized too - not just the legacy hardcoded sets
+check('isKnownGlobalName/Iterator', isKnownGlobalName('Iterator'), true);
+check('isKnownGlobalName/AsyncIterator', isKnownGlobalName('AsyncIterator'), true);
 
 // --- getEntrySource ---
 

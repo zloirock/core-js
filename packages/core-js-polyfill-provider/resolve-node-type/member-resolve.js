@@ -349,11 +349,18 @@ export function createMemberResolve({
     return resolveMemberCallReturn({ annotation, name, scope, resolve });
   }
 
-  // resolve `TSTypeReference { typeName: X }` to a NodePath of `class X { ... }` in scope,
-  // or null if the reference points at an ambient / interface / non-class. bare Identifier
-  // uses O(1) scope-binding lookup; qualified `NS.Cls` / `A.B.Cls` walks AST via
-  // `findTypeDeclaration` then recovers the NodePath via `classNodePathInScope` (rare slow
-  // path: babel doesn't bind TS `namespace` declarations as scope values)
+  // recover a class NodePath from a type-declaration scan: locates the decl by name (bare) or
+  // segments (qualified), then lifts the raw node to a real path. covers an ambient `declare class`
+  // and namespace-nested classes that babel doesn't bind as scope values; null when not a class
+  function classPathFromTypeDeclaration(nameOrSegments, scope) {
+    const decl = nameOrSegments && findTypeDeclaration(nameOrSegments, scope);
+    return t.isClassDeclaration(decl) ? nodePathInScope(decl, scope, CLASS_PATH_TYPES) : null;
+  }
+
+  // resolve `TSTypeReference { typeName: X }` to a NodePath of `class X { ... }` in scope, or null
+  // if it points at an interface / non-class. a bare Identifier tries the O(1) value binding first,
+  // then falls back to the type-declaration scan for an ambient `declare class` (which babel doesn't
+  // bind as a value); a qualified `NS.Cls` / `A.B.Cls` goes straight to that scan
   function findClassPathForTypeReference(annotation, scope) {
     if (annotation?.type !== 'TSTypeReference') return null;
     const { typeName } = annotation;
@@ -363,11 +370,13 @@ export function createMemberResolve({
       // wrongly return the outer class. bail so the caller resolves the type-param via its constraint
       if (findTypeParameter(typeName.name, scope)) return null;
       const binding = scope?.getBinding(typeName.name);
-      return binding && t.isClassDeclaration(binding.path.node) ? binding.path : null;
+      if (binding) return t.isClassDeclaration(binding.path.node) ? binding.path : null;
+      // no value binding -> an ambient `declare class` (oxc binds it, babel doesn't); recover it
+      // through the same scan the qualified branch uses so the element type stays parser-consistent
+      return classPathFromTypeDeclaration(typeName.name, scope);
     }
     const segments = isQualifiedNameNode(typeName) ? collectQualifiedSegments(typeName) : null;
-    const decl = segments && findTypeDeclaration(segments, scope);
-    return decl && t.isClassDeclaration(decl) ? nodePathInScope(decl, scope, CLASS_PATH_TYPES) : null;
+    return classPathFromTypeDeclaration(segments, scope);
   }
 
   // runtime analogue of `resolveKeyofSelfValueUnion`: `obj[k]` where `obj: T` (a typeparam)

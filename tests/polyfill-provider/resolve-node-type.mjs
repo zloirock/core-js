@@ -798,6 +798,41 @@ runBoth('utility: ReturnType<() => number[]> -> Array',
       { primitive: false, ctor: 'Array' });
   });
 
+// `ConstructorParameters<typeof C>` where C has no own constructor and extends an AMBIENT
+// `declare class` parent: babel's runtime-expression lookup bails on the value-less ambient super,
+// so without a TYPE-level fallback the inherited element type diverges from oxc (which resolves
+// the super). both parsers must walk into the parent's `number[]` constructor param
+runBoth('utility: ConstructorParameters<typeof C>[0] inherits ambient declare-class super -> Array',
+  'declare class Base { constructor(rows: number[]); }\nclass C extends Base {}\nlet x: ConstructorParameters<typeof C>[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the ambient-super fallback must keep walking MULTIPLE levels: C -> B -> A, both intermediates
+// value-less `declare class`. each hop re-enters the type-level lookup, so the constructor on the
+// grandparent still surfaces (a single-level fallback would stall at B and bail null on babel)
+runBoth('utility: ConstructorParameters<typeof C>[0] walks two ambient declare-class levels -> Array',
+  'declare class A { constructor(rows: number[]); }\ndeclare class B extends A {}\nclass C extends B {}\nlet x: ConstructorParameters<typeof C>[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// no constructor anywhere in the ambient chain: the walk must terminate gracefully (null), not
+// loop or throw - guards the fallback's depth-bounded termination on both parsers
+runBoth('utility: ConstructorParameters<typeof C>[0] with no ctor in ambient chain -> null',
+  'declare class A {}\ndeclare class B extends A {}\nclass C extends B {}\nlet x: ConstructorParameters<typeof C>[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkTruthy(`${ lbl } resolves to null without throwing`, resolver.resolveNodeType(decl.get('id')) === null);
+  });
+
 // --- Index access types ---
 
 runBoth('TS index access: type Foo = { x: string }; Foo["x"] -> string',
@@ -907,6 +942,18 @@ runBoth('TS typeof in type: `typeof arr` where arr: number[] -> Array',
     const resolver = adapter.makeResolver();
     checkType(lbl, resolver.resolveNodeType(decl.get('id')),
       { primitive: false, ctor: 'Array' });
+  });
+
+// a reassigned (non-const) but ANNOTATED `let` keeps its DECLARED type under `typeof` - TS reads
+// the annotation, not the narrowed value. `constantBindingPath` bails because the binding isn't
+// constant, so the resolver recovers the type via the declarator's explicit annotation instead
+runBoth('TS typeof in type: reassigned annotated `let m: Map` -> typeof m still resolves to Map',
+  'let m: Map<string, number> = new Map(); m = new Map(); let x: typeof m;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Map' });
   });
 
 // --- Readonly / ReadonlyArray ---
@@ -2898,8 +2945,8 @@ runBoth('class method declared return -> Map',
       mutated.has('Array.from'));
   }
 
-  // Reflect.set / Reflect.get / other Reflect methods - not slot-override semantics
-  // for our pre-pass. negative test: must NOT mark
+  // Reflect.set(Array, 'from', fn) is the call-form of `Array.from = fn` and the [[Set]] twin of
+  // Object.assign, so it monkey-patches the slot and MUST mark (parity with the alias-narrow path)
   {
     const stmts = [exprStmt({
       type: 'CallExpression',
@@ -2911,7 +2958,18 @@ runBoth('class method declared return -> Map',
       ],
     })];
     const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: Reflect.set does not mark',
+    checkTruthy('collectMutatedStaticMembers: Reflect.set marks',
+      mutated.has('Array.from'));
+  }
+  // Reflect.get (and other non-slot-override Reflect methods) must NOT mark - negative test
+  {
+    const stmts = [exprStmt({
+      type: 'CallExpression',
+      callee: member('Reflect', 'get'),
+      arguments: [ident('Array'), { type: 'StringLiteral', value: 'from' }],
+    })];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: Reflect.get does not mark',
       mutated.size, 0);
   }
 

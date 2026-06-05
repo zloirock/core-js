@@ -37,10 +37,12 @@ export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, 
       if (babelTargets && keys(babelTargets).length) return targetsParser(babelTargets);
     }
     // use project browserslist config by default (like @babel/preset-env, autoprefixer, etc.)
-    // browserslist-config-only branch collapses empty Map to null so the "no project config"
-    // fallback (parsedTargets=null) routes to defaultShouldInject's polyfill-everything
-    // branch. explicit `targets`/`getBabelTargets` empty Map intentionally stays truthy:
-    // user explicitly said "no engines" -> polyfill nothing (`for`-loop 0-iter -> return false)
+    // this branch collapses an empty browserslist Map to null so the "no project config"
+    // fallback (parsedTargets=null) routes to defaultShouldInject's polyfill-everything branch.
+    // the two "no engines" inputs are ASYMMETRIC: an explicit plugin `targets: {}` returns early
+    // above and its empty Map stays truthy -> polyfill nothing (`for`-loop 0-iter -> return false),
+    // but an empty `getBabelTargets()` is gated OUT by the `.length` check above and falls through
+    // HERE, so a babel-declared no-engines result polyfills EVERYTHING, not nothing
     const parsed = targetsParser({ configPath, ignoreBrowserslistConfig, browserslistEnv });
     return parsed.size ? parsed : null;
   } catch (error) {

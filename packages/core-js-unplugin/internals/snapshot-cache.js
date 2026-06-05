@@ -172,12 +172,14 @@ export default class SnapshotCache {
   // collapse to the same empty shape; non-null ast with mismatched bytes nulls the ast/comments
   // but still surfaces the snapshot so callers can use the bag-of-globals without reparse
   static #withParseShape(stored, code) {
-    if (!stored) return { snapshot: null, ast: null, comments: null };
+    if (!stored) return { snapshot: null, ast: null, comments: null, preRewroteSource: false };
     const canReuse = stored.ast && stored.postInput === code;
     return {
       snapshot: stored.snapshot,
       ast: canReuse ? stored.ast : null,
       comments: canReuse ? stored.comments : null,
+      // whether pre rewrote the source (emitted a content map); gates post's sourcesContent chaining
+      preRewroteSource: !!stored.preRewroteSource,
     };
   }
 

@@ -42,6 +42,7 @@ export function createTypeFolding({
   extractElementAnnotation,
   resolveTypeQueryBinding,
   pickLastAmbientOverload,
+  findClassPathForTypeReference,
 }) {
   function unwrapTupleMember(element) {
     let node = element;
@@ -100,7 +101,17 @@ export function createTypeFolding({
       // babel: ClassMethod.params; oxc: MethodDefinition.value.params (FunctionExpression)
       if (ctor) return ctor.params ?? ctor.value?.params ?? null;
       if (!t.isClass(current.node) || !current.node.superClass) return null;
-      current = resolveRuntimeExpression(current.get('superClass'));
+      const superClassPath = current.get('superClass');
+      const superNode = superClassPath.node;
+      // an ambient `declare class` parent has no runtime value: babel's `resolveRuntimeExpression`
+      // hands back the bare `extends` identifier UNRESOLVED (oxc resolves it to the class). when the
+      // runtime lookup doesn't reach an actual class, recover the ambient parent via a TYPE-level
+      // lookup of the bare identifier so the ConstructorParameters element type stays parser-consistent
+      const runtimeSuper = resolveRuntimeExpression(superClassPath);
+      if (runtimeSuper && t.isClass(runtimeSuper.node)) current = runtimeSuper;
+      else if (superNode?.type === 'Identifier') {
+        current = findClassPathForTypeReference({ type: 'TSTypeReference', typeName: superNode }, scope);
+      } else current = runtimeSuper;
     }
     return null;
   }
