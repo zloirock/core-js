@@ -287,13 +287,19 @@ function substituteInner({ content, needle, needleStart, replacement, nth, outer
   // path is wasted (and we'd leave `_ref = rootRaw` dead code in the guard)
   if (innerPrefix && needleRootedInGuard(needle, outerHint) && needle.length > outerHint.rootRaw.length) {
     const rootRawResult = replaceNthOccurrence({ str: content, needle: outerHint.rootRaw, replacement: innerPrefix, n: 0 });
-    if (rootRawResult !== content) return { content: rootRawResult, found: true };
+    if (rootRawResult !== content) return { content: rootRawResult, found: true, verbatim: false };
   }
-  for (const candidate of buildNeedleCandidates({ needle, needleStart, outerHint })) {
-    const result = replaceNthOccurrence({ str: content, needle: candidate, replacement, n: nth });
-    if (result !== content) return { content: result, found: true };
+  const candidates = buildNeedleCandidates({ needle, needleStart, outerHint });
+  for (let i = 0; i < candidates.length; i++) {
+    const result = replaceNthOccurrence({ str: content, needle: candidates[i], replacement, n: nth });
+    // candidate[0] is the raw source slice: a hit there means the inner's source text sits
+    // unmodified in `content`, so every transform nested inside this inner's source range
+    // was replaced wholesale and its own needle is now gone. non-raw candidates (deopt /
+    // guardRef shapes) rewrote the text, so a nested range may survive and still need its
+    // own substitution - `verbatim` stays false for them so compose keeps scanning
+    if (result !== content) return { content: result, found: true, verbatim: i === 0 };
   }
-  return { content, found: false };
+  return { content, found: false, verbatim: false };
 }
 
 // binary search: first index with ranges[i].start >= target
@@ -401,12 +407,24 @@ function splitInnerContent(entry, composedContent) {
   return composedContent.get(prefix) ?? prefix.content + suffix.content;
 }
 
-// inner content + logical end as a tuple - hides the splitInfo branching from callers
+// inner content + logical end + whether that content is already-composed (the inner's own
+// nested inners folded in) rather than the raw fallback - hides the splitInfo branching from
+// callers and derives all three in one place. `composed` gates the verbatim phantom-skip:
+// only composed content safely absorbs the inners nested in it - a not-yet-composed equal-range
+// split sibling (sorted after the current outer) still carries its un-substituted inners in
+// the raw fallback. split-pair lookup keys on the prefix, matching `splitInnerContent`
 function innerSubstitution(inner, composedContent) {
   if (inner.splitInfo) {
-    return { end: inner.splitInfo.logicalEnd, content: splitInnerContent(inner, composedContent) };
+    const prefix = inner.splitInfo.role === 'prefix' ? inner : inner.splitInfo.peer;
+    return { end: inner.splitInfo.logicalEnd, content: splitInnerContent(inner, composedContent), composed: composedContent.has(prefix) };
   }
-  return { end: inner.end, content: composedContent.get(inner) ?? inner.content };
+  return { end: inner.end, content: composedContent.get(inner) ?? inner.content, composed: composedContent.has(inner) };
+}
+
+// does any range in `ranges` enclose [start, end] inclusively? the lists are short per-outer
+// accumulators (processed / verbatim-absorbed ranges), so a linear scan is fine
+function rangesEnclose(ranges, start, end) {
+  return ranges.some(r => r.start <= start && r.end >= end);
 }
 
 // widest LOGICAL first so nested inners (where inner2 is contained in inner1) are handled by inner1's
@@ -994,12 +1012,17 @@ export default class TransformQueue {
   // apply substituteInner per inner, tracking processedRanges for nth adjustment and
   // for skipping inners already swallowed by a wider sibling. throws on locate failure.
   // `createNeedleScanner` memoizes per-needle position arrays for the originalSlice so
-  // the loop runs in O(N L_unique + N² log L) instead of O(N² L) for N inners
+  // the loop runs in O(N L_unique + N² log L) instead of O(N² L) for N inners.
+  // `verbatimAbsorbing` short-circuits the dominant cost on deeply-nested receiver chains
+  // (`a.flat().flat()...`): once a wider inner matches via its raw source slice, every
+  // narrower inner nested in its source range is a phantom and is skipped before the
+  // per-candidate `content` scans - without it those scans make compose cubic in chain depth
   #substituteInners({ content, inners, originalSlice, start, logicalEnd, rewriteHint, composedContent }) {
     const processedRanges = [];
+    const verbatimAbsorbing = [];
     const { countInRange } = createNeedleScanner(originalSlice);
     for (const inner of inners) {
-      const { end: innerEndLogical, content: innerContent } = innerSubstitution(inner, composedContent);
+      const { end: innerEndLogical, content: innerContent, composed: innerComposed } = innerSubstitution(inner, composedContent);
       const innerRange = { start: inner.start, end: innerEndLogical };
       // outer reused an enclosing guard's ref rather than building its own (`absorbsRoot`).
       // inner's value is already threaded via the outer guard's memoize assignment; direct
@@ -1013,6 +1036,14 @@ export default class TransformQueue {
         processedRanges.push(innerRange);
         continue;
       }
+      // phantom fast-path: a wider inner already substituted via its raw source slice, and
+      // this inner's source range nests inside it - its needle was replaced wholesale and is
+      // gone from `content`. skip before the per-candidate scans below, which would each scan
+      // `content` only to fail and reach the same conclusion at the loop's tail. gated on RAW
+      // matches only (`verbatimAbsorbing`): deopt / guardRef substitutions rewrote the text,
+      // so a nested range can survive there and must stay on the slow path. widest-first order
+      // puts the enclosing range first, so the common nested-chain hit resolves in O(1)
+      if (rangesEnclose(verbatimAbsorbing, inner.start, innerEndLogical)) continue;
       const needle = this.#code.slice(inner.start, innerEndLogical);
       // split inners expose their prefix-half text (the polyfill-helper invocation
       // `_polyfill(receiver)` emitted by addInstanceTransform). compose hands this to
@@ -1032,6 +1063,15 @@ export default class TransformQueue {
       let result = substituteInner({
         content, needle, needleStart: inner.start, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix,
       });
+      // raw-slice hit at the original nth, on an inner whose replacement is its already-
+      // composed text: the inner's source was present verbatim and got replaced wholesale by
+      // content that already folded the inner's OWN nested inners, so this range now absorbs
+      // any inner nested in it. all three gates matter: non-raw / recovered hits may land on
+      // a slot that doesn't line up with the source range, and a not-yet-composed inner
+      // (equal-range split sibling sorted later) still carries its un-substituted inners in
+      // the raw fallback - absorbing then would drop those nested substitutions. captured
+      // before the recovery loop below reassigns `result`
+      const cleanRawMatch = result.found && result.verbatim && innerComposed;
       // inner already swallowed by an enclosing inner processed earlier: its slot is gone from
       // content. skip the phantom HERE, before the recovery loop below - otherwise that loop
       // decrements nth and re-targets a still-pending sibling's identical needle (sibling
@@ -1039,7 +1079,7 @@ export default class TransformQueue {
       // that sibling's slot and crashing a later locate. only the first substituteInner failing
       // reaches this - a legit re-substitution finds its own slot, so chained-polyfill /
       // equal-range-dup / split-pair are unaffected. recovery now only handles the strip case
-      if (!result.found && processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
+      if (!result.found && rangesEnclose(processedRanges, inner.start, innerEndLogical)) continue;
       // rebuild-outer recovery: source-position nth assumes outer's content preserves every
       // source needle match. multi-decl flatten REWRITES earlier declarators (`{X:{m}}=globalThis`
       // -> `const m = _polyfill`), stripping some source-level needle matches from content
@@ -1079,6 +1119,10 @@ export default class TransformQueue {
           + 'this is a composition bug - please report with a reproducer.');
       }
       content = result.content;
+      // record verbatim raw matches so deeper nested inners short-circuit at the fast-path
+      // above. entries stay mutually disjoint: a nested inner that would fall inside one is
+      // skipped before it can substitute, so it never reaches here to be recorded
+      if (cleanRawMatch) verbatimAbsorbing.push(innerRange);
       // drop any already-processed ranges enclosed by this new range. without pruning,
       // a later inner whose nth subtraction loops over processedRanges would count needles
       // in the enclosed-range positions TWICE - once via the enclosed inner's own range,
