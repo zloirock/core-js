@@ -35,8 +35,11 @@ export function shouldTransform(id) {
   const base = stripQueryHash(id);
   if (JS_RE.test(base) && !DTS_RE.test(base)) return true;
   if (SFC_LANG_RE.test(id) && !SFC_NON_JS_TYPE_RE.test(id)) return true;
-  // explicit non-JS `lang=` (e.g. `lang=d.ts`, `lang=scss`) blocks the default-JS fallback
-  return !id.includes('lang=') && SFC_DEFAULT_JS_RE.test(id);
+  // explicit non-JS `lang=` (e.g. `lang=d.ts`, `lang=scss`) blocks the default-JS fallback.
+  // scope the check to the query/hash suffix: a `lang=` inside the PATH (a directory literally
+  // named `lang=...`) must not suppress a legitimate default-JS SFC
+  const query = id.slice(base.length);
+  return !query.includes('lang=') && SFC_DEFAULT_JS_RE.test(id);
 }
 
 const VALID_PHASES = ['pre', 'post', 'pre+post'];

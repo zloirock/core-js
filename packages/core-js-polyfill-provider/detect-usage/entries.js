@@ -2,7 +2,7 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import { declaresRequireBinding, singleQuasiString } from '../helpers/ast-patterns.js';
+import { declaresRequireBinding, peelSkippableWrappers, singleQuasiString } from '../helpers/ast-patterns.js';
 import { normalizeImportSource } from '../helpers/path-normalize.js';
 import { bindsModuleDefault, unwrapParens } from './resolve.js';
 
@@ -11,8 +11,13 @@ import { bindsModuleDefault, unwrapParens } from './resolve.js';
 // (any tagless single-quasi template) silently bypasses entry detection
 function extractStaticString(node, adapter) {
   if (!node) return null;
-  if (node.type === 'TemplateLiteral') return singleQuasiString(node);
-  return adapter.getStringValue(node);
+  // peel paren / TS wrappers so `require((`core-js/...`))` (oxc keeps the ParenthesizedExpression
+  // that babel strips) and `require('core-js/...' as const)` reach the literal check on both
+  // parsers. SequenceExpression is deliberately NOT peeled: babel keeps it and getStringValue
+  // returns null, so peeling `require((0, 'core-js/...'))` here would detect on unplugin only
+  const inner = peelSkippableWrappers(node);
+  if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
+  return adapter.getStringValue(inner);
 }
 
 // pull the source argument out of a dynamic import call (`import('core-js/...')`).
@@ -26,6 +31,24 @@ function importExpressionSource(node, adapter) {
     return extractStaticString(inner.arguments?.[0], adapter);
   }
   return null;
+}
+
+// `require('core-js/...')` value-call -> source string, or null. peels webpack `(0, require)(...)`
+// (SequenceExpression callee tail) and paren / TS / chain wrappers (`(require as any)('...')`,
+// `require!('...')`); accepts optional `require?.(...)` on both parsers. a locally-shadowed
+// `require` (looked up via `scope` / `adapter`) is ignored. shared by `getEntrySource` (statement
+// form) and `scanExistingCoreJSImports` (the `var X = require(...)` pure-import shape)
+function requireCallSource(node, adapter, scope) {
+  if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
+    || node.arguments?.length !== 1) return null;
+  let callee = unwrapParens(node.callee);
+  if (callee?.type === 'SequenceExpression') {
+    const tail = callee.expressions?.at(-1);
+    if (tail) callee = unwrapParens(tail);
+  }
+  if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
+  if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
+  return extractStaticString(node.arguments[0], adapter);
 }
 
 // extract entry source from an AST node (ImportDeclaration / require() / await import())
@@ -48,26 +71,9 @@ export function getEntrySource(node, adapter, scope) {
   // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
   const expr = unwrapParens(node.expression);
-  // require('core-js/...'); also handles webpack-style `(0, require)('core-js/...')` by
-  // peeling the SequenceExpression tail (side-effect-free preceding elements drop out) so
-  // tool-generated indirect-require wrappers still register as entries. `require?.('core-js/...')`
-  // counts too: babel models it as OptionalCallExpression, oxc folds the optional marker into a
-  // CallExpression - accept both so the entry registers identically across parsers
-  if ((expr?.type === 'CallExpression' || expr?.type === 'OptionalCallExpression') && expr.arguments?.length === 1) {
-    // peel parens / TS wrappers / chain so `(require as any)('core-js/...')` and
-    // `require!('core-js/...')` reach the same Identifier check. SequenceExpression peeled
-    // unconditionally: entry-detection doesn't rewrite the source, SE prefix's side effects
-    // run at runtime as written. `(spy(), require)('core-js/...')` still registers as entry
-    let callee = unwrapParens(expr.callee);
-    if (callee?.type === 'SequenceExpression') {
-      const tail = callee.expressions?.at(-1);
-      if (tail) callee = unwrapParens(tail);
-    }
-    if (callee?.type === 'Identifier' && callee.name === 'require') {
-      if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
-      return extractStaticString(expr.arguments[0], adapter);
-    }
-  }
+  // require('core-js/...') (incl. webpack `(0, require)(...)`, TS-wrapped, optional `require?.()`)
+  const required = requireCallSource(expr, adapter, scope);
+  if (required !== null) return required;
   // await import('core-js/...') as a top-level statement (ESM top-level await).
   // bare `import('...')` without await is intentionally ignored: it discards the returned
   // promise (unhandled rejection risk). `import(...).then(cb)` is also ignored - the user
@@ -95,21 +101,33 @@ function matchEntrySubpath(source, pkgs, subPrefix) {
     const pkgPrefix = `${ pkg }/`;
     if (!clean.startsWith(pkgPrefix)) continue;
     const afterPkg = clean.slice(pkgPrefix.length);
-    if (!afterPkg.startsWith(subPrefix)) return null;
+    // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
+    // the sub-prefix doesn't match (`a/` matches but `a/stable/x` isn't under `modules/`), a
+    // LATER package that IS a full match (`a/b/` over `a/b/modules/x`) must still be tried -
+    // bailing here made matching order-dependent
+    if (!afterPkg.startsWith(subPrefix)) continue;
     return canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
   }
   return null;
+}
+
+// both `import type X` / `import { type X }` and Flow's `import typeof X` / `import { typeof X }`
+// erase before runtime, so a name they bind must never register as a dedup target - a later real
+// use rewritten onto the erased binding throws ReferenceError. only babel parses Flow (`typeof`),
+// but the predicate is shared so both import-kind sites stay in lockstep
+function isTypeOnlyImportKind(kind) {
+  return kind === 'type' || kind === 'typeof';
 }
 
 function defaultSpecifierNames(node) {
   // `import X from` and `import { default as X } from` bind the same module export;
   // a user can legitimately stack both forms on one declaration (`import Def, { default as Alt }
   // from 'x'`) - surface every name so downstream registers both hints, not just the first.
-  // per-specifier `importKind: 'type'` (`import { type default as T } from ...`) is type-only;
-  // it never reaches runtime, so skip to avoid registering a phantom hint
+  // per-specifier type-only kind (`import { type default as T }` / `import { typeof default as T }`)
+  // never reaches runtime, so skip to avoid registering a phantom hint
   const out = [];
   for (const s of node.specifiers ?? []) {
-    if (s?.importKind === 'type') continue;
+    if (isTypeOnlyImportKind(s?.importKind)) continue;
     if (bindsModuleDefault(s) && s.local?.name) out.push(s.local.name);
   }
   return out;
@@ -136,20 +154,37 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
   for (const node of ast.body ?? []) {
     if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
       if (!onPureImport || !mainPkgs || !modePrefix) continue;
-      // two shapes of type-only imports: `import type X from '...'` sets declaration-level
-      // `importKind: 'type'`; `import { type X } from '...'` sets it per-specifier. both parsers
-      // follow the same rule. defaultSpecifierNames already filters per-specifier, so here we
-      // only need to skip the declaration-level case. type-only imports are erased at runtime
-      // (TS stripping), so dedup'ing against their names would route runtime calls through an
+      // two shapes of type-only imports: `import type X from '...'` (Flow `import typeof X`) sets
+      // declaration-level `importKind`; `import { type X } from '...'` sets it per-specifier. both
+      // parsers follow the same rule. defaultSpecifierNames already filters per-specifier, so here
+      // we only need to skip the declaration-level case. type-only imports are erased at runtime
+      // (TS / Flow stripping), so dedup'ing against their names would route runtime calls through an
       // undefined binding. exportKind never lives on ImportDeclaration (it's an Export*Declaration
       // field) - only importKind is relevant here
-      if (node.importKind === 'type') continue;
+      if (isTypeOnlyImportKind(node.importKind)) continue;
       const source = adapter.getStringValue(node.source);
       if (typeof source !== 'string') continue;
       const names = defaultSpecifierNames(node);
       if (!names.length) continue;
       const entry = matchEntrySubpath(source, mainPkgs, modePrefix);
       if (entry) for (const name of names) onPureImport(entry, name, node);
+      continue;
+    }
+    // `var X = require('<pkg>/<mode>/...')` - the require import style emits this for pure
+    // substitution, so the post re-scan must recognise it as an existing pure import or
+    // `phase: 'pre+post'` re-emits a duplicate `require` (double module-eval). a require-bound
+    // var is never a global side-effect entry (those are bare ExpressionStatements), so this
+    // branch always `continue`s
+    if (node.type === 'VariableDeclaration') {
+      if (onPureImport && mainPkgs && modePrefix) {
+        for (const decl of node.declarations ?? []) {
+          if (decl.id?.type !== 'Identifier') continue;
+          const required = requireCallSource(decl.init, adapter, shadowScope);
+          if (required === null) continue;
+          const entry = matchEntrySubpath(required, mainPkgs, modePrefix);
+          if (entry) onPureImport(entry, decl.id.name, node);
+        }
+      }
       continue;
     }
     const source = getEntrySource(node, adapter, shadowScope);

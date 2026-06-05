@@ -82,20 +82,26 @@ export function resolveBatchDirectivePromotionPolicy({ body, candidateIndices, h
 // expected. returns an empty array when the shape doesn't match OR every prefix slot is
 // side-effect-free
 export function extractIndirectRequireSEPrefix(stmtNode) {
-  // peel the outer expression through the same wrapper set `getEntrySource` peels before the
-  // CallExpression check: oxc preserves a whole-call paren (`((spy(), require)('core-js/...'))`)
-  // as a ParenthesizedExpression, which `getEntrySource` unwraps to still detect+remove the
-  // entry - so the SE prefix recovery must peel it too, else `spy()` is silently dropped (babel
-  // drops the redundant paren node, so its expression is already the bare CallExpression)
-  const expression = peelSkippableWrappers(stmtNode?.expression);
-  if (expression?.type !== 'CallExpression') return [];
-  // peel the SAME wrapper set `getEntrySource` peels (TS as/!/<>/satisfies + paren + chain): a
-  // TS-wrapped indirect require `((spy(), require) as any)('core-js/...')` is detected+removed as an
-  // entry, so its SequenceExpression SE prefix must surface here too - peeling only paren stopped at
-  // the TSAsExpression and silently dropped `spy()`
+  // `getEntrySource` detects + REMOVES the whole statement as an entry, so every observable side
+  // effect it discards must be recovered here. it reaches the require call through the same wrapper
+  // set peeled below (TS as/!/<>/satisfies + paren + chain) AND through an outer SE-free comma
+  // sequence (`unwrapParens` peels the tail of `0, (spy(), require)('core-js/...')` to the call).
+  // descend that outer sequence the same way, collecting SE-ful prefix elements so `spy()` survives
+  const prefix = [];
+  let expression = peelSkippableWrappers(stmtNode?.expression);
+  while (expression?.type === 'SequenceExpression') {
+    for (const e of expression.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
+    expression = peelSkippableWrappers(expression.expressions.at(-1));
+  }
+  if (expression?.type !== 'CallExpression') return prefix;
+  // the indirect-require callee is itself a `(spy(), require)` SequenceExpression - a TS-wrapped
+  // `((spy(), require) as any)('core-js/...')` lands the SE behind a TSAsExpression, so peel the
+  // same wrappers, then surface its SE-ful prefix elements (everything but the trailing `require`)
   const callee = peelSkippableWrappers(expression.callee);
-  if (callee?.type !== 'SequenceExpression' || callee.expressions.length < 2) return [];
-  return callee.expressions.slice(0, -1).filter(mayHaveSideEffects);
+  if (callee?.type === 'SequenceExpression' && callee.expressions.length >= 2) {
+    for (const e of callee.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
+  }
+  return prefix;
 }
 
 // `\`foo\`` - TemplateLiteral with no interpolations, used as a static string key. returns
@@ -364,6 +370,32 @@ function isVarScopeBoundary(type) {
   return VAR_SCOPE_OWNER_TYPES.has(type);
 }
 
+// the atom of the statement-host lattice below: plain JS brace blocks - a nested `{ ... }` block
+// and a class `static { ... }` block. each directly holds its statement list at `.body` and owns a
+// lexical scope. every broader set extends this by ADDITION (TS namespace body / unbraced Program),
+// so the relationships read without any subtraction
+export const RUNTIME_BLOCK_TYPES = new Set([
+  'BlockStatement',
+  'StaticBlock',
+]);
+
+// brace-delimited statement-list blocks: the plain blocks plus the TS namespace body
+// (`namespace N { ... }`). a directive before such a `{` block spans its whole body, and a babel
+// descendant-visitor reaches these nested statement lists
+export const BRACE_STATEMENT_HOST_TYPES = new Set([...RUNTIME_BLOCK_TYPES, 'TSModuleBlock']);
+
+// every node that hosts a statement list directly at `.body`: the brace blocks plus the unbraced
+// Program top level. Program / StaticBlock / TSModuleBlock additionally own a var scope; a plain
+// BlockStatement only groups statements. functions / methods wrap their list in a BlockStatement at
+// `.body.body`, and babel's `File` wraps Program - both folded in by callers where needed, not here
+export const STATEMENT_LIST_HOST_TYPES = new Set([...BRACE_STATEMENT_HOST_TYPES, 'Program']);
+
+// statement hosts whose numbered `.body` children are scanned in SOURCE ORDER for sibling / flow
+// analysis (a preceding sibling is guaranteed to run before the use site): the plain blocks plus
+// Program. the TS namespace body is intentionally excluded - these callers do not scan namespace
+// bodies, and widening it here would be a behavior change, not a refactor
+export const SOURCE_ORDER_STATEMENT_HOST_TYPES = new Set([...RUNTIME_BLOCK_TYPES, 'Program']);
+
 // for-of / for-in iteration heads ("for-x"): their `left` slot is a per-iteration write target.
 // shared by the reassignment scan, the dominance guards, and the write-context detectors below
 const FOR_X_STATEMENT_TYPES = new Set(['ForOfStatement', 'ForInStatement']);
@@ -388,69 +420,157 @@ function isAstNode(value) {
   return !!value && typeof value === 'object' && typeof value.type === 'string';
 }
 
-// recursively collect `var` bindings inside `scopeNode`, descending through arbitrary
-// non-boundary node shapes (block / if / loop / switch / try-catch / etc). stops at
-// nested var-scope boundaries so inner-function vars don't leak. returns a Map of
-// var-name -> its VariableDeclarator (first declaration wins on redeclaration): membership
-// callers use `.has(name)`, alias-resolution callers read the declarator's `.init`. covers
-// vars from `scopeNode.body` (function-like bodies wrap in BlockStatement; Program / Block /
-// StaticBlock host statements directly at `.body`)
-export function collectScopeVars(scopeNode) {
-  const locals = new Map();
-
+// shared var-scope body walk: descend `scopeNode`'s body through arbitrary non-boundary node
+// shapes (block / if / loop / switch / try-catch / etc), invoking `onNode(node)` for each. `onNode`
+// returns truthy to stop descending that subtree (it hit a var-scope boundary or fully handled the
+// node). function-like bodies wrap their statements in a BlockStatement; Program / Block /
+// StaticBlock host statements directly at `.body`
+function walkVarScope(scopeNode, onNode) {
   function visit(node) {
-    if (!isAstNode(node)) return;
-    if (node.type === 'VariableDeclaration' && node.kind === 'var') {
-      // `declare var X` is tsc-elided - the reference resolves to the global, so the ambient
-      // declaration must not register as a hoisted-var shadow that suppresses polyfill emission
-      if (node.declare === true) return;
-      for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => { if (!locals.has(id.name)) locals.set(id.name, d); });
-      return;
-    }
-    if (isVarScopeBoundary(node.type)) return;
+    if (!isAstNode(node) || onNode(node)) return;
     for (const key of Object.keys(node)) {
       const value = node[key];
       if (Array.isArray(value)) for (const v of value) visit(v);
       else visit(value);
     }
   }
-
   if (Array.isArray(scopeNode?.body)) for (const stmt of scopeNode.body) visit(stmt);
   else visit(scopeNode?.body);
+}
+
+// collect `var` bindings inside `scopeNode`, stopping at nested var-scope boundaries so inner-
+// function vars don't leak. returns a Map of var-name -> its VariableDeclarator (first declaration
+// wins on redeclaration): membership callers use `.has(name)`, alias-resolution callers read `.init`
+export function collectScopeVars(scopeNode) {
+  const locals = new Map();
+  walkVarScope(scopeNode, node => {
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+      // `declare var X` is tsc-elided - the reference resolves to the global, so the ambient
+      // declaration must not register as a hoisted-var shadow that suppresses polyfill emission
+      if (node.declare !== true) {
+        for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => { if (!locals.has(id.name)) locals.set(id.name, d); });
+      }
+      return true; // a var declaration opens no nested var-scope to descend
+    }
+    return isVarScopeBoundary(node.type);
+  });
   return locals;
 }
 
-// climb `path`'s ancestor chain through each enclosing var-scope owner and return the owner that
-// hoists `name` as a `var` plus its VariableDeclarator (callers read the declarator's `.init`), or
-// null. a `var` hoists to its nearest function / program / static-block owner yet stays visible
-// from nested functions below it, so a use in an inner closure must keep climbing when the nearest
-// owner doesn't declare the name - estree-toolkit stops at the nearest owner and misses this; babel
-// resolves it natively. a TSModuleBlock is a hard boundary (a namespace var doesn't leak out, and a
-// use outside one doesn't reach in). no param / lexical shadow can intervene on this path: the
-// var-hoist fallback runs only when the native estree binding is null, which already proves no
-// param / let / const / class / function binds the name on the visible scope chain. result cached
-// per-node via WeakMap (same sibling-mutation staleness constraint as `tsRuntimeBindingsCache`)
-const scopeVarsCache = new WeakMap();
-function findVarOwnerDeclaring(path, name) {
+// climb `path`'s enclosing var-scope owners (inclusive), calling `visit(owner)` at each and
+// returning the first non-undefined result, else undefined. stops AFTER a TSModuleBlock - a
+// namespace's bindings don't leak out, and a use outside one doesn't reach in. shared by the
+// var-declarator lookup and the sloppy block-function lookup below
+function climbVarScopeOwners(path, visit) {
   for (let owner = findNearestVarScopeOwner(path); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
-    const { node } = owner;
-    let vars = scopeVarsCache.get(node);
-    if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
-    const declarator = vars.get(name);
-    if (declarator) return { owner, declarator };
-    if (node.type === 'TSModuleBlock') break;
+    const result = visit(owner);
+    if (result !== undefined) return result;
+    if (owner.node?.type === 'TSModuleBlock') break;
   }
-  return null;
+  return undefined;
+}
+
+// per-node WeakMap cache (same sibling-mutation staleness constraint as `tsRuntimeBindingsCache`)
+const scopeVarsCache = new WeakMap();
+function cachedScopeVars(node) {
+  let vars = scopeVarsCache.get(node);
+  if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
+  return vars;
+}
+
+// the owner that hoists `name` as a `var` plus its VariableDeclarator (callers read `.init`), or
+// null. a `var` hoists to its nearest function / program / static-block owner yet stays visible from
+// nested functions below it, so a use in an inner closure keeps climbing when the nearest owner
+// doesn't declare the name - estree-toolkit stops at the nearest owner and misses this, babel
+// resolves it natively. no param / lexical shadow can intervene: the var-hoist fallback runs only
+// when the native estree binding is null, which already proves no param / let / const / class /
+// function binds the name on the visible scope chain
+function findVarOwnerDeclaring(path, name) {
+  return climbVarScopeOwners(path, owner => {
+    const declarator = cachedScopeVars(owner.node).get(name);
+    return declarator ? { owner, declarator } : undefined;
+  }) ?? null;
 }
 
 export function findFunctionScopeVarDeclaratorInPath(path, name) {
   return findVarOwnerDeclaring(path, name)?.declarator ?? null;
 }
 
+// names of block-nested `function f(){}` declarations hoisted to `scopeNode`'s var scope under
+// sloppy-mode Annex-B semantics (a block-level function declaration is function-scoped, not
+// block-scoped, in non-strict code). reuses `walkVarScope` (descend non-boundary nodes, stop at
+// nested var-scope boundaries) but registers FunctionDeclaration ids. presence only: a function has
+// no `.init`, so the result must never feed the declarator-reading path
+const scopeBlockFunctionsCache = new WeakMap();
+function collectScopeBlockFunctions(scopeNode) {
+  const names = new Set();
+  walkVarScope(scopeNode, node => {
+    if (node.type === 'FunctionDeclaration') {
+      if (node.id?.name) names.add(node.id.name);
+      return true; // a function is a var-scope boundary - register its name, don't descend its body
+    }
+    return isVarScopeBoundary(node.type);
+  });
+  return names;
+}
+function cachedScopeBlockFunctions(node) {
+  let names = scopeBlockFunctionsCache.get(node);
+  if (!names) scopeBlockFunctionsCache.set(node, names = collectScopeBlockFunctions(node));
+  return names;
+}
+
+// does any enclosing var-scope owner of `path` carry a sloppy block-hoisted function of `name`?
+// `|| undefined` keeps the climb going past a non-matching owner (visit must return undefined to
+// continue), and the outer `?? false` normalises "no owner matched" to a boolean
+function hasSloppyBlockFunctionInPath(path, name) {
+  return climbVarScopeOwners(path, owner => cachedScopeBlockFunctions(owner.node).has(name) || undefined) ?? false;
+}
+
+// `"use strict"` directive on a function body / Program. babel lifts directives into a
+// `.directives` array (Program) or `.body.directives` (function BlockStatement); oxc keeps them
+// inline as leading `.directive`-bearing ExpressionStatements - check both shapes
+function nodeHasUseStrict(node) {
+  const lifted = Array.isArray(node.directives) ? node.directives
+    : Array.isArray(node.body?.directives) ? node.body.directives
+    : null;
+  if (lifted?.some(d => d.value?.value === 'use strict')) return true;
+  const body = Array.isArray(node.body) ? node.body : node.body?.body;
+  if (Array.isArray(body)) {
+    for (const stmt of body) {
+      if (!isDirectiveStatement(stmt)) break;
+      if (stmt.directive === 'use strict') return true;
+    }
+  }
+  return false;
+}
+
+// is the use site at `path` in non-strict (sloppy) code? Annex-B function hoisting applies only
+// there. a module is always strict; a class body is always strict; a `"use strict"` on any
+// enclosing function or the Program makes the whole subtree strict. walk up - the first strict
+// signal wins, else the Program's sourceType decides (script -> sloppy). a detached path with no
+// Program ancestor falls through to strict (safe: no Annex-B shadow surfaced)
+function isSloppyAtPath(path) {
+  for (let cur = path; cur; cur = cur.parentPath) {
+    const { node } = cur;
+    if (!node) continue;
+    const { type } = node;
+    if (type === 'ClassDeclaration' || type === 'ClassExpression') return false;
+    if ((FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'Program') && nodeHasUseStrict(node)) return false;
+    if (type === 'Program') return node.sourceType === 'script';
+  }
+  return false;
+}
+
 // boolean wrapper for callers that only need presence (runtime vs TS-ambient shadow detection;
-// complements `findTSRuntimeBindingInPath`)
+// complements `findTSRuntimeBindingInPath`). beyond `var` hoists, surfaces sloppy-mode Annex-B
+// block-function shadows: a block-nested `function Map(){}` hoists to the function scope in
+// non-strict code and shadows the global, but native scope trackers block-scope it and miss the
+// shadow -> usage-pure would wrongly substitute the global. gated on genuine sloppy context so
+// modules / "use strict" (where the function IS block-scoped) keep resolving `name` to the global
+// and usage-global never loses an injection. presence only - never reaches the declarator path
 export function findFunctionScopeVarInPath(path, name) {
-  return findFunctionScopeVarDeclaratorInPath(path, name) !== null;
+  if (findFunctionScopeVarDeclaratorInPath(path, name) !== null) return true;
+  return isSloppyAtPath(path) && hasSloppyBlockFunctionInPath(path, name);
 }
 
 // reassignment sites for a function-scoped `var`, recovering the `constantViolations` set babel's
@@ -491,7 +611,7 @@ export function collectFunctionScopeVarReassignments(path, name) {
   // writes there are to the inner binding, not the var
   function blockShadowsName(node) {
     if (node.type === 'CatchClause') return !!node.param && bindsName(node.param);
-    if (node.type !== 'BlockStatement' && node.type !== 'StaticBlock') return false;
+    if (!RUNTIME_BLOCK_TYPES.has(node.type)) return false;
     return (node.body ?? []).some(stmtRebindsName);
   }
   // for-of / for-in head writing `name`: a bare-Identifier / destructuring-pattern target
@@ -1353,54 +1473,78 @@ function namespaceStaticCallMethod(call, namespaceName) {
   return callee.property.name;
 }
 
-// recognise `Object.defineProperty` / `Object.defineProperties` call shape and add each
-// affected `Identifier.stringLiteralKey` pair to the mutation set. these are semantically
-// equivalent to direct assignment - the descriptor's `value` / accessor overrides the
-// built-in slot at runtime - but emit as CallExpression rather than AssignmentExpression
-// so the MemberExpression-LHS walker above misses them. supported argument shapes:
+// add `targetName.<key>` to the mutation set when `keyName` is a resolvable static key. the single
+// owner of the `${ object }.${ key }` format - it must stay in lockstep with `isMutatedStaticMeta`'s
+// read-side lookup, so every collector below routes its add through here
+function addMutation(mutated, targetName, keyName) {
+  if (keyName !== null) mutated.add(`${ targetName }.${ keyName }`);
+}
+
+// the monkey-patch receiver: an UNSHADOWED Identifier (a candidate global) -> its name, else null.
+// this fast pre-walk resolves only Identifier-rooted targets - a local shadow of the name is not the
+// global, and a proxy-global chain (`globalThis.Array`) is out of scope (not a bare Identifier)
+function mutationTargetIdentifier(node, isShadowed) {
+  return node?.type === 'Identifier' && !isShadowed(node.name) ? node.name : null;
+}
+
+// recognise `Object.defineProperty` / `Object.defineProperties` / `Object.assign` call shapes
+// and add each affected `Identifier.stringLiteralKey` pair to the mutation set. these are
+// semantically equivalent to direct assignment - the descriptor's `value` / accessor or the
+// copied own-enumerable property overrides the built-in slot at runtime - but emit as
+// CallExpression rather than AssignmentExpression so the MemberExpression-LHS walker above
+// misses them. supported argument shapes:
 //   Object.defineProperty(Identifier, stringLiteral, descriptor)
 //      -> mark `Identifier.stringLiteral`
 //   Object.defineProperties(Identifier, ObjectExpression{ stringLiteralKey: descriptor, ... })
 //      -> mark each non-computed Identifier / string-literal key
-// dynamic targets (`Object.defineProperty(getCtor(), 'from', d)`) and dynamic keys
-// (`Object.defineProperty(Array, name, d)`) stay out of scope - same Identifier-rooted
+//   Object.assign(Identifier, ObjectExpression{ key: value, ... }, ...moreSources)
+//      -> mark each statically-keyed property of every object-literal source
+// dynamic targets (`Object.defineProperty(getCtor(), 'from', d)`), dynamic keys
+// (`Object.defineProperty(Array, name, d)`), and non-object-literal assign sources
+// (`Object.assign(Array, src)`) stay out of scope - same Identifier-rooted, static-key
 // constraint as the MemberExpression-LHS shape: full receiver / key resolution is out of
 // scope for this fast pre-walk
 function collectObjectMutations(call, mutated, isShadowed) {
   const methodName = namespaceStaticCallMethod(call, 'Object');
   if (methodName === null) return;
-  const [target, keyOrProps] = call.arguments ?? [];
-  if (target?.type !== 'Identifier' || isShadowed(target.name)) return;
-  const targetName = target.name;
+  const args = call.arguments ?? [];
+  const targetName = mutationTargetIdentifier(args[0], isShadowed);
+  if (targetName === null) return;
   if (methodName === 'defineProperty') {
-    const keyName = staticStringKey(keyOrProps);
-    if (keyName !== null) mutated.add(`${ targetName }.${ keyName }`);
+    addMutation(mutated, targetName, staticStringKey(args[1]));
     return;
   }
-  if (methodName !== 'defineProperties') return;
-  if (keyOrProps?.type !== 'ObjectExpression') return;
-  for (const prop of keyOrProps.properties ?? []) {
-    if (prop.type !== 'ObjectProperty' && prop.type !== 'Property') continue;
-    const keyName = propertyKeyName(prop);
-    if (keyName !== null) mutated.add(`${ targetName }.${ keyName }`);
+  // defineProperties keys live in the single arg-1 object; assign copies from every source arg
+  const sources = methodName === 'defineProperties' ? args.slice(1, 2)
+    : methodName === 'assign' ? args.slice(1)
+    : null;
+  if (sources === null) return;
+  for (const source of sources) {
+    if (source?.type !== 'ObjectExpression') continue;
+    for (const prop of source.properties ?? []) {
+      // data property, method shorthand, or getter/setter all define a static own key. babel emits
+      // method shorthand / accessors as ObjectMethod; oxc keeps them as Property. SpreadElement
+      // (`...obj`) carries no static key and stays out of scope (under-collect: safe)
+      if (prop.type === 'ObjectProperty' || prop.type === 'Property' || prop.type === 'ObjectMethod') {
+        addMutation(mutated, targetName, propertyKeyName(prop));
+      }
+    }
   }
 }
 
-// recognise `Reflect.defineProperty(target, key, desc)` and `Reflect.deleteProperty(target,
-// key)` - same monkey-patch semantics as `Object.defineProperty` and `delete target[key]`
-// respectively, only the emit shape differs (returns boolean instead of throwing on failure).
-// argument shape mirrors Object.defineProperty: Identifier target + static-string key.
-// `Reflect.set(target, key, value)` is intentionally NOT here - it writes a value slot but
-// can trigger setter traps and respects [[Set]] prototype-chain semantics, which differs
-// enough from a slot-override to warrant separate treatment if ever needed
+// recognise `Reflect.defineProperty(target, key, desc)`, `Reflect.deleteProperty(target, key)`,
+// and `Reflect.set(target, key, value)` - the Reflect call-forms of `Object.defineProperty`,
+// `delete target[key]`, and `target[key] = value`, all monkey-patching a named slot on `target`.
+// uniform argument shape: Identifier target + static-string key (arg 1). Reflect.set's [[Set]] can
+// in theory hit a setter rather than overwrite an own slot, but over-collecting is safe for the
+// usage-pure bail (and keeps parity with `Object.assign`, the bulk [[Set]] form, collected above).
+// `Reflect.setPrototypeOf` stays out of scope - it swaps [[Prototype]], not a single named key
 function collectReflectMutations(call, mutated, isShadowed) {
   const methodName = namespaceStaticCallMethod(call, 'Reflect');
-  if (methodName !== 'defineProperty' && methodName !== 'deleteProperty') return;
-  const [target, key] = call.arguments ?? [];
-  if (target?.type !== 'Identifier' || isShadowed(target.name)) return;
-  const keyName = staticStringKey(key);
-  if (keyName === null) return;
-  mutated.add(`${ target.name }.${ keyName }`);
+  if (methodName !== 'defineProperty' && methodName !== 'deleteProperty' && methodName !== 'set') return;
+  const args = call.arguments ?? [];
+  const targetName = mutationTargetIdentifier(args[0], isShadowed);
+  if (targetName !== null) addMutation(mutated, targetName, staticStringKey(args[1]));
 }
 
 // names a node introduces into its OWN scope (params / id / direct declarations / catch
@@ -1521,16 +1665,15 @@ export function collectMutatedStaticMembers(programNode) {
       scopeStack.push(bound);
       work.push({ popScope: true });
     }
-    if (node.type === 'MemberExpression'
-      && node.object?.type === 'Identifier'
-      && !isShadowed(node.object.name)
-      && isMemberMutationContext(node, parent, grandparent)) {
+    if (node.type === 'MemberExpression') {
       // accept a non-computed `Array.from` key AND a computed STATIC-literal key
       // (`Array["from"]`, `Array[`from`]`) via memberKeyName; a dynamic computed key (`Array[k]`)
       // resolves to null and stays out of scope (proxy-global chains are excluded too - the
       // object here is a bare Identifier, not a `globalThis.Array` member access)
-      const keyName = memberKeyName(node);
-      if (keyName !== null) mutated.add(`${ node.object.name }.${ keyName }`);
+      const targetName = mutationTargetIdentifier(node.object, isShadowed);
+      if (targetName !== null && isMemberMutationContext(node, parent, grandparent)) {
+        addMutation(mutated, targetName, memberKeyName(node));
+      }
     }
     if (node.type === 'CallExpression') {
       collectObjectMutations(node, mutated, isShadowed);

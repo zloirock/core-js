@@ -175,6 +175,19 @@ const shouldTransformCases = [
   // fallback blocked by the explicit `!id.includes('lang=')` gate, so the id bails entirely.
   // user authoring `lang=""` is a tool-error shape; pinning the deterministic resolution here
   ['/src/App.vue?vue&type=script&lang=', false, 'SFC empty lang= bails (lang-path rejects, default-JS gate blocks)'],
+  // pseudo-extensions: `lang=mjsx` / `cjsx` / `mtsx` / `ctsx` are NOT real file extensions, so the
+  // lifted suffix can't drive oxc's parser - the split alternation rejects them (a single
+  // `[cm]?[jt]sx?` wrongly accepted them, then the `.mjsx`-named block failed to parse, no polyfill)
+  ['/src/App.vue?vue&type=script&lang=mjsx', false, 'SFC pseudo-ext lang=mjsx rejected'],
+  ['/src/App.vue?vue&type=script&lang=cjsx', false, 'SFC pseudo-ext lang=cjsx rejected'],
+  ['/src/App.vue?vue&type=script&lang=mtsx', false, 'SFC pseudo-ext lang=mtsx rejected'],
+  ['/src/App.vue?vue&type=script&lang=ctsx', false, 'SFC pseudo-ext lang=ctsx rejected'],
+  // the real `[cm]`-prefixed extensions still match (the alternation's first arm `[cm]?[jt]s`)
+  ['/src/App.vue?vue&type=script&lang=mjs', true, 'SFC real ext lang=mjs'],
+  ['/src/App.vue?vue&type=script&lang=cts', true, 'SFC real ext lang=cts'],
+  // a `lang=` inside a PATH segment must NOT suppress a legitimate default-JS SFC - the gate scopes
+  // the `lang=` check to the query/hash suffix, so this query-less-lang default-JS query still fires
+  ['/src/lang=weird/App.vue?vue&type=script', true, 'SFC default-JS not suppressed by lang= in path'],
 ];
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
@@ -1894,6 +1907,22 @@ function checkSinglePostPassEmitsPureImports() {
 }
 checkSinglePostPassEmitsPureImports();
 
+// --- phase pre+post with require import style: post must dedup the pre-emitted `var X = require()` ---
+// the require import style emits `var _X = require('@core-js/pure/...')`; the post re-scan has to
+// recognise that VariableDeclaration+require as an existing pure import or it re-emits a duplicate
+// require for the same module (double module-eval)
+function checkPrePostRequireDedup() {
+  const code = 'export var r = Array.from([1, 2]);';
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle: 'require' };
+  const twoPass = createPlugin(opts);
+  const preOut = twoPass.transform(code, '/req-dedup.mjs', 'pre');
+  const postOut = preOut?.code ? twoPass.transform(preOut.code, '/req-dedup.mjs', 'post') : preOut;
+  const final = postOut?.code ?? preOut?.code ?? '';
+  // exactly one require for the array/from pure module survives the post re-scan, not two
+  check('pre+post require/no duplicate module require', occurrencesOf(final, '@core-js/pure/actual/array/from'), 1);
+}
+checkPrePostRequireDedup();
+
 // count non-overlapping occurrences of a literal substring (no regex - avoids backtracking
 // lint and substring-in-name surprises). shared by the pre+post import-emission checks
 function occurrencesOf(haystack, needle) {
@@ -2311,6 +2340,29 @@ async function checkEstreeNodeTypeMapper() {
 }
 await checkEstreeNodeTypeMapper();
 
+// --- estree-compat class-member predicates recognise TS abstract members (parity with nodeType) ---
+// `abstract m()` / `abstract x` / `abstract accessor x` parse to TSAbstract* nodes on oxc; nodeType()
+// already maps them to the babel class-member kinds, so the `types.isClass*` predicates must agree -
+// else a consumer gating on the predicate (rather than nodeType) silently skips the abstract member
+async function checkAbstractMemberPredicates() {
+  const { types, nodeType } = await import('../../packages/core-js-unplugin/internals/estree-compat.js');
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const members = parseSync('test.ts', 'abstract class C { abstract m(): void; abstract x: number; abstract accessor y: number; }')
+    .program.body[0].body.body;
+  const [method, property, accessor] = members;
+  check('isClassMethod/abstract method', types.isClassMethod(method), true);
+  check('isClassProperty/abstract property', types.isClassProperty(property), true);
+  check('isClassAccessorProperty/abstract accessor', types.isClassAccessorProperty(accessor), true);
+  // the predicates stay in lockstep with nodeType's mapping of the same nodes
+  check('nodeType/abstract method -> ClassMethod', nodeType(method), 'ClassMethod');
+  check('nodeType/abstract property -> ClassProperty', nodeType(property), 'ClassProperty');
+  check('nodeType/abstract accessor -> ClassAccessorProperty', nodeType(accessor), 'ClassAccessorProperty');
+  // concrete shapes still match; an unrelated node still rejects
+  check('isClassMethod/concrete still matches', types.isClassMethod({ type: 'MethodDefinition' }), true);
+  check('isClassProperty/Identifier rejects', types.isClassProperty({ type: 'Identifier' }), false);
+}
+await checkAbstractMemberPredicates();
+
 // --- createPolyfillContext input validation (defensive checks for direct callers) ---
 
 function checkPolyfillContextRejects(label, opts) {
@@ -2420,6 +2472,11 @@ check('canFuseWithOpenParen/template end', canFuseWithOpenParen('`x` (', 4), tru
 check('canFuseWithOpenParen/start of file', canFuseWithOpenParen('(', 0), false);
 check('canFuseWithOpenParen/only whitespace before', canFuseWithOpenParen('   (', 3), false);
 check('canFuseWithOpenParen/semicolon before', canFuseWithOpenParen('foo; (', 5), false);
+// astral (surrogate-pair) identifier char at the prev-significant position: the ASI guard must test
+// the WHOLE code point, not the lone trailing low surrogate (which matches nothing and would skip
+// the guard, fusing the `(` into the prior identifier). a non-identifier astral char does NOT fuse
+check('canFuseWithOpenParen/astral identifier end', canFuseWithOpenParen('\u{1D4CF} (', 3), true);
+check('canFuseWithOpenParen/astral non-identifier end', canFuseWithOpenParen('\u{1F600} (', 3), false);
 check('canFuseWithOpenParen/skips line comment',
   canFuseWithOpenParen('foo // tail\n(', 12), true);
 check('canFuseWithOpenParen/skips block comment',
@@ -3036,6 +3093,29 @@ function checkCollectMutatedStaticMembers() {
   // would need full value analysis the fast pre-walk doesn't do
   check('collectMutatedStaticMembers/dynamic computed key not tracked',
     collect('Array[k] = X;').has('Array.from'), false);
+  // `Object.assign(Builtin, { ...source })` copies each own key onto Builtin - method shorthand,
+  // getter, and data props across multiple object-literal sources all count as a static mutation
+  const assigned = collect('Object.assign(Array, { from() {}, get of() { return 1; } }, { isArray: 0 });');
+  check('collectMutatedStaticMembers/assign method shorthand', assigned.has('Array.from'), true);
+  check('collectMutatedStaticMembers/assign getter', assigned.has('Array.of'), true);
+  check('collectMutatedStaticMembers/assign second-source data', assigned.has('Array.isArray'), true);
+  // a dynamic source (Identifier) + a computed key in an object source stay out of scope (the
+  // fast pre-walk under-collects rather than guess - bias-safe for the usage-pure bail)
+  check('collectMutatedStaticMembers/assign dynamic + computed sources not tracked',
+    [...collect('Object.assign(Map, src, { [k]: 1 });')].length, 0);
+  // Reflect call-forms monkey-patch a named static slot like the Object.* / assignment forms:
+  // defineProperty / deleteProperty / set (set is the call-form of `T.k = v` and the [[Set]] twin
+  // of Object.assign). setPrototypeOf is out of scope - it swaps [[Prototype]], not a named key
+  check('collectMutatedStaticMembers/Reflect.defineProperty',
+    collect("Reflect.defineProperty(Array, 'from', {});").has('Array.from'), true);
+  check('collectMutatedStaticMembers/Reflect.deleteProperty',
+    collect("Reflect.deleteProperty(Array, 'from');").has('Array.from'), true);
+  check('collectMutatedStaticMembers/Reflect.set',
+    collect("Reflect.set(Array, 'from', fn);").has('Array.from'), true);
+  check('collectMutatedStaticMembers/Reflect.setPrototypeOf not tracked',
+    [...collect('Reflect.setPrototypeOf(Array, proto);')].length, 0);
+  check('collectMutatedStaticMembers/Reflect.set dynamic key not tracked',
+    [...collect('Reflect.set(Array, k, fn);')].length, 0);
 }
 checkCollectMutatedStaticMembers();
 
