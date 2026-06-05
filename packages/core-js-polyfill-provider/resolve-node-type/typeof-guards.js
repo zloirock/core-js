@@ -19,7 +19,13 @@
 // already-extracted cluster, and the `KNOWN_STATIC_TYPE_GUARDS` table for built-in
 // predicate hint lookup
 import { getOrInitMap } from './base.js';
-import { peelLabeledStatementPath, unwrapExpressionChain, unwrapParens, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import {
+  SOURCE_ORDER_STATEMENT_HOST_TYPES,
+  peelLabeledStatementPath,
+  unwrapExpressionChain,
+  unwrapParens,
+  unwrapRuntimeExpr,
+} from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { guardFromHint, instanceofGuard, isTypeofVar, typeofGuard } from './guard-shapes.js';
 
@@ -289,8 +295,7 @@ export function createTypeofGuards({
   function getStatementSiblings(current) {
     if (typeof current.key !== 'number') return null;
     const parent = current.parentPath;
-    if (current.listKey === 'body'
-      && (t.isBlockStatement(parent.node) || t.isProgram(parent.node) || t.isStaticBlock(parent.node))) {
+    if (current.listKey === 'body' && SOURCE_ORDER_STATEMENT_HOST_TYPES.has(parent.node?.type)) {
       return parent.get('body');
     }
     if (current.listKey === 'consequent' && t.isSwitchCase(parent.node)) return parent.get('consequent');
