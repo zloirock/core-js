@@ -5,8 +5,8 @@
 //
 // `getTypeArgs` is the only outside dep (imports from `helpers/ast-patterns.js`).
 //
-// Public surface mirrors what was previously inlined in the factory body. Move-not-rewrite
-// to preserve cross-parser shape compatibility (babel/oxc/flow) without re-discovery cost
+// the shape predicates here encode cross-parser compatibility (babel / oxc / flow), discovered
+// empirically per parser - change them only with care
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 

@@ -401,7 +401,7 @@ export function createUsageVisitors({
   // declarations (`declare const Map`) DON'T shadow (binding is tsc-elided); TS-runtime
   // declarations (`enum Map`, `namespace Map`) DO shadow (resolved via path ancestor walk).
   // a raw `getBindingIdentifier` here misses TS-runtime shadows entirely and conversely
-  // over-skips on ambient declarations - both fixed by going through the adapter
+  // over-skips on ambient declarations - both avoided by going through the adapter
   function annotationGlobal(path) {
     return name => {
       if (adapter.hasBinding(path.scope, name, path)) return;
