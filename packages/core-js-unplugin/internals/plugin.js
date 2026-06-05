@@ -318,6 +318,9 @@ export default function createPlugin(options) {
     // canonical merged side-effect block once
     const deferImports = pass === 'pre' && method !== 'usage-pure';
     let inherit = null;
+    // did the inherited pre-pass actually rewrite the source (and thus emit a content-bearing
+    // map)? a no-op pre (usage-global detection only) emits no map, so post must NOT chain
+    let inheritedPreRewrote = false;
     let cachedAst = null;
     let cachedComments = null;
 
@@ -348,6 +351,7 @@ export default function createPlugin(options) {
     if (pass === 'post') {
       const stored = snapshots.peekWithParse(id, code);
       inherit = stored.snapshot;
+      inheritedPreRewrote = stored.preRewroteSource;
       cachedAst = stored.ast;
       cachedComments = stored.comments;
     }
@@ -559,6 +563,9 @@ export default function createPlugin(options) {
             ast: canReuseParse ? ast : null,
             comments: canReuseParse ? comments : null,
             postInput: canReuseParse ? code : null,
+            // pre rewrote the source iff it changed (usage-pure), which is exactly when it emitted
+            // a content-bearing map for post to chain to. a no-op pre returns a null map (line below)
+            preRewroteSource: !canReuseParse,
           });
         }
         // post's snapshot delete happens at the top of runTransform (via `takeWithParse`)
@@ -571,10 +578,12 @@ export default function createPlugin(options) {
         // output[0,0] -> source[0,0] while the real output[0,0] is the BOM). gated on
         // hasChanged so no-op transforms still return null
         if (hasBOM) ms.prepend('\uFEFF');
-        // pre+post `pass='post'` with `inherit`: `ms.original` is pre-output, not real source -
-        // omit sourcesContent so the bundler chains through pre-pass map's content. standalone
-        // `phase: 'post'` (no inherit) operates on the raw source, so content must be emitted
-        const chainedFromPre = pass === 'post' && !!inherit;
+        // pre+post `pass='post'` chaining through the pre-pass map's content: omit sourcesContent
+        // here only when pre ACTUALLY rewrote the source (`ms.original` is then pre-output, and pre
+        // emitted a content map to chain to). a no-op pre (usage-global, detection only) emits no
+        // map, so chaining would drop content entirely - emit it here instead. standalone
+        // `phase: 'post'` (no inherit) operates on the raw source, so content must be emitted too
+        const chainedFromPre = pass === 'post' && !!inherit && inheritedPreRewrote;
         // `file` field is optional per spec but devtools and downstream chain consumers (e.g.
         // bundler `combineSourceMaps`) rely on it for output filename hints; emit it on both
         // pre and post passes so the chain stays self-describing.
