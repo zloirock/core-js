@@ -221,14 +221,22 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
         if (cur.type === 'TSQualifiedName') segments.unshift(cur.right);
         else { segments.unshift(cur); break; }
       }
-      const [root, next] = segments;
+      const [root] = segments;
       if (root?.type === 'Identifier') onGlobal(root.name);
-      // when the root is a proxy-global (`globalThis` / `self` / `window` / ...), the segment
-      // directly on it IS the real global ctor (`typeof globalThis.Map` -> Map) - surface it so
-      // the Map polyfill injects, matching babel which sees `globalThis.Map` as a Map reference.
-      // a non-proxy-global root (`typeof NS.X`) surfaces only the root, as before
-      if (root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name)
-        && next?.type === 'Identifier') onGlobal(next.name);
+      // when the root is a proxy-global, EACH subsequent segment is itself a real global reference
+      // for as long as the chain so far is all proxy-globals (`globalThis` / `self` / `window`).
+      // babel injects for every link - `typeof globalThis.self.Map` references globalThis AND self
+      // AND Map - so surface them all; the prior code stopped after the first hop and missed the
+      // ctor behind a multi-hop chain. the chain breaks at the first non-proxy segment (its further
+      // members are properties of an ordinary value, not globals). a non-proxy root surfaces only
+      // the root, as before
+      let prevIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
+      for (let i = 1; i < segments.length && prevIsProxy; i++) {
+        const seg = segments[i];
+        if (seg?.type !== 'Identifier') break;
+        onGlobal(seg.name);
+        prevIsProxy = POSSIBLE_GLOBAL_OBJECTS.has(seg.name);
+      }
     }
     for (const key of TYPE_CHILD_KEYS) {
       const child = node[key];
