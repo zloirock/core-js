@@ -181,8 +181,7 @@ export default function createSynthSwapEmitter({
     // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
     // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
     // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
-    // escape hatch (rewriting branches as synth literals would change `foo`'s runtime
-    // value, see `audit-per-branch-chain-assignment`)
+    // escape hatch (rewriting branches as synth literals would change `foo`'s runtime value)
     return registerBranchTreeForKey(peelTransparentPath(rhsPath), objectPattern, prop.node.key.name);
   }
 
