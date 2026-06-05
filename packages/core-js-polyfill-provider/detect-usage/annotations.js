@@ -226,10 +226,8 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
       // when the root is a proxy-global, EACH subsequent segment is itself a real global reference
       // for as long as the chain so far is all proxy-globals (`globalThis` / `self` / `window`).
       // babel injects for every link - `typeof globalThis.self.Map` references globalThis AND self
-      // AND Map - so surface them all; the prior code stopped after the first hop and missed the
-      // ctor behind a multi-hop chain. the chain breaks at the first non-proxy segment (its further
-      // members are properties of an ordinary value, not globals). a non-proxy root surfaces only
-      // the root, as before
+      // AND Map - so surface them all. the chain breaks at the first non-proxy segment (its further
+      // members are properties of an ordinary value, not globals). a non-proxy root surfaces only the root
       let prevIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
       for (let i = 1; i < segments.length && prevIsProxy; i++) {
         const seg = segments[i];

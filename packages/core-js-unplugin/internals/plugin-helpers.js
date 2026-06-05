@@ -178,7 +178,7 @@ export function skipBlockComment(src, p) {
 // JS WhiteSpace + LineTerminator per spec - `\s` covers space / tab / NBSP / FF / VT / BOM /
 // ogham / Mongolian / EM / punctuation / ideographic separators / LF / CR / LS (U+2028) /
 // PS (U+2029). shared by `skipGap` (forward) and `prevSignificantPos` (backward) - a 6-char
-// explicit allowlist previously missed NBSP / BOM / FF / VT etc, treating them as significant
+// explicit allowlist would miss NBSP / BOM / FF / VT etc, treating them as significant
 const WS_OR_LT_RE = /\s/;
 
 // scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char
