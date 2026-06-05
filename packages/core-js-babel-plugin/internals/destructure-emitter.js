@@ -218,7 +218,7 @@ export default function createDestructureEmitter({
     // resolved to a static (`{ [k]: of } = Array`, k='of') or a non-Identifier (string-literal) key
     // routes to the body-extract / inline-default fallback below instead of bailing - that fallback
     // binds via `prop.node.value` and keeps the key text intact (matching unplugin; babel's
-    // declarator / assignment forms already resolve a computed key, so the param-only bail under-injected)
+    // declarator / assignment forms already resolve a computed key, so a param-only bail would under-inject)
     const synthKey = !prop.node.computed && t.isIdentifier(prop.node.key);
     const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
@@ -535,9 +535,9 @@ export default function createDestructureEmitter({
     const willRemoveDeclarator = chain.every(({ pattern }) => pattern.node.properties.length === 1);
     // seed skippedNodes for the subtree about to be orphaned so scheduled visitor
     // re-entries short-circuit; handleIdentifier's `!path.parent` guard backs this up.
-    // NOT calling scope.registerDeclaration on the new binding: attempting it triggered
-    // "Duplicate declaration" errors in e2e when the enclosing `scope.crawl()` later
-    // re-scanned. skippedNodes + programExit's implicit crawl are sufficient.
+    // NOT calling scope.registerDeclaration on the new binding: attempting it triggers
+    // "Duplicate declaration" errors when the enclosing `scope.crawl()` later
+    // re-scans. skippedNodes + programExit's implicit crawl are sufficient.
     // for-init+SE+willRemoveDeclarator preserves the original init (under a sink id) so
     // its inner Identifier visits (`globalThis` inside `(se(), globalThis)`) still need
     // to fire for substitution; restrict the skip to the pattern (id) in that case
@@ -860,7 +860,7 @@ export default function createDestructureEmitter({
   // block came from a destructure-init extraction.
   // multi-decl host (`var a=1, {p}=SE(), b=2`): sibling declarators preserve their original
   // position around the consumed slot. pre-siblings run before the lifted SE, post-siblings
-  // after the extracted target. earlier collapsed-trailing emission silently reordered
+  // after the extracted target. a collapsed-trailing emission would silently reorder
   // pre-sibling initializers past the SE expression, observable when both sides carry effects
   function wrapBodylessWithSideEffect({ declaration, initNode, parentDeclarator, extractedDeclaration, kind }) {
     const decls = declaration.node.declarations;

@@ -487,9 +487,9 @@ export function createTypeMembers({
   }
 
   // method-member lookups (TSMethodSignature, ClassMethod, TSDeclareMethod, MethodDefinition,
-  // ClassPrivateMethod) used to fold to `{ type: 'TSFunctionType' }` - sufficient for the
-  // "this is a function-typed slot" answer but loses parameters + return type, breaking
-  // `ReturnType<typeof X.method>` / `Parameters<typeof X.method>`. expose the full signature
+  // ClassPrivateMethod) expose the full signature: folding to `{ type: 'TSFunctionType' }`
+  // answers the "this is a function-typed slot" question but loses parameters + return type,
+  // breaking `ReturnType<typeof X.method>` / `Parameters<typeof X.method>`.
   // so `functionTypeReturnAnnotation` and friends can read the slots; subst applied deeply
   // so type-ref substitution composes into return type / parameter types. `resolveTypeAnnotation`
   // maps the same node kinds back to `$Object('Function')` for property-access semantics
