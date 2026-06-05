@@ -82,9 +82,9 @@ export function typeAliasBody(decl) {
 
 // TS extends: TSExpressionWithTypeArguments has .expression; Flow extends: InterfaceExtends has .id.
 // null on neither slot - callers use `?.type` / `if (!base)` to bail rather than silently
-// treating the heritage clause itself as the qualified head. earlier `?? parent` fallback
-// masked future parser regressions (new heritage shape) by handing back a non-Identifier
-// wrapper that downstream filters silently rejected
+// treating the heritage clause itself as the qualified head. a `?? parent` fallback would
+// mask future parser regressions (new heritage shape) by handing back a non-Identifier
+// wrapper that downstream filters silently reject
 export function extendsId(parent) {
   return parent.expression ?? parent.id ?? null;
 }

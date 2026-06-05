@@ -369,8 +369,8 @@ export function createBindingAnalysis({
     // ignore. babel: StringLiteral / NumericLiteral. estree (oxc): a `Literal` whose value is a
     // string or number. BigInt / boolean / null / regex / template keys are treated as DYNAMIC
     // (their fold isn't reliable, so the write stays a leak that bails the narrow) - this also
-    // aligns the parsers, which disagreed on the bool case (babel had no BooleanLiteral entry,
-    // oxc's bare `type === 'Literal'` admitted it)
+    // keeps the parsers aligned on the bool case (a bare `type === 'Literal'` check would admit
+    // it on oxc, while babel has no BooleanLiteral entry)
     if (type === 'StringLiteral' || type === 'NumericLiteral') return true;
     return type === 'Literal' && (typeof property.value === 'string' || typeof property.value === 'number');
   }
