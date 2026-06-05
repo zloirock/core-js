@@ -9,8 +9,8 @@
 //
 // kept in one cluster because the two walkers cross-reference each other: the AST walker
 // uses the Type walker's `pickAwaitedConditionalBranch` / `getPromiseInnerAnnotation`, and
-// the Type walker uses the AST walker's `peelAwaitedCommonSteps`. consolidating drops the
-// thunk forward-decls the factory previously needed to break the cycle.
+// the Type walker uses the AST walker's `peelAwaitedCommonSteps`. co-locating them avoids
+// the forward-decl thunks a split would need to break the cycle.
 //
 // Public surface:
 //   peelAwaitedArgument({ arg, scope, depth, typeParamMap, seen })
@@ -91,9 +91,9 @@ export function createAwaited({
   // to recurse into - so this helper runs the same peel structurally and returns AST.
   // depth bound matches `followTypeAliasChain`'s budget; cycle prevention via the depth cap.
   // typeParamMap / seen flow through so the conditional-branch picker can resolve check /
-  // extends with the caller's substitution context - dropping them caused inferable branches
+  // extends with the caller's substitution context - dropping them causes inferable branches
   // (`Awaited<Cond<T>>` where Cond's body conditionals reference parent T) to bail to the
-  // AST-as-is fallback, and findTypeMember's later AST-only pick missed concrete narrowing
+  // AST-as-is fallback, and findTypeMember's later AST-only pick misses concrete narrowing
   function peelAwaitedArgument({ arg, scope, depth, typeParamMap, seen }) {
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
@@ -449,8 +449,8 @@ export function createAwaited({
     if (peeled) return peeled;
     // annotation fallback: route through `resolveAwaitedAnnotation` so multi-hop alias
     // chains (`type MyPromise<X> = Promise<X>`), conditional bodies, and union /
-    // intersection distribution apply per `Awaited<T>` semantics. previously we only peeled
-    // a direct `Promise<X>` ref via `resolveTypeAnnotation`, leaving aliased / conditional
+    // intersection distribution apply per `Awaited<T>` semantics. a bare `resolveTypeAnnotation`
+    // peel only handles a direct `Promise<X>` ref, leaving aliased / conditional
     // / union shapes resolving as `$Object('Promise')` - misroutes downstream member
     // dispatch (Promise.<x> isn't in built-in definitions, so polyfill emission skipped)
     const annotated = annotation && resolveAwaitedAnnotation({ node: annotation, scope: annotationInfo.scope, depth: 0 });

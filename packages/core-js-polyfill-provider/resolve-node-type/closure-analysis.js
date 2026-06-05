@@ -119,7 +119,7 @@ export function createClosureAnalysis({
 
   // per-program index of classified Identifier refs (grouped by binding) + direct
   // `new <Name>().<X>(...)` chain-call starts (grouped by constructor name). built once via
-  // `buildProgramIndex`; previously re-walked per closure - O(C * N) on N-statement programs.
+  // `buildProgramIndex`, not re-walked per closure (that would be O(C * N) on N-statement programs).
   // refs filtered through `classifyClosureRef` so write / decl-id slots drop out
   let programClosureIndexCache = new WeakMap();
   function buildProgramClosureIndex(programPath) {
@@ -316,9 +316,9 @@ export function createClosureAnalysis({
   // so `new C()` / `extends C` / `instanceof C` / TS type-positions don't trigger leak.
   // cached per class node identity. on alias-walk leak (e.g. `f(C)` passes the binding to
   // a user function that may mutate static fields opaquely), bail to null so the caller
-  // skips narrow emission - mirrors instance closure semantics. previously fell back to
-  // the minimal `{className: binding}` set, which silently retained narrow even when an
-  // unenumerable channel could have mutated the field at runtime
+  // skips narrow emission - mirrors instance closure semantics. a minimal `{className: binding}`
+  // fallback would silently retain the narrow even when an unenumerable channel could have
+  // mutated the field at runtime
   let classBindingClosureCache = new WeakMap();
   function getClassBindingClosure(classPath, anchorPath) {
     return memoize(classBindingClosureCache, classPath.node, () => {

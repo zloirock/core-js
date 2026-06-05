@@ -67,7 +67,7 @@ export function createGlobalResolve({
   function isProxyGlobalChainLink(objectPath) {
     if (!t.isMemberExpression(objectPath.node) && !t.isOptionalMemberExpression(objectPath.node)) return false;
     // memberKeyName accepts computed string-literal keys (`globalThis['self']`), matching
-    // globalProxyMemberName's node-based link walk - a bare `.computed` bail dropped them
+    // globalProxyMemberName's node-based link walk - a bare `.computed` bail would drop them
     const propName = memberKeyName(objectPath.node);
     return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName) && isGlobalProxy(objectPath.get('object'));
   }
