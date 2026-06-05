@@ -462,8 +462,10 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // `_m.call(_a, ia)` so value-undef (e.g. `[].at(99)`) reaches `_outer()` and throws
   // like native, while each `?.` contributes its own `null == ...` test.
   // caller (findInnerPolyChain) guarantees outer is a call expression.
-  // unplugin duplicates this as a text-level rewrite (see plugin.js `replaceInstanceChainCombined`);
-  // unification blocked by AST vs text emission asymmetry - the output shape must match bit-for-bit
+  // unplugin re-implements this combined-chain logic as a text-level rewrite. the two emit
+  // differently - babel rebuilds the AST recursively (stacked optional-poly hops nest naturally),
+  // unplugin emits one flat OR-chain in a single pass; semantically identical, and where the
+  // textual shape diverges the unplugin fixture carries an output-unplugin.mjs sidecar
   // rebuild a receiver sub-chain with the inner optional call (`target`) spliced out for
   // `replacement` (the memoized inner result). deep-clones each hop so siblings - call args /
   // computed keys - are fresh, then overrides the chain-child with the recursively-spliced node

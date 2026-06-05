@@ -38,10 +38,8 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
   const createDebugOutput = debug ? createDebugOutputFactory({ method: rest.method, parsedTargets }) : null;
   return {
     ...rest,
-    absoluteImports,
     createDebugOutput,
     exclude,
-    importStyle,
     include,
     shippedProposals,
     shouldInjectPolyfill,
