@@ -13,6 +13,10 @@ import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/esnext.iterator.chunks";
+import "core-js/modules/esnext.iterator.includes";
+import "core-js/modules/esnext.iterator.join";
+import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // self-reference `var X = X` of an injectable global that carries no known RETURN type (so it
 // is absent from known-built-in-return-types) must still register the usage and inject - the
