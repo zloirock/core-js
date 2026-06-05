@@ -102,10 +102,27 @@ function isIdentifierEdge(needle, edge) {
     : IDENT_CHAR_RE.test(needle.at(-1));
 }
 
-function hasIdentifierBoundary(str, idx, needle) {
-  if (isIdentifierEdge(needle, 'start') && idx > 0 && IDENT_CHAR_RE.test(str[idx - 1])) return false;
+// the code point ENDING at `i`: pairs a trailing low surrogate with its lead so an astral
+// identifier char tests as one unit, not a lone surrogate half (which matches nothing). mirrors
+// plugin-helpers' ASI-fuse surrogate handling (same root as the leading-`(` fuse check)
+function codePointEndingAt(str, i) {
+  const code = str.charCodeAt(i);
+  if (code >= 0xDC00 && code <= 0xDFFF && i > 0) {
+    const lead = str.charCodeAt(i - 1);
+    if (lead >= 0xD800 && lead <= 0xDBFF) return str.slice(i - 1, i + 1);
+  }
+  return str[i];
+}
+
+export function hasIdentifierBoundary(str, idx, needle) {
+  // adjacent chars may be astral (surrogate-pair) identifier chars - test the WHOLE code point.
+  // `codePointEndingAt` handles the char BEFORE the needle (trailing low surrogate); the built-in
+  // `codePointAt` handles the char AFTER (leading high surrogate). a lone surrogate would test as
+  // a boundary and mis-classify the needle as standalone
+  if (isIdentifierEdge(needle, 'start') && idx > 0 && IDENT_CHAR_RE.test(codePointEndingAt(str, idx - 1))) return false;
   const tail = idx + needle.length;
-  if (isIdentifierEdge(needle, 'end') && tail < str.length && IDENT_CHAR_RE.test(str[tail])) return false;
+  if (isIdentifierEdge(needle, 'end') && tail < str.length
+    && IDENT_CHAR_RE.test(String.fromCodePoint(str.codePointAt(tail)))) return false;
   return true;
 }
 
