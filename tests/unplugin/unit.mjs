@@ -589,6 +589,135 @@ function checkPhantomSkipBoundaryGuard() {
 }
 checkPhantomSkipBoundaryGuard();
 
+// verbatim-skip fast-path: a deeply-nested receiver chain (`r.a().b().c()`) where each hop's
+// content preserves the source slice of the hop below it. once `.b` substitutes via its raw
+// source slice, the narrower `.a` nested in `.b`'s source range is a phantom and is skipped
+// before its own `content` scan - the short-circuit that keeps compose quadratic (not cubic)
+// in chain depth. asserts the skip still produces the fully-composed nesting
+function checkVerbatimSkipNestedChain() {
+  const code = 'r.a().b().c()';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.add(0, 5, 'A(r)');          // .a  - innermost, receiver `r` carries no polyfill
+  q.add(0, 9, 'B(r.a())');      // .b  - preserves `r.a()` so .a can fold into it
+  q.add(0, 13, 'C(r.a().b())'); // .c - preserves `r.a().b()` so .b can fold into it
+  q.apply();
+  check('TransformQueue/verbatim-skip nested chain', ms.toString(), 'C(B(A(r)))');
+}
+checkVerbatimSkipNestedChain();
+
+// verbatim-skip must NOT absorb across an equal-range split sibling that hasn't composed yet.
+// the arrow-body wrap (non-split, [0,9]) and the outermost instance method `.b` (split, equal
+// [0,9]) are siblings; `#scanInners` lists the split as an inner of the wrap, and the wrap
+// composes first. when the wrap substitutes `.b` it gets `.b`'s RAW (un-composed) content,
+// where the inner `.a` is still un-substituted - so `.a` must NOT be skipped. the
+// `innerWasComposed` gate enforces this; without it `.a` is dropped (output `{B(r.a())}`)
+function checkVerbatimSkipUncomposedSiblingNotAbsorbed() {
+  const code = 'r.a().b()';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.add(0, 9, '{r.a().b()}');          // arrow-body-wrap analogue: non-split, preserves source
+  q.addSplit(0, 2, 9, 'B(', 'r.a())'); // .b - split, EQUAL range, raw content preserves `r.a()`
+  q.add(0, 5, 'A(r)');                 // .a - strict inner, must still substitute
+  q.apply();
+  check('TransformQueue/verbatim-skip uncomposed sibling not absorbed', ms.toString(), '{B(A(r))}');
+}
+checkVerbatimSkipUncomposedSiblingNotAbsorbed();
+
+// compose-complexity regression guard for finding 46-1. wall-clock is too machine-dependent
+// for CI, so this counts a DETERMINISTIC proxy: total chars scanned by String.prototype.indexOf
+// during one compose pass (the substitution scans dominate). the pathological shape is a nested
+// chain `r.f().f()...f()` where every hop's content preserves the receiver slice below it. the
+// pre-fix code scanned each narrower phantom hop -> ~8x more work per depth-doubling (cubic);
+// the verbatim phantom-skip keeps it ~4x (quadratic). assert the doubling ratio stays under 5.5,
+// which sits between the two regimes with wide margin (measured 3.95 quadratic vs 7.9 cubic) -
+// noise can only dilute the ratio downward, so a cubic regression (ratio -> 8) always trips it
+function checkComposeStaysSubCubic() {
+  function composeNestedChain(depth) {
+    let code = 'r';
+    const ends = [];
+    for (let i = 0; i < depth; i++) {
+      code += '.f()';
+      ends.push(code.length);
+    }
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    for (let i = 0; i < depth; i++) {
+      // hop i wraps the verbatim receiver slice [0, ends[i-1]], mirroring the instance-method
+      // emitter preserving its receiver text so the hop below can fold into it
+      const receiver = i === 0 ? 'r' : code.slice(0, ends[i - 1]);
+      q.add(0, ends[i], `F(${ receiver })`);
+    }
+    const realIndexOf = String.prototype.indexOf;
+    let scanned = 0;
+    // test-only scan-cost probe: tally haystack length per indexOf, restored in finally
+    /* eslint-disable no-extend-native -- transient indexOf counter, removed in the finally below */
+    String.prototype.indexOf = function indexOfProbe(...args) {
+      scanned += this.length;
+      return realIndexOf.apply(this, args);
+    };
+    try {
+      q.apply();
+    } finally {
+      String.prototype.indexOf = realIndexOf;
+    }
+    /* eslint-enable no-extend-native -- probe removed, native restored */
+    return { scanned, out: ms.toString() };
+  }
+  // correctness at depth: the deepest hop must fully fold, no phantom-skip corruption
+  check('TransformQueue/compose nested-chain output', composeNestedChain(3).out, 'F(F(F(r)))');
+  const ratio = composeNestedChain(80).scanned / composeNestedChain(40).scanned;
+  if (ratio < 5.5) counts.passed++;
+  else {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/compose stays sub-cubic') } :: depth-doubling scan ratio ${ ratio.toFixed(2) } >= 5.5 (cubic regression?)`;
+  }
+}
+checkComposeStaysSubCubic();
+
+// verbatim-skip must NOT cross disjoint sibling inners, and identical needles at sibling
+// positions must each resolve to their own slot via nth-accounting. `f(a.m(),a.m())` has two
+// `a.m()` inners at disjoint ranges under one outer; neither nests in the other, so the
+// rightmost absorbs nothing the leftmost needs and both substitute (rightmost nth=1, leftmost
+// nth=0). a buggy absorb that keyed on needle-equality instead of range would drop one
+function checkSiblingIdenticalNeedles() {
+  const code = 'f(a.m(),a.m())';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.add(0, 14, 'F(a.m(),a.m())'); // outer wrapper preserves both siblings verbatim
+  q.add(2, 7, 'M(a)');            // first  a.m()
+  q.add(8, 13, 'M(a)');           // second a.m()
+  q.apply();
+  check('TransformQueue/sibling identical needles', ms.toString(), 'F(M(a),M(a))');
+}
+checkSiblingIdenticalNeedles();
+
+// nested chain `r.f().f()...` with a DISTINCT content wrapper per hop must fold to the exact
+// nesting order `F{d-1}(...F0(r))` at every depth - distinct wrappers make the assertion
+// sensitive to any hop mis-routing into the wrong slot. sweeps depth 1..10 to catch
+// depth-dependent off-by-one in the verbatim-skip / nth bookkeeping
+function checkNestedChainDepthSweep() {
+  for (let depth = 1; depth <= 10; depth++) {
+    let code = 'r';
+    const ends = [];
+    for (let i = 0; i < depth; i++) {
+      code += '.f()';
+      ends.push(code.length);
+    }
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    for (let i = 0; i < depth; i++) {
+      const receiver = i === 0 ? 'r' : code.slice(0, ends[i - 1]);
+      q.add(0, ends[i], `F${ i }(${ receiver })`);
+    }
+    q.apply();
+    let expected = 'r';
+    for (let i = 0; i < depth; i++) expected = `F${ i }(${ expected })`;
+    check(`TransformQueue/nested chain depth=${ depth }`, ms.toString(), expected);
+  }
+}
+checkNestedChainDepthSweep();
+
 // `mergeEqualRange` invariant errors must carry the `[core-js] transform-queue: [fileId]`
 // prefix matching the rest of the queue's diagnostics. mergeEqualRange is module-scope -
 // fileId/range flow through params from the calling instance method
