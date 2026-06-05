@@ -1,7 +1,6 @@
-// Shared shape predicates and write-target helpers for class members. Consolidates
-// definitions that were previously duplicated across `class-fields`, `closure-analysis`,
-// and `class-object-member` clusters - logic identical, but drift in comments / style
-// already started. Single source eliminates the drift surface.
+// Shared shape predicates and write-target helpers for class members. Single source for the
+// predicates shared by `class-fields`, `closure-analysis`, and `class-object-member` - one
+// definition eliminates comment / style drift across them.
 //
 // Top-level `memberWriteTargetPath` is closure-free (operates on a NodePath's `.node.type` +
 // `.get(...)`); the two factories carry adapter (`t`) and key/type resolvers required by

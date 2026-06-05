@@ -411,8 +411,8 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     // anchor the reassignment proof at the class node (where `extends` captures the base), not the
     // method-nested super site. the extends clause is the sole evaluation point of the superclass
     // alias, so a reassignment after capture - even one textually before the super call inside a
-    // method - cannot change super.X resolution. both modes anchor here: usage-global previously
-    // kept the super site and wrongly bailed on an in-method pre-super reassign (missed polyfill)
+    // method - cannot change super.X resolution. both modes anchor here: anchoring at the super
+    // site instead would wrongly bail on an in-method pre-super reassign (missed polyfill)
     const classAnchor = ancestorPathOf(path, info.classNode);
     return buildSuperStaticMeta(info.classNode, key,
       superClass => resolveBindingToGlobalName(superClass, path.scope, new Set(), path, classAnchor));

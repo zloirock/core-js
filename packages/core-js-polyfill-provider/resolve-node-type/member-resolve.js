@@ -21,9 +21,8 @@
 //   resolveMemberCallReturn               - union / intersection / alias-chain aware dispatch
 //   collectMemberSegments                 - runtime MemberExpression chain -> segment array
 //
-// Merging removes one cluster boundary the factory had to chase: runtime `member-dispatch`
-// previously consumed `resolveTypedMember` / `resolveIndexSignatureMember` from typed
-// `member-resolution`. Both now live in the same closure.
+// runtime `member-dispatch` and typed `member-resolution` share one closure, so the dispatch
+// consumes `resolveTypedMember` / `resolveIndexSignatureMember` directly without a thunk.
 //
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings

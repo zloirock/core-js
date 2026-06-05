@@ -435,9 +435,8 @@ const BLOCK_SCOPING_NODE_TYPES = new Set([
 ]);
 
 // LIFO insertion: most-recently-added entry sits at index 0 so the no-position fallback
-// returns the innermost shadow (matches the pre-refactor "last write wins" semantics of
-// the old single-entry Map.set). entries carry their own block range so position-aware
-// lookup can pick the right shadow among same-name bindings in distinct scopes
+// returns the innermost shadow (last-write-wins). entries carry their own block range so
+// position-aware lookup can pick the right shadow among same-name bindings in distinct scopes
 function addLocal(locals, name, entry) {
   const list = locals.get(name);
   if (list) list.unshift(entry);
@@ -797,8 +796,8 @@ export function createUsageVisitors({
 
   // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`). shared between
   // the top-level visitor and `decoratorVisitors` so `@(<Map/>) class C {}` decorators
-  // detect the global runtime reference (previously skipped - decorator walk had no
-  // JSXIdentifier entry, so the embedded JSX element never triggered polyfill emission).
+  // detect the global runtime reference (without it the decorator walk has no
+  // JSXIdentifier entry, so the embedded JSX element never triggers polyfill emission).
   // `adapter.hasBinding` gets the path so `hasRuntimeBinding`'s var-hoisting fallback
   // detects a `var Tag` declaration inside a nested non-function block (estree-toolkit
   // registers var in the block's own scope rather than hoisting to enclosing function)
