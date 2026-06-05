@@ -93,8 +93,8 @@ const SIBLING_LEXICAL_DECL_KINDS = new Set([
 //   - lone prop: [propStart, propEnd)                              -> empties the pattern
 // uniform "trailing-comma except last" rule keeps adjacent removals non-overlapping:
 // idx=0 takes [A.start, B.start), idx=1 takes [B.start, C.start), etc. - no two ranges
-// share the same comma. legacy "idx=0 trailing, idx>0 leading" rule fought over the
-// middle comma when two adjacent props were both removed (`{from, of, [SYM]:x}` with
+// share the same comma. an "idx=0 trailing, idx>0 leading" rule would fight over the
+// middle comma when two adjacent props are both removed (`{from, of, [SYM]:x}` with
 // from+of both polyfilled), tripping `transform-queue: partial overlap`
 // `precededByRemoved` signals the immediately-preceding sibling was already removed (its
 // trailing-comma range ran up to this prop's start, consuming the shared comma). for the LAST
@@ -213,8 +213,8 @@ export function createDestructureEmitter({
   // upfront walk picks up every polyfillable prop), emits SE-prefix lifts + optional
   // `var _unused;` declarations (rest case) + rewritten destructure or per-extraction
   // assigns. `flattenedAssignments` short-circuits sibling per-prop visitor re-entries.
-  // previous simple-flatten branch (used when no rest sibling) emitted only the FIRST prop's
-  // polyfill and silently dropped sibling extractions on multi-prop hosts - eliminated here
+  // a simple-flatten branch (no rest sibling) would emit only the FIRST prop's polyfill and
+  // silently drop sibling extractions on multi-prop hosts - this unified path handles all props
   function tryFlattenAssignmentExpression(metaPath) {
     // shape gate: only proceed for shorthand / aliased / default-prop bindings - the same
     // shapes `cascadeAssignmentExpression` -> `rewriteDeclarator` plan walks
@@ -1060,7 +1060,7 @@ export function createDestructureEmitter({
   //     hidden behind const-bound ObjectExpression, walk init through outer-key path to
   //     locate it. mirrors babel-plugin's `tryFlattenNestedProxyDestructure` so both
   //     pipelines emit the same `const from = _Array$from` extraction (full polyfill-wins
-  //     semantics) instead of unplugin's older inline-default fallback
+  //     semantics)
   function planDeclarator(declarator, scope, usePath = null) {
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
