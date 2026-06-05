@@ -793,7 +793,7 @@ export default class TransformQueue {
   // lands on the post-overwrite chunk's intro - preserved regardless of `pos`/overwrite
   // collision. reproducer: minified `function f(){arr.at?.(0).map(x=>x)}` - the polyfill
   // overwrites at the byte right after `{` AND scope-tracker inserts `var _ref, _ref2, _ref3;`
-  // at that same byte; pre-fix the var decl was lost, yielding ReferenceError in strict mode
+  // at that same byte; without inserts-last the var decl is lost, yielding ReferenceError in strict mode
   apply() {
     // defensive invariant: inserts MUST NOT land strictly inside any overwrite range -
     // MagicString anchors `appendRight` to chunk identity; an insert pos that falls inside

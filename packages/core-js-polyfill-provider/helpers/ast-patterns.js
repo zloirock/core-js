@@ -275,9 +275,8 @@ export function isMemberAccessNode(node) {
 
 // tracking-free peel of `SKIPPABLE_WRAPPER_TYPES` (TS_EXPR_WRAPPERS + ParenthesizedExpression
 // + ChainExpression). used wherever a caller needs the semantically meaningful node and
-// doesn't care which wrappers were skipped. consolidates the peel-loop that previously
-// lived inline in babel-plugin's `isCallee`, unplugin's `isCallee`, and unplugin's
-// `unwrapNode` - all three now share one wrapper-set so adding a future transparent
+// doesn't care which wrappers were skipped. babel-plugin's `isCallee`, unplugin's `isCallee`,
+// and unplugin's `unwrapNode` share this one wrapper-set, so adding a future transparent
 // wrapper updates the single SKIPPABLE_WRAPPER_TYPES constant
 export function peelSkippableWrappers(node) {
   while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) node = node.expression;
@@ -2187,7 +2186,7 @@ function iifeBodyReturn(callee, paramNames) {
 //    Conditional, ParenthesizedExpression (oxc preserves; babel strips at parse),
 //    TS_EXPR_WRAPPERS, ChainExpression - the assignment / update sits one or more levels deep,
 //    generic `Object.keys` descent finds it
-//  - shallow Identifier LHS / UpdateExpression target - the pre-fix behavior
+//  - shallow Identifier LHS / UpdateExpression target - the direct top-level case, no wrapper to descend
 // `NESTED_BINDING_INTRODUCERS` bail: do not descend into nested function / class
 // bodies. their rebinds either shadow (own param with same name) or only run when
 // the closure is invoked elsewhere - neither propagates to the outer param's value

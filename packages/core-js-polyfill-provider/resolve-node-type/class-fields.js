@@ -341,9 +341,9 @@ export function createClassFields({
 
   // instance field flow: writes via `<inst-binding>.<field> = Y` from any instance binding
   // of the class OR any subclass (transitively), plus `this.<field> = Y` writes inside
-  // non-static methods of base + subclasses. instance closure now includes subclass `new
-  // Sub()` bindings to fix the case where `class Sub extends Base; const s = new Sub();
-  // s.x = "string"` was missed by the base-only closure check.
+  // non-static methods of base + subclasses. instance closure includes subclass `new
+  // Sub()` bindings so `class Sub extends Base; const s = new Sub();
+  // s.x = "string"` is captured (a base-only closure check would miss it).
   // class-binding-escape gate fires BEFORE instance closure build: any escape channel
   // means external `C.prototype.<field>` install can affect instance reads (see
   // `classBindingEscapes` doc for the channel list)
@@ -630,8 +630,8 @@ export function createClassFields({
         const propNode = propPath.node;
         if (!propNode || t.isSpreadElement(propNode)) continue;
         // getters DO contribute writes to OTHER fields: `get foo() { this.bar = "x"; ... }`
-        // reads `foo` but side-effects `bar`. previously skipped getters lost these writes,
-        // narrowing `bar` on stale init type. mirror class-side which includes getters via
+        // reads `foo` but side-effects `bar`. skipping getters would lose these writes,
+        // narrowing `bar` on a stale init type. mirror class-side which includes getters via
         // `isMethodMember`. only setter ARGUMENT-named field doesn't matter for THIS-write
         // detection (setter body still scans `this.<other> = Y` writes the same way)
         if (t.isObjectMethod?.(propNode)) {
