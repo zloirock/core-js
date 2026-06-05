@@ -12,7 +12,7 @@
 //         flow-sensitive "narrowing by assignment").
 //
 // kept in one cluster because `narrowDiscriminatedUnion` calls `findDiscriminantGuards`
-// internally - consolidating drops the forward-decl thunk the factory previously needed.
+// internally - co-location avoids a forward-decl thunk between them.
 //
 // `findPrecedingBlockAssignment` is exposed for external callers (the broader assignment
 // search; weaker invariant than `findLastStraightLineAssignment` from straight-line-flow,
@@ -88,8 +88,8 @@ export function createDiscriminantNarrow({
     if (!isEq && !isNeq) return null;
     // `unwrapRuntimeExpr` peels parens, `ChainExpression` (oxc optional-chain wrapper),
     // and TS expression wrappers (`as` / `satisfies` / `!`) - covers all transparent
-    // adapters that may sit on either side of the equality. earlier `peelParensAndChain`
-    // missed TS wrappers, so `(box as A).kind === 'a'` dropped narrow
+    // adapters that may sit on either side of the equality. a peel that misses TS wrappers
+    // would drop the narrow for `(box as A).kind === 'a'`
     const left = unwrapRuntimeExpr(test.left);
     const right = unwrapRuntimeExpr(test.right);
     const pair = memberLiteralPair({ memberExpr: left, literalNode: right, targetKey, scope })
