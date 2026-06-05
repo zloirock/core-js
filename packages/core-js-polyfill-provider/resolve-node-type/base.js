@@ -198,9 +198,8 @@ export function getOrInitMap(container, key) {
 }
 
 // --- Pure data tables extracted from the resolver factory ---
-// each section was previously inlined near its usage in `resolve-node-type.js`; they
-// share zero closure deps, so moving them out reduces visual noise in the factory
-// without changing semantics
+// these share zero closure deps, so they live out here rather than inline in the factory -
+// keeps the factory body free of visual noise, no semantic difference
 
 // ambient TS / Flow declarations alongside runtime functions/classes - they all carry
 // `returnType` / `typeParameters`, so the same code paths work for both. split into
