@@ -16,9 +16,9 @@ const babelTraverse = _babelTraverse.default ?? _babelTraverse;
 
 export const babelAdapter = {
   name: 'babel',
-  parseAndScope(code, extraPlugins = []) {
+  parseAndScope(code, sourceType = 'module', extraPlugins = []) {
     const ast = babelParse(code, {
-      sourceType: 'module',
+      sourceType,
       plugins: ['typescript', ...extraPlugins],
       allowReturnOutsideFunction: true,
       allowAwaitOutsideFunction: true,
@@ -50,10 +50,13 @@ export const babelAdapter = {
 // path - matches babel-traverse closely enough that `path.scope.getBinding(...)` works
 export const oxcAdapter = {
   name: 'oxc',
-  // extraPlugins parameter ignored - oxc auto-detects features by file extension
-  parseAndScope(code) {
+  // oxc auto-detects features by file extension (no extraPlugins arg - callers' plugin list is
+  // babel-only). a 'script' sourceType parses sloppy-mode (Annex-B block-function hoisting); use
+  // a `.js` name so oxc doesn't apply TS module rules
+  parseAndScope(code, sourceType = 'module') {
+    const filename = sourceType === 'script' ? 'test.js' : 'test.ts';
     // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-    const { program } = oxcParseSync('test.ts', code, { sourceType: 'module' });
+    const { program } = oxcParseSync(filename, code, { sourceType });
     let programPath = null;
     estreeTraverse(program, {
       $: { scope: true },
@@ -137,10 +140,10 @@ export function createChecker(name) {
 
   // run scenario against BOTH parsers; scenario is `(adapter, programPath, label) => void`.
   // `extraPlugins` is passed to babel's parser (oxc auto-enables based on file extension)
-  function runBoth(label, code, scenario, extraPlugins) {
+  function runBoth(label, code, scenario, extraPlugins, sourceType) {
     for (const adapter of adapters) {
       try {
-        const programPath = adapter.parseAndScope(code, extraPlugins);
+        const programPath = adapter.parseAndScope(code, sourceType, extraPlugins);
         scenario(adapter, programPath, `${ label } [${ adapter.name }]`);
       } catch (error) {
         fail(`${ label } [${ adapter.name }]`, `threw: ${ error.message }`);
@@ -159,7 +162,7 @@ export function createChecker(name) {
     const results = [];
     for (const adapter of adapters) {
       try {
-        const programPath = adapter.parseAndScope(code, extraPlugins);
+        const programPath = adapter.parseAndScope(code, undefined, extraPlugins);
         results.push({ adapter, value: extract(adapter, programPath) });
       } catch (error) {
         return fail(`${ label } [${ adapter.name }]`, `threw: ${ error.message }`);
