@@ -1,4 +1,5 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { isDirectiveStatement, isTopLevelImportLike } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import ImportInjectorState from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 
@@ -477,44 +478,14 @@ export default class ImportInjector extends ImportInjectorState {
     //   - mixed-declarator `var fs = require('fs'), x = 1` - any declarator with `require(...)`
     //     counts the row in (`some` not `every`); otherwise such rows would push `var _ref;`
     //     before them, violating the `imports -> requires -> var _ref -> user code` layout
-    //   - leading `'use strict'` synthesized as ExpressionStatement(StringLiteral) by sibling
-    //     plugins (instead of `program.directives`); `Literal` covers the ESTree shape
-    // string-literal ExpressionStatement counts only as a directive (babel marks directives
-    // with `stmt.directive` field; sibling-emitted `'use strict'` synth shapes preserve the
-    // marker). bare `'foo';` non-directive statements should NOT qualify - otherwise they
-    // would extend the import-region and `var _ref;` would merge past them
-    function isStringDirective(stmt) {
-      if (stmt.type !== 'ExpressionStatement') return false;
-      const expr = stmt.expression;
-      if (expr?.type !== 'StringLiteral' && expr?.type !== 'Literal') return false;
-      // empty-string directive (`""`) is parser-emittable but not a valid prologue token -
-      // shared `isDirectiveStatement` rejects it; mirror that gate here so a bare empty-string
-      // expression statement doesn't extend the import region. truthy non-empty directive
-      // tag on either the ExpressionStatement (babel) or the inner StringLiteral (oxc) qualifies
-      return typeof stmt.directive === 'string' && stmt.directive.length > 0
-        || typeof expr.directive === 'string' && expr.directive.length > 0;
-    }
-
-    // peel `(0, require)('m')` SequenceExpression-wrapped callee + `require('m').default`
-    // MemberExpression-tail so webpack / esbuild-style indirect-require shapes still register
-    // as import-region statements. matches `getEntrySource` callee peel for symmetry
-    function isRequireCall(expr) {
-      let cur = expr;
-      if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
-      if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
-      let { callee } = cur;
-      if (callee?.type === 'SequenceExpression') callee = callee.expressions?.at(-1);
-      return callee?.type === 'Identifier' && callee.name === 'require';
-    }
-
+    //   - a directive-prologue statement that survived in `body[]`: a sibling plugin re-emitted
+    //     `'use strict'` as a raw statement instead of via `program.directives` (shared
+    //     `isDirectiveStatement` accepts the `.directive` marker on the statement OR inner literal,
+    //     and rejects a bare non-directive `'foo';` so it can't extend the region)
+    // the directive term is babel-side only - unplugin handles directives separately in its
+    // `lastUserImportEnd` scan
     function isImportRegion(stmt) {
-      return stmt.type === 'ImportDeclaration'
-        || (stmt.type === 'ExportNamedDeclaration' && stmt.source)
-        || stmt.type === 'ExportAllDeclaration'
-        || (stmt.type === 'ExpressionStatement' && isRequireCall(stmt.expression))
-        || isStringDirective(stmt)
-        || (stmt.type === 'VariableDeclaration'
-          && stmt.declarations.some(d => isRequireCall(d.init)));
+      return isTopLevelImportLike(stmt) || isDirectiveStatement(stmt);
     }
 
     // sibling-plugin vars with no init (`var x;` injected by transform-* plugins) are hoisted

@@ -26,7 +26,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { loopReExecRegionHasViolation } from './ast-shapes.js';
+import { isUnionType, loopReExecRegionHasViolation } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
@@ -45,12 +45,6 @@ const NULLISH_BRANCH_TYPES = new Set([
   'VoidTypeAnnotation',
   'EmptyTypeAnnotation',
 ]);
-
-// TS + Flow union-type predicate. used by both narrowing entry points and the inner
-// alias-walk flattener; shape parity must stay in sync across all three call sites
-function isUnionType(node) {
-  return node?.type === 'TSUnionType' || node?.type === 'UnionTypeAnnotation';
-}
 
 export function createDiscriminantNarrow({
   t,
