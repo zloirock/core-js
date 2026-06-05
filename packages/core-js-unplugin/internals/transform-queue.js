@@ -332,7 +332,7 @@ function upperBound(ranges, target) {
 // containing the needle multiple times would silently ignore later occurrences here -
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
-export function mergeEqualRange({ a, b, originalNeedle, range = null, fileId = null }) {
+function mergeEqualRange({ a, b, originalNeedle, range = null, fileId = null }) {
   const aFirst = a.indexOf(originalNeedle);
   const wrapper = aFirst !== -1 ? a : b;
   const inner = aFirst !== -1 ? b : a;
