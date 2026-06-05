@@ -23,6 +23,7 @@ import { isAmbientFunctionNode, isAmbientFunctionOrClassNode } from './name-reso
 export function createTypeQuery({
   t,
   constantBindingPath,
+  bindingDeclaratorPath,
   findEnumDeclaration,
   findDeclPathBySegments,
   withLookupPath,
@@ -65,7 +66,15 @@ export function createTypeQuery({
     // TSEnumDeclaration has no typeAnnotation slot, so treat it as $Object('Object') for
     // downstream member inference - but only when a nearer value binding doesn't shadow it
     if (enumIsNearestValue(name, scope, bindingPath)) return new $Object('Object');
-    if (!bindingPath) return null;
+    if (!bindingPath) {
+      // a reassigned (non-const) annotated declarator still has a stable DECLARED type for `typeof`
+      // (TS reads the annotation, not the narrowed value) - constantBindingPath bails on the
+      // reassignment, so look the declarator up regardless of const-ness and resolve its EXPLICIT
+      // annotation only (the init is not the type once the binding is reassigned)
+      const declPath = bindingDeclaratorPath(name, scope);
+      const reassignedAnnotation = t.isVariableDeclarator(declPath?.node) ? declPath.node.id?.typeAnnotation : null;
+      return reassignedAnnotation ? resolveTypeAnnotation(reassignedAnnotation, scope) : null;
+    }
     if (t.isVariableDeclarator(bindingPath.node)) {
       const annotation = bindingPath.node.id?.typeAnnotation;
       if (annotation) return resolveTypeAnnotation(annotation, scope);

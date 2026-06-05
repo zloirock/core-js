@@ -6,7 +6,7 @@ import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { collectMutatedStaticMembers } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
-import TransformQueue, { deoptionalizeNeedle, deoptionalizeNeedleAtPositions } from '../../packages/core-js-unplugin/internals/transform-queue.js';
+import TransformQueue, { deoptionalizeNeedle, deoptionalizeNeedleAtPositions, hasIdentifierBoundary } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin, {
   formatLabelLocation,
@@ -25,6 +25,7 @@ import {
   isBodylessStatementBody,
   isChunkLoaderBundler,
   isLineTerminator,
+  isTopLevelImportLike,
   lastUserImportEnd,
   liftSfcLangSuffix,
   NO_REF_NEEDED,
@@ -1010,6 +1011,22 @@ function checkLastUserImportEnd() {
 }
 checkLastUserImportEnd();
 
+// --- isTopLevelImportLike: paren / sequence-wrapped require ---
+// a top-level `require('m')` counts as an import-like statement so `var _ref;` lands after it.
+// the callee is peeled of skippable wrappers first, so a parenthesized or comma-sequence
+// `require` (minifier / bundler output like `(0, require)('m')`) is still recognized
+function checkIsTopLevelImportLikeWrappedRequire() {
+  const stmtOf = src => programOf(src, 'script').body[0];
+  check('isTopLevelImportLike/bare require', isTopLevelImportLike(stmtOf("require('m');")), true);
+  check('isTopLevelImportLike/paren-wrapped require', isTopLevelImportLike(stmtOf("(require)('m');")), true);
+  check('isTopLevelImportLike/sequence-wrapped require', isTopLevelImportLike(stmtOf("(0, require)('m');")), true);
+  check('isTopLevelImportLike/var require', isTopLevelImportLike(stmtOf("var m = require('m');")), true);
+  check('isTopLevelImportLike/var paren-wrapped require', isTopLevelImportLike(stmtOf("var m = (0, require)('m');")), true);
+  // a non-require call is not import-like
+  check('isTopLevelImportLike/plain call not import', isTopLevelImportLike(stmtOf('foo();')), false);
+}
+checkIsTopLevelImportLikeWrappedRequire();
+
 // --- transform parse-error path ---
 // fatal parse errors return null + emit a `this.warn(...)` describing the failure so the
 // user identifies the file. oxc-parser is forgiving and returns an `errors` array rather
@@ -1314,6 +1331,25 @@ function checkFlushRefAfterTrailingImportComment() {
 }
 checkFlushRefAfterTrailingImportComment();
 
+// --- flush() puts the ref block on its own line after a `;`-terminated import (no trailing newline) ---
+// `import x from "y";foo()` ends with `;` then code on the SAME line. a `;`-terminated prior
+// statement is syntactically safe to abut, but `import x from "y";var _ref;` jammed onto one line
+// is a cosmetic regression - the memo must drop onto its own line below the import
+function checkFlushRefAfterSemicolonSameLine() {
+  const src = 'import x from "y";foo();';
+  const ms = new MagicString(src);
+  // userImportEnd = just past the import's `;` (the next char is `f`, same line)
+  const userImportEnd = src.indexOf(';') + 1;
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, userImportEnd });
+  inj.generateDeclaredRef();
+  inj.flush();
+  const out = ms.toString();
+  const firstLine = out.slice(0, out.indexOf('\n'));
+  check('refBlock/ref not jammed onto `;`-terminated import line', firstLine.includes('var _ref'), false);
+  check('refBlock/import preserved alone on first line', firstLine, 'import x from "y";');
+}
+checkFlushRefAfterSemicolonSameLine();
+
 // sibling plugin may overwrite a range that contains the prologueEnd insertion point.
 // `appendRight` then throws "Cannot split a chunk that has already been edited"; the build
 // dies with a stack pointing into MagicString rather than the import emission. fallback to
@@ -1369,6 +1405,48 @@ function checkBomSourcesContent() {
   check('sourceMap/BOM prefix', result.map.sourcesContent[0].charCodeAt(0), 0xFEFF);
 }
 checkBomSourcesContent();
+
+// --- pre+post: usage-global post map keeps sourcesContent ---
+// the post pass omits sourcesContent only when it CHAINS through a pre pass that already emitted
+// a content-bearing map. a usage-global pre is detection-only (no source rewrite -> no map), so
+// post must still emit sourcesContent itself - otherwise the map references the file with no
+// inline content and devtools can't show the original source
+function checkPrePostUsageGlobalSourcesContent() {
+  const source = 'Promise.resolve(1);\n';
+  const id = '/src/pre-post-content.js';
+  const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+  plugin.transform(source, id, 'pre'); // detection-only pre: stores a no-rewrite snapshot
+  const post = plugin.transform(source, id, 'post');
+  if (!post?.map) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('prePost/post emitted map') } :: missing map`;
+    return;
+  }
+  check('prePost/usage-global post injected polyfill', /core-js\/modules\/es\.promise/.test(post.code), true);
+  check('prePost/usage-global post map includes sourcesContent', !!post.map.sourcesContent?.[0], true);
+  check('prePost/sourcesContent is the original source', post.map.sourcesContent?.[0], source);
+}
+checkPrePostUsageGlobalSourcesContent();
+
+// the discriminating other branch: a usage-pure pre REWRITES the source (`Array.from` -> pure
+// helper) and emits a content-bearing map, so post must CHAIN through it and OMIT its own
+// sourcesContent (re-emitting would duplicate the content the build composes from pre's map).
+// pins that the inheritedPreRewrote flag correctly separates the two pre kinds
+function checkPrePostUsagePureOmitsSourcesContent() {
+  const source = 'const r = Array.from([1]);\n';
+  const id = '/src/pure-prepost-content.js';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const pre = plugin.transform(source, id, 'pre'); // pure pre rewrites + emits a content-bearing map
+  check('prePost/usage-pure pre rewrote the source', pre?.code !== undefined && pre.code !== source, true);
+  const post = plugin.transform(source, id, 'post');
+  if (!post?.map) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('prePost/pure post emitted map') } :: missing map`;
+    return;
+  }
+  check('prePost/usage-pure post chains -> omits sourcesContent', !post.map.sourcesContent?.[0], true);
+}
+checkPrePostUsagePureOmitsSourcesContent();
 
 // --- ORPHAN_REF_PATTERN ---
 // matches plugin-emitted refs (`_ref`, `_ref2`, `_ref3`, ...) but rejects `_ref0`/`_ref1`
@@ -1642,6 +1720,24 @@ check('deopt-at/index marker', deoptionalizeNeedleAtPositions('obj?.[i]', 0, [3]
 // deopt list applied to a sub-slice only affects markers that fall inside it
 check('deopt-at/out-of-range skipped', deoptionalizeNeedleAtPositions('arr?.flat()', 100, [200]), 'arr?.flat()');
 check('deopt-at/empty positions', deoptionalizeNeedleAtPositions('arr?.flat()', 0, []), 'arr?.flat()');
+
+// --- hasIdentifierBoundary: astral-adjacent needle ---
+// the needle replacer only fires at standalone token boundaries. an astral (surrogate-pair)
+// identifier char immediately BEFORE the needle must suppress the boundary - testing only the
+// trailing low surrogate (not the whole code point) mis-classifies it as a non-identifier and
+// would wrongly treat the needle as standalone, replacing a fragment of a larger identifier
+check('boundary/astral ident char before needle suppresses boundary',
+  hasIdentifierBoundary(`${ String.fromCodePoint(0x1D400) }Promise`, 2, 'Promise'), false);
+// a plain non-identifier (space) before the needle is a genuine standalone boundary
+check('boundary/space before needle is a boundary',
+  hasIdentifierBoundary(' Promise', 1, 'Promise'), true);
+// astral ident char immediately AFTER the needle also suppresses (leading high surrogate)
+check('boundary/astral ident char after needle suppresses boundary',
+  hasIdentifierBoundary(`Promise${ String.fromCodePoint(0x1D400) }`, 0, 'Promise'), false);
+// an astral NON-identifier code point (emoji) before the needle is a GENUINE boundary - the fix
+// reads the whole code point and classifies it, it does not blindly suppress on any surrogate pair
+check('boundary/astral non-ident char before needle is a boundary',
+  hasIdentifierBoundary(`${ String.fromCodePoint(0x1F600) }Promise`, 2, 'Promise'), true);
 
 // --- patternToRegExp: alternation grouping ---
 // `^a|b$` parses as `(^a)|(b$)` and matches `axxx` (starts-with-a) OR `xxxb` (ends-with-b).

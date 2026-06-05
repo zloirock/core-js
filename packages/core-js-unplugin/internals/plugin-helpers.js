@@ -1,5 +1,10 @@
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
-import { isASTNode, isDirectiveStatement, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  isASTNode,
+  isDirectiveStatement,
+  peelSkippableWrappers,
+  walkPatternIdentifiers,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { liftSfcLangSuffix } from './sfc-shapes.js';
 
@@ -52,13 +57,15 @@ export function skipDirectivePrologue(statements, fallback) {
 // peel `(0, require)('m')` SequenceExpression-wrapped callee + `require('m').default`
 // MemberExpression-tail + `require?.('m')` OptionalCallExpression so webpack /
 // esbuild-style indirect-require shapes still register as import-region statements.
-// mirror of babel-plugin's `isRequireCall` in `import-injector.js`
+// mirror of babel-plugin's `isRequireCall` in `import-injector.js`. peels paren / TS / chain
+// wrappers off the callee (oxc keeps the ParenthesizedExpression babel strips) so the webpack
+// indirect-require idiom `((0, require))('m')` reaches the SequenceExpression-tail check too
 function isRequireCall(expr) {
   let cur = expr;
   if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
   if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
-  let { callee } = cur;
-  if (callee?.type === 'SequenceExpression') callee = callee.expressions?.at(-1);
+  let callee = peelSkippableWrappers(cur.callee);
+  if (callee?.type === 'SequenceExpression') callee = peelSkippableWrappers(callee.expressions?.at(-1));
   return callee?.type === 'Identifier' && callee.name === 'require';
 }
 
@@ -69,7 +76,7 @@ function isRequireCall(expr) {
 // boundary on both pipelines. re-exports counted as imports because TC39 module records
 // fetch the re-exported module before evaluating user body - placing `var _ref;` before
 // them would interleave with the fetch order lint (`import/first`) flags
-function isTopLevelImportLike(stmt) {
+export function isTopLevelImportLike(stmt) {
   if (stmt?.type === 'ImportDeclaration') return true;
   // `export { x } from 'mod'` / `export * from 'mod'` / `export * as ns from 'mod'`.
   // `ExportNamedDeclaration` without `.source` is a local re-export of an already-bound
