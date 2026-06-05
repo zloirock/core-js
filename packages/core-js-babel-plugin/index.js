@@ -58,8 +58,8 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // text-rewrite path via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
 // pre-pass routes through `forEachStatementListBody` over the raw AST). walks every
 // Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
-// so function / loop / try / class-static / namespace bodies are covered too; Program-only
-// walk silently bailed destructure-emitter inside non-Program statement lists
+// so function / loop / try / class-static / namespace bodies are covered too; a Program-only
+// walk would silently bail destructure-emitter inside non-Program statement lists
 function splitMinifierSequenceDestructure(programPath, t) {
   function splitStatementList(statementPaths) {
     for (const bodyPath of statementPaths) {
@@ -302,11 +302,11 @@ export default function plugin(api, options) {
         // root: a sibling plugin may have installed a new Program (`file.ast.program = clone`)
         // while keeping the old tree reachable through our cached paths. the slot-check above
         // never hit Program because it has no parentPath. compare against the file's current
-        // program node - stale roots produce orphan emission into a detached AST. the
-        // previous `currentProgram ? ... : false` ternary defaulted to "not orphan" whenever
-        // the hub / file / ast / program chain was undefined - missing the case where the
+        // program node - stale roots produce orphan emission into a detached AST. a
+        // `currentProgram ? ... : false` ternary would default to "not orphan" whenever
+        // the hub / file / ast / program chain is undefined - missing the case where the
         // sibling plugin REMOVED `file.ast.program` outright (rare but plausible in test
-        // harnesses or aggressive AST swaps). dropping the ternary so the inequality runs
+        // harnesses or aggressive AST swaps). comparing directly lets the inequality run
         // anyway: an absent program slot won't match our cur.node, flagging orphan correctly.
         // when the path itself is `cur === null` (parentPath walk exhausted), `cur?.node` is
         // undefined and matches a likewise-undefined program, returning false - still treats
@@ -884,8 +884,7 @@ export default function plugin(api, options) {
         processDeferredSideEffects(path);
         // emit visitor-collected imports BEFORE synth-swap apply: each flush unshift's
         // at program top, so imports added between flushes land ABOVE the previous batch.
-        // matches the historical two-phase emission shape (synth-swap imports on top
-        // because they were emitted from programExit, after pre's flush) which existing
+        // keeps synth-swap imports on top - the two-phase emission ordering existing
         // fixtures encode
         injector?.flush();
         // drain registered synth-swap receivers BEFORE other plugins run their visitors:

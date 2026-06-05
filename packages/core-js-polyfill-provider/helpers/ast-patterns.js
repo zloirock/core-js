@@ -1001,8 +1001,9 @@ export function reassignBailApplies({ binding, adapter, path }) {
   return !noReassignmentReachesUsage({ reassignmentNodes, usagePath: path });
 }
 
-// for the sibling resolvers that historically bailed on a flat `binding.constantViolations?.length`:
-// returns whether the reassignment should block resolution. false when there is no reassignment;
+// for the sibling resolvers that need a flow-sensitive reassignment check (not a flat
+// `binding.constantViolations?.length`): returns whether the reassignment should block resolution.
+// false when there is no reassignment;
 // otherwise delegates to the method-aware `reassignBailApplies`. (resolveVariableBindingToGlobal
 // uses isReassignedBeyondDeclarator + reassignBailApplies instead - it excludes the loop-reinit
 // declarator-self for BOTH methods, where these sites keep the conservative flat bail off-global)
@@ -1553,8 +1554,8 @@ function collectReflectMutations(call, mutated, isShadowed) {
 // Program / StaticBlock frame also folds in `var`s hoisted from nested blocks (a `var Array`
 // buried in a block shadows the global across the WHOLE function, including a mutation site
 // OUTSIDE that block). only TRUE binding positions are recorded - a hoisted `var` genuinely
-// shadows, so it can't drop the bail on a real monkey-patch; under-collecting it instead
-// suppressed the legitimate pure substitution at a real-global use site
+// shadows, so it can't drop the bail on a real monkey-patch; under-collecting it would instead
+// suppress the legitimate pure substitution at a real-global use site
 const SCOPE_FUNCTION_TYPES = new Set([
   'ArrowFunctionExpression',
   'ClassMethod',
@@ -2898,8 +2899,8 @@ function computeSideEffects(node, depth) {
   }
   // `[...a]` invokes `a[Symbol.iterator]` / `{...a}` invokes `a`'s Proxy traps - neither
   // can be proven pure from source alone. treat SpreadElement as SE uniformly across
-  // Array and Object literals. without this, `const { from } = [1, ...Array]` was
-  // considered SE-free and ran through the no-SE-path by mistake
+  // Array and Object literals. without this, `const { from } = [1, ...Array]` would be
+  // considered SE-free and run through the no-SE-path
   if (type === 'ArrayExpression') {
     return node.elements.some(el => el?.type === 'SpreadElement' || recurse(el, depth));
   }

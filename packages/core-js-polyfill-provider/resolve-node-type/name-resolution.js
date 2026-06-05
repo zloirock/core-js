@@ -163,8 +163,8 @@ export function createNameResolution({ t }) {
   // `class X`), so `resolveRuntimeExpression(X)` returns the bare Identifier. without an
   // ambient lookup, `X.staticMethod()` skips the class-member resolution path entirely
   // and falls through to `findTypeMember`'s synthetic TSFunctionType stub (return-type-less).
-  // estree-toolkit registers the binding regardless of `declare`, hence the cross-pipeline
-  // asymmetry seen in `audit-declare-static-generic-call` / `audit-extends-renamed-typeparam-static`
+  // estree-toolkit registers the binding regardless of `declare`, hence a cross-pipeline
+  // asymmetry on `declare`d static-generic calls and renamed-typeparam static lookups
   function findAmbientClassPath(name, scope) {
     return findAmbientDeclarationPath(name, scope, isAmbientClassNode);
   }
