@@ -148,17 +148,17 @@ function resolveConditionalDestructureMeta({ node, key, scope, adapter, path }) 
 //   - bare Identifier (`Array`) - direct global reference
 //   - MemberExpression (`globalThis.Array`, `window.Array`) - proxy-global member chain;
 //     `buildDestructuringInitMeta` -> `resolveObjectName` walks the chain to the actual
-//     constructor name. without this, Identifier-only check left member-form branches
-//     to a side-channel rewrite (`globalThis` -> `_globalThis`) that asymmetric'd Identifier
-//     and MemberExpression branches in the same conditional
+//     constructor name. without this, an Identifier-only check would leave member-form branches
+//     to a side-channel rewrite (`globalThis` -> `_globalThis`), making Identifier and
+//     MemberExpression branches asymmetric in the same conditional
 // returns the resolved pure descriptor (with `entry`/`hintName`/`kind`) or null.
 // shared between babel-plugin and unplugin so the branch-detection rules stay in lockstep
 export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure, path = null }) {
   // peel ParenthesizedExpression / TS expression wrappers AND safe SE tail around the branch:
   // `cond ? (Array) : (Iterator)` (oxc preserves parens), `cond ? Array! : Iterator!` (TS),
   // `cond ? (0, Array) : Iterator` (SE-prefixed). without the SE-tail peel, comma-prefixed
-  // branches resolved to SequenceExpression -> strict-shape check bailed and per-branch synth
-  // dropped that side, leaving native `Array.from` -> "polyfill always wins" violation
+  // branches would resolve to SequenceExpression -> the strict-shape check would bail and per-branch
+  // synth would drop that side, leaving native `Array.from` -> a "polyfill always wins" violation
   const inner = peelFallbackBranchInner(branch);
   if (inner?.type !== 'Identifier'
     && inner?.type !== 'MemberExpression'

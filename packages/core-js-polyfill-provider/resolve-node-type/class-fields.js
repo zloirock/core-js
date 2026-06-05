@@ -425,7 +425,7 @@ export function createClassFields({
   // caller treats as no inference. unlike class-side, object-literal aliasing is enumerated
   // through scope references, so trace-through-alias writes are folded into the union too.
   // closure builder's post-build check also catches the export case, so a null closure
-  // subsumes both the historical `isObjectExported` early-bail AND in-walk leak detection.
+  // subsumes both the export early-bail AND in-walk leak detection.
   // `prop` null = missing-field case: init / this-scan hooks skipped, only external writes
   // contribute
   function collectObjectFieldCandidates(objectPath, prop, fieldName) {
