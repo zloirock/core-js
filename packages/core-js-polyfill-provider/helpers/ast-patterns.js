@@ -249,7 +249,7 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
 // destructure-emitter's per-branch peel) and by `unwrapRuntimeExpr`. ChainExpression
 // is the oxc-side wrapper for optional chains (babel folds the marker into
 // OptionalMemberExpression directly) - both adapters see the same flat shape after peel
-export const SKIPPABLE_WRAPPER_TYPES = new Set([
+const SKIPPABLE_WRAPPER_TYPES = new Set([
   ...TRANSPARENT_EXPR_WRAPPER_TYPES,
   'ChainExpression',
 ]);
@@ -441,7 +441,7 @@ function walkVarScope(scopeNode, onNode) {
 // collect `var` bindings inside `scopeNode`, stopping at nested var-scope boundaries so inner-
 // function vars don't leak. returns a Map of var-name -> its VariableDeclarator (first declaration
 // wins on redeclaration): membership callers use `.has(name)`, alias-resolution callers read `.init`
-export function collectScopeVars(scopeNode) {
+function collectScopeVars(scopeNode) {
   const locals = new Map();
   walkVarScope(scopeNode, node => {
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
@@ -945,7 +945,7 @@ export function reassignmentValueNodes({ binding, usagePath }) {
 
 // a constantViolation entry is a babel NodePath (carries `.node`) from the babel adapter but a raw
 // node from the unplugin var-hoist synthetic binding - normalize to the underlying node
-export function violationNode(violation) {
+function violationNode(violation) {
   return violation.node ?? violation;
 }
 
@@ -979,7 +979,7 @@ export function isReassignedBeyondDeclarator(binding) {
 }
 
 // the real reassignment site nodes (every violation other than the loop-reinit declarator-self)
-export function reassignmentNodesBeyondDeclarator(binding) {
+function reassignmentNodesBeyondDeclarator(binding) {
   return binding.constantViolations.map(violationNode).filter(node => node !== binding.node);
 }
 
@@ -1052,7 +1052,7 @@ export function resolveCallArgument(args, index) {
 // returns null when a non-inline-array spread is present - the length is undecidable
 // at static-analysis time. used by IIFE-identity callers to validate `params.length ===
 // effective args.length` symmetric with `resolveCallArgument`'s expansion semantics
-export function effectiveArgsLength(args) {
+function effectiveArgsLength(args) {
   let length = 0;
   for (const arg of args) {
     if (arg?.type === 'SpreadElement') {
@@ -1293,7 +1293,7 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
 // expressions (in walk order) so callers that need to re-emit them as side-effect siblings
 // can collect them via the callback. returns the first non-transparent ancestor path
 // (the path where peeling stopped), or null when the walk runs off the top of the tree
-export function peelTransparentExprWrappers(startPath, onSequencePrefix) {
+function peelTransparentExprWrappers(startPath, onSequencePrefix) {
   let path = startPath?.parentPath ?? null;
   let prev = startPath?.node;
   while (path) {
@@ -1428,7 +1428,7 @@ function walkAstChildren(node, visit) {
 // this predicate; the three non-write-only forms are not caught by `isMemberWriteOnlyContext`
 // because they also READ the slot (so polyfill substitution of the read is wrong-but-not-
 // crash-causing, separate from the mutation-bypass divergence this predicate guards)
-export function isMemberMutationContext(node, parent, grandparent) {
+function isMemberMutationContext(node, parent, grandparent) {
   if (isMemberWriteOnlyContext(node, parent, grandparent)) return true;
   if (!parent) return false;
   if (parent.type === 'AssignmentExpression' && parent.left === node && parent.operator !== '=') return true;
@@ -1741,7 +1741,7 @@ function getDirectStatementBody(node) {
 // TSModuleDeclaration, TSImportEqualsDeclaration). returns a Set of names cached per
 // anchor node. covers Program, BlockStatement, TSModuleBlock, StaticBlock, function/method
 // bodies - i.e. anywhere a `enum X {}` / `namespace X {}` could shadow a global
-export function getTSRuntimeBindings(scopeNode) {
+function getTSRuntimeBindings(scopeNode) {
   const body = getDirectStatementBody(scopeNode);
   if (!body) return null;
   let cached = tsRuntimeBindingsCache.get(scopeNode);
@@ -1786,7 +1786,7 @@ const TS_TYPE_DECL_TYPES = new Set([
 // the parent-grandparent walk. `grandparent` (optional) carries the declaration-level
 // `importKind`/`exportKind` for `import type { X }` / `export type { X }` forms where the
 // flag lives on the parent declaration rather than on the specifier itself
-export function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
+function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
   if (!parent) return false;
   if (parent.type === 'ExportSpecifier') {
     if (parent.exportKind === 'type') return true;
@@ -2288,7 +2288,7 @@ export function isInUpdateOperand(parentPath) {
 // binding TypeErrors at the write), usage-global must NOT (the head reads the binding first,
 // so the side-effect polyfill is still needed). a declaration head (`for (const X of Y)`)
 // binds a fresh name and never reaches here as a global reference
-export function isForXHeadAssignTarget(path) {
+function isForXHeadAssignTarget(path) {
   const parent = path?.parentPath?.node;
   return isForXStatement(parent) && parent.left === path.node;
 }
@@ -2458,7 +2458,7 @@ function memberShapeEqual(a, b) {
 
 // flatten a for-of/for-in LHS or destructuring-assignment LHS (bare member, or nested in
 // object / array / rest / default patterns) into every MemberExpression that receives a write
-export function collectForXWriteMembers(node, out) {
+function collectForXWriteMembers(node, out) {
   if (!node) return;
   switch (node.type) {
     case 'MemberExpression':
