@@ -288,8 +288,8 @@ function createResolveNodeType(babelNodeType, t, {
 
   // backward iteration so the LAST assignment wins (`{a: 1, a: 2}` returns 2) and any
   // SpreadElement encountered before the match could have injected `key` -> bail.
-  // forward iteration with `return-on-first-match` was double-wrong: returned an early
-  // match for `{a: 1, ...spread}` (spread might override) AND bailed for `{...spread, a: 1}`
+  // forward iteration with `return-on-first-match` would be double-wrong: it would return an
+  // early match for `{a: 1, ...spread}` (spread might override) AND bail for `{...spread, a: 1}`
   // (the LATER literal wins even after the spread). returns null when no key matches, when
   // a spread sits before the latest match, or when the matched value is a leaf method
   // shorthand (`onMethod` returns the leaf decision so callers split method/value semantics)
@@ -679,8 +679,8 @@ function createResolveNodeType(babelNodeType, t, {
   // `applySubst` / `substMembers` / `substMemberAnnotations` / `dropTypeParamSubst`).
   // `followTypeAliasChain` invokes `applySubst` on the terminal node when a trivial mapped
   // passthrough lands (or folds accumulated subst into the whole mapped type for `as`-rename
-  // shapes); merging the two halves into one closure removes the previous circular service
-  // dep that the legacy `alias-chain` / `ast-subst` split required. `functionTypeParams`
+  // shapes); keeping the two halves in one closure avoids the circular service dep a separate
+  // `alias-chain` / `ast-subst` split would need. `functionTypeParams`
   // stays a forward-decl `let` here because
   // awaited cluster (which exposes it) is instantiated later
   const {
@@ -1672,11 +1672,10 @@ function createResolveNodeType(babelNodeType, t, {
   ({ findTypeMember, getTypeMembers } = typeMembersCluster);
 
   // member-resolve cluster: typed-side member walking + runtime receiver-aware dispatch.
-  // consolidates the former member-resolution (annotation-based: chain walker, return
-  // resolver, typed-member dispatcher) + member-dispatch (runtime side: from-member-expr,
-  // array-index, enum-member). single closure removes the cluster boundary the previous
-  // member-dispatch instantiation had to chase through service deps for `resolveTypedMember` /
-  // `resolveIndexSignatureMember`. service captures pattern-bindings / classFields /
+  // groups annotation-based member-resolution (chain walker, return resolver, typed-member
+  // dispatcher) + runtime member-dispatch (from-member-expr, array-index, enum-member) in one
+  // closure, so the dispatch consumes `resolveTypedMember` / `resolveIndexSignatureMember`
+  // directly without a cross-cluster service dep. service captures pattern-bindings / classFields /
   // class-object-member / classContext / nameResolution / enumTypes / value-ops / typeQuery /
   // discriminant-narrow / type-subst outputs. thunks for `findExpressionAnnotation` /
   // `functionTypeReturnAnnotation` / `applyAliasSubstDeep` / `applySubst` /

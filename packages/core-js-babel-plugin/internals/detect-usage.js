@@ -433,11 +433,11 @@ export function createUsageVisitors({
         }
       },
     } : {},
-    // ReferencedIdentifier covers all read positions for polyfill detection. previous
-    // shape `'ReferencedIdentifier|Identifier'` registered the handler twice via
-    // `visitors.explode`, so every referenced Identifier fired handleIdentifier two
-    // times (second pass guarded by `handledObjects` WeakSet, but parent / warning /
-    // isReferenced checks ran twice). split into two visitors: ReferencedIdentifier
+    // ReferencedIdentifier covers all read positions for polyfill detection. a combined
+    // `'ReferencedIdentifier|Identifier'` shape would register the handler twice via
+    // `visitors.explode`, firing handleIdentifier twice per referenced Identifier
+    // (the second pass guarded by `handledObjects` WeakSet, but parent / warning /
+    // isReferenced checks would run twice). two visitors instead: ReferencedIdentifier
     // handles polyfill detection; bare Identifier handles the logical-assign LHS warning
     // (babel classifies `Map ||= X` LHS as non-reference, so ReferencedIdentifier
     // never fires for it - need a separate visitor to surface the diagnostic)
