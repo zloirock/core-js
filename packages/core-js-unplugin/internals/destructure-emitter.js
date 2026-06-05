@@ -1615,7 +1615,7 @@ export function createDestructureEmitter({
     walk(declarator, null);
     if (!matches.length) return;
     // queue substitutions on the transform queue (NOT as preservedSrc splices). text-splicing
-    // preservedSrc earlier broke transform-queue compose for nested transforms within the
+    // preservedSrc breaks transform-queue compose for nested transforms within the
     // sibling: a body-wrap (e.g. instance-method `.values()` on the matched Identifier's
     // ancestor) captures its needle from ORIGINAL source. if preservedSrc already had the
     // substitution baked in, the body-wrap's `globalThis` needle wouldn't match the now-
