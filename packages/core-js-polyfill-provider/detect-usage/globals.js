@@ -1,6 +1,7 @@
 // Known global names (constructors / namespaces / proxy globals) + logical-assign LHS
 // diagnostics. Plugin rewrites reads, not writes - LHS of `||=` / `&&=` / `??=` on a
 // known global throws (read-only import binding) or no-ops (member-write on the polyfill)
+import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
 import { peelTransparentExprAncestorPath } from '../helpers/ast-patterns.js';
@@ -10,10 +11,19 @@ export const KNOWN_FUNCTION_GLOBALS = new Set([
   ...Object.keys(knownBuiltInReturnTypes.globalMethods),
 ]);
 export const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespaces);
+// every polyfillable global, from built-in-definitions. this is a DIFFERENT axis than
+// known-built-in-return-types (KNOWN_FUNCTION_GLOBALS), which catalogues names by inferred return
+// type: the two overlap but neither contains the other - return-types lists always-present built-ins
+// (Array / Boolean / Date / ...) that aren't injectable globals, and omits injectable globals it
+// tracks no return type for (Iterator / AsyncIterator / structuredClone / setImmediate). without
+// this set a self-reference `var Iterator = Iterator` injects nothing and the logical-assign LHS
+// diagnostic stays silent (globalThis / self are the only other misses, already covered as proxies)
+const INJECTABLE_GLOBALS = new Set(Object.keys(builtInDefinitions.globals));
 
 // covers constructors / global methods / namespaces / proxy globals - any polyfillable name
 export function isKnownGlobalName(name) {
-  return KNOWN_FUNCTION_GLOBALS.has(name) || KNOWN_NAMESPACE_GLOBALS.has(name) || POSSIBLE_GLOBAL_OBJECTS.has(name);
+  return KNOWN_FUNCTION_GLOBALS.has(name) || KNOWN_NAMESPACE_GLOBALS.has(name)
+    || POSSIBLE_GLOBAL_OBJECTS.has(name) || INJECTABLE_GLOBALS.has(name);
 }
 
 const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);

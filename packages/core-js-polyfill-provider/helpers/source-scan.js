@@ -1,4 +1,4 @@
-import { isASTNode } from './ast-patterns.js';
+import { BRACE_STATEMENT_HOST_TYPES, STATEMENT_LIST_HOST_TYPES, isASTNode } from './ast-patterns.js';
 
 // ES spec LineTerminator: U+000A, U+000D (skip the LF half of CRLF), U+2028, U+2029
 function collectLineStarts(code) {
@@ -131,15 +131,13 @@ export function parseDisableDirectives({ comments, offsetToLine, firstStmtStart,
   return lines.size ? lines : null;
 }
 
-// wrappers that share a start line with their first child when no code precedes -
-// descend past these to reach the statement the directive actually targets
-const STATEMENT_WRAPPERS = new Set([
-  'BlockStatement',
-  'File',
-  'Program',
-  'StaticBlock',
-  'TSModuleBlock',
-]);
+// wrappers that share a start line with their first child when no code precedes - descend past
+// these to reach the statement the directive targets. the statement-list hosts plus babel's `File`
+// (which wraps Program on the babel parse tree). a directive before a brace block (the
+// BRACE_STATEMENT_HOST_TYPES subset, no File / Program) spans its whole body via the wrapper's own
+// end-line fallback below; File / Program descent always reaches the real first statement, so
+// falling back to their end would wrongly disable the rest of the file
+const STATEMENT_WRAPPERS = new Set([...STATEMENT_LIST_HOST_TYPES, 'File']);
 
 // depth cap mirrors `resolve-node-type.MAX_DEPTH=64`. directive scan walks AST nodes
 // only (filtered by isASTNode), but pathological deeply-nested input still risks stack
@@ -166,6 +164,9 @@ function findStatementEndLine({ node, targetLine, offsetToLine, depth = 0 }) {
       if (found) return found;
     }
   }
+  // brace-wrapper opening ON the target line whose body statements start on later lines: no inner
+  // statement matched above, so span the directive across the whole block via the wrapper's own end
+  if (lines.start === targetLine && BRACE_STATEMENT_HOST_TYPES.has(node.type)) return lines.end;
   return null;
 }
 
