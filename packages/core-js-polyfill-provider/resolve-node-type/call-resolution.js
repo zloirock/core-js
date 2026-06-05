@@ -14,8 +14,7 @@
 // kept in one cluster because the two walkers cross-reference each other:
 // `findExpressionAnnotation` consults `functionTypeReturnAnnotation` on call-callee
 // annotations; `resolveCallReturnTypeFromAnnotation` consults `findExpressionAnnotation` on
-// the callee path. consolidating drops the thunks the factory previously needed between two
-// separate clusters.
+// the callee path. co-location avoids forward-decl thunks between the two walkers.
 //
 // Public surface:
 //   resolveCallReturnType(callee)                     - main call-return entry

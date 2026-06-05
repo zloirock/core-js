@@ -271,9 +271,8 @@ export function createNameResolution({ t }) {
       const block = cur.block ?? cur.path?.node;
       if (!block) continue;
       // Program / BlockStatement / TSModuleBlock / StaticBlock host statements directly at
-      // `.body`; Function / method scopes wrap in a BlockStatement, so drill once more.
-      // pre-fix `block.type === 'Program' ? block.body : block.body?.body` missed block-scoped
-      // type declarations because `block.body` was already the statement array
+      // `.body`; Function / method scopes wrap in a BlockStatement, so drill once more. the
+      // direct hosts already expose the statement array, so test for an array before drilling
       const body = Array.isArray(block.body) ? block.body : block.body?.body;
       const before = collect?.length;
       const result = walkStatementsForDecl({ segments, statements: body, collect, leafMatch });
@@ -421,8 +420,8 @@ export function createNameResolution({ t }) {
   }
 
   // all `interface X {}` siblings at the first scope level that contains one. cached per-
-  // (scope, name): a class with N inherited interfaces previously triggered N scope-chain
-  // walks per ancestor; the cache amortises them to O(unique-names-per-scope). WeakMap
+  // (scope, name): without the cache a class with N inherited interfaces re-walks the scope
+  // chain per ancestor; the cache amortises them to O(unique-names-per-scope). WeakMap
   // keyed on scope so the per-scope Map collects when its AST does
   let allTypeDeclCache = new WeakMap();
   function findAllTypeDeclarations(name, scope) {
