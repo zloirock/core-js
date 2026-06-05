@@ -15,7 +15,7 @@
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
 import { $Object, $Primitive, literalNodeValue } from './base.js';
-import { isMethodShapeMember, typeRefSegments } from './ast-shapes.js';
+import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -112,7 +112,7 @@ export function createTypeAnnotationResolve({
     const { node: aliasTarget, subst } = followTypeAliasChain(unwrapped, scope);
     if (aliasTarget) unwrapped = peelParens(aliasTarget);
     if (!unwrapped) return null;
-    const types = unwrapped.type === 'TSUnionType' || unwrapped.type === 'UnionTypeAnnotation' ? unwrapped.types : [unwrapped];
+    const types = isUnionType(unwrapped) ? unwrapped.types : [unwrapped];
     let result = null;
     let anyKept = false;
     for (const member of types) {
