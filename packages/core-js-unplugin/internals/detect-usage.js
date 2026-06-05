@@ -224,9 +224,9 @@ export function createEstreeAdapter(getInjector = () => null, method = null) {
         // var-hoist fallback (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var`
         // from a nested non-function block to its function scope, so `function f(){ if (c) {
         // var g = globalThis } g.Map.groupBy(...) }` finds no native binding and the proxy-global
-        // alias is lost (babel hoists the var natively, so it diverged). surface a synthetic
+        // alias is lost (babel hoists the var natively, so the two pipelines diverge here). surface a synthetic
         // binding off the declarator found by walking `path` ancestors so alias resolution can
-        // read its `.init`. path-less callers get null as before. surface the reassignment sites
+        // read its `.init`. path-less callers get null. surface the reassignment sites
         // too (babel's native binding carries them): without `constantViolations` the resolver's
         // reassignment guard never fires for a REASSIGNED nested-block var, resolving it to the
         // global where babel bails (over-inject / wrong pure rewrite dropping the receiver)
