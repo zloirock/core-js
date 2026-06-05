@@ -738,10 +738,11 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
-        // pre-walk for monkey-patches. cheap single AST traversal; result consulted by
-        // `usagePureCallback` before substituting `Object.key` reads. internal core-js
-        // files don't need the gate (they manage their own globals)
-        mutatedStatics = isInternalCoreJS ? null : collectMutatedStaticMembers(path.node);
+        // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
+        // `Object.key` reads - so it is needed ONLY in usage-pure (entry-global / usage-global
+        // never read `mutatedStatics`, the whole-AST walk was dead work there, matching unplugin).
+        // internal core-js files don't need it either (they manage their own globals)
+        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS ? collectMutatedStaticMembers(path.node) : null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
@@ -1102,11 +1103,12 @@ export default function plugin(api, options) {
             // sorted polyfill region
             finalizeInjector();
             outputDebug();
-            // mirror `postHook`'s closure-captured state cleanup so multi-file batch GC
-            // bound is deterministic - without nulling, FILE A's injector + AST refs survive
-            // until next `initFile` reassigns. entry-global doesn't use synthSwap /
-            // destructureEmit / skippedNodes, so only `injector` + `debugOutput` apply
-            injector = debugOutput = null;
+            // mirror `postHook`'s closure-captured state cleanup so multi-file batch GC bound is
+            // deterministic - without nulling, FILE A's injector + AST refs survive until the next
+            // initFile reassigns. entryGlobalPre runs the SAME `initFile`, which allocates synthSwap
+            // / destructureEmit / skippedNodes too: entry-global never USES them, but they still pin
+            // the AST (destructureEmit captures injector -> programPath), so null them all here
+            injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
           }),
         };
       }
