@@ -24,8 +24,13 @@ import {
   walkTypeAnnotationGlobals,
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
 import {
+  BRACE_STATEMENT_HOST_TYPES,
+  findFunctionScopeVarInPath,
   noReassignmentReachesUsage,
   reassignmentDominatesUsage,
+  RUNTIME_BLOCK_TYPES,
+  SOURCE_ORDER_STATEMENT_HOST_TYPES,
+  STATEMENT_LIST_HOST_TYPES,
   varInitDominatesUsage,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { createChecker } from './harness.mjs';
@@ -146,6 +151,21 @@ runBoth('scanExistingCoreJSImports/ignores foreign import', 'import "lodash";', 
     onPureImport: name => pures.push(name),
   });
   checkTruthy(lbl, globals.length === 0 && pures.length === 0);
+});
+
+// matchEntrySubpath must `continue` (not bail) when an earlier package is a path-prefix that fails
+// the sub-prefix: `core-js/` matches the source but `extra/...` isn't under `modules/`, so the later
+// `core-js/extra` package - which IS a full match - must still be tried (order-independent)
+runBoth('scanExistingCoreJSImports/later package matches after prefix-package sub-prefix miss', 'import "core-js/extra/modules/es.array.at";', (adapter, prog, lbl) => {
+  const globals = [];
+  scanExistingCoreJSImports(prog.node, {
+    packages: ['core-js', 'core-js/extra'],
+    pkg: 'core-js',
+    mode: 'usage-global',
+    adapter: minimalAdapter,
+    onGlobalImport: name => globals.push(name),
+  });
+  checkDeep(lbl, globals, ['es.array.at']);
 });
 
 // --- unwrapParens ---
@@ -445,5 +465,55 @@ runBoth('returnedReceiverHasEffects/bare identifier -> false', 'Array;', (adapte
 runBoth('returnedReceiverHasEffects/member receiver -> false', 'globalThis.Array;', (adapter, prog, lbl) => {
   check(lbl, returnedReceiverHasEffects(adapter.pickPath(prog, 'MemberExpression')?.node), false);
 });
+
+// --- findFunctionScopeVarInPath: sloppy-mode Annex-B block-function shadow ---
+
+// pick the bare `Map` reference (the `var x = Map` init), not the block function's own id
+function pickMapInit(adapter, prog) {
+  return adapter.pickPath(prog, 'Identifier', p => p.node.name === 'Map'
+    && p.parentPath?.node?.type === 'VariableDeclarator' && p.parentPath.node.init === p.node);
+}
+
+// sloppy script: a block-nested `function Map(){}` is function-scope-hoisted (Annex-B), so the
+// outer `Map` resolves to the local function - the presence check must surface that shadow
+runBoth('findFunctionScopeVarInPath/sloppy block-function shadow', '{ function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  checkTruthy(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'));
+}, undefined, 'script');
+
+// module (always strict): the same block function is block-scoped, so the outer `Map` IS the
+// global - reporting a shadow here would suppress a legitimate polyfill (usage-global miss)
+runBoth('findFunctionScopeVarInPath/strict module no shadow', '{ function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  check(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'), false);
+});
+
+// script with `"use strict"`: the directive restores block-scoping for the function, so the
+// outer `Map` is the global again - no shadow
+runBoth('findFunctionScopeVarInPath/use-strict script no shadow', '"use strict"; { function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  check(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'), false);
+}, undefined, 'script');
+
+// a function-SCOPED `function Map(){}` (direct child of an inner function) does NOT hoist to the
+// outer scope, so an outer `Map` is still the global - the collector stops at the function boundary
+runBoth('findFunctionScopeVarInPath/inner-function decl does not leak out', 'function f() { function Map() {} } var x = Map;', (adapter, prog, lbl) => {
+  check(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'), false);
+}, undefined, 'script');
+
+// Annex-B hoisting reaches through arbitrarily nested blocks to the function/program var scope
+runBoth('findFunctionScopeVarInPath/deeply nested block-function shadow', '{ { function Map() {} } } var x = Map;', (adapter, prog, lbl) => {
+  checkTruthy(lbl, findFunctionScopeVarInPath(pickMapInit(adapter, prog), 'Map'));
+}, undefined, 'script');
+
+// --- statement-host type-set lattice (canonical single source of truth, built by ADDITION) ---
+check('RUNTIME_BLOCK_TYPES members (the atom)',
+  [...RUNTIME_BLOCK_TYPES].sort().join(','), 'BlockStatement,StaticBlock');
+// brace = runtime blocks + the TS namespace body
+check('BRACE_STATEMENT_HOST_TYPES = runtime blocks + TSModuleBlock',
+  [...BRACE_STATEMENT_HOST_TYPES].sort().join(','), 'BlockStatement,StaticBlock,TSModuleBlock');
+// host = brace blocks + the unbraced Program
+check('STATEMENT_LIST_HOST_TYPES = brace + Program',
+  [...STATEMENT_LIST_HOST_TYPES].sort().join(','), 'BlockStatement,Program,StaticBlock,TSModuleBlock');
+// source-order = runtime blocks + Program (the TS namespace body is excluded by intent)
+check('SOURCE_ORDER_STATEMENT_HOST_TYPES = runtime blocks + Program',
+  [...SOURCE_ORDER_STATEMENT_HOST_TYPES].sort().join(','), 'BlockStatement,Program,StaticBlock');
 
 finish();

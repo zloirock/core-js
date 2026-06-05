@@ -45,13 +45,16 @@ export const types = {
   isObjectExpression: n => n?.type === 'ObjectExpression',
   isObjectPattern: n => n?.type === 'ObjectPattern',
   isArrayExpression: n => n?.type === 'ArrayExpression',
-  isClassMethod: n => n?.type === 'MethodDefinition',
+  // TSAbstract* variants mirror nodeType()'s mapping above - `abstract m()` / `abstract x` /
+  // `abstract accessor x` are structurally identical to their concrete forms (abstract is
+  // type-only), so member-key indexing / narrowing must read them through the same predicates
+  isClassMethod: n => n?.type === 'MethodDefinition' || n?.type === 'TSAbstractMethodDefinition',
   // FE-valued object props (`{m: function(){}}`) hit `t.isFunctionExpression(n.value)` in
   // `ownerMethodFns` for class-flow scanning; without this shim the optional chain returns
   // undefined on unplugin and FE-prop method-internal `this.X = ...` writes are skipped
   isFunctionExpression: n => n?.type === 'FunctionExpression',
-  isClassProperty: n => n?.type === 'PropertyDefinition',
-  isClassAccessorProperty: n => n?.type === 'AccessorProperty',
+  isClassProperty: n => n?.type === 'PropertyDefinition' || n?.type === 'TSAbstractPropertyDefinition',
+  isClassAccessorProperty: n => n?.type === 'AccessorProperty' || n?.type === 'TSAbstractAccessorProperty',
   isClassBody: n => n?.type === 'ClassBody',
   isClassDeclaration: n => n?.type === 'ClassDeclaration',
   isClass: n => n?.type === 'ClassDeclaration' || n?.type === 'ClassExpression',

@@ -18,7 +18,12 @@
 // search; weaker invariant than `findLastStraightLineAssignment` from straight-line-flow,
 // because it requires only block-child preceding-sibling reachability, not var-scope-wide
 // straight-line execution).
-import { isMemberAccessNode, peelLabeledStatementPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import {
+  isMemberAccessNode,
+  peelLabeledStatementPath,
+  SOURCE_ORDER_STATEMENT_HOST_TYPES,
+  unwrapRuntimeExpr,
+} from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { loopReExecRegionHasViolation } from './ast-shapes.js';
@@ -330,8 +335,7 @@ export function createDiscriminantNarrow({
   // before the use site. all other parent shapes (IfStatement, function decl headers,
   // expression positions) skip the block-local assignment scan
   function isBlockChildPath(parent, current) {
-    return (t.isBlockStatement(parent.node) || t.isProgram(parent.node)
-        || (t.isStaticBlock && t.isStaticBlock(parent.node)))
+    return SOURCE_ORDER_STATEMENT_HOST_TYPES.has(parent.node?.type)
       && current.listKey === 'body' && typeof current.key === 'number';
   }
 

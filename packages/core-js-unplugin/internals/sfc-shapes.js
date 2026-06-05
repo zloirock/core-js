@@ -11,8 +11,12 @@ export const SFC_FRAMEWORK_GROUP = '(?:astro|svelte|vue)';
 
 // named `ext` group lets callers extract the matched alphabet without re-parsing. boundary
 // `(?:[#&]|$)` accepts `#hash` terminator (sourcemap pipelines append `#L<line>`).
-// declaration-block `lang=d.ts` cannot match - alternation demands `[jt]` which `d.ts` lacks
-export const SFC_LANG_RE = /[&?]lang=(?<ext>[cm]?[jt]sx?)(?:[#&]|$)/i;
+// declaration-block `lang=d.ts` cannot match - the alternation demands `[jt]`. the two arms
+// `[cm]?[jt]s` (js/ts/cjs/mjs/cts/mts) + `[jt]sx` (jsx/tsx) enumerate exactly the real
+// extensions: a single `[cm]?[jt]sx?` would also accept the non-existent `cjsx`/`mjsx`/`ctsx`/
+// `mtsx`, whose lifted suffix isn't a real ext so oxc parses the block as plain JS and the
+// JSX/TS body fails to parse (no polyfill emitted)
+export const SFC_LANG_RE = /[&?]lang=(?<ext>[cm]?[jt]s|[jt]sx)(?:[#&]|$)/i;
 
 // SFC sub-blocks without an explicit `lang=` token are JS by default
 export const SFC_DEFAULT_JS_RE = new RegExp(`[&?]${ SFC_FRAMEWORK_GROUP }&type=(?:module|script)(?:[#&]|$)`, 'i');
