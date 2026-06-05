@@ -312,18 +312,31 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
 
   // namespace container = class body (static properties) or object literal - anything we
   // can statically look up by name. methods / getters / static blocks skipped (runtime values)
+  // iterate in REVERSE so the LAST member with the key wins, matching JS runtime semantics:
+  // `{ Base: Promise, Base: Object }` evaluates `NS.Base` to Object. a method / getter / setter
+  // that wins the key is a DYNAMIC value, not a static container, so bail on it - consistently on
+  // both parsers (babel emits ObjectMethod / a non-field ClassMethod, oxc a Property/MethodDefinition
+  // carrying `method` or a non-`init` kind), else a data+getter duplicate key resolved the earlier
+  // data value on babel [ObjectMethod skipped] but bailed on oxc [Property matched] -> wrong sub +
+  // cross-parser divergence. a forward scan returned the shadowed first value -> wrong global
   function findNamespaceMemberValue(container, propName) {
     if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
-      for (const m of container.body?.body ?? []) {
-        if (!m.static) continue;
-        if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') continue;
-        if (staticKeyName(m.key, m.computed) !== propName) continue;
+      const members = container.body?.body ?? [];
+      for (let i = members.length - 1; i >= 0; i--) {
+        const m = members[i];
+        if (!m.static || staticKeyName(m.key, m.computed) !== propName) continue;
+        // a static method / accessor winning the key is dynamic - bail; a static field returns its init
+        if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') return null;
         return m.value ?? null;
       }
     } else if (container?.type === 'ObjectExpression') {
-      for (const p of container.properties ?? []) {
-        if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
+      const props = container.properties ?? [];
+      for (let i = props.length - 1; i >= 0; i--) {
+        const p = props[i];
+        if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;
         if (staticKeyName(p.key, p.computed) !== propName) continue;
+        // a method shorthand / getter / setter winning the key is dynamic - bail; data returns its value
+        if (p.type === 'ObjectMethod' || (p.type === 'Property' && (p.method || p.kind !== 'init'))) return null;
         return p.value;
       }
     }
