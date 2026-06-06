@@ -2,7 +2,6 @@ import {
   ESM_MARKER_TYPES,
   detectCommonJS,
   extractIndirectRequireSEPrefix,
-  hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
   isAssignOrForXWriteTargetPath,
   isDeleteTarget,
@@ -15,6 +14,7 @@ import {
   isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
   mayHaveSideEffects,
+  peelNestedSequenceExpressions,
   peelSkippableWrappers,
   BRACE_STATEMENT_HOST_TYPES,
   TS_EXPR_WRAPPERS,
@@ -230,12 +230,10 @@ export default function plugin(api, options) {
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
         if (t.isSuper(path.node.object)) return;
         if (path.node.computed) {
-          // SE-bearing SequenceExpression in computed key would be silently dropped by the
-          // `_getIteratorMethod(obj)` rewrite (only `obj` survives). bail so the inner
-          // Symbol.iterator visitor emits the static polyfill in place, SE preserved
-          if (hasSideEffectfulSequencePrefix(path.node.property)) return;
-          // skip all layers: TS wrappers, parens, and the inner MemberExpression
-          let cur = path.node.property;
+          // meta.sideEffects carries the key prefix; a side-effecting receiver is hoisted ahead of
+          // it by the emit (hoistReceiverSE) so order holds. skip the SequenceExpression TAIL (the
+          // Symbol.iterator member) + wrappers so it is not also polyfilled in place
+          let cur = peelNestedSequenceExpressions(path.node.property).tail;
           while (cur) {
             skippedNodes.add(cur);
             if (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression') cur = cur.expression;

@@ -124,7 +124,10 @@ export function extractIndirectRequireSEPrefix(stmtNode) {
     for (const e of expression.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
     expression = peelSkippableWrappers(expression.expressions.at(-1));
   }
-  if (expression?.type !== 'CallExpression') return prefix;
+  // babel models `(spy(), require)?.('core-js/...')` as an OptionalCallExpression; oxc wraps a
+  // plain CallExpression in a ChainExpression that peelSkippableWrappers already strips. accept both
+  // so the optional indirect-require recovers its prefix on either parser
+  if (expression?.type !== 'CallExpression' && expression?.type !== 'OptionalCallExpression') return prefix;
   // the indirect-require callee is itself a `(spy(), require)` SequenceExpression - a TS-wrapped
   // `((spy(), require) as any)('core-js/...')` lands the SE behind a TSAsExpression, so peel the
   // same wrappers, then surface its SE-ful prefix elements (everything but the trailing `require`)
@@ -2246,16 +2249,6 @@ function patternBindsAnyParam(pattern, paramNames) {
   let found = false;
   walkPatternIdentifiers(pattern, id => { if (paramNames.has(id.name)) found = true; });
   return found;
-}
-
-// peel TS / paren wrappers and report whether the underlying node is a SequenceExpression
-// whose preceding elements carry observable side effects. used by computed-key polyfill
-// rewrites (`obj[(SE(), Symbol.iterator)]`) where dropping the property silently elides SE -
-// caller bails to native shape so the inner key visitor can polyfill in place
-export function hasSideEffectfulSequencePrefix(node) {
-  const cur = unwrapRuntimeExpr(node);
-  return cur?.type === 'SequenceExpression'
-    && cur.expressions.slice(0, -1).some(mayHaveSideEffects);
 }
 
 // recursive peel of nested SequenceExpressions through paren wrappers: `(se1(), (se2(), G))`
