@@ -156,7 +156,16 @@ export function createTypeMembers({
     if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
       const all = [];
       function pushIntersectionPart(node) {
-        const inner = unwrapTypeAnnotation(node);
+        let inner = peelTSParenthesized(unwrapTypeAnnotation(node));
+        // a parenthesized `(A | B)` or alias-to-union (`type U = A | B; ... & U`) constituent must be
+        // distributed per-branch: unwrapTypeAnnotation leaves the parens / alias in place, so the union
+        // would slip whole into getTypeMembers (which has no union branch, returns null) and drop every
+        // member reachable through a branch
+        if (!isUnionType(inner)) {
+          const { node: aliased } = followTypeAliasChain(inner, scope);
+          const aliasedInner = aliased && peelTSParenthesized(unwrapTypeAnnotation(aliased));
+          if (aliasedInner && isUnionType(aliasedInner)) inner = aliasedInner;
+        }
         if (isUnionType(inner)) {
           for (const branch of inner.types) pushIntersectionPart(branch);
           return;
