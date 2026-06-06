@@ -5,6 +5,7 @@ import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usag
 import { classifyReceiverSE, keySideEffectsOnly, peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   createTypeAnnotationChecker,
+  mayHaveSideEffects,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
@@ -335,6 +336,20 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       : result;
   }
 
+  // SE-receiver + key-SE reorder guard: a non-optional (`check` null) side-effecting receiver memo
+  // would otherwise be built INSIDE the body, after the prepended key SE, running the key before
+  // the receiver. memoize the receiver and prepend its assignment to the SE list so it evaluates
+  // first (native order). returns `[receiverNode, sideEffects]` - the receiver ref to emit and the
+  // reordered SE list. no-op for optional (receiver already memoized in the guard) / SE-free receivers
+  function hoistReceiverSE(object, sideEffects, check, scope, seMode) {
+    // skip the peel case: there the receiver-SE is already replayed in the SE list, and `object`
+    // is the peeled tail - hoisting it would reorder the peeled prefix vs the tail (matches the
+    // unplugin `seMode !== 'peel'` gate)
+    if (check || seMode === 'peel' || !sideEffects?.length || !mayHaveSideEffects(object)) return [object, sideEffects];
+    const [memoAssign, ref] = memoize(object, scope);
+    return [ref, [memoAssign, ...sideEffects]];
+  }
+
   // classify a (possibly TS-wrapped) member path's relationship to its enclosing call:
   //   - `callerPath`: the path past transparent TS / paren wrappers (the real callee)
   //   - `parent`: that caller path's parent node
@@ -366,7 +381,8 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       const peeled = peelReceiverSequenceTail(path.node.object);
       if (peeled !== path.node.object) path.node.object = peeled;
     }
-    return seMode === 'suppress' ? keySideEffectsOnly(path.node.object, sideEffects) : sideEffects;
+    const effectiveSE = seMode === 'suppress' ? keySideEffectsOnly(path.node.object, sideEffects) : sideEffects;
+    return { seMode, effectiveSE };
   }
 
   // parenthesized optional member followed by a NON-optional outer call: `(arr?.includes)(1)`.
@@ -386,7 +402,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
   function replaceInstanceLike({ path, id, skipOptional, sideEffects }) {
-    const effectiveSE = applyReceiverSeMode(path, sideEffects);
+    const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects);
     const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
     const [check, object, embed] = extractCheck(path, skipOptional);
     if (isParenLookupOnly) {
@@ -408,19 +424,20 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       callerPath.parentPath.replaceWith(withSideEffects(result, effectiveSE));
       return;
     }
+    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode);
     const result = isCall
-      ? buildMethodCall({ id, object, scope: path.scope, args: parent.arguments, optionalCall: parent.optional })
-      : t.callExpression(id, [t.cloneNode(object)]);
+      ? buildMethodCall({ id, object: recvNode, scope: path.scope, args: parent.arguments, optionalCall: parent.optional })
+      : t.callExpression(id, [t.cloneNode(recvNode)]);
     replaceAndWrap({
       replacePath: isCall ? callerPath.parentPath : path,
-      result: withSideEffects(result, effectiveSE), check, embedGuard: embed,
+      result: withSideEffects(result, hoistedSE), check, embedGuard: embed,
     });
   }
 
   function replaceCallWithSimple(path, id, skipOptional, sideEffects) {
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const { callerPath, isParenLookupOnly } = classifyCallerContext(path);
-    const effectiveSE = applyReceiverSeMode(path, sideEffects);
+    const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects);
     // `(arr?.[Symbol.iterator])()`: parens terminate the optional chain, so on nullish `arr`
     // native evaluates `(undefined)()` and throws TypeError - the standard `check == null ?
     // void 0 : _id(arr)` ternary would instead yield `void 0` and swallow the throw (unlike
@@ -440,11 +457,12 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       return;
     }
     const [check, object, embed] = extractCheck(path, skipOptional);
+    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode);
     replaceAndWrap({
       replacePath: callerPath.parentPath,
       // wrap with the caller's accumulated side effects (e.g. computed-key SE from
       // detect-usage) so they don't drop when the original call is fully replaced
-      result: withSideEffects(t.callExpression(id, [t.cloneNode(object)]), effectiveSE),
+      result: withSideEffects(t.callExpression(id, [t.cloneNode(recvNode)]), hoistedSE),
       check, embedGuard: embed,
     });
   }
