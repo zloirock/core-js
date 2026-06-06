@@ -5,10 +5,8 @@
 // Public surface:
 //   resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen })
 //     - main entry for `TSTypeReference` / `GenericTypeAnnotation` to user decl resolution
-//   buildSubstMap(declParams, usageArgs)
-//     - declParam name -> AST node Map (for `applyAliasSubstDeep`)
-//   buildParentSubst(parentRef, scope)
-//     - parent interface ref -> subst Map
+//   buildSubstMap(declParams, usageArgs, scope)
+//     - declParam name -> AST node Map (for `applyAliasSubstDeep`); pass `scope` for capture-avoidance
 //   buildDefaultTypeParamMap(annotation, scope)
 //     - utility-type alias receiver -> Map (Type objects) for `substituteTypeParams`
 //
@@ -322,18 +320,9 @@ export function createUserTypeResolve({
     return subst.size ? subst : null;
   }
 
-  // parent interface ref (`Container<string>`) -> Map<declParam, argNode>
-  function buildParentSubst(parentRef, scope) {
-    const segments = typeRefSegments(parentRef);
-    const decl = segments ? findTypeDeclaration(segments, scope) : null;
-    if (!isInterfaceDeclaration(decl) && !isTypeAlias(decl)) return null;
-    return buildSubstMap(decl.typeParameters?.params, getTypeArgs(parentRef)?.params);
-  }
-
   return {
     resolveUserDefinedType,
     buildSubstMap,
-    buildParentSubst,
     buildDefaultTypeParamMap,
   };
 }

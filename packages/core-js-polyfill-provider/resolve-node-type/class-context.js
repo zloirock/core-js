@@ -175,7 +175,7 @@ export function createClassContext({
   // mirrors `appendInterfaceExtendsMembers` which performs the same step for interface chains.
   // node-based primitive shared by `findClassMember` (path-based) and `collectClassLikeMembers`
   // (raw-node walk-up); the path-based wrapper just unwraps `.node` slots
-  function buildParentClassSubstFromNodes(childNode, parentNode, childSubst) {
+  function buildParentClassSubstFromNodes(childNode, parentNode, childSubst, scope) {
     // Flow `declare class Sub extends Base<...>` (DeclareClass) carries super-type-args on the
     // heritage clause (`extends[0].typeParameters`), not on the superType* slots getSuperTypeArgs
     // probes; without the fallback the parent decl-param subst is empty and inherited generic
@@ -184,11 +184,11 @@ export function createClassContext({
     const parentDeclParams = parentNode.typeParameters?.params;
     if (!superTypeArgs?.length || !parentDeclParams?.length) return null;
     const args = childSubst ? superTypeArgs.map(a => applyAliasSubstDeep(a, childSubst)) : superTypeArgs;
-    return buildSubstMap(parentDeclParams, args);
+    return buildSubstMap(parentDeclParams, args, scope);
   }
 
-  function buildParentClassSubst(childClassPath, parentClassPath, childSubst) {
-    return buildParentClassSubstFromNodes(childClassPath.node, parentClassPath.node, childSubst);
+  function buildParentClassSubst(childClassPath, parentClassPath, childSubst, scope) {
+    return buildParentClassSubstFromNodes(childClassPath.node, parentClassPath.node, childSubst, scope);
   }
 
   return {
