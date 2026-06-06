@@ -1473,7 +1473,7 @@ function isMemberMutationContext(node, parent, grandparent) {
 // string-literal under both babel (`StringLiteral`) and oxc (`Literal` with string value).
 // returns null when the key isn't a statically resolvable string - dynamic / computed keys
 // can't be tracked by the pre-pass since their value isn't known at parse time
-function staticStringKey(node) {
+export function staticStringKey(node) {
   if (node?.type === 'StringLiteral') return node.value;
   if (node?.type === 'Literal' && typeof node.value === 'string') return node.value;
   // single-quasi template key (`Object.defineProperty(Array, `from`, d)`) is a static string too
