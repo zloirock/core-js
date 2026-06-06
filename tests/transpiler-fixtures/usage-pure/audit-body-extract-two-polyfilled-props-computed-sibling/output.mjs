@@ -8,10 +8,14 @@ import _Symbol from "@core-js/pure/actual/symbol/constructor";
 // "trailing-comma except last" rule keeps the ranges non-overlapping
 const SYM = _Symbol();
 function run({
+  from,
+  of,
   [SYM]: x
-} = Array) {
-  let from = _Array$from;
-  let of = _Array$of;
+} = {
+  from: _Array$from,
+  of: _Array$of,
+  [SYM]: Array[SYM]
+}) {
   return [from, of, x];
 }
 run();

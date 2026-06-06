@@ -3,5 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // key to the static method and substitutes the binding
 const k = 'of';
 (({
-  [k]: of = _Array$of
-} = Array) => of([1]))();
+  [k]: of
+} = {
+  [k]: _Array$of
+}) => of([1]))();
