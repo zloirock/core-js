@@ -465,6 +465,17 @@ export function createUsageVisitors({
       handleDestructuring(path);
     },
     BinaryExpression: handleBinaryExpression,
+    // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so @babel/traverse
+    // never descends into a legacy param decorator's expression on a constructor parameter-property
+    // (`constructor(@dec(Array.from([1])) private p) {}`) and its polyfillable globals go undetected.
+    // requeue each decorator so the usage detectors run on it. plain Identifier params need no help -
+    // their visitor keys keep `decorators`. (RestElement / ArrayPattern share the visitorKeys gap but
+    // a decorator on a rest / destructured param is not parseable, so only this shape is reachable.)
+    // guard on length so non-decorated parameter properties are untouched
+    TSParameterProperty(path) {
+      if (!path.node.decorators?.length) return;
+      for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
+    },
     // Program.enter calls this to drop per-file WeakSet state
     [USAGE_VISITORS_RESET]: () => {
       handledObjects = new WeakSet();
