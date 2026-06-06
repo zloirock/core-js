@@ -181,8 +181,14 @@ export default function plugin(api, options) {
   // the reference site so TS-runtime shadows (`enum`, `namespace`, `import X = require()`)
   // mask polyfill replacement correctly. without it, the lookup defaults to the path's
   // outer scope and misses nested TS-runtime bindings
+  // forward reference: `resolveStaticInheritedMember` is built per-file in `createClassHelpers`
+  // below, after this top-level helper. captured by closure so `super.from?.()` resolves its
+  // inherited static for the optional-chain deopt check (set in initFile before traversal)
+  let resolveSuperStaticFn = null;
   function skipPolyfillableOptional(node, scope, path) {
-    return isPolyfillableOptional({ node, scope, path, adapter, resolve: resolveBuiltIn });
+    return isPolyfillableOptional({
+      node, scope, path, adapter, resolve: resolveBuiltIn, resolveSuperStatic: resolveSuperStaticFn,
+    });
   }
 
   return {
@@ -266,6 +272,8 @@ export default function plugin(api, options) {
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
       } = createClassHelpers({ t, adapter, resolveKey: sharedResolveKey, getInjector: () => injector });
+      // wire the forward reference so the top-level optional-chain deopt check can resolve supers
+      resolveSuperStaticFn = resolveStaticInheritedMember;
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
