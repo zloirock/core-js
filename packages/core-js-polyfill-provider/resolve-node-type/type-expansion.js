@@ -34,7 +34,7 @@ import { getTypeArgs } from '../helpers/ast-patterns.js';
 // FALSE branch (`string extends Iterator<infer U>` is false - the `infer` means pickConditionalBranch
 // can't decide it structurally). distinct from a plain null (pattern not applicable, or check / inner
 // type unresolvable) which folds both branches
-const INFER_PATTERN_FALSE = Symbol('infer-pattern-false');
+export const INFER_PATTERN_FALSE = Symbol('infer-pattern-false');
 
 export function createTypeExpansion({
   literalKeyValue,
