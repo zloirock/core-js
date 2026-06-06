@@ -18,6 +18,7 @@ import {
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
   isTransparentDestructureWrapper,
+  synthSwapPropKey,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
   paramListReadsName,
@@ -36,6 +37,7 @@ import {
   planDestructureEmission,
   STRATEGIES,
 } from './destructure-emission-plan.js';
+import { patternComputedKeysAreUserLocals } from './synth-key-utils.js';
 
 // when a residual destructure keeps a proxy-global member-chain receiver in the output (a
 // surviving sibling / ...rest still reads off it, or it stays as a param default), collapse
@@ -214,13 +216,14 @@ export default function createDestructureEmitter({
     if (kind === 'instance') return;
     if (!isIdentifierPropValue(prop.node.value)) return;
     const objectPattern = prop.parentPath;
-    // synth-swap keys by `prop.node.key.name`, so it only fits a plain Identifier key. a computed key
-    // resolved to a static (`{ [k]: of } = Array`, k='of') or a non-Identifier (string-literal) key
-    // routes to the body-extract / inline-default fallback below instead of bailing - that fallback
-    // binds via `prop.node.value` and keeps the key text intact (matching unplugin; babel's
-    // declarator / assignment forms already resolve a computed key, so a param-only bail would under-inject)
-    const synthKey = !prop.node.computed && t.isIdentifier(prop.node.key);
+    // synth-swap fits any Identifier key - plain `{ of }` or a bare-Identifier computed key
+    // `{ [k]: of }` (mirrored as `{ [k]: _polyfill }`). `isSynthSimpleObjectPattern` gates the
+    // whole pattern: it rejects a string / numeric / side-effecting key and a computed key that
+    // reads a SIBLING binding (`{ of, [of]: x }`). non-Identifier keys still fall through to the
+    // body-extract / inline-default fallback, which binds via `prop.node.value` keeping key text intact
+    const synthKey = t.isIdentifier(prop.node.key);
     const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node)
+      && patternComputedKeysAreUserLocals(t, objectPattern.node, prop.scope)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
       // synth-swap bailed (computed key / non-Identifier shape sibling) - try body-extract
@@ -246,7 +249,7 @@ export default function createDestructureEmitter({
     // defer injectPureImport until programExit emits the synth. if a sibling plugin
     // mutates targetPath before then, the swap is skipped and no dead import is left
     synthSwap.registerPolyfill({
-      targetPath, objectPatternPath: objectPattern, key: prop.node.key.name, entry, hintName,
+      targetPath, objectPatternPath: objectPattern, key: synthSwapPropKey(prop.node), entry, hintName,
     });
   }
 
