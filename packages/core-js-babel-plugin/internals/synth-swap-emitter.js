@@ -14,6 +14,7 @@
 import {
   findIifeCallSite,
   getFallbackBranchSlots,
+  isReplayableSynthKey,
   isSynthSimpleObjectPattern,
   synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -24,8 +25,8 @@ import {
   markSynthReceiverSkipped,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { findProxyGlobal, maximalProxyGlobalPrefix } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { patternComputedKeysAreUserLocals } from './synth-key-utils.js';
+import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
 export default function createSynthSwapEmitter({
   adapter,
@@ -177,18 +178,26 @@ export default function createSynthSwapEmitter({
   // standard global rewrite, so user gets correct constructor at runtime
   function tryRegisterPerBranchSynth(rhsPath, prop) {
     const objectPattern = prop.parentPath;
-    if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
-    if (prop.node.computed || !t.isIdentifier(prop.node.key)) return false;
+    // per-branch has no body-extract fallback, so it accepts static-literal computed keys (`['from']`)
+    // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value)
+    if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node, { allowLiteralComputedKeys: true })) return false;
     // bail when any computed-key sibling is a generated import (polyfill-rewritten symbol) rather
     // than a user const-key, so per-branch synth stays aligned with unplugin (which bails on the
     // original `Symbol.iterator` MemberExpression)
-    if (!patternComputedKeysAreUserLocals(t, objectPattern.node, objectPattern.scope)) return false;
+    if (!patternComputedKeysSynthSafe(t, objectPattern.node, objectPattern.scope)) return false;
+    // a user-const computed key (`const k = 'from'; [k]`) resolves to its static name for the branch
+    // viability lookup but registers under its synth SLOT key (`[k]`), so buildSynthLiteral emits
+    // `[k]: _polyfill` instead of dropping the polyfill. the resolved value also polyfills a sibling-
+    // aliasing computed key (`{ from, [k]: x }` with k='from' -> both get `_Array$from`), avoiding the
+    // overwrite that dropped the shorthand polyfill. a dynamic key (lookupKey null) bails
+    const { lookupKey, slotKey } = resolveSynthKeys({ node: prop.node, scope: objectPattern.scope, adapter });
+    if (!lookupKey) return false;
     // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
     // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
     // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
     // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
     // escape hatch (rewriting branches as synth literals would change `foo`'s runtime value)
-    return registerBranchTreeForKey(peelTransparentPath(rhsPath), objectPattern, prop.node.key.name);
+    return registerBranchTreeForKey(peelTransparentPath(rhsPath), objectPattern, lookupKey, slotKey);
   }
 
   // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
@@ -196,22 +205,24 @@ export default function createSynthSwapEmitter({
   // so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds the
   // branches, and recursion registers each leaf. SE prefix stays in the AST around the
   // substitution target so side-effects run at runtime
-  function registerBranchTreeForKey(branchPath, objectPattern, key) {
+  function registerBranchTreeForKey(branchPath, objectPattern, lookupKey, slotKey) {
     const peeled = unwrapSequenceTail(branchPath);
     if (!peeled?.node) return false;
     const slots = getFallbackBranchSlots(peeled.node);
     if (slots) {
       let any = false;
       for (const slot of slots) {
-        if (registerBranchTreeForKey(peeled.get(slot), objectPattern, key)) any = true;
+        if (registerBranchTreeForKey(peeled.get(slot), objectPattern, lookupKey, slotKey)) any = true;
       }
       return any;
     }
     const branch = peeled.node;
-    const pure = isViableBranchForKey({ branch, key, scope: peeled.scope, adapter, resolvePure, path: peeled });
+    // `lookupKey` is the resolved static name (probes the branch for a polyfillable static); `slotKey`
+    // is the synth-literal slot (`[k]` for a computed key) the polyfill is registered + emitted under
+    const pure = isViableBranchForKey({ branch, key: lookupKey, scope: peeled.scope, adapter, resolvePure, path: peeled });
     if (!pure) return false;
     const innerPath = unwrapSequenceTail(peeled);
-    registerPolyfill({ targetPath: innerPath, objectPatternPath: objectPattern, key, entry: pure.entry, hintName: pure.hintName });
+    registerPolyfill({ targetPath: innerPath, objectPatternPath: objectPattern, key: slotKey, entry: pure.entry, hintName: pure.hintName });
     return true;
   }
 
@@ -267,7 +278,7 @@ export default function createSynthSwapEmitter({
 
     const properties = [];
     for (const property of objectPatternNode.properties) {
-      if (!t.isObjectProperty(property) || !t.isIdentifier(property.key)) continue;
+      if (!t.isObjectProperty(property) || !isReplayableSynthKey(property)) continue;
       const queued = polyfills.get(synthSwapPropKey(property));
       // a computed `[k]` key mirrors as `[k]: _polyfill`; an unpolyfilled computed key falls
       // back to `R[k]` (computed member access), a plain key to `R.key`
