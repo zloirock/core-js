@@ -10,11 +10,16 @@ import _Symbol from "@core-js/pure/actual/symbol/constructor";
 // .fromAsync) so the imports identify which line triggered which
 const SYM = _Symbol();
 function run({
+  from,
+  of,
+  fromAsync,
   [SYM]: x
-} = Array) {
-  let from = _Array$from;
-  let of = _Array$of;
-  let fromAsync = _Array$fromAsync;
+} = {
+  from: _Array$from,
+  of: _Array$of,
+  fromAsync: _Array$fromAsync,
+  [SYM]: Array[SYM]
+}) {
   return [from, of, fromAsync, x];
 }
 run();
