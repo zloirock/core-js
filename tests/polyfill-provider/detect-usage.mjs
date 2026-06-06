@@ -316,6 +316,31 @@ runBoth('walkTypeAnnotationGlobals/primitive (no global)', 'const x: number = 1;
   checkDeep(lbl, found, []);
 });
 
+// qualified `typeof` chain through an ALL-proxy root surfaces every link: each proxy member resolves
+// back to a global (`globalThis.self.Map` references globalThis AND self AND Map)
+runBoth('walkTypeAnnotationGlobals/typeof all-proxy chain surfaces every link',
+  'let x: typeof globalThis.self.Map;', (adapter, prog, lbl) => {
+    const tq = adapter.pickPath(prog, 'TSTypeQuery');
+    if (!tq) return;
+    const found = [];
+    walkTypeAnnotationGlobals(tq.node, name => found.push(name));
+    checkTruthy(lbl, found.includes('globalThis') && found.includes('self') && found.includes('Map'),
+      `expected globalThis+self+Map, got [${ found.join(',') }]`);
+  });
+
+// qualified `typeof` chain stops at the first NON-proxy segment: in `globalThis.Array.Map`, `Map` is a
+// property of the non-proxy `Array`, NOT the global Map - intentionally more precise than babel-plugin's
+// ReferencedIdentifier (which over-surfaces every segment). surfaces globalThis + Array, never Map
+runBoth('walkTypeAnnotationGlobals/typeof non-proxy mid-chain stops at non-proxy',
+  'let x: typeof globalThis.Array.Map;', (adapter, prog, lbl) => {
+    const tq = adapter.pickPath(prog, 'TSTypeQuery');
+    if (!tq) return;
+    const found = [];
+    walkTypeAnnotationGlobals(tq.node, name => found.push(name));
+    checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
+      `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
+  });
+
 // fn-type signature param: `(items: Set<number>) => void` keeps its params under babel's
 // `parameters` key (oxc uses `params`). a global referenced ONLY in a fn-type param must
 // surface on both parsers - babel-side regression guard for the `parameters` child key
@@ -359,6 +384,15 @@ runBoth('varInitDominatesUsage/unconditional outer var in closure -> true',
   'function f(){ var M = Object; return () => M.fromEntries(); }', (adapter, prog, lbl) => {
     const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
     check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), true);
+  });
+
+// closure DEFINED before the outer var-init and invoked before it runs (`const g = () => M...; g();
+// var M = Object`): the closure reads the hoisted-undefined value, so the init does NOT dominate -
+// pure must bail (the native `undefined.fromEntries` would throw, and pure must not mask it)
+runBoth('varInitDominatesUsage/closure invoked before outer var-init -> false',
+  'function f(){ const g = () => M.fromEntries(); g(); var M = Object; }', (adapter, prog, lbl) => {
+    const { declaratorNode, usagePath } = pickVarInit(adapter, prog, 'fromEntries');
+    check(lbl, varInitDominatesUsage({ declaratorNode, usagePath }), false);
   });
 
 // in-scope unconditional declarator preceding the use -> dominates
