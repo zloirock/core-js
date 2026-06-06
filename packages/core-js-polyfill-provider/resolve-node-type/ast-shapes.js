@@ -181,3 +181,18 @@ export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, b
   }
   return false;
 }
+
+// soundness filter for source-position narrows: a reassignment of the binding that lives inside a
+// function nested below the binding scope can run before the use (`mutate(); use; function mutate(){ x
+// = y }`) regardless of source position, so a positional check can't see it. true when any violation
+// sits inside a function on the parent chain up to (but not including) `stopPath` (the binding scope
+// path). shared by the discriminant-narrow and guard-narrow soundness gates
+export function violationInCapturedFunction(t, violations, stopPath) {
+  if (!violations?.length) return false;
+  return violations.some(v => {
+    for (let p = v.parentPath; p && p !== stopPath; p = p.parentPath) {
+      if (t.isFunction(p.node)) return true;
+    }
+    return false;
+  });
+}
