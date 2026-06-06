@@ -403,8 +403,13 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // `super.X` and `this.X`-in-static both look up `<SuperClass>.X` on the parent's static
   // surface. provider's `resolveKey` (not staticKeyName) so `super[CONST]` / aliased Symbol.X
   // still resolve
-  function resolveStaticInheritedMember(path) {
-    const key = resolveKey({ node: path.node.property, computed: path.node.computed, scope: path.scope, adapter });
+  // `explicitKey` lets a caller resolve `super.<key>` from a path that is INSIDE the static method
+  // but is not the `super.<key>` member itself (e.g. the optional-chain deopt check anchors on the
+  // trailing instance member's path, which shares the enclosing class + scope). when omitted the key
+  // is read off `path.node.property` as usual
+  function resolveStaticInheritedMember(path, explicitKey = null) {
+    const key = explicitKey
+      ?? resolveKey({ node: path.node.property, computed: path.node.computed, scope: path.scope, adapter });
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
