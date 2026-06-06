@@ -10,11 +10,16 @@ import _Symbol from "@core-js/pure/actual/symbol/constructor";
 // lines emitted them; `length` is a non-polyfilled Array static property
 const SYM = _Symbol();
 function run({
+  from,
   length,
+  of,
   [SYM]: x
-} = Array) {
-  let from = _Array$from;
-  let of = _Array$of;
+} = {
+  from: _Array$from,
+  length: Array.length,
+  of: _Array$of,
+  [SYM]: Array[SYM]
+}) {
   return [from, length, of, x];
 }
 run();
