@@ -257,7 +257,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       // lifted effectiveAp is the IIFE call - sits inside an ExpressionStatement
       const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
       if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerWrapType)) continue;
-      out.push({ ap, pos });
+      out.push({ ap, pos, end: effectiveAp.node.end });
     }
     out.sort((a, b) => a.pos - b.pos);
     return out;
@@ -290,7 +290,20 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       if (sortedAssigns[mid].pos < beforePos) lo = mid + 1;
       else hi = mid;
     }
-    return lo > 0 ? sortedAssigns[lo - 1].ap : null;
+    // skip any assignment whose own RHS textually ENCLOSES the use (`x = ("" + x.at(-1))`): its start
+    // precedes the use but it has not executed yet, so the receiver must come from the prior value
+    let idx = lo - 1;
+    while (idx >= 0 && sortedAssigns[idx].end > beforePos) idx--;
+    if (idx < 0) return null;
+    const chosen = sortedAssigns[idx];
+    // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between
+    // the chosen assignment and the use can overwrite it at runtime - degrade to the generic / union
+    // path rather than committing to the chosen value's single type
+    for (const v of binding.constantViolations) {
+      const vStart = v.node?.start;
+      if (vStart !== undefined && vStart >= chosen.end && vStart < beforePos) return null;
+    }
+    return chosen.ap;
   }
 
   function reset() {
