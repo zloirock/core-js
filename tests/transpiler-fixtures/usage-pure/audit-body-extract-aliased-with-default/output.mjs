@@ -5,9 +5,12 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // the alias. body emit is `let alias = _polyfill;` (preserves the user's chosen local name)
 const KEY = 'k';
 function run({
+  from: alias = [],
   [KEY]: tag
-} = Array) {
-  let alias = _Array$from;
+} = {
+  from: _Array$from,
+  [KEY]: Array[KEY]
+}) {
   return [alias, tag];
 }
 run();
