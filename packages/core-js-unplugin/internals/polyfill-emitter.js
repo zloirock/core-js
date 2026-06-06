@@ -6,8 +6,8 @@
 // from the outer transform context (code / scopeTracker / transforms / injector / Sets /
 // resolver hooks).
 import {
-  hasSideEffectfulSequencePrefix,
   mayHaveSideEffects,
+  peelNestedSequenceExpressions,
   TS_EXPR_WRAPPERS,
   visitSymbolInLhsSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -31,6 +31,20 @@ import {
   unwrapNodeForMemoize,
 } from './emit-utils.js';
 import { skipGap, walkAstNodes } from './plugin-helpers.js';
+
+// true when the chain from `outerObject` down to `innerCall` is made of plain (non-call)
+// member hops only - the `.x.y[0]` between an optional call and the outer member in
+// `recv.m?.().x.y[0].at(0)`. such a tail is pure source text with no nested transform, so it
+// can be spliced verbatim onto the `_ref.call(recv)` body. a call hop (`.foo()`) could itself
+// be polyfilled and would queue its own overlapping transform, so those bail
+function isPlainMemberHopChain(outerObject, innerCall) {
+  let cur = outerObject;
+  while (cur && cur !== innerCall) {
+    if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression') return false;
+    cur = cur.object;
+  }
+  return cur === innerCall;
+}
 
 export function createPolyfillEmitter({
   canFuseWithOpenParen,
@@ -64,10 +78,12 @@ export function createPolyfillEmitter({
   // wrap a polyfill binding in a source-level SequenceExpression carrying any side
   // effects collected from the receiver / computed-key. noop when empty - callers can
   // invoke unconditionally. mirrors `withSideEffects` in babel-plugin, text-based
-  function wrapSideEffects(binding, sideEffects) {
-    return sideEffects?.length
-      ? `(${ sideEffects.map(e => nodeSrc(e)).join(', ') }, ${ binding })`
-      : binding;
+  function wrapSideEffects(binding, sideEffects, leadingMemo = null) {
+    // leadingMemo (`_ref = recv`) is emitted BEFORE the key side effects so a side-effecting
+    // receiver evaluates ahead of the key, matching native order
+    const parts = leadingMemo ? [leadingMemo] : [];
+    if (sideEffects?.length) for (const e of sideEffects) parts.push(nodeSrc(e));
+    return parts.length ? `(${ parts.join(', ') }, ${ binding })` : binding;
   }
 
   // leading `, ...` separator for trailing call args - empty when there are none, so it appends
@@ -171,7 +187,7 @@ export function createPolyfillEmitter({
   // route through `_ref.call(recv)`. recv is bound to `this` for `super`, re-read for a safe
   // receiver, and memoized first when side-effecting (its ref precedes the method ref, matching
   // babel). `methodTail` keeps any inner `?.` for short-circuit
-  function resolveMethodCall({ optionalRoot, optionalNode, rootNode }) {
+  function resolveMethodCall({ optionalRoot, optionalNode, rootNode, outerObject, deoptPositions }) {
     if (!optionalRoot || !optionalNode
       || (optionalNode.type !== 'CallExpression' && optionalNode.type !== 'OptionalCallExpression')) return null;
     // peel transparent wrappers (parens, chain, TS as/!/satisfies) off the callee so a wrapped
@@ -192,6 +208,16 @@ export function createPolyfillEmitter({
     const receiverNode = callee.object;
     const isSuper = receiverNode.type === 'Super';
     const receiverSafe = receiverNode.type === 'Identifier' || receiverNode.type === 'ThisExpression';
+    // intermediate plain-member hops between the optional call and the outer member
+    // (`recv.m?.().x.at(0)` - the `.x`): the methodCall body collapses to `_ref.call(recv)`, which
+    // would otherwise drop the tail and read the polyfill off the bare call result. splice the
+    // deoptionalized source tail back on, only for a pure member chain with no nested transform
+    // queued in it (a call hop is left to the combined-chain path)
+    const tail = outerObject && outerObject !== optionalNode && outerObject.end > optionalNode.end
+      && isPlainMemberHopChain(outerObject, optionalNode)
+      && !transforms.hasTransformWithin(optionalNode.end, outerObject.end)
+      ? stripOptionalDots(code.slice(optionalNode.end, outerObject.end), optionalNode.end, deoptPositions)
+      : '';
     return {
       isSuper,
       receiverSafe,
@@ -200,6 +226,7 @@ export function createPolyfillEmitter({
       methodSrc: nodeSrc(callee),
       methodTail: code.slice(receiverNode.end, callee.end),
       argsText: sliceBetweenParens(optionalNode),
+      tail,
     };
   }
 
@@ -307,11 +334,21 @@ export function createPolyfillEmitter({
 
   function buildReplacement(binding, objectSrc, opts) {
     const { optionalRoot, rootRaw, deoptPositions, objectStart, preAllocatedGuardRef,
-      substituted, rootIsReceiver, sideEffects, rootNodeEnd, receiverEnd, methodCall } = opts;
+      substituted, rootIsReceiver, sideEffects, rootNodeEnd, receiverEnd, methodCall,
+      isNonIdent, seMode, receiverHasSE } = opts;
 
     let bodyObj = deoptPositions?.length ? stripOptionalDots(objectSrc, objectStart ?? 0, deoptPositions) : objectSrc;
     let guard = '';
     let guardRef = null;
+    // hoist a side-effecting, non-peeled receiver memo ahead of the key SE so it evaluates first
+    let leadingMemo = null;
+    let bodyIsNonIdent = isNonIdent;
+    if (!optionalRoot && seMode !== 'peel' && sideEffects?.length && bodyIsNonIdent && receiverHasSE) {
+      const recvRef = scopeTracker.genRef();
+      leadingMemo = `${ recvRef } = ${ bodyObj }`;
+      bodyObj = recvRef;
+      bodyIsNonIdent = false;
+    }
 
     if (optionalRoot) {
       if (isBareIdentifier(optionalRoot)) {
@@ -327,7 +364,9 @@ export function createPolyfillEmitter({
           // `methodSrc` is the peeled member (drops any TS/paren wrapper), so a wrapped callee
           // `(obj.m as any)?.()` memoizes the bare method - matching babel
           : `null == (${ guardRef } = ${ methodCall.methodSrc }) ? void 0 : `;
-        bodyObj = `${ guardRef }.call(${ callReceiver }${ commaArgs(methodCall.argsText) })`;
+        // splice the intermediate plain-member hop tail (`.x.y`) back onto the call result so
+        // the outer polyfill reads off the right value instead of the bare call return
+        bodyObj = `${ guardRef }.call(${ callReceiver }${ commaArgs(methodCall.argsText) })${ methodCall.tail ?? '' }`;
       } else {
         guardRef = preAllocatedGuardRef ?? scopeTracker.genRef();
         guard = `null == (${ guardRef } = ${ optionalRoot }) ? void 0 : `;
@@ -338,12 +377,12 @@ export function createPolyfillEmitter({
       }
     }
 
-    const ctx = { ...opts, binding, bodyObj, guard, guardRef };
+    const ctx = { ...opts, isNonIdent: bodyIsNonIdent, binding, bodyObj, guard, guardRef };
     const { body, clearGuard = false, split = null } = BODY_STRATEGIES[classifyEmitStrategy(opts)](ctx);
     if (clearGuard) guard = '';
 
     return {
-      replacement: `${ guard }${ wrapSideEffects(body, sideEffects) }`,
+      replacement: `${ guard }${ wrapSideEffects(body, sideEffects, leadingMemo) }`,
       split,
     };
   }
@@ -552,7 +591,7 @@ export function createPolyfillEmitter({
     const isNew = parent?.type === 'NewExpression';
     // optional method call (`recv.m?.()`): keep `this` by routing the body through `_ref.call(recv)`.
     // computed before the guard ref so a memoized receiver ref precedes it (matches babel order)
-    const methodCall = resolveMethodCall({ optionalRoot, optionalNode, rootNode });
+    const methodCall = resolveMethodCall({ optionalRoot, optionalNode, rootNode, outerObject: node.object, deoptPositions });
     const preAllocatedGuardRef = optionalRootCapturesIntoRef ? scopeTracker.genRef() : null;
 
     const built = buildReplacement(binding, objectSrc, {
@@ -560,6 +599,10 @@ export function createPolyfillEmitter({
       optionalCall: isCall && parent.optional, args: argsSrc,
       objectStart: node.object.start,
       preAllocatedGuardRef, sideEffects,
+      // SE-receiver + key-SE reorder guard: when a side-effecting receiver is not peeled into the SE
+      // list (a call receiver `getObj()[(k(), 'at')]()`), buildReplacement hoists its memo ahead of
+      // the key SE so the receiver evaluates first (native order)
+      seMode, receiverHasSE: mayHaveSideEffects(node.object),
       substituted: recv.substituted,
       // rootRaw spans the entire receiver iff `node` is itself optional (then findChainRoot
       // returns rootNode === node.object); guard text must come from the substituted bodyObj
@@ -611,7 +654,13 @@ export function createPolyfillEmitter({
 
   function handleSymbolIterator({ node, parent, metaPath, sideEffects = null }) {
     if (node.object?.type === 'Super') return;
-    if (node.computed && hasSideEffectfulSequencePrefix(node.property)) return;
+    // computed key carrying a side effect (`obj[(fn(), Symbol.iterator)]`, nested sequences too):
+    // meta.sideEffects already carries the prefix, so the getIterator / getIteratorMethod rewrite
+    // preserves it as `(fn(), _getIterator(obj))`; a side-effecting receiver is hoisted ahead of the
+    // key by addInstanceTransform so order holds. skip the SequenceExpression TAIL (the
+    // Symbol.iterator member) below so it is not also polyfilled in place; the prefix expressions
+    // stay visitable so a polyfillable call inside them is still rewritten
+    const keyTail = node.computed ? peelNestedSequenceExpressions(node.property).tail : node.property;
     const isCallParent = isCallee(node, parent);
     const isPlainCall = isCallParent && parent.type === 'CallExpression';
     const entry = isPlainCall && parent.arguments.length === 0 && !parent.optional
@@ -635,7 +684,7 @@ export function createPolyfillEmitter({
       replacementIsCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
       sideEffects, parenLookupOnly,
     });
-    if (node.property) skipWrappedNode(node.property);
+    if (keyTail) skipWrappedNode(keyTail);
   }
 
   // direct-Identifier polyfillable receiver (`Array.prototype.X`, `globalThis.foo` where
@@ -843,8 +892,16 @@ export function createPolyfillEmitter({
     if (callee.object?.type === 'Super') return null;
     const meta = { kind: 'property', object: null, key: callee.property.name, placement: 'prototype' };
     const { result } = resolvePureOrGlobalFallback(meta, currentPath.get('callee'));
-    if (result?.kind !== 'instance') return null;
-    return { chainStart: current, innerCallee: callee, innerResult: result, hops };
+    if (result && result.kind !== 'instance') return null;
+    // non-poly inner (result null): the standalone path already handles a single trailing poly,
+    // member-only hops, and static / global inner calls (always-defined -> deopts to no-guard
+    // compose) correctly. only take over when MULTIPLE trailing polys are present - each would
+    // otherwise queue a standalone transform overlapping the shared optional call (composition
+    // crash). exclude always-defined-optional inners so `Array.from?.().flat().at()` keeps its
+    // deopt + compose shape rather than emitting a raw guarded `Array.from`
+    if (!result && (!hops.some(h => h.poly)
+      || isPolyfillableOptional({ node: current, scope: metaPath.scope, adapter: estreeAdapter, resolve: resolveBuiltIn }))) return null;
+    return { chainStart: current, innerCallee: callee, innerResult: result ?? null, hops };
   }
 
   // suppress the inner proxy-global of a TS / Paren wrapped chain receiver. chain emit
@@ -948,7 +1005,17 @@ export function createPolyfillEmitter({
 
   function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain, sideEffects }) {
     const { chainStart, innerCallee, innerResult, hops } = chain;
-    const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
+    // poly inner: the method-get is the polyfill call `_binding(receiver)`. non-poly inner
+    // (innerResult null): the method-get is the raw member access `receiver.method`, guarded the
+    // same way so a nullish `recv.m` short-circuits the chain to void 0 like native
+    const innerBinding = innerResult ? injectPureImport(innerResult.entry, innerResult.hintName) : null;
+    function methodGet(arg) {
+      if (innerBinding) return `${ innerBinding }(${ arg })`;
+      // raw member access on the receiver: parenthesize a receiver-assignment arg (`_ref = recv`)
+      // so `.method` binds to the assignment result, not just the receiver tail
+      const base = arg.includes('=') ? `(${ arg })` : arg;
+      return `${ base }.${ innerCallee.property.name }`;
+    }
     // chain-rooted polyfillable receiver: without substituting the leaf, OR-chain emit
     // would carry `globalThis?.X` etc. verbatim into every `null == ...` slot of the
     // template. direct-Identifier polyfill is intentionally NOT folded in here -
@@ -1012,11 +1079,17 @@ export function createPolyfillEmitter({
 
     const tests = innerCallee.optional ? [
       `null == ${ anAssign }`,
-      `null == (${ mRef } = ${ innerBinding }(${ aRef }))`,
+      `null == (${ mRef } = ${ methodGet(aRef) })`,
     ] : foldInnerCall ? [
-      `null == (${ mRef } = ${ innerBinding }(${ methodArg })?.call(${ aRef }${ commaArgs(innerArgs) }))`,
+      `null == (${ mRef } = ${ methodGet(methodArg) }?.call(${ aRef }${ commaArgs(innerArgs) }))`,
+    ] : !innerBinding && !isReceiverSafe ? [
+      // non-poly inner with a side-effecting receiver: comma-split the receiver memo and the raw
+      // method-get (`_ref = recv(), _ref2 = _ref.m`) instead of nesting the assignment inside the
+      // member access, matching babel - a polyfilled inner instead carries the receiver inside its
+      // own call argument, so it keeps the nested methodArg form
+      `null == (${ aRef } = ${ receiver }, ${ mRef } = ${ methodGet(aRef) })`,
     ] : [
-      `null == (${ mRef } = ${ innerBinding }(${ methodArg }))`,
+      `null == (${ mRef } = ${ methodGet(methodArg) })`,
     ];
     // member-optional hop guards sit between the chainStart tests and the outer-optional test,
     // innermost-first - matching native left-to-right short-circuit order
