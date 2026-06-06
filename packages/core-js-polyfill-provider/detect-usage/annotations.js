@@ -7,8 +7,8 @@
 //   - `isPolyfillableOptional({ node, scope, adapter, resolve })` - the polyfill replacement
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
-import { getSuperTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { getSuperTypeArgs, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { unwrapParens } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
@@ -257,24 +257,39 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 // raw scope index misses. extractCheck/replaceInstanceLike pass it through their
 // `skipOptional` callback hop; legacy callers without a path-aware adapter still work
 // because the third argument is optional on `hasBinding`
-export function isPolyfillableOptional({ node, scope, adapter, resolve, path }) {
+export function isPolyfillableOptional({ node, scope, adapter, resolve, path, resolveSuperStatic }) {
   // an optional CALL (`Array.from?.(...)`) carries the polyfillable target on its `callee`, not
   // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
   // a non-member callee (`foo?.()`) leaves `.object` undefined and falls through to false
   const member = node.type === 'OptionalCallExpression' || node.type === 'CallExpression' ? node.callee : node;
   const obj = unwrapRuntimeExpr(unwrapParens(member.object));
-  if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name, path)) return false;
-  if (resolve({ kind: 'global', name: obj.name })) return true;
-  // a static-string computed key (`Array["from"]`) resolves to the same static as the dotted
-  // form (`Array.from`), so the optional callee is equally always-defined post-rewrite. without
-  // recognising it, the instance-method transform claims the `?.` and deopts it, colliding with
-  // the static visitor's `?.`-absorbing rewrite range and crashing the compose. a dynamic key
-  // (`Array[k]`) stays unresolved -> false (correct: the static visitor never collapses it)
-  const prop = member.property;
-  const key = member.computed
-    ? ((prop?.type === 'Literal' || prop?.type === 'StringLiteral') && typeof prop.value === 'string' && prop.value)
-    : (prop?.type === 'Identifier' && prop.name);
-  const resolved = key && resolve({ kind: 'property', object: obj.name, key, placement: 'static' });
+  // static key of the optional callee: Identifier (`Array.from`), static-string computed key
+  // (`Array["from"]`, single-quasi `Array[`from`]`), or null for a dynamic key (`Array[k]`). a
+  // static-string key resolves to the same static as the dotted form, so the callee is equally
+  // always-defined post-rewrite; a dynamic key stays unresolved (the static visitor never collapses it)
+  const memberKey = memberKeyName(member);
+  // `super.from?.()` / `this.from?.()` in a static method is an inherited static resolving to the
+  // same always-defined polyfill as the bare form (`_Array$from`), so the `?.` deopts just like
+  // `Array.from?.()`. resolveSuperStatic (wired with a path inside the static method) resolves it to
+  // its static meta; without it (legacy callers) supers fall through to false (no deopt). this keeps
+  // the deopt off the generic optional-chain path, which would crash composing the static call-split
+  if ((obj?.type === 'Super' || obj?.type === 'ThisExpression') && resolveSuperStatic && path) {
+    const meta = memberKey ? resolveSuperStatic(path, memberKey) : null;
+    const resolvedSuper = meta && resolve(meta);
+    return resolvedSuper?.kind === 'static' || resolvedSuper?.kind === 'global';
+  }
+  // effective global name: a bare Identifier (`Array`), or a proxy-global chain resolved through the
+  // SAME canonical resolver the emit side uses (`globalProxyMemberName`) so EVERY proxy-global shape
+  // it handles - `globalThis.Array`, nested `globalThis.self.Array`, const-alias `const g =
+  // globalThis; g.Array`, computed links - deopts identically to the bare static. these must deopt to
+  // the always-defined `_Array$from`; otherwise the chain falls into the generic optional-chain path
+  // and emits a guarded native `.from` (and the static rewrite collides into the body: `_Array$fromcall`)
+  const objName = obj?.type === 'Identifier'
+    ? (adapter.hasBinding(scope, obj.name, path) ? null : obj.name)
+    : globalProxyMemberName({ node: obj, scope, adapter, path });
+  if (!objName) return false;
+  if (resolve({ kind: 'global', name: objName })) return true;
+  const resolved = memberKey && resolve({ kind: 'property', object: objName, key: memberKey, placement: 'static' });
   return resolved?.kind === 'static' || resolved?.kind === 'global';
 }
 
