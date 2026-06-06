@@ -15,11 +15,14 @@ import {
   hasRestSiblingExcept,
   isBindingPosition,
   isFunctionParamDestructureParent,
+  computedKeysAllBound,
   isIdentifierPropValue,
   isNonReferencePosition,
+  isReplayableSynthKey,
   isSynthSimpleObjectPattern,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
+  staticStringKey,
   synthSwapPropKey,
   objectPatternPropNeedsReceiverRewrite,
   paramListReadsName,
@@ -50,6 +53,7 @@ import {
   maximalProxyGlobalPrefix,
   proxyGlobalWrappedRoot,
   resolveObjectName as sharedResolveObjectName,
+  resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isViableBranchForKey, walkStaticReceiverChain } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
@@ -1117,13 +1121,11 @@ export function createDestructureEmitter({
   // shorthand / Identifier-valued outer props are NOT supported here - they would name a
   // local binding outside the static path, so static-object descent doesn't apply
   function planOuterPropStatic({ outerProp, hostInit, path, scope, usePath = null }) {
-    if (outerProp.type !== 'Property' || outerProp.computed
-      || outerProp.key?.type !== 'Identifier') {
-      return { preservedSrc: nodeSrc(outerProp) };
-    }
+    const name = outerProp.type === 'Property' ? flattenKeyName(outerProp) : null;
+    if (name === null) return { preservedSrc: nodeSrc(outerProp) };
     const value = peelInnerDefault(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { preservedSrc: nodeSrc(outerProp) };
-    const newPath = [...path, outerProp.key.name];
+    const newPath = [...path, name];
     // `usePath` (the declaration / assignment site) lets the usage-pure reassignment gate inside
     // walkStaticReceiverStep prove a reassigned RECEIVER (`w = {}` after `{Arr:{from}} = w`) is
     // written AFTER the read - so the flatten resolves and collapses to `const from = _Array$from`
@@ -1167,6 +1169,21 @@ export function createDestructureEmitter({
     return propBindingIdentifier(outerProp.value)?.name ?? null;
   }
 
+  // resolve a nested-flatten prop's key to its static name: a non-computed Identifier (`Array`) or a
+  // computed string / single-quasi literal (`['Array']` / [`Array`]). null for a dynamic computed key
+  // (`[k]`) or non-Identifier shape - the flatten bails to preservedSrc. babel's structural walk is
+  // computed-key-agnostic, so resolving the literal here keeps unplugin's flatten aligned with babel's
+  function flattenKeyName(prop) {
+    if (prop.computed) return staticStringKey(prop.key);
+    return prop.key?.type === 'Identifier' ? prop.key.name : null;
+  }
+
+  // key source for a partially-consumed flatten rebuild: a computed key keeps its `[...]` form so the
+  // residual pattern stays valid (a bare name would corrupt `['Array']: { ... }` -> `undefined: ...`)
+  function flattenKeySrc(prop) {
+    return prop.computed ? `[${ nodeSrc(prop.key) }]` : prop.key.name;
+  }
+
   // proxy-global outer prop: five shapes
   //   - `{ Foo: { bar, ... } }` where Foo is a real global - inner pattern holds static methods
   //   - `{ Self: { ... } }` where Self is itself a proxy-global - alias hop, recurse keeping
@@ -1196,11 +1213,8 @@ export function createDestructureEmitter({
       const symBinding = injectPureImport('symbol/iterator', 'Symbol$iterator');
       return { preservedSrc: `[${ symBinding }]: ${ nodeSrc(outerProp.value) }` };
     }
-    if (outerProp.type !== 'Property' || outerProp.computed
-      || outerProp.key?.type !== 'Identifier') {
-      return { preservedSrc: nodeSrc(outerProp) };
-    }
-    const { name } = outerProp.key;
+    const name = outerProp.type === 'Property' ? flattenKeyName(outerProp) : null;
+    if (name === null) return { preservedSrc: nodeSrc(outerProp) };
     const value = peelInnerDefault(outerProp.value);
     if (value?.type === 'ObjectPattern') {
       const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
@@ -1245,7 +1259,7 @@ export function createDestructureEmitter({
     }
     if (!extractions.length) return { preservedSrc: nodeSrc(outerProp) };
     if (!preservedInner.length) return { extractions, preservedSrc: null };
-    return { extractions, preservedSrc: `${ outerProp.key.name }: { ${ preservedInner.join(', ') } }` };
+    return { extractions, preservedSrc: `${ flattenKeySrc(outerProp) }: { ${ preservedInner.join(', ') } }` };
   }
 
   // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on
@@ -1254,16 +1268,14 @@ export function createDestructureEmitter({
   // to filter instance kind - `resolvePure` with no path would crash on `enhanceMeta`'s
   // `isMemberLike(path)` for instance resolutions
   function planInnerProp(prop, receiverName) {
-    if (prop.type !== 'Property' || prop.computed
-      || prop.key?.type !== 'Identifier') {
-      return { preservedSrc: nodeSrc(prop) };
-    }
+    const name = prop.type === 'Property' ? flattenKeyName(prop) : null;
+    if (name === null) return { preservedSrc: nodeSrc(prop) };
     // accept `{ from }`, `{ from: alias }`, `{ from = default }`, `{ from: alias = default }`.
     // user's default is dropped: polyfill is always defined, the user's default would be
     // dead code (fires only on undefined property, which polyfill rules out)
     const valueNode = propBindingIdentifier(prop.value);
     if (!valueNode) return { preservedSrc: nodeSrc(prop) };
-    const meta = { kind: 'property', object: receiverName, key: prop.key.name, placement: 'static' };
+    const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
     if (resolveBuiltIn(meta)?.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
     const pure = resolvePure(meta);
     if (!pure || pure.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
@@ -1655,12 +1667,22 @@ export function createDestructureEmitter({
   // returns true when at least one branch was registered
   function tryRegisterPerBranchSynth({ rhs, propNode, objectPattern, scope, path = null }) {
     if (!rhs || !propNode || !objectPattern) return false;
-    if (!isSynthSimpleObjectPattern(objectPattern)) return false;
-    if (propNode.computed || propNode.key?.type !== 'Identifier') return false;
+    // per-branch has no body-extract fallback, so it accepts static-literal computed keys (`['from']`)
+    // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value)
+    if (!isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys: true })) return false;
+    // a bare-global computed-key sibling (`[Set]`) would be emitted raw into each branch's synth
+    // literal and throw ReferenceError on the target engine - bail rather than leak (matches babel)
+    if (!computedKeysAllBound(objectPattern, scope)) return false;
+    // a user-const computed key (`const k = 'from'; [k]`) resolves to its static name for the branch
+    // viability lookup but registers under its synth SLOT key (`[k]`), so the synth literal emits
+    // `[k]: _polyfill` instead of dropping the polyfill; the resolved value also polyfills a sibling-
+    // aliasing computed key (`{ from, [k]: x }` with k='from'). a dynamic key (lookupKey null) bails
+    const { lookupKey, slotKey } = resolveSynthKeys({ node: propNode, scope, adapter: estreeAdapter });
+    if (!lookupKey) return false;
     // `registerBranchTreeForKey` peels paren / TS / chain / SE wrappers internally - do NOT
     // peel chain-assignment here (`foo = cond ? Array : Set` is intentional escape hatch;
     // rewriting branches as synth literals would change `foo`'s runtime value)
-    return registerBranchTreeForKey(rhs, propNode.key.name, objectPattern, scope, path);
+    return registerBranchTreeForKey(rhs, lookupKey, slotKey, objectPattern, scope, path);
   }
 
   // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
@@ -1668,18 +1690,20 @@ export function createDestructureEmitter({
   // tail so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds
   // the branches, and recursion registers each leaf. SE prefix stays in the source range
   // around the substitution target via `applySynthSwaps`' inner-position overwrite
-  function registerBranchTreeForKey(branch, key, objectPattern, scope, path) {
+  function registerBranchTreeForKey(branch, lookupKey, slotKey, objectPattern, scope, path) {
     const inner = peelFallbackBranchInner(branch);
     if (!inner) return false;
     const slots = getFallbackBranchSlots(inner);
     if (slots) {
       let any = false;
       for (const slot of slots) {
-        if (registerBranchTreeForKey(inner[slot], key, objectPattern, scope, path)) any = true;
+        if (registerBranchTreeForKey(inner[slot], lookupKey, slotKey, objectPattern, scope, path)) any = true;
       }
       return any;
     }
-    const pure = isViableBranchForKey({ branch, key, scope, adapter: estreeAdapter, resolvePure, path });
+    // `lookupKey` is the resolved static name (probes the branch for a polyfillable static); `slotKey`
+    // is the synth-literal slot (`[k]` for a computed key) the polyfill is registered + emitted under
+    const pure = isViableBranchForKey({ branch, key: lookupKey, scope, adapter: estreeAdapter, resolvePure, path });
     if (!pure) return false;
     const binding = injectPureImport(pure.entry, pure.hintName);
     // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
@@ -1698,7 +1722,7 @@ export function createDestructureEmitter({
       pending = { receiver: branch, objectPattern, polyfills: new Map() };
       pendingSynthSwaps.set(branch, pending);
     }
-    pending.polyfills.set(key, binding);
+    pending.polyfills.set(slotKey, binding);
     return true;
   }
 
@@ -1742,7 +1766,7 @@ export function createDestructureEmitter({
     if (!pureResult || pureResult.kind === 'instance') return;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     const objectPattern = metaPath.parent;
-    const receiver = isSynthSimpleObjectPattern(objectPattern)
+    const receiver = isSynthSimpleObjectPattern(objectPattern) && computedKeysAllBound(objectPattern, metaPath.scope)
       ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern, metaPath.scope, estreeAdapter) : null;
     if (!receiver) {
       // synth-swap bailed (computed-key sibling / non-Identifier shape) - try body-extract
@@ -2224,7 +2248,7 @@ export function createDestructureEmitter({
         : synthMemberReceiverSrc(inner);
       const entries = [];
       for (const p of objectPattern.properties) {
-        if (p.type !== 'Property' || p.key?.type !== 'Identifier') continue;
+        if (p.type !== 'Property' || !isReplayableSynthKey(p)) continue;
         const polyfill = polyfills.get(synthSwapPropKey(p));
         // a computed `[k]` key mirrors as `[k]: _polyfill`; an unpolyfilled computed key
         // falls back to `R[k]` (computed member access), a plain key to `R.key`
