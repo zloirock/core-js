@@ -81,6 +81,12 @@ export function createAwaited({
   }
 
   function peelStructurePreservingWrapper(objectType) {
+    // `readonly [T, U]` / `readonly T[]` (TSTypeOperator) is a type-level no-op for runtime type
+    // resolution - a readonly tuple / array is still a tuple / Array. peel it like the generic
+    // `Readonly<...>` wrapper so tuple-index / element resolution treats both spellings identically
+    if (objectType?.type === 'TSTypeOperator' && objectType.operator === 'readonly') {
+      return unwrapTypeAnnotation(objectType.typeAnnotation);
+    }
     const arg = getSingleTypeRefArg(objectType, n => STRUCTURE_PRESERVING_WRAPPERS.has(n));
     return arg ? unwrapTypeAnnotation(arg) : null;
   }

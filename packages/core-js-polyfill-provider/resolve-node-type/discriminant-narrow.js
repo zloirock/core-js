@@ -26,7 +26,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import { memberWriteTargetPath } from './class-member-shapes.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { isUnionType, loopReExecRegionHasViolation } from './ast-shapes.js';
+import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
@@ -191,6 +191,7 @@ export function createDiscriminantNarrow({
   function discriminantGuardApplies(scope, testNode, ctx) {
     const { rootName, objectBinding, violations, objectStart } = ctx;
     if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
+    if (objectBinding && violationInCapturedFunction(t, violations, objectBinding.scope?.path)) return false;
     const testStart = testNode?.start;
     const testEnd = testNode?.end;
     if (testEnd === undefined || objectStart === undefined) return false;
@@ -406,6 +407,9 @@ export function createDiscriminantNarrow({
   // and walks outward until the binding's declaration scope
   function findPrecedingBlockAssignment(binding, varPath) {
     if (!binding.constantViolations?.length) return null;
+    // a captured-function reassignment can run between the preceding assignment and the use, so the
+    // assignment-literal narrow is not safe to keep - mirror discriminantGuardApplies / narrow-by-guards
+    if (violationInCapturedFunction(t, binding.constantViolations, binding.scope?.path)) return null;
     const targetName = bindingTargetName(binding, varPath);
     if (!targetName) return null;
     // loop back-edge: an assignment in an enclosing block OUTSIDE the loop is stale from iteration 2
