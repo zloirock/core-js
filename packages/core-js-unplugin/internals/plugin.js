@@ -723,6 +723,7 @@ export default function createPlugin(options) {
           NO_REF_NEEDED,
           resolveGlobalPolyfill,
           resolvePureOrGlobalFallback,
+          resolveStaticInheritedMember,
           scopeTracker,
           skippedNodes,
           transforms,
