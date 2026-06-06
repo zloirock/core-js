@@ -901,7 +901,7 @@ checkBareSlotReclaim();
 // abstract method declared in injector-base.js's docstring. it queues the ref for
 // hoisted `var _refN;` emission at flush, whereas `generateLocalRef` returns the name
 // only and leaves it up to the caller to emit a binding. parity check ensures the rename
-// from `generateHoistedRef` to `generateDeclaredRef` (S15-1 closure) doesn't drift the
+// from `generateHoistedRef` to `generateDeclaredRef` doesn't drift the
 // behavior: declared refs land in the flushed `var` line, local refs do not
 function checkGenerateDeclaredRefHoists() {
   function freshInjector() {
@@ -1100,6 +1100,20 @@ function checkDecoratorDoubleWalkNoCrash() {
   }
 }
 checkDecoratorDoubleWalkNoCrash();
+
+// per-branch synth-swap with a bare-global computed-key sibling (`[Set]`) must not emit the global
+// raw into a branch synth literal (`{ [Set]: Array[Set] }`) - a ReferenceError on the target engine.
+// it bails the per-branch synth; assert only the ABSENCE of the leak (the bare global is rewritten
+// to its import `[_Set]`). a conditional receiver has no body-extract fallback, so the `from` shorthand
+// is not synth-polyfilled here - that residual gap is the deeper per-branch-synth rework, not asserted
+function checkPerBranchBareGlobalComputedKeyNoLeak() {
+  const src = 'const { from, [Set]: y } = (1 > 0) ? Array : Object; use(from, y);';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const code = plugin.transform(src, '/src/per-branch-bare-global.ts')?.code ?? '';
+  check('per-branch bare-global computed key: no raw global leak', code.includes('[Set]'), false);
+  check('per-branch bare-global computed key: global rewritten to import', code.includes('_Set'), true);
+}
+checkPerBranchBareGlobalComputedKeyNoLeak();
 
 // --- directivePrologueEnd ---
 // scans leading directive-shaped statements ('use strict', 'use asm', etc.) and returns the
@@ -2355,7 +2369,7 @@ function checkEntryGlobalTransformWithPhasePre() {
 checkEntryGlobalTransformWithPhasePre();
 
 // --- usage-pure standalone phase: 'post' wrapper dispatches `pass='post'` ---
-// regression lock for S34-1: the wrapper at unplugin/index.js builds sub-plugins via
+// regression lock: the wrapper at unplugin/index.js builds sub-plugins via
 // `stage(effective, ...)`; when phase=='post' the second-arg `pass` MUST be 'post' (not
 // 'single'), otherwise `enableReferenceTracking` / `pruneUnusedRefs` / post-snapshot
 // pickup don't fire and an isolated post build emits an empty bundle. mirrors the
