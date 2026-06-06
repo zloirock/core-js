@@ -8,6 +8,7 @@
 import {
   mayHaveSideEffects,
   peelNestedSequenceExpressions,
+  staticStringKey,
   TS_EXPR_WRAPPERS,
   visitSymbolInLhsSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -58,6 +59,7 @@ export function createPolyfillEmitter({
   isBodylessStatementBody,
   resolveGlobalPolyfill,
   resolvePureOrGlobalFallback,
+  resolveStaticInheritedMember,
   scopeTracker,
   skippedNodes,
   transforms,
@@ -147,7 +149,7 @@ export function createPolyfillEmitter({
   }
 
   // walk the chain to find the first non-polyfillable optional, skipping TS wrappers
-  function findChainRoot(node, scope) {
+  function findChainRoot(node, scope, metaPath) {
     function makeResult(optionalNode) {
       const rootNode = optionalNode.object || optionalNode.callee;
       const deoptPositions = [];
@@ -168,7 +170,13 @@ export function createPolyfillEmitter({
       // is dead, so the root deopts (root:null) rather than emitting a guard over the bare callee
       // that overlaps the static visitor's `?.`-inclusive rewrite range and trips the "could not
       // locate inner needle" composition invariant (`isPolyfillableOptional` unwraps a call callee)
-      return isPolyfillableOptional({ node: n, scope, adapter: estreeAdapter, resolve: resolveBuiltIn });
+      // `metaPath` (the trailing instance member's path) anchors super/this-static resolution: it
+      // shares the enclosing static method + scope with the optional `super.X` callee, and the key is
+      // read off the callee node, so an explicit-key resolve recognizes `super.from?.()` as deoptable
+      return isPolyfillableOptional({
+        node: n, scope, adapter: estreeAdapter, resolve: resolveBuiltIn,
+        path: metaPath, resolveSuperStatic: resolveStaticInheritedMember,
+      });
     }
 
     let current = node.optional ? node : chainChild(node);
@@ -410,8 +418,8 @@ export function createPolyfillEmitter({
   }
 
   // resolve optional root + skip redundant guard when nested inside an outer transform
-  function resolveOptionalRoot({ node, parent, isCall, scope }) {
-    let { root, rootRaw, deoptPositions, rootNode, optionalNode } = findChainRoot(node, scope);
+  function resolveOptionalRoot({ node, parent, isCall, scope, metaPath }) {
+    let { root, rootRaw, deoptPositions, rootNode, optionalNode } = findChainRoot(node, scope, metaPath);
     if (root) {
       const start = isCall ? parent.start : node.start;
       const end = isCall ? parent.end : node.end;
@@ -519,7 +527,7 @@ export function createPolyfillEmitter({
     const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
     const { optionalRoot: resolvedRoot, rootRaw, deoptPositions, rootNode, optionalNode } = resolveOptionalRoot({
-      node, parent, isCall, scope: metaPath?.scope,
+      node, parent, isCall, scope: metaPath?.scope, metaPath,
     });
     // bare paren-lookup (`(arr?.[Symbol.iterator])()` -> `_getIterator(arr)`): the receiver is
     // passed verbatim as the sole call arg, so BOTH the null-guard and the receiver's `?.`
@@ -883,14 +891,27 @@ export function createPolyfillEmitter({
     }
     if (current?.type !== 'CallExpression' || !current.optional) return null;
     const { callee } = current;
-    if (callee?.type !== 'MemberExpression' || callee.computed) return null;
-    if (callee.property?.type !== 'Identifier') return null;
+    if (callee?.type !== 'MemberExpression') return null;
     // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
     // OR-chain template, but `super` is not a primary expression and the codegen
     // produces invalid JS. let `super` chains fall through to addInstanceTransform's
     // dedicated super-call handling instead
     if (callee.object?.type === 'Super') return null;
-    const meta = { kind: 'property', object: null, key: callee.property.name, placement: 'prototype' };
+    // resolve the method name + key side effects. a plain `.flat` uses the Identifier name; a
+    // computed key `[(eff(), 'flat')]` peels its SequenceExpression to a static string key and folds
+    // the prefix SE into the inner method-get so it evaluates once (instead of being duplicated by a
+    // separate computed-key transform). a dynamic computed key (`[k]`) bails to the standalone path
+    let innerKeySE = [];
+    let innerMethodName;
+    if (callee.computed) {
+      const { prefix, tail } = peelNestedSequenceExpressions(callee.property);
+      innerMethodName = staticStringKey(tail);
+      if (innerMethodName === null) return null;
+      innerKeySE = prefix.filter(mayHaveSideEffects);
+    } else if (callee.property?.type === 'Identifier') {
+      innerMethodName = callee.property.name;
+    } else return null;
+    const meta = { kind: 'property', object: null, key: innerMethodName, placement: 'prototype' };
     const { result } = resolvePureOrGlobalFallback(meta, currentPath.get('callee'));
     if (result && result.kind !== 'instance') return null;
     // non-poly inner (result null): the standalone path already handles a single trailing poly,
@@ -901,7 +922,7 @@ export function createPolyfillEmitter({
     // deopt + compose shape rather than emitting a raw guarded `Array.from`
     if (!result && (!hops.some(h => h.poly)
       || isPolyfillableOptional({ node: current, scope: metaPath.scope, adapter: estreeAdapter, resolve: resolveBuiltIn }))) return null;
-    return { chainStart: current, innerCallee: callee, innerResult: result ?? null, hops };
+    return { chainStart: current, innerCallee: callee, innerResult: result ?? null, hops, innerKeySE, innerMethodName };
   }
 
   // suppress the inner proxy-global of a TS / Paren wrapped chain receiver. chain emit
@@ -1004,17 +1025,20 @@ export function createPolyfillEmitter({
   }
 
   function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain, sideEffects }) {
-    const { chainStart, innerCallee, innerResult, hops } = chain;
+    const { chainStart, innerCallee, innerResult, hops, innerKeySE = [], innerMethodName } = chain;
     // poly inner: the method-get is the polyfill call `_binding(receiver)`. non-poly inner
     // (innerResult null): the method-get is the raw member access `receiver.method`, guarded the
-    // same way so a nullish `recv.m` short-circuits the chain to void 0 like native
+    // same way so a nullish `recv.m` short-circuits the chain to void 0 like native. a computed-key
+    // inner (`recv[(eff(), 'flat')]?.()`) folds its key side effects into the method-get once
     const innerBinding = innerResult ? injectPureImport(innerResult.entry, innerResult.hintName) : null;
     function methodGet(arg) {
-      if (innerBinding) return `${ innerBinding }(${ arg })`;
-      // raw member access on the receiver: parenthesize a receiver-assignment arg (`_ref = recv`)
-      // so `.method` binds to the assignment result, not just the receiver tail
-      const base = arg.includes('=') ? `(${ arg })` : arg;
-      return `${ base }.${ innerCallee.property.name }`;
+      // poly inner -> `_binding(arg)`; non-poly inner -> `arg.method` (parenthesize an assignment
+      // arg so `.method` binds to the assignment result). a computed-key inner folds its key SE in
+      // front so the effect runs exactly once: `(eff(), _binding(arg))`
+      const core = innerBinding
+        ? `${ innerBinding }(${ arg })`
+        : `${ arg.includes('=') ? `(${ arg })` : arg }.${ innerMethodName }`;
+      return innerKeySE.length ? `(${ innerKeySE.map(nodeSrc).join(', ') }, ${ core })` : core;
     }
     // chain-rooted polyfillable receiver: without substituting the leaf, OR-chain emit
     // would carry `globalThis?.X` etc. verbatim into every `null == ...` slot of the
