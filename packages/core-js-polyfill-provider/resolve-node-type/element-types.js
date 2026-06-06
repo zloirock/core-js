@@ -114,7 +114,7 @@ export function createElementTypes({
     const visited = seen ?? new Set();
     if (visited.has(decl)) return null;
     visited.add(decl);
-    const subst = buildSubstMap(decl.typeParameters?.params, typeArgs);
+    const subst = buildSubstMap(decl.typeParameters?.params, typeArgs, scope);
     if (isTypeAlias(decl)) return resolver(applyAliasSubstDeep(typeAliasBody(decl), subst), scope, depth + 1, visited);
     if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
     for (const parent of decl.extends) {
