@@ -223,11 +223,15 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
       }
       const [root] = segments;
       if (root?.type === 'Identifier') onGlobal(root.name);
-      // when the root is a proxy-global, EACH subsequent segment is itself a real global reference
-      // for as long as the chain so far is all proxy-globals (`globalThis` / `self` / `window`).
-      // babel injects for every link - `typeof globalThis.self.Map` references globalThis AND self
-      // AND Map - so surface them all. the chain breaks at the first non-proxy segment (its further
-      // members are properties of an ordinary value, not globals). a non-proxy root surfaces only the root
+      // when the root is a proxy-global, EACH subsequent segment is itself a real global reference for
+      // as long as the chain so far is all proxy-globals (`globalThis` / `self` / `window`): a proxy
+      // member resolves back to a global (`globalThis.self.Map` references globalThis AND self AND Map),
+      // so surface every proxy-chain link. the chain stops at the first NON-proxy segment - its further
+      // members are properties of an ordinary value, not globals (`globalThis.Array.Map` reads Array's
+      // `Map` property, NOT the global Map). this is INTENTIONALLY more precise than babel-plugin, whose
+      // ReferencedIdentifier surfaces every qualified-name segment (over-injecting es.map.* here); the
+      // divergence is safe under the usage-global over-inject bias and pinned by a fixture. a non-proxy
+      // root surfaces only the root
       let prevIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
       for (let i = 1; i < segments.length && prevIsProxy; i++) {
         const seg = segments[i];
