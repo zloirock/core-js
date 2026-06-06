@@ -98,8 +98,8 @@ export function createTypeSubst({
     return { ...base, [argsKey]: { ...args, params: next } };
   }
 
-  // expects an AST-subst map: `Map<string, ASTNode>` built by `buildSubstMap` /
-  // `buildParentSubst`. values are AST nodes that get spliced into the cloned tree.
+  // expects an AST-subst map: `Map<string, ASTNode>` built by `buildSubstMap`.
+  // values are AST nodes that get spliced into the cloned tree.
   // do NOT pass a Type-object-valued binding map (built by `resolveTypeArgs`) - the
   // recursion would treat resolved Type Objects as AST nodes and produce nonsense.
   // for Type-object-valued maps use `substituteTypeParams` instead
