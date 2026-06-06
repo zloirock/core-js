@@ -2421,36 +2421,68 @@ export const isIdentifierPropValue = value => propBindingIdentifier(value) !== n
 
 // synth-swap rewrite emits `{ key: value, ... }` reconstructed from ObjectPattern properties.
 // any property that can't be losslessly replayed as that literal must force a bail:
-// - computed keys may carry side effects (`{[fn()]: x}`) that would fire at wrong times
+// - a side-effecting / dynamic computed key (`{[fn()]: x}`, `{[a + b]: x}`) would fire at the wrong
+//   time or can't be reproduced; only a bare Identifier (`[k]`) computed key is replayable by default
+// - a non-computed key must be a plain Identifier (a numeric / string-literal own key is out of scope)
 // - RestElement / SpreadElement have no literal-prop equivalent
-// - non-Identifier keys (numeric / string literal) aren't expressible without source slicing
+// `allowLiteralComputedKeys` additionally accepts a static string / template literal computed key
+// (`['from']` / [`from`]). only the per-branch synth path sets it: it has no body-extract fallback, so
+// it must synth the polyfill; param-default leaves it off and bails to the safe body-extract instead.
 // callers bail to inline-default when this check fails. shared between babel-plugin and unplugin
 // accepts both Babel `ObjectProperty` and ESTree `Property` node types
-export function isSynthSimpleObjectPattern(objectPattern) {
+export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false } = {}) {
   let bound = null;
   for (const p of objectPattern.properties) {
     if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
-    if (p.key?.type !== 'Identifier') return false;
-    if (p.computed) {
-      // a bare-Identifier computed key (`[k]`) has no side effects and CAN be mirrored as
-      // `{ [k]: _polyfill }`, but only when `k` does not read a binding THIS pattern
-      // introduces: the synth literal evaluates the key BEFORE the pattern binds, so
+    if (!p.computed) {
+      if (p.key?.type !== 'Identifier') return false;
+      continue;
+    }
+    if (p.key?.type === 'Identifier') {
+      // an Identifier computed key (`[k]`) is replayable, but only when `k` does not read a binding
+      // THIS pattern introduces: the synth literal evaluates the key BEFORE the pattern binds, so
       // `{ of, [of]: x }` would read the wrong `of`. collect bound names lazily on first hit
       if (!bound) {
         bound = new Set();
         walkPatternIdentifiers(objectPattern, n => bound.add(n.name));
       }
       if (bound.has(p.key.name)) return false;
+    } else if (!allowLiteralComputedKeys || staticStringKey(p.key) === null) {
+      // a non-Identifier computed key: only a static string / template literal is replayable, and only
+      // when the caller opts in. anything else is dynamic / side-effecting - not replayable
+      return false;
     }
   }
   return true;
 }
 
-// stable per-receiver polyfill-map key for a synth-swap property: distinguishes a computed
-// `[k]` key from a plain `k` key (both resolve via the key Identifier's name) so the two
-// can't collide in `{ k: v, [k]: w }`. shared so babel-plugin and unplugin key identically
+// stable per-receiver polyfill-map key for a synth-swap property: distinguishes a computed key from a
+// plain key so the two can't collide in `{ k: v, [k]: w }`. a computed Identifier keys by its variable
+// name (`[k]`); a computed string / template literal keys by its QUOTED static value (`["from"]`) so it
+// can't collide with a same-named computed Identifier. shared so babel-plugin and unplugin key identically
 export function synthSwapPropKey(prop) {
-  return prop.computed ? `[${ prop.key.name }]` : prop.key.name;
+  if (!prop.computed) return prop.key.name;
+  return prop.key.type === 'Identifier' ? `[${ prop.key.name }]` : `[${ JSON.stringify(staticStringKey(prop.key)) }]`;
+}
+
+// a synth-literal builder can replay a property whose key is a plain Identifier or a computed static
+// string / template literal (`['from']` / [`from`]); anything else (dynamic / side-effecting computed
+// key) is skipped. shared so both emitters apply the same rule isSynthSimpleObjectPattern gated on
+export function isReplayableSynthKey(prop) {
+  return prop.key?.type === 'Identifier' || (prop.computed && staticStringKey(prop.key) !== null);
+}
+
+// computed-key synth-swap safety: a bare-global computed key (`[Set]` with no in-scope binding) gets
+// emitted RAW into the synth literal (`{ [Set]: receiver[Set] }`), throwing ReferenceError on a target
+// engine where the global is absent (ie:11). a pattern with any unbound computed key is therefore NOT
+// synth-swap-safe - callers bail (param-default -> body-extract). user-local / imported computed keys
+// have a binding and replay safely as `[k]: receiver[k]`. takes `scope` so it cannot fold into the
+// purely-structural `isSynthSimpleObjectPattern`. `scope.getBinding` is common to babel + estree scopes
+export function computedKeysAllBound(objectPattern, scope) {
+  for (const p of objectPattern.properties) {
+    if (p.computed && p.key?.type === 'Identifier' && !scope.getBinding(p.key.name)) return false;
+  }
+  return true;
 }
 
 // single-chain nested destructure shape: `const { X: { y } } = Z`.
