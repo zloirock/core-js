@@ -3842,9 +3842,9 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     castMeta?.object, 'Base');
 }
 
-// --- W26 type-structure + annotations findings ---
+// --- type-structure + annotations findings ---
 
-// PP04-2: a non-numeric string key against a number-only / symbol-only index signature has no
+// a non-numeric string key against a number-only / symbol-only index signature has no
 // member in TS - the resolver must return null, not the index value type (over-emission)
 runBoth('number-only index signature, non-numeric string key -> null',
   'type T = { [k: number]: number[] }; declare const t: T; let x = t.foo;',
@@ -3860,7 +3860,7 @@ runBoth('symbol-only index signature, non-numeric string key -> null',
     check(`${ lbl } symbol-only index sig string key`, adapter.makeResolver().resolveNodeType(decl.get('id')), null);
   });
 
-// PP15-2: a body-less generic method reached via an indexed-access binding (`C<number>['m']`)
+// a body-less generic method reached via an indexed-access binding (`C<number>['m']`)
 // must keep the element type on BOTH parsers; oxc nests the returnType on a
 // TSEmptyBodyFunctionExpression `.value`, so the dispatch entry that drops it caused a divergence
 runBoth('declare-class generic method via indexed-access keeps element type on both parsers',
@@ -3872,7 +3872,7 @@ runBoth('declare-class generic method via indexed-access keeps element type on b
     checkTruthy(`${ lbl } inner number`, type?.inner?.type === 'number');
   });
 
-// PP15-2 abstract variant: oxc models `abstract m(): T[]` as TSAbstractMethodDefinition (babel as
+// abstract variant: oxc models `abstract m(): T[]` as TSAbstractMethodDefinition (babel as
 // TSDeclareMethod), with the return type nested on its `.value` - same element-type-preservation
 // must hold on both parsers, threaded through the dispatch / method-shape / member / call layers
 runBoth('abstract-class generic method via indexed-access keeps element type on both parsers',
@@ -3884,7 +3884,7 @@ runBoth('abstract-class generic method via indexed-access keeps element type on 
     checkTruthy(`${ lbl } inner number`, type?.inner?.type === 'number');
   });
 
-// PP15-3 (already fixed, regression guard): a method-local generic shadowing an enclosing alias
+// regression guard: a method-local generic shadowing an enclosing alias
 // type-param of the same name is NOT bound by the alias arg - the return resolves to null/generic
 runBoth('method-local generic shadowing outer alias type-param resolves null (no over-narrow)',
   'interface I<T> { m<T>(): T; } declare const f: I<number[]>["m"]; const r = f();',
@@ -3893,7 +3893,7 @@ runBoth('method-local generic shadowing outer alias type-param resolves null (no
     check(`${ lbl } method-local shadow`, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
-// XC09-1: a deep stack of non-reducing aliased conditionals (each sibling branch re-hopping to the
+// a deep stack of non-reducing aliased conditionals (each sibling branch re-hopping to the
 // same downstream conditional) must resolve via per-(node,scope) memoization, not a 2^N branch tree
 runBoth('deep nested non-reducing conditional type resolves via memoization',
   'interface Brand { __brand: true }\n'
