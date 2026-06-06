@@ -4070,4 +4070,107 @@ runBoth('default-param narrow widens when a spread arg covers its slot',
     check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
   });
 
+// --- Type-resolution cluster regression locks ---
+
+// the indirect-call idiom `(0, ref)(...)` evaluates to ref's return type; resolveRuntimeExpression
+// peels the side-effect-free SequenceExpression tail so the call receiver narrows
+runBoth('sequence-wrapped callee `(0, getArr)().includes` resolves Array receiver',
+  'function getArr() { return [1, 2, 3]; } (0, getArr)().includes(1);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// `readonly [T, U]` (TSTypeOperator) indexing resolves like the `Readonly<[T, U]>` generic form
+runBoth('readonly-operator tuple index `readonly [string[], number][0]` -> Array',
+  'declare const x: readonly [string[], number]; const v = x[0];',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// a union constituent reached through parens (or an alias) inside an intersection distributes, so a
+// two-hop property access keeps the narrowed member type instead of dropping to null
+runBoth('parenthesized union inside intersection keeps two-hop member type',
+  'function f(v: ({ a: { x: number[] } } | { a: { x: number[] } }) & { b: string }) { return v.a.x; }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// a no-subst conditional whose infer pattern is definitively false resolves the FALSE branch, never
+// leaking the INFER_PATTERN_FALSE sentinel as a Type (toHint would crash on the Symbol)
+runBoth('no-subst conditional infer disjoint check resolves false branch (not a symbol)',
+  'type T = string extends (infer U)[] ? U : number; declare const y: T; y.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const objType = adapter.makeResolver().resolvePropertyObjectType(member);
+    checkTruthy(`${ lbl } not a symbol`, typeof objType !== 'symbol');
+    checkType(lbl, objType, { primitive: true, kind: 'number' });
+  });
+
+// a discriminant narrow is dropped when the discriminated binding is reassigned inside a captured
+// function (which may run before the use) - mirrors the typeof-guard captured-mutation soundness filter
+runBoth('discriminant narrow drops on captured-function reassignment',
+  "type U = { kind: 'a'; data: string } | { kind: 'b'; data: number[] };\ndeclare const altA: U;\n"
+  + "function f(u: U) { if (u.kind === 'b') { mutate(); u.data.at(0); function mutate() { u = altA; } } }",
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// a conditional reassignment positioned between a straight-line assignment and the use can overwrite
+// it - the receiver widens to generic, not the straight-line value's single type
+runBoth('conditional reassignment between straight-line assignment and use widens to generic',
+  'let x;\nx = "hello";\nif (window.flag) { x = [1, 2, 3]; }\nx.at(-1);',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    check(lbl, adapter.makeResolver().resolveNodeType(call.get('callee').get('object')), null);
+  });
+
+// an assignment whose own RHS hosts the use (`x = ("" + x.at(-1))`) has not executed at the use, so
+// the receiver resolves from the prior value, not the not-yet-evaluated string assignment
+runBoth('self-referential assignment RHS resolves receiver from prior value (not string)',
+  'let x = [1, 2, 3];\nx = ("" + x.at(-1));',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    const t = adapter.makeResolver().resolveNodeType(call.get('callee').get('object'));
+    checkTruthy(`${ lbl } not narrowed to string`, !(t && t.primitive && t.type === 'string'));
+  });
+
+// the SE-tail peel applies in the `new` dispatch too: `new (0, C)()` constructs a C instance
+runBoth('sequence-wrapped `new (0, C)()` resolves the class instance method receiver',
+  'class C { items() { return [1, 2, 3]; } } const o = new (0, C)(); o.items().includes(1);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly-operator peel covers a readonly ARRAY (not just tuples), reached via destructuring
+runBoth('readonly array element via destructure `readonly string[][]` -> Array',
+  'declare const x: readonly string[][]; const [a] = x; a.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// the no-subst conditional false-branch resolution recurses: a false branch that is ITSELF an
+// infer-false conditional resolves through to the inner false branch, never leaking the sentinel
+runBoth('nested no-subst conditional infer-false recurses to inner false branch (not a symbol)',
+  'type T = string extends (infer U)[] ? U : (number extends Array<infer V> ? V : boolean); declare const y: T; y.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const objType = adapter.makeResolver().resolvePropertyObjectType(member);
+    checkTruthy(`${ lbl } not a symbol`, typeof objType !== 'symbol');
+    checkType(lbl, objType, { primitive: true, kind: 'boolean' });
+  });
+
+// a union constituent inside a 3-way intersection still distributes (breadth of the parens/alias fix)
+runBoth('union inside 3-way intersection keeps two-hop member type',
+  'function f(v: ({ a: { x: number[] } } | { a: { x: number[] } }) & { b: string } & { c: number }) { return v.a.x; }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => (p.node.property?.name ?? p.node.property?.value) === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
 finish();

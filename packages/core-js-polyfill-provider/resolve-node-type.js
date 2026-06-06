@@ -465,6 +465,14 @@ function createResolveNodeType(babelNodeType, t, {
       // alias walker reaches the rightmost value through nested assignment chains
       } else if (type === 'AssignmentExpression' && path.node.operator === '=') {
         path = path.get('right');
+      // SequenceExpression `(a, b, c)` evaluates to its last expression at runtime - the canonical
+      // transpiler indirect-call idiom `(0, ref)(...)` / `new (0, C)()` / [`(0, String.raw)\`...\``].
+      // descend to the tail (transparent-to-tail, matching the value-path SequenceExpression case in
+      // expression-dispatch) so the call / new / tagged dispatch resolves through the wrapped callee
+      } else if (type === 'SequenceExpression') {
+        const expressions = path.get('expressions');
+        if (!expressions.length) break;
+        path = expressions.at(-1);
       } else break;
     }
     return path;
