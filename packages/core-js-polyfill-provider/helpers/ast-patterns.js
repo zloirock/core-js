@@ -2434,11 +2434,30 @@ export const isIdentifierPropValue = value => propBindingIdentifier(value) !== n
 // callers bail to inline-default when this check fails. shared between babel-plugin and unplugin
 // accepts both Babel `ObjectProperty` and ESTree `Property` node types
 export function isSynthSimpleObjectPattern(objectPattern) {
+  let bound = null;
   for (const p of objectPattern.properties) {
     if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
-    if (p.computed || p.key?.type !== 'Identifier') return false;
+    if (p.key?.type !== 'Identifier') return false;
+    if (p.computed) {
+      // a bare-Identifier computed key (`[k]`) has no side effects and CAN be mirrored as
+      // `{ [k]: _polyfill }`, but only when `k` does not read a binding THIS pattern
+      // introduces: the synth literal evaluates the key BEFORE the pattern binds, so
+      // `{ of, [of]: x }` would read the wrong `of`. collect bound names lazily on first hit
+      if (!bound) {
+        bound = new Set();
+        walkPatternIdentifiers(objectPattern, n => bound.add(n.name));
+      }
+      if (bound.has(p.key.name)) return false;
+    }
   }
   return true;
+}
+
+// stable per-receiver polyfill-map key for a synth-swap property: distinguishes a computed
+// `[k]` key from a plain `k` key (both resolve via the key Identifier's name) so the two
+// can't collide in `{ k: v, [k]: w }`. shared so babel-plugin and unplugin key identically
+export function synthSwapPropKey(prop) {
+  return prop.computed ? `[${ prop.key.name }]` : prop.key.name;
 }
 
 // single-chain nested destructure shape: `const { X: { y } } = Z`.

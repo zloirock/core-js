@@ -6,11 +6,17 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // distinct methods (Array.from / Array.of) probe both keys' inline-default emission.
 const k = 'foo';
 const f = ({
-  from = _Array$from,
+  from,
   [k]: any
-} = Array) => from([1]);
+} = {
+  from: _Array$from,
+  [k]: Array[k]
+}) => from([1]);
 const g = ({
-  of = _Array$of,
+  of,
   [k]: any2
-} = Array) => of(7, 8);
+} = {
+  of: _Array$of,
+  [k]: Array[k]
+}) => of(7, 8);
 export { f, g };
