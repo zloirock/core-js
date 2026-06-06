@@ -37,6 +37,7 @@ import {
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
+import { is as estreeIs } from 'estree-toolkit';
 
 // --- isReferenced ---
 
@@ -539,14 +540,29 @@ function walkDecoratorList(decorators, parentPath, decoratorVisitors) {
   }
 }
 
+// estree-toolkit's traverse walks `visitorKeys[type] || Object.keys(node)`. for a node type it does
+// NOT define (no `is.<type>` predicate, so the Object.keys fallback applies) it already walks the
+// node's `decorators` array itself with the main visitor map; a manual walk then double-visits and
+// queues two colliding rewrites for the same span (crash). for a DEFINED type, `decorators` is
+// omitted from its visitor keys, so the manual walk is required. confirmed empirically: known
+// PropertyDefinition / Identifier-param decorators take the manual path and emit a single rewrite,
+// while unknown AccessorProperty / TSAbstract* / TSParameterProperty are reached by the auto-walk
+function estreeAutoWalksDecorators(node) {
+  const type = node?.type;
+  return !!type && estreeIs[type[0].toLowerCase() + type.slice(1)] === undefined;
+}
+
 // walks the node's own decorators plus any param-level decorators (TS legacy `@dec arg`
-// on class method / constructor params). `MethodDefinition.params` lives on `.value`
+// on class method / constructor params). `MethodDefinition.params` lives on `.value`. skip any
+// owner whose decorators estree-toolkit already auto-walks (see estreeAutoWalksDecorators)
 function walkDecorators(parentPath, decoratorVisitors) {
   const { node } = parentPath;
-  walkDecoratorList(node?.decorators, parentPath, decoratorVisitors);
+  if (!estreeAutoWalksDecorators(node)) walkDecoratorList(node?.decorators, parentPath, decoratorVisitors);
   const params = node?.params ?? node?.value?.params;
   if (!params) return;
-  for (const param of params) walkDecoratorList(param?.decorators, parentPath, decoratorVisitors);
+  for (const param of params) {
+    if (!estreeAutoWalksDecorators(param)) walkDecoratorList(param?.decorators, parentPath, decoratorVisitors);
+  }
 }
 
 // JSXIdentifier sits at the opening tag-name slot (`<Map />`'s `Map` Identifier with
