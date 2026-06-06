@@ -37,7 +37,7 @@ import {
   planDestructureEmission,
   STRATEGIES,
 } from './destructure-emission-plan.js';
-import { patternComputedKeysAreUserLocals } from './synth-key-utils.js';
+import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
 // when a residual destructure keeps a proxy-global member-chain receiver in the output (a
 // surviving sibling / ...rest still reads off it, or it stays as a param default), collapse
@@ -223,7 +223,7 @@ export default function createDestructureEmitter({
     // body-extract / inline-default fallback, which binds via `prop.node.value` keeping key text intact
     const synthKey = t.isIdentifier(prop.node.key);
     const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node)
-      && patternComputedKeysAreUserLocals(t, objectPattern.node, prop.scope)
+      && patternComputedKeysSynthSafe(t, objectPattern.node, prop.scope)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
       // synth-swap bailed (computed key / non-Identifier shape sibling) - try body-extract
