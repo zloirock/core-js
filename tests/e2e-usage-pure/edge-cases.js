@@ -465,6 +465,53 @@ QUnit.test('SE-prefix: computed instance-method key keeps receiver before key si
   assert.same(last, 30);
 });
 
+QUnit.test('SE-prefix: computed-key side effect on an optional inner call runs exactly once', assert => {
+  // arr[(eff(), 'flat')]?.().map(...) folds the key side effect into a single memo slot - the chain
+  // combine must NOT duplicate it across the guard test and the call body (the previous double-eval)
+  let effCalls = 0;
+  function eff() {
+    effCalls += 1;
+    return 'flat';
+  }
+  const arr = [[1], [2, 3]];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- SE-prefix in computed key under test
+  const flattened = arr[(eff(), 'flat')]?.().map(x => x * 10);
+  assert.same(effCalls, 1);
+  assert.deepEqual(flattened, [10, 20, 30]);
+});
+
+QUnit.test('optional proxy-global static call deoptimizes to the polyfill', assert => {
+  // globalThis.Array.from?.() is the always-defined Array.from polyfill, so the `?.` deopts; the
+  // result must be the real value, never the void 0 a stray guard would yield
+  const first = globalThis.Array.from?.([1, 2, 3]).at(0);
+  assert.same(first, 1);
+});
+
+QUnit.test('optional static call via a const-aliased global deoptimizes to the polyfill', assert => {
+  // a const alias of the global resolves to the same Array.from polyfill - the proxy-global chain
+  // must deopt through the canonical resolver. before delegating to it, this emitted a broken
+  // `_Array$fromcall` (a ReferenceError at runtime), so the value check fails before / passes after
+  const g = globalThis;
+  const first = g.Array.from?.([1, 2, 3]).at(0);
+  assert.same(first, 1);
+});
+
+QUnit.test('optional super static call deoptimizes and keeps the subclass as this', assert => {
+  // super.of?.() in a static method is the inherited Array.of polyfill (deopts); the call-split must
+  // bind `this` to the subclass so Array.of constructs the subclass, not a plain Array
+  class Sub extends Array {
+    static last() {
+      return super.of?.(10, 20, 30).at(-1);
+    }
+
+    static build() {
+      return super.of?.(10, 20, 30);
+    }
+  }
+  assert.same(Sub.last(), 30);
+  assert.true(Sub.build() instanceof Sub);
+});
+
 // --- recursive call with polyfill ---
 
 QUnit.test('recursive: polyfill in recursive function body', assert => {
