@@ -109,7 +109,7 @@ export function createClassObjectMember({
     seen.add(classPath.node);
     const parentPath = resolveSuperClassPath(classPath);
     if (!parentPath) return null;
-    const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst);
+    const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst, classPath.scope);
     return findClassMember({ classPath: parentPath, name, isStatic, classSubst: parentSubst, depth: depth + 1, visited: seen });
   }
 
@@ -151,7 +151,7 @@ export function createClassObjectMember({
   }
 
   function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis }) {
-    const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
+    const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs, classPath.scope);
     const found = findClassMember({ classPath, name, isStatic, classSubst });
     // hoisted above the found / fall-through dispatch so the shadow bail also guards the
     // merged-interface instance and merged-namespace static paths below - a via-`this` narrow
@@ -366,7 +366,7 @@ export function createClassObjectMember({
   }
 
   // clone a TSTypeReference with each typeParameters arg substituted via `subst`. used to
-  // compose an outer subst into a `Base<T>` ref before passing to `buildParentSubst` -
+  // compose an outer subst into a `Base<T>` ref before building the parent decl-param subst -
   // otherwise the parent's decl-param map binds raw `T` instead of the substituted concrete
   function applySubstToTypeRefArgs(typeRef, subst) {
     if (!subst) return typeRef;
