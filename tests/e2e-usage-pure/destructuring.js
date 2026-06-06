@@ -228,3 +228,82 @@ QUnit.test('destructuring: IIFE member-default overridden by caller-arg', assert
   })(Array);
   assert.deepEqual(result, [1]);
 });
+
+// --- Computed-key destructuring ---
+// a const-Identifier computed key `[k]` is recognised as a polyfill alias just like a plain key:
+// declaration form body-extracts (`const m = _polyfill`), param-default form mirrors the key into
+// a synth default (`{ [k]: m } = { [k]: _polyfill }`). these run the transformed output to prove
+// the binding resolves, a caller-passed receiver still wins, and mutable / sibling-reading keys
+// stay on the single-read fallback path
+
+QUnit.test('computed-key: const { [k]: from } = Array', assert => {
+  const k = 'from';
+  const { [k]: from } = Array;
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+  assert.deepEqual(from('abc'), ['a', 'b', 'c']);
+});
+
+QUnit.test('computed-key: param-default no-arg uses the polyfilled default', assert => {
+  const k = 'of';
+  const fn = function ({ [k]: of } = Array) {
+    return of(7, 8);
+  };
+  assert.deepEqual(fn(), [7, 8]);
+});
+
+// the synth default scopes the polyfill to the no-arg case; a caller-passed receiver must still
+// win. were the computed key body-extracted ("polyfill always wins") both calls would return [1]
+QUnit.test('computed-key: param-default preserves a caller-passed receiver', assert => {
+  const k = 'of';
+  const fn = function ({ [k]: of } = Array) {
+    return of(1);
+  };
+  assert.deepEqual(fn(), [1]);
+  const custom = { of: (...args) => ['custom', ...args] };
+  assert.deepEqual(fn(custom), ['custom', 1]);
+});
+
+// plain key `k` and computed key `[k]` share the Identifier name 'k' but address different slots;
+// the per-receiver polyfill map must key them apart, else plain `k` picks up the computed polyfill
+QUnit.test('computed-key: plain `k` and computed `[k]` do not collide', assert => {
+  const k = 'of';
+  // eslint-disable-next-line es/no-nonstandard-array-properties -- plain key 'k' is an intentionally absent property
+  const fn = function ({ k: plainK, [k]: ofMethod } = Array) {
+    return [plainK, ofMethod(9)];
+  };
+  const [plainK, ofResult] = fn();
+  assert.same(plainK, undefined);
+  assert.deepEqual(ofResult, [9]);
+});
+
+QUnit.test('computed-key: interior position { from, [k]: build, of }', assert => {
+  // computed key is itself a polyfilled static, so it resolves on every target (not just native)
+  const k = 'fromAsync';
+  const fn = function ({ from, [k]: build, of } = Array) {
+    return [from([3]), typeof build, of(4)];
+  };
+  const [fromResult, buildType, ofResult] = fn();
+  assert.deepEqual(fromResult, [3]);
+  assert.same(buildType, 'function');
+  assert.deepEqual(ofResult, [4]);
+});
+
+QUnit.test('computed-key: per-branch synth { from, [k]: len } = cond ? Array : Object', assert => {
+  const k = 'length';
+  const pick = cond => (function ({ from, [k]: len } = cond ? Array : Object) {
+    return typeof from === 'function' ? [from([5]), typeof len] : null;
+  })();
+  assert.deepEqual(pick(true), [[5], 'number']);
+  assert.same(pick(false), null);
+});
+
+// `[of]` reads the SIBLING binding `of`, so the synth default (evaluated before the pattern binds)
+// would read the wrong value - the scope-gate keeps this on the single-read inline-default path
+QUnit.test('computed-key: sibling-binding read stays single-read', assert => {
+  const fn = function ({ of, [of]: picked } = Array) {
+    return [typeof of, picked];
+  };
+  const [ofType, picked] = fn();
+  assert.same(ofType, 'function');
+  assert.same(picked, undefined);
+});
