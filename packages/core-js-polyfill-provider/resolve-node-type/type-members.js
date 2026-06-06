@@ -297,14 +297,14 @@ export function createTypeMembers({
       // inherited members silently drops and the member resolves to null (over-injection)
       const rawSuperArgs = (getSuperTypeArgs(cur) ?? cur.extends?.[0]?.typeParameters)?.params;
       curReceiverArgs = rawSuperArgs ? rawSuperArgs.map(a => applyAliasSubstDeep(a, curSubst)) : null;
-      curSubst = buildParentClassSubstFromNodes(cur, parent, curSubst);
+      curSubst = buildParentClassSubstFromNodes(cur, parent, curSubst, scope);
       cur = parent;
     }
     return merged.length ? merged : null;
   }
 
   // walk `interface X extends A, B` parents. each parent's members carry through the
-  // `buildParentSubst` mapping so `A<T>.m: T` becomes `m: <instantiated>`. `ifaceSubst`
+  // parent decl-param subst mapping so `A<T>.m: T` becomes `m: <instantiated>`. `ifaceSubst`
   // (when present) is applied to parentRef's args first, so `extends Base<U>` with
   // iface `U -> string` becomes `Base<string>` before descending - parent subst then
   // sees the substituted slot
