@@ -407,7 +407,7 @@ export function createAwaited({
     if (annotation?.type === 'TSTypeReference') {
       const classPath = findClassPathForTypeReference(annotation, scope);
       if (classPath) {
-        const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
+        const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params, scope);
         const found = findClassMember({ classPath, name: 'then', isStatic: false, classSubst });
         if (found) {
           const valueAnn = cbFirstArgAnnotation(memberThenCbParam(found.member.node));

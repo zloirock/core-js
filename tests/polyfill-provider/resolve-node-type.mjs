@@ -1290,6 +1290,83 @@ runBoth('class method declared return -> Map',
       { primitive: false, ctor: 'Map' });
   });
 
+// --- Capture-avoidance: colliding generic type-param name in receiver args ---
+// `Wrap<string, A>` over `class Wrap<A, Q>` - the usage-arg `A` collides with sibling param `A`.
+// without capture-avoidance (scope passed to buildSubstMap) the transitive subst re-captures
+// Q -> A -> string; with it, the colliding `A` resolves to its alias body (number[]), so `m(): Q`
+// narrows to Array, not string. regression guard for the buildSubstMap scope-less callers
+runBoth('capture-avoidance: colliding generic param resolves class member to the outer alias',
+  `
+    type A = number[];
+    class Wrap<A, Q> { m(): Q { return null; } }
+    declare const c: Wrap<string, A>;
+    const r = c.m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const outerCall = calls.find(p => p.node.callee?.type === 'MemberExpression'
+      && p.node.callee.property?.name === 'm');
+    if (!outerCall) return fail(lbl, 'no c.m() found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(outerCall), { primitive: false, ctor: 'Array' });
+  });
+
+// inherited member through the extends chain: `Sub extends Base<string, A>` carries the same
+// colliding `A` arg into the parent-class subst (buildParentClassSubstFromNodes). without the scope
+// thread, Q -> A -> string; with it, Q -> number[], so the inherited `m(): Q` narrows to Array
+runBoth('capture-avoidance: colliding generic param resolves inherited member to the outer alias',
+  `
+    type A = number[];
+    class Base<A, Q> { m(): Q { return null; } }
+    class Sub extends Base<string, A> {}
+    declare const c: Sub;
+    const r = c.m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const outerCall = calls.find(p => p.node.callee?.type === 'MemberExpression'
+      && p.node.callee.property?.name === 'm');
+    if (!outerCall) return fail(lbl, 'no c.m() found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(outerCall), { primitive: false, ctor: 'Array' });
+  });
+
+// awaited value through a user thenable with a colliding generic: the `.then` cb-arg Q resolves via
+// buildSubstMap in awaited.js. without the scope thread Q -> A -> string; with it Q -> number[]
+runBoth('capture-avoidance: colliding generic param resolves awaited thenable value to the outer alias',
+  `
+    type A = number[];
+    class Th<A, Q> { then(cb: (v: Q) => void): void {} }
+    declare function f(): Th<string, A>;
+    async function g() {
+      const r = await f();
+    }
+  `,
+  (adapter, prog, lbl) => {
+    const aw = adapter.pickPath(prog, 'AwaitExpression');
+    if (!aw) return fail(lbl, 'no await found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(aw), { primitive: false, ctor: 'Array' });
+  });
+
+// element type of a user array-like alias with a colliding generic, via array destructuring:
+// extractElementAnnotation -> resolveUserTypeElement -> buildSubstMap in element-types.js. without
+// the scope thread the element Q -> A -> string; with it Q -> number[] (Array)
+runBoth('capture-avoidance: colliding generic param resolves destructured element to the outer alias',
+  `
+    type A = number[];
+    type Arr<A, Q> = Q[];
+    declare const c: Arr<string, A>;
+    const [x] = c;
+  `,
+  (adapter, prog, lbl) => {
+    const x = adapter.pickPath(prog, 'Identifier',
+      p => p.node.name === 'x' && p.parentPath?.node?.type === 'ArrayPattern');
+    if (!x) return fail(lbl, 'no destructured x found');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(x), { primitive: false, ctor: 'Array' });
+  });
+
 // --- Isolated sub-module tests ---
 // validate that extracted modules work standalone, without going through the resolver
 // factory. each test imports the module directly and exercises its public API against
