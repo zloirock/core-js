@@ -13,7 +13,7 @@
 // narrow; mutation inside a nested captured function also invalidates (deferred calls
 // may fire between the guard and the usage)
 import { peelLabeledStatementNode } from '../helpers/ast-patterns.js';
-import { isUnionType, OPEN_KEYWORD_ANNOTATION_TYPES } from './ast-shapes.js';
+import { isUnionType, OPEN_KEYWORD_ANNOTATION_TYPES, violationInCapturedFunction } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 import { $Object, $Primitive, PRIMITIVES } from './base.js';
 
@@ -265,13 +265,7 @@ export function createNarrowByGuards({
   // bail narrowing if any reassignment lives inside a nested function - that function may
   // be invoked between the guard and the usage, breaking type narrowing
   function hasMutationInCapturedFunction({ constantViolations, scope }) {
-    if (!constantViolations?.length) return false;
-    return constantViolations.some(v => {
-      for (let p = v.parentPath; p && p !== scope.path; p = p.parentPath) {
-        if (t.isFunction(p.node)) return true;
-      }
-      return false;
-    });
+    return violationInCapturedFunction(t, constantViolations, scope.path);
   }
 
   // utility-type names (`Record` / `Partial` / `Readonly` / `Required` / `NonNullable`)
