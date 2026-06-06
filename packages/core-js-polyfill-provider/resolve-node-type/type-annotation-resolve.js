@@ -16,6 +16,7 @@
 // path - factory destructure binds the cluster output by the time those run.
 import { $Object, $Primitive, literalNodeValue } from './base.js';
 import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
+import { INFER_PATTERN_FALSE } from './type-expansion.js';
 import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -334,6 +335,10 @@ export function createTypeAnnotationResolve({
     // cached one (depth >= cached.depth); a shallower reach has more budget and recomputes
     if (cached && (cached.stable || depth >= cached.depth)) return cached.result;
     let result = resolveInferElementPattern({ node, typeParamMap: null, scope, depth, seen: null });
+    // a definitively-false infer pattern (disjoint check side / constraint violation) resolves to the
+    // FALSE branch, mirroring evaluateConditionalType - the sentinel must never leak out as a resolved
+    // Type (toHint would call `.toLowerCase` on the Symbol and crash the transform)
+    if (result === INFER_PATTERN_FALSE) result = resolveTypeAnnotation(node.falseType, scope, depth + 1);
     let stable = !!result;
     if (!result) {
       const trueBranch = resolveTypeAnnotation(node.trueType, scope, depth + 1);
