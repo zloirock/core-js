@@ -1070,6 +1070,37 @@ function checkSuperCallMultiArgColPrecision() {
 }
 checkSuperCallMultiArgColPrecision();
 
+// decorator double-walk: node types estree-toolkit does not define (no `is.<type>` predicate) take
+// the Object.keys traversal fallback, which auto-walks their `decorators`; the manual decorator walk
+// must skip such owners or it queues two colliding rewrites for the same span and crashes the whole
+// transform. covers the auto-accessor / abstract-member shapes and a TSParameterProperty constructor
+// param. assert: no crash + exactly one polyfill rewrite each. the accessor and TSParameterProperty
+// shapes also have shared transpiler fixtures; the abstract-FIELD shape is unit-only because babel@8's
+// parser rejects a decorator on an abstract field, so it cannot live in a cross-plugin fixture
+function checkDecoratorDoubleWalkNoCrash() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const cases = [
+    ['accessor field', 'class C { @(Array.from([1])) accessor x = 1; }'],
+    ['abstract accessor', 'abstract class C { @(Array.from([1])) abstract accessor x: number; }'],
+    ['abstract field', 'abstract class C { @(Array.from([1])) abstract x: number; }'],
+    ['TSParameterProperty', 'class Foo { constructor(@inject(Array.from([1])) private p: number) {} }'],
+  ];
+  for (const [label, source] of cases) {
+    let result;
+    let threw = false;
+    try {
+      result = plugin.transform(source, '/src/decorator-double-walk.ts');
+    } catch {
+      threw = true;
+    }
+    check(`decorator double-walk: ${ label } no crash`, threw, false);
+    // count the polyfill CALL (`_Array$from(`), not the default-import binding (`import _Array$from`)
+    const count = (result?.code?.match(/_Array\$from\(/g) ?? []).length;
+    check(`decorator double-walk: ${ label } single rewrite`, count, 1);
+  }
+}
+checkDecoratorDoubleWalkNoCrash();
+
 // --- directivePrologueEnd ---
 // scans leading directive-shaped statements ('use strict', 'use asm', etc.) and returns the
 // offset right after the last directive's source range. Inject point starts there so user
