@@ -633,3 +633,29 @@ QUnit.test('export: object literal field is polyfilled call', assert => {
   assert.same(moduleShape.first(), 10);
   assert.same(moduleShape.last(), 30);
 });
+
+// per-branch synth-swap: a user-const computed key in a conditional receiver keeps its polyfill on the
+// viable branch. this is an IE11-CI guard: on a modern engine the pure
+// polyfill aliases conformant native `Array.from`, so the check passes either way; on IE11 native
+// `Array.from` is absent, so a dropped polyfill leaves `g` undefined (the assertion's own `Array.from`
+// is rewritten to the pure polyfill, which `g` must equal) and `g([1, 2])` throws. the `env.pick`
+// member read keeps the conditional from being constant-folded to the non-conditional receiver
+QUnit.test('destructure: per-branch computed-key synth-swap polyfills the binding', assert => {
+  const k = 'from';
+  const env = { pick: true };
+  const { [k]: g } = env.pick ? Array : Map;
+  assert.same(g, Array.from);
+  assert.same(g([1, 2]).length, 2);
+});
+
+// per-branch synth-swap: a computed key whose value aliases a sibling shorthand must not overwrite the
+// polyfilled shorthand - BOTH bindings stay the pure polyfill (same IE11-CI rationale as above - on
+// IE11 a dropped polyfill makes the aliased binding undefined)
+QUnit.test('destructure: per-branch computed-key aliasing a sibling keeps both polyfilled', assert => {
+  const k = 'from';
+  const env = { pick: true };
+  const { from, [k]: x } = env.pick ? Array : Set;
+  assert.same(from, Array.from);
+  assert.same(x, Array.from);
+  assert.same(x([1, 2]).length, 2);
+});
