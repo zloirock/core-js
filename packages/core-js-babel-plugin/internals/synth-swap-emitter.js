@@ -15,6 +15,7 @@ import {
   findIifeCallSite,
   getFallbackBranchSlots,
   isSynthSimpleObjectPattern,
+  synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -24,6 +25,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { findProxyGlobal, maximalProxyGlobalPrefix } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { patternComputedKeysAreUserLocals } from './synth-key-utils.js';
 
 export default function createSynthSwapEmitter({
   adapter,
@@ -177,6 +179,10 @@ export default function createSynthSwapEmitter({
     const objectPattern = prop.parentPath;
     if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
     if (prop.node.computed || !t.isIdentifier(prop.node.key)) return false;
+    // bail when any computed-key sibling is a generated import (polyfill-rewritten symbol) rather
+    // than a user const-key, so per-branch synth stays aligned with unplugin (which bails on the
+    // original `Symbol.iterator` MemberExpression)
+    if (!patternComputedKeysAreUserLocals(t, objectPattern.node, objectPattern.scope)) return false;
     // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
     // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
     // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
@@ -261,13 +267,15 @@ export default function createSynthSwapEmitter({
 
     const properties = [];
     for (const property of objectPatternNode.properties) {
-      if (!t.isObjectProperty(property) || property.computed || !t.isIdentifier(property.key)) continue;
-      const queued = polyfills.get(property.key.name);
+      if (!t.isObjectProperty(property) || !t.isIdentifier(property.key)) continue;
+      const queued = polyfills.get(synthSwapPropKey(property));
+      // a computed `[k]` key mirrors as `[k]: _polyfill`; an unpolyfilled computed key falls
+      // back to `R[k]` (computed member access), a plain key to `R.key`
       // injectPureImport already returns a fresh clone; another cloneNode here would be a no-op copy
       const value = queued
         ? injectPureImport(queued.entry, queued.hintName)
-        : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(property.key.name));
-      properties.push(t.objectProperty(t.identifier(property.key.name), value));
+        : t.memberExpression(t.cloneNode(getReceiverRef()), t.cloneNode(property.key), property.computed);
+      properties.push(t.objectProperty(t.cloneNode(property.key), value, property.computed));
     }
     return t.objectExpression(properties);
   }
