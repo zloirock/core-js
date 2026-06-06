@@ -406,9 +406,9 @@ QUnit.test('computed: dynamic key (variable) does NOT trigger polyfill emit', as
 // --- side-effect preservation: SE-prefix in computed key ---
 
 QUnit.test('SE-prefix: computed key with side-effect tail', assert => {
-  // (sideEffect(), 'at') - SequenceExpression. plugin's hasSideEffectfulSequencePrefix
-  // detects SE-bearing prefix and bails to the native form (computed-key polyfill rewrite
-  // would silently drop the prefix). SE side-effect must run; tail is the real key
+  // (sideEffect(), 'at') - SequenceExpression computed key. the SE-bearing prefix must run
+  // exactly once and the tail ('at') is the real key; the rewrite preserves the prefix rather
+  // than dropping it
   let counter = 0;
   const arr = [10, 20, 30];
   // eslint-disable-next-line @stylistic/no-extra-parens -- testing SE-prefix in computed
@@ -424,6 +424,45 @@ QUnit.test('SE-prefix: SequenceExpression in callee position', assert => {
   const result = (counter++, Array).from('abc');
   assert.deepEqual(result, ['a', 'b', 'c']);
   assert.same(counter, 1);
+});
+
+QUnit.test('SE-prefix: Symbol.iterator computed key keeps receiver before key side effect', assert => {
+  // getObj()[(key(), Symbol.iterator)]() must evaluate the receiver BEFORE the key side effect,
+  // matching native order. the rewrite hoists the receiver memo ahead of the key SE
+  // (`(_ref = getObj(), key(), getIterator(_ref))`) so the two effects do not swap
+  const order = [];
+  function getObj() {
+    order.push('receiver');
+    return [1, 2, 3];
+  }
+  function key() {
+    order.push('key');
+  }
+  // eslint-disable-next-line @stylistic/no-extra-parens -- SE-prefix in computed key under test
+  const iter = getObj()[(key(), Symbol.iterator)]();
+  assert.deepEqual(order, ['receiver', 'key']);
+  assert.same(typeof iter.next, 'function');
+});
+
+QUnit.test('SE-prefix: computed instance-method key keeps receiver before key side effect', assert => {
+  // getObj()[(key(), 'at')](-1) must evaluate the receiver before the key side effect (native
+  // order) and only once; the receiver memo is hoisted ahead of the key SE so the polyfill applies
+  const order = [];
+  let recvCalls = 0;
+  function getObj() {
+    order.push('receiver');
+    recvCalls += 1;
+    return [10, 20, 30];
+  }
+  function key() {
+    order.push('key');
+    return 'at';
+  }
+  // eslint-disable-next-line @stylistic/no-extra-parens -- SE-prefix in computed key under test
+  const last = getObj()[(key(), 'at')](-1);
+  assert.deepEqual(order, ['receiver', 'key']);
+  assert.same(recvCalls, 1);
+  assert.same(last, 30);
 });
 
 // --- recursive call with polyfill ---
