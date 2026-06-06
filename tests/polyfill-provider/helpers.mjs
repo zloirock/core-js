@@ -25,7 +25,12 @@ import {
   mergeVisitors,
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
-import { isDirectiveStatement, isFunctionParamDestructureParent, paramListReadsName } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import {
+  extractIndirectRequireSEPrefix,
+  isDirectiveStatement,
+  isFunctionParamDestructureParent,
+  paramListReadsName,
+} from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
 
@@ -923,5 +928,41 @@ check('isDirectiveStatement/non-directive string',
   isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), false);
 check('isDirectiveStatement/non-expression-statement', isDirectiveStatement({ type: 'ReturnStatement' }), false);
 check('isDirectiveStatement/nullish', isDirectiveStatement(null), false);
+
+// --- extractIndirectRequireSEPrefix ---
+
+function call(name) {
+  return { type: 'CallExpression', callee: { type: 'Identifier', name }, arguments: [] };
+}
+function seq(...expressions) {
+  return { type: 'SequenceExpression', expressions };
+}
+
+function requireStmt(callType) {
+  return {
+    type: 'ExpressionStatement',
+    expression: {
+      type: callType,
+      callee: seq(call('spy'), { type: 'Identifier', name: 'require' }),
+      arguments: [{ type: 'StringLiteral', value: 'core-js/promise' }],
+    },
+  };
+}
+// non-optional indirect require keeps the callee-sequence side-effect prefix
+check('extractIndirectRequireSEPrefix/plain call recovers prefix',
+  extractIndirectRequireSEPrefix(requireStmt('CallExpression')).length, 1);
+// babel models `(spy(), require)?.('core-js/...')` as OptionalCallExpression - same recovery
+check('extractIndirectRequireSEPrefix/optional call recovers prefix',
+  extractIndirectRequireSEPrefix(requireStmt('OptionalCallExpression')).length, 1);
+// a side-effect-free callee prefix yields no recovered slots on either call shape
+check('extractIndirectRequireSEPrefix/optional call no SE prefix',
+  extractIndirectRequireSEPrefix({
+    type: 'ExpressionStatement',
+    expression: {
+      type: 'OptionalCallExpression',
+      callee: seq({ type: 'NumericLiteral', value: 0 }, { type: 'Identifier', name: 'require' }),
+      arguments: [{ type: 'StringLiteral', value: 'core-js/promise' }],
+    },
+  }).length, 0);
 
 finish();

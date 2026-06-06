@@ -630,6 +630,16 @@ export default class TransformQueue {
     return isStrictlyContained({ ranges: this.#sorted, start, end, prefixMaxEnd: this.#prefixMaxEnd });
   }
 
+  // true when any already-queued transform sits fully within [start, end]. used before
+  // appending a raw source tail to a synthetic body, so a nested transform inside that tail
+  // is not duplicated (the tail would carry both the raw text and the composed rewrite)
+  hasTransformWithin(start, end) {
+    for (const entry of this.#transforms) {
+      if (entry.start >= start && entryLogicalEnd(entry) <= end) return true;
+    }
+    return false;
+  }
+
   // O(log n) via indexed lookup + sorted binary search (vs 3 x O(n) linear scans).
   // split-pair handling: extracting just one half (prefix OR suffix) leaves the peer in
   // the queue as an orphan with a now-invalid splitInfo cycle. apply() would emit the

@@ -70,7 +70,6 @@ import {
   getSuperTypeArgs,
   getTypeArgs,
   hasRestSiblingExcept,
-  hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
   isAmbientBindingShape,
   isAmbientTypeDeclaration,
@@ -2438,38 +2437,6 @@ runBoth('class method declared return -> Map',
 // --- ast-patterns: SE-prefix peelers + deep fallback receiver ---
 
 {
-  // hasSideEffectfulSequencePrefix: SE-bearing SequenceExpression -> true
-  const seqWithSE = {
-    type: 'SequenceExpression',
-    expressions: [
-      // call -> SE in prefix
-      { type: 'CallExpression', callee: { type: 'Identifier' }, arguments: [] },
-      { type: 'Identifier', name: 'tail' },
-    ],
-  };
-  checkTruthy('ast-patterns: hasSideEffectfulSequencePrefix call prefix',
-    hasSideEffectfulSequencePrefix(seqWithSE));
-  // pure prefix `(0, x)` -> false
-  const seqPure = {
-    type: 'SequenceExpression',
-    expressions: [
-      { type: 'NumericLiteral', value: 0 },
-      { type: 'Identifier', name: 'x' },
-    ],
-  };
-  check('ast-patterns: hasSideEffectfulSequencePrefix pure prefix',
-    hasSideEffectfulSequencePrefix(seqPure), false);
-  // non-SequenceExpression -> false
-  check('ast-patterns: hasSideEffectfulSequencePrefix non-seq',
-    hasSideEffectfulSequencePrefix({ type: 'Identifier' }), false);
-  // through TS wrapper - peel reaches the SE
-  const seqInTSWrapper = {
-    type: 'TSAsExpression',
-    expression: seqWithSE,
-  };
-  checkTruthy('ast-patterns: hasSideEffectfulSequencePrefix through TSAsExpression',
-    hasSideEffectfulSequencePrefix(seqInTSWrapper));
-
   // peelNestedSequenceExpressions: returns { prefix: Node[], tail }
   //   `(se1(), (se2(), G))` -> prefix=[se1(), se2()], tail=G
   const callA = { type: 'CallExpression', callee: { type: 'Identifier', name: 'se1' }, arguments: [] };
