@@ -853,10 +853,15 @@ export function varInitDominatesUsage({ declaratorNode, usagePath }) {
   if (ownGuards !== null) {
     return usageSitsUnderAllBranches(usagePath, useOwner.node, ownGuards) && nodePrecedesUsage(declaratorNode, usagePath);
   }
-  // climb to the declarator's own outer owner; the captured init dominates only if unconditional there
+  // climb to the declarator's own outer owner; the captured init dominates only if (a) it is
+  // unconditional there AND (b) it textually precedes the capturing closure's definition. a closure
+  // defined BEFORE the init (`const g = () => P.allSettled(); g(); var P = Promise`) can be invoked
+  // before the init runs, so it reads the hoisted-undefined value and pure must NOT receiver-drop -
+  // the positional check rejects this while still allowing the closure-defined-after-init case (a
+  // module-top `const A = Array` read inside a later IIFE). unknown positions -> bail (false)
   for (let owner = findNearestVarScopeOwner(useOwner.parentPath); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
     const guards = collectVarGuardsToDeclarator(owner.node, declaratorNode);
-    if (guards !== null) return guards.length === 0;
+    if (guards !== null) return guards.length === 0 && endsBeforeStart(declaratorNode, useOwner.node, false);
   }
   return true;
 }
