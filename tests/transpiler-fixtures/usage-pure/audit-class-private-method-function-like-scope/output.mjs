@@ -7,9 +7,12 @@ import _Array$from from "@core-js/pure/actual/array/from";
 const TAG = 't';
 class C {
   #foo({
+    from = [],
     [TAG]: tag
-  } = Array) {
-    let from = _Array$from;
+  } = {
+    from: _Array$from,
+    [TAG]: Array[TAG]
+  }) {
     return [from, tag];
   }
   call() {
