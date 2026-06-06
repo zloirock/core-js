@@ -18,6 +18,7 @@ import {
   reassignmentValueNodes,
   singleQuasiString,
   singleReturnBodyExpression,
+  synthSwapPropKey,
   TS_EXPR_WRAPPERS,
   varInitDominatesUsage,
 } from '../helpers/ast-patterns.js';
@@ -710,6 +711,19 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
   }
   return null;
+}
+
+// the two keys a synth-swap pattern property needs, derived once so babel-plugin and unplugin agree:
+// `lookupKey` is the resolved static NAME used to probe a receiver for a polyfillable static (a computed
+// `[k]` with `const k = 'from'` resolves to 'from'); `slotKey` is the stable map / emit slot that
+// distinguishes `[k]` from a plain `k` (`{ k: v, [k]: w }`). a non-computed key uses its name for both;
+// a dynamic computed key (`resolveKey` -> null) yields `lookupKey: null` so the caller bails the synth
+export function resolveSynthKeys({ node, scope, adapter }) {
+  const slotKey = synthSwapPropKey(node);
+  const lookupKey = node.computed
+    ? resolveKey({ node: node.key, computed: true, scope, adapter })
+    : node.key.name;
+  return { lookupKey, slotKey };
 }
 
 // bare unbound `Symbol` / capitalised const-alias (`const Sym = Symbol`) /
