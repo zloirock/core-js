@@ -20,6 +20,7 @@ import {
   isSynthSimpleObjectPattern,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
+  synthSwapPropKey,
   objectPatternPropNeedsReceiverRewrite,
   paramListReadsName,
   peelFallbackBranchInner,
@@ -1772,7 +1773,7 @@ export function createDestructureEmitter({
       pending = { receiver, objectPattern, polyfills: new Map() };
       pendingSynthSwaps.set(receiver, pending);
     }
-    pending.polyfills.set(propNode.key.name, binding);
+    pending.polyfills.set(synthSwapPropKey(propNode), binding);
   }
 
   // body-extract fallback when synth-swap can't fire (computed-key sibling / non-Identifier
@@ -2223,11 +2224,15 @@ export function createDestructureEmitter({
         : synthMemberReceiverSrc(inner);
       const entries = [];
       for (const p of objectPattern.properties) {
-        if (p.type !== 'Property' || p.computed || p.key?.type !== 'Identifier') continue;
-        const polyfill = polyfills.get(p.key.name);
+        if (p.type !== 'Property' || p.key?.type !== 'Identifier') continue;
+        const polyfill = polyfills.get(synthSwapPropKey(p));
+        // a computed `[k]` key mirrors as `[k]: _polyfill`; an unpolyfilled computed key
+        // falls back to `R[k]` (computed member access), a plain key to `R.key`
+        const keySrc = p.computed ? `[${ nodeSrc(p.key) }]` : p.key.name;
+        const access = p.computed ? `[${ nodeSrc(p.key) }]` : `.${ p.key.name }`;
         entries.push(polyfill
-          ? `${ p.key.name }: ${ polyfill }`
-          : `${ p.key.name }: ${ getReceiverSrc() }.${ p.key.name }`);
+          ? `${ keySrc }: ${ polyfill }`
+          : `${ keySrc }: ${ getReceiverSrc() }${ access }`);
       }
       // overwrite the INNER (peeled) range so outer TS / paren / chain wrappers survive
       // intact - mirrors babel's AST mutation which replaces only the inner MemberExpression
