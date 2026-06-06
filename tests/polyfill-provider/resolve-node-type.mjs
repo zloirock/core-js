@@ -3188,11 +3188,30 @@ runBoth('class method declared return -> Map',
         { type: 'ObjectProperty', computed: false, key: { type: 'Identifier' } },
       ],
     }));
-  // computed key -> false
-  check('ast-patterns: isSynthSimpleObjectPattern computed',
+  // bare-Identifier computed key that does NOT read a sibling binding -> true (synth-swap parity)
+  checkTruthy('ast-patterns: isSynthSimpleObjectPattern computed-ident',
     isSynthSimpleObjectPattern({
+      type: 'ObjectPattern',
       properties: [
-        { type: 'ObjectProperty', computed: true, key: { type: 'Identifier' } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' }, value: { type: 'Identifier', name: 'from' } },
+        { type: 'ObjectProperty', computed: true, key: { type: 'Identifier', name: 'k' }, value: { type: 'Identifier', name: 'of' } },
+      ],
+    }));
+  // computed key that reads a SIBLING binding (`{ of, [of]: picked }`) -> false (scope-gate)
+  check('ast-patterns: isSynthSimpleObjectPattern computed reads sibling',
+    isSynthSimpleObjectPattern({
+      type: 'ObjectPattern',
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'of' }, value: { type: 'Identifier', name: 'of' } },
+        { type: 'ObjectProperty', computed: true, key: { type: 'Identifier', name: 'of' }, value: { type: 'Identifier', name: 'picked' } },
+      ],
+    }), false);
+  // non-Identifier computed key (`[a.b]`) -> false (only bare Identifiers are mirrored)
+  check('ast-patterns: isSynthSimpleObjectPattern computed non-ident',
+    isSynthSimpleObjectPattern({
+      type: 'ObjectPattern',
+      properties: [
+        { type: 'ObjectProperty', computed: true, key: { type: 'MemberExpression' }, value: { type: 'Identifier', name: 'x' } },
       ],
     }), false);
   // numeric-literal key -> false
