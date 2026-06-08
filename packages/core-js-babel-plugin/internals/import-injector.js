@@ -112,26 +112,38 @@ export default class ImportInjector extends ImportInjectorState {
 
   generateDeclaredRef(scope, useNode) {
     const id = this.#generateRefId(scope);
-    // `scope.push` unshifts `var _ref;` into the scope's block. a loop scope is the scope of a memo
     // used in the loop HEADER - a block-body loop gives body uses their own block scope, and only a
-    // bodyless-body loop shares its scope with the body. a header memo must PRECEDE the loop:
-    // pushing into the loop scope block-converts a bodyless body and lands the `var` after its
-    // header use (works only by var hoisting) while leaving the ref in the loop's nested scope.
-    // push to the loop's parent so it matches unplugin's enclosing-scope anchor. distinguish a
-    // genuine bodyless-body use by source range - that one keeps babel's default block-convert
-    let target = scope;
-    if (scope.path.isLoop()) {
-      const { body } = scope.path.node;
-      // a block-body loop scope is always a header use (body uses get the block's own scope); a
-      // bodyless loop shares its scope with the body, so confirm a header use by source range.
-      // either way a header memo must precede the loop, not sit in the loop's nested scope
-      const headerUse = body?.type === 'BlockStatement'
-        || (useNode?.start !== undefined && body
-          && !(useNode.start >= body.start && useNode.end <= body.end));
-      if (headerUse) target = scope.parent;
-    }
+    // `scope.push` unshifts `var _ref;` into the scope's own block. when the use site sits in a
+    // HEADER/SIGNATURE position - a loop header or a function parameter list - that block-hosted var
+    // is unreachable from the use, so hoist to the enclosing scope instead (matching unplugin's
+    // enclosing-scope anchor); see #refUseEscapesScopeBlock for the two cases
+    const target = this.#refUseEscapesScopeBlock(scope, useNode) ? scope.parent : scope;
     target.push({ id });
     return id;
+  }
+
+  // true when the ref's use site is outside the block that `scope.push` would host its `var` in, so a
+  // block-local `var _ref;` would be invisible from the use:
+  //   - loop header: a block-body loop gives body uses their own block scope, so a memo on the loop
+  //     scope is a header use; a bodyless loop shares its scope with the body, confirmed by source
+  //     range. either way the memo must PRECEDE the loop, not sit in its nested scope (pushing there
+  //     block-converts a bodyless body and lands the `var` after its header use)
+  //   - function parameter: a param default evaluates in the param scope, which can't see body vars.
+  //     babel usually anchors a param-default use on an AssignmentPattern (which hoists out), but a
+  //     TS parameter-property (`constructor(public x = ...)`) anchors it on the function, so push
+  //     would land in the body. range-check (not "not in body") so an arrow's expression body is
+  //     never mistaken for a parameter
+  #refUseEscapesScopeBlock(scope, useNode) {
+    if (scope.path.isLoop()) {
+      const { body } = scope.path.node;
+      return body?.type === 'BlockStatement'
+        || (useNode?.start !== undefined && body
+          && !(useNode.start >= body.start && useNode.end <= body.end));
+    }
+    if (scope.path.isFunction() && useNode?.start !== undefined) {
+      return scope.path.node.params?.some(p => useNode.start >= p.start && useNode.end <= p.end) ?? false;
+    }
+    return false;
   }
 
   generateLocalRef(scope) { return this.#generateRefId(scope); }
