@@ -21,6 +21,7 @@ import {
   isReplayableSynthKey,
   isSynthSimpleObjectPattern,
   markAndPeelSkippableWrappers,
+  functionScopeBindsVarOrFunction,
   mayHaveSideEffects,
   staticStringKey,
   synthSwapPropKey,
@@ -1249,20 +1250,46 @@ export function createDestructureEmitter({
     const pattern = innerPattern ?? outerProp.value;
     const extractions = [];
     const preservedInner = [];
+    // residual targets for the VERBATIM surviving inner children of this partially-consumed nested
+    // prop. their polyfillable content (e.g. a default `other = [1].at(0)`) is baked into the rebuilt
+    // `key: { ... }` string below, so the natural visitor's rewrite must be re-anchored there - else
+    // it leaks native APIs in usage-pure. `dstStart` is the offset INSIDE the rebuilt string; the
+    // outer rewriteDeclarator loop shifts it by this prop's offset in the outer `{ ... }` text
+    const residualTargets = [];
     const innerHasRest = pattern.properties.some(p => p.type === 'RestElement');
+    // running offset into the rebuilt `<key>: { ... }` text: opens with `<key>: { ` before the first
+    // entry, each preserved entry is followed by `, ` except the last
+    let dstOffset = `${ flattenKeySrc(outerProp) }: { `.length;
     for (const child of pattern.properties) {
       const e = planChild(child);
+      let emitted = null;
       if (e.extractions?.length) {
         extractions.push(...e.extractions);
         if (innerHasRest && e.preservedSrc === null && child.type === 'Property' && child.key?.name) {
-          preservedInner.push(`${ child.key.name }: ${ injector.generateUnusedName() }`);
+          emitted = `${ child.key.name }: ${ injector.generateUnusedName() }`;
         }
       }
-      if (e.preservedSrc !== null && e.preservedSrc !== undefined) preservedInner.push(e.preservedSrc);
+      if (e.preservedSrc !== null && e.preservedSrc !== undefined) {
+        emitted = e.preservedSrc;
+        if (emitted === nodeSrc(child)) {
+          // verbatim child source: re-anchor the natural visitor's rewrite of its polyfillable content
+          residualTargets.push({ srcStart: child.start, srcEnd: child.end, dstStart: dstOffset });
+        } else if (e.residualTargets?.length) {
+          // child was itself partially consumed (nested-nested): its targets are relative to its own
+          // rebuilt string, which sits at `dstOffset` within this one
+          for (const t of e.residualTargets) {
+            residualTargets.push({ srcStart: t.srcStart, srcEnd: t.srcEnd, dstStart: dstOffset + t.dstStart });
+          }
+        }
+      }
+      if (emitted !== null) {
+        preservedInner.push(emitted);
+        dstOffset += emitted.length + 2;
+      }
     }
     if (!extractions.length) return { preservedSrc: nodeSrc(outerProp) };
     if (!preservedInner.length) return { extractions, preservedSrc: null };
-    return { extractions, preservedSrc: `${ flattenKeySrc(outerProp) }: { ${ preservedInner.join(', ') } }` };
+    return { extractions, preservedSrc: `${ flattenKeySrc(outerProp) }: { ${ preservedInner.join(', ') } }`, residualTargets };
   }
 
   // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on
@@ -1391,6 +1418,14 @@ export function createDestructureEmitter({
         const sourceProp = plan.pattern.properties[i];
         if (sourceProp && emitted === nodeSrc(sourceProp)) {
           residualTargets.push({ srcStart: sourceProp.start, srcEnd: sourceProp.end, dstStart: dstOffset });
+        } else if (outer.residualTargets?.length) {
+          // partially-consumed NESTED prop: foldNestedPattern rebuilt `key: { ... }` and reported the
+          // residual targets of its surviving inner children (relative to that string). the string sits
+          // at `dstOffset` in the outer `{ ... }` text, so shift each target in - without this the inner
+          // survivors' polyfillable content leaks native (the U01 nested-residual drop)
+          for (const t of outer.residualTargets) {
+            residualTargets.push({ srcStart: t.srcStart, srcEnd: t.srcEnd, dstStart: dstOffset + t.dstStart });
+          }
         }
       } else if (hasRest) {
         emitted = emitRestSentinel(outer, plan.pattern.properties[i]);
@@ -1847,6 +1882,10 @@ export function createDestructureEmitter({
     // `({ of } = R, y = of)`) evaluates in param scope; relocating the binding into a body
     // `let` would strand that read. fall through to inline-default, which keeps the binding
     if (paramListReadsName(fnPath.node.params, localId.name)) return false;
+    // a parameter may be legally redeclared by a function-scoped `var <name>` / `function <name>(){}`
+    // in the body; emitting our body-top `let <name>` alongside it is a SyntaxError (`let`+`var`/
+    // `function` redeclare in one scope). bail to inline-default, which never introduces a `let`
+    if (functionScopeBindsVarOrFunction(fnPath.node, localId.name)) return false;
     // place `let X = _polyfill;` AFTER any leading directive prologue (`"use strict"`,
     // `"use asm"`, custom directives) - inserting at body.start+1 would push the
     // directive past position 0 and silently flip the function to sloppy mode

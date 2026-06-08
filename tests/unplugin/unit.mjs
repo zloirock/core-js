@@ -1640,6 +1640,29 @@ function checkFlushFallsBackOnEditedRange() {
 }
 checkFlushFallsBackOnEditedRange();
 
+// asymmetric fallback: imports land at the prologue end (importPos) but a sibling overwrite straddles
+// the trailing-user-import anchor (refPos), so the refs' appendRight throws. the refs must FOLD BACK
+// to the import anchor (after the directive) - NOT prepend at position 0, which would land `var _ref;`
+// above the `'use strict';` directive prologue, silently demoting the module to sloppy mode and
+// violating import/first. assert the directive still leads and the ref sits after it
+function checkFlushAsymmetricFallbackKeepsDirective() {
+  const src = "'use strict';\nimport x from 'y';\nfoo;\n";
+  const ms = new MagicString(src);
+  const userImportEnd = "'use strict';\nimport x from 'y';".length;
+  // straddle refPos (end of the user import) so refs' appendRight fails while imports' succeeds
+  ms.overwrite(userImportEnd - 2, userImportEnd + 2, 'Q');
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms,
+    userImportEnd, directiveEnd: "'use strict';".length });
+  inj.addGlobalImport('es.array.at');
+  inj.generateDeclaredRef();
+  inj.flush();
+  const out = ms.toString();
+  check('flush/asymmetric fallback keeps directive leading', out.indexOf("'use strict'"), 0);
+  check('flush/asymmetric fallback keeps var after directive',
+    out.indexOf('var _ref') > out.indexOf("'use strict'"), true);
+}
+checkFlushAsymmetricFallbackKeepsDirective();
+
 // --- ImportInjector dedup behaviour ---
 // mixed `import Def, { default as Alt }` registers Def first (default specifier comes before
 // named in source order). last-write-wins on `existingPureImports` would pick `Alt` as dedup
