@@ -3,16 +3,8 @@
 // renders the returned node references its own way (babel cloneNode / unplugin nodeSrc); a text
 // emitter additionally marks the discarded operand skipped, while an AST emitter drops it
 // implicitly by replacing the node.
-import { mayHaveSideEffects, visitSymbolInLhsSe } from './ast-patterns.js';
+import { sequencePrefixWithSideEffects, visitSymbolInLhsSe } from './ast-patterns.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
-
-// SE-bearing prefix of a multi-operand SequenceExpression (all but the consumed last operand),
-// or null when the expression is not such a sequence or its prefix is side-effect-free
-function sequencePrefixWithSideEffects(expr) {
-  if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
-  const prefix = expr.expressions.slice(0, -1);
-  return prefix.some(mayHaveSideEffects) ? prefix : null;
-}
 
 export function planInExpression({ meta, left, right, unwrap, isEntryNeeded, resolveFallback }) {
   // symbol-sourced LHS (`Symbol.X in obj` / alias binding): polyfill the symbol entry.
