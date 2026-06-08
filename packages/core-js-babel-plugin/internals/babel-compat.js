@@ -5,6 +5,7 @@ import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usag
 import { classifyReceiverSE, keySideEffectsOnly, peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   createTypeAnnotationChecker,
+  isReusableReceiver,
   mayHaveSideEffects,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -18,20 +19,6 @@ export default function (t, { getInjector, typeResolvers } = {}) {
 
   function reset() {
     isInTypeAnnotation.reset();
-  }
-
-  // identifiers and `this` are safe to double-evaluate. TS wrappers are deliberately NOT
-  // peeled here - keeping them in the check keeps babel's `_ref` emission in sync with
-  // unplugin's source-text regex, especially inside optional chains.
-  // ParenthesizedExpression IS peeled so `(arr)?.(0)` under `createParenthesizedExpressions:
-  // true` aligns with unplugin's NO_REF_NEEDED set; ChainExpression is also peeled for
-  // ESTree-shape inputs that wrap optional chains in a ChainExpression node - both
-  // pipelines avoid `_ref` allocation for wrapper-only nestings around Identifier / `this`
-  function isSafeToReuse(node) {
-    while (node?.type === 'ParenthesizedExpression' || node?.type === 'ChainExpression') {
-      node = node.expression;
-    }
-    return t.isIdentifier(node) || t.isThisExpression(node);
   }
 
   // useNode (optional) - the source node at the use site, so generateDeclaredRef can place a
@@ -49,7 +36,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   }
 
   function memoize(node, scope) {
-    if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
+    if (isReusableReceiver(node)) return [t.cloneNode(node), t.cloneNode(node)];
     const ref = generateRef(scope, node);
     return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
   }
@@ -180,7 +167,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     let receiverMemo = null;
     if (t.isSuper(receiverNode)) {
       callReceiver = t.thisExpression();
-    } else if (isSafeToReuse(receiverNode)) {
+    } else if (isReusableReceiver(receiverNode)) {
       callReceiver = t.cloneNode(receiverNode);
     } else {
       const [assign, receiverRef] = memoize(receiverNode, scope);
@@ -411,7 +398,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       //   - `this`-binding-on-success preserved: `_ref` captures obj, `.call(_ref, ...)` binds it
       //   - obj evaluated ONCE: deep chains `(arr?.b.includes)(1)` would otherwise re-eval
       //     `arr.b` in callArgs (single-eval matters for receivers with side effects)
-      // memoize unconditionally - bare Identifier hits `isSafeToReuse` and inlines without _ref
+      // memoize unconditionally - bare Identifier hits `isReusableReceiver` and inlines without _ref
       const [objAssign, objRef] = memoize(object, path.scope);
       const lookup = t.callExpression(id, [objAssign]);
       // check=null path: extractCheck saw a polyfillable optional and skipped the null-guard

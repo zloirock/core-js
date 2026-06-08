@@ -29,7 +29,6 @@ import {
   isTopLevelImportLike,
   lastUserImportEnd,
   liftSfcLangSuffix,
-  NO_REF_NEEDED,
   skipBlockComment,
   skipDirectivePrologue,
   skipGap,
@@ -42,7 +41,6 @@ import {
   isCalleeWrappedInParens,
   isOutermostOptionalChainMember,
   unwrapNode,
-  unwrapNodeForMemoize,
 } from '../../packages/core-js-unplugin/internals/emit-utils.js';
 
 const { cyan, green, red } = chalk;
@@ -3044,12 +3042,6 @@ check('entryToGlobalHint/null entry returns null',
 check('entryToGlobalHint/empty string returns null',
   entryToGlobalHint(''), null);
 
-// --- NO_REF_NEEDED: shapes that don't need a memo `_ref` (already trivially reusable) ---
-check('NO_REF_NEEDED has Identifier', NO_REF_NEEDED.has('Identifier'), true);
-check('NO_REF_NEEDED has ThisExpression', NO_REF_NEEDED.has('ThisExpression'), true);
-check('NO_REF_NEEDED rejects CallExpression', NO_REF_NEEDED.has('CallExpression'), false);
-check('NO_REF_NEEDED rejects MemberExpression', NO_REF_NEEDED.has('MemberExpression'), false);
-
 // --- walkAstNodes: visit-all-descendants walker used by injector subtree scans ---
 function exprOf(src, sourceType = 'module') {
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
@@ -3197,21 +3189,6 @@ function checkUnwrapNode() {
   check('unwrapNode/undefined', unwrapNode(undefined), undefined);
 }
 checkUnwrapNode();
-
-// --- emit-utils.unwrapNodeForMemoize: peel parens/chain ONLY (TS wrappers kept) ---
-function checkUnwrapNodeForMemoize() {
-  const inner = { type: 'Identifier', name: 'z' };
-  check('unwrapNodeForMemoize/ParenthesizedExpression peeled',
-    unwrapNodeForMemoize({ type: 'ParenthesizedExpression', expression: inner }), inner);
-  check('unwrapNodeForMemoize/ChainExpression peeled',
-    unwrapNodeForMemoize({ type: 'ChainExpression', expression: inner }), inner);
-  // TS wrappers retained - mirrors babel `isSafeToReuse` precedent
-  const tsWrap = { type: 'TSAsExpression', expression: inner };
-  check('unwrapNodeForMemoize/TSAsExpression NOT peeled', unwrapNodeForMemoize(tsWrap), tsWrap);
-  // null safe
-  check('unwrapNodeForMemoize/null', unwrapNodeForMemoize(null), null);
-}
-checkUnwrapNodeForMemoize();
 
 // --- emit-utils.isCallee: parent is Call/New with `node` as callee (through wrappers) ---
 function checkIsCallee() {
