@@ -307,3 +307,30 @@ QUnit.test('computed-key: sibling-binding read stays single-read', assert => {
   assert.same(ofType, 'function');
   assert.same(picked, undefined);
 });
+
+// computed destructure key with a side-effecting prefix `[(eff(), 'from')]` resolving to a
+// polyfillable static: the static rewrite is bailed (the effect cannot be carried through the
+// destructure path), so the effect must still run exactly once and the key still resolve.
+// regression: the effect used to be dropped entirely
+QUnit.test('computed-key: side-effecting prefix preserved, run once', assert => {
+  const log = [];
+  const { [(log.push('eff'), 'from')]: from } = Array;
+  assert.deepEqual(log, ['eff']);
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+});
+
+// same bail across other destructure shapes - the side effect must survive in each
+QUnit.test('computed-key: side-effecting prefix in nested destructure', assert => {
+  const log = [];
+  const { x: { [(log.push('eff'), 'from')]: from } } = { x: Array };
+  assert.deepEqual(log, ['eff']);
+  assert.deepEqual(from([4, 5]), [4, 5]);
+});
+
+QUnit.test('computed-key: side-effecting prefix in param-default destructure', assert => {
+  const log = [];
+  const pick = ({ [(log.push('eff'), 'from')]: from } = Array) => from;
+  const from = pick();
+  assert.deepEqual(log, ['eff']);
+  assert.deepEqual(from([6, 7]), [6, 7]);
+});
