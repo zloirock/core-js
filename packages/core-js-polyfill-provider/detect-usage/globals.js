@@ -26,6 +26,20 @@ export function isKnownGlobalName(name) {
     || POSSIBLE_GLOBAL_OBJECTS.has(name) || INJECTABLE_GLOBALS.has(name);
 }
 
+// receiverHint for a property meta - gates the resolver's instance-method fallback. only a
+// STATIC-position access carries a hint (prototype/instance dispatch narrows by the real receiver
+// type via enhanceMeta instead). a constructor yields 'function', a namespace / proxy-global yields
+// 'object': `Array.concat` -> 'function', and concat (an `Array.prototype` method, absent on the
+// `Array` constructor) has no function-variant so the resolver bails; `Array.name` -> 'function'
+// resolves via the genuine `Function.prototype` variant. an unknown / non-static receiver -> null,
+// leaving the resolver's default fold (e.g. `NaN.toFixed` - NaN is a Number value, not a constructor)
+export function staticReceiverHint(placement, objectName) {
+  if (placement !== 'static' || !objectName) return null;
+  if (KNOWN_FUNCTION_GLOBALS.has(objectName)) return 'function';
+  if (KNOWN_NAMESPACE_GLOBALS.has(objectName) || POSSIBLE_GLOBAL_OBJECTS.has(objectName)) return 'object';
+  return null;
+}
+
 const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);
 
 // `<node> <op>= ...` with logical op -> op string; else null. peeled-path's parent is the
