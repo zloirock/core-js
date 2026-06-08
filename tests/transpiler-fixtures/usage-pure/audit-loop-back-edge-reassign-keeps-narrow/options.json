@@ -2,8 +2,18 @@
   "plugins": [
     [
       "@core-js",
-      { "method": "usage-pure", "version": "4.0", "targets": { "ie": 11 } }
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "ie": 11
+        }
+      }
     ]
   ],
-  "parserOpts": { "plugins": ["typescript"] }
+  "parserOpts": {
+    "plugins": [
+      "typescript"
+    ]
+  }
 }
