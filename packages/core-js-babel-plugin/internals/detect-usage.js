@@ -179,8 +179,10 @@ export function createUsageVisitors({
   let handledObjects = new WeakSet();
   let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
 
+  // destructure-only wrapper (every caller is inside handleDestructuring): a side-effecting
+  // computed key has no effects channel here, so bail rather than drop the SE
   function resolveKey(path, computed) {
-    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter });
+    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, bailOnSideEffectKey: true });
   }
 
   // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
@@ -278,7 +280,9 @@ export function createUsageVisitors({
   // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
   // N-deep: resolve the outer key chain to an effective receiver, emit meta accordingly
   function emitNestedDestructureMeta(path, outerProp) {
-    const innerKey = sharedResolveKey({ node: path.node.key, computed: path.node.computed, scope: path.scope, adapter });
+    const innerKey = sharedResolveKey({
+      node: path.node.key, computed: path.node.computed, scope: path.scope, adapter, bailOnSideEffectKey: true,
+    });
     if (!innerKey) return;
     const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
     onUsage(receiverKey !== null

@@ -15,6 +15,7 @@ import {
   bindsModuleDefault,
   isStaticPlacement,
   isTransparentWrapper,
+  resolveKey,
   returnedReceiverHasEffects,
   unwrapParens,
   unwrapParensCollectingEffects,
@@ -607,5 +608,27 @@ check('STATEMENT_LIST_HOST_TYPES = brace + Program',
 // source-order = runtime blocks + Program (the TS namespace body is excluded by intent)
 check('SOURCE_ORDER_STATEMENT_HOST_TYPES = runtime blocks + Program',
   [...SOURCE_ORDER_STATEMENT_HOST_TYPES].sort().join(','), 'BlockStatement,Program,StaticBlock');
+
+// resolveKey: a computed key whose prefix carries a side effect resolves to its tail by default
+// (member-access captures the effect separately), but a caller WITHOUT an effects channel passes
+// bailOnSideEffectKey to leave it unresolved - so the destructure is skipped rather than dropping
+// the effect (babel) or feeding the text composer an unplaceable needle (unplugin). minimal
+// resolveKey-adapter: only the string-literal contract is exercised here (both parser shapes)
+const keyAdapter = {
+  isStringLiteral(n) { return n.type === 'StringLiteral' || (n.type === 'Literal' && typeof n.value === 'string'); },
+  getStringValue(n) { return n.value; },
+  method: 'usage-pure',
+};
+runBoth('resolveKey/side-effecting computed key', '({ [(eff(), "from")]: x } = Array);', (adapter, prog, lbl) => {
+  const seq = adapter.pickPath(prog, 'SequenceExpression').node;
+  check(`${ lbl }/default peels tail`, resolveKey({ node: seq, computed: true, adapter: keyAdapter }), 'from');
+  check(`${ lbl }/bailOnSideEffectKey returns null`, resolveKey({ node: seq, computed: true, adapter: keyAdapter, bailOnSideEffectKey: true }), null);
+});
+
+// a side-effect-FREE sequence key is droppable, so the flag does NOT bail it
+runBoth('resolveKey/side-effect-free sequence key not bailed', '({ [(0, "from")]: x } = Array);', (adapter, prog, lbl) => {
+  const seq = adapter.pickPath(prog, 'SequenceExpression').node;
+  check(`${ lbl }/keeps tail under flag`, resolveKey({ node: seq, computed: true, adapter: keyAdapter, bailOnSideEffectKey: true }), 'from');
+});
 
 finish();
