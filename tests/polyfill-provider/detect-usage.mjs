@@ -9,6 +9,7 @@ import {
   isKnownGlobalName,
   KNOWN_FUNCTION_GLOBALS,
   KNOWN_NAMESPACE_GLOBALS,
+  staticReceiverHint,
 } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 import {
   bindsModuleDefault,
@@ -64,6 +65,21 @@ check('isKnownGlobalName/notAGlobal', isKnownGlobalName('notAGlobal_xyz'), false
 // globals (Iterator / AsyncIterator) are recognized too - not just the legacy hardcoded sets
 check('isKnownGlobalName/Iterator', isKnownGlobalName('Iterator'), true);
 check('isKnownGlobalName/AsyncIterator', isKnownGlobalName('AsyncIterator'), true);
+
+// --- staticReceiverHint (instance-method-on-static gate) ---
+// constructors -> 'function': lets the resolver bail Array.prototype methods read off the
+// constructor (`Array.concat`) while resolving genuine Function.prototype methods (`Array.name`)
+check('staticReceiverHint/constructor', staticReceiverHint('static', 'Array'), 'function');
+check('staticReceiverHint/constructor Map', staticReceiverHint('static', 'Map'), 'function');
+// namespaces / proxy globals -> 'object'
+check('staticReceiverHint/namespace', staticReceiverHint('static', 'Math'), 'object');
+check('staticReceiverHint/proxy-global', staticReceiverHint('static', 'globalThis'), 'object');
+// non-static placement carries no hint - prototype dispatch narrows by the real receiver type
+check('staticReceiverHint/prototype placement', staticReceiverHint('prototype', 'Array'), null);
+// value globals are not in the catalogues -> null, so `NaN.toFixed` keeps the default fold
+check('staticReceiverHint/value global', staticReceiverHint('static', 'NaN'), null);
+check('staticReceiverHint/unknown name', staticReceiverHint('static', 'notAGlobal_xyz'), null);
+check('staticReceiverHint/missing object', staticReceiverHint('static', null), null);
 
 // --- getEntrySource ---
 
@@ -451,6 +467,17 @@ runBoth('reassignmentDominatesUsage/unconditional reassign -> true',
 // conditional reassignment under an if -> does not dominate
 runBoth('reassignmentDominatesUsage/conditional reassign -> false',
   'function f(c){ var M = Map; if (c) M = Set; M.foo(); }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
+    check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
+  });
+
+// SHALLOW: a reassignment in an OUTER scope (the use sits in a nested closure) does NOT dominate via
+// this gate, even though it unconditionally precedes the closure definition. bailing the usage-global
+// init-FOLLOW on it would drop the primary key and under-inject; the dead init across a closure is
+// instead pruned by preferring the reaching value in resolveKey (the climbing variant is exercised by
+// the varInitDominatesUsage closure tests above)
+runBoth('reassignmentDominatesUsage/cross-closure reassign stays shallow -> false',
+  'function f(){ var M = Map; M = Set; return () => M.foo(); }', (adapter, prog, lbl) => {
     const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
     check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
   });
