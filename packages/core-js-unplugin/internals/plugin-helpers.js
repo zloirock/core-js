@@ -80,9 +80,6 @@ export function lastUserImportEnd(ast) {
   return end;
 }
 
-// node types that are safe to double-evaluate (no side effects, no temp ref needed)
-export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
-
 // chars that, as the previous statement's last token, fuse with a leading `(` on the
 // next line into a call expression (parser continues without ASI). this is the
 // inverse-direction predicate to `ASI_HAZARD_STARTS` in `detect-entry.js`: that one

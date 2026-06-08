@@ -8,13 +8,6 @@ import { peelSkippableWrappers, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provi
 // `peelSkippableWrappers` (`SKIPPABLE_WRAPPER_TYPES` covers all three categories)
 export const unwrapNode = peelSkippableWrappers;
 
-// peel parens / chain expressions only - kept separate from `unwrapNode` so
-// memoization decisions stay aligned with babel's `isSafeToReuse`
-export function unwrapNodeForMemoize(n) {
-  while (n && (n.type === 'ParenthesizedExpression' || n.type === 'ChainExpression')) n = n.expression;
-  return n;
-}
-
 // check if parent is a call/new expression with node as callee
 export function isCallee(node, parent) {
   if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
