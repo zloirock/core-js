@@ -10,8 +10,8 @@ import {
   peelNestedSequenceExpressions,
   staticStringKey,
   TS_EXPR_WRAPPERS,
-  visitSymbolInLhsSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
@@ -23,7 +23,6 @@ import {
   receiverSideEffectsOnly,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint, deoptionalizeNeedleAtPositions } from './transform-queue.js';
 import {
   isCallee,
@@ -1274,82 +1273,42 @@ export function createPolyfillEmitter({
     }));
   }
 
-  // peel a SequenceExpression's preceding elements when at least one carries an observable
-  // side-effect; the trailing tail is the value used by the in-expression. returns null
-  // when not a sequence or when no preceding element has side-effects (cheap drop)
-  function sequencePrefixWithSideEffects(expr) {
-    if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
-    const prefix = expr.expressions.slice(0, -1);
-    return prefix.some(e => mayHaveSideEffects(e)) ? prefix : null;
-  }
-
-  // `key in obj` rewrite: Symbol-sourced LHS (`Symbol.X in obj`) takes the symbol-in
-  // polyfill path; bare-name LHS with statically-known polyfilled key (`'from' in Array`)
-  // folds the whole expression to `true` (polyfill is always defined). string-keyed Symbol
-  // (`'Symbol.X' in Obj`) falls through to the bare-name branch via its string key
+  // `key in obj` rewrite. The branch decision and side-effect harvest live in the shared
+  // planInExpression; here we render the chosen shape into source text and, since this is a text
+  // emitter (not an AST mutation), mark the discarded operand skipped so child visitors do not
+  // emit spurious polyfills for code the replacement dropped
   function handleInExpression(meta, metaPath) {
     const { node } = metaPath;
-    const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
-    if (symbolIn && isEntryNeeded(symbolIn.entry)) {
-      const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
-      // preserve SE that the rewrite would otherwise drop - computed-key SequenceExpression
-      // (`Symbol[(fn(), 'iterator')]`) or wrapped receiver SE
-      const lhsSe = [];
-      visitSymbolInLhsSe(node.left, e => lhsSe.push(nodeSrc(e)));
-      if (meta.key === 'Symbol.iterator') {
-        const call = `${ binding }(${ nodeSrc(node.right) })`;
-        const replacement = lhsSe.length ? `(${ lhsSe.join(', ') }, ${ call })` : call;
-        transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
-        skipWrappedNode(node.left);
-      } else {
-        const tail = `${ binding } in ${ nodeSrc(node.right) }`;
-        const replacement = lhsSe.length ? `(${ lhsSe.join(', ') }, ${ tail })` : tail;
-        transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
-        skipWrappedNode(node.left);
-      }
-    } else if (meta.object) {
-      // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable.
-      // BOTH sides preserve SE: `(bar(), 'from') in Array` and `'k' in (fn(), Array)`
-      // evaluate their respective SE even when the in-check folds to a constant. shapes:
-      //   SequenceExpression: keep SE-bearing prefix, drop the tail (used by in-check)
-      //   AssignmentExpression on RHS: wrap whole RHS as a sequence prefix (rescues both
-      //   the assignment side-effect AND the binding update)
-      // CallExpression rhs intentionally NOT rescued - inline-call analysis upstream
-      // filters out SE-bearing IIFEs separately
-      const resolved = resolvePureOrGlobalFallback(meta, metaPath);
-      if (resolved.result) {
-        // oxc preserves ParenthesizedExpression around the operands; peel via unwrapNode
-        // so SE-shape detection works the same as on babel-stripped form
-        const lhs = unwrapNode(node.left);
-        const rhs = unwrapNode(node.right);
-        const seParts = [];
-        const lhsSeqPrefix = sequencePrefixWithSideEffects(lhs);
-        if (lhsSeqPrefix) seParts.push(...lhsSeqPrefix.map(e => nodeSrc(e)));
-        const rhsSeqPrefix = sequencePrefixWithSideEffects(rhs);
-        if (rhsSeqPrefix) seParts.push(...rhsSeqPrefix.map(e => nodeSrc(e)));
-        else if (rhs?.type === 'AssignmentExpression') seParts.push(nodeSrc(rhs));
-        const replacement = seParts.length ? `(${ seParts.join(', ') }, true)` : 'true';
-        // SE-rescue / assign-wrap replacements lead with `(`; at a statement-leading slot
-        // (the in-expression IS the whole ExpressionStatement) the ASI rule fuses the
-        // previous unterminated line into the new `(...)` as a call. `'true'` bare path
-        // is no-op for the guard
-        transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
-        // marking nested identifiers (`foo.bar.baz` -> `foo`) as skipped prevents child visitors
-        // from emitting spurious polyfill imports for code the `'true'` replacement discarded. but
-        // any subtree preserved verbatim in the replacement must stay visitable so its inner
-        // polyfills still emit: a SequenceExpression prefix keeps its leading elements
-        // (`(arr.at(0), true)`) and drops only the in-operand tail, so skip ONLY that tail; an
-        // AssignmentExpression rescue keeps the whole RHS (`(y = Map, true)`) so skip nothing; a
-        // plain RHS (`'from' in Array`) is dropped entirely
-        if (rhsSeqPrefix) {
-          const dropped = rhs.expressions.at(-1);
-          walkAstNodes({ root: dropped, visit: n => skippedNodes.add(n) });
-          skipProxyGlobal(dropped);
-        } else if (rhs?.type !== 'AssignmentExpression') {
-          walkAstNodes({ root: node.right, visit: n => skippedNodes.add(n) });
-          skipProxyGlobal(node.right);
-        }
-      }
+    const plan = planInExpression({
+      meta,
+      left: node.left,
+      right: node.right,
+      unwrap: unwrapNode,
+      isEntryNeeded,
+      resolveFallback: m => resolvePureOrGlobalFallback(m, metaPath),
+    });
+    if (plan.kind === 'noop') return;
+    // queue a whole-node text replacement, re-prepending the harvested SE via comma so it still
+    // evaluates; the ASI guard stops a leading `(` fusing into the previous unterminated line
+    function emitReplacement(core) {
+      const parts = plan.leadingSe.map(e => nodeSrc(e));
+      const replacement = parts.length ? `(${ parts.join(', ') }, ${ core })` : core;
+      transforms.add(node.start, node.end, asiGuardLeadingParen(replacement, metaPath, node.start));
+    }
+    if (plan.kind === 'symbol') {
+      const binding = injectPureImport(plan.entry, plan.hint);
+      emitReplacement(plan.call ? `${ binding }(${ nodeSrc(plan.right) })` : `${ binding } in ${ nodeSrc(plan.right) }`);
+      // the LHS is consumed by the rewrite; skip it so child visitors do not re-emit for it
+      skipWrappedNode(node.left);
+      return;
+    }
+    // fold: the polyfill is always defined, so the membership test is constantly true. a subtree
+    // kept verbatim stays visitable so its inner polyfills still emit; only the discarded operand
+    // (if any - a kept-whole assignment RHS has none) is skipped
+    emitReplacement('true');
+    if (plan.skip) {
+      walkAstNodes({ root: plan.skip, visit: n => skippedNodes.add(n) });
+      skipProxyGlobal(plan.skip);
     }
   }
 
