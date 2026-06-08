@@ -18,7 +18,7 @@
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH } from './base.js';
-import { globalProxyMemberName, memberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
   getSuperTypeArgs,
   isAmbientBindingShape,
@@ -80,11 +80,11 @@ export function createGlobalResolve({
     const ret = peelIIFEReturn(callPath.node);
     if (!ret) return false;
     let fnPath = peelSkippableWrapperPath(callPath.get('callee'));
-    // peel a SequenceExpression-callee tail on the PATH side too (`(0, function(){...})()` /
-    // `(spy(), () => globalThis)()`): peelIIFEReturn already unwraps it on the node side, so
-    // without this the path walk stalls at the SE and the return path is never found - the two
-    // peels must agree or the proxy-global IIFE goes unrecognized
-    if (fnPath?.node?.type === 'SequenceExpression') {
+    // peel SequenceExpression-callee tails on the PATH side too (`(0, function(){...})()` /
+    // `(spy(), () => globalThis)()` / nested `(0, (1, () => globalThis))()`): peelIIFEReturn unwraps
+    // SE tails to a FIXPOINT on the node side, so loop here to match - a single peel stalls on a
+    // doubly-nested SE and the return path is never found, dropping the proxy-global recognition
+    while (fnPath?.node?.type === 'SequenceExpression') {
       fnPath = peelSkippableWrapperPath(fnPath.get('expressions').at(-1));
     }
     if (!fnPath?.node) return false;
@@ -100,7 +100,14 @@ export function createGlobalResolve({
     objectPath = peelSkippableWrapperPath(objectPath);
     if (!objectPath?.node) return false;
     if (t.isIdentifier(objectPath.node)) {
-      return POSSIBLE_GLOBAL_OBJECTS.has(objectPath.node.name) && !hasRuntimeBinding(objectPath.scope, objectPath.node.name);
+      // delegate to the node-based resolver so the path- and node-level proxy-global checks agree on a
+      // const-alias / destructure binding (`const g = globalThis; g.Array...`) AND on a post-rewrite
+      // generated alias (babel mutates `globalThis` to `_globalThis` in place, so the alias init is the
+      // import - recognized via the polyfillHint side-channel). it covers the bare literal-proxy-global
+      // case identically and is cycle-guarded against const-alias loops
+      return isProxyGlobalIdentifierNode({
+        node: objectPath.node, scope: objectPath.scope, adapter: babelBindingAdapter, path: objectPath,
+      });
     }
     // top-level `this` (not inside any non-arrow function or class) is a global proxy
     if (t.isThisExpression(objectPath.node) && isGlobalThis(objectPath)) return true;
