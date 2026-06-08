@@ -170,7 +170,7 @@ for (const { name, code, ident, expect } of TYPE_ANNOT_CASES) {
     helpers.isInTypeAnnotation(typeRefPath));
 }
 
-// --- isSafeToReuse (exercised via replaceInstanceLike / optional-chain memoize) ---
+// --- isReusableReceiver (exercised via replaceInstanceLike / optional-chain memoize) ---
 
 // safe receivers reuse the original expression in the guard head, no _ref allocated.
 // the rewritten expression is the SOLE program statement (no `var _ref;` injected above)
@@ -210,7 +210,7 @@ for (const { name, code, plugins, headType, headName } of SAFE_REUSE_CASES) {
   const { test, type } = exprStmt.expression;
   let ok = type === 'ConditionalExpression' && test.left.type === headType;
   if (headName) ok &&= test.left.name === headName;
-  checkTruthy(`isSafeToReuse/${ name }`, ok);
+  checkTruthy(`isReusableReceiver/${ name }`, ok);
 }
 
 // unsafe receivers trigger _ref memoize: `null == (_ref = <receiver>)` guard head.
@@ -237,7 +237,7 @@ for (const { name, code, rhsCheck } of UNSAFE_REUSE_CASES) {
   const { helpers, program } = setup(code);
   const exprStmt = runOptional(helpers, program, '_includes');
   const { test } = exprStmt.expression;
-  checkTruthy(`isSafeToReuse/${ name }`,
+  checkTruthy(`isReusableReceiver/${ name }`,
     test.left.type === 'NullLiteral' && rhsCheck(test.right));
 }
 
