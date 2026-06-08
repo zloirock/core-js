@@ -452,21 +452,6 @@ export default class ImportInjector extends ImportInjectorState {
     if (!body?.length) return;
     const refsSet = this.#refs;
 
-    // a `var` node whose declarators are all bare (initless Identifier) and includes at least
-    // one of our generated refs. covers the pure `var _ref1, _ref2;` shape AND a shared node
-    // where a sibling `scope.push` merged its own initless helper into the same reused
-    // `declaration:var:N` node our `_ref` landed in. bare `var` bindings hoist regardless of
-    // textual position, so migrating the whole node past the import header is inert - and it
-    // drops the scope.push `_blockHoist: 2` that Babel's end-of-pipeline block-hoist would
-    // otherwise use to lift our ref above the (unhoisted) imports (an import/first violation).
-    // a node with NO ref, or any init-bearing declarator, is left untouched
-    function isMovableRefVar(stmt) {
-      return stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
-        && stmt.declarations.length > 0
-        && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier')
-        && stmt.declarations.some(d => refsSet.has(d.id.name));
-    }
-
     // import-region members - the reorder loop accumulates `importEnd` over them and bails
     // on the first non-member. coverage:
     //   - `import ... from 'm'`
@@ -506,21 +491,49 @@ export default class ImportInjector extends ImportInjectorState {
     // into one fresh declaration placed just past the import header is semantically inert and
     // matches unplugin's layout. the fresh `merged` node carries no `_blockHoist`, so block-hoist
     // leaves it in place; removing the original `bh2` nodes drops their lift entirely
-    const refDecls = body.filter(isMovableRefVar);
-    if (!refDecls.length) return;
-    const refSet = new Set(refDecls);
-    const kept = body.filter(s => !refSet.has(s));
+    // migrate our memoize ref `var`s below the import header - else Babel's end-of-pipeline block-hoist
+    // (`_blockHoist: 2` from `scope.push`) lifts them above the unhoisted imports, an import/first
+    // violation. pull every initless declarator that is one of OUR refs. a node whose declarators are
+    // ALL initless rides over WHOLE (initless vars hoist regardless of position, so moving the foreign
+    // siblings is inert and dropping the node removes its block-hoist lift); a node that ALSO carries an
+    // init-bearing declarator - a sibling `scope.push({id, init})` MERGED into the same reused
+    // `declaration:${kind}:${blockHoist}` slot - is SPLIT: only the initless refs migrate, the rest
+    // stays in place with its `_blockHoist` (the sibling's concern). emptied nodes drop, mutated split
+    const pulledDeclarators = [];
+    const droppedNodes = new Set();
+    const splitNodes = new Set();
+    for (const stmt of body) {
+      if (stmt.type !== 'VariableDeclaration' || stmt.kind !== 'var') continue;
+      const allInitless = stmt.declarations.every(d => !d.init && d.id.type === 'Identifier');
+      // pull our refs; when the whole node is initless also pull the foreign siblings (inert hoist)
+      const pulled = stmt.declarations.filter(d => !d.init && d.id.type === 'Identifier'
+        && (allInitless || refsSet.has(d.id.name)));
+      if (!pulled.some(d => refsSet.has(d.id.name))) continue; // sibling-only initless var migrates separately
+      pulledDeclarators.push(...pulled);
+      const remaining = stmt.declarations.filter(d => !pulled.includes(d));
+      if (remaining.length) {
+        stmt.declarations = remaining;
+        splitNodes.add(stmt);
+      } else {
+        droppedNodes.add(stmt);
+      }
+    }
+    if (!pulledDeclarators.length) return;
+    const kept = body.filter(s => !droppedNodes.has(s));
     let importEnd = 0;
     for (let i = 0; i < kept.length; i++) {
       if (isImportRegion(kept[i])) {
         importEnd = i + 1;
         continue;
       }
-      // sibling-injected initless var: scan past without extending the import region
-      if (isInitlessVarDecl(kept[i])) continue;
+      // scan past nodes that hoisting relocates regardless of their textual position here:
+      // sibling-injected initless vars, and split nodes (their `_blockHoist` lifts them above the
+      // imports). neither pins where our fresh merged `var _ref;` lands; a genuine init-bearing
+      // statement (source order matters) still halts the scan
+      if (isInitlessVarDecl(kept[i]) || splitNodes.has(kept[i])) continue;
       break;
     }
-    const merged = this.#t.variableDeclaration('var', refDecls.flatMap(s => s.declarations));
+    const merged = this.#t.variableDeclaration('var', pulledDeclarators);
     kept.splice(importEnd, 0, merged);
     this.#programPath.node.body = kept;
   }
