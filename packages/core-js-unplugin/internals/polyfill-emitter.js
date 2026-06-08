@@ -23,6 +23,7 @@ import {
   receiverSideEffectsOnly,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { resolveSymbolIteratorEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint, deoptionalizeNeedleAtPositions } from './transform-queue.js';
 import {
   isCallee,
@@ -669,9 +670,9 @@ export function createPolyfillEmitter({
     // stay visitable so a polyfillable call inside them is still rewritten
     const keyTail = node.computed ? peelNestedSequenceExpressions(node.property).tail : node.property;
     const isCallParent = isCallee(node, parent);
-    const isPlainCall = isCallParent && parent.type === 'CallExpression';
-    const entry = isPlainCall && parent.arguments.length === 0 && !parent.optional
-        ? 'get-iterator' : 'get-iterator-method';
+    // oxc has no OptionalCallExpression (optional calls are CallExpression + `optional`), and `new`
+    // must not take the direct-iterator form - so the plain-call test is the dialect-specific input
+    const entry = resolveSymbolIteratorEntry(node, parent, isCallParent && parent.type === 'CallExpression');
     if (!isEntryNeeded(entry)) return;
     const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
     // `(arr?.[Symbol.iterator])()`: parens terminate the chain, so native evaluates
