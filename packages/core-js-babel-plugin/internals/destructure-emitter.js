@@ -17,6 +17,7 @@ import {
   isIdentifierPropValue,
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
+  functionScopeBindsVarOrFunction,
   isTransparentDestructureWrapper,
   synthSwapPropKey,
   mayHaveSideEffects,
@@ -279,6 +280,10 @@ export default function createDestructureEmitter({
     // `({ of } = R, y = of)`) evaluates in param scope; relocating the binding into a body
     // `let` would strand that read. fall through to inline-default, which keeps the binding
     if (paramListReadsName(fnPath.node.params, valueNode.name)) return false;
+    // a parameter may be legally redeclared by a function-scoped `var <name>` / `function <name>(){}`
+    // in the body; emitting our body-top `let <name>` alongside it is a SyntaxError (`let`+`var`/
+    // `function` redeclare in one scope). bail to inline-default, which never introduces a `let`
+    if (functionScopeBindsVarOrFunction(fnPath.node, valueNode.name)) return false;
     const id = injectPureImport(entry, hintName);
     // register the local name -> entry path so receiver-narrowing through this binding
     // (`arr = from('x'); arr.at(-1)`) finds the polyfill's static return type. babel scope
