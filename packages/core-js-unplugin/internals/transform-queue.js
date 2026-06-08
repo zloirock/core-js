@@ -274,23 +274,22 @@ function upperBound(ranges, target) {
 // containing the needle multiple times would silently ignore later occurrences here -
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
-function mergeEqualRange({ a, b, originalNeedle, range = null, fileId = null }) {
+function mergeEqualRange({ a, b, originalNeedle, range = null }) {
   const aFirst = a.indexOf(originalNeedle);
   const wrapper = aFirst !== -1 ? a : b;
   const inner = aFirst !== -1 ? b : a;
   const first = aFirst !== -1 ? aFirst : wrapper.indexOf(originalNeedle);
-  // canonical `[core-js] transform-queue: [<fileId>] ` prefix matches the rest of the
-  // queue's diagnostics so users can grep failures consistently. mergeEqualRange is
-  // module-scope (no class instance, can't reach `this.#invariant`); both context bits
-  // flow through params from the calling method
-  const filePart = fileId ? `[${ fileId }] ` : '';
+  // `transform-queue: ` subsystem prefix matches the rest of the queue's diagnostics so users can
+  // grep failures consistently. the `[core-js] [<fileId>] ` brand + file tag are owned by the
+  // outer `tagError` (runTransform's catch), not self-prefixed here - matching the parse-error
+  // throw-path convention and avoiding the double brand/id `tagError` would otherwise stamp
   const rangeStr = range ? ` at [${ range.start },${ range.end })` : '';
   // contract: at least one side wraps the original source. a regression that breaks this
   // invariant would silently drop the wrapper text and emit only the inner replacement.
   // production callers (synth-swap, arrow-body wrap) always preserve the needle in exactly
   // one slot - the throw makes a future callsite that drops both copies fail loudly
   if (first === -1) {
-    throw new Error(`[core-js] transform-queue: ${ filePart }mergeEqualRange invariant${ rangeStr }: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
+    throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // assert single-occurrence invariant on BOTH sides:
   //   - wrapper-side: if a new outer-transform shape emits the needle twice, only the
@@ -301,10 +300,10 @@ function mergeEqualRange({ a, b, originalNeedle, range = null, fileId = null }) 
   // slice+includes allocates once on the assert path (rare miss) instead of pulling in
   // a second `indexOf` with a start position
   if (wrapper.slice(first + originalNeedle.length).includes(originalNeedle)) {
-    throw new Error(`[core-js] transform-queue: ${ filePart }mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
+    throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
   }
   if (inner.includes(originalNeedle)) {
-    throw new Error(`[core-js] transform-queue: ${ filePart }mergeEqualRange invariant${ rangeStr }: both sides contain needle - ambiguous wrapper (needle=${ JSON.stringify(originalNeedle) })`);
+    throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: both sides contain needle - ambiguous wrapper (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
   // `$n` interpretation if `inner` contains those tokens (user source with `$&` or polyfill
@@ -441,7 +440,7 @@ export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectSta
   // `guardRef` without `rootRaw` breaks compose: substituteInner relies on rootRaw for
   // needle.startsWith checks. fail fast rather than silently produce a hint that
   // misroutes downstream composition
-  if (!rootRaw) throw new Error('[core-js] createRewriteHint: guardRef requires rootRaw');
+  if (!rootRaw) throw new Error('createRewriteHint: guardRef requires rootRaw');
   return { rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot: !!absorbsRoot };
 }
 
@@ -466,21 +465,19 @@ export default class TransformQueue {
   // pure point-inserts (zero-length, no composition). drained after overwrites in apply().
   // entry shape: { pos, content }. preserves insertion order via Set
   #inserts = new Set();
-  // file id for invariant error messages - composition-bug reporters need to know which
-  // file produced the failure (otherwise they have to bisect across thousands of fixtures)
-  #fileId;
 
-  constructor(code, ms, fileId = null) {
+  constructor(code, ms) {
     this.#code = code;
     this.#ms = ms;
-    this.#fileId = fileId;
   }
 
-  // single-source-of-truth for invariant error messages - prepends the canonical
-  // `[core-js] transform-queue: [<fileId>] ` prefix so call sites express only the
-  // bug-specific tail, and reporters know which file produced the failure
+  // single-source-of-truth for invariant error messages - prepends the `transform-queue: `
+  // subsystem prefix so call sites express only the bug-specific tail. the `[core-js] [<fileId>] `
+  // brand + file tag are added once by the outer `tagError` (runTransform's catch), NOT self-
+  // prefixed here - matching the parse-error throw-path convention (`formatParseErrorForThrow`)
+  // and avoiding the doubled brand/id `tagError` would otherwise stamp onto a self-branded message
   #invariant(message) {
-    return new Error(`[core-js] transform-queue: ${ this.#fileId ? `[${ this.#fileId }] ` : '' }${ message }`);
+    return new Error(`transform-queue: ${ message }`);
   }
 
   add(start, end, content, guardedRoot, rewriteHint, splitInfo = null) {
@@ -492,24 +489,24 @@ export default class TransformQueue {
     // non-integer offsets (NaN / undefined / string) silently pass the inequality checks because
     // numeric coercion + NaN comparisons are always false - reject them upfront
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
-      throw new TypeError(`[core-js] transform-queue: start/end must be integers (received ${ String(start) }, ${ String(end) })`);
+      throw new TypeError(`transform-queue: start/end must be integers (received ${ String(start) }, ${ String(end) })`);
     }
     // split diagnostics so the caller sees which class of misuse fired:
     //   start === end -> caller meant insert (use `insert(pos, content)`);
     //   start > end   -> inverted range (caller's offset arithmetic is reversed)
     if (start === end) {
-      throw new RangeError(`[core-js] transform-queue: zero-length range [${ start },${ end }) - use insert() for insertions`);
+      throw new RangeError(`transform-queue: zero-length range [${ start },${ end }) - use insert() for insertions`);
     }
     if (start > end) {
-      throw new RangeError(`[core-js] transform-queue: inverted range [${ start },${ end }) - start must be < end`);
+      throw new RangeError(`transform-queue: inverted range [${ start },${ end }) - start must be < end`);
     }
     if (start < 0 || end > this.#code.length) {
-      throw new RangeError(`[core-js] transform-queue: range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
+      throw new RangeError(`transform-queue: range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
     }
     // content must be a string: undefined/null/object would silently corrupt via
     // MagicString.overwrite stringification. surface mismatch at caller, not mid-render
     if (typeof content !== 'string') {
-      throw new TypeError(`[core-js] transform-queue: content must be a string (received ${ typeof content })`);
+      throw new TypeError(`transform-queue: content must be a string (received ${ typeof content })`);
     }
     const entry = { start, end, content, guardedRoot, rewriteHint, splitInfo };
     this.#transforms.add(entry);
@@ -535,13 +532,13 @@ export default class TransformQueue {
   // replaced output unpredictably (caller bug; not asserted here)
   insert(pos, content) {
     if (!Number.isInteger(pos)) {
-      throw new TypeError(`[core-js] transform-queue: insert pos must be an integer (received ${ String(pos) })`);
+      throw new TypeError(`transform-queue: insert pos must be an integer (received ${ String(pos) })`);
     }
     if (pos < 0 || pos > this.#code.length) {
-      throw new RangeError(`[core-js] transform-queue: insert pos ${ pos } out of bounds (source length ${ this.#code.length })`);
+      throw new RangeError(`transform-queue: insert pos ${ pos } out of bounds (source length ${ this.#code.length })`);
     }
     if (typeof content !== 'string') {
-      throw new TypeError(`[core-js] transform-queue: insert content must be a string (received ${ typeof content })`);
+      throw new TypeError(`transform-queue: insert content must be a string (received ${ typeof content })`);
     }
     this.#inserts.add({ pos, content });
   }
@@ -553,11 +550,25 @@ export default class TransformQueue {
   // inner via shared splitInfo metadata so outer transforms still substitute via single
   // [start, end] needle (not two halves)
   addSplit(start, mid, end, prefixContent, suffixContent, guardedRoot, rewriteHint) {
+    // validate the FULL range up front - before the first `add` - so a bad range fails atomically.
+    // integrality + in-bounds checks otherwise live inside `add`, which runs them per-call: an
+    // out-of-bounds or non-integer `end` would pass the prefix `add(start, mid)` and only throw in
+    // the suffix `add(mid, end)`, leaving an orphaned prefix entry that corrupts the next apply().
+    // integer check first so NaN / non-integer offsets surface a clear cause (a non-integer mid also
+    // slips the `start < mid < end` ordering check below via numeric coercion)
+    if (!Number.isInteger(start) || !Number.isInteger(mid) || !Number.isInteger(end)) {
+      throw new TypeError(`transform-queue: addSplit offsets must be integers (received [${ String(start) },${ String(mid) },${ String(end) }))`);
+    }
     // up-front invariant: zero-length halves throw with cryptic [X,X) error inside
     // the second `add` call without indicating which side is bad. callers (polyfill-emitter
     // split-eligible branch) already gate on this; diagnostic exists for future call sites
     if (!(start < mid && mid < end)) {
-      throw new RangeError(`[core-js] transform-queue: addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`);
+      throw new RangeError(`transform-queue: addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`);
+    }
+    // bounds: start < mid < end already orders the offsets, so checking the outer pair covers both
+    // halves ([start, mid) and [mid, end) sit within [start, end))
+    if (start < 0 || end > this.#code.length) {
+      throw new RangeError(`transform-queue: addSplit range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
     }
     // validate BOTH content args upfront - throwing inside the second `add` call after
     // the first succeeded would leave an orphan prefix entry in the queue. typeof check
@@ -567,7 +578,7 @@ export default class TransformQueue {
     // (would emit zero-length chunk at sourcemap-distinct position)
     if (typeof prefixContent !== 'string' || typeof suffixContent !== 'string'
         || prefixContent.length === 0 || suffixContent.length === 0) {
-      throw new TypeError(`[core-js] transform-queue: addSplit content args must be non-empty strings; received prefix=${ typeof prefixContent === 'string' ? `'${ prefixContent }'` : typeof prefixContent }, suffix=${ typeof suffixContent === 'string' ? `'${ suffixContent }'` : typeof suffixContent }`);
+      throw new TypeError(`transform-queue: addSplit content args must be non-empty strings; received prefix=${ typeof prefixContent === 'string' ? `'${ prefixContent }'` : typeof prefixContent }, suffix=${ typeof suffixContent === 'string' ? `'${ suffixContent }'` : typeof suffixContent }`);
     }
     const groupId = Symbol('split');
     const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
@@ -719,6 +730,12 @@ export default class TransformQueue {
       if (entry.start >= start && entryLogicalEnd(entry) <= end) inRange.push(entry);
     }
     if (!inRange.length) return [];
+    // run the SAME sort+partial-overlap guard apply() does (otherwise reached only via
+    // #applyOverwrites). this drain path bakes the returned splices into relocated text via the
+    // caller's spliceInRange, which - unlike compose - cannot detect a partial overlap and would
+    // silently corrupt the output (and the entries are drained, so the final apply() never sees
+    // them). the sort is for the guard; #composeEntries re-sorts inRange by logical span below
+    this.#sortAndAssertNoPartialOverlap(inRange);
     const { composed, composedContent } = this.#composeEntries(inRange);
     const splices = this.#outermostComposed(composed, composedContent);
     for (const entry of inRange) this.#removeEntry(entry);
@@ -809,18 +826,18 @@ export default class TransformQueue {
     for (const { pos } of this.#inserts) {
       const entry = this.#enclosingOverwrite(pos);
       if (entry) {
-        throw new RangeError(`[core-js] transform-queue: insert at ${ pos } lands inside overwrite [${ entry.start },${ entryLogicalEnd(entry) })`);
+        throw new RangeError(`transform-queue: insert at ${ pos } lands inside overwrite [${ entry.start },${ entryLogicalEnd(entry) })`);
       }
     }
   }
 
   #applyOverwrites() {
     if (!this.#transforms.size) return;
-    // single snapshot, sorted asc by start; fast path reverses in place, slow path re-sorts
-    // in place. `#hasNesting` guarantees distinct starts on the fast-path branch so `reverse()`
-    // produces a safe right-to-left application order without losing tie-break information
-    const transforms = [...this.#transforms].sort((a, b) => a.start - b.start || b.end - a.end);
-    this.#assertNoPartialOverlap(transforms);
+    // single snapshot, sorted asc by start (+ overlap-checked); fast path reverses in place, slow
+    // path re-sorts in place. `#hasNesting` guarantees distinct starts on the fast-path branch so
+    // `reverse()` produces a safe right-to-left application order without losing tie-break information
+    const transforms = [...this.#transforms];
+    this.#sortAndAssertNoPartialOverlap(transforms);
 
     // fast path: no nesting - apply right-to-left
     if (!this.#hasNesting(transforms)) {
@@ -914,7 +931,7 @@ export default class TransformQueue {
           : composedContent.get(dup) ?? dup.content;
         content = mergeEqualRange({
           a: content, b: dupContent, originalNeedle: originalSlice,
-          range: { start, end: logicalEnd }, fileId: this.#fileId,
+          range: { start, end: logicalEnd },
         });
       }
     }
@@ -1091,6 +1108,16 @@ export default class TransformQueue {
       if (sorted[i].end <= sorted[i - 1].end) return true;
     }
     return false;
+  }
+
+  // sort `entries` by start (widest-end first on ties) IN PLACE, then run the partial-overlap
+  // guard. both the apply() path (#applyOverwrites) and the relocated-text drain path
+  // (composeAndDrainRange) must surface a partial overlap before composing/applying, and
+  // #assertNoPartialOverlap requires start-sorted input - so the sort+assert pair lives here once.
+  // callers reuse the now-sorted array (apply for its fast-path reverse; drain hands it to compose)
+  #sortAndAssertNoPartialOverlap(entries) {
+    entries.sort((a, b) => a.start - b.start || b.end - a.end);
+    this.#assertNoPartialOverlap(entries);
   }
 
   // partial overlap (`[10,20) intersect [15,25)`) would trip MagicString.overwrite with a
