@@ -112,7 +112,6 @@ export default class ImportInjector extends ImportInjectorState {
 
   generateDeclaredRef(scope, useNode) {
     const id = this.#generateRefId(scope);
-    // used in the loop HEADER - a block-body loop gives body uses their own block scope, and only a
     // `scope.push` unshifts `var _ref;` into the scope's own block. when the use site sits in a
     // HEADER/SIGNATURE position - a loop header or a function parameter list - that block-hosted var
     // is unreachable from the use, so hoist to the enclosing scope instead (matching unplugin's
