@@ -246,6 +246,11 @@ export function createPolyfillResolver(options, {
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'global')) return null;
     let { kind, desc: { global: desc } } = resolved;
+    // a synthetic inherited-static meta (`super.at()` / `this.at()` in a static method) whose key
+    // resolves to an INSTANCE desc means no such static exists on the super class - bail rather than
+    // inject the instance polyfill (the over-injection usage-pure already avoids). a real inherited
+    // static (`super.from()`) resolves to a static desc and is unaffected
+    if (kind === 'instance' && meta.inheritedStatic) return null;
     if (kind === 'instance') {
       const enhanced = enhanceMeta(meta, path, desc);
       if (!enhanced) return null;
