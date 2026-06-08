@@ -134,4 +134,36 @@ function ordering(lines) {
     lastImport !== -1 && (firstVar === -1 || lastImport < firstVar));
 }
 
+// --- generateDeclaredRef: a memoize ref for a polyfill in a TS parameter-property default must
+// hoist to an enclosing scope (visible from the parameter), NOT the constructor body. a body var is
+// unreachable from a parameter default (defaults evaluate in the param scope) and ReferenceErrors
+// once the parameter-property is desugared ---
+{
+  const { code } = await transformAsync('class C { constructor(public x = [1, 2].flat()) {} }\nnew C();', {
+    configFile: false,
+    babelrc: false,
+    parserOpts: { plugins: ['typescript'] },
+    plugins: [['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const beforeClass = code.slice(0, code.indexOf('class C'));
+  const ctorBody = code.slice(code.indexOf('constructor('));
+  checkTruthy('generateDeclaredRef/param-property default ref hoists above the class', /\bvar _ref\b/.test(beforeClass));
+  checkTruthy('generateDeclaredRef/param-property default ref absent from constructor body', !/\)\s*\{\s*var _ref\b/.test(ctorBody));
+}
+
+// two memoizing param-property defaults: EVERY ref must hoist above the class, none into the body
+{
+  const { code } = await transformAsync('class C { constructor(public a = [1].flat(), public b = [3, 1].at(0)) {} }\nnew C();', {
+    configFile: false,
+    babelrc: false,
+    parserOpts: { plugins: ['typescript'] },
+    plugins: [['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]],
+  });
+  const beforeClass = code.slice(0, code.indexOf('class C'));
+  const ctorBody = code.slice(code.indexOf('constructor('));
+  checkTruthy('generateDeclaredRef/multiple param-property refs all hoist above the class',
+    /\b_ref\b/.test(beforeClass) && /\b_ref2\b/.test(beforeClass));
+  checkTruthy('generateDeclaredRef/multiple param-property refs absent from constructor body', !/\bvar _ref/.test(ctorBody));
+}
+
 finish();
