@@ -206,7 +206,6 @@ export default class ImportInjector extends ImportInjectorState {
     // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
     // position can re-order vs prepend semantics
     if (importPos === refPos) return this.#emit(lead + blockify([...imports, ...refs]), importPos);
-    const importsBlock = imports.length ? lead + blockify(imports) : '';
     // refPos lands right after the trailing user import. when that import omits its `;`
     // (ASI), refPos sits on whatever token followed - we must prefix our `var _ref;` block
     // with `\n` to terminate the prior statement. otherwise `import x from "y"var _ref;`
@@ -221,34 +220,32 @@ export default class ImportInjector extends ImportInjectorState {
       const block = nextIsTerminator ? refs.join('\n') : blockify(refs);
       refsBlock = needsLead ? `\n${ block }` : block;
     }
-    // ordered fallback: when individual `appendRight` fails AND we have to `prepend`, the
-    // emission order must stay `imports -> refs`. multiple `prepend` calls reverse insertion
-    // order (later prepend wins position), so a naive per-call fallback would emit `var _ref;`
-    // BEFORE `import 'x';`. accumulate failed blocks into a single prepend that preserves
-    // source order. successful appendRight paths already land at correct positions
-    let pendingPrepend = '';
-    if (importsBlock) pendingPrepend = this.#emitOrDefer(importsBlock, importPos, pendingPrepend);
-    if (refsBlock) pendingPrepend = this.#emitOrDefer(refsBlock, refPos, pendingPrepend);
-    if (pendingPrepend) this.#ms.prepend(pendingPrepend);
+    // try to land refs right after the trailing user import (refPos). when a sibling plugin's
+    // overwrite straddles that range there's no chunk boundary for appendRight, so it fails - refs
+    // must then FOLD BACK into the import block at the prologue end (importPos), NOT prepend at
+    // position 0. a `var _ref;` prepended above the directive prologue demotes the Use Strict
+    // directive (silently switching the module to sloppy mode) and lands before the import header;
+    // folding keeps the directive intact and emits a single ordered `[imports, refs]` block, exactly
+    // like the same-anchor path above (multiple appendRight at one position re-order vs prepend)
+    const refsLandedAtRefPos = refsBlock ? this.#tryAppendRight(refsBlock, refPos) : true;
+    const importLines = refsLandedAtRefPos ? imports : [...imports, ...refs];
+    if (importLines.length) this.#emit(lead + blockify(importLines), importPos);
   }
 
-  // sibling plugin may overwrite a range that contains the insert position, leaving no
-  // chunk boundary for appendRight to attach to. instead of immediately prepending (which
-  // would reverse `[imports, refs]` order when both legs fall back), accumulate the failed
-  // block into the caller's `pendingPrepend` buffer; the caller emits a single ordered
-  // prepend at the end. logs the fallback so users can correlate with sibling-plugin range
-  // conflicts. MagicString can't source-map appended content, so the block is synthetic
-  // in the map regardless of which path runs
-  #emitOrDefer(block, insertPos, pendingPrepend) {
+  // attempt appendRight at insertPos; return true on success. a sibling plugin may overwrite a
+  // range containing insertPos, leaving no chunk boundary to attach to (appendRight throws) - return
+  // false so the caller re-routes the content to a safe anchor instead of blindly prepending at
+  // position 0. logs the fallback so users can correlate with sibling-plugin range conflicts
+  #tryAppendRight(block, insertPos) {
     if (insertPos > 0) {
       try {
         this.#ms.appendRight(insertPos, block);
-        return pendingPrepend;
+        return true;
       } catch (error) {
-        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ safeErrorMessage(error) }); deferring to ordered prepend`);
+        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ safeErrorMessage(error) }); folding refs into the import anchor`);
       }
     }
-    return pendingPrepend + block;
+    return false;
   }
 
   // single-emission appendRight + prepend fallback. used for the same-anchor combined-block
