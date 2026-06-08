@@ -29,7 +29,9 @@ import {
   extractIndirectRequireSEPrefix,
   isDirectiveStatement,
   isFunctionParamDestructureParent,
+  isReusableReceiver,
   paramListReadsName,
+  peelMemoizeWrappers,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
@@ -964,5 +966,34 @@ check('extractIndirectRequireSEPrefix/optional call no SE prefix',
       arguments: [{ type: 'StringLiteral', value: 'core-js/promise' }],
     },
   }).length, 0);
+
+// --- peelMemoizeWrappers: peel parens / chain ONLY (TS wrappers kept) - shared memo peel ---
+{
+  const inner = { type: 'Identifier', name: 'z' };
+  check('peelMemoizeWrappers/ParenthesizedExpression peeled',
+    peelMemoizeWrappers({ type: 'ParenthesizedExpression', expression: inner }), inner);
+  check('peelMemoizeWrappers/ChainExpression peeled',
+    peelMemoizeWrappers({ type: 'ChainExpression', expression: inner }), inner);
+  check('peelMemoizeWrappers/nested wrappers peeled',
+    peelMemoizeWrappers({ type: 'ChainExpression', expression: { type: 'ParenthesizedExpression', expression: inner } }), inner);
+  // TS wrappers deliberately NOT peeled - keeps both emitters' memo decision aligned
+  const tsWrap = { type: 'TSAsExpression', expression: inner };
+  check('peelMemoizeWrappers/TSAsExpression NOT peeled', peelMemoizeWrappers(tsWrap), tsWrap);
+  check('peelMemoizeWrappers/null safe', peelMemoizeWrappers(null), null);
+}
+
+// --- isReusableReceiver: peeled node is a bare Identifier or `this` (no memo `_ref` needed) ---
+check('isReusableReceiver/Identifier', isReusableReceiver({ type: 'Identifier', name: 'x' }), true);
+check('isReusableReceiver/ThisExpression', isReusableReceiver({ type: 'ThisExpression' }), true);
+check('isReusableReceiver/CallExpression', isReusableReceiver({ type: 'CallExpression' }), false);
+check('isReusableReceiver/MemberExpression', isReusableReceiver({ type: 'MemberExpression' }), false);
+check('isReusableReceiver/parenthesized Identifier',
+  isReusableReceiver({ type: 'ParenthesizedExpression', expression: { type: 'Identifier', name: 'x' } }), true);
+check('isReusableReceiver/chain-wrapped this',
+  isReusableReceiver({ type: 'ChainExpression', expression: { type: 'ThisExpression' } }), true);
+// TS wrapper is NOT peeled, so a TS-wrapped Identifier still needs a memo ref
+check('isReusableReceiver/TS-wrapped Identifier needs ref',
+  isReusableReceiver({ type: 'TSAsExpression', expression: { type: 'Identifier', name: 'x' } }), false);
+check('isReusableReceiver/null safe', isReusableReceiver(null), false);
 
 finish();
