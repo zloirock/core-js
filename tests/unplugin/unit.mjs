@@ -1957,6 +1957,20 @@ checkDeclared('conditional consequent reserves', 'cond ? (_ref = foo()) : f();',
 checkOrphan('nested assignment rhs',
   'x = _ref = foo();', [], ['_ref']);
 checkDeclared('nested assignment rhs reserves', 'x = _ref = foo();', ['_ref']);
+// user assignment as a direct logical operand (`flag && (_ref = X)` / `||` / `??`). the plugin's
+// memoize emit lives inside a `null == (...)` test or a call arg, never as a bare `&&`/`||`/`??`
+// operand - so a LogicalExpression parent is user-only and must reserve, not adopt (else the
+// post-pass injects a module-level `var _ref;` that localizes the user's implicit-global `_ref`)
+checkOrphan('logical && operand', 'flag && (_ref = foo());', [], ['_ref']);
+checkOrphan('logical || operand', 'flag || (_ref = foo());', [], ['_ref']);
+checkOrphan('logical ?? operand', 'flag ?? (_ref = foo());', [], ['_ref']);
+checkDeclared('logical operand reserves', 'flag && (_ref = foo());', ['_ref']);
+// nested logical operand (`a && b && (_ref = c)`) - the direct parent is still a LogicalExpression
+checkOrphan('nested logical operand', 'a && b && (_ref = foo());', [], ['_ref']);
+// precision: a user logical-operand `_ref` + a real plugin binary-test `_ref2` in one file -> only
+// the plugin orphan is adopted (the LogicalExpression blacklist must not suppress real orphans)
+checkOrphan('mixed logical-user + plugin orphan',
+  'flag && (_ref = foo()); null == (_ref2 = bar()) ? void 0 : _ref2;', ['_ref2'], ['_ref']);
 // plugin's own emit shapes stay adopted: `_ref =` inside the `null == (...)` BinaryExpression
 // test and as a call argument are both still recognized as orphans (regression guard for the
 // new ConditionalExpression / AssignmentExpression blacklist entries)
