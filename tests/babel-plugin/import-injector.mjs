@@ -19,23 +19,29 @@ const t = requireBabel('@babel/types');
 
 const { checkTruthy, finish } = createChecker('import-injector');
 
-// sibling plugin: pushes initless helper var(s) into the program scope during traversal.
-// Babel reuses one `declaration:var:N` node per block, so these helpers land in the SAME
-// `var` node core-js's memoize `_ref` occupies - the shared-node shape that
-// `reorderRefsAfterImports` must migrate past the import header
-function makeSiblingScopePush(names) {
+// sibling plugin: pushes helper var(s) into the program scope during traversal. Babel reuses one
+// `declaration:var:N` node per block, so these helpers land in the SAME `var` node core-js's memoize
+// `_ref` occupies - the shared-node shape that `reorderRefsAfterImports` must migrate past the import
+// header. a name present in `initMap` is pushed WITH an init (`scope.push({ id, init })`), making the
+// shared node init-bearing (the SPLIT case: Babel keys the push slot on `declaration:kind:blockHoist`,
+// so an init-bearing and an initless push at the same block/blockHoist still merge into one node)
+function makeSiblingScopePush(names, initMap = {}) {
   return () => ({
     visitor: {
       Program(path) {
-        for (const name of names) path.scope.push({ id: t.identifier(name) });
+        for (const name of names) {
+          path.scope.push(name in initMap
+            ? { id: t.identifier(name), init: t.numericLiteral(initMap[name]) }
+            : { id: t.identifier(name) });
+        }
       },
     },
   });
 }
 
-async function transform(source, { siblingNames = ['_helperVar'] } = {}) {
+async function transform(source, { siblingNames = ['_helperVar'], siblingInit = {} } = {}) {
   const plugins = [];
-  if (siblingNames.length) plugins.push(makeSiblingScopePush(siblingNames));
+  if (siblingNames.length) plugins.push(makeSiblingScopePush(siblingNames, siblingInit));
   plugins.push(['@core-js', { method: 'usage-pure', version: '4.0', targets: { ie: 11 } }]);
   return (await transformAsync(source, { configFile: false, babelrc: false, plugins })).code;
 }
@@ -83,6 +89,40 @@ function ordering(lines) {
     lastImport !== -1 && firstVar !== -1 && lastImport < firstVar);
   checkTruthy('reorderRefsAfterImports/both foreign helpers survive the migration',
     varLine.includes('_helperA') && varLine.includes('_helperB'));
+}
+
+// SPLIT case: a sibling scope.push WITH an init merges into our `_ref` node, so the shared
+// `var _ref, _helperVar = 42;` carries an init-bearing declarator. the old `every initless`
+// predicate refused to migrate the whole node, so Babel's block-hoist (`_blockHoist: 2`) lifted
+// our `_ref` ABOVE the import (import/first violation). the fix SPLITS: the initless `_ref` migrates
+// below the import, the init-bearing `_helperVar = 42` stays in its node (its `_blockHoist` is the
+// sibling's concern). assert our ref ends up after the import header and the init is preserved
+{
+  const code = await transform("const x = getItems().includes('y');\nconst TRIGGER = 1;",
+    { siblingInit: { _helperVar: 42 } });
+  const lines = code.split('\n');
+  const lastImport = lines.reduce((acc, line, i) => /^\s*import\b/.test(line) ? i : acc, -1);
+  const refIdx = lines.findIndex(line => /^\s*var _ref\b/.test(line));
+  checkTruthy('reorderRefsAfterImports/split: our _ref migrates below the import',
+    lastImport !== -1 && refIdx > lastImport);
+  checkTruthy('reorderRefsAfterImports/split: sibling init-bearing declarator preserved',
+    /_helperVar\s*=\s*42/.test(code));
+}
+
+// SPLIT with MULTIPLE refs: two memoize sites allocate `_ref` + `_ref2`, both merged into the
+// init-bearing shared node. the split must pull BOTH initless refs into the migrated node below the
+// import while leaving the init-bearing `_helperVar = 42` behind - exercises the multi-ref pull filter
+{
+  const code = await transform("const x = getItems().includes('y');\nconst z = getOther().at(0);",
+    { siblingInit: { _helperVar: 42 } });
+  const lines = code.split('\n');
+  const lastImport = lines.reduce((acc, line, i) => /^\s*import\b/.test(line) ? i : acc, -1);
+  const refLineIdx = lines.findIndex(line => /^\s*var _ref\b/.test(line));
+  const refLine = lines[refLineIdx] ?? '';
+  checkTruthy('reorderRefsAfterImports/split-multi: both refs migrate below the import',
+    lastImport !== -1 && refLineIdx > lastImport && refLine.includes('_ref') && refLine.includes('_ref2'));
+  checkTruthy('reorderRefsAfterImports/split-multi: init-bearing declarator preserved',
+    /_helperVar\s*=\s*42/.test(code));
 }
 
 // control without the sibling: the pure-ref `var _ref;` node still lands after the import
