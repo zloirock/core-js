@@ -76,11 +76,17 @@ function stripBoilerplate(code) {
     .join('\n'));
 }
 
-// `trimStart` guards against future codegen drift that could indent imports — current
-// unplugin / babel emission is flush-left, but neither runner should silently skip an
-// indented `  import "..."` line during loose imports-only validation
+// the injected-polyfill set, for the imports-only loose comparison. captures BOTH ESM
+// (`import "core-js/..."` / `import _x from "core-js/..."`) and CJS (`require("core-js/...")`)
+// forms - global-mode CJS / importStyle:require fixtures emit polyfills as side-effect
+// `require(...)`, which an `import `-only filter skips, making the loose compare vacuously
+// pass against any require-set regression (no requires, wrong set, or `import` for `require`).
+// `trimStart` guards against future codegen drift that could indent the injected lines
 function extractImports(code) {
-  return code.split('\n').filter(l => l.trimStart().startsWith('import ')).sort().join('\n');
+  return code.split('\n').filter(l => {
+    const trimmed = l.trimStart();
+    return trimmed.startsWith('import ') || /^require\(["']core-js\//.test(trimmed);
+  }).sort().join('\n');
 }
 
 function label(directory) {
