@@ -610,8 +610,10 @@ export function createUsageVisitors({
     b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
   );
 
+  // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
+  // has no effects channel here, so bail rather than feed the text composer an unplaceable needle
   function resolveKey(node, computed, scope) {
-    return sharedResolveKey({ node, computed, scope, adapter });
+    return sharedResolveKey({ node, computed, scope, adapter, bailOnSideEffectKey: true });
   }
 
   function extractPropertyKey(propNode, scope) {
