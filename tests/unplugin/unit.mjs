@@ -6,6 +6,7 @@ import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { collectMutatedStaticMembers } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
+import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import TransformQueue, { deoptionalizeNeedle, deoptionalizeNeedleAtPositions, hasIdentifierBoundary } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin, {
@@ -718,15 +719,17 @@ function checkNestedChainDepthSweep() {
 }
 checkNestedChainDepthSweep();
 
-// `mergeEqualRange` invariant errors must carry the `[core-js] transform-queue: [fileId]`
-// prefix matching the rest of the queue's diagnostics. mergeEqualRange is module-scope -
-// fileId/range flow through params from the calling instance method
+// `mergeEqualRange` invariant errors carry the bare `transform-queue: ` subsystem prefix - NOT a
+// self-applied `[core-js] [<fileId>] ` brand. the brand + file tag are owned by the outer `tagError`
+// (runTransform's catch), matching the parse-error throw-path convention; self-prefixing here would
+// make tagError double-stamp the brand and id (X10-1). the message head must be `transform-queue: `
+// with no leading `[core-js]`
 function checkMergeEqualRangePrefix() {
   const code = 'abcdef';
   const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms, 'fixture-mer');
+  const q = new TransformQueue(code, ms);
   // construct two equal-range transforms where neither contains the original needle
-  // (`abcdef`). mergeEqualRange should throw with the prefix
+  // (`abcdef`). mergeEqualRange should throw with the unbranded subsystem prefix
   q.add(0, 6, 'XX');
   q.add(0, 6, 'YY');
   try {
@@ -734,7 +737,7 @@ function checkMergeEqualRangePrefix() {
     counts.failed++;
     echo`${ red('FAIL') } ${ cyan('TransformQueue/mergeEqualRange prefix') } :: expected throw`;
   } catch (error) {
-    if (/\[core-js\] transform-queue: \[fixture-mer\] mergeEqualRange invariant/.test(error.message)) counts.passed++;
+    if (error.message.startsWith('transform-queue: mergeEqualRange invariant')) counts.passed++;
     else {
       counts.failed++;
       echo`${ red('FAIL') } ${ cyan('TransformQueue/mergeEqualRange prefix') } :: got ${ error.message }`;
@@ -742,6 +745,99 @@ function checkMergeEqualRangePrefix() {
   }
 }
 checkMergeEqualRangePrefix();
+
+// U05-1: addSplit must validate the FULL range up front (before the first add) so ANY bad offset
+// fails ATOMICALLY with an addSplit-specific diagnostic. a bad `end` is the orphan-critical case
+// (it would pass the prefix add() and throw only in the suffix add(), orphaning the prefix half and
+// corrupting the next apply()); a bad start/mid is caught by the first add() but the upfront check
+// gives the clear addSplit message and validates uniformly. assert the message is addSplit-owned
+// (not add()'s fall-through) AND that no orphan remains
+function checkAddSplitAtomicRange() {
+  const code = '0123456789';
+  for (const [start, mid, end, pattern, label] of [
+    [2, 5, 15, /addSplit range \[2,15\) out of bounds/, 'out-of-bounds end'],
+    [2, 5, 8.5, /addSplit offsets must be integers/, 'non-integer end'],
+    [2, 5.5, 8, /addSplit offsets must be integers/, 'non-integer mid'],
+    [-1, 5, 8, /addSplit range \[-1,8\) out of bounds/, 'out-of-bounds start'],
+  ]) {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    let message = null;
+    try {
+      q.addSplit(start, mid, end, 'PRE', 'SUF', null, null);
+    } catch (error) {
+      message = error.message;
+    }
+    check(`TransformQueue/addSplit atomic ${ label } throws addSplit-specific`, !!message && pattern.test(message), true);
+    q.apply();
+    check(`TransformQueue/addSplit atomic ${ label } leaves no orphan`, ms.toString(), code);
+  }
+}
+checkAddSplitAtomicRange();
+
+// U05-2: composeAndDrainRange drains entries and returns splices the caller bakes into relocated
+// text via spliceInRange, which cannot detect a partial overlap. it must run the same partial-overlap
+// guard apply() does, surfacing the composition bug instead of silently corrupting the relocated text
+function checkComposeAndDrainRangeOverlapThrows() {
+  const code = '0123456789abcdefghij';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.add(0, 10, 'XXX');
+  q.add(5, 15, 'YYY'); // partial overlap with [0,10)
+  try {
+    q.composeAndDrainRange(0, 20);
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/composeAndDrainRange overlap') } :: expected throw`;
+  } catch (error) {
+    check('TransformQueue/composeAndDrainRange surfaces partial overlap',
+      /partial overlap/.test(error.message), true);
+  }
+}
+checkComposeAndDrainRangeOverlapThrows();
+
+// the new overlap guard must NOT false-throw on VALID (non-partial-overlapping) entries - disjoint
+// ranges compose/relocate fine and return one splice each, draining from the queue
+function checkComposeAndDrainRangeValid() {
+  const code = '0123456789';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.add(0, 3, 'A');
+  q.add(5, 8, 'B'); // disjoint from [0,3) - no overlap
+  let splices = null;
+  try {
+    splices = q.composeAndDrainRange(0, 10);
+  } catch (error) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/composeAndDrainRange valid') } :: false throw ${ error.message }`;
+  }
+  if (splices) check('TransformQueue/composeAndDrainRange valid returns disjoint splices', splices.length, 2);
+}
+checkComposeAndDrainRangeValid();
+
+// X10-1: a transform-queue throw routed through runTransform's `tagError(error, id)` must carry
+// EXACTLY one `[core-js]` brand and one file id. the queue throws an unbranded `transform-queue: `
+// message (no self-applied `[core-js] [<id>] `), so tagError stamps the brand + id exactly once -
+// matching the parse-error throw-path convention
+function checkSingleBrandAfterTagError() {
+  const id = '/src/app.js';
+  const code = 'aaaaaaaaaa';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  let message = '';
+  try {
+    q.add(0, 6, 'X');
+    q.add(3, 9, 'Y'); // partial overlap -> #invariant throw
+    q.apply();
+  } catch (error) {
+    tagError(error, id); // exactly what runTransform's catch does
+    message = error.message;
+  }
+  check('TransformQueue/tagError single [core-js] brand', (message.match(/\[core-js\]/g) || []).length, 1);
+  check('TransformQueue/tagError single file id', message.split(id).length - 1, 1);
+  check('TransformQueue/tagError keeps unbranded subsystem prefix',
+    /^\[core-js\] \[\/src\/app\.js\] transform-queue: /.test(message), true);
+}
+checkSingleBrandAfterTagError();
 
 // `extractContent` on a split-pair half must remove BOTH halves. orphaning the peer
 // would emit it alone at apply time, corrupting output (peer covers only half the

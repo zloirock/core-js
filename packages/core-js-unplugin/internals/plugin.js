@@ -689,7 +689,9 @@ export default function createPlugin(options) {
       // a single WeakSet covers all three because the downstream check is the same: any visitor
       // that sees a node in the set exits early. keep this in mind when adding new usages
         const skippedNodes = new WeakSet();
-        const transforms = new TransformQueue(code, ms, id);
+        // no fileId arg: transform-queue throws are unbranded (`transform-queue: <msg>`); the outer
+        // catch's `tagError(error, id)` owns the single `[core-js] [<id>] ` brand + file tag
+        const transforms = new TransformQueue(code, ms);
 
         // per-traversal scope state for `var _ref;`-style refs. setScope() runs before each
         // callback; genRef() reads the current scope. applyTransforms() drains accumulated
