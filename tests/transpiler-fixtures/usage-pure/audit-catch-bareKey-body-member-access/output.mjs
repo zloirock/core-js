@@ -1,14 +1,13 @@
-import _includes from "@core-js/pure/actual/instance/includes";
 // catch destructure body-usage check: a property name in member access matches the binding
-// name lexically but is not a runtime reference (`Math.includes` reads the property
-// `includes` off `Math`, doesn't bind to the catch's `includes`). The non-
-// reference-position filter rejects member-tail identifiers, leaving the catch
-// destructure intact - `Math.includes` still flows through the regular instance-polyfill
-// emit, but the catch transform doesn't fire on a phantom binding ref
+// name lexically but is not a runtime reference (`Math.includes` reads the property `includes`
+// off `Math`, doesn't bind to the catch's `includes`). The non-reference-position filter rejects
+// member-tail identifiers, so the catch transform doesn't fire on a phantom binding ref. the
+// `Math.includes` access itself injects nothing: includes is an `Array`/`String.prototype` method,
+// absent on the `Math` namespace, so the receiver-type gate bails it
 try {
   risky();
 } catch ({
   includes
 }) {
-  _includes(Math);
+  Math.includes;
 }

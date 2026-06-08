@@ -19,6 +19,7 @@ import { handleBinaryIn, handleMemberExpressionNode, markGlobalWriteReceiver } f
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   collectFunctionScopeVarReassignments,
+  collectScopeLetReassignments,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findIifeArgForParam,
@@ -201,8 +202,6 @@ function hasRuntimeBinding(scope, name, path = null) {
 // '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) get recognised as
 // proxy-globals. re-entrancy is the caller's contract: plugin.js save/restore is the
 // runTransform try/finally - early-returns before the save leave the outer injector intact.
-// no-injector instances (default callback) are safe for adapter consumers that only need
-// pure literal / binding checks (detect-entry's require/import scan)
 export function createEstreeAdapter(getInjector = () => null, method = null) {
   return {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
@@ -267,9 +266,14 @@ export function createEstreeAdapter(getInjector = () => null, method = null) {
       // same walk the synthetic var-hoist binding uses (which respects the TSModuleBlock boundary
       // and records every write shape) so a real reassignment narrows / bails and a phantom
       // namespace twin doesn't - both matching babel. path-less callers keep estree's list
-      const constantViolations = path && b.kind === 'var'
-        ? collectFunctionScopeVarReassignments(path, name)
-        : b.constantViolations;
+      // estree-toolkit also omits a cross-boundary `let` reassignment (a use in a nested closure does
+      // not observe the outer-scope write `let K='a'; K='b'; const f=()=>X[K]()`), so a polyfillable
+      // reaching value is dropped while babel's native binding carries it. recompute by the same AST
+      // scan, anchored at the `let`'s own lexical scope (climb the declarator to its block / program)
+      const constantViolations = !path ? b.constantViolations
+        : b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
+          : b.kind === 'let' ? collectScopeLetReassignments(b.path, name)
+            : b.constantViolations;
       return {
         node: b.path.node,
         constantViolations,
