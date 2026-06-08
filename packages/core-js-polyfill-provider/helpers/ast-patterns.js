@@ -738,10 +738,27 @@ const LOOP_BODY_FIELD = {
 // must NOT be resolved to the global there - babel bails it natively, and this brings the unplugin
 // var-hoist path (which otherwise reads a clean binding) into line. only the loop body counts: a
 // `for (var X = ...; ;)` init or a plain `if` runs the declarator at most once per entry
+// memoize a `(nodeA, nodeB) -> result` AST walk per file. the outer WeakMap is keyed by nodeA (a fresh
+// var-scope owner per file, so the cache is naturally per-file and GC'd with the AST), the inner Map by
+// nodeB; null / false results cache too (via `.has`). same sibling-mutation staleness constraint as the
+// other per-node caches above. the dominance lookups below re-walked the owner subtree once per (use,
+// write) pair without this, going cubic (O(uses * writes * subtree)) on a heavily-reassigned alias (X11)
+function memoizeByNodePair(compute) {
+  const cache = new WeakMap();
+  return function (a, b) {
+    let inner = cache.get(a);
+    if (!inner) cache.set(a, inner = new Map());
+    if (inner.has(b)) return inner.get(b);
+    const result = compute(a, b);
+    inner.set(b, result);
+    return result;
+  };
+}
+
 // does `target` sit inside a loop BODY within `ownerNode`'s var scope (re-run each iteration)?
 // stops at nested var-scope boundaries. shared by the named-declarator check below and the
 // usage-pure reachability gate - a use re-run by a loop back-edge can observe a textually-later write
-function nodeSitsInLoopBodyWithin(ownerNode, target) {
+const nodeSitsInLoopBodyWithin = memoizeByNodePair((ownerNode, target) => {
   let result = false;
   function visit(node, inLoopBody) {
     if (result || !isAstNode(node)) return;
@@ -761,7 +778,7 @@ function nodeSitsInLoopBodyWithin(ownerNode, target) {
   }
   visit(ownerNode, false);
   return result;
-}
+});
 
 export function isVarDeclaratorInLoopBody(path, name) {
   const owner = findNearestVarScopeOwner(path);
@@ -799,7 +816,7 @@ const CONDITIONAL_BRANCH_FIELDS = {
 // locate `target` in `ownerNode`'s var scope and return the ordered conditional-branch nodes
 // guarding it, or null when not found. don't descend past nested var-scope boundaries (`var`
 // doesn't hoist across them). array-valued branch fields record the parent node as the guard
-function collectVarGuardsToDeclarator(ownerNode, target) {
+const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
   let result = null;
   function visit(node, guards) {
     if (result !== null || !isAstNode(node)) return;
@@ -830,7 +847,7 @@ function collectVarGuardsToDeclarator(ownerNode, target) {
   }
   visit(ownerNode, []);
   return result;
-}
+});
 
 // the use must sit inside every conditional branch the declarator does, else the assignment can be
 // skipped on a path that still reaches the use. an unconditional declarator (no branches) passes
@@ -944,7 +961,7 @@ export function noReassignmentReachesUsage({ reassignmentNodes, usagePath }) {
 // the AssignmentExpression node directly; estree-toolkit records the target Identifier (the LHS), so
 // locate the enclosing `name = <expr>` in `ownerNode` to read its right operand. null for a non-plain
 // write (`name++` / `name += x`) whose value isn't a simple replacement
-function reassignmentRhs(node, ownerNode) {
+const reassignmentRhs = memoizeByNodePair((node, ownerNode) => {
   if (node.type === 'AssignmentExpression') return node.operator === '=' ? node.right : null;
   if (node.type !== 'Identifier') return null;
   let found = null;
@@ -963,7 +980,7 @@ function reassignmentRhs(node, ownerNode) {
   }
   visit(ownerNode);
   return found;
-}
+});
 
 // reaching-definition VALUE node of a reassigned variable at `usagePath`: the RHS of the last
 // assignment textually before the use, when that value is unambiguous - the last before-use write
@@ -1546,11 +1563,15 @@ function propertyKeyName(prop) {
 // dynamic property, computed access, namespace shadow, etc. shared between the
 // Object.defineProperty[ies] and Reflect.defineProperty / Reflect.deleteProperty walkers
 // so the (callee, namespace) gate stays in lockstep across mutation siblings
-function namespaceStaticCallMethod(call, namespaceName) {
+function namespaceStaticCallMethod(call, namespaceName, isShadowed) {
   if (call?.type !== 'CallExpression') return null;
   const { callee } = call;
   if (callee?.type !== 'MemberExpression' || callee.computed) return null;
   if (callee.object?.type !== 'Identifier' || callee.object.name !== namespaceName) return null;
+  // a LOCAL binding shadowing `Object` / `Reflect` (`function patch(Object) { Object.assign(Array, ...) }`)
+  // is not the global namespace, so its call patches nothing global - don't record the mutation. mirrors
+  // the target-arg shadow guard in `mutationTargetIdentifier`
+  if (isShadowed(callee.object.name)) return null;
   if (callee.property?.type !== 'Identifier') return null;
   return callee.property.name;
 }
@@ -1587,7 +1608,7 @@ function mutationTargetIdentifier(node, isShadowed) {
 // constraint as the MemberExpression-LHS shape: full receiver / key resolution is out of
 // scope for this fast pre-walk
 function collectObjectMutations(call, mutated, isShadowed) {
-  const methodName = namespaceStaticCallMethod(call, 'Object');
+  const methodName = namespaceStaticCallMethod(call, 'Object', isShadowed);
   if (methodName === null) return;
   const args = call.arguments ?? [];
   const targetName = mutationTargetIdentifier(args[0], isShadowed);
@@ -1622,7 +1643,7 @@ function collectObjectMutations(call, mutated, isShadowed) {
 // usage-pure bail (and keeps parity with `Object.assign`, the bulk [[Set]] form, collected above).
 // `Reflect.setPrototypeOf` stays out of scope - it swaps [[Prototype]], not a single named key
 function collectReflectMutations(call, mutated, isShadowed) {
-  const methodName = namespaceStaticCallMethod(call, 'Reflect');
+  const methodName = namespaceStaticCallMethod(call, 'Reflect', isShadowed);
   if (methodName !== 'defineProperty' && methodName !== 'deleteProperty' && methodName !== 'set') return;
   const args = call.arguments ?? [];
   const targetName = mutationTargetIdentifier(args[0], isShadowed);
@@ -1770,8 +1791,14 @@ export function collectMutatedStaticMembers(programNode) {
 // shared between babel-plugin and unplugin so the (object, key) string formation stays in
 // lockstep with the pre-pass that built the set - any divergence (different separator, case,
 // proto-vs-static handling) would cause silent misses on one adapter and not the other
+// a member meta whose `object.key` static was mutated (assigned or DELETED) somewhere in the file.
+// covers `kind === 'property'` (suppress the polyfill rewrite - a user override wins) AND
+// `kind === 'in'` (`'from' in Array`): a `delete Array.from` makes the runtime `in` false, so folding
+// the in-check to `true` would be wrong. both plugins gate on this before dispatching the meta, so the
+// `in` case is left untouched (the assign case also stays the correct runtime `true`). usage-pure only -
+// `mutatedSet` is null in global mode, so the `?.has` short-circuits to false there
 export function isMutatedStaticMeta(meta, mutatedSet) {
-  return meta.kind === 'property' && meta.object && meta.key
+  return (meta.kind === 'property' || meta.kind === 'in') && meta.object && meta.key
     && mutatedSet?.has(`${ meta.object }.${ meta.key }`);
 }
 
