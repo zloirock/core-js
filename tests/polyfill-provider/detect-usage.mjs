@@ -482,6 +482,33 @@ runBoth('reassignmentDominatesUsage/cross-closure reassign stays shallow -> fals
     check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
   });
 
+// X11: reassignmentDominatesUsage must stay SUB-CUBIC on a heavily-reassigned alias. without memoizing
+// collectVarGuardsToDeclarator, every (use, write) pair re-walked the whole owner subtree -> O(U*R*N),
+// seconds-to-tens-of-seconds at a few hundred reassigns/uses. this calls the helper over every use site
+// and asserts a generous ceiling a cubic regression blows past (memoized is single-digit ms here; the
+// un-memoized walk was ~6s at this size per the X11 measurement). also checks the decision stays correct
+// at scale (every reassignment is conditional, so none dominates -> all false)
+{
+  const N = 250;
+  let body = 'var M = Map;';
+  for (let i = 0; i < N; i++) body += ` if (c${ i }) { M = G${ i }; }`;
+  for (let i = 0; i < N; i++) body += ' M.foo();';
+  runBoth('reassignmentDominatesUsage/heavy alias stays sub-cubic', `function f() {${ body } }`,
+    (adapter, prog, lbl) => {
+      const reassignmentNodes = adapter.collectPaths(prog, 'AssignmentExpression', p => p.node.left?.name === 'M')
+        .map(p => p.node);
+      const uses = adapter.collectPaths(prog, 'MemberExpression', p => p.node.property?.name === 'foo');
+      const start = Date.now();
+      let anyDominates = false;
+      for (const usagePath of uses) {
+        if (reassignmentDominatesUsage({ reassignmentNodes, usagePath })) anyDominates = true;
+      }
+      const elapsed = Date.now() - start;
+      check(`${ lbl } (all conditional -> none dominates)`, anyDominates, false);
+      checkTruthy(`${ lbl } (perf ${ elapsed }ms under 2500ms ceiling)`, elapsed < 2500);
+    });
+}
+
 // --- noReassignmentReachesUsage: usage-pure substitute gate (mirror direction) ---
 
 // a for-of head write before the use can run before the read -> init not provably live -> bail
