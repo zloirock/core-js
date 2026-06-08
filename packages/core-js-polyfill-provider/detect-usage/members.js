@@ -248,8 +248,14 @@ export function resolveSymbolInEntry(key) {
   return { entry, hint: key.replace('.', '$') };
 }
 
-export function resolveSymbolIteratorEntry(node, parent) {
-  const isCall = isCallShape(parent) && parent.callee === node;
+// `node[Symbol.iterator]` fetches the iterator directly (`get-iterator`) only when it is
+// immediately and plainly called with zero args and no optional - `node[Symbol.iterator]()`. Any
+// other shape (no call, args, optional, `new`) needs the method form so the call / optional / args
+// stay on the caller's side. `isCall` ("is `parent` a plain call whose callee is `node`") is
+// supplied by the caller because that test is AST-dialect-specific: babel has no parenthesis nodes
+// so a strict callee match suffices, while oxc keeps them so unplugin unwraps the callee. The
+// default is the babel-shape strict match
+export function resolveSymbolIteratorEntry(node, parent, isCall = isCallShape(parent) && parent.callee === node) {
   return isCall && parent.arguments.length === 0 && !parent.optional ? 'get-iterator' : 'get-iterator-method';
 }
 
