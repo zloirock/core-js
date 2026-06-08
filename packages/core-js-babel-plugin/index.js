@@ -13,14 +13,13 @@ import {
   isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
-  mayHaveSideEffects,
   peelNestedSequenceExpressions,
   peelSkippableWrappers,
   BRACE_STATEMENT_HOST_TYPES,
   TS_EXPR_WRAPPERS,
-  visitSymbolInLhsSe,
   wouldPromoteDirectiveAfterRemoval,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -35,7 +34,7 @@ import {
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { resolveSymbolIteratorEntry, resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
+import { resolveSymbolIteratorEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
@@ -431,63 +430,37 @@ export default function plugin(api, options) {
         }
       }
 
-      // peel SequenceExpression's preceding elements when at least one carries a
-      // side-effect; trailing tail is the value used by the in-expression. returns null
-      // when not a sequence or when no preceding element has side-effects
-      function sequencePrefixWithSideEffects(expr) {
-        if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
-        const prefix = expr.expressions.slice(0, -1);
-        return prefix.some(e => mayHaveSideEffects(e)) ? prefix : null;
-      }
-
-      // `X in Y` rewrite. symbol-sourced LHS (`Symbol.X in obj` / alias binding) takes the
-      // symbol-in polyfill path; string-sourced LHS (`'Symbol.X' in Obj`) falls through to
-      // the string-key lookup and emits `true` only if the static table matches the literal
+      // `X in Y` rewrite. The branch decision and side-effect harvest live in the shared
+      // planInExpression; here we only render the chosen shape into babel AST
       function handleInExpression(meta, path) {
-        const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
-        if (symbolIn && isEntryNeeded(symbolIn.entry)) {
-          const id = injectPureImport(symbolIn.entry, symbolIn.hint);
-          // LHS may carry SE (computed-key SequenceExpression / wrapped receiver SE) that
-          // the symbol-in rewrite would otherwise drop. harvest and prepend as a sequence
-          const lhsSe = [];
-          visitSymbolInLhsSe(path.node.left, e => lhsSe.push(t.cloneNode(e)));
-          if (meta.key === 'Symbol.iterator') {
-            // cloneNode avoids sharing the original node between the replaced BinaryExpression
-            // subtree and the new CallExpression arg - defensive against sibling plugins that
-            // might hold a reference to the old tree
-            const call = t.callExpression(id, [t.cloneNode(path.node.right)]);
-            path.replaceWith(lhsSe.length ? t.sequenceExpression([...lhsSe, call]) : call);
+        const plan = planInExpression({
+          meta,
+          left: path.node.left,
+          right: path.node.right,
+          unwrap: node => node,
+          isEntryNeeded,
+          resolveFallback: m => resolvePureOrGlobalFallback(m, path),
+        });
+        if (plan.kind === 'noop') return;
+        // cloneNode keeps the harvested SE / arg subtrees independent of the replaced tree -
+        // defensive against sibling plugins that might hold a reference to the old nodes
+        const lhsSe = plan.leadingSe.map(e => t.cloneNode(e));
+        function withLhsSe(core) {
+          return lhsSe.length ? t.sequenceExpression([...lhsSe, core]) : core;
+        }
+        if (plan.kind === 'symbol') {
+          const id = injectPureImport(plan.entry, plan.hint);
+          if (plan.call) {
+            path.replaceWith(withLhsSe(t.callExpression(id, [t.cloneNode(plan.right)])));
           } else {
+            // swap only the LHS in place so the RHS keeps its visited state (not re-traversed)
             path.get('left').replaceWith(id);
             if (lhsSe.length) path.replaceWith(t.sequenceExpression([...lhsSe, path.node]));
           }
           return;
         }
-        if (meta.object) {
-          // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable.
-          // BOTH sides preserve SE: `(bar(), 'from') in Array` and `'k' in (fn(), Array)`
-          // evaluate their SE even when the in-check folds to a constant. shapes:
-          //   SequenceExpression: keep SE-bearing prefix, drop tail (consumed by in-check)
-          //   AssignmentExpression on RHS: wrap whole RHS as sequence prefix (rescues
-          //   assignment side-effect + binding update)
-          // CallExpression rhs is intentionally NOT rescued here - inline-call analysis
-          // upstream filters out SE-bearing IIFEs separately, and conservative wrapping for
-          // pure IIFE receivers would emit `((() => X)(), true)` for the explicit-classify path
-          const resolved = resolvePureOrGlobalFallback(meta, path);
-          if (!resolved.result) return;
-          const seExprs = [];
-          const lhsPrefix = sequencePrefixWithSideEffects(path.node.left);
-          if (lhsPrefix) seExprs.push(...lhsPrefix.map(e => t.cloneNode(e)));
-          const rhs = path.node.right;
-          const rhsPrefix = sequencePrefixWithSideEffects(rhs);
-          if (rhsPrefix) seExprs.push(...rhsPrefix.map(e => t.cloneNode(e)));
-          else if (rhs?.type === 'AssignmentExpression') seExprs.push(t.cloneNode(rhs));
-          if (seExprs.length) {
-            path.replaceWith(t.sequenceExpression([...seExprs, t.booleanLiteral(true)]));
-          } else {
-            path.replaceWith(t.booleanLiteral(true));
-          }
-        }
+        // fold: the polyfill is always defined, so the membership test is constantly true
+        path.replaceWith(withLhsSe(t.booleanLiteral(true)));
       }
 
       // stash return type on CallExpression before callee replacement so downstream
