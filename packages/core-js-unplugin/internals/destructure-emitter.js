@@ -501,11 +501,14 @@ export function createDestructureEmitter({
   // anchored at decl.start. all splices must fall within [decl.start, decl.end) - an
   // out-of-range splice would either silently no-op or corrupt source; asserting at the gate
   // isolates the splice contract violation here instead of letting a downstream MagicString
-  // chunk-split error surface far from the cause
+  // chunk-split error surface far from the cause. the throw is UNBRANDED (`destructure-emitter: `
+  // subsystem prefix only): the `[core-js] [<id>] ` brand + file tag are owned by the outer
+  // `tagError` (runTransform's catch), matching the parse-error / transform-queue throw convention -
+  // self-prefixing the brand here would make tagError double-stamp it
   function bakeFullPreserveSplices(slot, decl, splices) {
     for (const s of splices) {
       if (s.start < decl.start || s.end > decl.end) {
-        throw new RangeError(`[core-js] destructure-emitter: splice [${ s.start },${ s.end }) outside declarator [${ decl.start },${ decl.end })`);
+        throw new RangeError(`destructure-emitter: splice [${ s.start },${ s.end }) outside declarator [${ decl.start },${ decl.end })`);
       }
     }
     slot.preservedSrc = spliceInRange(slot.preservedSrc, decl.start, splices);
