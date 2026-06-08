@@ -61,10 +61,19 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // so function / loop / try / class-static / namespace bodies are covered too; a Program-only
 // walk would silently bail destructure-emitter inside non-Program statement lists
 function splitMinifierSequenceDestructure(programPath, t) {
+  // a split product can ITSELF be a minifier-sequence nested in the SAME statement list (e.g.
+  // `(a, (b, ({x} = R)), ({y} = S))` - the middle operand is a sequence-destructure too). the
+  // post-split traverse only re-reaches NEW brace hosts, never the host's own statement list, so the
+  // fixpoint loop below re-runs over the LIVE body until none remain. each pass strictly reduces the
+  // remaining nesting, so this cap mirrors unplugin's text-rewrite fixpoint as a safety backstop only
+  const MINIFIER_SPLIT_PASS_CAP = 64;
+  // returns true when at least one statement was split this pass, so the caller can loop to a fixpoint
   function splitStatementList(statementPaths) {
+    let didSplit = false;
     for (const bodyPath of statementPaths) {
       const expressions = getMinifierSequenceDestructureExpressions(bodyPath.node);
       if (!expressions) continue;
+      didSplit = true;
       bodyPath.replaceWithMultiple(expressions.map((e, i) => {
         // a leading StringLiteral operand promoted to its own statement at a prologue position
         // (Program / function body[0]) re-parses as a Directive Prologue entry - flipping a sloppy
@@ -87,9 +96,17 @@ function splitMinifierSequenceDestructure(programPath, t) {
         return stmt;
       }));
     }
+    return didSplit;
+  }
+  // re-run over the LIVE statement list (re-read each pass, since replaceWithMultiple mutates it)
+  // until a pass splits nothing - so split products that are themselves minifier-sequences are caught
+  function splitListToFixpoint(getPaths) {
+    for (let pass = 0; pass < MINIFIER_SPLIT_PASS_CAP; pass++) {
+      if (!splitStatementList(getPaths())) break;
+    }
   }
   function splitInBody(blockPath) {
-    splitStatementList(blockPath.get('body'));
+    splitListToFixpoint(() => blockPath.get('body'));
   }
   splitInBody(programPath);
   // the brace-delimited statement-list hosts as a babel-traverse union visitor key (Program is the
@@ -99,7 +116,7 @@ function splitMinifierSequenceDestructure(programPath, t) {
   programPath.traverse({
     [braceHostVisitorKey]: splitInBody,
     SwitchCase(path) {
-      splitStatementList(path.get('consequent'));
+      splitListToFixpoint(() => path.get('consequent'));
     },
   });
 }
