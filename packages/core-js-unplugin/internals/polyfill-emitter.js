@@ -6,7 +6,9 @@
 // from the outer transform context (code / scopeTracker / transforms / injector / Sets /
 // resolver hooks).
 import {
+  isReusableReceiver,
   mayHaveSideEffects,
+  peelMemoizeWrappers,
   peelNestedSequenceExpressions,
   staticStringKey,
   TS_EXPR_WRAPPERS,
@@ -29,7 +31,6 @@ import {
   isCallee,
   isCalleeWrappedInParens,
   unwrapNode,
-  unwrapNodeForMemoize,
 } from './emit-utils.js';
 import { skipGap, walkAstNodes } from './plugin-helpers.js';
 
@@ -54,7 +55,6 @@ export function createPolyfillEmitter({
   injectPureImport,
   isEntryNeeded,
   NEEDS_GUARD_PARENS,
-  NO_REF_NEEDED,
   enclosingExpressionStatementPath,
   isBodylessStatementBody,
   resolveGlobalPolyfill,
@@ -761,7 +761,7 @@ export function createPolyfillEmitter({
   // one shape `{src, isNonIdent, skipNode, substituted}` so call sites stay shallow:
   // - `src` text inserted into the polyfill call template
   // - `isNonIdent` whether `_ref` capture is needed (false for direct-pure binding,
-  //   true for chain subst, computed via `NO_REF_NEEDED` for verbatim)
+  //   true for chain subst, computed via `isReusableReceiver` for verbatim)
   // - `skipNode` AST node to skip from inner Identifier visitor (avoid orphan transforms
   //   redundant with the outer call rewrite)
   // - `substituted` whether `src` diverges from the original AST source (gates `canSplit`:
@@ -777,11 +777,10 @@ export function createPolyfillEmitter({
     const direct = resolveReceiverPolyfill(unwrapped, metaPath);
     if (direct) return {
       src: injectPureImport(direct.entry, direct.hintName),
-      // isNonIdent mirrors babel's `isSafeToReuse` gate (Sticky: `unwrapNodeForMemoize no
-      // TS wrappers - intentional consistency`). Paren / Chain wrappers around bare
-      // Identifier are safe-to-reuse (no memo); TS wrappers (`as` / `satisfies` / `!`) keep
-      // the babel-shape memo `(_ref = _polyfill)` so cross-plugin output stays aligned
-      isNonIdent: unwrapNodeForMemoize(receiverObj).type !== 'Identifier',
+      // direct-pure-binding receiver is always a global Identifier here (never `this`), so this
+      // gate stays Identifier-only rather than delegating to the shared Identifier-or-`this`
+      // predicate; the memo wrapper-set (Paren / Chain, not TS) is the shared one
+      isNonIdent: peelMemoizeWrappers(receiverObj).type !== 'Identifier',
       skipNode: unwrapped,
       substituted: true,
     };
@@ -814,7 +813,7 @@ export function createPolyfillEmitter({
     }
     return {
       src: unwrapParensSrc(receiverObj),
-      isNonIdent: !NO_REF_NEEDED.has(unwrapNodeForMemoize(receiverObj).type),
+      isNonIdent: !isReusableReceiver(receiverObj),
       skipNode: null,
       substituted: false,
     };
@@ -1072,12 +1071,12 @@ export function createPolyfillEmitter({
     }
     if (substLeafNode) skippedNodes.add(substLeafNode);
     else markWrappedProxyGlobalSkipped(innerCallee.object, metaPath);
-    // mirror babel-compat.js `memoize` (`isSafeToReuse`): a side-effect-free Identifier /
-    // ThisExpression receiver can appear verbatim in every slot without `_ref = X` capture.
+    // shared `isReusableReceiver` gate (also drives babel's `memoize`): a side-effect-free
+    // Identifier / ThisExpression receiver can appear verbatim in every slot without `_ref = X`.
     // skipping the redundant memo aligns the chain-combined emit byte-for-byte with the
     // AST runner (e.g. `arr.flat?.().map(y => y)` -> `null == arr || ...` instead of
     // `null == (_ref = arr) || ...`), saving one allocated `_ref` and matching parity
-    const isReceiverSafe = NO_REF_NEEDED.has(unwrapNodeForMemoize(innerCallee.object).type);
+    const isReceiverSafe = isReusableReceiver(innerCallee.object);
     const aRef = isReceiverSafe ? receiver : scopeTracker.genRef();
     const anAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
     const mRef = scopeTracker.genRef();
