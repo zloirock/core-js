@@ -615,12 +615,13 @@ export function findFunctionScopeVarInPath(path, name) {
 // param of the same name is a distinct binding. empty result is falsy-length so the non-reassigned
 // common case still resolves. cached per owner node (same staleness contract as `scopeVarsCache`)
 const scopeReassignCache = new WeakMap();
-export function collectFunctionScopeVarReassignments(path, name) {
-  const found = findVarOwnerDeclaring(path, name);
-  if (!found) return [];
-  const { owner, declarator: ownDeclarator } = found;
-  let perName = scopeReassignCache.get(owner.node);
-  if (!perName) scopeReassignCache.set(owner.node, perName = new Map());
+// collect every reassignment NODE of `name` within `ownerNode`'s subtree, stopping at nested scopes /
+// blocks that shadow `name`. cached per (ownerNode, name). `ownDeclarator` is the binding's own
+// declarator (skipped in the `var name = init` redeclaration branch). shared by the var-hoist and the
+// cross-boundary-`let` reassignment recovery, which differ only in how they locate `ownerNode`
+function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
+  let perName = scopeReassignCache.get(ownerNode);
+  if (!perName) scopeReassignCache.set(ownerNode, perName = new Map());
   if (perName.has(name)) return perName.get(name);
   const violations = [];
   function bindsName(patternNode) {
@@ -674,9 +675,42 @@ export function collectFunctionScopeVarReassignments(path, name) {
       else visit(value, false);
     }
   }
-  visit(owner.node, true);
+  visit(ownerNode, true);
   perName.set(name, violations);
   return violations;
+}
+
+// var-hoist reassignment recovery: estree-toolkit block-scopes a `var`, so its constantViolations miss
+// a cross-block redeclaration / write. recompute from the AST at the var's function-scope owner
+export function collectFunctionScopeVarReassignments(path, name) {
+  const found = findVarOwnerDeclaring(path, name);
+  if (!found) return [];
+  return collectScopeReassignmentNodes(found.owner.node, name, found.declarator);
+}
+
+// a `let` declarator is always statement-level, so the first of these hosts above its
+// VariableDeclaration is the `let`'s own lexical scope. extends the block atoms with the unbraced
+// Program, the loop heads (a for-head `let` scopes to the whole loop), and the switch body's
+// single block scope - composed from the lattice primitives, not re-listed
+const LET_SCOPE_HOST_TYPES = new Set([
+  ...RUNTIME_BLOCK_TYPES,
+  ...FOR_X_STATEMENT_TYPES,
+  'Program',
+  'ForStatement',
+  'SwitchStatement',
+]);
+
+// cross-boundary `let` reassignment recovery: estree-toolkit omits a `let` reassignment from a
+// binding's constantViolations when the use sits in a nested closure (the outer-scope write is not
+// observed across the function boundary). recompute by the same AST scan, anchored at the `let`'s OWN
+// lexical scope (climb the declarator to its scope host) so a block-scoped `let` is not over-scanned -
+// anchoring at the enclosing FUNCTION would let the scan stop at the let's own block as a shadow
+export function collectScopeLetReassignments(declaratorPath, name) {
+  let scopeNode = null;
+  for (let p = declaratorPath?.parentPath; p && !scopeNode; p = p.parentPath) {
+    if (LET_SCOPE_HOST_TYPES.has(p.node?.type)) scopeNode = p.node;
+  }
+  return scopeNode ? collectScopeReassignmentNodes(scopeNode, name, declaratorPath.node) : [];
 }
 
 // loop bodies re-run their contents each iteration; a loop's INIT / test / update run at most once
@@ -823,61 +857,53 @@ function usagePrecedesNode(usagePath, node) {
   return endsBeforeStart(usagePath.node, node, false);
 }
 
-// core single-node domination check within the use's own var-scope `owner`: does `node` lie on
-// EVERY control-flow path reaching `usagePath`? a node not found in that scope (guards === null)
-// sits beyond a var-scope boundary, so the caller's `crossBoundary` policy decides - an init
-// captured from an outer scope ran first (dominates -> true), a reassignment in a nested scope
-// might not have run by the use (does not dominate -> false). otherwise it dominates iff the use
-// sits under every conditional branch the node does AND the node textually precedes it
-function nodeDominatesUsage({ node, usagePath, owner, crossBoundary }) {
+// core single-node domination check: does `node` lie on EVERY control-flow path reaching `usagePath`?
+// within the use's own var-scope `owner` it dominates iff the use sits under every conditional branch
+// the node does AND the node textually precedes it. when `node` is NOT in that scope (the use sits in
+// a NESTED closure), `climb: false` stops there (returns false - the SHALLOW policy: a cross-boundary
+// write may not have run by the use), while `climb: true` walks to the enclosing scope holding `node`:
+// it dominates only when UNCONDITIONAL there AND it completes before the closure is even defined - so
+// the closure cannot observe any pre-`node` value (an init captured from an outer scope, or a
+// reassignment that ran before the capturing closure was created). climbing returns null when `node`
+// is not found in any enclosing scope, so the caller applies its own default
+function nodeDominatesUsage({ node, usagePath, owner, climb }) {
   const guards = collectVarGuardsToDeclarator(owner.node, node);
-  if (guards === null) return crossBoundary;
-  return usageSitsUnderAllBranches(usagePath, owner.node, guards) && nodePrecedesUsage(node, usagePath);
+  if (guards !== null) return usageSitsUnderAllBranches(usagePath, owner.node, guards) && nodePrecedesUsage(node, usagePath);
+  if (!climb) return false;
+  for (let o = findNearestVarScopeOwner(owner.parentPath); o; o = findNearestVarScopeOwner(o.parentPath)) {
+    const outer = collectVarGuardsToDeclarator(o.node, node);
+    if (outer !== null) return outer.length === 0 && endsBeforeStart(node, owner.node, false);
+  }
+  return null;
 }
 
 // SOUND gate for resolving a function-scoped `var` alias to a global. `var` hoists to the whole
 // function, so `if (c) { var M = globalThis } M.Map()` binds M everywhere - but M holds the global
 // only when `c` was truthy; usage-pure would rewrite the use to a receiver-less polyfill and mask
-// the native TypeError on the c-falsy path. holds iff the assignment DOMINATES the use.
-// in the use's OWN var scope: the use must sit under every branch the declarator does AND the
-// declarator must textually precede it. a declarator in an OUTER scope is captured by a nested
-// closure (e.g. a module-top `const A = Array` read inside an IIFE), invoked after the outer init
-// runs - but only when that init is UNCONDITIONAL: `function f(c){ if (c) var M = Object; return
-// () => M.fromEntries() }` holds the global on just the c-true path, so the closure may read
-// undefined and pure must bail. callers without a use-site path resolve true (no nested-block var)
+// the native TypeError on the c-falsy path. holds iff the declarator DOMINATES the use - via the
+// shared `nodeDominatesUsage` with `climb: true`, so an init captured from an OUTER scope by a
+// later-defined closure still counts. a declarator not located in any enclosing scope defaults to
+// dominating (it is the declaration)
 export function varInitDominatesUsage({ declaratorNode, usagePath }) {
   if (!usagePath) return true;
-  const useOwner = findNearestVarScopeOwner(usagePath);
-  if (!useOwner) return true;
-  const ownGuards = collectVarGuardsToDeclarator(useOwner.node, declaratorNode);
-  if (ownGuards !== null) {
-    return usageSitsUnderAllBranches(usagePath, useOwner.node, ownGuards) && nodePrecedesUsage(declaratorNode, usagePath);
-  }
-  // climb to the declarator's own outer owner; the captured init dominates only if (a) it is
-  // unconditional there AND (b) it textually precedes the capturing closure's definition. a closure
-  // defined BEFORE the init (`const g = () => P.allSettled(); g(); var P = Promise`) can be invoked
-  // before the init runs, so it reads the hoisted-undefined value and pure must NOT receiver-drop -
-  // the positional check rejects this while still allowing the closure-defined-after-init case (a
-  // module-top `const A = Array` read inside a later IIFE). unknown positions -> bail (false)
-  for (let owner = findNearestVarScopeOwner(useOwner.parentPath); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
-    const guards = collectVarGuardsToDeclarator(owner.node, declaratorNode);
-    if (guards !== null) return guards.length === 0 && endsBeforeStart(declaratorNode, useOwner.node, false);
-  }
-  return true;
+  const owner = findNearestVarScopeOwner(usagePath);
+  if (!owner) return true;
+  const dominates = nodeDominatesUsage({ node: declaratorNode, usagePath, owner, climb: true });
+  return dominates === null ? true : dominates;
 }
 
 // does some node in `reassignmentNodes` provably overwrite a `var` / `let` alias on EVERY path
-// reaching `usagePath` (so the declarator-init value is dead at the use)? a write beyond the use's
-// var-scope boundary is NOT counted (crossBoundary false - it may not have run by the use). returns
-// false when no write dominates: lets usage-global keep resolving an alias whose init is still live
-// on a non-reassigned / after-use / nested-scope path (inject-if-maybe-needed) while bailing on a
-// definite (dominating) overwrite. usage-pure ignores this and bails on any reassignment - its
-// receiver-dropping rewrite is unsound the moment the value is flow-dependent
+// reaching `usagePath` within the use's OWN var scope (SHALLOW - `climb: false`)? a write beyond that
+// boundary is NOT counted: it may not have run by the use, and (for usage-global) bailing the
+// init-FOLLOW on a cross-closure write would drop the primary key entirely and under-inject the
+// reaching value - the cross-closure dead-init case is instead handled where the init is followed, by
+// preferring `reachingReassignmentValueNode`'s value. returns false when no write dominates, letting
+// usage-global keep resolving a still-live init (inject-if-maybe-needed). usage-pure bails on any reassignment
 export function reassignmentDominatesUsage({ reassignmentNodes, usagePath }) {
   if (!usagePath || !reassignmentNodes?.length) return false;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
-  return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, crossBoundary: false }));
+  return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, climb: false }));
 }
 
 // per-node counterpart to nodeDominatesUsage for the SUBSTITUTE direction: does reassignment `node`
@@ -944,15 +970,24 @@ export function reachingReassignmentValueNode({ binding, usagePath }) {
   if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return null;
   const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, usagePath));
   if (!before.length) return null;
-  // every before-use write must be a plain `name = <expr>` (not `name++`) inside the read's var-scope
-  // (a write beyond it lives in a closure that may run at call time) - else the value is indeterminate
-  for (const node of before) {
-    if (reassignmentRhs(node, owner.node) === null || collectVarGuardsToDeclarator(owner.node, node) === null) return null;
+  // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
+  // textually-last one overwrites every earlier write - it is the reaching definition only if it ALWAYS
+  // runs (unconditional: no guards); a conditional last write leaves the value ambiguous
+  if (before.every(node => reassignmentRhs(node, owner.node) !== null && collectVarGuardsToDeclarator(owner.node, node) !== null)) {
+    const last = before.reduce((a, b) => b.start > a.start ? b : a);
+    if (collectVarGuardsToDeclarator(owner.node, last).length) return null;
+    return reassignmentRhs(last, owner.node);
   }
-  // the textually-last before-use write overwrites every earlier one - it is the reaching definition
-  // only if it ALWAYS runs (unconditional: no guards); a conditional last write leaves it ambiguous
-  const last = before.reduce((a, b) => b.start > a.start ? b : a);
-  if (collectVarGuardsToDeclarator(owner.node, last).length) return null;
+  // CLOSURE: the use sits in a nested closure, so the before-writes live in an enclosing scope. the
+  // declarator-init (and earlier writes) are dead once an UNCONDITIONAL write completes before the
+  // closure is even defined - the closure cannot observe them (`let K='of'; K='from'; ()=>Array[K]`).
+  // the reaching value is the textually-last such dominating write. a non-dominating set (conditional /
+  // closure-defined-before-write) yields none -> null, keeping the still-live init (over-inject-safe).
+  // reassignment nodes are `AssignmentExpression`s here (babel + the estree adapter's let/var recompute),
+  // so `reassignmentRhs` reads `.right` directly without the declarator's scope; a non-plain write -> null
+  const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true }) === true);
+  if (!dominating.length) return null;
+  const last = dominating.reduce((a, b) => b.start > a.start ? b : a);
   return reassignmentRhs(last, owner.node);
 }
 

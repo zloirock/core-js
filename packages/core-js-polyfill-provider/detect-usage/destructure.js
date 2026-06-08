@@ -20,7 +20,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { KNOWN_FUNCTION_GLOBALS, KNOWN_NAMESPACE_GLOBALS } from './globals.js';
+import { staticReceiverHint } from './globals.js';
 import {
   isStaticPlacement,
   peelChainAssignmentDeep,
@@ -28,15 +28,6 @@ import {
   resolveObjectName,
   unwrapParens,
 } from './resolve.js';
-
-// map a destructure source identifier to its runtime receiver type hint
-// unknown identifiers return null so the resolver falls through to its default type-hint fold
-function destructureReceiverHint(objectName) {
-  if (!objectName) return null;
-  if (KNOWN_FUNCTION_GLOBALS.has(objectName)) return 'function';
-  if (KNOWN_NAMESPACE_GLOBALS.has(objectName) || POSSIBLE_GLOBAL_OBJECTS.has(objectName)) return 'object';
-  return null;
-}
 
 // build meta for a destructuring property given its resolved init node + key.
 // `receiverHint` lets resolveHint reject `const { includes } = Array` (instance method
@@ -82,8 +73,7 @@ export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path
     || unwrapped.type === 'OptionalMemberExpression') {
     const objectName = resolveObjectName({ objectNode: unwrapped, scope, adapter, path });
     const placement = objectName ? isStaticPlacement(objectName) : null;
-    const receiverHint = placement === 'static' ? destructureReceiverHint(objectName) : null;
-    return { kind: 'property', object: objectName, key, placement, receiverHint };
+    return { kind: 'property', object: objectName, key, placement, receiverHint: staticReceiverHint(placement, objectName) };
   }
   if (adapter.isStringLiteral(unwrapped)) {
     return { kind: 'property', object: 'string', key, placement: 'prototype' };
