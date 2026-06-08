@@ -5,7 +5,7 @@
 // block body / program). callers that emit their own `const X = Y` (e.g. memo decls inside
 // destructure parts) go straight to `injector.generateLocalRef` with `hoisted: false` to
 // avoid a duplicate bare `var X;`
-import { isBodylessStatementSlot, isLoopStatement } from '@core-js/polyfill-provider/destructure-host-shape';
+import { isBodylessStatementSlot, isLoopStatement, peelLabeledStatements } from '@core-js/polyfill-provider/destructure-host-shape';
 import { RUNTIME_BLOCK_TYPES } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { skipDirectivePrologue, varScopeAnchor } from './plugin-helpers.js';
 
@@ -121,8 +121,11 @@ export default class ScopeTracker {
         // (`lab: { var _ref; <loop> }`) makes the label name the block, so a `continue <label>`
         // inside becomes an illegal continue (V8 rejects it; the oxc runner does not). skip the
         // wrap and let the memo hoist to the enclosing scope before the LabeledStatement, keeping
-        // the label on the loop. a labeled non-loop (`lab: expr;`) can still wrap safely
-        if (p.node.type === 'LabeledStatement' && isLoopStatement(prev.node)) continue;
+        // the label on the loop. peel STACKED labels (`lab1: lab2: for(...)`): when prev is an
+        // inner LabeledStatement its peeled body is the loop, so a single-level isLoopStatement
+        // would miss it and wrap the inner label, putting the outer label on the block. a labeled
+        // non-loop (`lab: expr;`) peels to a non-loop and can still wrap safely
+        if (p.node.type === 'LabeledStatement' && isLoopStatement(peelLabeledStatements(prev.node))) continue;
         this.bodyWrap ??= { body: prev.node, kind: WRAP_KIND_STMT };
         continue;
       }
