@@ -370,6 +370,18 @@ function peelMarkedWrappers(node, handledObjects) {
   return node;
 }
 
+// mark a proxy-global leaf identifier as handled so the inner visitor doesn't queue a parallel
+// `globalThis -> _globalThis` rewrite overlapping the outer subsumption. shadow detection via
+// `adapter.hasBinding(scope, name, path)` (not raw `scope.getBinding`) catches TS-runtime bindings
+// (`declare const globalThis` / `namespace X`) that estree-toolkit's scope tracker misses but the
+// polyfill shadow rule must honor - a binding that shadows the global keeps its own polyfill
+function markProxyGlobalLeaf(node, handledObjects, scope, adapter, path) {
+  if (node?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(node.name)
+    && !(adapter ? adapter.hasBinding(scope, node.name, path) : scope?.getBinding?.(node.name))) {
+    handledObjects.add(node);
+  }
+}
+
 // record the full proxy-global chain (including any wrappers at every level) so the outer
 // rewrite that subsumes it doesn't re-fire on the leaves. handles `(globalThis as any).Symbol.iterator`
 // and deeper nests like `(self as any)[(...)]` uniformly through `peelMarkedWrappers`.
@@ -382,15 +394,8 @@ function markSubsumedProxyChain(node, handledObjects, scope, adapter, path) {
     handledObjects.add(current);
     current = peelMarkedWrappers(current.object, handledObjects);
   }
-  // shadow detection through `adapter.hasBinding(scope, name, path)` matches the rest of
-  // members.js - raw `scope.getBinding` misses TS-runtime bindings (declare const X /
-  // namespace X) that estree-toolkit's scope tracker doesn't register but the polyfill
-  // shadow rule still needs to honor. without it, `declare const globalThis: any;
-  // globalThis.Symbol.iterator in x` would still mark the leaf as handled-global and
-  // suppress the legitimate user-shadow emit
-  if (current?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name)
-    && !(adapter ? adapter.hasBinding(scope, current.name, path) : scope?.getBinding?.(current.name))) {
-    handledObjects.add(current);
+  if (current?.type === 'Identifier') {
+    markProxyGlobalLeaf(current, handledObjects, scope, adapter, path);
   } else if (scope && adapter && isCallShape(current)) {
     // IIFE-rooted proxy-global receiver (`(() => globalThis)().Symbol.iterator in obj`): the
     // chain bottoms on a CallExpression that inlines to a proxy global. mark the call + its
@@ -469,7 +474,14 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
 }
 
 function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path) {
-  const obj = unwrapParens(node.object);
+  let obj = unwrapParens(node.object);
+  // a sequence receiver `(eff(), globalThis.Array).from` resolves through its LAST element; the
+  // prefix expressions survive in the output (their own polyfills must still fire), so descend to
+  // the tail without marking the prefix. without this the proxy-global leaf stays unmarked and
+  // unplugin queues a parallel `globalThis -> _globalThis` rewrite overlapping the outer subsumption
+  // (`_Array$from`) - the text-transform queue can't compose the eliminated needle and throws
+  const wasSequence = obj.type === 'SequenceExpression';
+  while (obj.type === 'SequenceExpression') obj = unwrapParens(obj.expressions.at(-1));
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
     handledObjects.add(obj);
     return;
@@ -487,6 +499,13 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
     handledObjects.add(current);
     current = unwrapParens(current.object);
   }
+  // a sequence-tail proxy-global leaf is independently visited (the tail sits inside a separately
+  // walked SequenceExpression), unlike a direct receiver whose nested leaf the member visitor's
+  // subtree-skip suppresses. mark it ONLY when the chain walk above descended through proxy-global
+  // member(s) (`current !== obj`): then the leaf is subsumed by the outer static rewrite
+  // (`(eff(), globalThis.Array).from` -> `_Array$from`). a BARE tail global (`(eff(), globalThis).flat`,
+  // `.flat` gated off the global) is the receiver itself and keeps its own `_globalThis` polyfill
+  if (wasSequence && current !== obj) markProxyGlobalLeaf(current, handledObjects, scope, adapter, path);
   // IIFE-rooted chain (`(() => globalThis)().self.Map.prototype.has`): the chain bottoms
   // out on a CallExpression that `resolveProxyGlobalRoot` inlines to a proxy-global identifier.
   // `findProxyGlobal` returns null for IIFE roots (it only validates bare-Identifier roots),
