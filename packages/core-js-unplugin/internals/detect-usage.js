@@ -33,6 +33,7 @@ import {
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   namespaceScopedBindingBlock,
+  peelTransparentExprAncestorPath,
   resolveCallArgument,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
@@ -75,16 +76,19 @@ const LABEL_TYPES = new Set([
 // `skipUpdateTargets` (usage-pure only) additionally rejects UpdateExpression operands, since
 // the polyfill rewrite would produce `_Map++` on a frozen import binding. usage-global must
 // pass `false` here or `Map++` wouldn't inject its polyfill and would ReferenceError in IE 11
-function isReferenced({ node, parent, parentKey, parentPath, skipUpdateTargets }) {
-  if (!parent) return true;
-  // a transparent expression wrapper (`Map!` TSNonNull / `(Map)` paren) occupies the identifier's
-  // syntactic position, so its parent decides read-vs-write. peel up to it - else `Map! ||= X` /
-  // `for (Map! of arr)` miss the write-LHS reject below and usage-pure over-substitutes a frozen import
-  while ((parent.type === 'TSNonNullExpression' || parent.type === 'ParenthesizedExpression') && parentPath?.parentPath) {
-    parentKey = parentPath.key;
-    parentPath = parentPath.parentPath;
-    parent = parentPath.node;
-  }
+function isReferenced({ path, skipUpdateTargets }) {
+  const { node } = path;
+  if (!path.parentPath?.node) return true;
+  // a transparent expression wrapper (`Map!`, `(Map)`, `Map as any`, `<any>Map`, `Map satisfies T`,
+  // `Map<T>`, Flow `(Map: T)`) occupies the identifier's syntactic position, so its EFFECTIVE parent
+  // decides read-vs-write. peel the full TS_EXPR_WRAPPERS + paren set via the shared helper (matching
+  // babel-plugin's isAssignOrForXWriteTargetPath) - else a cast-wrapped write-LHS (`(Map as any) = x`),
+  // for-x head, or logical-assign misses the write-LHS reject below and usage-pure over-substitutes a
+  // frozen import (TypeError at the write). `path` is the single source for the effective parent context
+  const anchor = peelTransparentExprAncestorPath(path);
+  const { parentPath } = anchor;
+  const parent = parentPath?.node;
+  const parentKey = anchor.key;
   if (!parent) return true;
   // TS type-only positions: `type X = ...` ids, `export { type X }` specifiers
   if (isTSTypeOnlyIdentifierPath({ parent, key: parentKey, parentPath })) return false;
@@ -740,7 +744,7 @@ export function createUsageVisitors({
       const warning = checkLogicalAssignLhsGlobal(path, adapter.hasBinding(path.scope, node.name, path));
       if (warning) onWarning(warning);
     }
-    if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) return;
+    if (!isReferenced({ path, skipUpdateTargets })) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
@@ -760,7 +764,7 @@ export function createUsageVisitors({
   }
 
   function memberExpressionVisitor(path) {
-    const { node, parent, key: parentKey } = path;
+    const { node, parent } = path;
     // `globalThis.Map ||= X` / `globalThis.self.Map ||= X` - check BEFORE `isReferenced`
     // rejects (write-context member) and before child-visitor rewrites `globalThis` ->
     // `_globalThis`. `globalProxyMemberName` (used inside the helper) walks chains and
@@ -770,7 +774,7 @@ export function createUsageVisitors({
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
-    if (!isReferenced({ node, parent, parentKey, parentPath: path.parentPath, skipUpdateTargets })) {
+    if (!isReferenced({ path, skipUpdateTargets })) {
       // an UpdateExpression operand (`Promise.allSettled++`) is rejected as a write target, but
       // the receiver must still be MARKED handled - else the identifier visitor substitutes the
       // global with its pure import (`_Promise.allSettled++` writes a frozen slot AND desyncs

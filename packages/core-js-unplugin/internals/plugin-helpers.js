@@ -533,6 +533,11 @@ const USER_ASSIGN_PARENT_TYPES = new Set([
   // `cond ? (_ref = compute()) : f()` - a user assignment as a direct ternary branch. the
   // plugin's memoize emit lives inside the test (`null == (...)`), never as a bare branch
   'ConditionalExpression',
+  // `flag && (_ref = compute())` / `x || (_ref = y)` / `a ?? (_ref = b)` - a user assignment as a
+  // direct logical operand. the plugin emits its memoize writes inside a `null == (...)` test or a
+  // call arg, never as a bare `&&`/`||`/`??` operand; without this the user assignment is adopted as
+  // an orphan and a module-level `var _ref;` is injected, localizing the user's implicit global
+  'LogicalExpression',
   // `x = _ref = compute()` - a user assignment chained as the RHS of another assignment.
   // the plugin never nests its memo writes as an assignment RHS
   'AssignmentExpression',
