@@ -17,6 +17,7 @@ import {
   reassignBailApplies,
   reassignmentBlocksGlobalResolve,
   reassignmentValueNodes,
+  sequencePrefixWithSideEffects,
   singleQuasiString,
   singleReturnBodyExpression,
   synthSwapPropKey,
@@ -660,7 +661,7 @@ function isProxyGlobalIdentifier({ node, scope, adapter, seen, path }) {
   return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
-export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0 }) {
+export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false }) {
   if (depth > MAX_KEY_DEPTH) return null;
   // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
   // binding inits; Babel strips them. unwrap up front so the identifier-alias and
@@ -671,6 +672,11 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   // peeled tail so super[(fn(),'X')] still classifies as super.X
   if (computed) {
     node = unwrapParens(node);
+    // a side-effecting key prefix (`[(fn(), 'X')]`) can only be re-emitted by callers with an
+    // effects channel. callers without one (destructure detection) pass bailOnSideEffectKey to
+    // leave the key unresolved, so the whole construct is skipped rather than silently dropping
+    // the side effect (babel) or feeding the text composer a needle it cannot place (unplugin)
+    if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return null;
     while (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
   }
   if (!computed && node.type === 'Identifier') return node.name;
