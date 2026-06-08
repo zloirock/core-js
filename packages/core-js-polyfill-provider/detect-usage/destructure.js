@@ -382,7 +382,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     // computed-key bindings (`const k = 'a'; { [k]: Array }`) + StringLiteral / `+`-concat
     // folds to a static string. unresolvable computed keys (dynamic expressions) return null
     // and the prop is correctly skipped
-    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope: currentScope, adapter });
+    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope: currentScope, adapter, bailOnSideEffectKey: true });
     if (keyName !== walkPath[0]) continue;
     return walkStaticReceiverStep({
       node: prop.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited,
@@ -401,7 +401,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
 function findShorthandKey(objectPattern, bindingName, scope, adapter) {
   for (const prop of objectPattern.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope, adapter });
+    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true });
     if (!keyName) continue;
     const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
     if (value?.type === 'Identifier') {
@@ -565,7 +565,9 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
   for (;;) {
     const pattern = cur.parentPath;
     if (pattern?.node?.type !== 'ObjectPattern') return null;
-    const key = sharedResolveKey({ node: cur.node.key, computed: cur.node.computed, scope: pattern.scope, adapter });
+    const key = sharedResolveKey({
+      node: cur.node.key, computed: cur.node.computed, scope: pattern.scope, adapter, bailOnSideEffectKey: true,
+    });
     if (!key) return null;
     keys.unshift(key);
     const { parent, indices } = peelDestructureWrappers(pattern);
