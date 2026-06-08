@@ -5,6 +5,7 @@
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
+import { staticReceiverHint } from './globals.js';
 import {
   isDirectiveStatement,
   isReassignedBeyondDeclarator,
@@ -299,6 +300,17 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
   return null;
 }
 
+// usage-global: when following a reassigned alias's declarator init, an unconditional reassignment can
+// kill that init before the use - including across a closure boundary, where it runs before the
+// capturing closure is defined (`let K = 'of'; K = 'from'; () => Array[K]` / `let M = Object; M =
+// Array; () => M.assign()`). returns the reaching value NODE to resolve instead of the dead init, or
+// null to keep following the init (no reassignment / init still live / value indeterminable - over-
+// inject-safe). shared by the key (resolveKey) and receiver (resolveVariableBindingToGlobal) follows
+function reachingValueOverDeadInit({ binding, adapter, path }) {
+  if (adapter.method !== 'usage-global' || !isReassignedBeyondDeclarator(binding)) return null;
+  return reachingReassignmentValueNode({ binding, usagePath: path });
+}
+
 function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path }) {
   // a real reassignment (a constantViolation beyond a loop-reinit declarator-self) makes the alias
   // flow-dependent. usage-pure bails on ANY reassignment (its receiver-dropping rewrite is unsound);
@@ -313,6 +325,10 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // (side-effect import only) and stay sound regardless, so the gate is pure-only
   if (adapter.method === 'usage-pure'
     && !varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path })) return null;
+  // dead-init across a closure: resolve the reaching value as the receiver instead of the dead init
+  // (`let M = Object; M = Array; () => M.assign()` resolves to Array, not the unreachable Object)
+  const reaching = reachingValueOverDeadInit({ binding, adapter, path });
+  if (reaching) return resolveObjectName({ objectNode: reaching, scope, adapter, seen: new Set(seen).add(name), path });
   const { init } = binding.node;
   const pattern = binding.node.id;
   // `{ from, ...rest } = Array` - rest !=== init
@@ -468,7 +484,7 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path }) {
 // (declarator init) plus every reachable reassignment RHS that resolves, deduped. a non-Identifier
 // alias or one with no reassignment contributes only the primary. `resolve` maps a value node to its
 // receiver name / key string
-function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path }) {
+function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path, seen }) {
   const values = primary ? [primary] : [];
   if (aliasNode?.type === 'Identifier') {
     const binding = adapter.getBinding(scope, aliasNode.name, path);
@@ -476,6 +492,36 @@ function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, pat
       for (const rhs of reassignmentValueNodes({ binding, usagePath: path })) {
         const value = resolve(rhs);
         if (value) values.push(value);
+      }
+    } else if (binding) {
+      // const-alias hop: a non-reassigned `const M = M0` aliases M0, so the union must see M0's
+      // transitive reassignments (`let M0 = Object; if (c) M0 = Array; const M = M0; M.from()`).
+      // the primary already captured M's resolved init value; recurse on the init Identifier to add
+      // the underlying binding's reachable reassignments. `seen` guards alias cycles
+      const init = unwrapParens(binding.node?.init);
+      if (init?.type === 'Identifier' && init.name !== aliasNode.name && !seen?.has(init.name)) {
+        values.push(...reachableAliasValues({
+          aliasNode: init, primary: null, resolve, scope, adapter, path,
+          seen: new Set(seen).add(aliasNode.name),
+        }));
+      }
+    }
+  } else if (aliasNode?.type === 'CallExpression' || aliasNode?.type === 'OptionalCallExpression') {
+    // IIFE-callee receiver `f()` whose factory `f` is a reassigned alias: each reachable `() => X`
+    // value returns X. recover each so a dominating reassignment to a polyfillable global (`let f =
+    // () => Object; f = () => Array; f().from()`) still injects the reaching value's polyfill - the
+    // direct-Identifier-receiver union path could not, since `f()` is not an Identifier alias
+    const callee = unwrapParens(aliasNode.callee);
+    const binding = callee.type === 'Identifier' ? adapter.getBinding(scope, callee.name, path) : null;
+    if (binding && isReassignedBeyondDeclarator(binding)) {
+      for (const rhs of reassignmentValueNodes({ binding, usagePath: path })) {
+        const fn = unwrapParens(rhs);
+        if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
+          && !fn.params?.length && !fn.async && !fn.generator) {
+          const ret = singleReturnBodyExpression(fn.body);
+          const value = ret && resolve(ret);
+          if (value) values.push(value);
+        }
       }
     }
   }
@@ -503,7 +549,10 @@ export function collectMemberUnionCandidates(options) {
   const extras = [];
   for (const object of objects) for (const key of keys) {
     if ((object === primaryObject && key === primaryKey) || key === 'prototype') continue;
-    extras.push({ kind: 'property', object, key, placement: isStaticPlacement(object) ? 'static' : 'prototype' });
+    const placement = isStaticPlacement(object) ? 'static' : 'prototype';
+    // mirror the primary meta's receiver-type gate so a union key that is an instance method on
+    // the constructor (`Array[K]` with K reaching 'concat') bails instead of over-injecting
+    extras.push({ kind: 'property', object, key, placement, receiverHint: staticReceiverHint(placement, object) });
   }
   return extras;
 }
@@ -664,6 +713,14 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // init-dominance like the receiver branch (usage-global over-injects, so it keeps following)
         if (adapter.method === 'usage-pure'
           && !varInitDominatesUsage({ declaratorNode: entry.binding.node, usagePath: path })) return null;
+        // usage-global: an unconditional reassignment can kill the init before the use - including one
+        // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
+        // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
+        // become the primary key; fall through to the init when no such value is determinable
+        const reaching = reachingValueOverDeadInit({ binding: entry.binding, adapter, path });
+        if (reaching) return resolveKey({
+          node: reaching, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
+        });
         return resolveKey({
           node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
         });
