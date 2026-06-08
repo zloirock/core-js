@@ -4173,4 +4173,14 @@ runBoth('union inside 3-way intersection keeps two-hop member type',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
   });
 
+// a doubly-nested SequenceExpression IIFE returning a proxy global is recognized by the path walk
+// (it peels SE-callee tails to a fixpoint, matching the node-level peelIIFEReturn), so the chained
+// instance-method receiver narrows
+runBoth('double-SE IIFE proxy-global `(0, (1, () => globalThis))().Array.from(...).at` narrows to Array',
+  '(0, (1, () => globalThis))().Array.from([1, 2, 3]).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
 finish();

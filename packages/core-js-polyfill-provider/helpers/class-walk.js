@@ -30,7 +30,7 @@ export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalPro
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
 // const aliases (`const g = globalThis`) pass through via init-peel
-function isProxyGlobalIdentifierNode({ node, scope, adapter, path }) {
+export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }) {
   if (node?.type !== 'Identifier') return false;
   if (!scope || !adapter) return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
   const binding = adapter.getBinding(scope, node.name, path);
@@ -39,7 +39,9 @@ function isProxyGlobalIdentifierNode({ node, scope, adapter, path }) {
   // no entry in babel's scope chain, so the init-follow path never observes them
   const hint = binding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, node.name);
   if (hint) return POSSIBLE_GLOBAL_OBJECTS.has(hint);
-  if (binding) return followLocalBindingToProxyGlobal(binding, scope, adapter, path);
+  // cycle guard keyed by binding identity: a const-alias cycle (`const a = b; const b = a`) would
+  // otherwise recurse forever through followLocalBindingToProxyGlobal
+  if (binding) return seen?.has(binding) ? false : followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen);
   if (adapter.hasBinding?.(scope, node.name, path)) return false;
   return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
 }
@@ -50,12 +52,14 @@ function isProxyGlobalIdentifierNode({ node, scope, adapter, path }) {
 // `binding.node`; (b) babelBindingAdapter (in resolve-node-type) passes the raw babel
 // binding where `.node` is the bound Identifier and the declarator lives at `.path.node`.
 // branch on `node.type` so a single predicate covers both shapes
-function followLocalBindingToProxyGlobal(binding, scope, adapter, path) {
+function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
   if (binding.constantViolations?.length) return false;
   const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
   const init = unwrapInitForResolution(decl?.init);
   if (init?.type !== 'Identifier') return false;
-  return isProxyGlobalIdentifierNode({ node: init, scope: binding.path?.scope ?? scope, adapter, path });
+  return isProxyGlobalIdentifierNode({
+    node: init, scope: binding.path?.scope ?? scope, adapter, path, seen: new Set(seen).add(binding),
+  });
 }
 
 // unwrap paren / TS / SE wrappers AND a zero-arg IIFE returning a proxy-global: at runtime
