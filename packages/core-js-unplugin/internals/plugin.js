@@ -57,7 +57,6 @@ import {
   lastUserImportEnd,
   liftSfcLangSuffix,
   NEEDS_GUARD_PARENS,
-  NO_REF_NEEDED,
   parenthesizeExprStmtHazard,
   stripLeadingBOMs,
 } from './plugin-helpers.js';
@@ -722,7 +721,6 @@ export default function createPlugin(options) {
           isBodylessStatementBody,
           isEntryNeeded,
           NEEDS_GUARD_PARENS,
-          NO_REF_NEEDED,
           resolveGlobalPolyfill,
           resolvePureOrGlobalFallback,
           resolveStaticInheritedMember,
