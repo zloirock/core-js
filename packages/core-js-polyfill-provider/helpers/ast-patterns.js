@@ -557,6 +557,16 @@ function hasSloppyBlockFunctionInPath(path, name) {
   return climbVarScopeOwners(path, owner => cachedScopeBlockFunctions(owner.node).has(name) || undefined) ?? false;
 }
 
+// does `scopeNode`'s function var-scope (descend blocks, stop at nested functions) bind `name` via a
+// `var` declarator OR a hoisted FunctionDeclaration? the param-destructure body-extract emits a body-
+// top `let <name>` aliasing the destructured parameter; a function-scoped `var <name>` / `function
+// <name>(){}` legally REDECLARES a same-named parameter, but `let` + `var`/`function` in one scope is a
+// SyntaxError - so the extract bails to the inline-default fallback when this returns true, mirroring
+// the existing `paramListReadsName` bail. shared by both plugins' body-extract path
+export function functionScopeBindsVarOrFunction(scopeNode, name) {
+  return cachedScopeVars(scopeNode).has(name) || cachedScopeBlockFunctions(scopeNode).has(name);
+}
+
 // `"use strict"` directive on a function body / Program. babel lifts directives into a
 // `.directives` array (Program) or `.body.directives` (function BlockStatement); oxc keeps them
 // inline as leading `.directive`-bearing ExpressionStatements - check both shapes
