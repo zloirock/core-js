@@ -312,6 +312,23 @@ export function peelSkippableWrappers(node) {
   return node;
 }
 
+// memoization peels parens + chain wrappers but deliberately NOT TS wrappers: keeping a TS cast
+// in the checked node keeps babel's `_ref` emission aligned with unplugin's source-text handling,
+// so both pipelines make the same reuse decision around optional chains. narrower than
+// peelSkippableWrappers (which also strips TS)
+export function peelMemoizeWrappers(node) {
+  while (node?.type === 'ParenthesizedExpression' || node?.type === 'ChainExpression') node = node.expression;
+  return node;
+}
+
+// a node is safe to evaluate more than once without a memo temp (`_ref`) when, after peeling memo
+// wrappers, it is a bare Identifier or `this`. single source for both emitters' "no _ref needed"
+// gate (previously a per-emitter predicate + set that had to be hand-kept in sync)
+export function isReusableReceiver(node) {
+  const inner = peelMemoizeWrappers(node);
+  return inner?.type === 'Identifier' || inner?.type === 'ThisExpression';
+}
+
 // peel `SKIPPABLE_WRAPPER_TYPES` wrappers down through `.expression` slot, returning the
 // innermost non-wrapper path (or the input when nothing to peel). path-based counterpart
 // to `markAndPeelSkippableWrappers`. callers that need to walk down through TS / paren /
@@ -2073,6 +2090,15 @@ export function peelFallbackReceiver(node) {
   return node;
 }
 
+// SE-bearing prefix of a multi-operand SequenceExpression (all but the consumed last operand),
+// or null when the node is not such a sequence or its prefix is side-effect-free. shared by
+// `visitSymbolInLhsSe` (the symbol-in walk) and the `key in obj` fold plan
+export function sequencePrefixWithSideEffects(expr) {
+  if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
+  const prefix = expr.expressions.slice(0, -1);
+  return prefix.some(mayHaveSideEffects) ? prefix : null;
+}
+
 // walk a symbol-sourced `X in Y` LHS subtree, invoking `visit(seExprNode)` for each
 // SE-bearing leading expression discovered in any nested SequenceExpression. handles
 // wrapped receivers (`(fn(), Symbol).iterator`), computed-key SE (`Symbol[(fn(), 'k')]`),
@@ -2091,12 +2117,8 @@ export function visitSymbolInLhsSe(node, visit) {
       if (n.computed) walk(n.property);
       return;
     }
-    if (n.type === 'SequenceExpression') {
-      const { expressions } = n;
-      if (!expressions?.length || expressions.length < 2) return;
-      const prefix = expressions.slice(0, -1);
-      if (prefix.some(mayHaveSideEffects)) for (const e of prefix) visit(e);
-    }
+    const prefix = sequencePrefixWithSideEffects(n);
+    if (prefix) for (const e of prefix) visit(e);
   }
   walk(node);
 }
