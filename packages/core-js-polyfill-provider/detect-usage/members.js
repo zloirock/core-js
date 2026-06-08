@@ -2,6 +2,7 @@
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
 import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
+import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
   bindingSymbolKey,
@@ -106,7 +107,11 @@ function buildMemberMeta({ node, scope, adapter, path }) {
       if (binding?.polyfillHint) return null;
     }
     const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
-    meta = { kind: 'property', object: objectName, key, placement };
+    // static-position access on a known global: tag the receiver type so the resolver gates the
+    // instance-method fallback (`Array.concat` bails - concat is `Array.prototype`, not on the
+    // `Array` constructor; `Array.name` resolves via the function variant). same gate the
+    // destructure path already applies to `const { concat } = Array`
+    meta = { kind: 'property', object: objectName, key, placement, receiverHint: staticReceiverHint(placement, objectName) };
     // usage-global: a conditionally reassigned receiver / computed-key reaches more than the
     // declarator-init primary - emit a side-effect import for each reachable target too
     const extraCandidates = collectMemberUnionCandidates({
