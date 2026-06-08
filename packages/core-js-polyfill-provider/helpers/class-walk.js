@@ -153,7 +153,11 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   const superClass = unwrapRuntimeExpr(classNode.superClass);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
-  return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
+  // `inheritedStatic` marks this as a SYNTHETIC static meta for `super.X()` / `this.X()` in a static
+  // method - the key is assumed static against the super class. when resolution finds it is actually
+  // an INSTANCE-only member (`super.at()` -> Array#at), the consumer bails rather than inject the
+  // instance polyfill (over-injection); a real inherited static (`super.from()`) resolves and injects
+  return resolved ? { kind: 'property', object: resolved, key, placement: 'static', inheritedStatic: true } : null;
 }
 
 // shared `super.X` / `this.X` class-walking helpers.
@@ -337,6 +341,10 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       const props = container.properties ?? [];
       for (let i = props.length - 1; i >= 0; i--) {
         const p = props[i];
+        // a spread (`{ X: V, ...rest }`) reached in this reverse scan sits AT OR AFTER the matched
+        // key, so its statically-unknown contents may redefine the key at runtime - bail. a spread
+        // BEFORE the key is reached only after the key already returned, so it stays irrelevant
+        if (p.type === 'SpreadElement') return null;
         if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;
         if (staticKeyName(p.key, p.computed) !== propName) continue;
         // a method shorthand / getter / setter winning the key is dynamic - bail; data returns its value
