@@ -172,6 +172,20 @@ const EXPR_FAMILIES = {
     '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
     '(() => { const { ["from"]: f } = Array; return typeof f; })()',
     '(() => { const { [(log.push("k"), "from")]: f } = Array; return typeof f; })()',
+    // an ArrayPattern-wrapper whose leaf is a const-ALIAS of the constructor (`const A = Array; [A]`):
+    // the leaf must be canonicalized back to Array, else `from` drops (babel usage-pure dropped while
+    // unplugin rescued -> divergence). a 2-hop alias and an object-nested alias under the wrapper too
+    '(() => { const A = Array; const [{ from }] = [A]; return JSON.stringify(from([1, 2])); })()',
+    '(() => { const A = Array, B = A; const [{ of }] = [B]; return JSON.stringify(of(3, 4)); })()',
+    '(() => { const A = Array; const [{ x: { from } }] = [{ x: A }]; return JSON.stringify(from([5, 6])); })()',
+    // const-alias leaf canonicalization holds across more shapes: a pure OBJECT-nested destructure (the
+    // sibling resolver, no array wrapper), an alias of a PROXY member, a `let` alias (no reassignment),
+    // and a HOLE before the wrapper element. a non-global alias (`A = f`) must NOT polyfill
+    '(() => { const A = Array; const { x: { from } } = { x: A }; return JSON.stringify(from([1, 2])); })()',
+    '(() => { const A = globalThis.Array; const [{ of }] = [A]; return JSON.stringify(of(7, 8)); })()',
+    '(() => { let A = Array; const [{ from }] = [A]; return JSON.stringify(from([1, 2])); })()',
+    '(() => { const A = Array; const [, { of }] = [0, A]; return JSON.stringify(of(9)); })()',
+    '(() => { function f() {} const A = f; const [{ from }] = [A]; return typeof from; })()',
   ],
   // side-effecting computed destructure key across different patterns - all must preserve the
   // effect (run once) and not crash. each is the shape that the static rewrite bails on
