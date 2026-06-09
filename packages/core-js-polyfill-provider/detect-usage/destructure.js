@@ -11,6 +11,7 @@ import {
   getFallbackBranchSlots,
   isChainAssignment,
   isTransparentDestructureWrapper,
+  mayHaveSideEffects,
   peelFallbackReceiver,
   peelFallbackBranchInner,
   peelZeroArgIifeReturn,
@@ -226,6 +227,142 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
     node: receiverNode, key: meta.key, scope: path.scope, adapter, path,
   });
   return out.length ? out : null;
+}
+
+// Single source of truth for HOW a polyfillable destructure prop whose computed key has a side effect
+// (`{ [(eff(), 'from')]: f } = R`) is emitted on a `var/let/const` declarator. The two emitters render
+// differently (babel mutates the AST, unplugin rewrites text) but the strategy decision lives here, so
+// a fix lands once. The effect is entangled with the destructure's evaluation order, so the ONE robust
+// strategy keeps the key IN PLACE (its value renamed to a throwaway, so the effect runs exactly once and
+// in source order) and binds the polyfill separately - this handles every shape uniformly (sole / multi
+// / nested / rest / for-init / default / export / array-wrapper / nested-sequence key).
+// `siblingDeclarator` binds the polyfill as a trailing declarator in the SAME declaration instead of a
+// preceding statement. it is set when a preceding statement is impossible or unsafe:
+//   - for-init: a loop header can't host a preceding statement.
+//   - multi-declarator INSTANCE: `_m(recv)` references the receiver, which may be bound earlier in the
+//     SAME declaration (`const r = x, { [k]: m } = r`); a preceding `const m = _m(r)` would TDZ-fault. a
+//     trailing sibling runs after the receiver's declarator, so it's safe. (a static binding is receiver-
+//     free, so its multi-declarator stays a preceding statement - no need to change that shape.)
+// Returns `{ instance, siblingDeclarator }` to render the residual, or null for an INSTANCE method whose
+// receiver isn't a bare Identifier (re-referencing it would double-evaluate) - bail to native.
+//
+// (A simpler 'lift' strategy - hoist the effect, drop the receiver, `eff(); const f = _Array$from` - was
+// removed: its in-place text surgery made shape assumptions that broke on export / default-with-call /
+// nested-sequence keys / array-wrappers. The residual is the single, robust path - so there is no longer
+// a strategy enum, only this keep-in-place plan or a bail.)
+export function planSideEffectKeyStrategy({ polyfillKind, isForInit, isMultiDeclarator, receiverIsSafe }) {
+  const instance = polyfillKind === 'instance';
+  // an instance polyfill re-references the receiver beside the residual; bail unless it is safe to read
+  // twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`)
+  if (instance && !receiverIsSafe) return null;
+  return { instance, siblingDeclarator: !!(isForInit || (isMultiDeclarator && instance)) };
+}
+
+// a receiver SAFE TO REFERENCE TWICE: the residual destructure reads it, and the extracted instance
+// polyfill `_m(recv)` reads it again. a bare Identifier / `this` is safe; so is a side-effect-free literal
+// value (array / object / primitive with no nested call or spread) - re-evaluating yields a fresh value of
+// the SAME TYPE, so `_m`'s native-vs-polyfill pick is identical. a member (`obj.x` - `mayHaveSideEffects`
+// treats a property read as pure, but a getter would re-fire on the second read) or a call must NOT be
+// re-referenced, so they bail. `mayHaveSideEffects` recursively rejects `[fn()]` / `[...a]` literals; a
+// CONSTANT (no-interpolation) template is a string constant, so it parallels a StringLiteral - but an
+// interpolated `` `${x}` `` bails (re-evaluating would re-run x's string coercion, a possible side effect)
+const REFERENCEABLE_LITERAL_TYPES = new Set([
+  'ArrayExpression',
+  'ObjectExpression',
+  'StringLiteral',
+  'NumericLiteral',
+  'BooleanLiteral',
+  'NullLiteral',
+  'BigIntLiteral',
+  'RegExpLiteral',
+  'Literal',
+]);
+
+export function isReReferenceableReceiver(node) {
+  if (!node) return false;
+  if (node.type === 'Identifier' || node.type === 'ThisExpression') return true;
+  if (node.type === 'TemplateLiteral') return node.expressions.length === 0;
+  return REFERENCEABLE_LITERAL_TYPES.has(node.type) && !mayHaveSideEffects(node);
+}
+
+// resolve the receiver node for a (possibly nested) destructure leaf: walk the pattern paths up from the
+// leaf, collecting the nesting segments (object keys + array indices), then walk the host's RHS literal
+// along them. e.g. `flat` of `{ y: { flat: m } } = { y: arr }` resolves to `arr`, and of `[{ y: { flat:
+// m } }] = [{ y: arr }]` likewise (object-key `y` AND array-index `0`). returns ONLY a receiver that is
+// safe to reference twice (see `isReReferenceableReceiver`); a member / call receiver, a computed or
+// non-literal nesting key, a non-matching RHS hop (incl. a spread that shifts array indices), or a missing
+// key / hole bails to null.
+// AST-agnostic and path-API-agnostic: both babel and estree paths expose `.parentPath` / `.node`, the
+// field names match, and the only divergent node type (object property: babel `ObjectProperty` / estree
+// `Property`) is accepted both ways - so ONE implementation serves both emitters. `unwrapExpressionChain`
+// peels transparent wrappers (parens / TS casts) off the RHS and each value, so a parenthesized object
+// literal or value (`= ({ y: arr })` / `{ y: (arr) }`) resolves the same way - babel folds parens into
+// node `extra`, estree keeps a `ParenthesizedExpression`, and without peeling the two would diverge
+export function resolveNestedReceiverNode(leafPath) {
+  const segs = [];
+  let pattern = leafPath.parentPath;
+  while (pattern?.node?.type === 'ObjectPattern' || pattern?.node?.type === 'ArrayPattern') {
+    const owner = pattern.parentPath;
+    const ownerType = owner?.node?.type;
+    if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
+      const { key, computed } = owner.node;
+      if (computed) return null;
+      if (key?.type === 'Identifier') segs.unshift({ key: key.name });
+      else if (key?.type === 'StringLiteral' || key?.type === 'NumericLiteral' || key?.type === 'Literal') segs.unshift({ key: key.value });
+      else return null;
+      pattern = owner.parentPath;
+      continue;
+    }
+    if (ownerType === 'ArrayPattern') {
+      const index = owner.node.elements.indexOf(pattern.node);
+      if (index === -1) return null;
+      segs.unshift({ index });
+      pattern = owner;
+      continue;
+    }
+    const rhs = ownerType === 'VariableDeclarator' ? owner.node.init
+      : ownerType === 'AssignmentExpression' ? owner.node.right : null;
+    if (!rhs) return null;
+    let node = unwrapExpressionChain(rhs);
+    for (const seg of segs) {
+      if (seg.index === undefined) {
+        if (node?.type !== 'ObjectExpression') return null;
+        // last match wins (duplicate keys); only plain non-computed data properties resolve
+        const match = node.properties.findLast(p => (p.type === 'ObjectProperty' || p.type === 'Property')
+          && !p.computed && (p.key?.type === 'Identifier' ? p.key.name === seg.key : p.key?.value === seg.key));
+        if (!match) return null;
+        node = unwrapExpressionChain(match.value);
+      } else {
+        // a spread anywhere shifts the static index mapping; a hole / out-of-bounds element has no node
+        if (node?.type !== 'ArrayExpression' || node.elements.some(e => e?.type === 'SpreadElement')) return null;
+        const element = node.elements[seg.index];
+        if (!element) return null;
+        node = unwrapExpressionChain(element);
+      }
+    }
+    return isReReferenceableReceiver(node) ? node : null;
+  }
+  return null;
+}
+
+// the ExpressionStatement path that hosts a nested destructuring-ASSIGNMENT leaf (`({ y: { m } } = R);`),
+// or null when the leaf is NOT in a statement-context assignment - a declaration, a param, or an
+// expression-context assignment (`x = ({...} = R)` / a concise arrow body) whose value would need
+// preserving. walks the leaf's own pattern chain to the AssignmentExpression, then peels transparent
+// parens to the statement: `({...} = R)` at statement start always needs parens, which estree keeps as a
+// `ParenthesizedExpression` while babel folds them into node `extra` - peeling unifies the two. callers
+// emit the polyfill overwrite (`m = _m(recv)`) after this statement. AST/path-agnostic - serves both emitters
+export function nestedAssignmentStatementOf(leafPath) {
+  let path = leafPath.parentPath;
+  while (path && (path.node?.type === 'ObjectPattern' || path.node?.type === 'ArrayPattern'
+    || path.node?.type === 'ObjectProperty' || path.node?.type === 'Property'
+    || path.node?.type === 'AssignmentPattern' || path.node?.type === 'RestElement')) {
+    path = path.parentPath;
+  }
+  if (path?.node?.type !== 'AssignmentExpression') return null;
+  let host = path.parentPath;
+  while (host?.node?.type === 'ParenthesizedExpression') host = host.parentPath;
+  return host?.node?.type === 'ExpressionStatement' ? host : null;
 }
 
 export function canTransformDestructuring({ parentType, parentInit }) {
