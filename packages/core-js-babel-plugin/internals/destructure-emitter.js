@@ -28,10 +28,18 @@ import {
   peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiverPath,
+  sequenceKeyPrefix,
+  sequenceKeyStaticName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  canTransformDestructuring as sharedCanTransformDestructuring,
+  isReReferenceableReceiver,
+  nestedAssignmentStatementOf,
+  planSideEffectKeyStrategy,
+  resolveNestedReceiverNode,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
 import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
@@ -99,6 +107,26 @@ function descendArrayWrapperToSE(t, declaratorNode) {
 // cloning preserves sibling visitors' path references through AST sub-tree relocation
 function buildSEPrefixStatements(t, prefix) {
   return prefix.map(e => t.expressionStatement(t.cloneNode(e)));
+}
+
+// the node that HOSTS this destructure prop, found by walking only the destructure's own pattern chain
+// (ObjectPattern / ArrayPattern / Property / AssignmentPattern wrappers) - a VariableDeclarator, an
+// AssignmentExpression, or a function param. NOT `findParent(...)`, which crosses function / assignment
+// boundaries and would wrongly latch onto an OUTER host (e.g. `const r = (() => { ({m} = x) })()`)
+function destructurePatternHost(prop) {
+  let path = prop.parentPath;
+  while (path && (path.isObjectPattern() || path.isArrayPattern()
+    || path.isObjectProperty() || path.isAssignmentPattern() || path.isRestElement())) {
+    path = path.parentPath;
+  }
+  return path;
+}
+
+// the VariableDeclaration that hosts this prop, or null when the host is an assignment target
+// (`({ y: { m } } = R)`) or a param - there is no declaration to extract a `const` into
+function hostDeclarationOf(prop) {
+  const host = destructurePatternHost(prop);
+  return host?.isVariableDeclarator() ? host.parentPath : null;
 }
 
 // generic SE-prefix lift: peels prefix from `node[key]`, emits ExpressionStatements before
@@ -222,8 +250,9 @@ export default function createDestructureEmitter({
     // whole pattern: it rejects a string / numeric / side-effecting key and a computed key that
     // reads a SIBLING binding (`{ of, [of]: x }`). non-Identifier keys still fall through to the
     // body-extract / inline-default fallback, which binds via `prop.node.value` keeping key text intact
-    const synthKey = t.isIdentifier(prop.node.key);
-    const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node)
+    const synthKey = t.isIdentifier(prop.node.key)
+      || (prop.node.computed && sequenceKeyStaticName(prop.node.key) !== null);
+    const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node, { allowSideEffectComputedKeys: true })
       && patternComputedKeysSynthSafe(t, objectPattern.node, prop.scope)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
@@ -237,7 +266,11 @@ export default function createDestructureEmitter({
       // undefined), so collapse a proxy-global member chain in it before either fallback runs
       const paramDefault = objectPattern.parentPath;
       if (paramDefault?.isAssignmentPattern()) collapseRetainedProxyReceiver(synthSwap, paramDefault.node, 'right');
-      if (tryBodyExtractFromParamDestructure(prop, entry, hintName)) return;
+      // a side-effecting computed key (`{ [(eff(), 'from')]: from }`) must NOT body-extract: that
+      // removes the key text (dropping the prefix effects). the inline default keeps the key in the
+      // pattern (run once) and appends `= _Array$from`, the SE-preserving shape on every host
+      const keyHasSideEffect = prop.node.computed && sequenceKeyPrefix(prop.node.key);
+      if (!keyHasSideEffect && tryBodyExtractFromParamDestructure(prop, entry, hintName)) return;
       emitParamInlineDefault(prop, injectPureImport(entry, hintName));
       // parity with sibling destructure handlers - replaceWith schedules re-traversal
       // and the next visitor entry must short-circuit on the already-rewritten prop.
@@ -537,6 +570,8 @@ export default function createDestructureEmitter({
     const id = injectPureImport(entry, hintName);
     // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
     injector.registerBodyExtractAlias(valueNode.name, entry, declarator.scope.getBinding(valueNode.name));
+    // side-effecting computed keys never reach the flatten (they route to `keepKeyInResidual`), so the
+    // extracted init is a bare polyfill ref
     const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id));
     // cascade: each level removes its property when the inner pattern has no siblings.
     // `willRemoveDeclarator` iff EVERY level's pattern had this as its sole property
@@ -665,6 +700,81 @@ export default function createDestructureEmitter({
     return true;
   }
 
+  // keep a destructure key IN the residual pattern (its value renamed to `_unused`) and extract the
+  // polyfill into a preceding `const <local> = ...`. used for a side-effecting computed key (the effect
+  // runs once, in source order, in the kept key) AND for a nested INSTANCE method (the polyfill
+  // `_m(receiver)` needs the receiver, which the residual preserves). leaves the residual destructure
+  // (siblings + receiver) intact - "polyfill always wins" without reordering effects. mirrors
+  // `tryExtractArrayWrappedStatic`. returns false when it can't safely extract (no binding name, or an
+  // instance receiver that isn't a bare Identifier -> would double-evaluate, since the residual reads it
+  // too); the caller then leaves it native
+  function keepKeyInResidual({ prop, kind, entry, hintName, declaration, siblingDeclarator, objectNode }) {
+    const valueNode = propBindingIdentifier(prop.node.value);
+    if (!valueNode) return false;
+    let polyfillValue;
+    if (kind === 'instance') {
+      // the polyfill `_m(receiver)` re-references the receiver (the residual reads it too). the planner
+      // (`planSideEffectKeyStrategy`) already admitted only re-referenceable receivers, so clone directly -
+      // no local re-check (a duplicate gate here once drifted from the planner and left a literal native)
+      polyfillValue = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
+    } else {
+      if (kind === 'global') injector.registerGlobalAlias(valueNode.name, hintName);
+      injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
+      polyfillValue = t.cloneNode(injectPureImport(entry, hintName));
+    }
+    if (siblingDeclarator) {
+      // a preceding statement is impossible (loop header) or unsafe (a multi-declarator instance receiver
+      // bound earlier in the same declaration would TDZ-fault) - bind the polyfill as a trailing sibling
+      declaration.node.declarations.push(t.variableDeclarator(t.cloneNode(valueNode), polyfillValue));
+    } else {
+      const isExport = declaration.parentPath?.isExportNamedDeclaration();
+      const extracted = t.variableDeclaration(declaration.node.kind,
+        [t.variableDeclarator(t.cloneNode(valueNode), polyfillValue)]);
+      (isExport ? declaration.parentPath : declaration)
+        .insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
+    }
+    prop.get('value').replaceWith(generateUnusedId());
+    prop.node.shorthand = false;
+    skippedNodes.add(prop.node);
+    return true;
+  }
+
+  // dispatch a polyfillable key whose KEY must stay in the pattern - either a side-effecting computed key
+  // (`{ [(eff(), 'from')]: from } = R`, the effect runs in place) OR a nested INSTANCE method (the polyfill
+  // `_m(receiver)` needs the receiver the residual preserves). the ONE robust emission (decided by the
+  // shared `planSideEffectKeyStrategy`): keep the key IN PLACE (value renamed to a throwaway) and bind the
+  // polyfill separately - uniform across statement / nested / for-init / rest / default / export / array-
+  // wrapper / nested-sequence keys. a param-default / IIFE host can't host that separate binding, so it
+  // synth-swaps the receiver instead. returns true when handled (caller stops); false lets the caller
+  // continue (no host declaration)
+  function handleSideEffectComputedKey({ prop, kind, entry, hintName }) {
+    const objectPattern = prop.parentPath;
+    const { parent: synthHost } = peelTransparentWrappers(objectPattern);
+    // param-default / IIFE host (static): no room for a separate binding statement -> synth-swap receiver
+    if (kind !== 'instance' && !synthHost?.isVariableDeclarator() && !synthHost?.isObjectProperty()) {
+      handleParameterDestructure({ prop, kind, entry, hintName });
+      return true;
+    }
+    const declaration = hostDeclarationOf(prop);
+    if (!declaration) return false;
+    const isForInit = declaration.parentPath?.isForStatement()
+      && declaration.parentPath.node.init === declaration.node;
+    // resolve the instance receiver once: the planner needs its kind, `keepKeyInResidual` the node
+    const objectNode = kind === 'instance'
+      ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop)) : null;
+    const plan = planSideEffectKeyStrategy({
+      polyfillKind: kind,
+      isForInit,
+      isMultiDeclarator: declaration.node.declarations.length > 1,
+      receiverIsSafe: isReReferenceableReceiver(objectNode),
+    });
+    // null = an instance receiver the residual can't safely re-reference (non-Identifier / multi-declarator).
+    // leave the destructure NATIVE (return handled): falling through to the default instance extract would
+    // discard the whole destructure and with it the key's EFFECT. unplugin likewise leaves it native
+    if (!plan) return true;
+    return keepKeyInResidual({ prop, kind, entry, hintName, declaration, siblingDeclarator: plan.siblingDeclarator, objectNode });
+  }
+
   // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
   // function-parameter destructure path (`function({ from }) {}` form) or the regular
   // VariableDeclarator / AssignmentExpression destructure path.
@@ -674,6 +784,8 @@ export default function createDestructureEmitter({
   // so we leave the code intact and warn - runtime correctness depends on which branch
   // fires and on native availability
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
+    if (!meta?.fromFallback && prop.node.computed && sequenceKeyPrefix(prop.node.key)
+      && handleSideEffectComputedKey({ prop, kind, entry, hintName })) return;
     if (meta?.fromFallback) {
       // per-branch synth-swap on ConditionalExpression / LogicalExpression branches: each
       // viable branch becomes its own `{key: _Branch$key}` literal, preserving runtime
@@ -709,6 +821,28 @@ export default function createDestructureEmitter({
       if (tryFlattenNestedProxyDestructure(prop, entry, hintName)) return;
       // fallback: non-single shape (outer has siblings) - inline default as last resort
       handleParameterDestructure({ prop, kind, entry, hintName });
+      return;
+    }
+    // nested INSTANCE method (`{ y: { flat: m } } = { y: arr }`, or array-wrapped `[{ y: { flat: m } }] =
+    // [{ y: arr }]` / `[{ flat: m }] = [arr]`): the static flatten doesn't apply (the receiver is an
+    // instance, not a constructor). delegate to the shared declarator-key residual path - it resolves the
+    // nested receiver through object keys AND array indices (bare Identifier only, else native), respects
+    // the planner (bails a multi-declarator / non-Identifier receiver, routes a for-init to a sibling
+    // declarator), and extracts `const m = _flatMaybeArray(recv)`. an ArrayPattern host peels past
+    // `patternParent` (a single-element wrapper collapses to the declarator), so gate on it directly
+    if ((patternParent?.isObjectProperty() || objectPattern.parentPath?.isArrayPattern()) && kind === 'instance') {
+      if (handleSideEffectComputedKey({ prop, kind, entry, hintName })) return;
+      // an ASSIGNMENT host has no declaration to extract a `const` into. for a statement-context assignment
+      // with a bare-Identifier binding and a re-referenceable receiver, append `m = _flatMaybeArray(recv)`
+      // AFTER the statement: the destructure assigns `m` natively first (undefined on engines lacking the
+      // method), then this overwrite makes the polyfill win. expression-context / member-receiver bails to
+      // native. `resolveNestedReceiverNode` already gates the receiver (Identifier / side-effect-free literal)
+      const statement = nestedAssignmentStatementOf(prop);
+      const receiverNode = resolveNestedReceiverNode(prop);
+      if (statement && prop.node.value?.type === 'Identifier' && receiverNode) {
+        statement.insertAfter(t.expressionStatement(t.assignmentExpression('=', t.cloneNode(prop.node.value),
+          t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)]))));
+      }
       return;
     }
     // transparent wrap between ObjectPattern and host (`const [{from}] = wrapper` -
@@ -829,7 +963,7 @@ export default function createDestructureEmitter({
     const parent = path.parentPath.parentPath;
     const initKey = parent.isVariableDeclarator() ? 'init'
       : parent.isAssignmentExpression() ? 'right' : null;
-    if (!initKey) return null;
+    if (!initKey) return resolveNestedReceiverNode(path);
     const objectNode = parent.node[initKey];
     if (!objectNode) return null;
     if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {

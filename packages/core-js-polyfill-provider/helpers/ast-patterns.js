@@ -1564,6 +1564,18 @@ export function staticStringKey(node) {
   return singleQuasiString(node);
 }
 
+// a computed key that is a (paren / TS-wrapped) SequenceExpression with a static-string TAIL
+// (`[(eff(), 'from')]`) resolves to that tail name ('from'); null otherwise. used by the synth-swap
+// gates so a side-effecting computed key is replayable: the SE prefix stays on the PATTERN key
+// (evaluated once at destructure), and only the resolved tail name is mirrored into the synth
+// literal as a plain key - the receiver-replacement never re-runs the effect. synth-swap only
+export function sequenceKeyStaticName(keyNode) {
+  let node = unwrapParens(keyNode);
+  if (node?.type !== 'SequenceExpression') return null;
+  while (node?.type === 'SequenceExpression') node = unwrapParens(node.expressions.at(-1));
+  return staticStringKey(node);
+}
+
 // resolve a non-computed property's key to its static string name. accepts both bare
 // Identifier shorthand (`{ from: ... }`) and string-literal keys (`{ 'from': ... }`).
 // returns null for computed keys (`{ [name]: ... }`), numeric / boolean literal keys,
@@ -2099,6 +2111,14 @@ export function sequencePrefixWithSideEffects(expr) {
   return prefix.some(mayHaveSideEffects) ? prefix : null;
 }
 
+// the side-effecting prefix of a destructure COMPUTED KEY (`[(eff(), 'from')]`), peeled through paren /
+// chain / TS wrappers, or null when the key isn't such a sequence. single source for both flatten
+// emitters (babel AST + unplugin text) so the key-effect gate AND the lifted prefix are captured
+// identically - the peel and the SE check can't drift between the two
+export function sequenceKeyPrefix(keyNode) {
+  return sequencePrefixWithSideEffects(unwrapRuntimeExpr(keyNode));
+}
+
 // walk a symbol-sourced `X in Y` LHS subtree, invoking `visit(seExprNode)` for each
 // SE-bearing leading expression discovered in any nested SequenceExpression. handles
 // wrapped receivers (`(fn(), Symbol).iterator`), computed-key SE (`Symbol[(fn(), 'k')]`),
@@ -2529,7 +2549,7 @@ export const isIdentifierPropValue = value => propBindingIdentifier(value) !== n
 // it must synth the polyfill; param-default leaves it off and bails to the safe body-extract instead.
 // callers bail to inline-default when this check fails. shared between babel-plugin and unplugin
 // accepts both Babel `ObjectProperty` and ESTree `Property` node types
-export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false } = {}) {
+export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
   let bound = null;
   for (const p of objectPattern.properties) {
     if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
@@ -2546,6 +2566,10 @@ export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputed
         walkPatternIdentifiers(objectPattern, n => bound.add(n.name));
       }
       if (bound.has(p.key.name)) return false;
+    } else if (allowSideEffectComputedKeys && sequenceKeyStaticName(p.key) !== null) {
+      // a side-effecting computed key `[(eff(), 'from')]` is replayable when the caller opts in: the SE
+      // prefix stays on the pattern key (evaluated once), the synth literal mirrors only the tail name
+      continue;
     } else if (!allowLiteralComputedKeys || staticStringKey(p.key) === null) {
       // a non-Identifier computed key: only a static string / template literal is replayable, and only
       // when the caller opts in. anything else is dynamic / side-effecting - not replayable
@@ -2561,14 +2585,16 @@ export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputed
 // can't collide with a same-named computed Identifier. shared so babel-plugin and unplugin key identically
 export function synthSwapPropKey(prop) {
   if (!prop.computed) return prop.key.name;
-  return prop.key.type === 'Identifier' ? `[${ prop.key.name }]` : `[${ JSON.stringify(staticStringKey(prop.key)) }]`;
+  if (prop.key.type === 'Identifier') return `[${ prop.key.name }]`;
+  return `[${ JSON.stringify(staticStringKey(prop.key) ?? sequenceKeyStaticName(prop.key)) }]`;
 }
 
 // a synth-literal builder can replay a property whose key is a plain Identifier or a computed static
 // string / template literal (`['from']` / [`from`]); anything else (dynamic / side-effecting computed
 // key) is skipped. shared so both emitters apply the same rule isSynthSimpleObjectPattern gated on
 export function isReplayableSynthKey(prop) {
-  return prop.key?.type === 'Identifier' || (prop.computed && staticStringKey(prop.key) !== null);
+  return prop.key?.type === 'Identifier'
+    || (prop.computed && (staticStringKey(prop.key) !== null || sequenceKeyStaticName(prop.key) !== null));
 }
 
 // computed-key synth-swap safety: a bare-global computed key (`[Set]` with no in-scope binding) gets

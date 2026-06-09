@@ -180,9 +180,10 @@ export function createUsageVisitors({
   let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
 
   // destructure-only wrapper (every caller is inside handleDestructuring): a side-effecting
-  // computed key has no effects channel here, so bail rather than drop the SE
+  // computed key resolves to its tail for identity; the emitter keeps the key in the pattern (it
+  // runs once) and adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
   function resolveKey(path, computed) {
-    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, bailOnSideEffectKey: true });
+    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter });
   }
 
   // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
@@ -281,7 +282,7 @@ export function createUsageVisitors({
   // N-deep: resolve the outer key chain to an effective receiver, emit meta accordingly
   function emitNestedDestructureMeta(path, outerProp) {
     const innerKey = sharedResolveKey({
-      node: path.node.key, computed: path.node.computed, scope: path.scope, adapter, bailOnSideEffectKey: true,
+      node: path.node.key, computed: path.node.computed, scope: path.scope, adapter,
     });
     if (!innerKey) return;
     const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
