@@ -590,3 +590,20 @@ QUnit.test('destructuring: nested instance off a constant template-literal recei
   const { y: { padStart: m } } = { y: 'ab' };
   assert.strictEqual(m.call('cd', 4, 'x'), 'xxcd');
 });
+
+// an ArrayPattern wrapper whose leaf is a const-ALIAS of the constructor (`const A = Array; [A]`): the
+// leaf is canonicalized back to Array, so the static `from` polyfills (it once dropped for the alias)
+QUnit.test('destructuring: array-wrapper with a const-alias static leaf', assert => {
+  const A = Array;
+  const [{ from }] = [A];
+  assert.deepEqual(from([1, 2]), [1, 2]);
+  assert.deepEqual(from('xy'), ['x', 'y']);
+});
+
+// the same const-alias canonicalization through the OBJECT-nested resolver (no array wrapper) - a sibling
+// code path that must resolve the alias too
+QUnit.test('destructuring: object-nested const-alias static leaf', assert => {
+  const A = Array;
+  const { x: { from } } = { x: A };
+  assert.deepEqual(from([3, 4]), [3, 4]);
+});
