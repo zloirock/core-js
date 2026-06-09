@@ -1283,7 +1283,6 @@ export function createPolyfillEmitter({
       meta,
       left: node.left,
       right: node.right,
-      unwrap: unwrapNode,
       isEntryNeeded,
       resolveFallback: m => resolvePureOrGlobalFallback(m, metaPath),
     });

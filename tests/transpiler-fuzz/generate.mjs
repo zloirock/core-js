@@ -577,6 +577,15 @@ const TS_FAMILIES = {
     'Array.from<number>([1, 2])',
     '(arr as number[])[("at" as string)](0)',
   ],
+  // a polyfilled `key in obj` fold whose obj (or key) carries SE behind a TS wrapper: the fold must still
+  // run the assignment / sequence SE and pull its import. babel's identity `unwrap` once dropped the
+  // TS-wrapped SE (emitting a bare `true`) while unplugin's TS-peeling unwrap rescued it (divergence) -
+  // the shared planner now peels TS via `unwrapRuntimeExpr` for both operands
+  'ts-in-expression': [
+    '(() => { let y; const r = "groupBy" in ((y = Map) as any); return [r, typeof y]; })()',
+    '(() => { let n = 0; const r = "flat" in ((n++, []) as any); return [r, n]; })()',
+    '(() => { let y; const r = ("groupBy" as string) in (y = Map)!; return [r, typeof y]; })()',
+  ],
   // the destructure-SE-key bug-class WITH a TS cast on the key / receiver
   'ts-destructure': [
     '(() => { const { [(log.push("e") as any, "from")]: f } = Array; return [typeof f, log.length]; })()',
