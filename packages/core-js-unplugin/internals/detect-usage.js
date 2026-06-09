@@ -611,9 +611,10 @@ export function createUsageVisitors({
   );
 
   // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
-  // has no effects channel here, so bail rather than feed the text composer an unplaceable needle
+  // resolves to its tail for identity; the emitter keeps the key in the pattern (it runs once) and
+  // adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
   function resolveKey(node, computed, scope) {
-    return sharedResolveKey({ node, computed, scope, adapter, bailOnSideEffectKey: true });
+    return sharedResolveKey({ node, computed, scope, adapter });
   }
 
   function extractPropertyKey(propNode, scope) {

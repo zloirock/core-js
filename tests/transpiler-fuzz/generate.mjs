@@ -181,6 +181,122 @@ const EXPR_FAMILIES = {
     '(() => { const { x: { [(log.push("e"), "from")]: f } } = { x: Array }; return [typeof f, log.length]; })()',
     '(() => { const g = ({ [(log.push("e"), "from")]: f } = Array) => typeof f; return [g(), log.length]; })()',
     '(() => { const { [(log.push("e"), "fromEntries")]: f } = Object; return [typeof f, log.length]; })()',
+    // a dead default carrying its OWN polyfillable call must be dropped (not run, not imported); an array-
+    // pattern wrapper. both once mishandled the in-place lift (crash / double-run); the residual is uniform
+    '(() => { const { [(log.push("e"), "from")]: f = (log.push("d"), 9) } = Array; return [typeof f, log.join(",")]; })()',
+    '(() => { const [{ [(log.push("e"), "from")]: f }] = [Array]; return [typeof f, log.length]; })()',
+    // `...rest` sibling: the key must stay in the residual for exclusion AND its effect run once (a lift
+    // would double-run); aliased+default; a non-SE static sibling; assignment-target form
+    '(() => { const { [(log.push("e"), "from")]: f, ...rest } = Array; return [typeof f, log.length, JSON.stringify(rest)]; })()',
+    '(() => { const { [(log.push("e"), "from")]: f = 9 } = Array; return [typeof f, log.length]; })()',
+    '(() => { const { of, [(log.push("e"), "from")]: f } = Array; return [typeof of, typeof f, log.length]; })()',
+    '(() => { let f; ({ [(log.push("e"), "from")]: f } = Array); return [typeof f, log.length]; })()',
+    '(() => { const { [(log.push("e"), "flat")]: m, ...rest } = arr; return [typeof m, log.length]; })()',
+    // a side-effecting RECEIVER alongside the key effect (receiver runs first, then the key); a multi-
+    // declarator with one SE-key sibling; a TEMPLATE-literal key; a polyfilled SE-key next to a non-
+    // polyfilled one (`isArray` stays native here, but its effect must still run, in order)
+    '(() => { const { [(log.push("k"), "from")]: f } = (log.push("r"), Array); return [typeof f, log.join(",")]; })()',
+    '(() => { const z = 1, { [(log.push("e"), "from")]: f } = Array; return [z, typeof f, log.length]; })()',
+    '(() => { const { [(log.push("e"), `from`)]: f } = Array; return [typeof f, log.length]; })()',
+    '(() => { const { [(log.push("e"), "from")]: f, [(log.push("o"), "isArray")]: g } = Array; return [typeof f, typeof g, log.join(",")]; })()',
+    // an INSTANCE-method SE-key with a non-Identifier (literal) receiver: the polyfill can\'t safely re-
+    // reference the receiver, so it stays native - but the key effect must STILL run (babel once dropped
+    // it by falling through to a receiver-discarding extraction)
+    '(() => { const { [(log.push("e"), "flat")]: m } = [1, [2]]; return [typeof m, log.length]; })()',
+    // an instance-method SE-key in a MULTI-declarator (Identifier receiver): the polyfill binds as a
+    // trailing sibling declarator (a preceding statement could TDZ-fault an in-declaration receiver), the
+    // effect runs once. once bailed to native by the planner
+    '(() => { const z = 1, { [(log.push("e"), "flat")]: m } = arr; return [z, JSON.stringify(m.call(arr)), log.length]; })()',
+  ],
+  // multi-level nesting + static/instance combinations of side-effecting computed keys. each level's
+  // effect must run in source order and every binding must survive. a static leaf is polyfilled; a NESTED
+  // instance leaf is polyfilled too WHEN its receiver resolves to a bare Identifier (`_flatMaybeArray(arr)`,
+  // resolved by walking the RHS along the nesting key), else it stays native (a literal / member receiver
+  // can't be referenced twice without double-evaluating). the static+instance sibling shape once crashed
+  // unplugin; nested+rest / nested+for-init once double-ran / crashed (lift in a place that can't lift)
+  'destructure-se-key-nested': [
+    '(() => { const { a: { [(log.push("e"), "from")]: f } } = { a: Array }; return [typeof f, log.length]; })()',
+    '(() => { const { a: { b: { c: { [(log.push("e"), "from")]: f } } } } = { a: { b: { c: Array } } }; return [typeof f, log.length]; })()',
+    '(() => { const { a: { [(log.push("e1"), "from")]: f, [(log.push("e2"), "of")]: g } } = { a: Array }; return [typeof f, typeof g, log.join(",")]; })()',
+    '(() => { const { x: { [(log.push("s"), "from")]: f }, y: { [(log.push("i"), "flat")]: m } } = { x: Array, y: arr }; return [typeof f, typeof m, log.join(",")]; })()',
+    '(() => { const { a: { b: { [(log.push("e"), "flat")]: m } } } = { a: { b: arr } }; return [typeof m, log.length]; })()',
+    '(() => { const { a: { [(log.push("s"), "from")]: f }, b: { [(log.push("o"), "of")]: g } } = { a: Array, b: Array }; return [typeof f, typeof g, log.join(",")]; })()',
+    '(() => { const { x: { [(log.push("e"), "from")]: f, ...rest } } = { x: Array }; return [typeof f, log.length, typeof rest]; })()',
+    '(() => { let n = 0, t; for (const { x: { [(log.push("e"), "from")]: f } } = { x: Array }; n < 1; n++) t = typeof f; return [t, log.length]; })()',
+    '(() => { const { p: { q: { [(log.push("s"), "from")]: f } }, r: { [(log.push("i"), "flat")]: m } } = { p: { q: Array }, r: arr }; return [typeof f, typeof m, log + ""]; })()',
+    // a nested instance method with an IDENTIFIER receiver polyfills - verify the extracted polyfill works
+    // (`m.call(arr)`), not just that a binding exists; a LITERAL receiver still bails to native consistently
+    '(() => { const { y: { [(log.push("i"), "flat")]: m } } = { y: arr }; return [JSON.stringify(m.call(arr)), log.length]; })()',
+    '(() => { const { y: { [(log.push("i"), "flat")]: m } } = { y: [5, [6]] }; return [typeof m, log.length]; })()',
+  ],
+  // nested INSTANCE method destructure WITHOUT a side-effect key. polyfills when the receiver resolves to
+  // a bare Identifier (`_flatMaybeArray(arr)`, receiver walked from the RHS along the nesting key); a
+  // side-effect-free LITERAL receiver ALSO polyfills - re-referencing it yields a fresh value of the same
+  // type, so `_m`'s native-vs-polyfill pick is identical. a MEMBER (`o.arr` - getter) receiver bails to
+  // native (re-referencing would re-fire the getter). verify the extracted (unbound) method works via
+  // `m.call(...)`. the static+instance mix extracts both (pure binding order may differ - the 3-way runtime
+  // + import-set parity hold regardless)
+  'destructure-nested-instance': [
+    '(() => { const { y: { flat: m } } = { y: arr }; return JSON.stringify(m.call(arr)); })()',
+    '(() => { const { y: { flat: m } } = { y: [7, [8]] }; return JSON.stringify(m.call([3, [4]])); })()',
+    '(() => { const o = { arr: [1, [2]] }; const { y: { flat: m } } = { y: o.arr }; return typeof m; })()',
+    '(() => { const { a: { b: { flat: m } } } = { a: { b: arr } }; return JSON.stringify(m.call(arr)); })()',
+    // re-referenceable literal receivers in more shapes: parens-wrapped, array-wrapped, and an
+    // assignment host - all polyfill (re-referencing a side-effect-free literal is safe)
+    '(() => { const { y: { flat: m } } = { y: ([1, [2]]) }; return JSON.stringify(m.call([3, [4]])); })()',
+    '(() => { const [{ flat: m }] = [[1, [2]]]; return JSON.stringify(m.call([3, [4]])); })()',
+    '(() => { let m; ({ y: { flat: m } } = { y: [5, [6]] }); return JSON.stringify(m.call([3, [4]])); })()',
+    // a non-array literal receiver type (string method); a CONSTANT template is a string constant so it
+    // polyfills (StringLiteral parity), but an INTERPOLATED template bails (re-running x's coercion)
+    '(() => { const { y: { padStart: m } } = { y: "ab" }; return m.call("cd", 4, "x"); })()',
+    '(() => { const { y: { padStart: m } } = { y: `ab` }; return m.call("cd", 4, "x"); })()',
+    // eslint-disable-next-line no-template-curly-in-string -- snippets carry template-literal SOURCE as a string
+    '(() => { const x = "z"; const { y: { padStart: m } } = { y: `a${ x }` }; return typeof m; })()',
+    '(() => { const { x: { from: f }, y: { flat: m } } = { x: Array, y: arr }; return [typeof f, JSON.stringify(m.call(arr))]; })()',
+    // a for-init declarator AND a multi-declarator both route the instance binding to a TRAILING sibling
+    // declarator in the same declaration (a preceding statement is impossible in a loop header / unsafe
+    // when the receiver is bound earlier in the same declaration). the in-declaration-receiver case
+    // (`const r = arr, { ... } = r`) is safe via the trailing sibling - no TDZ. babel once threw
+    // "Duplicate declaration" on the for-init; the multi-declarator once bailed to native (unplugin) /
+    // diverged (babel). verify the extracted method actually works (`m.call`)
+    '(() => { let o = true, b; for (const { y: { flat: m } } = { y: arr }; o; o = false) b = m; return JSON.stringify(b.call(arr)); })()',
+    '(() => { const z = 1, { y: { flat: m } } = { y: arr }; return [z, JSON.stringify(m.call(arr))]; })()',
+    '(() => { const r = arr, { y: { flat: m } } = { y: r }; return JSON.stringify(m.call(r)); })()',
+    // for-init combined with a multi-declarator; two destructure declarators in one declaration (static +
+    // instance) - both polyfill, the instance via its sibling
+    '(() => { let o = true, b; for (const z = 1, { y: { flat: m } } = { y: arr }; o; o = false) b = m; return JSON.stringify(b.call(arr)); })()',
+    '(() => { const { a: { from: f } } = { a: Array }, { y: { flat: m } } = { y: arr }; return [typeof f, JSON.stringify(m.call(arr))]; })()',
+    // an ArrayPattern wrapper around the nested instance: the receiver resolver walks array INDICES too
+    // (`[0]`), not just object keys, so `[{ y: { flat } }] = [{ y: arr }]` polyfills - including a hole
+    // before the element (index tracked, not assumed 0)
+    '(() => { const [{ y: { flat: m } }] = [{ y: arr }]; return JSON.stringify(m.call(arr)); })()',
+    '(() => { const [, { y: { flat: m } }] = [0, { y: arr }]; return JSON.stringify(m.call(arr)); })()',
+    // a parenthesized RHS object literal AND a parenthesized receiver value: parens are transparent, so
+    // both must resolve the receiver THROUGH them (babel folds parens into node `extra`; estree keeps a
+    // `ParenthesizedExpression`). `resolveNestedReceiverNode` peels via `unwrapExpressionChain` - without
+    // it babel polyfilled while unplugin bailed (import-set divergence)
+    '(() => { const { y: { flat: m } } = ({ y: arr }); return JSON.stringify(m.call(arr)); })()',
+    '(() => { const { y: { flat: m } } = { y: (arr) }; return JSON.stringify(m.call(arr)); })()',
+    // a DOUBLY-array wrapper and a destructuring-ASSIGNMENT host (statement context, incl. array-wrapped):
+    // both polyfill. the array case walks two array indices; the assignment has no declaration to extract a
+    // `const` into, so the polyfill appends `m = _flatMaybeArray(recv)` AFTER the statement - the destructure
+    // assigns m natively first (undefined where the method is absent), then this overwrite makes it win
+    '(() => { const [[{ flat: m }]] = [[arr]]; return JSON.stringify(m.call(arr)); })()',
+    '(() => { let m; ({ y: { flat: m } } = { y: arr }); return JSON.stringify(m.call(arr)); })()',
+    '(() => { let m; ([{ y: { flat: m } }] = [{ y: arr }]); return JSON.stringify(m.call(arr)); })()',
+    // assignment-overwrite edges: a top-level SIBLING binding survives the destructure; TWO nested instances
+    // each get their own overwrite (independent bindings - the two emit in different orders across plugins,
+    // but that is runtime-equivalent); a multi-element array mixes a static + an instance sibling
+    '(() => { let m, z; ({ y: { flat: m }, z } = { y: arr, z: 9 }); return [z, JSON.stringify(m.call(arr))]; })()',
+    '(() => { const a2 = [3, [4]]; let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); return [JSON.stringify(m.call(arr)), JSON.stringify(n.call(a2))]; })()',
+    '(() => { const [{ from: f }, { flat: m }] = [Array, arr]; return [typeof f, JSON.stringify(m.call(arr))]; })()',
+    // KNOWN consistent bails (both leave native - regression guard against a future divergence): an array
+    // spread (shifts the static index, not statically resolvable), an EXPRESSION-context assignment (no
+    // statement to append the overwrite after, and the `(... = R)` value would need preserving), and a
+    // non-Identifier (member) binding target (`o.m` - can't be safely re-bound by the overwrite)
+    '(() => { const base = [{ y: arr }]; const [{ y: { flat: m } }] = [...base]; return JSON.stringify(m.call(arr)); })()',
+    '(() => { let m, z; z = ({ y: { flat: m } } = { y: arr }); return [typeof m, typeof z]; })()',
+    '(() => { const o = {}; ({ y: { flat: o.m } } = { y: arr }); return JSON.stringify(o.m.call(arr)); })()',
   ],
   // side effect in a computed MEMBER key (`recv[(eff(), "method")](args)`) - here the SE IS
   // captured (member-access has an effects channel), so it must survive in BOTH emitters
