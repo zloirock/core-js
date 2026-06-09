@@ -437,7 +437,6 @@ export default function plugin(api, options) {
           meta,
           left: path.node.left,
           right: path.node.right,
-          unwrap: node => node,
           isEntryNeeded,
           resolveFallback: m => resolvePureOrGlobalFallback(m, path),
         });
