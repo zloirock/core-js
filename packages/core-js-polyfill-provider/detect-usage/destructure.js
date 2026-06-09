@@ -654,23 +654,19 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
   const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host);
   if (!descended) return null;
   const leaf = unwrapExpressionChain(descended);
-  // proxy-global member leaf (`const [{ from }] = [globalThis.Array]`): resolve the member
-  // chain to its constructor name, same as the non-wrappered `const { from } = globalThis.Array`
-  // path. without this the static-placement gate below only fires on a bare-Identifier leaf
-  // (`[Array]`), so usage-global drops the dep and babel usage-pure drops the substitution
-  if (leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
+  // any leaf that resolves to a static-placement constructor, through ONE branch: a bare global
+  // (`[Array]`), a const-alias (`const A = Array; [A]`), a proxy-global member (`[globalThis.Array]`,
+  // same as the non-wrappered `const { from } = globalThis.Array` path), or a babel in-place-
+  // substituted polyfill alias (`[_Promise]` - the standalone Identifier visitor rewrote the wrapper
+  // init before the destructure prop visited). `resolveObjectName` canonicalizes ALL of these via
+  // `resolveBindingToGlobal` (binding-init walk + `polyfillHint` recovery, and it bails a reassigned
+  // alias). a raw-name-only Identifier check dropped the const-alias (usage-global both plugins +
+  // babel usage-pure; unplugin usage-pure rescued it -> divergence)
+  if (leaf?.type === 'Identifier' || leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
     const resolved = resolveObjectName({ objectNode: leaf, scope: host.scope, adapter, path: host });
     return resolved && isStaticPlacement(resolved) ? resolved : null;
   }
-  if (leaf?.type !== 'Identifier') return null;
-  if (isStaticPlacement(leaf.name)) return leaf.name;
-  // polyfill-substituted alias (`_Promise` for `Promise` after the standalone Identifier
-  // visitor ran ahead of destructure dispatch): use the binding's `polyfillHint` to
-  // recover the original constructor name. babel-plugin needs this because AST mutation
-  // happens in-place during visitor traversal - by the time the destructure prop visits,
-  // the wrapper's binding init has already been rewritten from `[Promise]` to `[_Promise]`
-  const hint = adapter.getBinding(host.scope, leaf.name)?.polyfillHint;
-  return hint && isStaticPlacement(hint) ? hint : null;
+  return null;
 }
 
 // per-outerProp memoization: sibling inner-Property visits under the same outer Property
