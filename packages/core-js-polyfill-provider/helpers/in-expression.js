@@ -3,10 +3,10 @@
 // renders the returned node references its own way (babel cloneNode / unplugin nodeSrc); a text
 // emitter additionally marks the discarded operand skipped, while an AST emitter drops it
 // implicitly by replacing the node.
-import { sequencePrefixWithSideEffects, visitSymbolInLhsSe } from './ast-patterns.js';
+import { sequencePrefixWithSideEffects, unwrapRuntimeExpr, visitSymbolInLhsSe } from './ast-patterns.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
 
-export function planInExpression({ meta, left, right, unwrap, isEntryNeeded, resolveFallback }) {
+export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback }) {
   // symbol-sourced LHS (`Symbol.X in obj` / alias binding): polyfill the symbol entry.
   // Symbol.iterator rewrites to a get-iterator call (`call` shape); any other symbol keeps the
   // membership test with the binding swapped in. LHS may carry SE (computed-key sequence /
@@ -27,9 +27,13 @@ export function planInExpression({ meta, left, right, unwrap, isEntryNeeded, res
   if (meta.object) {
     if (!resolveFallback(meta).result) return { kind: 'noop' };
     const leadingSe = [];
-    const lhsPrefix = sequencePrefixWithSideEffects(unwrap(left));
+    // peel parens / optional-chain / TS wrappers (`(y=Map) as any`) off both operands here, in the
+    // shared planner, so the SE harvest is single-sourced (the symbol path peels the same way). a
+    // caller-supplied `unwrap` once left this to the dialect - babel's was identity and dropped the
+    // TS-wrapped assignment SE + its import, while unplugin rescued it (divergence)
+    const lhsPrefix = sequencePrefixWithSideEffects(unwrapRuntimeExpr(left));
     if (lhsPrefix) leadingSe.push(...lhsPrefix);
-    const rhs = unwrap(right);
+    const rhs = unwrapRuntimeExpr(right);
     const rhsPrefix = sequencePrefixWithSideEffects(rhs);
     let skip = right;
     if (rhsPrefix) {
