@@ -16,6 +16,7 @@ import {
   getFallbackBranchSlots,
   isReplayableSynthKey,
   isSynthSimpleObjectPattern,
+  sequenceKeyStaticName,
   synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -286,7 +287,12 @@ export default function createSynthSwapEmitter({
       const value = queued
         ? injectPureImport(queued.entry, queued.hintName)
         : t.memberExpression(t.cloneNode(getReceiverRef()), t.cloneNode(property.key), property.computed);
-      properties.push(t.objectProperty(t.cloneNode(property.key), value, property.computed));
+      // a side-effecting computed key (`[(eff(), 'from')]`) mirrors into the synth literal as a PLAIN
+      // string key (`"from"`), NOT a clone of the SE key - the prefix effects stay on the pattern key
+      // (run once at destructure); cloning here would re-run them when the receiver literal is built
+      const seKeyName = property.computed ? sequenceKeyStaticName(property.key) : null;
+      const synthKey = seKeyName !== null ? t.stringLiteral(seKeyName) : t.cloneNode(property.key);
+      properties.push(t.objectProperty(synthKey, value, property.computed && seKeyName === null));
     }
     return t.objectExpression(properties);
   }
