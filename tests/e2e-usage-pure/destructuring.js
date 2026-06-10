@@ -607,3 +607,159 @@ QUnit.test('destructuring: object-nested const-alias static leaf', assert => {
   const { x: { from } } = { x: A };
   assert.deepEqual(from([3, 4]), [3, 4]);
 });
+
+// an SE-bearing IIFE init in a flattenable destructure: the flatten harvests the discarded
+// init's chain-root call and re-emits it ahead of the extraction - the side effect runs exactly
+// once and the binding gets the polyfill
+QUnit.test('destructuring: array-wrapper SE-bearing IIFE init flattens, setup runs once', assert => {
+  let calls = 0;
+  const [{ from }] = [(() => {
+    calls++;
+    return Array;
+  })()];
+  assert.same(calls, 1);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+// the no-SE twin flattens to the pure import - the IIFE is dropped whole
+QUnit.test('destructuring: array-wrapper no-SE IIFE init flattens', assert => {
+  const [{ from }] = [(() => Array)()];
+  assert.deepEqual(from([5, 6]), [5, 6]);
+});
+
+QUnit.test('destructuring: array-wrapper SE IIFE under member hop flattens, setup runs once', assert => {
+  let calls = 0;
+  const [{ from }] = [(() => {
+    calls++;
+    return globalThis;
+  })().Array];
+  assert.same(calls, 1);
+  assert.deepEqual(from([7]), [7]);
+});
+
+QUnit.test('destructuring: proxy-receiver SE IIFE host flattens, setup runs once', assert => {
+  let calls = 0;
+  const [{ Array: { from } }] = [(() => {
+    calls++;
+    return globalThis;
+  })()];
+  assert.same(calls, 1);
+  assert.deepEqual(from([8, 9]), [8, 9]);
+});
+
+// the nested-object twin (no array wrapper): same harvest contract, the host IIFE setup survives
+QUnit.test('destructuring: nested-object SE IIFE host flattens, setup runs once', assert => {
+  let calls = 0;
+  const { Array: { from } } = (() => {
+    calls++;
+    return globalThis;
+  })();
+  assert.same(calls, 1);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+// branchy init with an SE-bearing IIFE branch: per-branch handling keeps the setup intact
+QUnit.test('destructuring: conditional init with SE IIFE branch, setup runs once', assert => {
+  let calls = 0;
+  const cond = true;
+  const { from } = cond ? (() => {
+    calls++;
+    return Array;
+  })() : Array;
+  assert.same(calls, 1);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+// assignment-form destructure from an SE-bearing IIFE: the setup survives the rewrite
+QUnit.test('destructuring: assignment form from SE IIFE, setup runs once', assert => {
+  let calls = 0;
+  let from;
+  // eslint-disable-next-line prefer-const -- the ASSIGNMENT form (not a declaration) is under test
+  ({ from } = (() => {
+    calls++;
+    return Array;
+  })());
+  assert.same(calls, 1);
+  assert.deepEqual(from([3, 4]), [3, 4]);
+});
+
+// const-alias wrapper: the IIFE setup runs at the ALIAS declaration; the flatten of the alias
+// READ must not re-emit it (once double-ran via a deref-escaped harvest)
+QUnit.test('destructuring: alias wrapper with SE IIFE runs setup once', assert => {
+  let calls = 0;
+  const wrapper = [(() => {
+    calls++;
+    return Array;
+  })()];
+  const [{ from }] = wrapper;
+  assert.same(calls, 1);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+// a chain-assignment in the discarded init is rescued whole: the binding captures the value and
+// the setup runs exactly once (it was once silently dropped by the flatten)
+QUnit.test('destructuring: assignment in discarded init is rescued', assert => {
+  let a;
+  const [{ from }] = [(a = globalThis).Array];
+  assert.same(a, globalThis);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+QUnit.test('destructuring: assignment host of nested destructure is rescued', assert => {
+  let a;
+  const { Array: { of } } = a = globalThis;
+  assert.same(a, globalThis);
+  assert.deepEqual(of(3, 4), [3, 4]);
+});
+
+QUnit.test('destructuring: array-leaf assignment with SE IIFE is rescued, all preserved', assert => {
+  let calls = 0;
+  let a;
+  const [{ from }] = [a = (() => {
+    calls++;
+    return Array;
+  })()];
+  assert.same(calls, 1);
+  assert.same(a, Array);
+  assert.same(typeof from, 'function');
+});
+
+// the rescued assignment may itself wrap an SE-bearing IIFE: one rescue carries both the
+// binding update and the setup, each exactly once
+QUnit.test('destructuring: rescued assignment wrapping SE IIFE', assert => {
+  let calls = 0;
+  let a;
+  const [{ from }] = [(a = (() => {
+    calls++;
+    return globalThis;
+  })()).Array];
+  assert.same(calls, 1);
+  assert.same(a, globalThis);
+  assert.deepEqual(from([5]), [5]);
+});
+
+// the untaken conditional branch's IIFE must NOT run: branch semantics survive the per-branch
+// synth (the taken plain branch yields the polyfill, the call branch stays unevaluated)
+QUnit.test('destructuring: conditional init, untaken SE IIFE branch does not run', assert => {
+  let calls = 0;
+  const cond = false;
+  const { from } = cond ? (() => {
+    calls++;
+    return Array;
+  })() : Array;
+  assert.same(calls, 0);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+// logical RHS with an inline-call side: the call branch synths with its setup rescued; the
+// gate value short-circuits exactly as written
+QUnit.test('destructuring: logical AND with SE IIFE side, setup runs once', assert => {
+  let calls = 0;
+  const cond = true;
+  const { from } = cond && (() => {
+    calls++;
+    return Array;
+  })();
+  assert.same(calls, 1);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
