@@ -2118,6 +2118,10 @@ function createResolveNodeType(babelNodeType, t, {
   return {
     isObject,
     isString,
+    // the call-site scan both the type resolver (default-type authoritativeness) and the
+    // destructure dispatches (caller-lossy emission soundness) gate on: a non-exported,
+    // non-escaping function whose every call leaves this param slot to its default
+    paramDefaultNeverOverridden: patternBindingsCluster.defaultParamNeverOverridden,
     reset,
     resolveGuardHints,
     resolveNodeType,

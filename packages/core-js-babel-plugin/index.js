@@ -760,6 +760,8 @@ export default function plugin(api, options) {
         destructureEmit = createDestructureEmitter({
           adapter,
           generateRef,
+          paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
+          resolvePure,
           generateLocalRef,
           generateUnusedId,
           getDebugOutput: () => debugOutput,
