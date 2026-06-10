@@ -60,3 +60,110 @@ QUnit.test('globalThis.WeakMap', assert => {
   wm.set(key, 'val');
   assert.same(wm.get(key), 'val');
 });
+
+// === IIFE-rooted proxy chains: side-effect preservation ===
+// the receiver chain folds to the polyfilled global, but an IIFE chain root carries observable
+// setup that must survive the fold (and the inner globalThis must keep its own polyfill without
+// crashing the text-transform queue)
+QUnit.test('IIFE-proxy Symbol.iterator value-ref: side effect runs once', assert => {
+  let calls = 0;
+  const it = (() => {
+    calls++;
+    return globalThis;
+  })().Symbol.iterator;
+  assert.same(calls, 1);
+  assert.same(it, Symbol.iterator);
+});
+
+QUnit.test('IIFE-proxy Promise.resolve: side effect runs once', assert => {
+  const async = assert.async();
+  let calls = 0;
+  (() => {
+    calls++;
+    return globalThis;
+  })().Promise.resolve(7).then(v => {
+    assert.same(calls, 1);
+    assert.same(v, 7);
+    async();
+  });
+});
+
+QUnit.test('IIFE-proxy Array.from: side effect runs once', assert => {
+  let calls = 0;
+  const out = (() => {
+    calls++;
+    return globalThis;
+  })().Array.from([1, 2, 3]);
+  assert.same(calls, 1);
+  assert.deepEqual(out, [1, 2, 3]);
+});
+
+QUnit.test('IIFE-proxy Symbol.iterator as computed key: side effect runs once', assert => {
+  let calls = 0;
+  const arr = [10, 20];
+  const method = arr[(() => {
+    calls++;
+    return globalThis;
+  })().Symbol.iterator];
+  assert.same(calls, 1);
+  assert.same(typeof method, 'function');
+  assert.deepEqual(Array.from(method.call(arr)), [10, 20]);
+});
+
+QUnit.test('IIFE-proxy Symbol.iterator in operator: side effect runs once', assert => {
+  let calls = 0;
+  const arr = [1];
+  const has = (() => {
+    calls++;
+    return globalThis;
+  })().Symbol.iterator in arr;
+  assert.same(calls, 1);
+  assert.true(has);
+});
+
+// intermediate hops use `.globalThis.` - `self` / `window` don't exist in Node, those hop
+// spellings are covered by transpiler fixtures instead
+QUnit.test('IIFE-proxy with intermediate hop: side effect runs once', assert => {
+  let calls = 0;
+  const it = (() => {
+    calls++;
+    return globalThis;
+  })().globalThis.Symbol.iterator;
+  assert.same(calls, 1);
+  assert.same(it, Symbol.iterator);
+});
+
+QUnit.test('IIFE-proxy behind chain assignment: assignment and side effect preserved', assert => {
+  let calls = 0;
+  let captured;
+  const it = (captured = (() => {
+    calls++;
+    return globalThis;
+  })()).Symbol.iterator;
+  assert.same(calls, 1);
+  assert.same(captured, globalThis);
+  assert.same(it, Symbol.iterator);
+});
+
+QUnit.test('nested IIFE-proxy: side effect runs once', assert => {
+  let calls = 0;
+  const it = (() => (() => {
+    calls++;
+    return globalThis;
+  })())().Symbol.iterator;
+  assert.same(calls, 1);
+  assert.same(it, Symbol.iterator);
+});
+
+QUnit.test('IIFE-proxy with optional hop: side effect runs once', assert => {
+  const async = assert.async();
+  let calls = 0;
+  (() => {
+    calls++;
+    return globalThis;
+  })()?.Promise.resolve(11).then(v => {
+    assert.same(calls, 1);
+    assert.same(v, 11);
+    async();
+  });
+});

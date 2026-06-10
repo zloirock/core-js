@@ -514,7 +514,7 @@ export function createPolyfillEmitter({
   // build replacement, wrap guard if needed, add to transform queue
   function addInstanceTransform({
     binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
-    sideEffects = null, parenLookupOnly = false,
+    sideEffects = null, receiverEffectCount = 0, parenLookupOnly = false,
   }) {
     const seMode = resolveReceiverSeMode({ node, sideEffects });
     // `peel` (non-optional): peel the receiver to its SE tail; the prepended SequenceExpression
@@ -523,7 +523,7 @@ export function createPolyfillEmitter({
     // only the trailing key-SE into the guard's alternate (`null == (_ref = recv) ? void 0 :
     // (keySE, body)`), so the memoized receiver-SE isn't emitted twice
     const receiverObj = seMode === 'peel' ? peelReceiverSequenceTail(node.object) : node.object;
-    if (seMode === 'suppress') sideEffects = keySideEffectsOnly(node.object, sideEffects);
+    if (seMode === 'suppress') sideEffects = keySideEffectsOnly(receiverEffectCount, sideEffects);
     const recv = resolveReceiverSource(receiverObj, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
     const { optionalRoot: resolvedRoot, rootRaw, deoptPositions, rootNode, optionalNode } = resolveOptionalRoot({
@@ -660,7 +660,7 @@ export function createPolyfillEmitter({
     if (!recv.substituted) skipProxyGlobal(node);
   }
 
-  function handleSymbolIterator({ node, parent, metaPath, sideEffects = null }) {
+  function handleSymbolIterator({ node, parent, metaPath, sideEffects = null, receiverEffectCount = 0 }) {
     if (node.object?.type === 'Super') return;
     // computed key carrying a side effect (`obj[(fn(), Symbol.iterator)]`, nested sequences too):
     // meta.sideEffects already carries the prefix, so the getIterator / getIteratorMethod rewrite
@@ -690,7 +690,7 @@ export function createPolyfillEmitter({
     addInstanceTransform({
       binding, node, parent, metaPath, isCall: isCallParent,
       replacementIsCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
-      sideEffects, parenLookupOnly,
+      sideEffects, receiverEffectCount, parenLookupOnly,
     });
     if (keyTail) skipWrappedNode(keyTail);
   }
@@ -1152,10 +1152,10 @@ export function createPolyfillEmitter({
   // requires walking the chain (not just `node.optional` flag) since ESTree continuation
   // members carry optional=false even within an optional chain
 
-  function replaceInstance({ binding, node, parent, metaPath, sideEffects }) {
+  function replaceInstance({ binding, node, parent, metaPath, sideEffects, receiverEffectCount }) {
     if (isParenLookupOnlyCall(node, parent)) {
       addInstanceTransform({
-        binding, node, parent, metaPath, isCall: true, replacementIsCall: true, sideEffects, parenLookupOnly: true,
+        binding, node, parent, metaPath, isCall: true, replacementIsCall: true, sideEffects, receiverEffectCount, parenLookupOnly: true,
       });
       return;
     }
@@ -1167,7 +1167,7 @@ export function createPolyfillEmitter({
       return replaceInstanceChainCombined({ outerBinding: binding, node, parent, metaPath, chain, sideEffects });
     }
     const isCall = isCallee(node, parent);
-    addInstanceTransform({ binding, node, parent, metaPath, isCall, replacementIsCall: isCall, sideEffects });
+    addInstanceTransform({ binding, node, parent, metaPath, isCall, replacementIsCall: isCall, sideEffects, receiverEffectCount });
   }
 
   // split-emit for `super.foo(args)` -> `binding.call(this, args)`. prefix replaces
@@ -1265,11 +1265,12 @@ export function createPolyfillEmitter({
   // `replaceWith(withSideEffects(id, allEffects))` shape: receiver chain-assignment +
   // `meta.sideEffects` (computed-key SE captured by detect-usage) compose into the
   // replacement so `called++` in `(called++, Promise).noSuchStatic` doesn't drop
-  function replaceStaticFallback({ binding, node, metaPath, sideEffects }) {
+  function replaceStaticFallback({ binding, node, metaPath, sideEffects, receiverEffectCount }) {
     // receiver-only swap: the computed `[key]` property survives and re-runs its own SE, so prepend
     // only the receiver-SE (drop the trailing computed-key SE) to avoid double-evaluating it
     transforms.add(node.object.start, node.object.end, composeBindingReplacement({
-      binding, receiverObj: node.object, sideEffects: receiverSideEffectsOnly(node.object, sideEffects), metaPath, start: node.object.start,
+      binding, receiverObj: node.object, metaPath, start: node.object.start,
+      sideEffects: receiverSideEffectsOnly(receiverEffectCount, sideEffects),
     }));
   }
 
@@ -1303,10 +1304,15 @@ export function createPolyfillEmitter({
     }
     // fold: the polyfill is always defined, so the membership test is constantly true. a subtree
     // kept verbatim stays visitable so its inner polyfills still emit; only the discarded operand
-    // (if any - a kept-whole assignment RHS has none) is skipped
+    // (if any - a kept-whole assignment RHS has none) is skipped. subtrees rescued into leadingSe
+    // are EXCLUDED from the skip even when they sit inside the discarded operand: their source is
+    // re-emitted by the replacement, so their inner rewrites (`globalThis -> _globalThis`) must
+    // stay queued for the compose splice - and their imports must survive
     emitReplacement('true');
     if (plan.skip) {
-      walkAstNodes({ root: plan.skip, visit: n => skippedNodes.add(n) });
+      const rescued = new Set();
+      for (const effect of plan.leadingSe) walkAstNodes({ root: effect, visit: n => rescued.add(n) });
+      walkAstNodes({ root: plan.skip, visit: n => { if (!rescued.has(n)) skippedNodes.add(n); } });
       skipProxyGlobal(plan.skip);
     }
   }

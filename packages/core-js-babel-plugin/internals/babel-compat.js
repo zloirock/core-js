@@ -361,14 +361,14 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // effects to emit - the whole list for `peel` / no-SE, only the trailing key-SE for
   // `suppress` (optional - the receiver-SE stays in extractCheck's null-guard memoize, so
   // prepending it too would double-eval). shared by `replaceInstanceLike` + `replaceCallWithSimple`
-  function applyReceiverSeMode(path, sideEffects) {
+  function applyReceiverSeMode(path, sideEffects, receiverEffectCount) {
     const seMode = classifyReceiverSE(path.node.object,
       path.node.optional || path.isOptionalMemberExpression(), sideEffects);
     if (seMode === 'peel') {
       const peeled = peelReceiverSequenceTail(path.node.object);
       if (peeled !== path.node.object) path.node.object = peeled;
     }
-    const effectiveSE = seMode === 'suppress' ? keySideEffectsOnly(path.node.object, sideEffects) : sideEffects;
+    const effectiveSE = seMode === 'suppress' ? keySideEffectsOnly(receiverEffectCount, sideEffects) : sideEffects;
     return { seMode, effectiveSE };
   }
 
@@ -388,8 +388,8 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // semantically identical
   // optional outer call `(arr?.at)?.(0)` goes through the standard buildMethodCall path
   // since Reference Type preserves through parens and short-circuits properly on nullish
-  function replaceInstanceLike({ path, id, skipOptional, sideEffects }) {
-    const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects);
+  function replaceInstanceLike({ path, id, skipOptional, sideEffects, receiverEffectCount }) {
+    const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
     const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
     const [check, object, embed] = extractCheck(path, skipOptional);
     if (isParenLookupOnly) {
@@ -421,10 +421,10 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     });
   }
 
-  function replaceCallWithSimple(path, id, skipOptional, sideEffects) {
+  function replaceCallWithSimple(path, id, skipOptional, sideEffects, receiverEffectCount) {
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const { callerPath, isParenLookupOnly } = classifyCallerContext(path);
-    const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects);
+    const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
     // `(arr?.[Symbol.iterator])()`: parens terminate the optional chain, so on nullish `arr`
     // native evaluates `(undefined)()` and throws TypeError - the standard `check == null ?
     // void 0 : _id(arr)` ternary would instead yield `void 0` and swallow the throw (unlike
