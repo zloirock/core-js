@@ -1,11 +1,13 @@
+import _Array$from from "@core-js/pure/actual/array/from";
 // receiver-rewrite on array destructure wrapping object destructure:
-// `function f([{from}] = [Array])`. The outer array destructure has an object-destructure
-// element; receiver-rewrite targets the outer array receiver, but the rewrite requires
-// a bare object destructure as the target (not nested inside an array destructure).
-// The plugin emits as-is - covers the nested-pattern-bail invariant
+// `function f([{from}] = [Array])`. the synthesized default replaces the wrapper pair under the
+// same caller-respecting contract as the nested param-default - the literal fires only for the
+// no-argument call, any caller-passed array destructures natively
 function f([{
   from
-}] = [Array]) {
+}] = [{
+  from: _Array$from
+}]) {
   return from;
 }
 f();

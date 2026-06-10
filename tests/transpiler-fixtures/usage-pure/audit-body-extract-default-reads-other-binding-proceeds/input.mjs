@@ -2,6 +2,9 @@
 // binding, so there is no param-scope read of `of` to strand. body-extract proceeds normally -
 // `of` relocates to a body `let` and its destructure slot becomes `of: _unused`. confirms the
 // read-detection is name-targeted, not a blanket "any sibling default present" bail
+// NOTE: this DECLARED function is non-exported and every local call leaves the default in
+// place, so the resolver's call-site scan proves the lossy emission loses nothing and it
+// stays enabled; exported / escaping / overridden functions stay verbatim instead
 const seed = [0];
 function g({ of, dflt = seed, ...rest } = Array) {
   return [of, dflt, rest];

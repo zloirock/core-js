@@ -746,6 +746,7 @@ export default function createPlugin(options) {
         // become local consts so existing call sites stay unchanged. pending-collection Maps
         // for destructuring + synth-swap are factory-internal (drained via the public methods)
         const destructureEmitter = createDestructureEmitter({
+          paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
           estreeAdapter,
           injectPureImport,
           injector,
