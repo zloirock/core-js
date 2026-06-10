@@ -871,6 +871,52 @@ runBothAndAgree('Symbol.iterator access on Array instance agrees across parsers'
     return resolver.resolveNodeType(call);
   });
 
+// --- top-level `this` global-proxy assumption ---
+
+// pragmatic assumption: top-level `this` IS the global proxy regardless of sourceType (an
+// ESM-undefined `this` chain is statically dead, script / CommonJS-shaped code means the
+// global), so the proxy narrow applies
+runBoth('top-level this.Map resolves as Map', 'const m = new this.Map();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(newExpr), { primitive: false, ctor: 'Map' });
+  });
+
+// `this` inside a NON-arrow function is rebound - never the global proxy
+runBoth('function this.Map does not resolve', 'function f() { return new this.Map(); } f();',
+  (adapter, prog, lbl) => {
+    const newExpr = adapter.pickPath(prog, 'NewExpression');
+    check(lbl, adapter.makeResolver().resolveNodeType(newExpr)?.constructor ?? null, null);
+  });
+
+// --- defaulted destructure binding fold ---
+
+// unknown member side keeps the generic dispatch (a default-only narrow was unsound)
+runBoth('destructure default with unknown member folds to null',
+  'const { items = [] } = JSON.parse(x); items.at(0);',
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    check(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')), null);
+  });
+
+// statically absent member: the default always fires - its type alone is precise
+runBoth('destructure default with statically absent member takes the default type',
+  "const [a = 'x'] = []; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// statically present member: the default is dead - the member's type alone is precise
+runBoth('destructure default with statically present member takes the member type',
+  "const [a = 0] = ['hello']; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
 // --- globalThis member access ---
 
 runBoth('globalThis.Map() resolved as Map constructor invocation',

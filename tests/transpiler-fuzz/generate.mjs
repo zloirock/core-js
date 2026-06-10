@@ -273,6 +273,17 @@ const EXPR_FAMILIES = {
     '(() => { function g({ Array: { from, from: dup } } = globalThis) { return [typeof from, typeof dup]; } return g(); })()',
     '(() => { const r = (({ of, "of": alias } = Array) => [typeof of, typeof alias])(); return r; })()',
     '(() => { let c = true; const { from, from: g } = c ? Array : Array; return [typeof from, typeof g]; })()',
+    // defaulted destructure bindings fold member x default: an unknown member keeps the
+    // generic dispatch (runtime picks the flavor); a statically absent member takes the default
+    '(() => { const { a = [] } = JSON.parse(String.fromCharCode(123, 34, 97, 34, 58, 34, 104, 105, 34, 125)); return a.at(0); })()',
+    '(() => { const [b = "xy"] = []; return b.at(-1); })()',
+    '(() => { const { c = [7, 8] } = {}; return c.at(-1); })()',
+    '(() => { const [d = 0] = ["hi"]; return d.at(-1); })()',
+    '(() => { const { g = "s" } = { get g() { return [9]; } }; return g.at(0); })()',
+    '(() => { const [n = "x"] = [null]; return [n, typeof n]; })()',
+    // per-key presence independence and reassignment-to-undefined parity
+    '(() => { const { a = "", b = 0 } = { a: [1], get b() { return "s"; } }; return [a.at(0), b]; })()',
+    '(() => { let x = "str"; x = undefined; try { return x.at(0); } catch (e) { return "throw"; } })()',
     // duplicate HOP keys merge their subtrees - both read the same receiver property
     '(() => { function g({ Array: { from }, Array: { of } } = globalThis) { return [typeof from, typeof of]; } return g(); })()',
     '(() => { function g({ Array: { from }, Array: { from: f2, of } } = globalThis) { return [typeof from, typeof f2, typeof of]; } return g(); })()',

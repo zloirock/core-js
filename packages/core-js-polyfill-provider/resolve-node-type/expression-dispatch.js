@@ -163,7 +163,12 @@ export function createExpressionDispatch({
         return new $Object('Function');
       case 'ThisExpression': {
         const context = resolveThisClass(path);
-        return context ? resolveClassInheritance(context.classPath) || new $Object('Object') : null;
+        if (!context) return null;
+        // static-context `this` IS the constructor value, not an instance: instance-flavored
+        // narrowing rewrote static aliases of `class C extends Array` to instance helpers
+        // (native TypeError became a silent undefined)
+        if (context.isStatic) return new $Object('Function');
+        return resolveClassInheritance(context.classPath) || new $Object('Object');
       }
       case 'NewExpression':
         return resolveNewExpressionType(path);

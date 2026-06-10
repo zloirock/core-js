@@ -389,6 +389,21 @@ export const FUNCTION_LIKE_NODE_TYPES = new Set([
   'ClassPrivateMethod',
 ]);
 
+// pragmatic assumption shared by detection and the type resolver: top-level `this` IS the
+// global proxy regardless of sourceType - nobody reads properties off the ESM-undefined
+// `this` on purpose (such a chain is statically dead there), while script / CommonJS-shaped
+// code means the global. `this` inside a non-arrow function or a class body is rebound
+export function isTopLevelThisContext(path) {
+  for (let current = path?.parentPath; current; current = current.parentPath) {
+    const type = current.node?.type;
+    if (type === 'ClassBody') return false;
+    if (type === 'Program') return true;
+    if (type !== 'ArrowFunctionExpression'
+      && (FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'FunctionDeclaration' || type === 'ObjectMethod')) return false;
+  }
+  return false;
+}
+
 // a function whose every call site is visible in the same expression - the immediately
 // invoked callee (possibly behind parens / TS wrappers). caller-lossy parameter emissions
 // (body-extract, leaf inline defaults) are sound ONLY here: a declared / exported function's
