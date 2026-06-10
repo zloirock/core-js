@@ -99,30 +99,26 @@ export function classifyReceiverSE(receiver, isOptional, sideEffects) {
 }
 
 // meta `sideEffects` carry the receiver-SE first then the computed-key SE (source order); the split
-// point is the count of effects the receiver contributes, recomputed off the receiver node via the
-// same collection the resolver performed
-function receiverEffectCount(receiver) {
-  const receiverEffects = [];
-  unwrapParensCollectingEffects(receiver, receiverEffects);
-  return receiverEffects.length;
-}
+// point is `meta.receiverEffectCount`, RECORDED at build time (the resolver's full receiver collection -
+// parens/sequence + chain-collapse + inline-call root). a recompute off the receiver node undercounted
+// member-chain / inline-call receivers to 0, dropping the leading receiver-SE in the swaps below
 
 // `suppress` mode (optional receiver) keeps the whole receiver in the null-guard memoize
 // (`_ref = recv`), where its side effects already run, and folds only the trailing computed-key SE
 // into the guard's alternate - so drop the leading receiver-SE slice (returns the whole list when
 // the receiver contributed none, i.e. every effect is key-SE)
-export function keySideEffectsOnly(receiver, sideEffects) {
+export function keySideEffectsOnly(receiverEffectCount, sideEffects) {
   if (!sideEffects?.length) return sideEffects;
-  return sideEffects.slice(receiverEffectCount(receiver));
+  return sideEffects.slice(receiverEffectCount);
 }
 
 // inverse of keySideEffectsOnly: keep ONLY the leading receiver-SE, drop the trailing computed-key
 // SE. a static-FALLBACK receiver-only swap (member name not a known static) replaces just the object
 // slot and leaves the computed `[key]` property in place, so the key-SE re-runs there - prepending
 // it to the receiver replacement too would double-evaluate it. returns [] when the receiver had none
-export function receiverSideEffectsOnly(receiver, sideEffects) {
+export function receiverSideEffectsOnly(receiverEffectCount, sideEffects) {
   if (!sideEffects?.length) return sideEffects;
-  return sideEffects.slice(0, receiverEffectCount(receiver));
+  return sideEffects.slice(0, receiverEffectCount);
 }
 
 // peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the

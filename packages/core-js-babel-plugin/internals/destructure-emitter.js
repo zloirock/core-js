@@ -35,6 +35,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
+  flattenDiscardRescue,
   isReReferenceableReceiver,
   nestedAssignmentStatementOf,
   planSideEffectKeyStrategy,
@@ -153,8 +154,20 @@ function liftDeclaratorInitSE(t, declaratorNode, hostPath) {
   descended.arr.elements[0] = descended.tail;
 }
 
+// discarded-init SE harvest, deduped: multi-prop hosts visit the flatten once per prop, but the
+// harvested chain-root call must re-emit exactly ONCE (on the extraction whose visit performs the
+// discard). module-level WeakSet - AST nodes are unique per parse, entries GC with the program
+const harvestedDiscardSeCalls = new WeakSet();
+function takeDiscardSeOnce(prop, adapter) {
+  const discardSe = adapter ? flattenDiscardRescue(prop.parentPath, adapter) : null;
+  if (!discardSe || harvestedDiscardSeCalls.has(discardSe)) return null;
+  harvestedDiscardSeCalls.add(discardSe);
+  return discardSe;
+}
+
 export default function createDestructureEmitter({
   t,
+  adapter,
   generateRef,
   generateLocalRef,
   generateUnusedId,
@@ -570,12 +583,21 @@ export default function createDestructureEmitter({
     const id = injectPureImport(entry, hintName);
     // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
     injector.registerBodyExtractAlias(valueNode.name, entry, declarator.scope.getBinding(valueNode.name));
-    // side-effecting computed keys never reach the flatten (they route to `keepKeyInResidual`), so the
-    // extracted init is a bare polyfill ref
-    const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id));
     // cascade: each level removes its property when the inner pattern has no siblings.
     // `willRemoveDeclarator` iff EVERY level's pattern had this as its sole property
     const willRemoveDeclarator = chain.every(({ pattern }) => pattern.node.properties.length === 1);
+    // an SE-bearing chain-root call in the init the flatten is about to DISCARD
+    // (`[(() => { c++; return Array; })()]`): re-emit it as a sequence prefix on the extraction
+    // so the setup still runs, exactly once. gated on `willRemoveDeclarator` - a partial consume /
+    // rest sentinel KEEPS the declarator with its init, so the setup already runs there and a
+    // prefix would double-run it. the CLONE is traversed on insertion, so its inner references
+    // (`globalThis`) still earn their own substitutions; the original init subtree stays skipped
+    // with the discarded declarator
+    const harvestSe = willRemoveDeclarator ? takeDiscardSeOnce(prop, adapter) : null;
+    // side-effecting computed keys never reach the flatten (they route to `keepKeyInResidual`), so the
+    // extracted init is a bare polyfill ref (plus the harvested discard-SE prefix when present)
+    const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode),
+      harvestSe ? t.sequenceExpression([t.cloneNode(harvestSe), t.cloneNode(id)]) : t.cloneNode(id));
     // seed skippedNodes for the subtree about to be orphaned so scheduled visitor
     // re-entries short-circuit; handleIdentifier's `!path.parent` guard backs this up.
     // NOT calling scope.registerDeclaration on the new binding: attempting it triggers
