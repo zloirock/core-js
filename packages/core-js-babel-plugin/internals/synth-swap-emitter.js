@@ -26,7 +26,8 @@ import {
   markSynthReceiverSkipped,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { seBearingChainRootCall } from '@core-js/polyfill-provider/detect-usage/members';
+import { findProxyGlobal, isCallShape, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
 export default function createSynthSwapEmitter({
@@ -151,7 +152,7 @@ export default function createSynthSwapEmitter({
   // same node and emit a parallel `_Receiver` import that gets dropped post-swap).
   // metadata is keyed on the receiver NODE (not path) so apply() locates the receiver
   // by walking the program - survives sibling-plugin moves that orphan the original path
-  function registerPolyfill({ targetPath, objectPatternPath, key, entry, hintName }) {
+  function registerPolyfill({ targetPath, objectPatternPath, key, entry, hintName, callBranch = false, rescueSe = null }) {
     const receiver = targetPath.node;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
@@ -165,6 +166,8 @@ export default function createSynthSwapEmitter({
       pending = {
         objectPatternNode: objectPatternPath.node,
         polyfills: new Map(),
+        callBranch,
+        rescueSe,
       };
       synthSwapByReceiver.set(receiver, pending);
     }
@@ -223,7 +226,20 @@ export default function createSynthSwapEmitter({
     const pure = isViableBranchForKey({ branch, key: lookupKey, scope: peeled.scope, adapter, resolvePure, path: peeled });
     if (!pure) return false;
     const innerPath = unwrapSequenceTail(peeled);
-    registerPolyfill({ targetPath: innerPath, objectPatternPath: objectPattern, key: slotKey, entry: pure.entry, hintName: pure.hintName });
+    // call-shaped branch (`cond ? (() => { c++; return Array; })() : Array`): the synth literal
+    // REPLACES the call, so it is viable only when the pattern is a single fully-polyfilled key
+    // (unpolyfilled keys re-read through the receiver, which would re-run the call); an SE-bearing
+    // call is rescued ahead of the literal so the setup still runs, on the taken branch only
+    const callBranch = isCallShape(innerPath.node);
+    let rescueSe = null;
+    if (callBranch) {
+      if (objectPattern.node.properties.length !== 1) return false;
+      rescueSe = seBearingChainRootCall({ node: innerPath.node, scope: innerPath.scope, adapter, path: innerPath });
+    }
+    registerPolyfill({
+      targetPath: innerPath, objectPatternPath: objectPattern, key: slotKey,
+      entry: pure.entry, hintName: pure.hintName, callBranch, rescueSe,
+    });
     return true;
   }
 
@@ -310,14 +326,21 @@ export default function createSynthSwapEmitter({
       enter(path) {
         const pending = synthSwapByReceiver.get(path.node);
         if (!pending || pending.applied) return;
-        if (!isReplaceableReceiver(path.node) || pending.objectPatternNode?.type !== 'ObjectPattern') return;
+        if ((!isReplaceableReceiver(path.node) && !pending.callBranch)
+          || pending.objectPatternNode?.type !== 'ObjectPattern') return;
         // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
         // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation
         // failure inside buildSynthLiteral) leaves the swap permanently locked but with
         // the imports for its polyfill keys already injected by `buildSynthLiteral` -
         // dead imports + missing rewrite. ordering after the call leaves `applied: false`
-        // on failure so a subsequent `apply` pass can retry
-        path.replaceWith(buildSynthLiteral(path.node, pending));
+        // on failure so a subsequent `apply` pass can retry.
+        // an SE-bearing call branch is rescued ahead of the literal: the clone carries the
+        // already-substituted inner references (`return _Promise`), so the taken branch still
+        // runs its setup AND yields polyfilled statics
+        const literal = buildSynthLiteral(path.node, pending);
+        path.replaceWith(pending.rescueSe
+          ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
+          : literal);
         pending.applied = true;
         path.skip();
       },
