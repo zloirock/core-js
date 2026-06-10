@@ -1,6 +1,7 @@
 // pure path/AST helpers for destructure-receiver classification. depend only on shared
 // helpers from polyfill-provider, no file-scope state - callers pass paths / nodes directly
 import {
+  isReceiverShapedNode,
   findIifeArgForParam,
   peelParenAndTSParentPath,
   unwrapSafeSequenceTail,
@@ -115,7 +116,11 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // runtime as written. caller's `({from: customFn})` beats the synth (default fires
     // only when caller-arg is undefined), preserving caller-passed values
     const peeled = unwrapSafeSequenceTail(wrapper.right);
-    if (peeled?.type !== 'Identifier' && peeled?.type !== 'MemberExpression') return null;
+    // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
+    // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out
+    const fallbackCollapse = peeled?.type === 'LogicalExpression' && peeled.operator !== '&&'
+      && isReceiverShapedNode(unwrapSafeSequenceTail(peeled.left));
+    if (!fallbackCollapse && !isReceiverShapedNode(peeled)) return null;
     // IIFE caller-arg overrides the wrapper-default whenever the caller passes a statically
     // classifiable receiver - the default fires only on caller-omitted invocation, so the live
     // arg is what actually runs. applies to MemberExpression defaults too (`({of} = globalThis
