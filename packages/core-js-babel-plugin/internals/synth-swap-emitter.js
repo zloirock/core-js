@@ -254,9 +254,6 @@ export default function createSynthSwapEmitter({
   // explicit binding) and for usage-pure mode the typical pattern is all-polyfilled keys,
   // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
   // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
-  function isReplaceableReceiver(node) {
-    return isReceiverShapedNode(node);
-  }
 
   // proxy-global member receiver (`globalThis.self.Array`): collapse the proxy navigation (root +
   // intermediate proxy hops) to the substituted root, so an unpolyfilled-key fallback reads the
@@ -329,7 +326,7 @@ export default function createSynthSwapEmitter({
       enter(path) {
         const pending = synthSwapByReceiver.get(path.node);
         if (!pending || pending.applied) return;
-        if ((!isReplaceableReceiver(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression')
+        if ((!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression')
           || pending.objectPatternNode?.type !== 'ObjectPattern') return;
         // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
         // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation

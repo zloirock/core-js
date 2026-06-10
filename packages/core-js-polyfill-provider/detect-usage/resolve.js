@@ -7,6 +7,7 @@
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
+  isTopLevelThisContext,
   isDirectiveStatement,
   isReassignedBeyondDeclarator,
   isVarDeclaratorInLoopBody,
@@ -430,6 +431,9 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
     const inlined = inlineCallReturnExpression({ callNode: obj, scope, adapter, seen, path });
     if (inlined) return resolveProxyGlobalRoot({ receiver: inlined, scope, adapter, seen, path });
   }
+  // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
+  // the type resolver via the same canon)
+  if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
   return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path });
 }
 
