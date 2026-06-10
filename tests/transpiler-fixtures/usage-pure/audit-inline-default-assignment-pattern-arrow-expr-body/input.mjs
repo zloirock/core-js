@@ -1,5 +1,8 @@
-// arrow expr-body + destructure-default + rest sibling: synth-swap and body-extract
-// both bail (no block to host the extract), so the inline-default path swaps the user
-// default expression directly (`= []` -> `= _Array$from`) without nesting the wrapper
+// arrow expr-body + destructure-default + rest sibling on a DECLARED (non-invoked) arrow:
+// synth-swap can't rebuild the rest shape, and the old user-default swap silently polyfilled an
+// ABSENT caller leaf that native leaves at the user default.
+// caller-soundness: lossy emissions are allowed here because the function is non-exported and
+// every local call leaves the default in place (the resolver's call-site scan proves nothing
+// exists to lose); exported / escaping / overridden functions stay verbatim instead.
 const f = ({ from = [], ...rest } = Array) => [from, rest];
 f();

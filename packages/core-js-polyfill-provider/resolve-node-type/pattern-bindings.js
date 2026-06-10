@@ -756,6 +756,7 @@ export function createPatternBindings({
   // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
   // `findBindingPattern`
   return {
+    defaultParamNeverOverridden,
     findArrayPatternKeyPath,
     findDestructuredKeyPath,
     findForLoopParent,
