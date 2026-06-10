@@ -2877,6 +2877,20 @@ export function unwrapReceiverLeaf(node) {
   return node;
 }
 
+// the static-FALLBACK receiver swap is REDUNDANT when the receiver is a kept SE-bearing inline
+// call whose return leaf is a bare Identifier: the call is re-emitted whole (it IS the harvested
+// side effect, per the span check) and the leaf's own substitution already makes the runtime
+// receiver the polyfill binding - `(() => { c++; return _Promise; })().noSuchStatic` reads off
+// the right object without a `(call(), _Promise)` wrapper. all other receiver shapes keep the
+// swap: a proxy-hop receiver (`(IIFE)().Promise`) drops the hop, a sequence / bare / assignment
+// receiver has its leaf OUTSIDE any harvested-SE span, a no-SE call is dropped entirely
+export function staticFallbackSwapRedundant(receiverNode, sideEffects) {
+  if (!sideEffects?.length) return false;
+  const leaf = unwrapReceiverLeaf(receiverNode);
+  return leaf?.type === 'Identifier'
+    && sideEffects.some(se => se.start <= leaf.start && leaf.end <= se.end);
+}
+
 // generic type arguments at a use-site (`Array<string>`) - babel: `typeParameters`,
 // oxc TS-ESTree: `typeArguments`. class `extends` uses `superTypeParameters` /
 // `superTypeArguments` under the same split
