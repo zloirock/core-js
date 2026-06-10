@@ -24,6 +24,7 @@ export function createPatternBindings({
   resolveRuntimeExpression,
   resolveInnerType,
   commonType,
+  isNullableOrNever,
   findEnumDeclaration,
   resolveEnumMemberType,
   findTypeMember,
@@ -113,12 +114,68 @@ export function createPatternBindings({
   // resolve the type of a destructuring default: const { items = [] } = obj or const [a = []] = arr.
   // recurses into nested ObjectPatterns / ArrayPatterns - `const { a: { b = [] } } = obj`
   // resolving `b` finds the depth-2 default that one-level walk missed
-  function resolveDestructuringDefault(pattern, varName, bindingPath) {
+  function findDestructuringDefaultPath(pattern, varName, bindingPath) {
     const patternPath = bindingPath.node === pattern ? bindingPath
       : bindingPath.node.id === pattern ? bindingPath.get('id')
       : bindingPath.node.left === pattern ? bindingPath.get('left') : null;
     if (!patternPath) return null;
     return walkDestructuringForDefault(patternPath, pattern, varName);
+  }
+
+  // the binding's runtime value is `member ?? default`, so its type is the FOLD of both sides
+  // (mirroring resolveDesugarDefaultTernary): an unresolvable side keeps the generic dispatch -
+  // returning the default's type alone narrowed a foreign-typed member to the default's flavor
+  // (dropped es.string.at for a string member with an array default), and the member's type
+  // alone dropped the default's flavor symmetrically
+  function foldWithPatternDefault(memberType, pattern, varName, bindingPath) {
+    const defaultPath = findDestructuringDefaultPath(pattern, varName, bindingPath);
+    if (!defaultPath) return memberType;
+    const presence = staticMemberPresence(pattern, varName, bindingPath);
+    // a statically PRESENT member (`const [a = 0] = ['x']`) keeps the default DEAD - the
+    // member's type alone is precise
+    if (memberType && presence === 'present') return memberType;
+    const defaultType = resolveNodeType(defaultPath);
+    // a statically ABSENT member (`const [a = 'x'] = []`, `const { a = 'x' } = {}`) means the
+    // default always fires - its type alone is precise
+    if (defaultType && presence === 'absent') return defaultType;
+    if (!memberType || !defaultType) return null;
+    if (isNullableOrNever(memberType)) return defaultType;
+    return commonType(memberType, defaultType);
+  }
+
+  // TOP-LEVEL literal inits only: decide whether the member is statically PRESENT (a direct
+  // literal carries a defined value at the slot - the default is dead) or statically ABSENT
+  // (out of range / hole / missing key - the default always fires). a literal `undefined`
+  // value counts as absent. nested patterns, spreads, computed keys and dynamic inits stay
+  // undecided (null -> the member x default fold)
+  function staticMemberPresence(pattern, varName, bindingPath) {
+    if (!t.isVariableDeclarator(bindingPath.node)) return null;
+    const { init } = bindingPath.node;
+    const valuePresence = value => {
+      if (!value) return 'absent';
+      if (value.type === 'Identifier' && value.name === 'undefined') return 'absent';
+      if (value.type === 'UnaryExpression' && value.operator === 'void') return 'absent';
+      return 'present';
+    };
+    if (pattern.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
+      const index = findPatternIndex(pattern, varName);
+      if (index < 0) return null;
+      if (init.elements.slice(0, index + 1).some(el => el?.type === 'SpreadElement')) return null;
+      return valuePresence(init.elements[index]);
+    }
+    if (pattern.type === 'ObjectPattern' && init?.type === 'ObjectExpression') {
+      const keyPath = findDestructuredKeyPath(pattern, varName, bindingPath.scope);
+      if (keyPath?.length !== 1 || typeof keyPath[0] !== 'string') return null;
+      if (init.properties.some(prop => prop.type === 'SpreadElement' || prop.computed)) return null;
+      const match = init.properties.find(prop => (prop.key?.name ?? prop.key?.value) === keyPath[0]);
+      // a method / accessor property (babel ObjectMethod; estree Property with a get / set /
+      // method kind) carries a defined value the plain `.value` probe cannot see - stay
+      // undecided so the member x default fold keeps both sides (a false 'absent' narrowed a
+      // getter-supplied array to the default's string flavor)
+      if (match && (match.type === 'ObjectMethod' || match.method === true || (match.kind && match.kind !== 'init'))) return null;
+      return valuePresence(match?.value);
+    }
+    return null;
   }
 
   function walkDestructuringForDefault(patternPath, pattern, varName) {
@@ -128,7 +185,7 @@ export function createPatternBindings({
       const valuePath = babelNodeType(child.node) === 'ObjectProperty' ? child.get('value') : child;
       if (t.isAssignmentPattern(valuePath.node)) {
         if (valuePath.node.left?.type === 'Identifier' && valuePath.node.left.name === varName) {
-          return resolveNodeType(valuePath.get('right'));
+          return valuePath.get('right');
         }
         // `{ a: { b = [] } = {} }` - the inner pattern is on `valuePath.left`, recurse there
         const innerLeft = valuePath.get('left');
@@ -345,8 +402,7 @@ export function createPatternBindings({
       const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
       if (inner) return inner;
     }
-    // fallback: resolve from destructuring default value: const [a = []] = arr
-    return resolveDestructuringDefault(arrayPattern, varName, bindingPath);
+    return null;
   }
 
   function resolveAnnotatedMember(annotation, keyName, scope) {
@@ -538,7 +594,7 @@ export function createPatternBindings({
         if (folded) return folded;
       }
     }
-    return resolveDestructuringDefault(objectPattern, varName, bindingPath);
+    return null;
   }
 
   function findBindingPattern(node, type) {
@@ -677,10 +733,14 @@ export function createPatternBindings({
     }
     // destructured object: for (const { a } of ...) or const { a } = ...
     const objectPattern = findBindingPattern(node, 'ObjectPattern');
-    if (objectPattern) return resolveObjectBinding(objectPattern, name, bindingPath);
+    if (objectPattern) {
+      return foldWithPatternDefault(resolveObjectBinding(objectPattern, name, bindingPath), objectPattern, name, bindingPath);
+    }
     // destructured array: for (const [a] of ...) or const [a] = ...
     const arrayPattern = findBindingPattern(node, 'ArrayPattern');
-    if (arrayPattern) return resolveArrayBinding(arrayPattern, name, bindingPath);
+    if (arrayPattern) {
+      return foldWithPatternDefault(resolveArrayBinding(arrayPattern, name, bindingPath), arrayPattern, name, bindingPath);
+    }
     // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
     // must NOT be reached for destructured bindings - their pattern-level annotation
     // describes the container type, not the element type.
