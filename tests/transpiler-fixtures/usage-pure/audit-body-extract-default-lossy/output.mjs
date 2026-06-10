@@ -1,31 +1,32 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // computed-key sibling forces body-extract instead of pattern reshape. all four binding
 // shapes (shorthand / aliased, with and without default) extract uniformly. user-written
 // defaults are intentionally dropped: the polyfill binding is always defined
+// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
+// cannot prove the default always applies and the params stay VERBATIM; the body-extract
+// behavior is covered by the immediately-invoked twin fixture
 function f({
+  from = [],
   [_Symbol$iterator]: it
 } = Array) {
-  let from = _Array$from;
   return [from([1]), it];
 }
 function g({
+  from: alias = [],
   [_Symbol$iterator]: it
 } = Array) {
-  let alias = _Array$from;
   return [alias([2]), it];
 }
 function h({
+  of,
   [_Symbol$iterator]: it
 } = Array) {
-  let of = _Array$of;
   return [of(3), it];
 }
 function k({
+  of: aliasOf,
   [_Symbol$iterator]: it
 } = Array) {
-  let aliasOf = _Array$of;
   return [aliasOf(4), it];
 }
 export { f, g, h, k };

@@ -3228,10 +3228,18 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   checkTruthy('ast-patterns: isSynthSimpleObjectPattern simple',
     isSynthSimpleObjectPattern({
       properties: [
-        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier' } },
-        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier' } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'of' } },
       ],
     }));
+  // duplicate static keys bail the synth: the literal would need duplicate properties
+  check('ast-patterns: isSynthSimpleObjectPattern duplicate keys',
+    isSynthSimpleObjectPattern({
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
+      ],
+    }), false);
   // bare-Identifier computed key that does NOT read a sibling binding -> true (synth-swap parity)
   checkTruthy('ast-patterns: isSynthSimpleObjectPattern computed-ident',
     isSynthSimpleObjectPattern({
