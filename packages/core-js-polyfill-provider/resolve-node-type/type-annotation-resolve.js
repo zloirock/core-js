@@ -16,7 +16,6 @@
 // path - factory destructure binds the cluster output by the time those run.
 import { $Object, $Primitive, literalNodeValue } from './base.js';
 import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
-import { INFER_PATTERN_FALSE } from './type-expansion.js';
 import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -24,6 +23,7 @@ const { hasOwn } = Object;
 export function createTypeAnnotationResolve({
   t,
   babelNodeType,
+  evaluateConditionalType,
   isLiteralOf,
   KNOWN_CONSTRUCTORS,
   CONSTRUCTOR_ALIASES,
@@ -63,8 +63,6 @@ export function createTypeAnnotationResolve({
   findTupleElement,
   unwrapMappedTypePassthrough,
   tupleAsArrayType,
-  resolveInferElementPattern,
-  resolveConditionalBranches,
   getTypeMembers,
 }) {
   function isAssignableTo(candidate, target) {
@@ -334,22 +332,15 @@ export function createTypeAnnotationResolve({
     // MAX_DEPTH first - so it is reused only when the current call has no more budget than the
     // cached one (depth >= cached.depth); a shallower reach has more budget and recomputes
     if (cached && (cached.stable || depth >= cached.depth)) return cached.result;
-    let result = resolveInferElementPattern({ node, typeParamMap: null, scope, depth, seen: null });
-    // a definitively-false infer pattern (disjoint check side / constraint violation) resolves to the
-    // FALSE branch, mirroring evaluateConditionalType - the sentinel must never leak out as a resolved
-    // Type (toHint would call `.toLowerCase` on the Symbol and crash the transform)
-    if (result === INFER_PATTERN_FALSE) result = resolveTypeAnnotation(node.falseType, scope, depth + 1);
-    let stable = !!result;
-    if (!result) {
-      const trueBranch = resolveTypeAnnotation(node.trueType, scope, depth + 1);
-      const falseBranch = resolveTypeAnnotation(node.falseType, scope, depth + 1);
-      result = resolveConditionalBranches(trueBranch, falseBranch);
-      stable = !!(trueBranch && falseBranch);
-    }
-    // store the verdict computed with the most remaining budget; we only reach here when there was
-    // no entry or the cached one was unstable + computed with less budget, so this dominates
+    // route through the canonical conditional evaluator: it runs the structural branch pick
+    // (pickConditionalBranchVia) before the both-branch fold - the local re-implementation
+    // folded BOTH branches even when the conditional decidably fires to a single one (wrong
+    // branch leaked when the other resolved to never / null)
+    const result = evaluateConditionalType(node, null, scope, depth, null);
+    // the canonical evaluator does not report which path produced the result, so entries stay
+    // depth-guarded: reused only by calls with no more budget than they were computed with
     if (!byScope) conditionalResultCache.set(node, byScope = new Map());
-    byScope.set(scope, { result, depth, stable });
+    byScope.set(scope, { result, depth, stable: false });
     return result;
   }
 

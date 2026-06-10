@@ -1161,3 +1161,22 @@ QUnit.test('destructuring: duplicate hop keys keep both subtrees working', asser
   assert.deepEqual(a([8]), [8]);
   assert.deepEqual(b(9), [9]);
 });
+
+// a defaulted destructure with an unknown member keeps the generic dispatch: the runtime
+// flavor (string here, array via the default) picks the right polyfill either way
+QUnit.test('destructuring: defaulted binding generic dispatch', assert => {
+  const { v = [] } = JSON.parse('{"v":"hello"}');
+  assert.same(v.at(0), 'h');
+  const { w = [3, 4] } = JSON.parse('{}');
+  assert.same(w.at(-1), 4);
+});
+
+// literal-init presence: a plain value kills the default; a getter-supplied value keeps the
+// fold's generic dispatch working on the actual runtime flavor
+QUnit.test('destructuring: literal presence and accessor fold', assert => {
+  const [d = 0] = ['hi'];
+  assert.same(d.at(-1), 'i');
+  // eslint-disable-next-line es/no-accessor-properties -- the accessor-supplied member IS the shape under test
+  const { g = 's' } = { get g() { return [9]; } };
+  assert.same(g.at(0), 9);
+});
