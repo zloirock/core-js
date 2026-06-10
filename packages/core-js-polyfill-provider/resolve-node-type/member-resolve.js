@@ -158,6 +158,9 @@ export function createMemberResolve({
 
   // extract the return type annotation from a method/property call signature
   function memberCallReturnAnnotation(member) {
+    // a getter (or setter) signature is not callable as a method - narrowing the CALL to the
+    // getter's value type produced an un-callable narrow
+    if (member.kind === 'get' || member.kind === 'set') return null;
     switch (member.type) {
       // Babel: TSMethodSignature.typeAnnotation; ESTree: TSMethodSignature.returnType
       case 'TSMethodSignature':
@@ -434,7 +437,9 @@ export function createMemberResolve({
 
   function resolveFromMemberExpression(path, callPath) {
     const name = resolveMemberPropertyName(path);
-    if (!name) {
+    // empty-string keys (`obj[""]`) are valid static names - only a NULL result means the
+    // key is dynamic (a truthiness guard dropped them into the index-signature branch)
+    if (name === null || name === undefined) {
       // computed access without a statically-resolvable key (`obj[k]` where k is a
       // dynamic Identifier): if obj has a TSIndexSignature, resolve to its value type.
       // routed via the same annotation-based path as named member access for symmetry
