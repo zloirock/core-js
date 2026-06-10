@@ -17,6 +17,7 @@ import {
   peelSkippableWrappers,
   BRACE_STATEMENT_HOST_TYPES,
   TS_EXPR_WRAPPERS,
+  staticFallbackSwapRedundant,
   wouldPromoteDirectiveAfterRemoval,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
@@ -247,7 +248,7 @@ export default function plugin(api, options) {
         return injector.addPureImport(entry, hint);
       }
 
-      function handleSymbolIterator(path, sideEffects) {
+      function handleSymbolIterator(path, sideEffects, receiverEffectCount) {
         // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
         if (t.isSuper(path.node.object)) return;
@@ -272,8 +273,8 @@ export default function plugin(api, options) {
         // captures SE during dispatch (e.g. inline-call receiver `(() => arr)()[Symbol.iterator]()`
         // where the SE-bearing receiver is the MemberExpression object); without forwarding,
         // those effects silently dropped when the parent call gets rewritten
-        if (entry === 'get-iterator') replaceCallWithSimple(path, id, skipPolyfillableOptional, sideEffects);
-        else replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional, sideEffects });
+        if (entry === 'get-iterator') replaceCallWithSimple(path, id, skipPolyfillableOptional, sideEffects, receiverEffectCount);
+        else replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional, sideEffects, receiverEffectCount });
       }
 
       // destructure rewrite pipeline (parameter-default synth-swap entry, top-level extraction,
@@ -534,7 +535,7 @@ export default function plugin(api, options) {
             // silently bypasses user's `Array.from = ...` monkey-patch
             if (inheritedStatic && isMutatedStaticMeta(meta, mutatedStatics)) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
-            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, meta.sideEffects);
+            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, meta.sideEffects, meta.receiverEffectCount);
           }
         }
 
@@ -547,6 +548,9 @@ export default function plugin(api, options) {
         if (inheritedStatic && !result) return;
         if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())
           && !t.isSuper(path.node.object)) {
+          // a kept SE-bearing inline-call receiver already yields the polyfill binding through its
+          // own rewritten return leaf - leave the member untouched, the inner visits do the job
+          if (staticFallbackSwapRedundant(path.node.object, meta.sideEffects)) return;
           const id = injectPureImport(fallback.entry, fallback.hintName);
           // mirror the main static-rewrite branch (`replacePath.replaceWith(withSideEffects(
           // id, allEffects))` below): preserve `meta.sideEffects` (computed-key SE in the
@@ -556,7 +560,8 @@ export default function plugin(api, options) {
           // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`.
           // receiver-only: the computed `[key]` property SURVIVES this swap and re-runs its own SE,
           // so prepend only the receiver-SE (dropping the trailing key-SE) to avoid double-eval
-          const allEffects = prependChainAssignmentEffect(path.node.object, receiverSideEffectsOnly(path.node.object, meta.sideEffects));
+          const allEffects = prependChainAssignmentEffect(path.node.object,
+            receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects));
           path.get('object').replaceWith(withSideEffects(id, allEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
@@ -612,7 +617,10 @@ export default function plugin(api, options) {
             const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
               && callParent.node.callee === callerPath.node;
             const callType = isCallParent ? resolveNodeType(callParent) : null;
-            replaceInstanceLike({ path, id, skipOptional: skipPolyfillableOptional, sideEffects: meta.sideEffects });
+            replaceInstanceLike({
+              path, id, skipOptional: skipPolyfillableOptional,
+              sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+            });
             if (callType && callParent.node) resolvedType.set(callParent.node, callType);
           } else if (inheritedStatic) {
             // super.X and unshadowed this.X in static ctx (this = subclass ctor): emit
@@ -750,6 +758,7 @@ export default function plugin(api, options) {
           adapter, injectPureImport, resolvePure, skippedNodes, t,
         });
         destructureEmit = createDestructureEmitter({
+          adapter,
           generateRef,
           generateLocalRef,
           generateUnusedId,
