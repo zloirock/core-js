@@ -104,6 +104,13 @@ export function createAwaited({
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
     const recurse = next => peelAwaitedArgument({ arg: next, scope, depth: depth + 1, typeParamMap, seen });
+    // SUBSTITUTE first: `Awaited<T>` with subst T -> Promise<X[]> must unwrap the SUBSTITUTED
+    // promise layer - a bare type-param reference fails every peel step below and returned
+    // verbatim, dropping the member lookup entirely
+    if (typeParamMap?.size) {
+      const substituted = applySubst(peeled, typeParamMap);
+      if (substituted !== peeled) return recurse(substituted);
+    }
     // distribute Awaited over union / intersection. filter null members - a nested
     // union / intersection that collapses to empty `types[]` returns null; carrying
     // nulls into the parent's `.types` crashes findTypeMember's member-walk. drop
@@ -278,6 +285,7 @@ export function createAwaited({
     // union / intersection / Promise check or distribution misses the inner shape
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(node));
     const recurse = next => resolveAwaitedAnnotation({ node: next, scope, depth: depth + 1, typeParamMap, seen });
+
     if (isUnionType(peeled)) {
       return foldUnionTypes(peeled.types, recurse);
     }
@@ -305,7 +313,12 @@ export function createAwaited({
     }
     const next = peelAwaitedCommonSteps(peeled, scope, depth);
     if (next) return recurse(next);
-    return resolveAnnotationInContext({ node, scope, depth: depth + 1, typeParamMap, seen });
+    const resolved = resolveAnnotationInContext({ node, scope, depth: depth + 1, typeParamMap, seen });
+    // the terminal sees a FREE type-param through the caller's map, but the peel steps above
+    // only fire on annotation SHAPES - a param substituted to Promise<X[]> reaches here with
+    // its promise layer intact and must still be awaited (it resolved to the raw Promise and
+    // dropped the member lookup)
+    return resolved?.constructor === 'Promise' ? unwrapPromise(resolved) : resolved;
   }
 
   // pick a conditional-type branch in Awaited contexts: prefer AST-level literal precision
