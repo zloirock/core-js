@@ -543,10 +543,12 @@ export function createTypeMembers({
     // (`{ [K in keyof T]: T[K] }`) - both unwrap to T for property-lookup purposes. subst
     // from `followTypeAliasChain` already maps the alias's type-params to the receiver's
     // concrete args; apply to the unwrapped inner before recursing
-    const passthrough = unwrapPassthroughWrapper(aliased ?? objectType, scope);
+    // SUBSTITUTE before unwrapping: `Awaited<T>` with subst T -> Promise<X[]> must unwrap the
+    // SUBSTITUTED promise layer (peel-then-subst yielded the raw Promise and dropped the
+    // member); order-equivalent for the structure-preserving wrappers (`Readonly<T>` etc.)
+    const passthrough = unwrapPassthroughWrapper(applySubst(aliased ?? objectType, subst), scope);
     if (passthrough) {
-      const substituted = applySubst(passthrough, subst);
-      return findTypeMember({ objectType: substituted, key, scope, depth: depth + 1 });
+      return findTypeMember({ objectType: passthrough, key, scope, depth: depth + 1 });
     }
     const withSubst = node => {
       if (!node) return node;
