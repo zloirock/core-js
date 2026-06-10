@@ -7,7 +7,6 @@
 //     (preserves type-arg through to instance method dispatch)
 //
 // Public surface:
-//   isGlobalThis(path)
 //   isGlobalProxy(objectPath)
 //   resolveGlobalName(path)                  - extracts the canonical global name from any
 //                                              of the shapes above; null otherwise
@@ -20,6 +19,7 @@
 import { MAX_DEPTH } from './base.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
+  isTopLevelThisContext,
   getSuperTypeArgs,
   isAmbientBindingShape,
   objectPatternLiteralKeyPath,
@@ -48,17 +48,6 @@ export function createGlobalResolve({
     const binding = scope?.getBinding(name);
     if (!binding) return false;
     return !isAmbientBindingShape(binding.path?.node, binding.path?.parent);
-  }
-  function isGlobalThis(path) {
-    let current = path;
-    while (current = current.parentPath) {
-      // non-arrow function rebinds `this` - not global
-      if (t.isFunction(current.node) && !t.isArrowFunctionExpression(current.node)) return false;
-      // class body rebinds `this` for property initializers and static blocks
-      if (t.isClassBody(current.node)) return false;
-      if (t.isProgram(current.node)) return true;
-    }
-    return false;
   }
 
   // proxy-global chain link: `globalThis.self`, `globalThis.window`, etc. - each link's
@@ -110,7 +99,7 @@ export function createGlobalResolve({
       });
     }
     // top-level `this` (not inside any non-arrow function or class) is a global proxy
-    if (t.isThisExpression(objectPath.node) && isGlobalThis(objectPath)) return true;
+    if (t.isThisExpression(objectPath.node) && isTopLevelThisContext(objectPath)) return true;
     if (isProxyGlobalChainLink(objectPath)) return true;
     if (t.isCallExpression(objectPath.node) || t.isOptionalCallExpression(objectPath.node)) {
       return isProxyGlobalIifeReturn(objectPath);
@@ -269,7 +258,7 @@ export function createGlobalResolve({
     return null;
   }
 
-  // `isGlobalThis` / `isGlobalProxy` / `knownConstructorAt` stay cluster-private
+  // `isGlobalProxy` / `knownConstructorAt` stay cluster-private
   return {
     resolveGlobalName,
     resolvePrototypeAsInstance,
