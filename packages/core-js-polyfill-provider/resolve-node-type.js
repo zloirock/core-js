@@ -1443,6 +1443,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveInnerType,
     commonType,
+    isNullableOrNever,
     findEnumDeclaration,
     resolveEnumMemberType,
     findTypeMember: (...args) => findTypeMember(...args),
@@ -1580,6 +1581,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs (all just-destructured). assigns the factory's forward-declared `let`s for
   // `resolveTypeAnnotation` / `resolveConstructorType` / `resolveConstructorCallType`
   const typeAnnotationResolveCluster = createTypeAnnotationResolve({
+    evaluateConditionalType: (...args) => evaluateConditionalType(...args),
     t,
     babelNodeType,
     isLiteralOf,
@@ -1950,7 +1952,7 @@ function createResolveNodeType(babelNodeType, t, {
   function preferAnnotationOverExpression(result, annotated) {
     if (!annotated) return result;
     const refinesInner = !result.inner && annotated.inner && typesEqual(result, annotated);
-    const overridesNullish = annotated.constructor && result.primitive
+    const overridesNullish = (annotated.constructor || annotated.primitive) && result.primitive
       && (result.type === 'null' || result.type === 'undefined');
     return refinesInner || overridesNullish ? annotated : result;
   }
