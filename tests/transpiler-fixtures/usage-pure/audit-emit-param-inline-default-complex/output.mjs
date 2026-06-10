@@ -1,5 +1,3 @@
-import _Array$from from "@core-js/pure/actual/array/from";
-import _Array$of from "@core-js/pure/actual/array/of";
 // arrow expr-body + AssignmentPattern with complex `right` (ConditionalExpression) +
 // rest sibling. all three fallback gates fire: synth-swap bails on rest, body-extract
 // bails on missing block body, inline-default fires. `param inline-default emitter` detects
@@ -8,11 +6,11 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // keys (`from` / `of`) verify per-key dispatch through the same code path
 const cond = true;
 const f = ({
-  from = _Array$from,
+  from = cond ? [] : null,
   ...rest
 } = Array) => [from, rest];
 const g = ({
-  of = _Array$of,
+  of = cond ? [1] : [2],
   ...rest
 } = Array) => [of, rest];
 export { f, g };

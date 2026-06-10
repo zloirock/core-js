@@ -1,7 +1,5 @@
-import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // a destructured function PARAMETER may be legally redeclared by a function-scoped `var <name>` or
 // `function <name>(){}` in the body (`node --check` parses both). the param-destructure body-extract
 // would emit a body-top `let <name> = <polyfill>` aliasing the param - but `let` + `var`/`function`
@@ -11,8 +9,11 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // `keep` is the no-over-bail control: its `var resolve` lives in a NESTED function (a separate var
 // scope), so it does NOT collide - the scan stops at nested functions and the body-extract `let
 // resolve = <polyfill>` still happens. distinct globals/methods make each function's outcome unambiguous
+// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
+// cannot prove the default always applies and the params stay VERBATIM; the body-extract
+// behavior is covered by the immediately-invoked twin fixture
 function run({
-  from = _Array$from,
+  from,
   ...rest
 } = Array) {
   var from = 7;
@@ -29,10 +30,9 @@ function make({
   return [of_, a];
 }
 function keep({
-  resolve: _unused,
+  resolve,
   ...rest
 } = _Promise) {
-  let resolve = _Promise$resolve;
   function inner() {
     var resolve = 1;
     return resolve;

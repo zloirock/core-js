@@ -12,12 +12,12 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
+  isReceiverShapedNode,
+  peelNestedSequenceExpressions,
+  buildFlatSynthEntries,
   findIifeCallSite,
   getFallbackBranchSlots,
-  isReplayableSynthKey,
   isSynthSimpleObjectPattern,
-  sequenceKeyStaticName,
-  synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
@@ -25,9 +25,8 @@ import {
   isExpandedClassifiableReceiver,
   markSynthReceiverSkipped,
 } from '@core-js/polyfill-provider/helpers/class-walk';
-import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { seBearingChainRootCall } from '@core-js/polyfill-provider/detect-usage/members';
-import { findProxyGlobal, isCallShape, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { classifyCallBranchForSynth, isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
 export default function createSynthSwapEmitter({
@@ -124,11 +123,18 @@ export default function createSynthSwapEmitter({
       // `({from: customFn})` still beats the synth-emitted default (default fires only
       // when caller-arg is undefined), preserving caller-passed values
       const rightPath = unwrapSequenceTail(wrapper.get('right'));
+      // a fallback-shaped default (`Array || Iterator`, `Array ?? Iterator`) resolves its meta
+      // through the LEFT branch (detection peels fallback wrappers deterministically), so the
+      // synth replaces the WHOLE expression with the literal - the same left-collapse the
+      // declarator flatten applies. `&&` selects its RIGHT side at runtime and stays out;
+      // unresolved keys re-read through the original expression, whose left bias short-circuits
+      // before the (possibly absent) right global evaluates
+      const fallbackCollapse = rightPath.isLogicalExpression() && rightPath.node.operator !== '&&'
+        && isReceiverShapedNode(unwrapSequenceTail(rightPath.get('left')).node);
       // accept OptionalMemberExpression too (`{from} = globalThis?.Array`) - symmetric with
       // `isExpandedClassifiableReceiver`'s `globalProxyMemberName` walk which already handles
       // optional-chain shapes. without OME the OME-default silently bails to inline-default
-      if (!t.isIdentifier(rightPath.node) && !t.isMemberExpression(rightPath.node)
-        && !t.isOptionalMemberExpression(rightPath.node)) return null;
+      if (!fallbackCollapse && !isReceiverShapedNode(rightPath.node)) return null;
       // IIFE caller-arg overrides the wrapper-default whenever the caller passes a statically
       // classifiable receiver - the default fires only on caller-omitted invocation, so the
       // live arg is what actually runs. applies to (Optional)MemberExpression defaults too
@@ -156,8 +162,11 @@ export default function createSynthSwapEmitter({
     const receiver = targetPath.node;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
-    // `_globalThis` etc. into the range that synth-swap will replace
-    markSynthReceiverSkipped(receiver, skippedNodes);
+    // `_globalThis` etc. into the range that synth-swap will replace. a fallback-logical
+    // receiver is replaced WHOLE - skip its full subtree or the identifier visitor leaks a
+    // dead import for the short-circuited right global
+    if (receiver.type === 'LogicalExpression') t.traverseFast(receiver, node => { skippedNodes.add(node); });
+    else markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
       // capture the ObjectPattern NODE (not path) for the same node-identity reason -
@@ -226,19 +235,14 @@ export default function createSynthSwapEmitter({
     const pure = isViableBranchForKey({ branch, key: lookupKey, scope: peeled.scope, adapter, resolvePure, path: peeled });
     if (!pure) return false;
     const innerPath = unwrapSequenceTail(peeled);
-    // call-shaped branch (`cond ? (() => { c++; return Array; })() : Array`): the synth literal
-    // REPLACES the call, so it is viable only when the pattern is a single fully-polyfilled key
-    // (unpolyfilled keys re-read through the receiver, which would re-run the call); an SE-bearing
-    // call is rescued ahead of the literal so the setup still runs, on the taken branch only
-    const callBranch = isCallShape(innerPath.node);
-    let rescueSe = null;
-    if (callBranch) {
-      if (objectPattern.node.properties.length !== 1) return false;
-      rescueSe = seBearingChainRootCall({ node: innerPath.node, scope: innerPath.scope, adapter, path: innerPath });
-    }
+    // call-branch policy (single fully-polyfilled key + SE rescue) lives in the shared
+    // `classifyCallBranchForSynth`
+    const callPolicy = classifyCallBranchForSynth({
+      inner: innerPath.node, scope: innerPath.scope, adapter, path: innerPath,
+    });
     registerPolyfill({
       targetPath: innerPath, objectPatternPath: objectPattern, key: slotKey,
-      entry: pure.entry, hintName: pure.hintName, callBranch, rescueSe,
+      entry: pure.entry, hintName: pure.hintName, callBranch: callPolicy.callBranch, rescueSe: callPolicy.rescueSe,
     });
     return true;
   }
@@ -251,7 +255,7 @@ export default function createSynthSwapEmitter({
   // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
   // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
   function isReplaceableReceiver(node) {
-    return t.isIdentifier(node) || t.isMemberExpression(node) || t.isOptionalMemberExpression(node);
+    return isReceiverShapedNode(node);
   }
 
   // proxy-global member receiver (`globalThis.self.Array`): collapse the proxy navigation (root +
@@ -277,38 +281,37 @@ export default function createSynthSwapEmitter({
   // receiver - injected as a pure import when the receiver is itself a polyfillable global,
   // collapsed to the polyfilled root for a proxy-global member chain, raw otherwise.
   // all-polyfilled cases never call `getReceiverRef`, keeping the import set clean
-  function buildSynthLiteral(receiver, { objectPatternNode, polyfills }) {
+  function buildSynthLiteral(receiver, { objectPatternNode, polyfills }, memoParam = null) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
     // probing `resolvePure` against; MemberExpression receivers fall through to the as-is
     // member-access fallback below without spending a polyfill lookup on `undefined`
-    const receiverPure = receiver.type === 'Identifier'
-      ? resolvePure({ kind: 'global', name: receiver.name }) : null;
+    // a fallback-logical receiver reads through its peeled LEFT branch - the left decides the
+    // value under short-circuit, and referencing the dead right global would leak its import
+    const readReceiver = receiver.type === 'LogicalExpression'
+      ? peelNestedSequenceExpressions(receiver.left).tail : receiver;
+    const receiverPure = readReceiver.type === 'Identifier'
+      ? resolvePure({ kind: 'global', name: readReceiver.name }) : null;
     const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
     let receiverRef = null;
 
     function getReceiverRef() {
       if (receiverRef) return receiverRef;
+      // a memo param (call-branch) replaces every receiver read - cloning the call would re-run it
+      if (memoParam) return receiverRef = memoParam;
       if (isPolyfillableGlobal) return receiverRef = injectPureImport(receiverPure.entry, receiverPure.hintName);
-      return receiverRef = collapseProxyGlobalReceiver(receiver) ?? receiver;
+      return receiverRef = collapseProxyGlobalReceiver(readReceiver) ?? readReceiver;
     }
 
+    // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
+    // only renders the entries as AST. injectPureImport already returns a fresh clone
     const properties = [];
-    for (const property of objectPatternNode.properties) {
-      if (!t.isObjectProperty(property) || !isReplayableSynthKey(property)) continue;
-      const queued = polyfills.get(synthSwapPropKey(property));
-      // a computed `[k]` key mirrors as `[k]: _polyfill`; an unpolyfilled computed key falls
-      // back to `R[k]` (computed member access), a plain key to `R.key`
-      // injectPureImport already returns a fresh clone; another cloneNode here would be a no-op copy
-      const value = queued
-        ? injectPureImport(queued.entry, queued.hintName)
-        : t.memberExpression(t.cloneNode(getReceiverRef()), t.cloneNode(property.key), property.computed);
-      // a side-effecting computed key (`[(eff(), 'from')]`) mirrors into the synth literal as a PLAIN
-      // string key (`"from"`), NOT a clone of the SE key - the prefix effects stay on the pattern key
-      // (run once at destructure); cloning here would re-run them when the receiver literal is built
-      const seKeyName = property.computed ? sequenceKeyStaticName(property.key) : null;
-      const synthKey = seKeyName !== null ? t.stringLiteral(seKeyName) : t.cloneNode(property.key);
-      properties.push(t.objectProperty(synthKey, value, property.computed && seKeyName === null));
+    for (const { keyNode, computed, seName, polyfill } of buildFlatSynthEntries(objectPatternNode, polyfills)) {
+      const value = polyfill ? injectPureImport(polyfill.entry, polyfill.hintName)
+        : seName !== null ? t.memberExpression(t.cloneNode(getReceiverRef()), t.stringLiteral(seName), true)
+        : t.memberExpression(t.cloneNode(getReceiverRef()), t.cloneNode(keyNode), computed);
+      const synthKey = seName !== null ? t.stringLiteral(seName) : t.cloneNode(keyNode);
+      properties.push(t.objectProperty(synthKey, value, computed));
     }
     return t.objectExpression(properties);
   }
@@ -326,7 +329,7 @@ export default function createSynthSwapEmitter({
       enter(path) {
         const pending = synthSwapByReceiver.get(path.node);
         if (!pending || pending.applied) return;
-        if ((!isReplaceableReceiver(path.node) && !pending.callBranch)
+        if ((!isReplaceableReceiver(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression')
           || pending.objectPatternNode?.type !== 'ObjectPattern') return;
         // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
         // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation
@@ -337,10 +340,20 @@ export default function createSynthSwapEmitter({
         // an SE-bearing call branch is rescued ahead of the literal: the clone carries the
         // already-substituted inner references (`return _Promise`), so the taken branch still
         // runs its setup AND yields polyfilled statics
-        const literal = buildSynthLiteral(path.node, pending);
-        path.replaceWith(pending.rescueSe
-          ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
-          : literal);
+        // a call branch with a key left unresolved memoizes the call result through a
+        // function-IIFE param: the call runs exactly once (as the argument) and unresolved
+        // keys read the memo instead of re-running the call per read
+        const needMemo = pending.callBranch
+          && buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills).some(entry => !entry.polyfill);
+        const memoParam = needMemo ? path.scope.generateUidIdentifier('ref') : null;
+        const literal = buildSynthLiteral(path.node, pending, memoParam);
+        path.replaceWith(needMemo
+          ? t.callExpression(
+            t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
+            [t.cloneNode(path.node, true)])
+          : pending.rescueSe
+            ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
+            : literal);
         pending.applied = true;
         path.skip();
       },

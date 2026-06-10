@@ -763,3 +763,401 @@ QUnit.test('destructuring: logical AND with SE IIFE side, setup runs once', asse
   assert.same(calls, 1);
   assert.deepEqual(from([1, 2]), [1, 2]);
 });
+
+// assignment-destructure hosts beyond the expression statement: the receiver still resolves and
+// the polyfill is wired (for-init / call-arg positions)
+QUnit.test('destructuring: assignment form in call-arg position', assert => {
+  let from;
+  const id = x => x;
+  id({ Array: { from } } = globalThis);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+// nested parameter default body-extracts under polyfill-always-wins: the no-arg call uses the
+// polyfill binding
+QUnit.test('destructuring: nested param default, no-arg call gets the polyfill', assert => {
+  function f({ Array: { from } } = globalThis) {
+    return from([3, 4]);
+  }
+  assert.deepEqual(f(), [3, 4]);
+});
+
+// the caller-passed argument keeps winning over the polyfilled leaf default - a body-extract
+// once silently ignored it
+QUnit.test('destructuring: nested param default, caller argument wins', assert => {
+  function f({ Array: { from } } = globalThis) {
+    return from;
+  }
+  assert.same(f({ Array: { from: 'custom' } }), 'custom');
+  assert.same(typeof f(), 'function');
+});
+
+// multi-leaf nested param default: every leaf gets its own polyfilled default; a rest sibling
+// keeps collecting the remaining keys
+QUnit.test('destructuring: nested param default with multiple leaves and rest', assert => {
+  function f({ Array: { from, of, ...rest } } = globalThis) {
+    return [from([1]), of(2), typeof rest];
+  }
+  const [a, b, c] = f();
+  assert.deepEqual(a, [1]);
+  assert.deepEqual(b, [2]);
+  assert.same(c, 'object');
+});
+
+// an absent leaf in a caller-supplied object stays undefined exactly as native: the synthesized
+// default fires only for the no-argument call
+QUnit.test('destructuring: nested param default, absent caller leaf stays undefined', assert => {
+  function f({ Array: { from } } = globalThis) {
+    return from;
+  }
+  assert.same(f({ Array: {} }), undefined);
+  assert.same(typeof f(), 'function');
+});
+
+// a declared function's rest-bearing param stays verbatim - the caller-supplied value and the
+// rest exclusion behave exactly as native (the old body-extract silently ignored the caller)
+QUnit.test('destructuring: declared rest param, caller value passes through', assert => {
+  function f({ from, ...rest } = Array) {
+    return [from, Object.keys(rest).length];
+  }
+  const [v, restLen] = f({ from: 'custom', x: 1 });
+  assert.same(v, 'custom');
+  assert.same(restLen, 1);
+});
+
+// rest in a nested param default keeps collecting the REAL receiver's extra enumerable keys
+// (an app-extended static) - a synthesized default literal would have dropped them
+QUnit.test('destructuring: nested param rest collects app-extended statics', assert => {
+  // eslint-disable-next-line es/no-nonstandard-array-properties -- deliberate app-extension probe
+  Array.testExtendedHelper = 'ext';
+  try {
+    function f({ Array: { from, ...rest } } = globalThis) {
+      return rest.testExtendedHelper;
+    }
+    assert.same(f(), 'ext');
+  } finally {
+    // eslint-disable-next-line es/no-nonstandard-array-properties -- cleanup of the probe
+    delete Array.testExtendedHelper;
+  }
+});
+
+// sibling branches in a nested param default both keep working on the no-argument call - a
+// one-branch synthesized literal would TypeError the other branch
+QUnit.test('destructuring: nested param default with sibling branches', assert => {
+  function f({ Array: { of }, JSON: { stringify } } = globalThis) {
+    return [of(1), stringify({ a: 1 })];
+  }
+  const [a, b] = f();
+  assert.deepEqual(a, [1]);
+  assert.same(b, '{"a":1}');
+});
+
+// an effectful parameter default keeps running its effect on the no-argument call - a
+// synthesized literal would have silently dropped it
+QUnit.test('destructuring: effectful nested param default keeps the effect', assert => {
+  const log = [];
+  function f({ Array: { from } } = (log.push(1), globalThis)) {
+    return from;
+  }
+  f();
+  assert.same(log.length, 1);
+  assert.same(typeof f({ Array: { from: 'x' } }), 'string');
+  assert.same(log.length, 1);
+});
+
+// duplicate destructure keys: with only no-argument calls both bindings get the polyfilled
+// leaf default; a caller-supplied object keeps winning through a visible-caller IIFE (an
+// argument-passing caller forbids the lossy leaf defaults on a declared function - that
+// shape stays verbatim, native parity)
+QUnit.test('destructuring: nested param default with duplicate keys', assert => {
+  function f({ Array: { from, from: dup } } = globalThis) {
+    return [from, dup];
+  }
+  const [a, b] = f();
+  assert.same(a, b);
+  assert.deepEqual(a([1, 2]), [1, 2]);
+  const [c, d] = (({ Array: { from, from: dup } } = globalThis) => [from, dup])({ Array: { from: 'x' } });
+  assert.same(c, 'x');
+  assert.same(d, 'x');
+});
+
+// an unpolyfilled side-effecting computed key beside a polyfilled one: the key's prefix effect
+// runs exactly once and the unpolyfilled value reads the receiver by its static name
+QUnit.test('destructuring: unpolyfilled SE computed key runs its effect once', assert => {
+  let c = 0;
+  // eslint-disable-next-line es/no-nonstandard-array-properties -- deliberate unpolyfilled-key probe
+  const r = (({ from, [(c++, 'custom')]: x } = Array) => [from([1]), x, c])();
+  assert.deepEqual(r[0], [1]);
+  assert.same(r[1], undefined);
+  assert.same(r[2], 1);
+});
+
+// per-branch synth with an unpolyfilled sibling: the taken branch supplies the polyfill for the
+// resolvable key and the branch receiver's own value for the other
+QUnit.test('destructuring: per-branch synth keeps unpolyfilled sibling branch-consistent', assert => {
+  const cond = true;
+  const r = (({ from, custom } = cond ? Array : Iterator) => [from([1, 2]), custom])();
+  assert.deepEqual(r[0], [1, 2]);
+  assert.same(r[1], undefined);
+});
+
+// multi-key destructure from a conditional with an inline-call branch: the call setup runs
+// exactly once and every key works - an unresolved key reads the memoized call result
+QUnit.test('destructuring: multi-key call branch memoizes the call once', assert => {
+  let c = 0;
+  const cond = true;
+  const { from, custom } = cond ? (() => {
+    c++;
+    return Array;
+  })() : Array;
+  assert.deepEqual(from([1, 2]), [1, 2]);
+  assert.same(custom, undefined);
+  assert.same(c, 1);
+});
+
+// nested conditional with two call branches: only the taken branch's call runs, exactly once,
+// and its branch-specific polyfill binds
+QUnit.test('destructuring: nested conditional call branches memoize per leaf', assert => {
+  const a = false;
+  const b = true;
+  let c = 0;
+  const { of, custom } = a ? (() => {
+    c++;
+    return Array;
+  })() : (b ? (() => {
+    c++;
+    return Array;
+  })() : Array);
+  assert.deepEqual(of(7), [7]);
+  assert.same(custom, undefined);
+  assert.same(c, 1);
+});
+
+// the call-site scan: a non-exported function whose every call leaves the default in place gets
+// the polyfill via body-extract (nothing exists to lose); a caller passing a real argument keeps
+// winning in its own function
+QUnit.test('destructuring: call-site scan restores the polyfill for default-only calls', assert => {
+  function stays({ from, ...rest } = Array) {
+    return [from([1]), Object.keys(rest).length];
+  }
+  const [arr, restLen] = stays();
+  assert.deepEqual(arr, [1]);
+  assert.same(restLen, 0);
+  function overridden({ of } = Array) {
+    return of;
+  }
+  assert.same(overridden({ of: 'custom' }), 'custom');
+});
+
+// the full-tree mirror carries every sibling branch of the synthesized default
+QUnit.test('destructuring: mirrored default carries sibling branches', assert => {
+  function f({ Array: { of }, JSON: { stringify } } = globalThis) {
+    return [of(3), stringify(1)];
+  }
+  const [a, b] = f();
+  assert.deepEqual(a, [3]);
+  assert.same(b, '1');
+  const custom = f({ Array: { of: v => ['custom', v] }, JSON: { stringify: () => 'cs' } });
+  assert.deepEqual(custom[0], ['custom', 3]);
+  assert.same(custom[1], 'cs');
+});
+
+// a logical fallback default collapses left into the literal - caller values still win
+QUnit.test('destructuring: logical fallback default collapses left', assert => {
+  function f({ from } = Array || Iterator) {
+    return from;
+  }
+  assert.deepEqual(f()([4, 5]), [4, 5]);
+  assert.same(f({ from: 'custom' }), 'custom');
+});
+
+// logical-root defaults: pure forms collapse into the mirrored literal; an effectful operand
+// keeps running exactly once per evaluation
+QUnit.test('destructuring: logical-root nested defaults', assert => {
+  const alt = {};
+  function f({ Array: { from } } = globalThis || alt) {
+    return from;
+  }
+  assert.deepEqual(f()([8]), [8]);
+  assert.same(f({ Array: { from: 'w' } }), 'w');
+  let c = 0;
+  const m = 1;
+  function g({ Array: { of } } = (c++, m) && globalThis) {
+    return of;
+  }
+  assert.same(typeof g(), 'function');
+  assert.same(c, 1);
+  // the default expression evaluates only on the no-argument call - the caller path skips it
+  assert.same(g({ Array: { of: 'x' } }), 'x');
+  assert.same(c, 1);
+});
+
+// mixed logical operators: the mirror lands inside the left operand of the outer fallback;
+// the kept selections stay native on both paths
+QUnit.test('destructuring: mixed logical param default', assert => {
+  function make(m) {
+    const alt = { Array: { from: 'alt' } };
+    function f({ Array: { from } } = (m && globalThis) || alt) {
+      return from;
+    }
+    return f();
+  }
+  assert.same(typeof make(1), 'function');
+  assert.same(make(0), 'alt');
+});
+
+// effectful logical declarator inits: the mirror swaps only the receiver node, every kept
+// operand runs (or stays dead) exactly as native
+QUnit.test('destructuring: effectful logical declarator inits', assert => {
+  let c = 0;
+  const m = 1;
+  const { Array: { from } } = (c++, m) && globalThis;
+  assert.deepEqual(from([3]), [3]);
+  assert.same(c, 1);
+  let d = 0;
+  const { Array: { of } } = (d++, globalThis) || { Array: {} };
+  assert.deepEqual(of(4), [4]);
+  assert.same(d, 1);
+});
+
+// host-shape edges of the precise receiver mirror: a multi-declarator host keeps its sibling
+// and the effect; the assignment-form cascade keeps the whole RHS running
+QUnit.test('destructuring: multi-declarator and assignment hosts with effectful logical', assert => {
+  let c = 0;
+  const m = 1;
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the multi-declarator host IS the shape under test
+  const a = 5, { Array: { from } } = (c++, m) && globalThis;
+  assert.deepEqual(from([a]), [5]);
+  assert.same(c, 1);
+  let of;
+  // eslint-disable-next-line prefer-const -- assignment-form host is the shape under test
+  ({ Array: { of } } = (c++, m) && globalThis);
+  assert.deepEqual(of(6), [6]);
+  assert.same(c, 2);
+});
+
+// both reachable leaves of a guarded fallback unfold: the polyfill binds on the truthy AND the
+// falsy selection; an unmirrorable local fallback keeps native semantics
+QUnit.test('destructuring: guarded fallback unfolds both leaves', assert => {
+  function pick(m) {
+    function f({ Array: { from } } = (m && globalThis) || globalThis) {
+      return from;
+    }
+    return f();
+  }
+  assert.deepEqual(pick(1)([1]), [1]);
+  assert.deepEqual(pick(0)([2]), [2]);
+  const alt = { Array: { from: 'alt' } };
+  const falsy = 0;
+  function g({ Array: { from } } = (falsy && globalThis) || alt) {
+    return from;
+  }
+  assert.same(g(), 'alt');
+});
+
+// the flatten must not discard a guarded init: the falsy selection keeps its native TypeError,
+// the truthy one gets the mirrored polyfill
+QUnit.test('destructuring: guarded declarator init keeps falsy-path throw', assert => {
+  function attempt(m) {
+    try {
+      const { Array: { from } } = m && globalThis;
+      return typeof from;
+    } catch {
+      return 'throw';
+    }
+  }
+  assert.same(attempt(1), 'function');
+  assert.same(attempt(0), 'throw');
+});
+
+// ternary inits: the polyfill binds on either selection; an effectful test runs exactly once;
+// a guarded branch keeps its native falsy throw
+QUnit.test('destructuring: ternary inits over proxy aliases', assert => {
+  function pick(c) {
+    const { Array: { from } } = c ? globalThis : globalThis;
+    return from;
+  }
+  assert.deepEqual(pick(true)([1]), [1]);
+  assert.deepEqual(pick(false)([2]), [2]);
+  const log = [];
+  const c = true;
+  const { Array: { of } } = (log.push(1), c) ? globalThis : globalThis;
+  assert.deepEqual(of(3), [3]);
+  assert.same(log.length, 1);
+});
+
+// transparent IIFE inits: the call keeps running (body effects once per evaluation, selection
+// native), the polyfill binds through the mirrored return leaves
+QUnit.test('destructuring: transparent IIFE inits', assert => {
+  let c = 0;
+  const m = 1;
+  const { Array: { from } } = (() => {
+    c++;
+    return m && globalThis;
+  })();
+  assert.deepEqual(from([1]), [1]);
+  assert.same(c, 1);
+  function g({ Array: { of } } = (() => globalThis)()) {
+    return of;
+  }
+  assert.deepEqual(g()(2), [2]);
+});
+
+// an identity IIFE with an effectful argument keeps the call and the effect; the polyfill
+// binds through the mirrored leaf inside the argument
+QUnit.test('destructuring: identity IIFE with effectful argument', assert => {
+  let c = 0;
+  const { Array: { from } } = (g => g)((c++, globalThis));
+  assert.deepEqual(from([4]), [4]);
+  assert.same(c, 1);
+});
+
+// chain-assignment inits: the binding captures the native value; a guarded RHS keeps its
+// falsy-path TypeError while the truthy path polyfills
+QUnit.test('destructuring: chain assignment inits', assert => {
+  let w;
+  const { Array: { from } } = w = globalThis || globalThis;
+  assert.deepEqual(from([5]), [5]);
+  assert.same(w, globalThis);
+  function attempt(m) {
+    try {
+      let v;
+      const { Array: { of } } = v = m && globalThis;
+      return [typeof of, v];
+    } catch {
+      return 'throw';
+    }
+  }
+  assert.same(attempt(1)[0], 'function');
+  assert.same(attempt(1)[1], globalThis);
+  assert.same(attempt(0), 'throw');
+});
+
+// assignment-form hosts with collapsible fallback RHS: the binding gets the polyfill, an
+// IIFE RHS runs exactly once
+QUnit.test('destructuring: assignment-form fallback RHS', assert => {
+  let from;
+  // eslint-disable-next-line prefer-const -- assignment-form host is the shape under test
+  ({ Array: { from } } = globalThis || globalThis);
+  assert.deepEqual(from([6]), [6]);
+  let of;
+  let c = 0;
+  // eslint-disable-next-line prefer-const -- assignment-form host is the shape under test
+  ({ Array: { of } } = (() => {
+    c++;
+    return globalThis;
+  })());
+  assert.deepEqual(of(7), [7]);
+  assert.same(c, 1);
+});
+
+// duplicate hop keys bail the synthesized literal - both subtrees still read the same
+// receiver property and every leaf binds through the fallback emission
+QUnit.test('destructuring: duplicate hop keys keep both subtrees working', assert => {
+  function f({ Array: { from }, Array: { of } } = globalThis) {
+    return [from, of];
+  }
+  const [a, b] = f();
+  assert.deepEqual(a([8]), [8]);
+  assert.deepEqual(b(9), [9]);
+});
