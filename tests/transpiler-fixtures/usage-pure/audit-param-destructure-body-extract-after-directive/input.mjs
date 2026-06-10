@@ -4,6 +4,9 @@
 // the insert AFTER the trailing directive. rest sibling forces `findSynthSwapReceiver` to
 // bail (rest excludes synth-swap) so the body-extract path actually fires. custom directive
 // avoids the spec restriction on `"use strict"` in functions with non-simple parameters
+// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
+// cannot prove the default always applies and the params stay VERBATIM; the body-extract
+// behavior is covered by the immediately-invoked twin fixture
 function run({ from, ...rest } = Array) {
   "my custom directive";
   return [from([1]), rest];
