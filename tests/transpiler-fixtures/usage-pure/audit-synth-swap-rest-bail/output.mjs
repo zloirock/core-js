@@ -1,10 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// synthetic argument-receiver substitution can't shape-rebuild when a rest property is
-// present (rest exclusion would change). body-extract fallback inserts `let from =
-// _polyfill;` at function body top (let, not const - parameter was reassignable, so
-// `from = newValue` downstream must keep working) + replaces the polyfilled prop with
-// `_unused` sentinel so rest still excludes the key. preserves "polyfill always wins"
-// at the cost of caller-passed `{from: customFrom}` being ignored
+// synthetic argument-receiver substitution can't shape-rebuild when a rest property is present
+// (rest exclusion would change), and the old body-extract fallback was caller-lossy for this
+// DECLARED function.
+// caller-soundness: lossy emissions are allowed here because the function is non-exported and
+// every local call leaves the default in place (the resolver's call-site scan proves nothing
+// exists to lose); exported / escaping / overridden functions stay verbatim instead.
 function run({
   from: _unused,
   ...rest

@@ -9,6 +9,7 @@
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
 import {
+  paramsHaveInvisibleCallers,
   findArrayWrappedDestructureHost,
   findEnclosingFunctionLikePath,
   hasRestSiblingExcept,
@@ -34,6 +35,10 @@ import {
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
+  fallbackInitWhollyDiscardable,
+  applyNestedParamSynthPlan,
+  renderSynthTree,
+  buildNestedParamSynthPlan,
   canTransformDestructuring as sharedCanTransformDestructuring,
   flattenDiscardRescue,
   isReReferenceableReceiver,
@@ -165,10 +170,68 @@ function takeDiscardSeOnce(prop, adapter) {
   return discardSe;
 }
 
+// render the provider-normalized nested-param synth plan as AST replacing the parameter
+// DEFAULT (the semantics - tree mirror, validation, leaf resolution - live in the shared
+// `buildNestedParamSynthPlan`; this is a dumb renderer, unplugin renders the same plan as text)
+function renderNestedParamSynth({ prop, meta, deps }) {
+  const { t, resolvePure, injectPureImport, skippedNodes } = deps;
+  const plan = buildNestedParamSynthPlan({ leafPatternPath: prop.parentPath, meta, resolvePure });
+  return applyNestedParamSynthPlan({
+    plan,
+    renderTree: tree => renderSynthTree(tree, {
+      polyfill: injectPureImport,
+      array: element => t.arrayExpression([element]),
+      object: entries => t.objectExpression(entries.map(
+        ({ key, value }) => t.objectProperty(t.identifier(key), value))),
+    }),
+    // the target may sit in EITHER subtree (`(m && globalThis) || self` unfolds BOTH sides) -
+    // descend from the host slot by span containment to recover the live path
+    // generic span-containment descent: at every level pick the child slot whose span holds
+    // the target (covers logical / conditional / sequence / paren AND transparent-IIFE hops -
+    // call callee, arrow body, block return). the printer re-parenthesizes as needed, so the
+    // plan's needsParens marker is text-emitter-only
+    replaceTarget(targetNode, rendered) {
+      let target = plan.host.get(plan.slot);
+      for (let guard = 0; target.node !== targetNode && guard < 32; guard++) {
+        let next = null;
+        for (const key of t.VISITOR_KEYS[target.node.type] ?? []) {
+          const child = target.node[key];
+          if (Array.isArray(child)) {
+            const index = child.findIndex(item => item && targetNode.start >= item.start && targetNode.end <= item.end);
+            if (index !== -1) next = target.get(`${ key }.${ index }`);
+          } else if (child && typeof child.start === 'number'
+            && targetNode.start >= child.start && targetNode.end <= child.end) {
+            next = target.get(key);
+          }
+          if (next) break;
+        }
+        if (!next) return false;
+        target = next;
+      }
+      if (target.node !== targetNode) return false;
+      target.replaceWith(rendered);
+      return true;
+    },
+    skipSubtree: targetNode => t.traverseFast(targetNode, node => { skippedNodes.add(node); }),
+  });
+}
+
+// the flatten discards the PROP's own declarator init whole (a multi-declarator host shares
+// one declaration but each declarator owns its init) - delegate the discardability call to
+// the shared predicate
+function discardedInitFlattenSafe(prop) {
+  let declarator = prop.parentPath;
+  while (declarator && !declarator.isVariableDeclarator()) declarator = declarator.parentPath;
+  const hostInit = declarator?.node?.init;
+  return !hostInit || fallbackInitWhollyDiscardable(hostInit);
+}
+
 export default function createDestructureEmitter({
   t,
   adapter,
   generateRef,
+  paramDefaultNeverOverridden = null,
+  resolvePure,
   generateLocalRef,
   generateUnusedId,
   injector,
@@ -254,7 +317,7 @@ export default function createDestructureEmitter({
   // AssignmentPattern (`{from = []} = Array`): accept both `{key: binding}` and
   // `{key = default}` shapes. the user's default becomes dead code under synth-swap
   // (polyfill id is always defined) but stays syntactically intact in the output
-  function handleParameterDestructure({ prop, kind, entry, hintName }) {
+  function handleParameterDestructure({ prop, kind, entry, hintName, meta = null }) {
     if (kind === 'instance') return;
     if (!isIdentifierPropValue(prop.node.value)) return;
     const objectPattern = prop.parentPath;
@@ -269,6 +332,9 @@ export default function createDestructureEmitter({
       && patternComputedKeysSynthSafe(t, objectPattern.node, prop.scope)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
+      // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
+      // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
+      if (renderNestedParamSynth({ prop, meta, deps: { t, resolvePure, injectPureImport, skippedNodes } })) return;
       // synth-swap bailed (computed key / non-Identifier shape sibling) - try body-extract
       // first: insert `const from = _polyfill;` at function body top + remove the prop
       // from the destructure. preserves "polyfill always wins" even at the cost of caller-
@@ -279,6 +345,12 @@ export default function createDestructureEmitter({
       // undefined), so collapse a proxy-global member chain in it before either fallback runs
       const paramDefault = objectPattern.parentPath;
       if (paramDefault?.isAssignmentPattern()) collapseRetainedProxyReceiver(synthSwap, paramDefault.node, 'right');
+      // caller-lossy emissions (body-extract ignores a caller-passed value; a leaf inline
+      // default polyfills an ABSENT caller leaf that native leaves undefined) are sound only
+      // when no invisible caller exists: an assignment-form host (fixed receiver) or an
+      // immediately invoked function (every call site visible). a declared / exported
+      // function's params stay VERBATIM instead - usage-global injection covers the targets
+      if (paramsHaveInvisibleCallers(prop, { paramNeverOverridden: paramDefaultNeverOverridden })) return;
       // a side-effecting computed key (`{ [(eff(), 'from')]: from }`) must NOT body-extract: that
       // removes the key text (dropping the prefix effects). the inline default keeps the key in the
       // pattern (run once) and appends `= _Array$from`, the SE-preserving shape on every host
@@ -320,6 +392,23 @@ export default function createDestructureEmitter({
   function tryBodyExtractFromParamDestructure(prop, entry, hintName) {
     const valueNode = propBindingIdentifier(prop.node.value);
     if (!valueNode) return false;
+    // caller-lossiness containment: body-extract (which IGNORES a caller-passed argument, the
+    // documented cost) stays the contract for a prop of the param-level pattern itself
+    // (`function f({ x } = R)`, IIFE caller-arg patterns). a NESTED prop
+    // (`{ Array: { from } } = globalThis`) or an array-wrapped one (`[{ from }] = [Array]`)
+    // reached through the broadened receiver identification keeps the caller-passed argument
+    // via the inline default instead
+    const patternParentType = prop.parentPath?.parentPath?.node?.type;
+    if (patternParentType === 'Property' || patternParentType === 'ObjectProperty'
+      || patternParentType === 'ArrayPattern') return false;
+    // the body-top `let <name> = _polyfill` SHADOWS a parameter binding (valid - the prop and
+    // its binding are removed together), but an ASSIGNMENT-form target reaching this fallback
+    // through a non-flattenable host (`id(({ a: { x: f } } = R))`) is bound by an OUTER
+    // declaration that stays - a body `let` would redeclare it (SyntaxError). only extract
+    // when the name is bound by the pattern itself; otherwise the inline default keeps the
+    // existing binding
+    const existingBinding = prop.scope.getBinding(valueNode.name);
+    if (existingBinding && existingBinding.identifier !== valueNode) return false;
     const fnPath = findEnclosingFunctionLikePath(prop);
     if (!fnPath || !t.isBlockStatement(fnPath.node.body)) return false;
     // a sibling param / in-pattern default that reads this binding (`{ of, dflt = of }`,
@@ -520,7 +609,7 @@ export default function createDestructureEmitter({
   // dead code; flatten guarantees polyfill wins even on buggy-but-present native
   function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
     const valueNode = propBindingIdentifier(prop.node.value);
-    if (!valueNode) return false;
+    if (!valueNode || !discardedInitFlattenSafe(prop)) return false;
     // collect the chain of (property, pattern) pairs leading up to the host (declarator
     // or ExpressionStatement-wrapped AssignmentExpression). hosts handled here ALWAYS
     // win polyfill - native fallback would produce wrong runtime in usage-pure mode
@@ -827,7 +916,7 @@ export default function createDestructureEmitter({
     // single-element ArrayPattern) - both are passthrough for proxy-global resolution
     const { parent: patternParent } = peelTransparentWrappers(objectPattern);
     if (isFunctionParamDestructureParent(objectPattern)) {
-      handleParameterDestructure({ prop, kind, entry, hintName });
+      handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return;
     }
     // multi-element ArrayPattern wrapper around the consumed pattern (`[, { from }] = [Set, Array]`,
@@ -842,7 +931,7 @@ export default function createDestructureEmitter({
     if (patternParent?.isObjectProperty() && kind !== 'instance') {
       if (tryFlattenNestedProxyDestructure(prop, entry, hintName)) return;
       // fallback: non-single shape (outer has siblings) - inline default as last resort
-      handleParameterDestructure({ prop, kind, entry, hintName });
+      handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return;
     }
     // nested INSTANCE method (`{ y: { flat: m } } = { y: arr }`, or array-wrapped `[{ y: { flat: m } }] =
