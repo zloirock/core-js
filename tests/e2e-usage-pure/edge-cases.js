@@ -659,3 +659,28 @@ QUnit.test('destructure: per-branch computed-key aliasing a sibling keeps both p
   assert.same(x, Array.from);
   assert.same(x([1, 2]).length, 2);
 });
+
+// static-FALLBACK receiver-only swap (`.noSuchStatic` is not a known static): the receiver swaps to the
+// pure ctor and its side effect must be preserved. an IIFE / member-chain receiver's SE was undercounted
+// to 0 and dropped in both plugins; the build-time receiver-effect count fixes the split
+QUnit.test('SE-prefix: static-fallback IIFE receiver side effect preserved', assert => {
+  let called = 0;
+  const m = (() => {
+    called++;
+    return Promise;
+  })().noSuchStatic;
+  assert.same(called, 1);
+  assert.same(m, undefined);
+});
+
+// nested IIFE shells unroll to the same kept-receiver contract: the setup runs once and the
+// member reads off the substituted return without a swap wrapper
+QUnit.test('SE-prefix: nested IIFE static-fallback receiver, setup runs once', assert => {
+  let called = 0;
+  const m = (() => (() => {
+    called++;
+    return Promise;
+  })())().noSuchStatic;
+  assert.same(called, 1);
+  assert.same(m, undefined);
+});
