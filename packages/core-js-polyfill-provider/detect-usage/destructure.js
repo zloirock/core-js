@@ -22,7 +22,9 @@ import {
 import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
+import { discardRescueNode } from './members.js';
 import {
+  isCallShape,
   isStaticPlacement,
   peelChainAssignmentDeep,
   resolveKey as sharedResolveKey,
@@ -66,6 +68,18 @@ export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path
       // (peel returns null, switch falls through to the `object: null` default)
       const iifeInner = peelZeroArgIifeReturn(unwrapped);
       if (iifeInner) return buildDestructuringInitMeta({ initNode: iifeInner, key, scope, adapter, path });
+      // an inline-resolvable call init (`(() => { c++; return Promise; })()`): classify through
+      // resolveObjectName's call inlining, same as the direct flatten path. without this, the
+      // conditional / fallback branch enumeration treats the branch as opaque and the per-branch
+      // synth leaves NATIVE statics on the taken branch (undefined on targets without them)
+      const callObjectName = resolveObjectName({ objectNode: unwrapped, scope, adapter, path });
+      if (callObjectName) {
+        const callPlacement = isStaticPlacement(callObjectName);
+        return {
+          kind: 'property', object: callObjectName, key, placement: callPlacement,
+          receiverHint: staticReceiverHint(callPlacement, callObjectName),
+        };
+      }
       break;
     }
   }
@@ -154,7 +168,11 @@ export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure,
   const inner = peelFallbackBranchInner(branch);
   if (inner?.type !== 'Identifier'
     && inner?.type !== 'MemberExpression'
-    && inner?.type !== 'OptionalMemberExpression') return null;
+    && inner?.type !== 'OptionalMemberExpression'
+    // an inline-resolvable call branch (`cond ? (() => { c++; return Array; })() : Array`)
+    // classifies via the CallExpression arm of `buildDestructuringInitMeta`; the emitters gate
+    // it to a single fully-polyfilled key and rescue its setup ahead of the synth literal
+    && !isCallShape(inner)) return null;
   // user-shadowed (`function f(Array) { ({from} = cond ? Array : Set) }`) - shadow makes
   // `Array` a local binding, not a global polyfill candidate. only meaningful for the
   // bare Identifier shape; MemberExpression's binding hop is handled inside resolveObjectName.
@@ -162,7 +180,11 @@ export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure,
   // .d.ts-shadow scope) propagate through unplugin's estree-toolkit scope tracker
   if (inner.type === 'Identifier' && adapter.hasBinding(scope, inner.name, path)) return null;
   const meta = buildDestructuringInitMeta({ initNode: inner, key, scope, adapter, path });
-  if (!meta?.object || meta.kind !== 'property' || meta.placement !== 'static') return null;
+  // `fromFallback` means the branch's runtime value is NOT pinned to one constructor (an IIFE
+  // wrapping a conditional - `(() => cond ? Array : Iterator)()`): swapping it to a single
+  // synth literal would discard the other branch. leave it raw - the identifier visitor still
+  // substitutes the polyfillable constructors inside
+  if (!meta?.object || meta.kind !== 'property' || meta.placement !== 'static' || meta.fromFallback) return null;
   const pure = resolvePure(meta);
   if (!pure || pure.kind === 'instance') return null;
   return pure;
@@ -662,9 +684,54 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
   // `resolveBindingToGlobal` (binding-init walk + `polyfillHint` recovery, and it bails a reassigned
   // alias). a raw-name-only Identifier check dropped the const-alias (usage-global both plugins +
   // babel usage-pure; unplugin usage-pure rescued it -> divergence)
-  if (leaf?.type === 'Identifier' || leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression') {
+  if (leaf?.type === 'Identifier' || leaf?.type === 'MemberExpression' || leaf?.type === 'OptionalMemberExpression'
+    || leaf?.type === 'AssignmentExpression' || isCallShape(leaf)) {
+    // NO SE policy here - this is mode-free CLASSIFICATION. usage-global keeps the text verbatim
+    // and must inject for an SE-bearing leaf too; the usage-pure flatten harvests the observable
+    // discard (assignment / SE-bearing chain-root call) via `flattenDiscardRescue` and re-emits it
+    // ahead of the extraction. an AssignmentExpression leaf (`[a = Array]`) classifies through
+    // `resolveObjectName`'s own chain-assignment peel and is rescued WHOLE at emit - bailing it
+    // instead would silently lose the polyfill
     const resolved = resolveObjectName({ objectNode: leaf, scope: host.scope, adapter, path: host });
     return resolved && isStaticPlacement(resolved) ? resolved : null;
+  }
+  return null;
+}
+
+// observable node under the init slot a pure flatten would DISCARD: a chain-assignment (rescued
+// WHOLE - it updates a binding and may contain an SE-bearing call) or an SE-bearing chain-root
+// call. walks the same pattern-wrapper / Property-hop / array-layer descent the classification
+// resolvers walk, then probes the effective leaf. the pure emitters re-emit the returned node
+// ahead of the extraction (`const from = ((a = _globalThis), _Array$from)`) so the setup survives
+// the discard in native order; usage-global never discards, so it has no use for this.
+// depth cap shares the resolvers' walk bound - a deeper chain bails to null (no harvest,
+// callers keep their conservative path)
+export function flattenDiscardRescue(innerObjectPattern, adapter) {
+  let pattern = innerObjectPattern;
+  let allIndices = [];
+  for (let depth = 0; depth < STATIC_WALK_DEPTH; depth++) {
+    const { parent, indices } = peelDestructureWrappers(pattern);
+    allIndices = [...indices, ...allIndices];
+    const slot = flattenableHostSlot(parent?.node, parent);
+    if (slot) {
+      const slotNode = parent.node[slot];
+      if (!slotNode) return null;
+      // NO scope/adapter for the descent: a const-alias wrapper (`const w = [(IIFE)()]; [{x}] = w`)
+      // dereferences to an init that lives OUTSIDE the discarded slot - its setup already runs at
+      // the alias declaration, so harvesting it would double-run. only nodes physically inside the
+      // slot text are candidates; the span guard backs this up against any other escape
+      const descended = allIndices.length
+        ? descendArrayWrapperInit(slotNode, allIndices)
+        : slotNode;
+      if (!descended) return null;
+      const leaf = unwrapExpressionChain(descended);
+      if (!leaf) return null;
+      const rescue = discardRescueNode({ node: leaf, scope: parent.scope, adapter, path: parent });
+      return rescue && rescue.start >= slotNode.start && rescue.end <= slotNode.end ? rescue : null;
+    }
+    const parentType = parent?.node?.type;
+    if (parentType !== 'Property' && parentType !== 'ObjectProperty') return null;
+    pattern = parent.parentPath;
   }
   return null;
 }
