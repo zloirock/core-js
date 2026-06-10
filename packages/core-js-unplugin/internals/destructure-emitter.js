@@ -8,6 +8,11 @@
 // public surface: `applyDestructuringTransforms`, `applySynthSwaps`, `handleDestructuringPure`,
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation)
 import {
+  isChainAssignment,
+  peelZeroArgIifeReturn,
+  isReceiverShapedNode,
+  buildFlatSynthEntries,
+  paramsHaveInvisibleCallers,
   findEnclosingFunctionLikePath,
   FUNCTION_LIKE_NODE_TYPES,
   findArrayWrappedDestructureHost,
@@ -18,7 +23,6 @@ import {
   computedKeysAllBound,
   isIdentifierPropValue,
   isNonReferencePosition,
-  isReplayableSynthKey,
   isSynthSimpleObjectPattern,
   markAndPeelSkippableWrappers,
   functionScopeBindsVarOrFunction,
@@ -35,7 +39,6 @@ import {
   reassignmentBlocksGlobalResolve,
   resolveFallbackReceiver,
   sequenceKeyPrefix,
-  sequenceKeyStaticName,
   TS_EXPR_WRAPPERS,
   unwrapExpressionChain,
   unwrapParens,
@@ -60,6 +63,11 @@ import {
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
+  fallbackInitWhollyDiscardable,
+  applyNestedParamSynthPlan,
+  renderSynthTree,
+  classifyCallBranchForSynth,
+  buildNestedParamSynthPlan,
   isReReferenceableReceiver,
   isViableBranchForKey,
   nestedAssignmentStatementOf,
@@ -67,7 +75,7 @@ import {
   resolveNestedReceiverNode,
   walkStaticReceiverChain,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { discardRescueNode, seBearingChainRootCall } from '@core-js/polyfill-provider/detect-usage/members';
+import { discardRescueNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   canTransformDestructuring,
@@ -145,6 +153,7 @@ function defaultGuardedRhs({ valueSrc, defaultSrc, ref }) {
 // boundaries, which is what the single-factory shape avoids
 /* eslint-disable max-statements -- factory orchestrator, see comment above */
 export function createDestructureEmitter({
+  paramDefaultNeverOverridden = null,
   estreeAdapter,
   injectPureImport,
   injector,
@@ -305,7 +314,7 @@ export function createDestructureEmitter({
         // standalone statement) - neutralize the plan-level discard-SE harvest so the setup isn't
         // ALSO re-run by an extraction prefix. planning runs INSIDE the tracked window: it may
         // mint `_unused` sentinel names that need the explicit declarations
-        const plan = planDeclarator(fake, scope, stmtPath);
+        const plan = planDeclarator(fake, scope, stmtPath, { keepsTail: true });
         if (plan?.discardSe) plan.discardSe = null;
         return rewriteDeclarator(fake, scope, stmtPath);
       });
@@ -1101,7 +1110,7 @@ export function createDestructureEmitter({
   //     locate it. mirrors babel-plugin's `tryFlattenNestedProxyDestructure` so both
   //     pipelines emit the same `const from = _Array$from` extraction (full polyfill-wins
   //     semantics)
-  function planDeclarator(declarator, scope, usePath = null) {
+  function planDeclarator(declarator, scope, usePath = null, { keepsTail = false } = {}) {
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
     const originalId = declarator.id;
@@ -1111,7 +1120,31 @@ export function createDestructureEmitter({
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
       // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
-      const init = unwrapExpressionChain(initSource);
+      let init = unwrapExpressionChain(initSource);
+      // the discard-rescue harvest below must see the PRE-collapse node (a rescued IIFE call,
+      // a chain assignment) - the collapse rewrites `init` to the resolution representative
+      const initBeforeCollapse = init;
+      // a fallback init collapses for identification like the flat meta (left for `||` / `??`,
+      // right for `&&`, the consequent for an agreeing ternary, the inlined return for a
+      // transparent IIFE) - but the flatten DISCARDS the init whole, so it must be wholly
+      // discardable (pure test, no `&&` guard - a guard can select its falsy LEFT and that
+      // path's native TypeError must survive). the cascade KEEPS the tail verbatim
+      // (`keepsTail`), so it only needs the collapsed receiver for resolution
+      if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
+        || isChainAssignment(init)
+        || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
+        if (!keepsTail && !fallbackInitWhollyDiscardable(init)) init = null;
+        else for (let guard = 0; guard < 8 && init; guard++) {
+          const inlined = peelZeroArgIifeReturn(init);
+          if (inlined) init = unwrapExpressionChain(inlined);
+          // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
+          else if (isChainAssignment(init)) init = unwrapExpressionChain(init.right);
+          else if (init.type === 'ConditionalExpression') init = unwrapExpressionChain(init.consequent);
+          else if (init.type === 'LogicalExpression') {
+            init = unwrapExpressionChain(init.operator === '&&' ? init.right : init.left);
+          } else break;
+        }
+      }
       // observable node in the init the flatten DISCARDS: a chain-assignment (rescued WHOLE - it
       // updates a binding and may contain an SE-bearing call) or an SE-bearing chain-root call.
       // harvested into the plan so the emit re-runs it once ahead of the extraction (full consume)
@@ -1119,7 +1152,7 @@ export function createDestructureEmitter({
       // span guard: `peelArrayWrapperPair` may have DEREFERENCED a const-alias wrapper
       // (`const w = [(IIFE)()]; [{x}] = w`) whose init lives OUTSIDE the discarded slot - its
       // setup already runs at the alias declaration, so harvesting it would double-run
-      const probed = init ? discardRescueNode({ node: init, scope, adapter: estreeAdapter, path: usePath }) : null;
+      const probed = init ? discardRescueNode({ node: initBeforeCollapse, scope, adapter: estreeAdapter, path: usePath }) : null;
       const discardSe = probed && declarator.init
         && probed.start >= declarator.init.start && probed.end <= declarator.init.end ? probed : null;
       const receiver = init ? sharedResolveObjectName({ objectNode: init, scope, adapter: estreeAdapter, path: usePath }) : null;
@@ -1817,12 +1850,9 @@ export function createDestructureEmitter({
     // through the receiver, re-running the call); an SE-bearing call is rescued ahead of the synth
     // literal. the call's INNER references stay unmarked below, so their own substitutions
     // (`return Promise` -> `return _Promise`) compose into the re-emitted text
-    const callBranch = isCallShape(inner);
-    let rescueSe = null;
-    if (callBranch) {
-      if (objectPattern.properties.length !== 1) return false;
-      rescueSe = seBearingChainRootCall({ node: inner, scope, adapter: estreeAdapter, path });
-    }
+    // call-branch policy (single fully-polyfilled key + SE rescue) lives in the shared
+    // `classifyCallBranchForSynth`
+    const { rescueSe } = classifyCallBranchForSynth({ inner, scope, adapter: estreeAdapter, path });
     const binding = injectPureImport(pure.entry, pure.hintName);
     // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
     // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
@@ -1963,12 +1993,14 @@ export function createDestructureEmitter({
     const isAssign = value.type === 'AssignmentPattern';
     const pureResult = resolvePure(meta, metaPath);
     if (!pureResult || pureResult.kind === 'instance') return;
-    const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     const objectPattern = metaPath.parent;
     const receiver = isSynthSimpleObjectPattern(objectPattern, { allowSideEffectComputedKeys: true })
       && computedKeysAllBound(objectPattern, metaPath.scope)
       ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern, metaPath.scope, estreeAdapter) : null;
     if (!receiver) {
+      // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
+      // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
+      if (renderNestedParamSynth({ metaPath, meta })) return;
       // synth-swap bailed (computed-key sibling / non-Identifier shape) - try body-extract
       // first: insert `let from = _polyfill;` at function body top + remove the prop from
       // destructure. preserves "polyfill always wins" even at the cost of caller-
@@ -1981,6 +2013,14 @@ export function createDestructureEmitter({
       // proxy-global member chain in it (`globalThis.self.Array` -> `_globalThis.Array`)
       const defaultWrapper = metaPath.parentPath?.parentPath?.node;
       if (defaultWrapper?.type === 'AssignmentPattern') collapseRetainedProxyDefault(defaultWrapper.right);
+      // caller-lossy emissions (body-extract ignores a caller-passed value; a leaf inline
+      // default polyfills an ABSENT caller leaf that native leaves undefined) are sound only
+      // when no invisible caller exists: an assignment-form host (fixed receiver) or an
+      // immediately invoked function (every call site visible). a declared / exported
+      // function's params stay VERBATIM instead - usage-global injection covers the targets
+      if (paramsHaveInvisibleCallers(metaPath, { paramNeverOverridden: paramDefaultNeverOverridden })) return;
+      // the import is injected only past the verbatim gate - injecting earlier leaks a dead import
+      const binding = injectPureImport(pureResult.entry, pureResult.hintName);
       // a side-effecting computed key (`{ [(eff(), 'from')]: f }`) must NOT body-extract: that
       // removes the key text (dropping the prefix effects) or overlaps an inner-transformed prefix
       // and throws. the inline-default below keeps the key in the pattern (run once) and appends
@@ -1993,10 +2033,14 @@ export function createDestructureEmitter({
       else transforms.insert(value.end, ` = ${ binding }`);
       return;
     }
+    const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     // synth-swap owns the receiver chain - identifier visitor would race on the same range.
     // for proxy-global MemberExpression receivers (`globalThis.Map`) walk down `.object` so
     // inner Identifier visitors don't emit `_globalThis` etc. into the now-replaced range
-    markSynthReceiverSkipped(receiver, skippedNodes);
+    // a fallback-logical receiver is replaced WHOLE - skip its full subtree or the inner
+    // Identifier rewrite (`_Iterator`) overlaps the substitution range (babel-twin contract)
+    if (receiver.type === 'LogicalExpression') walkAstNodes({ root: receiver, visit: n => skippedNodes.add(n) });
+    else markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = pendingSynthSwaps.get(receiver);
     if (!pending) {
       pending = { receiver, objectPattern, polyfills: new Map() };
@@ -2035,6 +2079,29 @@ export function createDestructureEmitter({
     return true;
   }
 
+  // render the provider-normalized nested-param synth plan as source text replacing the
+  // parameter DEFAULT (the semantics - tree mirror, validation, leaf resolution - live in the
+  // shared `buildNestedParamSynthPlan`; this is a dumb renderer, babel renders the same plan as AST)
+  function renderNestedParamSynth({ metaPath, meta }) {
+    const plan = buildNestedParamSynthPlan({
+      leafPatternPath: metaPath.parentPath, meta, resolvePure: m => resolvePure(m, metaPath),
+    });
+    return applyNestedParamSynthPlan({
+      plan,
+      renderTree: tree => renderSynthTree(tree, {
+        polyfill: (entry, hintName) => injectPureImport(entry, hintName),
+        array: element => `[${ element }]`,
+        object: entries => `{ ${ entries.map(({ key, value }) => `${ key }: ${ value }`).join(', ') } }`,
+      }),
+      replaceTarget(targetNode, rendered, needsParens) {
+        // an arrow's whole expression body replaced by an object literal needs parens in TEXT
+        transforms.add(targetNode.start, targetNode.end, needsParens ? `(${ rendered })` : rendered);
+        return true;
+      },
+      skipSubtree: targetNode => walkAstNodes({ root: targetNode, visit: n => skippedNodes.add(n) }),
+    });
+  }
+
   function tryBodyExtractFromParamDestructurePure({ propPath, propNode, binding, objectPattern, entry }) {
     // re-entry guard: a previous call's `skippedNodes.add(propNode)` at the bottom signals
     // already-extracted. without it, a second dispatch (e.g. Symbol.iterator + regular prop
@@ -2043,6 +2110,17 @@ export function createDestructureEmitter({
     if (skippedNodes.has(propNode)) return true;
     const localId = propBindingIdentifier(propNode.value);
     if (!localId) return false;
+    // caller-lossiness containment (babel-twin contract): body-extract stays for a prop of the
+    // param-level pattern itself (param default, IIFE caller-arg patterns); nested /
+    // array-wrapped props keep the caller-passed argument via the inline default instead
+    const patternParentType = propPath.parentPath?.parentPath?.node?.type;
+    if (patternParentType === 'Property' || patternParentType === 'ObjectProperty'
+      || patternParentType === 'ArrayPattern') return false;
+    // same contract as babel's twin: only extract when the name is bound by the pattern itself
+    // (parameter binding, removed together with the prop). an assignment-form target is bound
+    // by an OUTER declaration that stays - a body `let` would redeclare it (SyntaxError)
+    const existingBinding = propPath.scope.getBinding(localId.name);
+    if (existingBinding && existingBinding.identifierPath?.node !== localId) return false;
     const fnPath = findEnclosingFunctionLikePath(propPath);
     if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return false;
     // a sibling param / in-pattern default that reads this binding (`{ of, dflt = of }`,
@@ -2465,33 +2543,38 @@ export function createDestructureEmitter({
       // outer receiver. apply step substitutes at the SE TAIL (inner Identifier) so SE prefix
       // remains in the AST around the swap, preserving safe side-effects. mirrors babel-plugin's
       // `unwrapSequenceTail` peel in `registerBranchTreeForKey` for parser-mode-symmetric emission
-      const inner = peelFallbackBranchInner(receiver);
+      const inner = receiver.type === 'LogicalExpression' && receiver.operator !== '&&'
+        ? receiver : peelFallbackBranchInner(receiver);
       // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
       // `globalThis?.Array`) receivers - mirrors `isViableBranchForKey` so `tryRegisterPerBranchSynth`
       // -> `applySynthSwaps` round-trip stays in sync. for member-chain shapes, unpolyfilled
       // keys still re-read through the chain (`window.Array.other`) - each `${ src }.${ key }`
       // reference re-evaluates the receiver expression. typical pattern is all-polyfilled
       // keys (no re-read needed); accept the side-effect re-evaluation trade-off
-      if (inner?.type !== 'Identifier' && inner?.type !== 'MemberExpression'
-          && inner?.type !== 'OptionalMemberExpression' && !isCallShape(inner)) continue;
-      const receiverPure = inner.type === 'Identifier' ? resolveGlobalPolyfill(inner.name) : null;
+      if (!isReceiverShapedNode(inner) && inner?.type !== 'LogicalExpression' && !isCallShape(inner)) continue;
+      // a fallback-logical receiver reads through its peeled LEFT branch (babel-twin contract):
+      // the left decides the value under short-circuit; the dead right global stays unreferenced
+      const readReceiver = inner.type === 'LogicalExpression'
+        ? peelNestedSequenceExpressions(inner.left).tail : inner;
+      const receiverPure = readReceiver.type === 'Identifier' ? resolveGlobalPolyfill(readReceiver.name) : null;
+      // a call branch with a key left unresolved memoizes the call result through a
+      // function-IIFE param: the call runs exactly once (as the argument) and unresolved
+      // keys read the memo instead of re-running the call per read (babel-twin emission)
+      const planEntries = buildFlatSynthEntries(objectPattern, polyfills);
+      const needMemo = isCallShape(inner) && planEntries.some(entry => !entry.polyfill);
+      const memoName = needMemo ? injector.generateLocalRef() : null;
       let receiverSrc = null;
-      const getReceiverSrc = () => receiverSrc ??= receiverPure
+      const getReceiverSrc = () => receiverSrc ??= memoName ?? (receiverPure
         ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-        : synthMemberReceiverSrc(inner);
+        : synthMemberReceiverSrc(readReceiver));
+      // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
+      // only renders the entries as source text
       const entries = [];
-      for (const p of objectPattern.properties) {
-        if (p.type !== 'Property' || !isReplayableSynthKey(p)) continue;
-        const polyfill = polyfills.get(synthSwapPropKey(p));
-        // a side-effecting computed key (`[(eff(), 'from')]`) mirrors into the synth literal as a
-        // PLAIN string key (`"from"`) - the prefix effects stay on the pattern key (run once); the
-        // SE source here would re-run them when the receiver literal is built. a computed `[k]` key
-        // mirrors as `[k]: _polyfill`; an unpolyfilled computed key falls back to `R[k]`, plain to `R.key`
-        const seKeyName = p.computed ? sequenceKeyStaticName(p.key) : null;
-        const keySrc = seKeyName !== null ? JSON.stringify(seKeyName)
-          : p.computed ? `[${ nodeSrc(p.key) }]` : p.key.name;
-        const access = seKeyName !== null ? `[${ JSON.stringify(seKeyName) }]`
-          : p.computed ? `[${ nodeSrc(p.key) }]` : `.${ p.key.name }`;
+      for (const { keyNode, computed, seName, polyfill } of planEntries) {
+        const keySrc = seName !== null ? JSON.stringify(seName)
+          : computed ? `[${ nodeSrc(keyNode) }]` : keyNode.name;
+        const access = seName !== null ? `[${ JSON.stringify(seName) }]`
+          : computed ? `[${ nodeSrc(keyNode) }]` : `.${ keyNode.name }`;
         entries.push(polyfill
           ? `${ keySrc }: ${ polyfill }`
           : `${ keySrc }: ${ getReceiverSrc() }${ access }`);
@@ -2503,7 +2586,9 @@ export function createDestructureEmitter({
       // an SE-bearing call branch is rescued ahead of the literal; its inner substitutions
       // compose into the re-emitted source text
       const literal = `{ ${ entries.join(', ') } }`;
-      transforms.add(inner.start, inner.end, rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal);
+      transforms.add(inner.start, inner.end, needMemo
+        ? `(function (${ memoName }) { return ${ literal }; })(${ nodeSrc(inner) })`
+        : rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal);
     }
   }
 

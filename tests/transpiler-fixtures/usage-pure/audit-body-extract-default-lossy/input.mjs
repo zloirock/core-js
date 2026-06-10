@@ -1,6 +1,9 @@
 // computed-key sibling forces body-extract instead of pattern reshape. all four binding
 // shapes (shorthand / aliased, with and without default) extract uniformly. user-written
 // defaults are intentionally dropped: the polyfill binding is always defined
+// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
+// cannot prove the default always applies and the params stay VERBATIM; the body-extract
+// behavior is covered by the immediately-invoked twin fixture
 function f({ from = [], [Symbol.iterator]: it } = Array) {
   return [from([1]), it];
 }

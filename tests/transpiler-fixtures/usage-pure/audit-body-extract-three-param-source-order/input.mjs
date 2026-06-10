@@ -3,6 +3,9 @@
 // not the REVERSE order produced by reusing the directive-anchor `insertAfter`. uses
 // three distinct constructors / methods (Array.from, Object.keys, Promise.resolve) so the
 // imports identify which param emitted which extract
+// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
+// cannot prove the default always applies and the params stay VERBATIM; the body-extract
+// behavior is covered by the immediately-invoked twin fixture
 function f({ from, ...r1 } = Array, { keys, ...r2 } = Object, { resolve, ...r3 } = Promise) {
   return [from([1]), keys({}), resolve(0), r1, r2, r3];
 }

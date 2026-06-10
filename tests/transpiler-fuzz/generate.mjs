@@ -238,6 +238,138 @@ const EXPR_FAMILIES = {
     '(() => { const { from } = (() => { log.push("r"); return Array; })() || Iterator; return [typeof from, log.length]; })()',
     '(() => { const { from: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
     '(() => { const { ["from"]: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
+    // assignment-destructure hosts beyond the expression statement: for-init, call-arg and
+    // arrow-body positions, plus the nested / array-wrapper parameter DEFAULT. the param
+    // emission is the LEAF inline default, so a caller-passed value keeps winning - fuzzed
+    // below with an explicit custom-argument call
+    '(() => { let f; for (({ Array: { from: f } } = globalThis), 0; false;) {} return typeof f; })()',
+    '(() => { let f; const id = x => x; id(({ Array: { from: f } } = globalThis)); return typeof f; })()',
+    '(() => { let f; const g = () => ({ Array: { from: f } } = globalThis); g(); return typeof f; })()',
+    '(() => { function g({ Array: { from } } = globalThis) { return typeof from; } return g(); })()',
+    '(() => { function g([{ of }] = [Array]) { return typeof of; } return g(); })()',
+    '(() => { function g({ Array: { from } } = globalThis) { return from; } return g({ Array: { from: "custom" } }); })()',
+    '(() => { function g({ Array: { from: renamed } } = globalThis) { return renamed; } return g({ Array: { from: "custom" } }); })()',
+    '(() => { function g({ Array: { from, of } } = globalThis) { return [typeof from, typeof of]; } return g(); })()',
+    '(() => { function g({ Array: { from, ...rest } } = globalThis) { return [typeof from, typeof rest]; } return g(); })()',
+    // an ABSENT leaf in a caller-supplied object stays undefined exactly as native - the
+    // synthesized default fires only for the no-argument call
+    '(() => { function g({ Array: { from } } = globalThis) { return typeof from; } return g({ Array: {} }); })()',
+    '(() => { function g({ Array: { from } } = globalThis) { return typeof from; } return g({ Array: "str" }); })()',
+    // a DECLARED function's params stay verbatim when no sound emission exists (rest sibling
+    // blocks the synth default): caller-supplied values pass through natively
+    '(() => { function g({ from, ...rest } = Array) { return [from, Object.keys(rest).length]; } return g({ from: "custom", x: 1 }); })()',
+    '(() => { function g({ from: alias, dup = alias } = Array) { return [typeof alias, typeof dup]; } return g(); })()',
+    // synth-default soundness limits: sibling BRANCHES and rest cannot be mirrored into the
+    // literal - the shapes stay verbatim (a one-branch literal TypeErrors the other branch;
+    // rest must keep collecting the real receiver's extra enumerable keys)
+    '(() => { function g({ Array: { from }, Set: { union } } = globalThis) { return [typeof from, typeof union]; } return g(); })()',
+    '(() => { Array.tmpFuzzX = 1; function g({ Array: { from, ...rest } } = globalThis) { return rest.tmpFuzzX; } const r = g(); delete Array.tmpFuzzX; return r; })()',
+    // full-mirror limits: an effectful default and a pattern-valued leaf stay verbatim - the
+    // effect must run on the no-arg call; the leaf reads the native function's own props
+    '(() => { const fxLog = []; function g({ Array: { from } } = (fxLog.push(1), globalThis)) { return [typeof from, fxLog.length]; } return g(); })()',
+    '(() => { function g({ Array: { of: { name } } } = globalThis) { return name; } return g(); })()',
+    // synth-default edges: duplicate destructure keys share one mirrored literal key; a
+    // computed hop stays verbatim; a string leaf key normalizes; the IIFE form synths too
+    '(() => { function g({ Array: { from, from: dup } } = globalThis) { return [typeof from, typeof dup]; } return g(); })()',
+    '(() => { const r = (({ of, "of": alias } = Array) => [typeof of, typeof alias])(); return r; })()',
+    '(() => { let c = true; const { from, from: g } = c ? Array : Array; return [typeof from, typeof g]; })()',
+    // duplicate HOP keys merge their subtrees - both read the same receiver property
+    '(() => { function g({ Array: { from }, Array: { of } } = globalThis) { return [typeof from, typeof of]; } return g(); })()',
+    '(() => { function g({ Array: { from }, Array: { from: f2, of } } = globalThis) { return [typeof from, typeof f2, typeof of]; } return g(); })()',
+    '(() => { function g({ ["Array"]: { from } } = globalThis) { return typeof from; } return g(); })()',
+    '(() => { function g({ Array: { "from": f } } = globalThis) { return typeof f; } return g(); })()',
+    '(() => (function ({ Array: { of } } = globalThis) { return typeof of; })())()',
+    // an unpolyfilled SE computed key beside a polyfilled one: the synth literal reads the
+    // receiver by the STATIC name - the key's prefix effect runs exactly once
+    '(() => { let c = 0; const r = (({ from, [(c++, "custom")]: x } = Array) => [typeof from, x, c])(); return r; })()',
+    // flat-entries edges: a numeric key falls back soundly; a per-branch literal re-reads the
+    // unpolyfilled sibling through the branch receiver; a dynamic computed key runs once; a
+    // pure SE-free call branch folds to its literal
+    '(() => { const r = (({ from, 0: zero } = Array) => [typeof from, zero])(); return r; })()',
+    '(() => { let cond = true; const r = (({ from, custom } = cond ? Array : Iterator) => [typeof from, custom])(); return r; })()',
+    '(() => { let n = 0; const k = () => (n++, "from"); const r = (({ of, [k()]: x } = Array) => [typeof of, typeof x, n])(); return r; })()',
+    '(() => { let cond = true; const r = (({ from } = cond ? (() => Array)() : Iterator) => typeof from)(); return r; })()',
+    // multi-key call branches: all-polyfilled keys rescue the call once ahead of the literal;
+    // an unresolved key reads the memoized call result - the call runs exactly once either way
+    '(() => { let cond = true, c = 0; const { from, of } = cond ? (() => { c++; return Array; })() : Array; return [typeof from, typeof of, c]; })()',
+    '(() => { let cond = true, c = 0; const { from, custom } = cond ? (() => { c++; return Array; })() : Array; return [typeof from, custom, c]; })()',
+    '(() => { let cond = false, c = 0; const { from, custom } = cond ? (() => { c++; return Array; })() : Array; return [typeof from, custom, c]; })()',
+    '(() => { let cond = true, c = 0; const r = (({ from, custom } = cond ? (() => { c++; return Array; })() : Array) => [typeof from, custom, c])(); return r; })()',
+    // nested conditional with two memoized call leaves: only the taken branch's call runs,
+    // exactly once; the all-plain path runs none
+    '(() => { let a = true, b = false, c = 0; const { from, custom } = a ? (() => (c++, Array))() : (b ? (() => (c++, Iterator))() : Array); return [typeof from, custom, c]; })()',
+    '(() => { let a = false, b = true, c = 0; const { from, custom } = a ? (() => (c++, Array))() : (b ? (() => (c++, Iterator))() : Array); return [typeof from, custom, c]; })()',
+    '(() => { let a = false, b = false, c = 0; const { from, custom } = a ? (() => (c++, Array))() : (b ? (() => (c++, Iterator))() : Array); return [typeof from, c]; })()',
+    '(() => { let _ref = "user", a = true; const { from, custom } = a ? (() => Array)() : Array; return [typeof from, custom, _ref]; })()',
+    // full-tree mirror + fallback-logical collapse: sibling branches both mirror; the kept
+    // effect prefix runs once on the no-arg call; logical defaults collapse left
+    '(() => { function g({ Array: { from }, Object: { assign } } = globalThis) { return [typeof from, typeof assign]; } return g(); })()',
+    '(() => { const fxq = []; function g({ Array: { of } } = (fxq.push(1), globalThis)) { return [typeof of, fxq.length]; } return [g(), fxq.length]; })()',
+    '(() => { function g({ from } = Array || Iterator) { return typeof from; } return g(); })()',
+    '(() => { function g({ from, custom } = Array || Iterator) { return [typeof from, custom]; } return g(); })()',
+    '(() => { function g({ of } = Array ?? Iterator) { return typeof of; } return g(); })()',
+    // logical roots of the mirror and the flatten: pure forms collapse (left for || / ??,
+    // right for &&); an effectful operand keeps running - natively or in the residual
+    '(() => { function g({ Array: { from } } = globalThis || self) { return typeof from; } return g(); })()',
+    '(() => { let m = 1, c = 0; function g({ Array: { of } } = (c++, m) && globalThis) { return [typeof of, c]; } return [g(), c]; })()',
+    '(() => { let m = 1, c = 0; const { Array: { from } } = (c++, m) && globalThis; return [typeof from, c]; })()',
+    '(() => { let c = 0; const { Array: { of } } = (c++, globalThis) || self; return [typeof of, c]; })()',
+    '(() => { let c = 0; const { Array: { from } } = globalThis || (c++, self); return [typeof from, c]; })()',
+    // host-shape edges of the precise mirror: multi-declarator keeps the sibling and the
+    // effect; the assignment-form cascade keeps the whole RHS statement
+    '(() => { let c = 0, m = 1; const a = 2, { Array: { of } } = (c++, m) && globalThis; return [typeof of, a, c]; })()',
+    '(() => { let from, c = 0, m = 1; ({ Array: { from } } = (c++, m) && globalThis); return [typeof from, c]; })()',
+    '(() => { let c = 0, m = 1; for (const { Array: { of } } = (c++, m) && globalThis; false;) {} return c; })()',
+    '(() => { const { Array: { of } } = globalThis || self; return typeof of; })()',
+    '(() => { let m = 0; function g({ Array: { from } } = m && globalThis) { return from; } try { g(); return "no-throw"; } catch (e) { return "throw"; } })()',
+    // mixed / chained logical roots: the mirror lands in either subtree; selection semantics
+    // stay native on the kept paths
+    '(() => { let m = 1; function g({ Array: { from } } = (m && globalThis) || self) { return typeof from; } return g(); })()',
+    '(() => { let m = 0; function g({ Array: { from } } = (m && globalThis) || globalThis) { return typeof from; } return g(); })()',
+    // BOTH reachable leaves of a guarded fallback unfold; an unmirrorable leaf stays native
+    '(() => { let m = 1; function g({ Array: { of } } = (m && globalThis) || globalThis) { return typeof of; } return g(); })()',
+    '(() => { const alt = { Array: { from: "alt" } }; let m = 0; function g({ Array: { from } } = (m && globalThis) || alt) { return from; } return g(); })()',
+    // the flatten must NOT discard a guarded init: the falsy path's native TypeError survives
+    // (the mirror swaps only the right operand); a guarded fallback in a declarator unfolds
+    '(() => { let m = 0; try { const { Array: { from } } = m && globalThis; return typeof from; } catch (e) { return "throw"; } })()',
+    '(() => { let m = 1; const { Array: { from } } = m && globalThis; return typeof from; })()',
+    '(() => { let m = 0; const { Array: { of } } = (m && globalThis) || globalThis; return typeof of; })()',
+    // ternary inits: a pure proxy-alias ternary flattens; an effectful test keeps running
+    // once; a guarded branch keeps its native selection
+    '(() => { let c = true; const { Array: { from } } = c ? globalThis : globalThis; return typeof from; })()',
+    '(() => { let log = [], c = false; const { Array: { of } } = (log.push(1), c) ? globalThis : globalThis; return [typeof of, log.length]; })()',
+    '(() => { let c = true; function g({ Array: { from } } = c ? globalThis : globalThis) { return typeof from; } return g(); })()',
+    '(() => { let c = false, m = 0; try { const { Array: { from } } = c ? globalThis : m && globalThis; return typeof from; } catch (e) { return "throw"; } })()',
+    // transparent IIFE inits: the call stays (body effects + selection native); a guarded
+    // return keeps its falsy throw; identity / pure / SE-body shapes flatten with rescue
+    '(() => { let m = 1; const { Array: { from } } = (() => m && globalThis)(); return typeof from; })()',
+    '(() => { let m = 0; try { const { Array: { from } } = (() => m && globalThis)(); return typeof from; } catch (e) { return "throw"; } })()',
+    '(() => { let c = 0; const { Array: { of } } = (() => { c++; return globalThis; })(); return [typeof of, c]; })()',
+    '(() => { const { Array: { from } } = (g => g)(globalThis); return typeof from; })()',
+    '(() => { function g({ Array: { of } } = (() => globalThis)()) { return typeof of; } return g(); })()',
+    // IIFE composition: an effectful identity ARGUMENT runs exactly once (not discardable);
+    // nested transparent IIFEs flatten; an IIFE leaf inside a fallback mirrors in place
+    '(() => { let c = 0; const { Array: { from } } = (g => g)((c++, globalThis)); return [typeof from, c]; })()',
+    '(() => { const { Array: { of } } = (() => (() => globalThis)())(); return typeof of; })()',
+    '(() => { let m = 0; const { Array: { from } } = (m && globalThis) || (() => globalThis)(); return typeof from; })()',
+    '(() => { let c = false; const { Array: { of } } = (() => c ? globalThis : globalThis)(); return typeof of; })()',
+    // chain-assignment inits: the binding captures the NATIVE value (never a mirrored
+    // literal); a guarded RHS keeps the falsy-path TypeError; a pure fallback flattens
+    '(() => { let w; const { Array: { from } } = w = globalThis || globalThis; return [typeof from, w === globalThis]; })()',
+    '(() => { let w, m = 1; const { Array: { of } } = w = m && globalThis; return [typeof of, w === globalThis]; })()',
+    '(() => { let w, m = 0; try { const { Array: { from } } = w = m && globalThis; return typeof from; } catch (e) { return ["throw", w === 0]; } })()',
+    // assignment-form fallback RHS: pure shapes are discarded, an IIFE keeps one native call;
+    // an array element with a fallback flattens
+    '(() => { let from; ({ Array: { from } } = globalThis || globalThis); return typeof from; })()',
+    '(() => { let of, c = 0; ({ Array: { of } } = (() => { c++; return globalThis; })()); return [typeof of, c]; })()',
+    '(() => { const [{ Array: { from } }] = [globalThis || globalThis]; return typeof from; })()',
+    '(() => { function g({ Array: { of } } = globalThis || self || window) { return typeof of; } return g(); })()',
+    '(() => { class K { m({ JSON: { stringify } } = globalThis) { return typeof stringify; } } return new K().m(); })()',
+    // the call-site scan: a non-exported function whose every call leaves the default gets the
+    // lossy emission back (nothing exists to lose); a real-arg caller and an escaping alias bail
+    '(() => { function g({ from, ...rest } = Array) { return [typeof from, Object.keys(rest).length]; } return [g(), g(undefined)]; })()',
+    '(() => { function g({ from } = Array) { return from; } return g({ from: "custom" }); })()',
+    '(() => { function g({ from } = Array) { return typeof from; } const alias = g; return alias(); })()',
     // const-alias wrapper: the IIFE's setup runs at the ALIAS declaration, not in the discarded
     // read - the harvest must not re-emit it (a deref-escaped call once double-ran, log.length 2)
     '(() => { const wrapper = [(() => { log.push("r"); return Array; })()]; const [{ from }] = wrapper; return [typeof from, log.length]; })()',

@@ -7,6 +7,9 @@
 // `keep` is the no-over-bail control: its `var resolve` lives in a NESTED function (a separate var
 // scope), so it does NOT collide - the scan stops at nested functions and the body-extract `let
 // resolve = <polyfill>` still happens. distinct globals/methods make each function's outcome unambiguous
+// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
+// cannot prove the default always applies and the params stay VERBATIM; the body-extract
+// behavior is covered by the immediately-invoked twin fixture
 function run({ from, ...rest } = Array) {
   var from = 7;
   return [from, rest];

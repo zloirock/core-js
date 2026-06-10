@@ -389,6 +389,50 @@ export const FUNCTION_LIKE_NODE_TYPES = new Set([
   'ClassPrivateMethod',
 ]);
 
+// a function whose every call site is visible in the same expression - the immediately
+// invoked callee (possibly behind parens / TS wrappers). caller-lossy parameter emissions
+// (body-extract, leaf inline defaults) are sound ONLY here: a declared / exported function's
+// callers are invisible to the transform, and mutating its pattern leaves or body changes
+// what a caller-supplied argument observably produces
+export function isImmediatelyInvokedFunction(fnPath) {
+  let callee = fnPath;
+  let parent = fnPath.parentPath;
+  while (parent?.node && (parent.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(parent.node.type))) {
+    callee = parent;
+    parent = parent.parentPath;
+  }
+  return (parent?.node?.type === 'CallExpression' || parent?.node?.type === 'OptionalCallExpression')
+    && parent.node.callee === callee.node;
+}
+
+// the path whose node occupies `fnPath`'s param slot on the chain from `path` up to the
+// function - null when the chain runs through the body instead. the param slot is where a
+// caller-supplied value enters
+export function findFunctionParamPath(path, fnPath) {
+  const params = fnPath?.node?.params;
+  if (!params) return null;
+  for (let cur = path; cur?.node && cur.node !== fnPath.node; cur = cur.parentPath) {
+    if (params.includes(cur.node)) return cur;
+  }
+  return null;
+}
+
+// composite both destructure dispatches gate caller-lossy emissions on: the binding sits in the
+// params of a function whose calls are NOT fully accounted for. accounted for means an
+// immediately invoked function (the one call is this expression) OR - via the resolver-bound
+// `paramNeverOverridden` scan, the same primitive the type resolver gates default-type
+// authoritativeness on - a non-exported, non-escaping function whose every call leaves this
+// param slot to its default (nothing exists for a lossy emission to lose)
+export function paramsHaveInvisibleCallers(path, { paramNeverOverridden = null } = {}) {
+  const fnPath = findEnclosingFunctionLikePath(path);
+  if (!fnPath) return false;
+  const paramPath = findFunctionParamPath(path, fnPath);
+  if (!paramPath) return false;
+  if (isImmediatelyInvokedFunction(fnPath)) return false;
+  if (paramNeverOverridden?.(paramPath)) return false;
+  return true;
+}
+
 // walk parentPath chain (inclusive) to the nearest enclosing function-like. used by
 // param-destructure body-extract (insert `const x = _polyfill;` at body top) and any
 // other transform that needs the binding's owning scope. parser-agnostic - reads
@@ -1324,6 +1368,15 @@ export function findArrayWrappedDestructureHost(objectPatternPath) {
   }
 }
 
+// receiver-shaped expression node: a bare Identifier or a (possibly optional) member chain -
+// the shapes synth-swap / fallback-collapse / init classification accept as a static receiver.
+// covers both parser worlds: babel uses the OptionalMemberExpression node type, estree marks
+// `optional` on a MemberExpression under a ChainExpression (peeled before this check)
+export function isReceiverShapedNode(node) {
+  const type = node?.type;
+  return type === 'Identifier' || type === 'MemberExpression' || type === 'OptionalMemberExpression';
+}
+
 // chain assignment `foo = X` / `obj.foo = X` evaluates to `X` at runtime - peel through
 // these to find the destructure receiver. peel only `=` with Identifier or MemberExpression
 // LHS:
@@ -1331,9 +1384,7 @@ export function findArrayWrappedDestructureHost(objectPatternPath) {
 //  - destructure-LHS `{from: b} = X` is an inner destructure assignment that gets rewritten
 //    independently; peeling through it would race with that rewrite
 export function isChainAssignment(node) {
-  if (node?.type !== 'AssignmentExpression' || node.operator !== '=') return false;
-  const lt = node.left?.type;
-  return lt === 'Identifier' || lt === 'MemberExpression' || lt === 'OptionalMemberExpression';
+  return node?.type === 'AssignmentExpression' && node.operator === '=' && isReceiverShapedNode(node.left);
 }
 
 // destructure-receiver slot on a wrapper node:
@@ -2551,10 +2602,15 @@ export const isIdentifierPropValue = value => propBindingIdentifier(value) !== n
 // accepts both Babel `ObjectProperty` and ESTree `Property` node types
 export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
   let bound = null;
+  // duplicate static keys bail the synth (the literal would need duplicate properties or a
+  // merge policy) - the established fallbacks handle the exotic shape soundly
+  const seenNames = new Set();
   for (const p of objectPattern.properties) {
     if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
     if (!p.computed) {
       if (p.key?.type !== 'Identifier') return false;
+      if (seenNames.has(p.key.name)) return false;
+      seenNames.add(p.key.name);
       continue;
     }
     if (p.key?.type === 'Identifier') {
@@ -2595,6 +2651,33 @@ export function synthSwapPropKey(prop) {
 export function isReplayableSynthKey(prop) {
   return prop.key?.type === 'Identifier'
     || (prop.computed && (staticStringKey(prop.key) !== null || sequenceKeyStaticName(prop.key) !== null));
+}
+
+// per-property CONTENT plan for a synthesized receiver literal - the single classification both
+// emitters render (babel as ObjectProperties, unplugin as source text). serves the flat
+// param-default synth swap AND the per-branch conditional / logical synth: both families
+// register into the same accumulator and flow through this builder. per entry:
+//   keyNode  - the original pattern key node
+//   computed - render the key / receiver read as computed `[k]` (false for SE keys)
+//   seName   - static name of a side-effecting sequence key, null otherwise. the key mirrors
+//              as the PLAIN string name and an unpolyfilled value reads `R["name"]` - the
+//              prefix effects stay on the pattern key and run exactly once at destructure
+//   polyfill - the accumulator's queued value when the key resolved (emitter-opaque:
+//              babel queues { entry, hintName }, unplugin the injected binding name),
+//              null -> re-read through the receiver
+export function buildFlatSynthEntries(objectPatternNode, polyfills) {
+  const entries = [];
+  for (const prop of objectPatternNode.properties) {
+    if ((prop.type !== 'Property' && prop.type !== 'ObjectProperty') || !isReplayableSynthKey(prop)) continue;
+    const seName = prop.computed ? sequenceKeyStaticName(prop.key) : null;
+    entries.push({
+      keyNode: prop.key,
+      computed: prop.computed && seName === null,
+      seName,
+      polyfill: polyfills.get(synthSwapPropKey(prop)) ?? null,
+    });
+  }
+  return entries;
 }
 
 // computed-key synth-swap safety: a bare-global computed key (`[Set]` with no in-scope binding) gets
