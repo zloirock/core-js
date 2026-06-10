@@ -43,8 +43,53 @@ QUnit.test("'from' in (eff(), Array) -> SE runs once", assert => {
 // an assignment-expression obj: the fold keeps the whole assignment, so the binding still updates
 QUnit.test("'groupBy' in (m = Map) -> assignment preserved", assert => {
   let m;
-  // eslint-disable-next-line prefer-const -- the assignment expression is the side effect under test
   const r = 'groupBy' in (m = Map);
   assert.true(r);
   assert.same(typeof m.groupBy, 'function');
+});
+
+// an IIFE-rooted RHS chain: the fold discards the chain but must re-run the IIFE setup once
+QUnit.test("'from' in IIFE-proxy chain -> side effect runs once", assert => {
+  let calls = 0;
+  const r = 'from' in (() => {
+    calls++;
+    return globalThis;
+  })().Array;
+  assert.true(r);
+  assert.same(calls, 1);
+});
+
+QUnit.test("'resolve' in inline call -> side effect runs once", assert => {
+  let calls = 0;
+  const r = 'resolve' in (() => {
+    calls++;
+    return Promise;
+  })();
+  assert.true(r);
+  assert.same(calls, 1);
+});
+
+// a chain-assignment buried under the RHS member chain is rescued whole: the binding captures
+// the IIFE result and the setup runs once
+QUnit.test("'from' in chain over assignment -> assignment and side effect preserved", assert => {
+  let calls = 0;
+  let captured;
+  const r = 'from' in (captured = (() => {
+    calls++;
+    return globalThis;
+  })()).Array;
+  assert.true(r);
+  assert.same(calls, 1);
+  assert.same(captured, globalThis);
+});
+
+// RHS sequence prefix + chain-root IIFE: both run, in source order
+QUnit.test("'from' in (eff(), IIFE-chain) -> SE order preserved", assert => {
+  const log = [];
+  const r = 'from' in (log.push('s'), (() => {
+    log.push('r');
+    return globalThis;
+  })().Array);
+  assert.true(r);
+  assert.deepEqual(log, ['s', 'r']);
 });

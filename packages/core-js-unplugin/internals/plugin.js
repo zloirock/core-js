@@ -2,6 +2,7 @@ import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
+  staticFallbackSwapRedundant,
   collectMutatedStaticMembers,
   forEachStatementListBody,
   getMinifierSequenceDestructureExpressions,
@@ -774,6 +775,15 @@ export default function createPlugin(options) {
           return !!sideEffects?.some(se => se.start <= inner.start && inner.end <= se.end);
         }
 
+        // skip the receiver leaf Identifier unless a re-emitted sideEffect subtree preserves it
+        // (then its own substitution must stay queued); shared by the fallback + static dispatches
+        function skipUnpreservedReceiverLeaf(objectNode, sideEffects) {
+          const inner = unwrapReceiverLeaf(objectNode);
+          if (inner?.type === 'Identifier' && !innerPreservedBySideEffects(inner, sideEffects)) {
+            skippedNodes.add(inner);
+          }
+        }
+
         const usagePureCallback = (meta, metaPath) => {
           // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
@@ -838,7 +848,7 @@ export default function createPlugin(options) {
             }
             if (isTaggedTemplateTag(parent, node, meta.placement)) return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator({
-              node, parent, metaPath, sideEffects: meta.sideEffects,
+              node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
             });
           }
 
@@ -850,6 +860,9 @@ export default function createPlugin(options) {
           // import binding). babel bails the same way; gate the fallback to keep parity
           if (fallback && node.type === 'MemberExpression'
           && node.object?.type !== 'Super' && !inheritedStatic) {
+            // a kept SE-bearing inline-call receiver already yields the polyfill binding through
+            // its own rewritten return leaf - leave the member untouched, the inner visits do the job
+            if (staticFallbackSwapRedundant(node.object, meta.sideEffects)) return;
             skipProxyGlobal(node);
             const binding = injectPureImport(fallback.entry, fallback.hintName);
             // fallback fires for non-proxy-global polyfilled idents (`Promise?.foo`, `Map?.x`);
@@ -861,13 +874,15 @@ export default function createPlugin(options) {
             // `replaceStaticFallback` mirrors babel-plugin's `withSideEffects(id, allEffects)`
             // shape: preserves receiver `meta.sideEffects` + chain-assignment so
             // `(called++, Promise).noSuchStatic` keeps the `called++` rather than dropping it
-            replaceStaticFallback({ binding, node, metaPath, sideEffects: meta.sideEffects });
+            replaceStaticFallback({
+              binding, node, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+            });
             // outer text-emit absorbs the whole receiver: any inner Identifier whose name
             // matches the polyfill's substitution would compose into the emit (`_Map` substring
             // inside the outer's `_Map` -> `__Map`). peel through wrappers + IIFE shells to find
-            // the effective receiver leaf and mark it skipped before the Identifier visitor runs
-            const inner = unwrapReceiverLeaf(node.object);
-            if (inner?.type === 'Identifier') skippedNodes.add(inner);
+            // the effective receiver leaf and mark it skipped before the Identifier visitor runs;
+            // a leaf preserved by a re-emitted sideEffect subtree keeps its own substitution
+            skipUnpreservedReceiverLeaf(node.object, meta.sideEffects);
             return;
           }
           // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
@@ -903,7 +918,9 @@ export default function createPlugin(options) {
           if (node.type === 'MemberExpression' && kind !== 'instance') skipProxyGlobal(node);
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
-            replaceInstance({ binding, node, parent, metaPath, sideEffects: meta.sideEffects });
+            replaceInstance({
+              binding, node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+            });
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
             replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects, inheritedStatic });
             // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`):
@@ -919,12 +936,7 @@ export default function createPlugin(options) {
             // must still receive its own polyfill substitution. SE-tail receivers (`(foo(), Symbol)`)
             // carry only the preceding expressions in sideEffects, NOT the receiver subtree, so
             // the leaf is dropped from the output text and suppression still applies
-            if (node.type === 'MemberExpression') {
-              const inner = unwrapReceiverLeaf(node.object);
-              if (inner?.type === 'Identifier' && !innerPreservedBySideEffects(inner, meta.sideEffects)) {
-                skippedNodes.add(inner);
-              }
-            }
+            if (node.type === 'MemberExpression') skipUnpreservedReceiverLeaf(node.object, meta.sideEffects);
           }
         };
 
