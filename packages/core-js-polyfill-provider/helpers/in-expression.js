@@ -14,14 +14,19 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
   if (symbolIn && isEntryNeeded(symbolIn.entry)) {
     const leadingSe = [];
+    // a folded chain root (IIFE) harvested at detection (`handleBinaryIn`, where scope/adapter live) runs
+    // FIRST in source order; `visitSymbolInLhsSe` then adds any parens/sequence prefix SE the LHS carries
+    if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
     visitSymbolInLhsSe(left, e => leadingSe.push(e));
     return { kind: 'symbol', call: meta.key === 'Symbol.iterator', entry: symbolIn.entry, hint: symbolIn.hint, leadingSe, right };
   }
   // bare-name LHS with a statically-known polyfilled key (`'from' in Array`) folds to `true`
   // (the polyfill is always defined). BOTH operands still evaluate their SE even though the
   // result is constant: a SequenceExpression keeps its SE-bearing prefix and drops the consumed
-  // tail; an AssignmentExpression RHS is kept whole (rescues the assignment + binding update); a
-  // CallExpression RHS is intentionally NOT rescued (SE-bearing IIFEs are filtered upstream).
+  // tail; an AssignmentExpression RHS is kept whole (rescues the assignment + binding update);
+  // SE buried deeper in the discarded RHS chain (an SE-bearing chain-root call, a buried
+  // chain-assignment) arrives pre-harvested in `meta.sideEffects` (detection has live
+  // scope/adapter to inline-probe the call).
   // `skip` names the single operand the fold discards, so a text emitter can mark it skipped (an
   // AST emitter drops it implicitly by replacing the node); null when nothing is discarded
   if (meta.object) {
@@ -43,6 +48,8 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
       leadingSe.push(rhs);
       skip = null;
     }
+    // detection-harvested RHS chain SE runs in RHS position, after any RHS sequence prefix
+    if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
     return { kind: 'fold', leadingSe, skip };
   }
   return { kind: 'noop' };

@@ -154,11 +154,51 @@ const EXPR_FAMILIES = {
     '(log.push("a"), (log.push("b"), arr)).flat()',
     '(log.push("a"), arr).slice().flat()',
   ],
+  // static-FALLBACK receiver-only swap (member name NOT a known static, e.g. `.noSuchStatic`): the
+  // receiver swaps to the pure ctor and its SE must be prepended. an IIFE / member-chain receiver's SE
+  // was undercounted to 0 (a narrow emit-side recompute) and DROPPED in BOTH plugins - the build-time
+  // receiver-effect count fixes the split. `log` records the receiver eval so a drop shows as length 0
+  'static-fallback-receiver-se': [
+    '(() => { const r = (() => { log.push("r"); return Promise; })().noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = globalThis[(log.push("r"), "Promise")].noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = (log.push("r"), Promise).noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = (() => (() => { log.push("r"); return Promise; })())().noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = (() => { log.push("r"); return Promise; })()[(log.push("k"), "noSuchStatic")]; return [typeof r, log.join("|")]; })()',
+  ],
   'computed-symbol': [
     'arr[Symbol.iterator]?.().next().value',
     'arr[Symbol["iterator"]]().next().value',
     'arr[Symbol[(log.push("k"), "iterator")]]().next().value',
     'Symbol["iterator"] in arr',
+  ],
+  // IIFE-rooted proxy-global chain producing a static/well-known value (`(() => globalThis)().Symbol.iterator`,
+  // `.Promise.resolve`, `.Array.from`): the chain folds to the pure import but the IIFE setup must survive
+  // (theme-D harvest), and the inner globalThis must keep its own polyfill without overlapping the outer
+  // collapse (theme-E - a bare-polyfilled receiver ctor like Symbol/Promise crashed unplugin's text queue).
+  // intermediate hops use `.globalThis.` (Node-valid; `self`/`window` don't exist in the native oracle,
+  // those hop spellings are covered by transpiler fixtures instead)
+  'iife-proxy-static-se': [
+    '(() => { const it = (() => { log.push("r"); return globalThis; })().Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+    '(() => { const p = (() => { log.push("r"); return globalThis; })().Promise.resolve(7); return [typeof p.then, log.length]; })()',
+    '(() => { const a = (() => { log.push("r"); return globalThis; })().Array.from([1, 2]); return [a.join(","), log.length]; })()',
+    '(() => { const m = arr[(() => { log.push("r"); return globalThis; })().Symbol.iterator]; return [typeof m, log.length]; })()',
+    '(() => { const has = (() => { log.push("r"); return globalThis; })().Symbol.iterator in arr; return [has, log.length]; })()',
+    '(() => { const it = (() => { log.push("r"); return globalThis; })().globalThis.Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+    '(() => { const p = (() => { log.push("r"); return globalThis; })().globalThis.Promise.resolve(7); return [typeof p.then, log.length]; })()',
+    '(() => { let a; const it = (a = (() => { log.push("r"); return globalThis; })()).Symbol.iterator; return [it === Symbol.iterator, a === globalThis, log.length]; })()',
+    '(() => { const it = (() => (() => { log.push("r"); return globalThis; })())().Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+    '(() => { const p = (() => { log.push("r"); return globalThis; })()?.Promise.resolve(7); return [typeof p.then, log.length]; })()',
+    '(() => { const it = (() => globalThis)().globalThis.Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+  ],
+  // string-key `in` FOLD with an SE-bearing RHS chain: the fold discards the RHS, so a chain-root
+  // IIFE / inline call / buried chain-assignment must be harvested at detection and re-prepended -
+  // and the rescued source must keep its inner rewrites (`globalThis -> _globalThis`) + imports.
+  // the sequence case additionally locks the prefix-before-chain-root SE order
+  'in-fold-rhs-se': [
+    '(() => { const r = "from" in (() => { log.push("r"); return globalThis; })().Array; return [r, log.length]; })()',
+    '(() => { const r = "resolve" in (() => { log.push("r"); return Promise; })(); return [r, log.length]; })()',
+    '(() => { let a; const r = "from" in (a = (() => { log.push("r"); return globalThis; })()).Array; return [r, a === globalThis, log.length]; })()',
+    '(() => { const r = "from" in (log.push("s"), (() => { log.push("r"); return globalThis; })().Array); return [r, log.join("|")]; })()',
   ],
   'deep-proxy': [
     'globalThis.globalThis.Array.from([1, 2])',
@@ -172,6 +212,43 @@ const EXPR_FAMILIES = {
     '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
     '(() => { const { ["from"]: f } = Array; return typeof f; })()',
     '(() => { const { [(log.push("k"), "from")]: f } = Array; return typeof f; })()',
+    // SE-bearing chain-root call in a flattenable init: the flatten harvests the discarded call
+    // and re-emits it ahead of the extraction (setup runs once, polyfill still wins); the no-SE
+    // twin flattens clean. covers the IIFE leaf, a member hop, and the proxy-global-receiver host
+    '(() => { const [{ from }] = [(() => { log.push("r"); return Array; })()]; return [typeof from, log.length]; })()',
+    '(() => { const [{ from }] = [(() => Array)()]; return [typeof from, log.length]; })()',
+    '(() => { const [{ from }] = [(() => { log.push("r"); return globalThis; })().Array]; return [typeof from, log.length]; })()',
+    '(() => { const [{ Array: { from } }] = [(() => { log.push("r"); return globalThis; })()]; return [typeof from, log.length]; })()',
+    '(() => { const { Array: { from } } = (() => { log.push("r"); return globalThis; })(); return [typeof from, log.length]; })()',
+    // SE-bearing IIFE in branchy / assignment-form destructure inits: the per-branch and
+    // assignment-destructure machinery must keep the setup intact too
+    '(() => { const { from } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof from, log.length]; })()',
+    '(() => { const { from } = (() => { log.push("r"); return Array; })() ?? Array; return [typeof from, log.length]; })()',
+    '(() => { let from; ({ from } = (() => { log.push("r"); return Array; })()); return [typeof from, log.length]; })()',
+    '(() => { const { from } = (log.push("s"), (() => Array)()); return [typeof from, log.join("|")]; })()',
+    // conditional init with an inline-call branch: the taken branch synths to the polyfill and an
+    // SE-bearing call is rescued (runs once, on its own branch only); the untaken branch must NOT run
+    '(() => { const { from } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof from, log.length]; })()',
+    '(() => { const { from } = cond ? Array : (() => { log.push("r"); return Array; })(); return [typeof from, log.length]; })()',
+    '(() => { const { from } = cond ? (() => { log.push("a"); return Array; })() : (() => { log.push("b"); return Array; })(); return [typeof from, log.join("|")]; })()',
+    '(() => { const { from } = (() => (cond ? Array : Iterator))(); return [typeof from, log.length]; })()',
+    // logical forms with an inline-call side: `&&` synths the call branch (rescued), `||` / `??`
+    // lift the init statement whole; a renamed / computed-literal key flows through the same synth
+    '(() => { const { from } = cond && (() => { log.push("r"); return Array; })(); return [typeof from, log.length]; })()',
+    '(() => { const { from } = (() => { log.push("r"); return Array; })() || Iterator; return [typeof from, log.length]; })()',
+    '(() => { const { from: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
+    '(() => { const { ["from"]: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
+    // const-alias wrapper: the IIFE's setup runs at the ALIAS declaration, not in the discarded
+    // read - the harvest must not re-emit it (a deref-escaped call once double-ran, log.length 2)
+    '(() => { const wrapper = [(() => { log.push("r"); return Array; })()]; const [{ from }] = wrapper; return [typeof from, log.length]; })()',
+    '(() => { const w1 = [(() => { log.push("r"); return Array; })()]; const w2 = w1; const [{ of }] = w2; return [typeof of, log.length]; })()',
+    // a chain-assignment in the discarded init is rescued WHOLE: the binding captures, the
+    // setup runs once, and the binding still gets the polyfill - for the array-leaf form too
+    '(() => { let a; const [{ from }] = [(a = globalThis).Array]; return [typeof from, a === globalThis, log.length]; })()',
+    '(() => { let a; const { Array: { of } } = (a = globalThis); return [typeof of, a === globalThis, log.length]; })()',
+    '(() => { let a; const [{ from }] = [(a = (() => { log.push("r"); return Array; })())]; return [typeof from, typeof a, log.length]; })()',
+    '(() => { let a; const [{ from }] = [(a = (() => { log.push("r"); return globalThis; })()).Array]; return [typeof from, a === globalThis, log.length]; })()',
+    '(() => { let a = null; const [{ of }] = [(a ??= globalThis).Array]; return [typeof of, a === globalThis, log.length]; })()',
     // an ArrayPattern-wrapper whose leaf is a const-ALIAS of the constructor (`const A = Array; [A]`):
     // the leaf must be canonicalized back to Array, else `from` drops (babel usage-pure dropped while
     // unplugin rescued -> divergence). a 2-hop alias and an object-nested alias under the wrapper too

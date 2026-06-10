@@ -38,13 +38,60 @@ function tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) {
 // call node; MemberExpression chain (`(() => globalThis)().Array`, `globalThis.self.Array`)
 // descends through `.object` peeling parens until either a CallExpression surfaces or the
 // chain bottoms on a non-call (Identifier / proxy-global / etc.). returns null otherwise -
-// caller uses it to probe `inlineCallHasObservableEffects` for SE-preservation
-function findChainRootCallExpression(node) {
+// caller uses it to probe `inlineCallHasObservableEffects` for SE-preservation.
+// `throughChainAssign` additionally peels chain-assignments at every hop (matching
+// `chainRootResolvesToProxyGlobal`): the subsumption gate must see the call under
+// `(a = IIFE()).Symbol`, while the SE-harvest callers must NOT - the preserved assignment
+// already re-emits the call, so harvesting it too would double-run the setup
+function findChainRootCallExpression(node, throughChainAssign = false) {
+  let cur = throughChainAssign ? peelChainAssignmentDeep(unwrapParens(node)) : node;
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    cur = unwrapParens(cur.object);
+    if (throughChainAssign) cur = peelChainAssignmentDeep(cur);
+  }
+  return isCallShape(cur) ? cur : null;
+}
+
+// SE-bearing call at the root of a chain (`(() => { c++; return X; })()`, direct or under member
+// hops): a fold / flatten that DISCARDS the chain would silently drop the call's observable setup.
+// returns the call node when it carries effects, null otherwise - callers either harvest it for
+// re-emission or bail the discard entirely
+export function seBearingChainRootCall({ node, scope, adapter, path }) {
+  const rootCall = findChainRootCallExpression(node);
+  return rootCall && inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path })
+    ? rootCall : null;
+}
+
+// an inline-resolvable call at the root of a FOLDED chain (receiver collapsed into a static
+// import, folded computed symbol key, folded `in` operand) carries observable setup the fold would
+// silently drop - the parens/sequence walks only collect wrapper prefixes, not a folded call.
+// harvest the call so the emit re-runs it in source order ahead of the polyfill value
+function collectChainRootCallEffect({ node, sideEffects, scope, adapter, path }) {
+  const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
+  if (rootCall) sideEffects.push(rootCall);
+}
+
+// outermost chain-assignment buried under a member chain (`(a = IIFE()).Array`, `(a = X).self.Y`).
+// a fold that discards the chain must rescue the assignment WHOLE - it both updates the binding and
+// re-runs everything inside it (including an SE-bearing call root), so the caller harvests it
+// INSTEAD of probing the chain-root call (harvesting both would double-run the setup)
+export function findBuriedChainAssignment(node) {
   let cur = node;
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     cur = unwrapParens(cur.object);
+    if (cur?.type === 'AssignmentExpression') return cur;
   }
-  return isCallShape(cur) ? cur : null;
+  return null;
+}
+
+// observable node a DISCARD would silently drop: a chain-assignment (direct or buried under
+// member hops - rescued WHOLE, see above), else an SE-bearing chain-root call. the destructure
+// flatten consults this for the init it is about to discard; callers re-emit the returned node
+// ahead of the extraction or bail the discard. NOT for the `in` fold, whose planner rescues a
+// DIRECT assignment RHS itself - routing it through here would double-rescue
+export function discardRescueNode({ node, scope, adapter, path }) {
+  return (node.type === 'AssignmentExpression' ? node : findBuriedChainAssignment(node))
+    ?? seBearingChainRootCall({ node, scope, adapter, path });
 }
 
 // a static dispatch on a member-chain receiver collapses the WHOLE receiver into a single
@@ -136,14 +183,13 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // call) by re-emitting the outermost `=` expression. pushing the inner root-call into
     // sideEffects here would duplicate it - the SequenceExpression wrap would emit the
     // IIFE both as part of `(a = IIFE())` and as a standalone receiver re-eval. only
-    // probe `findChainRootCallExpression` when there's no chain-assign wrapper.
-    if (objectName && !chainAssignOuter) {
-      const rootCall = findChainRootCallExpression(classifyTarget);
-      if (rootCall && inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path })) {
-        sideEffects.push(rootCall);
-      }
-    }
+    // probe the chain root when there's no chain-assign wrapper.
+    if (objectName && !chainAssignOuter) collectChainRootCallEffect({ node: classifyTarget, sideEffects, scope, adapter, path });
   }
+  // record where the receiver-SE ends (everything collected above: parens/sequence + chain-collapse +
+  // inline-call root) so the emit-side receiver/key split uses the SAME boundary the build collected,
+  // not a narrower recompute that undercounts a member-chain / inline-call receiver to 0
+  meta.receiverEffectCount = sideEffects.length;
   // outer key SE runs after the receiver (including any nested key SE collected above)
   sideEffects.push(...keyEffects);
   if (sideEffects.length) meta.sideEffects = sideEffects;
@@ -180,6 +226,7 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     const meta = { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
     const sideEffects = [];
     unwrapParensCollectingEffects(node.object, sideEffects);
+    meta.receiverEffectCount = sideEffects.length;
     sideEffects.push(...symbolKey.sideEffects);
     if (sideEffects.length) meta.sideEffects = sideEffects;
     return meta;
@@ -188,7 +235,22 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
   // only mark when we actually resolved a receiver: meta.object === null means
   // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
   // and the receiver identifier-visitor may still need to polyfill it as a standalone global
-  if (meta?.object) markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path);
+  if (meta?.object) {
+    markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path);
+    // a static-placement member collapses the WHOLE `X.prop` to one import (`Symbol.iterator` ->
+    // `_Symbol$iterator`, `Promise.resolve` -> `_Promise$resolve`), so the receiver chain is SUBSUMED -
+    // unlike a prototype-method receiver (`_Map.prototype.has`) whose constructor member stays the
+    // single source of the receiver replacement. when the chain roots in an inline-resolvable call
+    // (`(() => globalThis)().self.Symbol.iterator`, `(a = IIFE()).Promise.resolve(1)`), the hops are
+    // invisible to `markHandledObjects` (its predicates only recognise Identifier-rooted chains), so
+    // each hop would queue its own rewrite overlapping the outer collapse and crash unplugin's text
+    // queue. delegate to the same chain subsumption the symbol-key / `in` paths use: it marks every
+    // hop + wrapper, and its root marking skips the inner proxy-global leaf when the call carries
+    // observable effects (the re-emitted body keeps a live reference that still needs `_globalThis`)
+    if (suppressProxyGlobals && meta.placement === 'static' && findChainRootCallExpression(node.object, true)) {
+      markSubsumedProxyChain(node.object, handledObjects, scope, adapter, path);
+    }
+  }
   return meta;
 }
 
@@ -283,6 +345,9 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     if (name && !name.includes('.')) {
       const key = `Symbol.${ name }`;
       const inEntry = resolveSymbolInEntry(key);
+      // harvest here rather than at emit (`visitSymbolInLhsSe`) - scope/adapter are live at detection
+      const sideEffects = [];
+      collectChainRootCallEffect({ node: left, sideEffects, scope, adapter, path });
       // gate seeding on actual rewrite viability. `resolveSymbolInEntry` only checks
       // string shape (`Symbol.foo` -> `symbol/foo`); `isEntryAvailable` consults the
       // resolved per-namespace entries map and rejects synthetic paths
@@ -301,7 +366,7 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
         // mode split as `handleMemberExpressionNode`
         if (suppressProxyGlobals) markSubsumedProxyChain(ref.unwrapped, handledObjects, scope, adapter, path);
       }
-      return { kind: 'in', key, object: null, placement: null, symbolSourced: true };
+      return { kind: 'in', key, object: null, placement: null, symbolSourced: true, sideEffects };
     }
   }
   // identifier bound to Symbol.X - `const k = Symbol.iterator; k in obj` works regardless of
@@ -325,7 +390,19 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path });
     if (objectName) {
       const placement = isStaticPlacement(objectName);
-      if (placement) return { kind: 'in', key: resolvedLeft, object: objectName, placement };
+      if (placement) {
+        const meta = { kind: 'in', key: resolvedLeft, object: objectName, placement };
+        // usage-pure FOLDS this meta, discarding the RHS - SE buried in its receiver chain must be
+        // harvested here (scope/adapter live at detection; the planner only rescues a direct
+        // sequence prefix / direct assignment RHS). a buried chain-assignment is rescued whole;
+        // otherwise probe the chain root for an SE-bearing inline call
+        const sideEffects = [];
+        const buriedAssignment = findBuriedChainAssignment(rightObject);
+        if (buriedAssignment) sideEffects.push(buriedAssignment);
+        else collectChainRootCallEffect({ node: rightObject, sideEffects, scope, adapter, path });
+        if (sideEffects.length) meta.sideEffects = sideEffects;
+        return meta;
+      }
     }
   }
   return null;
@@ -343,6 +420,7 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
   const ref = asSymbolRef({ node: prop.object, scope, adapter, path });
   if (!ref) return null;
+  collectChainRootCallEffect({ node: prop, sideEffects, scope, adapter, path });
   const keyNode = prop.computed
     ? unwrapParensCollectingEffects(prop.property, sideEffects) : prop.property;
   const name = resolveKey({ node: keyNode, computed: prop.computed, scope, adapter, path });
