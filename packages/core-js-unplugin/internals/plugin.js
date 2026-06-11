@@ -128,8 +128,9 @@ function nonEmptyString(value) {
   return typeof value === 'string' && value.length ? value : null;
 }
 
-// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R));` collapses a destructure
-// assignment into the SequenceExpression tail. the destructure-emitter gate peels only
+// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
+// assignment into ANY slot of a statement-position SequenceExpression (minified tail,
+// comma-joined statements, nested sequences). the destructure-emitter gate peels only
 // Paren+TS so this shape silently bails. rewrite the ExpressionStatement's
 // SequenceExpression body as consecutive `;`-terminated statements in source text so
 // the standard destructure flow handles the inner assignment. side-effecting prefix
