@@ -1180,3 +1180,58 @@ QUnit.test('destructuring: literal presence and accessor fold', assert => {
   const { g = 's' } = { get g() { return [9]; } };
   assert.same(g.at(0), 9);
 });
+
+// shared-helper edges: spread-expanded IIFE receiver arg, wrapper-default vs live caller-arg,
+// and a const-captured super-class alias surviving an upstream reassignment after the capture
+QUnit.test('destructuring: spread args, wrapper defaults, captured super alias', assert => {
+  // eslint-disable-next-line prefer-const -- a mutable flag keeps the branch pick a runtime decision
+  let c = true;
+  // eslint-disable-next-line unicorn/no-useless-spread -- the inline-array spread IS the shape under test
+  const viaSpread = ((x, { from }) => from)(...[1, c ? Array : Iterator]);
+  assert.same(viaSpread([1, 2]).length, 2);
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the [] is a dead wrapper default, never the receiver
+  const viaArg = (({ from } = []) => from([3]))(Array);
+  assert.same(viaArg[0], 3);
+  let G = globalThis;
+  const Base = G.Array;
+  // eslint-disable-next-line no-useless-assignment -- the dead store IS the shape under test
+  G = null;
+  class C extends Base {
+    static make() {
+      return super.of(9);
+    }
+  }
+  assert.same(C.make()[0], 9);
+});
+
+// assignment-form array wrapper + rest: the cascade keeps the wrap (rest reads the matching
+// init element, excludes the consumed key) and the polyfill overrides the captured binding
+QUnit.test('destructuring: assignment array wrap with rest cascade', assert => {
+  let from, rest;
+  // eslint-disable-next-line prefer-const -- the ASSIGNMENT-form destructure is the shape under test
+  [{ from, ...rest }] = [Array];
+  assert.same(from([7])[0], 7);
+  // pristine built-in statics are non-enumerable, so rest only proves the consumed-key exclusion
+  assert.false('from' in rest);
+});
+
+// an unclassifiable IIFE arg keeps native priority (caller value wins) while the wrapper
+// default carries the polyfill for the undefined-arg path
+QUnit.test('destructuring: wrapper default vs unclassifiable caller arg', assert => {
+  const f = ({ of } = Array) => of;
+  const custom = { of: 'caller' };
+  assert.same(f(custom), 'caller');
+  assert.same(f()(6)[0], 6);
+  assert.same(f(undefined)(7)[0], 7);
+});
+
+// for-init array wrapper + rest: the polyfill rides a sibling declarator inside the loop
+// header (a preceding statement is illegal there) and rest keeps the consumed-key exclusion
+QUnit.test('destructuring: for-init array wrap with rest', assert => {
+  // eslint-disable-next-line no-unreachable-loop -- the for-init HEADER is the shape under test
+  for (const [{ of, ...r }] = [Array]; ;) {
+    assert.same(of(3)[0], 3);
+    assert.false('of' in r);
+    break;
+  }
+});

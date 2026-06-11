@@ -284,6 +284,42 @@ const EXPR_FAMILIES = {
     // per-key presence independence and reassignment-to-undefined parity
     '(() => { const { a = "", b = 0 } = { a: [1], get b() { return "s"; } }; return [a.at(0), b]; })()',
     '(() => { let x = "str"; x = undefined; try { return x.at(0); } catch (e) { return "throw"; } })()',
+    // inline-array spread args expand positionally for the per-branch synth
+    '(() => { let c = true; return ((x, { from }) => typeof from)(...[1, c ? Array : Iterator]); })()',
+    // IIFE caller-arg wins over a non-receiver wrapper default (polyfill rides the live arg)
+    '(() => (({ from } = []) => from([7]))(Array))()',
+    // const-captured alias: an upstream reassignment AFTER the capture must not drop super statics
+    '(() => { let G = globalThis; const B = G.Array; G = null; class C extends B { static m() { return super.of(3); } } return C.m()[0]; })()',
+    // single-element array wrapper with inner rest keeps the residual (rest collects remaining keys)
+    '(() => { const [{ from, ...rest }] = [Array]; return [typeof from, typeof rest]; })()',
+    // for-init host: the polyfill rides a sibling declarator in the loop header
+    '(() => { for (const [{ of, ...r }] = [Array]; ; ) { return [of(9)[0], "of" in r]; } })()',
+    '(() => { for (let i = 0, [{ of, ...r }] = [Array]; i < 1; i++) { return [of(i)[0], "of" in r]; } })()',
+    // spread position edges: receiver before / after the inline-array expansion, empty spread
+    '(() => { let c = true; return (({ from }, x) => typeof from)(c ? Array : Iterator, ...[1]); })()',
+    '(() => { let c = true; return ((x, { of }) => typeof of)(...[], 1, c ? Array : Iterator); })()',
+    // in-loop upstream reassignment must keep the conservative native path (dominance blocks)
+    '(() => { let G = globalThis; const out = []; for (let i = 0; i < 2; i++) { const B = G.Array; '
+      + 'class C extends B { static m() { return typeof super.of; } } out.push(C.m()); G = { Array: function () { return 1; } }; } return out; })()',
+    // a bound capitalized arg preempts (alias resolution), a shadowed constructor name keeps
+    // its caller value - both paths must match native byte-for-byte
+    '(() => { const A = Array; return (({ of } = Iterator) => typeof of)(A); })()',
+    '(() => { const Iterator = { of: function () { return "shadow"; } }; return (({ of } = Array) => of(1))(Iterator); })()',
+    // an unclassifiable live arg keeps native priority while the default-path polyfills
+    '(() => { const v = { of: function () { return "caller"; } }; return (({ of } = Array) => of(1))(v); })()',
+    '(() => (({ of } = Array) => of(5))(undefined))()',
+    // synth-swap keeps the SE prefix of a wrapped live arg (effect runs exactly once)
+    '(() => { let n = 0; const r = (({ from }) => from([5]))((n++, Array)); return [r[0], n]; })()',
+    // cross-function capture: a top-level reassignment before the call must keep super native
+    '(() => { let G = globalThis; function make() { const B = G.Array; class C extends B { static m() { return super.of(1); } } return C.m(); } '
+      + 'G = { Array: { of: function () { return "custom"; } } }; return make(); })()',
+    // aliased key + rest under a single-element array wrapper extracts and keeps rest exclusion
+    '(() => { const [{ from: f, ...r }] = [Array]; return [f([8])[0], "from" in r]; })()',
+    // assignment-form array wrap + rest flows through the rest-aware cascade on both plugins
+    '(() => { let from, rest, x; [{ from, ...rest }, x] = [Array, 1]; return [typeof from, x]; })()',
+    '(() => { let from, rest; [{ from, ...rest }] = [Array]; return [from([6])[0], "from" in rest]; })()',
+    '(() => { let from, rest, n = 0; [{ from, ...rest }] = (n++, [Array]); return [from([4])[0], n]; })()',
+    '(() => { let from, rest; [{ Array: { from, ...rest } }] = [globalThis]; return [from([2])[0], "from" in rest]; })()',
     // duplicate HOP keys merge their subtrees - both read the same receiver property
     '(() => { function g({ Array: { from }, Array: { of } } = globalThis) { return [typeof from, typeof of]; } return g(); })()',
     '(() => { function g({ Array: { from }, Array: { from: f2, of } } = globalThis) { return [typeof from, typeof f2, typeof of]; } return g(); })()',
