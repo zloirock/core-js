@@ -3,6 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
+import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 // the CALL-form mutated-static collectors (`Object.assign(Array, {...})`, `Reflect.set(Map, ...)`,
 // `Object.defineProperty(...)`) must shadow-check the NAMESPACE callee, not just the target arg. here
