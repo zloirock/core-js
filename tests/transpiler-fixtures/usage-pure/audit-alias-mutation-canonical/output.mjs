@@ -1,5 +1,7 @@
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 // the monkey-patch pre-pass canonicalizes const-alias receivers across every value-flow

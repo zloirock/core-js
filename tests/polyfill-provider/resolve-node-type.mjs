@@ -5,7 +5,10 @@
 import { adapters, createChecker } from './harness.mjs';
 import { transformSync as babelTransform } from '@babel/core';
 import { parseSync as parseSyncOxc } from 'oxc-parser';
-import { collectMutationPrePass as collectBabelMutationPrePass } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import {
+  collectMutationPrePass as collectBabelMutationPrePass,
+  createBabelAdapter,
+} from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import {
   collectMutationPrePass as collectEstreeMutationPrePass,
   createEstreeAdapter,
@@ -2822,6 +2825,9 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
 // agreement, preserving every behavior the old synthetic blocks pinned
 
 {
+  // suites probe the COLLECTOR semantics; shim ignoring depends on plugin resolvers, so the
+  // harness adapters answer "nothing is polyfillable" - every shim shape stays recorded here
+  const babelMutationAdapter = createBabelAdapter(() => null, 'usage-pure');
   const estreeMutationAdapter = createEstreeAdapter(() => null, 'usage-pure');
   function collectBoth(src) {
     let babelMutated = null;
@@ -2829,7 +2835,7 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
       configFile: false,
       babelrc: false,
       sourceType: 'module',
-      plugins: [{ visitor: { Program(p2) { babelMutated = collectBabelMutationPrePass(p2).mutated; } } }],
+      plugins: [{ visitor: { Program(p2) { babelMutated = collectBabelMutationPrePass(p2, babelMutationAdapter).mutated; } } }],
     });
 
     const estreeMutated = collectEstreeMutationPrePass(parseSyncOxc('unit.mjs', src).program, estreeMutationAdapter).mutated;
@@ -2892,6 +2898,29 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     ["const g = globalThis; Reflect.set(g.Array, 'of', 1);", ['Array.of'], []],
     ["let h2; h2 = c ? o : globalThis; Object.defineProperty(h2.Array, 'of', d);", ['Array.of'], []],
     ['Object.assign(Iterator, { ...patch }, { from: f });', ['Iterator.from'], ['Iterator.toArray']],
+    // prototype mutations record `Ctor.prototype.key` (the enrichment imports the instance
+    // entry up front); deeper or non-prototype chains keep their ordinary resolution
+    ['String.prototype.at = patch;', ['String.prototype.at'], []],
+    ['Array.prototype.flatMap ||= patch;', ['Array.prototype.flatMap'], []],
+    ['const S = String; S.prototype.at = patch;', ['String.prototype.at'], []],
+    ['globalThis.String.prototype.at = patch;', ['String.prototype.at'], []],
+    ['globalThis.self.Array.prototype.flatMap = patch;', ['Array.prototype.flatMap'], []],
+    ['config.thing.prototype.at = patch;', [], ['thing.prototype.at']],
+    ['const proto = String.prototype; proto.at = patch;', ['String.prototype.at'], []],
+    ['for (const k of ks) String.prototype[k] = fns[k];', [], ['String.prototype.at']],
+    // nested writes into a local container whose keys are static and DON'T match stay out
+    // (the gate skips the scoped traverse for them entirely)
+    ['const config = { mode: 1 }; config.foo.bar = patch;', [], ['foo.bar']],
+    // GUARDED shim shapes are mutations like any other: the routing model handles them by
+    // enriching the key (polyfill-then-patch), so the collector must record them
+    ['Iterator.from ||= shim;', ['Iterator.from'], []],
+    ['Promise.allSettled = Promise.allSettled || shim;', ['Promise.allSettled'], []],
+    ['if (!Object.groupBy) Object.groupBy = shim;', ['Object.groupBy'], []],
+    ["if (typeof Map.groupBy != 'function') Map.groupBy = shim;", ['Map.groupBy'], []],
+    ["if (!('from' in Array)) Array.from = shim;", ['Array.from'], []],
+    // ctor-slot writes through proxies record the slot (the enrichment pins the ctor entry)
+    ['window.Promise = window.Promise || Shim;', ['window.Promise'], []],
+    ['globalThis.Map = ShimMap;', ['globalThis.Map'], []],
     // shadows: a local twin of the alias name poisons BOTH reachable values; a shadowing
     // parameter is not the global; export-default class declares a program binding
     // the scoped resolver sees the REAL (inner) callee - the outer twin is dead for this

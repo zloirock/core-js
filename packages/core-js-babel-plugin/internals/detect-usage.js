@@ -16,10 +16,8 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  classifyMutationSite,
+  createMutationSiteHandler,
   hasMutationCandidateShapes,
-  namespaceIsShadowed,
-  resolveMutationSite,
 } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
@@ -62,17 +60,10 @@ function stringLiteralValue(node) {
 // scoped mutation pre-pass: the cheap shape gate runs first; only files that actually
 // monkey-patch pay for the path traverse + canonical receiver resolution. shares every
 // resolution step with the read side via `mutation-prepass` (provider)
-export function collectMutationPrePass(programPath) {
+export function collectMutationPrePass(programPath, adapter) {
   const mutated = new Set();
   if (!hasMutationCandidateShapes(programPath.node)) return { mutated };
-  const adapter = createBabelAdapter();
-  const handleSite = path => {
-    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent)) {
-      if (namespaceIsShadowed(namespace, { scope: path.scope, adapter, path })) continue;
-      const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
-      for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
-    }
-  };
+  const handleSite = createMutationSiteHandler({ adapter, mutated });
   programPath.traverse({
     MemberExpression: handleSite,
     CallExpression: handleSite,
@@ -294,9 +285,11 @@ export function createUsageVisitors({
     }
     if (handledObjects.has(node)) return;
     if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
-      // a write-only member never reads the static; its receiver follows the SAME identifier
-      // routing the (always-mutated-by-definition) reads use, so the patch and the reads
-      // land on one object - no special marking
+      // a guarded SHIM write stays fully native (its statement is ignored as polyfill
+      // intent); a deliberate override's receiver follows the SAME identifier routing the
+      // reads use, so the patch and the reads land on one object - no marking there
+      // its receiver follows the SAME identifier routing the (always-mutated-by-definition)
+      // reads use, so the patch and the reads land on one object - no marking
       return;
     }
     const meta = handleMemberExpressionNode({
