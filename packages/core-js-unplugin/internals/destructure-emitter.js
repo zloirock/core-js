@@ -825,7 +825,21 @@ export function createDestructureEmitter({
         && mayHaveSideEffects(info.initNode);
     if (liftSE) {
       if (isForInit) forInitSESinks.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
-      else parts.push(initTransformed);
+      else {
+        // emit only the SE PREFIX when the tail is an effect-free PROXY-MEMBER chain: that
+        // tail is dead after the full consume, and keeping it emitted a spurious proxy-global
+        // read + import (babel drops exactly this tail class - import-set parity, fuzzer-
+        // enforced - while keeping bare-constructor tails). the tail's globals were marked at
+        // collection time, so no queued substitution targets the dropped slice
+        const { prefix, tail } = peelNestedSequenceExpressions(info.initNode);
+        const peeledTail = unwrapParens(tail);
+        const dropTail = prefix.length && !mayHaveSideEffects(peeledTail)
+          && (peeledTail?.type === 'MemberExpression' || peeledTail?.type === 'OptionalMemberExpression')
+          && findProxyGlobal(peeledTail);
+        if (dropTail) {
+          parts.push(...prefix.map(e => transforms.extractContent(e.start, e.end) ?? nodeSrc(e)));
+        } else parts.push(initTransformed);
+      }
     }
 
     for (const e of entries) {
@@ -2387,7 +2401,24 @@ export function createDestructureEmitter({
       // methods compose correctly and stay polyfilled (init expression remains as arg)
       if (initNode && !mayHaveSideEffects(initNode)) markInitGlobals(initNode);
     }
-    pendingDestructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
+    const pending = pendingDestructuring.get(objectPattern);
+    pending.entries.push({ propNode, localName, binding, kind, defaultSrc });
+    // once EVERY prop of the pattern is collected as a STATIC entry, the flatten will fully
+    // consume the declarator and the render lifts only the SE prefix - an effect-free
+    // PROXY-MEMBER tail is then dead, so mark its globals NOW (before the visitor reaches the
+    // init subtree) to suppress the substitution + import for the dropped slice (matching
+    // babel, which drops exactly this tail class while keeping bare-constructor tails).
+    // for-init hosts keep the WHOLE init under a sink declarator and stay unmarked
+    if (initNode && !isAssignment && !isCatchClause
+      && pending.entries.length === objectPattern?.properties?.length
+      && pending.entries.every(e => e.kind === 'static')
+      && declPath?.node?.type === 'VariableDeclaration'
+      && declPath.parentPath?.node?.type !== 'ForStatement') {
+      const { tail } = peelNestedSequenceExpressions(initNode);
+      const peeledTail = tail === initNode ? null : unwrapParens(tail);
+      if ((peeledTail?.type === 'MemberExpression' || peeledTail?.type === 'OptionalMemberExpression')
+        && findProxyGlobal(peeledTail) && !mayHaveSideEffects(peeledTail)) markInitGlobals(peeledTail);
+    }
   }
 
   // walk init expression marking proxy-global member chains and bare identifiers as
@@ -2539,9 +2570,31 @@ export function createDestructureEmitter({
     // slice from the WRAPPER-inclusive root start, not the peeled identifier's: for a
     // parenthesized root (`(globalThis).self.Array`) the identifier start lies after the `(`,
     // so `src.slice(0, start)` would keep a dangling open paren while `prefixEnd` drops its match
-    const start = proxyGlobalWrappedRoot(target).start - baseStart;
-    return src.slice(0, start) + injectPureImport(rootPure.entry, rootPure.hintName)
-      + src.slice(prefixEnd - baseStart);
+    const wrappedRoot = proxyGlobalWrappedRoot(target);
+    const start = wrappedRoot.start - baseStart;
+    // SE prefixes buried in the root wrapper keep evaluating (root-first order):
+    // `(eff(), globalThis).self.X` collapses to `(eff(), _globalThis).X`, not `_globalThis.X`
+    const prefixSrcs = [];
+    let rootCur = wrappedRoot;
+    for (;;) {
+      const peeledRoot = unwrapParens(rootCur);
+      if (peeledRoot?.type === 'SequenceExpression' && peeledRoot.expressions.length) {
+        for (const expr of peeledRoot.expressions.slice(0, -1)) {
+          prefixSrcs.push(src.slice(expr.start - baseStart, expr.end - baseStart));
+        }
+        rootCur = peeledRoot.expressions.at(-1);
+      } else break;
+    }
+    const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
+    // an IRREGULAR root wrapper (the unwrap does not bottom at the proxy identifier - e.g.
+    // an SE wrapping a partial member chain, `((e2(), (e1(), globalThis).self)).Array`) makes
+    // the [wrappedRoot.start, prefixEnd) slice structurally unsound (the full-collapse rewrite
+    // corrupted the parens) - bail to the caller's verbatim fallback: the chain stays a
+    // residual target whose root the NATURAL visitor substitutes (a manual root slice here
+    // collided with that queued transform and the compose remapped it onto the hop key)
+    if (unwrapParens(rootCur) !== proxyRoot) return null;
+    const rootText = prefixSrcs.length ? `(${ [...prefixSrcs, rootBinding].join(', ') })` : rootBinding;
+    return src.slice(0, start) + rootText + src.slice(prefixEnd - baseStart);
   }
 
   // receiver source for a synth swap's MemberExpression receiver (`globalThis.Array`),
