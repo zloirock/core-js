@@ -169,8 +169,15 @@ export default class ImportInjectorState {
   // narrowing through the polyfill UID's alias would dispatch Array-specific instance
   // polyfills incorrectly. babel post-AST-mutation scope loses `constantViolations` so
   // the resolver can't re-derive the flag at use site; capture pre-mutation here
-  registerBodyExtractAlias(name, entry, sourceBinding = null) {
-    if (sourceBinding && sourceBinding.kind !== 'const' && sourceBinding.constantViolations?.length) {
+  // `selfWriteNode` - the destructure assignment's own AssignmentExpression when the alias
+  // comes from the `let x; ({ x } = Source)` form: that write IS the aliasing event, not a
+  // disqualifying reassignment (the same declarator-self exclusion the resolver's
+  // reassignment enumerators apply). only violations BEYOND it poison the alias
+  registerBodyExtractAlias(name, entry, sourceBinding = null, selfWriteNode = null) {
+    const violations = selfWriteNode
+      ? sourceBinding?.constantViolations?.filter(v => (v.node ?? v) !== selfWriteNode)
+      : sourceBinding?.constantViolations;
+    if (sourceBinding && sourceBinding.kind !== 'const' && violations?.length) {
       this.#trackReassignedBinding(name, reassignedStart(sourceBinding));
       return;
     }
