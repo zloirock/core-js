@@ -3,6 +3,13 @@
 // babel-plugin) AND oxc (used by unplugin), so dispatch-shape regressions in either
 // adapter surface immediately
 import { adapters, createChecker } from './harness.mjs';
+import { transformSync as babelTransform } from '@babel/core';
+import { parseSync as parseSyncOxc } from 'oxc-parser';
+import { collectMutationPrePass as collectBabelMutationPrePass } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
+import {
+  collectMutationPrePass as collectEstreeMutationPrePass,
+  createEstreeAdapter,
+} from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { blockAlwaysExits, canFallThrough, nodeAlwaysExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
 import {
   isAmbientClassNode,
@@ -62,7 +69,6 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   createTypeAnnotationChecker,
-  collectMutatedStaticMembers,
   declaresRequireBinding,
   destructureReceiverSlot,
   detectCommonJS,
@@ -2810,293 +2816,108 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('ast-patterns: hasRestSiblingExcept null', hasRestSiblingExcept(null, propA), false);
 }
 
-// --- ast-patterns: collectMutatedStaticMembers ---
+// --- mutation pre-pass: canonical receiver resolution (cross-plugin, source-based) ---
+// the pre-pass moved from a synthetic-node alias graph to the scoped plugin collectors backed
+// by the read-side canons; these locks run REAL sources through BOTH collectors and assert
+// agreement, preserving every behavior the old synthetic blocks pinned
 
 {
-  // helper builders to keep node graphs readable
-  function ident(name) {
-    return { type: 'Identifier', name };
-  }
-  function member(objName, propName) {
-    return { type: 'MemberExpression', object: ident(objName), property: ident(propName), computed: false };
-  }
-  function program(stmts) {
-    return { type: 'Program', body: stmts };
-  }
-  function exprStmt(expression) {
-    return { type: 'ExpressionStatement', expression };
-  }
+  const estreeMutationAdapter = createEstreeAdapter(() => null, 'usage-pure');
+  function collectBoth(src) {
+    let babelMutated = null;
+    babelTransform(src, {
+      configFile: false,
+      babelrc: false,
+      sourceType: 'module',
+      plugins: [{ visitor: { Program(p2) { babelMutated = collectBabelMutationPrePass(p2).mutated; } } }],
+    });
 
-  // baseline: direct assignment surfaces in the mutation set
-  {
-    const stmts = [exprStmt({
-      type: 'AssignmentExpression',
-      operator: '=',
-      left: member('Array', 'from'),
-      right: { type: 'NumericLiteral', value: 1 },
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: direct assignment Array.from',
-      mutated.has('Array.from'));
+    const estreeMutated = collectEstreeMutationPrePass(parseSyncOxc('unit.mjs', src).program, estreeMutationAdapter).mutated;
+    const a = [...babelMutated].sort().join('|');
+    const b = [...estreeMutated].sort().join('|');
+    check(`mutation pre-pass parity for: ${ src.slice(0, 60) }`, a, b);
+    return babelMutated;
   }
-
-  // for-of LHS: `for (Array.from of arr) { ... }`
-  {
-    const stmts = [{
-      type: 'ForOfStatement',
-      left: member('Array', 'from'),
-      right: ident('arr'),
-      body: { type: 'BlockStatement', body: [] },
-    }];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: for-of LHS marks mutation',
-      mutated.has('Array.from'));
+  const CASES = [
+    // [source, expected-present[], expected-absent[]]
+    ['Array.from = 1;', ['Array.from'], []],
+    ['for (Array.from of arr) {}', ['Array.from'], []],
+    ['for (Array.from in src) {}', ['Array.from'], []],
+    ['for (x of Array.from) {}', [], ['Array.from']],
+    ["Object.defineProperty(Array, 'from', d);", ['Array.from'], []],
+    ['Object.defineProperties(Iterator, { from: { value: 1 } });', ['Iterator.from'], []],
+    ['Object.assign(Array, { of: 1 }, { from: 2 });', ['Array.of', 'Array.from'], []],
+    ["Reflect.set(Array, 'of', 1);", ['Array.of'], []],
+    // alias canonicalization: the read side canonicalizes, so the mutation must too
+    ['const A = Array; A.from = 1;', ['Array.from'], ['A.from']],
+    ['const A = Array; const b = A; b.of = 1;', ['Array.of'], []],
+    // reassigned alias poisons EVERY reachable value
+    ['let A = Array; A = Map; A.of = 1;', ['Array.of', 'Map.of'], []],
+    ['let A = Array; A ||= Map; A.of = 1;', ['Array.of', 'Map.of'], []],
+    ['let A = Array; [A] = [Iterator]; A.of = 1;', ['Array.of', 'Iterator.of'], []],
+    // composite values fan out
+    ['const A = cond ? Map : Iterator; A.of = 1;', ['Map.of', 'Iterator.of'], []],
+    ['let A; A = (se(), Map); A.of = 1;', ['Map.of'], []],
+    ['let A; A = (B = Map); A.of = 1;', ['Map.of'], []],
+    ['let B2; ({ B2 = Promise } = {}); B2.resolve = 1;', ['Promise.resolve'], []],
+    // call returns: direct IIFE and bound single-return functions
+    ['const A = (() => Map)(); A.of = 1;', ['Map.of'], []],
+    ['const f = () => Map; const A = f(); A.of = 1;', ['Map.of'], []],
+    ['function g() { return Iterator; } const B = g(); B.from = 1;', ['Iterator.from'], []],
+    // static containers: object literal (deep), class static field; duplicate keys take the
+    // LAST (live) value; the leaf-name shortcut must not appear
+    ['const NS = { M: Map }; const A = NS.M; A.of = 1;', ['Map.of'], ['M.of']],
+    ['const NS = { a: { I: Iterator } }; const A = NS.a.I; A.from = 1;', ['Iterator.from'], []],
+    ['class NS { static M = Map; } const A = NS.M; A.of = 1;', ['Map.of'], []],
+    ['const ND = { M: Array, M: Iterator }; const A = ND.M; A.from = 1;', ['Iterator.from'], ['Array.from']],
+    // computed STATIC-string keys read like plain keys (container, mutation, assign source)
+    ["const NS = { ['M']: Map }; const A = NS.M; A.of = 1;", ['Map.of'], []],
+    ["const A = Array; A['from'] = 1;", ['Array.from'], []],
+    ["Object.assign(Array, { ['from']: 1 });", ['Array.from'], []],
+    // proxy-global chain receivers (SE-buried roots and proxy aliases included)
+    ['globalThis.Array.from = 1;', ['Array.from'], []],
+    ['(eff(), globalThis).Array.from = 1;', ['Array.from'], []],
+    ['const g = globalThis; g.Array.from = 1;', ['Array.from'], []],
+    ['const s = globalThis.self; s.Iterator.from = 1;', ['Iterator.from'], []],
+    // pattern-slot edges: a hole still pairs positionally; rest binds a FRESH array (its
+    // element mutation is not a constructor mutation); a swap stays an unresolvable cycle
+    ['let A = Array; [, A] = [0, Iterator]; A.of = 1;', ['Iterator.of'], []],
+    ['let B = Array; [...B] = [Iterator]; B.of = 1;', [], ['Iterator.of']],
+    // chain targets through every alias value shape reaching a proxy global
+    ['let h; h = c ? o : globalThis.self; h.Iterator.from = 1;', ['Iterator.from'], []],
+    ['let h = globalThis; if (c) h = o; h.Array.of = 1;', ['Array.of'], []],
+    ['const h = (() => globalThis)(); h.Array.from = 1;', ['Array.from'], []],
+    // namespace-call mutators through alias receivers; spread sources stay unenumerable but
+    // the literal keys beside them still record
+    ["const g = globalThis; Reflect.set(g.Array, 'of', 1);", ['Array.of'], []],
+    ["let h2; h2 = c ? o : globalThis; Object.defineProperty(h2.Array, 'of', d);", ['Array.of'], []],
+    ['Object.assign(Iterator, { ...patch }, { from: f });', ['Iterator.from'], ['Iterator.toArray']],
+    // shadows: a local twin of the alias name poisons BOTH reachable values; a shadowing
+    // parameter is not the global; export-default class declares a program binding
+    // the scoped resolver sees the REAL (inner) callee - the outer twin is dead for this
+    // mutation and stays unpoisoned (a precision gain over the former scope-flat collector)
+    ['const f = () => Map; function g() { const f = () => Iterator; const A = f(); A.from = 1; }', ['Iterator.from'], ['Map.from']],
+    ['function f(Array) { Array.from = 1; }', [], ['Array.from']],
+    ['export default class Array {} Array.from = 1;', [], ['Array.from']],
+  ];
+  for (const [src, present, absent] of CASES) {
+    const mutated = collectBoth(src);
+    for (const key of present) checkTruthy(`mutation pre-pass: ${ src.slice(0, 50) } has ${ key }`, mutated.has(key));
+    for (const key of absent) check(`mutation pre-pass: ${ src.slice(0, 50) } lacks ${ key }`, mutated.has(key), false);
   }
-
-  // for-in LHS: `for (Array.from in src) { ... }`
+  // pattern-LHS writes pair into the alias value union and the reaching-definition recovery
+  // (a plain helper flowed the WHOLE array literal instead of the slot value)
   {
-    const stmts = [{
-      type: 'ForInStatement',
-      left: member('Array', 'from'),
-      right: ident('src'),
-      body: { type: 'BlockStatement', body: [] },
-    }];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: for-in LHS marks mutation',
-      mutated.has('Array.from'));
+    const mutated = collectBoth('let A = Array; [A] = [Iterator]; A.of = 1;');
+    checkTruthy('mutation pre-pass: pattern write poisons the paired Iterator.of', mutated.has('Iterator.of'));
   }
-
-  // for-of right-hand iterable: member sits in RHS read position, NOT a mutation
+  // a chain target whose root is a reassigned alias REACHING a proxy global records the
+  // constructor-leaf mutation (an unresolved chain root silently bypassed the patch)
   {
-    const stmts = [{
-      type: 'ForOfStatement',
-      left: ident('x'),
-      right: member('Array', 'from'),
-      body: { type: 'BlockStatement', body: [] },
-    }];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: for-of RHS does not mark',
-      mutated.has('Array.from'), false);
-  }
-
-  // Object.defineProperty(Array, 'from', desc) - babel StringLiteral key
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'defineProperty'),
-      arguments: [
-        ident('Array'),
-        { type: 'StringLiteral', value: 'from' },
-        { type: 'ObjectExpression', properties: [] },
-      ],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: defineProperty babel StringLiteral key',
-      mutated.has('Array.from'));
-  }
-
-  // Object.defineProperty with oxc-style `Literal` string key
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'defineProperty'),
-      arguments: [
-        ident('Array'),
-        { type: 'Literal', value: 'isArray' },
-        { type: 'ObjectExpression', properties: [] },
-      ],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: defineProperty oxc Literal key',
-      mutated.has('Array.isArray'));
-  }
-
-  // dynamic key: `Object.defineProperty(Array, name, desc)` must NOT mark
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'defineProperty'),
-      arguments: [ident('Array'), ident('name'), { type: 'ObjectExpression', properties: [] }],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: defineProperty dynamic key bails',
-      mutated.size, 0);
-  }
-
-  // non-Identifier target: `Object.defineProperty(getCtor(), 'from', d)` must NOT mark
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'defineProperty'),
-      arguments: [
-        { type: 'CallExpression', callee: ident('getCtor'), arguments: [] },
-        { type: 'StringLiteral', value: 'from' },
-        { type: 'ObjectExpression', properties: [] },
-      ],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: defineProperty non-Identifier target bails',
-      mutated.size, 0);
-  }
-
-  // Object.defineProperties(Array, { from: d, isArray: d }) - multi-key shape
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'defineProperties'),
-      arguments: [
-        ident('Array'),
-        {
-          type: 'ObjectExpression',
-          properties: [
-            {
-              type: 'ObjectProperty',
-              key: ident('from'),
-              value: { type: 'ObjectExpression', properties: [] },
-              computed: false,
-            },
-            {
-              type: 'ObjectProperty',
-              key: { type: 'StringLiteral', value: 'isArray' },
-              value: { type: 'ObjectExpression', properties: [] },
-              computed: false,
-            },
-          ],
-        },
-      ],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: defineProperties identifier key',
-      mutated.has('Array.from'));
-    checkTruthy('collectMutatedStaticMembers: defineProperties string-literal key',
-      mutated.has('Array.isArray'));
-  }
-
-  // defineProperties with computed key must NOT mark - dynamic key value
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'defineProperties'),
-      arguments: [
-        ident('Array'),
-        {
-          type: 'ObjectExpression',
-          properties: [{
-            type: 'ObjectProperty',
-            key: ident('name'),
-            value: { type: 'ObjectExpression', properties: [] },
-            computed: true,
-          }],
-        },
-      ],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: defineProperties computed key bails',
-      mutated.size, 0);
-  }
-
-  // Object.something() but NOT defineProperty / defineProperties - no marking
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'keys'),
-      arguments: [ident('Array'), { type: 'StringLiteral', value: 'from' }],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: Object.keys does not mark',
-      mutated.size, 0);
-  }
-
-  // Reflect.defineProperty(Array, 'from', desc) - same monkey-patch semantics as
-  // Object.defineProperty, must mark the target/key pair
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Reflect', 'defineProperty'),
-      arguments: [
-        ident('Array'),
-        { type: 'StringLiteral', value: 'from' },
-        { type: 'ObjectExpression', properties: [] },
-      ],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: Reflect.defineProperty marks',
-      mutated.has('Array.from'));
-  }
-
-  // Reflect.deleteProperty(Array, 'from') - removes the own slot, same effect as
-  // `delete Array.from` for resolver purposes
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Reflect', 'deleteProperty'),
-      arguments: [ident('Array'), { type: 'StringLiteral', value: 'from' }],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: Reflect.deleteProperty marks',
-      mutated.has('Array.from'));
-  }
-
-  // Reflect.set(Array, 'from', fn) is the call-form of `Array.from = fn` and the [[Set]] twin of
-  // Object.assign, so it monkey-patches the slot and MUST mark (parity with the alias-narrow path)
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Reflect', 'set'),
-      arguments: [
-        ident('Array'),
-        { type: 'StringLiteral', value: 'from' },
-        ident('newFn'),
-      ],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    checkTruthy('collectMutatedStaticMembers: Reflect.set marks',
-      mutated.has('Array.from'));
-  }
-  // Reflect.get (and other non-slot-override Reflect methods) must NOT mark - negative test
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Reflect', 'get'),
-      arguments: [ident('Array'), { type: 'StringLiteral', value: 'from' }],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: Reflect.get does not mark',
-      mutated.size, 0);
-  }
-
-  // Object.setPrototypeOf changes [[Prototype]], not any own slot. negative test:
-  // must NOT mark the target identifier even though shape matches Object.X(target, ...)
-  {
-    const stmts = [exprStmt({
-      type: 'CallExpression',
-      callee: member('Object', 'setPrototypeOf'),
-      arguments: [ident('Array'), ident('Object')],
-    })];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: Object.setPrototypeOf does not mark',
-      mutated.size, 0);
-  }
-
-  // `export default class Array {}` declares a program binding: a mutation on the LOCAL class
-  // must not register as a global mutated-static (an unregistered default-export produced a
-  // phantom over-bail)
-  {
-    const stmts = [
-      {
-        type: 'ExportDefaultDeclaration',
-        declaration: { type: 'ClassDeclaration', id: ident('Array'), body: { type: 'ClassBody', body: [] } },
-      },
-      exprStmt({
-        type: 'AssignmentExpression',
-        operator: '=',
-        left: member('Array', 'from'),
-        right: { type: 'NumericLiteral', value: 1 },
-      }),
-    ];
-    const mutated = collectMutatedStaticMembers(program(stmts));
-    check('collectMutatedStaticMembers: export-default class shadows the global',
-      mutated.has('Array.from'), false);
+    const mutated = collectBoth('let h; h = c ? other : globalThis; h.Array.of = 1;');
+    checkTruthy('mutation pre-pass: reassigned proxy-alias chain poisons Array.of', mutated.has('Array.of'));
+    const clean = collectBoth('let h3; h3 = c ? a : b; h3.config.of = 1;');
+    check('mutation pre-pass: non-proxy alias chain stays unrecorded', clean.has('config.of'), false);
   }
 }
 

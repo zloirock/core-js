@@ -90,6 +90,7 @@ function hasOptionalChainInCall(rawExpr) {
 }
 
 export function createPredicateGuards({
+  getScopeBinding,
   resolveMemberCallChain,
   unwrapTypeAnnotation,
   memberCallReturnAnnotation,
@@ -152,7 +153,7 @@ export function createPredicateGuards({
     }
     if (peeled?.type !== 'Identifier') return [];
     const out = [];
-    const binding = scope.getBinding(peeled.name);
+    const binding = getScopeBinding(scope, peeled.name);
     const seen = new Set();
     const push = path => {
       if (seen.has(path)) return;
