@@ -341,6 +341,16 @@ const EXPR_FAMILIES = {
     '(() => { let n = 0; class Ce extends (n++, globalThis).Array { static m() { return super.of(5); } } return [Ce.m()[0], n]; })()',
     // a mid-sequence destructure assignment splits and polyfills like a standalone statement
     '(() => { let from; (({ from } = Array), 0); return [from([7, 8]).at(-1), typeof from]; })()',
+    // a buried SE on a synth-swap receiver spine survives the literal swap
+    '(() => { const calls = []; const eff = () => calls.push(1); '
+      + 'function f({ from } = (eff(), globalThis).Array) { return typeof from; } '
+      + 'return [f(), calls.length]; })()',
+    // an optional delete pairs with reads on one routed object
+    '(() => { Map.customOptKey = 3; const had = "customOptKey" in Map; delete Map?.customOptKey; '
+      + 'return [had, "customOptKey" in Map]; })()',
+    // for-init flatten sibling: every shape (rest / 2-instance) keeps its polyfill
+    '(() => { const out = []; for (const { Array: { from } } = globalThis, { at, ...rest } = [4, 5]; out.length < 1; ) '
+      + 'out.push([from([6]).at(0), at.call([7, 8], -1), "concat" in rest]); return out; })()',
     // a nested-sequence-slot destructure splits through the fixpoint
     '(() => { let of2; ((0, ({ of: of2 } = Array)), 1); return [of2(9).at(0)]; })()',
     // assignment-destructure alias narrows the receiver type for the typed instance variant

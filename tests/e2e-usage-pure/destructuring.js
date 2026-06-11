@@ -1306,3 +1306,27 @@ QUnit.test('destructuring: mid-sequence assignment destructure polyfills', asser
   assert.same(calls.length, 1);
   assert.same(from([5, 6]).at(-1), 6);
 });
+
+// a for-init flatten sibling keeps its polyfill on rest-bearing shapes: the extracted
+// entry, the rest exclusion and the flatten all live in one comma-list
+QUnit.test('destructuring: for-init flatten sibling rest shape', assert => {
+  const arr = [1, 2, 3];
+  for (const { Array: { of: of2 } } = globalThis, { at, ...rest } = arr, state = { i: 0 }; state.i < 1; state.i++) {
+    assert.same(typeof of2, 'function');
+    assert.same(at.call(arr, -1), 3);
+    assert.false('at' in rest);
+    assert.same(rest[1], 2);
+  }
+});
+
+// a buried SE on the synth-swap receiver spine runs exactly once when the default fires
+// and never when the caller passes a value
+QUnit.test('destructuring: synth-swap rescues buried receiver side effects', assert => {
+  const calls = [];
+  const eff = () => calls.push('eff');
+  function f({ from } = (eff(), globalThis).Array) { return from; }
+  assert.same(typeof f(), 'function');
+  assert.same(calls.length, 1);
+  f({ from: 'custom' });
+  assert.same(calls.length, 1);
+});
