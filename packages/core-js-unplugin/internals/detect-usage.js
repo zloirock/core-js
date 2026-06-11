@@ -11,11 +11,17 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
+  classifyMutationSite,
+  hasMutationCandidateShapes,
+  namespaceIsShadowed,
+  resolveMutationSite,
+} from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   unwrapParens,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode, markGlobalWriteReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   collectFunctionScopeVarReassignments,
@@ -39,7 +45,7 @@ import {
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
-import { is as estreeIs } from 'estree-toolkit';
+import { is as estreeIs, traverse } from 'estree-toolkit';
 
 // --- isReferenced ---
 
@@ -151,7 +157,7 @@ function isAmbientBinding(binding) {
 
 // is `path` contained within `node` - i.e. does `node` sit on `path`'s ancestor chain (inclusive)?
 // tests whether a use-site is inside a given namespace block
-function pathContainedBy(path, node) {
+export function pathContainedBy(path, node) {
   for (let cur = path; cur; cur = cur.parentPath) {
     if (cur.node === node) return true;
   }
@@ -206,13 +212,40 @@ function hasRuntimeBinding(scope, name, path = null) {
 // '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) get recognised as
 // proxy-globals. re-entrancy is the caller's contract: plugin.js save/restore is the
 // runTransform try/finally - early-returns before the save leave the outer injector intact.
-export function createEstreeAdapter(getInjector = () => null, method = null) {
+// scoped mutation pre-pass (estree side): the cheap shape gate first; only files that
+// actually monkey-patch pay for the scoped toolkit traverse + canonical receiver resolution.
+// shares every resolution step with the read side via `mutation-prepass` (provider)
+export function collectMutationPrePass(ast, adapter) {
+  const mutated = new Set();
+  if (!hasMutationCandidateShapes(ast)) return { mutated };
+  const handleSite = path => {
+    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent)) {
+      if (namespaceIsShadowed(namespace, { scope: path.scope, adapter, path })) continue;
+      const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
+      for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
+    }
+  };
+  traverse(ast, {
+    $: { scope: true },
+    MemberExpression: handleSite,
+    CallExpression: handleSite,
+  });
+  return { mutated };
+}
+
+export function createEstreeAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
   return {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
     // a receiver-less helper (dropping the receiver), so the shared resolver gates the
     // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
     // inject side-effect imports, which is sound regardless of where the alias was assigned
     method,
+    // a static the user monkey-patches is not a polyfillable static (pure only): detection
+    // leaves its receiver to the identifier machinery so the patch and the reads share the
+    // injected constructor object
+    isMutatedStatic(object, key) {
+      return method === 'usage-pure' && !!getMutatedStatics()?.has(`${ object }.${ key }`);
+    },
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
     // detection in `bindingSymbolKey`. null between transforms (no injector active)
     get packages() { return getInjector()?.packages ?? null; },
@@ -237,6 +270,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null) {
         const declarator = path ? findFunctionScopeVarDeclaratorInPath(path, name) : null;
         return declarator ? {
           node: declarator,
+          kind: 'var',
           constantViolations: collectFunctionScopeVarReassignments(path, name),
           importSource: null,
           polyfillHint: null,
@@ -280,6 +314,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null) {
             : b.constantViolations;
       return {
         node: b.path.node,
+        kind: b.kind,
         constantViolations,
         importSource,
         polyfillHint,
@@ -767,7 +802,7 @@ export function createUsageVisitors({
   }
 
   function memberExpressionVisitor(path) {
-    const { node, parent } = path;
+    const { node } = path;
     // `globalThis.Map ||= X` / `globalThis.self.Map ||= X` - check BEFORE `isReferenced`
     // rejects (write-context member) and before child-visitor rewrites `globalThis` ->
     // `_globalThis`. `globalProxyMemberName` (used inside the helper) walks chains and
@@ -778,20 +813,9 @@ export function createUsageVisitors({
     }
     if (handledObjects.has(node)) return;
     if (!isReferenced({ path, skipUpdateTargets })) {
-      // an UpdateExpression operand (`Promise.allSettled++`) is rejected as a write target, but
-      // the receiver must still be MARKED handled - else the identifier visitor substitutes the
-      // global with its pure import (`_Promise.allSettled++` writes a frozen slot AND desyncs
-      // from the sibling native read). mirror babel, which marks the receiver then bails on the
-      // update. run for marking only (discard meta, no emit)
-      if (skipUpdateTargets && isInUpdateOperand(path.parentPath)) {
-        handleMemberExpressionNode({ node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path });
-      }
-      // usage-pure: a write-only member whose receiver is a global keeps that receiver bare so a
-      // static write lands on the global (the same-key read bails to the global for a mutated
-      // static); mark the receiver so the identifier visitor doesn't rewrite it to the pure import
-      if (method === 'usage-pure' && isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
-        markGlobalWriteReceiver({ node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path });
-      }
+      // write-only / update members never read the static; their receivers follow the SAME
+      // identifier routing the (always-mutated-by-definition) reads use, so the patch and
+      // the reads land on one object - no marking
       return;
     }
     const meta = handleMemberExpressionNode({

@@ -2,8 +2,8 @@ import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
+  namespaceScopedBindingBlock,
   staticFallbackSwapRedundant,
-  collectMutatedStaticMembers,
   forEachStatementListBody,
   getMinifierSequenceDestructureExpressions,
   createTypeAnnotationChecker,
@@ -40,7 +40,7 @@ import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js';
-import { createEstreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
+import { pathContainedBy, collectMutationPrePass, createEstreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
 import { isCallee, isOutermostOptionalChainMember } from './emit-utils.js';
 import { createPolyfillEmitter } from './polyfill-emitter.js';
@@ -232,11 +232,25 @@ export default function createPlugin(options) {
   // MagicString is sync, all current visitors are sync. enforce by inspection
   let currentInjector = null;
   // `options.method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
-  const estreeAdapter = createEstreeAdapter(() => currentInjector, options.method);
+  const estreeAdapter = createEstreeAdapter(() => currentInjector, options.method, () => currentMutatedStatics);
   const typeResolvers = createResolveNodeType(nodeType, types, {
     getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
     getPolyfillBindingHint: (scope, name) => currentInjector?.getBindingInfo?.(name)?.hint ?? null,
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
+    // estree-toolkit OVER-HOISTS `namespace N { export var x }` bindings to the enclosing
+    // program / function scope - a raw lookup surfaced the namespace twin for a use OUTSIDE
+    // the block and narrowed the outer binding to the WRONG flavor. position-aware (the
+    // mirror of the detect adapter's over-hoist filter): with a use path, the namespace
+    // binding only shadows uses INSIDE its block; without one (path-less resolver routes)
+    // the namespace binding is dropped conservatively - generic dispatch, never a wrong
+    // narrow. babel scopes namespaces correctly and keeps the factory's raw default
+    getScopeBinding(scope, name, path = null) {
+      const binding = scope?.getBinding(name);
+      if (!binding) return binding;
+      const block = namespaceScopedBindingBlock(binding);
+      if (!block) return binding;
+      return path && pathContainedBy(path, block) ? binding : null;
+    },
   });
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling
@@ -264,8 +278,15 @@ export default function createPlugin(options) {
   const { method, absoluteImports, importStyle: importStyleOption } = providerOptions;
   const {
     mode, pkg, packages, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
-    resolveUsage, resolvePure, resolvePureGeneric, resolvePureOrGlobalFallback,
+    resolveUsage, resolvePure: resolvePureUnfiltered, resolvePureGeneric, resolvePureOrGlobalFallback,
   } = resolver;
+  // per-transform mutated-statics set, readable by the factory-scoped adapter / resolvePure
+  // filter (the transform-local const cannot be closed over from here)
+  let currentMutatedStatics = null;
+  // a static the user monkey-patches must never bind to the frozen receiver-less import:
+  // every pipeline (member emission, destructure props, param synth) resolves through this
+  // filter, so the read keeps flowing through the substituted constructor instead
+  const resolvePure = (meta, path) => isMutatedStaticMeta(meta, currentMutatedStatics) ? null : resolvePureUnfiltered(meta, path);
   // `isWebpack` here is a behavior flag for the chunk-loader contract (see
   // `isChunkLoaderBundler` for the bundler set + rationale)
   const isWebpack = isChunkLoaderBundler(bundler);
@@ -440,7 +461,9 @@ export default function createPlugin(options) {
     // so substituting reads after a `[Array.from] = X` / `Array.from = X` would silently
     // diverge from the un-transformed source's behavior. usage-global is unaffected (polyfill
     // installs on the same global slot, user's mutation overlays cleanly)
-    const mutatedStatics = method === 'usage-pure' ? collectMutatedStaticMembers(ast) : null;
+    const mutationInfo = method === 'usage-pure' ? collectMutationPrePass(ast, estreeAdapter) : null;
+    const mutatedStatics = mutationInfo?.mutated ?? null;
+    currentMutatedStatics = mutatedStatics;
 
     const ms = new MagicString(code, { filename: id });
     // late-bound: debugOutput is constructed below (after createPolyfillResolver) but the
@@ -788,13 +811,11 @@ export default function createPlugin(options) {
         const usagePureCallback = (meta, metaPath) => {
           // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
-          // type-annotation positions + monkey-patched statics. the last gate consults the
-          // pre-pass mutation set: substituting reads with the `const`-bound polyfill import
-          // would silently bypass user's `Array.from = X` / `[Array.from] = X` (unlike
-          // usage-global which shares the global slot - mutation overlays the polyfill there)
+          // type-annotation positions. monkey-patched statics never reach here: detection
+          // returns no meta for them and the receiver flows through the identifier machinery
           if (isDisabled(metaPath.node) || skippedNodes.has(metaPath.node)
             || metaPath.node?.type === 'JSXIdentifier'
-            || isInTypeAnnotation(metaPath) || isMutatedStaticMeta(meta, mutatedStatics)) return;
+            || isInTypeAnnotation(metaPath)) return;
           scopeTracker.setScope(metaPath);
           const { node } = metaPath;
           // walk past parens, chain expressions, and TS wrappers - they all forward to
@@ -845,6 +866,8 @@ export default function createPlugin(options) {
               // this-receiver kind='property'; remap fills it with the super class name.
               // without the re-check, `this.from(arr)` inside `class C extends Array`
               // silently bypasses user's `Array.from = ...` monkey-patch
+              // this-receiver dispatch cannot route through the substituted constructor
+              // object (the patch lives on the namespace, not the prototype chain) - bail
               if (isMutatedStaticMeta(meta, mutatedStatics)) return;
             }
             if (isTaggedTemplateTag(parent, node, meta.placement)) return;
