@@ -719,44 +719,6 @@ export function createDestructureEmitter({
     return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart });
   }
 
-  // FOR-INIT-only renderer for a flatten-shared destructure sibling: a for-init's single comma-list
-  // can't host the separate memo / SE statements emitPolyfilled emits, so the comma-joined declarator
-  // form is rendered directly here (`{ at } = getArr()` -> `at = _at(getArr())`). handles single-receiver
-  // shapes incl. defaults (`{ at = d }`) and a retained receiver referencing a polyfillable global
-  // (`{ values } = globalThis.navigator`). returns null for shapes needing the memo/residual/rest
-  // machinery (rest, residual props, computed / symbol-key entries, multiple instance receivers) - a
-  // for-init sibling of that shape stays verbatim (vanishingly rare). block-level siblings skip this
-  // entirely and go through the full emitPolyfilled (single emit path for every block-level shape)
-  function renderFlattenSiblingDecls(info, drainedRefs) {
-    const { entries, allProps, initSrc, initNode } = info;
-    if (!entries.length) return null;
-    const consumed = new Set(entries.map(e => e.propNode));
-    if (allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
-    if (allProps.some(p => !consumed.has(p))) return null;
-    if (entries.some(e => e.kind === 'symbol-key' || e.propNode.computed)) return null;
-    const instanceEntries = entries.filter(e => e.kind === 'instance');
-    if (instanceEntries.length > 1) return null;
-    // bake the scope-tracker body-wrap (`var _ref;`, drained from the init's IIFE arrow body)
-    // into the receiver text so the instance rewrite's `_ref` use stays declared - the
-    // byStatement overwrite this render replaces would have composed it, but the per-declarator
-    // drain pulled it out (to keep it off the parent overwrite range), so re-bake it here
-    let receiverSrc = drainedRefs?.length ? spliceInRange(initSrc, initNode.start, drainedRefs) : initSrc;
-    // a retained instance receiver referencing a polyfillable global (`globalThis.navigator`) needs
-    // its proxy-root substituted in place - markInitGlobals suppressed the natural visitor on non-SE
-    // inits, so a bare global would leak. gating on `!mayHaveSideEffects` matches that suppression:
-    // SE inits keep the IIFE-body splice baked above and let the natural visitor polyfill their globals
-    if (instanceEntries.length && !mayHaveSideEffects(initNode)) {
-      receiverSrc = polyfillInitGlobals(info) ?? receiverSrc;
-    }
-    return entries.map(e => {
-      const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ receiverSrc })` : e.binding;
-      if (!e.defaultSrc) return `${ e.localName } = ${ valueSrc }`;
-      // memo an instance receiver so the default-guard doesn't evaluate `_at(recv)` twice
-      const ref = e.kind === 'instance' ? scopeTracker.genRef(info.scopeSnapshot) : null;
-      return `${ e.localName } = ${ defaultGuardedRhs({ valueSrc, defaultSrc: e.defaultSrc, ref }) }`;
-    });
-  }
-
   function propKeySource(p) {
     return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
   }
@@ -892,19 +854,20 @@ export function createDestructureEmitter({
         const sibInfo = flattenSiblingInfos.get(declaration.declarations[i]);
         if (!sibInfo) continue;
         let decls;
-        if (isForInit) {
-          // a for-init's single comma-list can't host the separate memo / SE statements emitPolyfilled
-          // emits, so the simple per-declarator render is the only safe path (complex for-init siblings
-          // that need a memo bail it and stay verbatim - vanishingly rare)
-          decls = renderFlattenSiblingDecls(sibInfo, perDecl[i].drainedRefs);
-        } else {
-          // block-level: the full byStatement emit covers every shape (simple + memo/residual/rest)
-          // so the sibling's polyfill survives instead of rendering verbatim. bare entry prefix
-          // (renderBlockStatements re-adds the declaration / export keyword), but a non-empty memoPrefix
-          // so the receiver-memo carries its own non-exported `const ` and stays out of any `export` list
+        {
+          // the full emitPolyfilled covers every sibling shape (simple + memo/residual/rest) on
+          // BOTH host shapes, so the polyfill survives instead of rendering verbatim. for-init
+          // renders bare comma-list declarators (memo and rest-pattern slots are valid
+          // declarators; SE lifts through the sink as `_unused = SE`); block-level uses a bare
+          // entry prefix (renderBlockStatements re-adds the declaration / export keyword) with
+          // a `const ` memoPrefix so the receiver-memo stays out of any `export` list
           const parts = [];
-          const siblingCtx = { stmtPrefix: '', memoPrefix: 'const ', isForInit: false, isAssignment: false };
-          emitPolyfilled(sibInfo, parts, [], siblingCtx, perDecl[i].drainedRefs);
+          const seSinks = [];
+          const siblingCtx = isForInit
+            ? { stmtPrefix: '', memoPrefix: '', isForInit: true, isAssignment: false }
+            : { stmtPrefix: '', memoPrefix: 'const ', isForInit: false, isAssignment: false };
+          emitPolyfilled(sibInfo, parts, seSinks, siblingCtx, perDecl[i].drainedRefs);
+          if (seSinks.length) parts.unshift(...seSinks);
           if (parts.length) decls = parts;
         }
         // drainedRefs already baked into the rendered extraction text -> clear so the
@@ -2072,16 +2035,24 @@ export function createDestructureEmitter({
       return;
     }
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
+    // the shared classifier flags SE-bearing receivers (buried-SE member spines) for the
+    // rescue emission: the re-emitted receiver text keeps the effect AND gives queued inner
+    // rewrites their compose needle
+    const { rescueSe } = classifyCallBranchForSynth({
+      inner: receiver, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
+    });
     // synth-swap owns the receiver chain - identifier visitor would race on the same range.
     // for proxy-global MemberExpression receivers (`globalThis.Map`) walk down `.object` so
-    // inner Identifier visitors don't emit `_globalThis` etc. into the now-replaced range
+    // inner Identifier visitors don't emit `_globalThis` etc. into the now-replaced range.
+    // a RESCUED receiver re-emits its own source ahead of the literal, so its inner rewrites
+    // must keep firing (they compose into the re-emitted text by needle) - no skip marking.
     // a fallback-logical receiver is replaced WHOLE - skip its full subtree or the inner
     // Identifier rewrite (`_Iterator`) overlaps the substitution range (babel-twin contract)
     if (receiver.type === 'LogicalExpression') walkAstNodes({ root: receiver, visit: n => skippedNodes.add(n) });
-    else markSynthReceiverSkipped(receiver, skippedNodes);
+    else if (!rescueSe) markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = pendingSynthSwaps.get(receiver);
     if (!pending) {
-      pending = { receiver, objectPattern, polyfills: new Map() };
+      pending = { receiver, objectPattern, polyfills: new Map(), rescueSe };
       pendingSynthSwaps.set(receiver, pending);
     }
     pending.polyfills.set(synthSwapPropKey(propNode), binding);
