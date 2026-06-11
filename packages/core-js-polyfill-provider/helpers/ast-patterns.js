@@ -3323,25 +3323,37 @@ export function walkPatternIdentifiers(node, visit) {
   }
 }
 
-// minifier-shape detection: `ExpressionStatement > [Paren?] > SequenceExpression > [..., last]`
-// where `last` (with optional Paren peel) is `AssignmentExpression` targeting an ObjectPattern
-// or ArrayPattern. shape collapses a destructure assignment into a SequenceExpression tail
-// (`(0, ({pat} = R));` minified form) which the destructure-emitter gate would otherwise miss.
+// minifier-shape detection: `ExpressionStatement > [Paren?] > SequenceExpression > [...]`
+// where ANY slot (with optional Paren peel) is an `AssignmentExpression` targeting an
+// ObjectPattern or ArrayPattern. the shape collapses a destructure assignment into a
+// SequenceExpression (`(0, ({pat} = R));` minified tail, `(({pat} = R), use());`
+// comma-joined statements) which the destructure-emitter gate would otherwise miss.
+// statement context discards every slot's value, so splitting is sound at any position.
 // returns the SequenceExpression's `expressions` array on match (callers split into per-expr
 // statements via adapter-specific mutation), null otherwise. peels both the outer wrapper and
-// the last expression's wrapper - oxc preserves ParenthesizedExpression on both slots, babel
+// each expression's wrapper - oxc preserves ParenthesizedExpression on both slots, babel
 // parser drops them, so the peel is required for cross-parser symmetry
 export function getMinifierSequenceDestructureExpressions(stmt) {
   if (stmt?.type !== 'ExpressionStatement') return null;
   let expr = stmt.expression;
   while (expr?.type === 'ParenthesizedExpression') expr = expr.expression;
   if (expr?.type !== 'SequenceExpression') return null;
-  let last = expr.expressions.at(-1);
-  while (last?.type === 'ParenthesizedExpression') last = last.expression;
-  if (last?.type !== 'AssignmentExpression') return null;
-  const leftType = last.left?.type;
-  if (leftType !== 'ObjectPattern' && leftType !== 'ArrayPattern') return null;
-  return expr.expressions;
+  return sequenceSlotsHaveDestructure(expr, 0) ? expr.expressions : null;
+}
+
+// a slot hosting a NESTED SequenceExpression (`((x(), ({p} = R)), use())`) carries the
+// destructure too: the split's fixpoint loop re-reaches the nested product once the outer
+// statement splits, so matching it here is what lets the outer split happen at all
+function sequenceSlotsHaveDestructure(seq, depth) {
+  if (depth >= MAX_DEPTH) return false;
+  for (let slot of seq.expressions) {
+    while (slot?.type === 'ParenthesizedExpression') slot = slot.expression;
+    if (slot?.type === 'SequenceExpression' && sequenceSlotsHaveDestructure(slot, depth + 1)) return true;
+    if (slot?.type !== 'AssignmentExpression') continue;
+    const leftType = slot.left?.type;
+    if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') return true;
+  }
+  return false;
 }
 
 // node types whose `body[]` slot hosts a Statement list. Program (top-level), BlockStatement
