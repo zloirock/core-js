@@ -35,9 +35,15 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return t.identifier(getInjector().generateUnusedName());
   }
 
-  function memoize(node, scope) {
+  // `anchorNode` - a RANGE-BEARING node at the use site for `var _ref` placement. defaults
+  // to `node`, but callers memoizing a CLONE or a synthesized subtree (optional-method-call
+  // methodNode, combined-chain spliced receivers) must pass the live source node instead: a
+  // range-less useNode fails the param/loop-header escape check and strands the `var` in the
+  // function body, unreachable from a parameter-default use (ReferenceError at call time for
+  // a TS parameter-property default)
+  function memoize(node, scope, anchorNode = node) {
     if (isReusableReceiver(node)) return [t.cloneNode(node), t.cloneNode(node)];
-    const ref = generateRef(scope, node);
+    const ref = generateRef(scope, anchorNode);
     return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
   }
 
@@ -67,8 +73,8 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
   }
 
-  function buildMethodCall({ id, object, scope, args, optionalCall }) {
-    const [assign, ref] = memoize(object, scope);
+  function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode }) {
+    const [assign, ref] = memoize(object, scope, anchorNode ?? object);
     // clone args: originals may belong to a parent being replaced (stale Babel path containers)
     const callArgs = [t.cloneNode(ref), ...args.map(a => t.cloneNode(a))];
     const callMember = optionalCall
@@ -170,13 +176,13 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     } else if (isReusableReceiver(receiverNode)) {
       callReceiver = t.cloneNode(receiverNode);
     } else {
-      const [assign, receiverRef] = memoize(receiverNode, scope);
+      const [assign, receiverRef] = memoize(receiverNode, scope, chainStart.node);
       receiverMemo = assign;
       callReceiver = t.cloneNode(receiverRef);
       // rebind the method's receiver to the memoized ref so it (and any inner `?.`) evaluates once
       methodNode.object = t.cloneNode(receiverRef);
     }
-    const [methodMemo, methodRef] = memoize(methodNode, scope);
+    const [methodMemo, methodRef] = memoize(methodNode, scope, chainStart.node);
     if (memoType) resolvedType?.set(t.cloneNode(methodRef), memoType);
     chainStart.node.callee = t.memberExpression(t.cloneNode(methodRef), t.identifier('call'));
     chainStart.node.arguments = [callReceiver, ...chainStart.node.arguments.map(arg => t.cloneNode(arg))];
@@ -190,7 +196,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       // pass `path` as third arg so `skipPolyfillableOptional` can anchor TS-runtime
       // shadow detection at the reference site (path-aware `adapter.hasBinding`)
       if (skipOptional?.(node, path.scope, path)) return [null, node.object, false];
-      const [memoCheck, memoRef] = memoize(node.object, path.scope);
+      const [memoCheck, memoRef] = memoize(node.object, path.scope, node);
       return [memoCheck, memoRef, false];
     }
     if (!path.isOptionalMemberExpression()) return [null, node.object, false];
@@ -225,7 +231,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       check = rewriteOptionalMethodCall(chainStart, key, path.scope, memoType);
       if (check === null) {
         let ref;
-        [check, ref] = memoize(chainStart.node[key], path.scope);
+        [check, ref] = memoize(chainStart.node[key], path.scope, chainStart.node);
         // cache the memoized value's Type keyed on the cloned `_ref` so the synthesized ref
         // (replacing chainStart's receiver/callee) resolves back to the memoized value's type via
         // `resolveNodeType`'s WeakMap short-circuit - the generated `_ref` has no source position,
@@ -399,7 +405,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       //   - obj evaluated ONCE: deep chains `(arr?.b.includes)(1)` would otherwise re-eval
       //     `arr.b` in callArgs (single-eval matters for receivers with side effects)
       // memoize unconditionally - bare Identifier hits `isReusableReceiver` and inlines without _ref
-      const [objAssign, objRef] = memoize(object, path.scope);
+      const [objAssign, objRef] = memoize(object, path.scope, path.node);
       const lookup = t.callExpression(id, [objAssign]);
       // check=null path: extractCheck saw a polyfillable optional and skipped the null-guard
       // memo (replacement consumes `?.`). drop the ternary wrap to avoid synthesising an
@@ -413,7 +419,9 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     }
     const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode);
     const result = isCall
-      ? buildMethodCall({ id, object: recvNode, scope: path.scope, args: parent.arguments, optionalCall: parent.optional })
+      ? buildMethodCall({
+        id, object: recvNode, scope: path.scope, args: parent.arguments, optionalCall: parent.optional, anchorNode: parent,
+      })
       : t.callExpression(id, [t.cloneNode(recvNode)]);
     replaceAndWrap({
       replacePath: isCall ? callerPath.parentPath : path,
@@ -485,8 +493,8 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       return t.assignmentExpression('=', t.cloneNode(ref), value);
     }
 
-    const [anAssign, aRef] = memoize(innerCallee.object, scope);
-    const mRef = generateRef(scope, innerCallee.object);
+    const [anAssign, aRef] = memoize(innerCallee.object, scope, outerPath.node);
+    const mRef = generateRef(scope, outerPath.node);
     const mCall = t.callExpression(
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
       [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
@@ -522,6 +530,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // computed-key eval on a nullish receiver; prepending it would run `fn()` unconditionally
     const replacement = withSideEffects(buildMethodCall({
       id: outerId, object: outerObject, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
+      anchorNode: outerPath.node,
     }), sideEffects);
     const conditional = t.conditionalExpression(testOr,
       t.unaryExpression('void', t.numericLiteral(0)), replacement);
