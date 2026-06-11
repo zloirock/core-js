@@ -53,9 +53,10 @@ import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 
-// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R));` collapses a destructure
-// assignment into the last slot of a SequenceExpression - the destructure-emitter gate
-// would silently bail without this split. shape detection is shared with unplugin's
+// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
+// assignment into ANY slot of a statement-position SequenceExpression (minified tail,
+// comma-joined statements, nested sequences) - the destructure-emitter gate would silently
+// bail without this split. shape detection is shared with unplugin's
 // text-rewrite path via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
 // pre-pass routes through `forEachStatementListBody` over the raw AST). walks every
 // Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
@@ -799,8 +800,8 @@ export default function plugin(api, options) {
         const fileDisabled = directives === true;
         skipFile = isInternalCoreJS || fileDisabled;
         disabledLines = fileDisabled ? null : directives;
-        // minifier-shape `(prefixExpr, ..., ({pat} = R));` collapses a destructure assignment into
-        // the last slot of an ExpressionStatement-wrapped SequenceExpression. `canTransformDestructuring`
+        // minifier-shape `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure assignment into
+        // any slot of an ExpressionStatement-wrapped SequenceExpression. `canTransformDestructuring`
         // peels only Paren+TS so the rewrite silently bails on this shape; split it into consecutive
         // ExpressionStatements before any usage / entry visitor sees the program (side-effecting prefix
         // expressions stay in source order). gated below skipFile so a `core-js-disable-file` directive
