@@ -10,11 +10,12 @@ export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.ty
 // directives into `Program.directives[]` / block `.directives[]`, so a directive that survives
 // in `body[]` is a sibling-plugin synth shape (`'use strict'` re-emitted as a raw statement)
 // whose `.directive` marker may sit on the ExpressionStatement OR on the inner StringLiteral /
-// Literal - accept either. empty-string `""` is parser-emitable but NOT a valid prologue token,
-// so require a non-empty marker
+// Literal - accept either. an empty-string directive (`'';`) IS part of the prologue per the
+// spec (any string-literal statement extends it), so a following `'use strict'` is still
+// active - a length gate here stopped the prologue scan early and anchored injected imports
+// AHEAD of the strict directive
 export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
-  && (typeof node.directive === 'string' && node.directive.length > 0
-    || typeof node.expression?.directive === 'string' && node.expression.directive.length > 0);
+  && (typeof node.directive === 'string' || typeof node.expression?.directive === 'string');
 
 // indirect-require call: `require('m')`, `require('m').default` (MemberExpression tail),
 // `(0, require)('m')` / `((0, require))('m')` (SequenceExpression callee through paren / TS /
@@ -1359,26 +1360,40 @@ export function isTransparentDestructureWrapper(parentNode, childNode) {
 
 // walk up from an ObjectPattern path through Property / transparent (AssignmentPattern default,
 // single-element ArrayPattern) / multi-element ArrayPattern wrappers to the host VariableDeclarator.
-// returns { declarator, hasMultiElementArray } or null when the chain doesn't bottom out at a
+// returns { declarator, needsResidualExtraction } or null when the chain doesn't bottom out at a
 // declarator. parser-agnostic (reads `.parentPath` / `.node`, tolerates babel `ObjectProperty` +
-// estree `Property`). both emitters gate their multi-element ArrayPattern partial-extraction on
-// `hasMultiElementArray` (single-element / array-free shapes flatten via the cascade instead)
+// estree `Property`). residual extraction is REQUIRED exactly when the cascade flatten cannot
+// take the declarator AND no other route exists: a multi-element ArrayPattern (sibling / hole
+// bindings would be lost) OR a rest sibling under an ArrayPattern wrapper of ANY arity (the
+// cascade bails on rest, and the unwrapped-rest route never sees array-wrapped shapes - bailing
+// here left the static native). unwrapped rest-free / single-element rest-free shapes flatten
+// via the cascade instead - the leaner emission
 export function findArrayWrappedDestructureHost(objectPatternPath) {
   let cur = objectPatternPath;
-  let hasMultiElementArray = false;
+  const hasRestSibling = !!objectPatternPath?.node?.properties?.some(
+    prop => prop.type === 'RestElement' || prop.type === 'SpreadElement');
+  let needsResidualExtraction = false;
   for (;;) {
     const parent = cur?.parentPath;
     const node = parent?.node;
     if (!node) return null;
     if (node.type === 'ArrayPattern') {
-      if (node.elements.length > 1) hasMultiElementArray = true;
+      if (node.elements.length > 1 || hasRestSibling) needsResidualExtraction = true;
       cur = parent;
     } else if (node.type === 'AssignmentPattern' && node.left === cur.node) {
       cur = parent;
     } else if (node.type === 'Property' || node.type === 'ObjectProperty') {
       cur = parent.parentPath;
     } else if (node.type === 'VariableDeclarator') {
-      return { declarator: parent, hasMultiElementArray };
+      // for-init hosts cannot take a preceding extraction statement (the loop header forbids
+      // it: babel's insert crashed on scope re-registration, unplugin's text insert produced
+      // two `const` statements inside the parens) - route them to the cascade flatten, whose
+      // sibling-sink machinery already handles loop headers
+      const declarationNode = parent.parentPath?.node;
+      const isForInit = declarationNode?.type === 'VariableDeclaration'
+        && parent.parentPath.parentPath?.node?.type === 'ForStatement'
+        && parent.parentPath.parentPath.node.init === declarationNode;
+      return { declarator: parent, needsResidualExtraction: needsResidualExtraction && !isForInit };
     } else return null;
   }
 }
@@ -1464,7 +1479,19 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
   const desc = resolveFallbackReceiver(wrapperPath, paramNode);
   if (!desc) return null;
   if (desc.slot) return wrapperPath.get(desc.slot);
-  return desc.callPath.get('arguments')[desc.paramIndex];
+  // the descriptor's paramIndex counts EXPANDED positions - delegate the inline-array spread
+  // expansion to `resolveCallArgument` (the canonical semantics) and only LOCATE the resolved
+  // node's path here; raw `arguments[paramIndex]` indexed past the single SpreadElement and bailed
+  const target = resolveCallArgument(desc.callPath.node.arguments, desc.paramIndex);
+  if (!target) return null;
+  for (const argPath of desc.callPath.get('arguments')) {
+    if (argPath.node === target) return argPath;
+    if (argPath.node?.type === 'SpreadElement' && argPath.node.argument?.type === 'ArrayExpression') {
+      const index = argPath.node.argument.elements.indexOf(target);
+      if (index !== -1) return argPath.get('argument').get('elements')[index];
+    }
+  }
+  return null;
 }
 
 // peel transparent expression wrappers up from `startPath` toward statement context.
@@ -1771,7 +1798,10 @@ function addDeclarationNames(stmt, set) {
     set.add(stmt.id.name);
   } else if (stmt.type === 'ImportDeclaration') {
     for (const s of stmt.specifiers ?? []) if (s.local?.name) set.add(s.local.name);
-  } else if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration) {
+  } else if ((stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration')
+    && stmt.declaration) {
+    // `export default class Array {}` declares a program binding too - missing it produced a
+    // phantom mutated-static over-bail
     addDeclarationNames(stmt.declaration, set);
   }
 }

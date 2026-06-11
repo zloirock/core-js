@@ -116,18 +116,17 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // runtime as written. caller's `({from: customFn})` beats the synth (default fires
     // only when caller-arg is undefined), preserving caller-passed values
     const peeled = unwrapSafeSequenceTail(wrapper.right);
+    // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order, babel-twin
+    // contract): a classifiable live arg wins regardless of the wrapper-default's shape -
+    // gating on the default first bailed `(({ from } = []) => ...)(Array)` to a native-first
+    // inline default even though the live receiver was statically known
+    const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
+    if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
     // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
     // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out
     const fallbackCollapse = peeled?.type === 'LogicalExpression' && peeled.operator !== '&&'
       && isReceiverShapedNode(unwrapSafeSequenceTail(peeled.left));
     if (!fallbackCollapse && !isReceiverShapedNode(peeled)) return null;
-    // IIFE caller-arg overrides the wrapper-default whenever the caller passes a statically
-    // classifiable receiver - the default fires only on caller-omitted invocation, so the live
-    // arg is what actually runs. applies to MemberExpression defaults too (`({of} = globalThis
-    // .Iterator)(Array)`): the meta layer consults the caller-arg unconditionally, so
-    // synthesising onto the dead default here would leave the live caller-arg native and throw
-    const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
-    if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
     return peeled;
   }
   // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
