@@ -2921,6 +2921,16 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     // ctor-slot writes through proxies record the slot (the enrichment pins the ctor entry)
     ['window.Promise = window.Promise || Shim;', ['window.Promise'], []],
     ['globalThis.Map = ShimMap;', ['globalThis.Map'], []],
+    // mutation targets behind transparent wrappers: estree ChainExpression on an optional
+    // delete, oxc-preserved parens on delete / update / compound assignment
+    ['delete Iterator?.from;', ['Iterator.from'], []],
+    ['delete (Map.groupBy);', ['Map.groupBy'], []],
+    ['(Iterator.from) ||= shim;', ['Iterator.from'], []],
+    ['const v = Iterator?.from; use(v);', [], ['Iterator.from']],
+    ['delete ((Map.groupBy));', ['Map.groupBy'], []],
+    ['Reflect.set((Map), "groupBy", p);', ['Map.groupBy'], []],
+    ['(delete Iterator?.from, use());', ['Iterator.from'], []],
+    ['Iterator.from = patch; function f({ from } = (eff(), globalThis).Iterator) {} f();', ['Iterator.from'], []],
     // shadows: a local twin of the alias name poisons BOTH reachable values; a shadowing
     // parameter is not the global; export-default class declares a program binding
     // the scoped resolver sees the REAL (inner) callee - the outer twin is dead for this
