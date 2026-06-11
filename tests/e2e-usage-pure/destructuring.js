@@ -1235,3 +1235,54 @@ QUnit.test('destructuring: for-init array wrap with rest', assert => {
     break;
   }
 });
+
+// classification edges: an SE-buried proxy root substitutes its static with the prefix
+// running exactly once, and a shared static-object wrapper resolves SIBLING statics
+QUnit.test('destructuring: se-buried proxy static and sibling wrapper statics', assert => {
+  let n = 0;
+  const grouped = (n++, globalThis).Map.groupBy(['ab', 'c'], s => s.length);
+  assert.same(grouped.get(2)[0], 'ab');
+  assert.same(n, 1);
+  const w = { a: Array, b: Promise };
+  const { a: { of }, b: { resolve } } = w;
+  assert.same(of(5)[0], 5);
+  assert.same(typeof resolve, 'function');
+});
+
+// SE prefix of a fully-consumed proxy-tail destructure runs exactly once; the dead tail
+// read is dropped without affecting the extracted bindings
+QUnit.test('destructuring: se prefix lift on proxy tail', assert => {
+  let n = 0;
+  const { from, of } = (n++, globalThis.Array);
+  assert.same(from([5])[0], 5);
+  assert.same(of(6)[0], 6);
+  assert.same(n, 1);
+});
+
+// a partial-consume residual with an SE-buried proxy-hop root keeps the effect across the
+// hop collapse (runs exactly once) while the polyfillable key still extracts
+QUnit.test('destructuring: se-buried hop collapse keeps effect', assert => {
+  let n = 0;
+  // eslint-disable-next-line no-unused-vars -- the unpolyfillable sibling forces the partial consume
+  const { from, formatRangeToParts } = (n++, globalThis).globalThis.Array;
+  assert.same(from([9])[0], 9);
+  assert.same(n, 1);
+});
+
+// the in-check fold keeps the receiver chain's buried SE prefix evaluating exactly once
+QUnit.test('destructuring: in-fold keeps buried receiver effect', assert => {
+  let n = 0;
+  const has = 'groupBy' in (n++, globalThis).Map;
+  assert.true(has);
+  assert.same(n, 1);
+});
+
+// duplicate container keys read the LAST (live) value: the substitution must target the
+// live Iterator, not the dead first Array (a first-match container walk picked the corpse)
+QUnit.test('destructuring: duplicate container keys read the live value', assert => {
+  // eslint-disable-next-line no-dupe-keys -- the duplicate IS the case under test
+  const ND = { M: Array, M: Iterator };
+  const { from } = ND.M;
+  assert.same(from([7].values()).next().value, 7);
+});
+
