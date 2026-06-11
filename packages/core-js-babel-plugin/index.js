@@ -19,6 +19,7 @@ import {
   staticFallbackSwapRedundant,
   wouldPromoteDirectiveAfterRemoval,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
@@ -743,7 +744,7 @@ export default function plugin(api, options) {
         // `Object.key` reads - so it is needed ONLY in usage-pure (entry-global / usage-global
         // never read `mutatedStatics`, the whole-AST walk was dead work there, matching unplugin).
         // internal core-js files don't need it either (they manage their own globals)
-        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS ? collectMutationPrePass(path).mutated : null;
+        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS ? collectMutationPrePass(path, adapter).mutated : null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
@@ -780,6 +781,8 @@ export default function plugin(api, options) {
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
+        // shared mutated-key enrichment: see `enrichMutatedStatics` for the model
+        enrichMutatedStatics({ mutatedStatics, resolvePure: resolvePureUnfiltered, injectPureImport });
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
         // `directives === true` signals `disable-file` - collapse both skip sources into one write.
