@@ -35,6 +35,7 @@ import {
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
+  classifyCallBranchForSynth,
   fallbackInitWhollyDiscardable,
   applyNestedParamSynthPlan,
   renderSynthTree,
@@ -377,9 +378,15 @@ export default function createDestructureEmitter({
       return;
     }
     // defer injectPureImport until programExit emits the synth. if a sibling plugin
-    // mutates targetPath before then, the swap is skipped and no dead import is left
+    // mutates targetPath before then, the swap is skipped and no dead import is left.
+    // the shared classifier flags SE-bearing receivers (call branches AND buried-SE member
+    // spines) for the rescue emission - the literal alone would drop the effect
+    const sePolicy = classifyCallBranchForSynth({
+      inner: targetPath.node, scope: targetPath.scope, adapter, path: targetPath,
+    });
     synthSwap.registerPolyfill({
       targetPath, objectPatternPath: objectPattern, key: synthSwapPropKey(prop.node), entry, hintName,
+      callBranch: sePolicy.callBranch, rescueSe: sePolicy.rescueSe,
     });
   }
 
@@ -1243,7 +1250,9 @@ export default function createDestructureEmitter({
     if (t.isAssignmentPattern(propValue)) {
       localBinding = t.cloneNode(propValue.left);
       const needsTemp = t.isCallExpression(value);
-      const ref = needsTemp ? generateRef(prop.scope) : value;
+      // prop.node anchors the loop-header escape check: a for-init host needs the memo `var`
+      // BEFORE the loop, not in a block-converted bodyless body
+      const ref = needsTemp ? generateRef(prop.scope, prop.node) : value;
       const test = t.binaryExpression('===', needsTemp ? t.assignmentExpression('=', ref, value) : ref,
         t.unaryExpression('void', t.numericLiteral(0)));
       value = t.conditionalExpression(test, t.cloneNode(propValue.right), t.cloneNode(ref));
