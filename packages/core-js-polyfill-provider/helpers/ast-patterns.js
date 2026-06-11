@@ -390,6 +390,27 @@ export const FUNCTION_LIKE_NODE_TYPES = new Set([
   'ClassPrivateMethod',
 ]);
 
+// SE prefix expressions buried along a member chain's object spine (`(e1(), globalThis).self`
+// roots, mid-chain SE wrappers, arbitrarily nested), in EVALUATION order (deepest first - the
+// innermost prefix runs before outer ones at runtime). pure shape walk: callers re-emit the
+// prefixes ahead of whatever replaces the chain so the effects keep running
+export function collectBuriedChainSePrefixes(node) {
+  const prefixes = [];
+  let cur = node;
+  while (cur) {
+    if (cur.type === 'SequenceExpression' && cur.expressions.length) {
+      prefixes.unshift(...cur.expressions.slice(0, -1));
+      cur = cur.expressions.at(-1);
+    } else if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
+      || TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type)) {
+      cur = cur.expression;
+    } else if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
+      cur = cur.object;
+    } else break;
+  }
+  return prefixes;
+}
+
 // pragmatic assumption shared by detection and the type resolver: top-level `this` IS the
 // global proxy regardless of sourceType - nobody reads properties off the ESM-undefined
 // `this` on purpose (such a chain is statically dead there), while script / CommonJS-shaped
@@ -988,7 +1009,13 @@ function nodeDominatesUsage({ node, usagePath, owner, climb }) {
 // shared `nodeDominatesUsage` with `climb: true`, so an init captured from an OUTER scope by a
 // later-defined closure still counts. a declarator not located in any enclosing scope defaults to
 // dominating (it is the declaration)
-export function varInitDominatesUsage({ declaratorNode, usagePath }) {
+export function varInitDominatesUsage({ declaratorNode, usagePath, kind = null }) {
+  // domination is a real question ONLY for hoisted `var` (a conditional `if (c) { var M = ... }`
+  // binds everywhere but assigns on one path). a `let` / `const` read before its declarator
+  // executes throws natively (TDZ), so a LEGAL use is always dominated - skip the walk. this
+  // gate carries the hot-path cost: without it every clean const resolution paid a full
+  // owner-subtree scan (O(sites x N) on ordinary files)
+  if (kind && kind !== 'var') return true;
   if (!usagePath) return true;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return true;
@@ -1067,20 +1094,50 @@ const reassignmentRhs = memoizeByNodePair((node, ownerNode) => {
 // init follow bails on the reassignment: the init is dead, so this recovers the live value the use
 // actually sees (`let K = 'from'; K = 'of'; Array[K]()` -> the `'of'` node). caller resolves the
 // returned node (a literal / concat for a computed key)
+// pattern-aware single-value variant of `reassignmentRhs` for the reaching-definition
+// recovery: a pattern write (`[A] = [Iterator]`) pairs to exactly ONE unambiguous value;
+// a slot default (`[A = X] = [..]`) may or may not apply at runtime -> ambiguous -> null
+function reassignmentRhsForBinding(node, ownerNode, bindingName) {
+  // pattern LHS first: the plain helper returns the WHOLE RHS for any `=` without inspecting
+  // the target shape, so `[K] = ['of']` would flow the array literal instead of the slot value
+  let assignment = null;
+  if (node.type === 'AssignmentExpression') assignment = node.operator === '=' ? node : null;
+  else if (node.type === 'Identifier') {
+    const found = enclosingValueFlowAssignment(node, ownerNode);
+    assignment = found?.operator === '=' ? found : null;
+  }
+  const left = assignment?.left;
+  if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
+    if (!bindingName) return null;
+    const values = patternSlotValues(left, assignment.right, bindingName);
+    return values.length === 1 && !patternSlotHasDefault(left, bindingName) ? values[0] : null;
+  }
+  return reassignmentRhs(node, ownerNode);
+}
+
+// does the pattern slot binding `name` carry a default (`[A = X]` / `{ A = X }`)?
+function patternSlotHasDefault(pattern, name) {
+  const slots = pattern.type === 'ArrayPattern' ? pattern.elements
+    : pattern.properties.map(prop => prop.type !== 'SpreadElement' && prop.type !== 'RestElement' ? prop.value : null);
+  return slots.some(slot => slot?.type === 'AssignmentPattern' && slot.left?.type === 'Identifier' && slot.left.name === name);
+}
+
 export function reachingReassignmentValueNode({ binding, usagePath }) {
   if (!usagePath) return null;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return null;
   if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return null;
+  const bindingName = binding.node?.id?.type === 'Identifier' ? binding.node.id.name : null;
   const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, usagePath));
   if (!before.length) return null;
   // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
   // textually-last one overwrites every earlier write - it is the reaching definition only if it ALWAYS
   // runs (unconditional: no guards); a conditional last write leaves the value ambiguous
-  if (before.every(node => reassignmentRhs(node, owner.node) !== null && collectVarGuardsToDeclarator(owner.node, node) !== null)) {
+  if (before.every(node => reassignmentRhsForBinding(node, owner.node, bindingName) !== null
+      && collectVarGuardsToDeclarator(owner.node, node) !== null)) {
     const last = before.reduce((a, b) => b.start > a.start ? b : a);
     if (collectVarGuardsToDeclarator(owner.node, last).length) return null;
-    return reassignmentRhs(last, owner.node);
+    return reassignmentRhsForBinding(last, owner.node, bindingName);
   }
   // CLOSURE: the use sits in a nested closure, so the before-writes live in an enclosing scope. the
   // declarator-init (and earlier writes) are dead once an UNCONDITIONAL write completes before the
@@ -1092,7 +1149,7 @@ export function reachingReassignmentValueNode({ binding, usagePath }) {
   const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true }) === true);
   if (!dominating.length) return null;
   const last = dominating.reduce((a, b) => b.start > a.start ? b : a);
-  return reassignmentRhs(last, owner.node);
+  return reassignmentRhsForBinding(last, owner.node, bindingName);
 }
 
 // every plain-`=` reassignment RHS value node of a `var` / `let` alias that can REACH `usagePath` -
@@ -1104,19 +1161,99 @@ export function reachingReassignmentValueNode({ binding, usagePath }) {
 // the write. skips non-plain writes (`x++`, `x += y`, for-x head) whose value isn't a simple
 // replacement, and the loop-reinit declarator-self. the use's own var-scope owner locates each
 // `name = <expr>` for adapters that record the LHS Identifier
-export function reassignmentValueNodes({ binding, usagePath }) {
+export function reassignmentValueNodes({ binding, usagePath, name = null }) {
   if (!usagePath || !binding?.constantViolations?.length) return [];
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return [];
+  // adapter wrappers do not all surface the bound identifier - callers that know the alias
+  // name pass it explicitly (needed only for pattern-LHS pairing)
+  const bindingName = name ?? binding.identifier?.name ?? binding.path?.node?.id?.name ?? null;
   const useInLoop = nodeSitsInLoopBodyWithin(owner.node, usagePath.node);
   const out = [];
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
     if (!useInLoop && usagePrecedesNode(usagePath, node)) continue;
-    const rhs = reassignmentRhs(node, owner.node);
-    if (rhs) out.push(rhs);
+    out.push(...reassignmentValueNodesAt(node, owner.node, bindingName));
   }
   return out;
 }
+
+// assignment operators that flow the RHS into the LHS binding as a POSSIBLE value: plain `=`
+// plus the logical forms (`A ||= Map` makes Map reachable). compound arithmetic (`+=`) and
+// updates produce derived values, not replacements, and stay out
+const VALUE_FLOW_ASSIGN_OPS = new Set([
+  '=',
+  '||=',
+  '&&=',
+  '??=',
+]);
+
+// the pattern slot's POSSIBLE values for the binding named `name`: the positionally / key-
+// paired RHS value plus the slot's own default (either may be live at runtime). a dynamic
+// RHS or slot contributes nothing
+function patternSlotValues(pattern, rhs, name) {
+  const out = [];
+  const slotFor = target => target?.type === 'AssignmentPattern' ? target.left : target;
+  if (pattern?.type === 'ArrayPattern') {
+    for (let i = 0; i < pattern.elements.length; i++) {
+      const element = pattern.elements[i];
+      if (slotFor(element)?.type !== 'Identifier' || slotFor(element).name !== name) continue;
+      if (element.type === 'AssignmentPattern') out.push(element.right);
+      const paired = rhs?.type === 'ArrayExpression' ? rhs.elements[i] : null;
+      if (paired && paired.type !== 'SpreadElement') out.push(paired);
+    }
+  } else if (pattern?.type === 'ObjectPattern') {
+    for (const prop of pattern.properties) {
+      if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+      if (slotFor(prop.value)?.type !== 'Identifier' || slotFor(prop.value).name !== name) continue;
+      if (prop.value.type === 'AssignmentPattern') out.push(prop.value.right);
+      const key = propertyKeyName(prop);
+      const match = key !== null && rhs?.type === 'ObjectExpression'
+        ? rhs.properties.findLast(rp => rp.type !== 'SpreadElement' && propertyKeyName(rp) === key) : null;
+      if (match?.value) out.push(match.value);
+    }
+  }
+  return out;
+}
+
+// every POSSIBLE value a reassignment site flows into the binding: a value-flow assignment's
+// RHS for a plain Identifier LHS, the paired slot values (incl. defaults) for a pattern LHS
+function reassignmentValueNodesAt(node, ownerNode, bindingName) {
+  if (node.type === 'AssignmentExpression') {
+    if (!VALUE_FLOW_ASSIGN_OPS.has(node.operator)) return [];
+    if (node.left?.type === 'Identifier') return [node.right];
+    return bindingName ? patternSlotValues(node.left, node.right, bindingName) : [];
+  }
+  if (node.type !== 'Identifier') return [];
+  const assignment = enclosingValueFlowAssignment(node, ownerNode);
+  if (!assignment) return [];
+  if (assignment.left === node) return [assignment.right];
+  return patternSlotValues(assignment.left, assignment.right, node.name);
+}
+
+// estree-toolkit records the target Identifier - locate the enclosing value-flow assignment
+// whose LHS is (or contains, for patterns) this identifier. memoized by (identifier, owner):
+// the same alias resolves at many usage sites and each re-enumeration would otherwise re-walk
+// the whole owner subtree
+const enclosingValueFlowAssignment = memoizeByNodePair((node, ownerNode) => {
+  let found = null;
+  function visit(n) {
+    if (found || !isAstNode(n)) return;
+    if (n.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(n.operator)
+      && (n.left === node || ((n.left?.type === 'ArrayPattern' || n.left?.type === 'ObjectPattern')
+        && patternSlotValues(n.left, n.right, node.name).length))) {
+      found = n;
+      return;
+    }
+    for (const key of Object.keys(n)) {
+      if (found) return;
+      const value = n[key];
+      if (Array.isArray(value)) for (const v of value) visit(v);
+      else visit(value);
+    }
+  }
+  visit(ownerNode);
+  return found;
+});
 
 // a constantViolation entry is a babel NodePath (carries `.node`) from the babel adapter but a raw
 // node from the unplugin var-hoist synthetic binding - normalize to the underlying node
@@ -1153,9 +1290,13 @@ export function isReassignedBeyondDeclarator(binding) {
   return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
 }
 
-// the real reassignment site nodes (every violation other than the loop-reinit declarator-self)
+// the real reassignment site nodes (every violation other than the loop-reinit declarator-self).
+// estree-toolkit records a for-x head's per-iteration rebind as a violation of the head's OWN
+// binding via its id node - that is the declaration itself, not a reassignment, and counting it
+// sent every `for (const k in ...)` body read through the flow-sensitive walks
 function reassignmentNodesBeyondDeclarator(binding) {
-  return binding.constantViolations.map(violationNode).filter(node => node !== binding.node);
+  return binding.constantViolations.map(violationNode)
+    .filter(node => node !== binding.node && node !== binding.node?.id);
 }
 
 // shared method-aware reassignment-bail decision for a resolver that has already found
@@ -1618,7 +1759,7 @@ export function isMemberWriteOnlyContext(member, parent, grandparent) {
 // array-child slots (`ArrayExpression.elements`); reads `.type` on each candidate so
 // position metadata (`.start`, `.loc`, `.scope`) is ignored. parser-agnostic - both babel
 // and oxc shapes carry the same `.type` string on AST nodes
-function walkAstChildren(node, visit) {
+export function walkAstChildren(node, visit) {
   if (!node || typeof node !== 'object') return;
   for (const key of Object.keys(node)) {
     const value = node[key];
@@ -1637,7 +1778,7 @@ function walkAstChildren(node, visit) {
 // this predicate; the three non-write-only forms are not caught by `isMemberWriteOnlyContext`
 // because they also READ the slot (so polyfill substitution of the read is wrong-but-not-
 // crash-causing, separate from the mutation-bypass divergence this predicate guards)
-function isMemberMutationContext(node, parent, grandparent) {
+export function isMemberMutationContext(node, parent, grandparent) {
   if (isMemberWriteOnlyContext(node, parent, grandparent)) return true;
   if (!parent) return false;
   if (parent.type === 'AssignmentExpression' && parent.left === node && parent.operator !== '=') return true;
@@ -1669,47 +1810,17 @@ export function sequenceKeyStaticName(keyNode) {
   return staticStringKey(node);
 }
 
-// resolve a non-computed property's key to its static string name. accepts both bare
-// Identifier shorthand (`{ from: ... }`) and string-literal keys (`{ 'from': ... }`).
-// returns null for computed keys (`{ [name]: ... }`), numeric / boolean literal keys,
-// and PrivateName slots - none of which can affect a public static slot at runtime
-function propertyKeyName(prop) {
-  if (prop.computed) return null;
+// resolve a property's key to its static string name. accepts bare Identifier shorthand
+// (`{ from: ... }`), string-literal keys (`{ 'from': ... }`), AND computed STATIC-string keys
+// (`{ ['from']: ... }` / template single-quasi) - they affect exactly the same public slot at
+// runtime, and the member-access side (memberKeyName) accepts the same shapes; rejecting them
+// let `Object.assign(Array, { ['from']: X })` bypass the mutation pre-pass. returns null for
+// dynamic computed keys, numeric / boolean literal keys, and PrivateName slots
+export function propertyKeyName(prop) {
   const { key } = prop;
+  if (prop.computed) return staticStringKey(key);
   if (key?.type === 'Identifier') return key.name;
   return staticStringKey(key);
-}
-
-// `Namespace.method(...)` shape probe: returns the method name when `call.callee` matches
-// non-computed `Identifier(namespaceName).Identifier(...)`. null for any other shape -
-// dynamic property, computed access, namespace shadow, etc. shared between the
-// Object.defineProperty[ies] and Reflect.defineProperty / Reflect.deleteProperty walkers
-// so the (callee, namespace) gate stays in lockstep across mutation siblings
-function namespaceStaticCallMethod(call, namespaceName, isShadowed) {
-  if (call?.type !== 'CallExpression') return null;
-  const { callee } = call;
-  if (callee?.type !== 'MemberExpression' || callee.computed) return null;
-  if (callee.object?.type !== 'Identifier' || callee.object.name !== namespaceName) return null;
-  // a LOCAL binding shadowing `Object` / `Reflect` (`function patch(Object) { Object.assign(Array, ...) }`)
-  // is not the global namespace, so its call patches nothing global - don't record the mutation. mirrors
-  // the target-arg shadow guard in `mutationTargetIdentifier`
-  if (isShadowed(callee.object.name)) return null;
-  if (callee.property?.type !== 'Identifier') return null;
-  return callee.property.name;
-}
-
-// add `targetName.<key>` to the mutation set when `keyName` is a resolvable static key. the single
-// owner of the `${ object }.${ key }` format - it must stay in lockstep with `isMutatedStaticMeta`'s
-// read-side lookup, so every collector below routes its add through here
-function addMutation(mutated, targetName, keyName) {
-  if (keyName !== null) mutated.add(`${ targetName }.${ keyName }`);
-}
-
-// the monkey-patch receiver: an UNSHADOWED Identifier (a candidate global) -> its name, else null.
-// this fast pre-walk resolves only Identifier-rooted targets - a local shadow of the name is not the
-// global, and a proxy-global chain (`globalThis.Array`) is out of scope (not a bare Identifier)
-function mutationTargetIdentifier(node, isShadowed) {
-  return node?.type === 'Identifier' && !isShadowed(node.name) ? node.name : null;
 }
 
 // recognise `Object.defineProperty` / `Object.defineProperties` / `Object.assign` call shapes
@@ -1729,125 +1840,6 @@ function mutationTargetIdentifier(node, isShadowed) {
 // (`Object.assign(Array, src)`) stay out of scope - same Identifier-rooted, static-key
 // constraint as the MemberExpression-LHS shape: full receiver / key resolution is out of
 // scope for this fast pre-walk
-function collectObjectMutations(call, mutated, isShadowed) {
-  const methodName = namespaceStaticCallMethod(call, 'Object', isShadowed);
-  if (methodName === null) return;
-  const args = call.arguments ?? [];
-  const targetName = mutationTargetIdentifier(args[0], isShadowed);
-  if (targetName === null) return;
-  if (methodName === 'defineProperty') {
-    addMutation(mutated, targetName, staticStringKey(args[1]));
-    return;
-  }
-  // defineProperties keys live in the single arg-1 object; assign copies from every source arg
-  const sources = methodName === 'defineProperties' ? args.slice(1, 2)
-    : methodName === 'assign' ? args.slice(1)
-    : null;
-  if (sources === null) return;
-  for (const source of sources) {
-    if (source?.type !== 'ObjectExpression') continue;
-    for (const prop of source.properties ?? []) {
-      // data property, method shorthand, or getter/setter all define a static own key. babel emits
-      // method shorthand / accessors as ObjectMethod; oxc keeps them as Property. SpreadElement
-      // (`...obj`) carries no static key and stays out of scope (under-collect: safe)
-      if (prop.type === 'ObjectProperty' || prop.type === 'Property' || prop.type === 'ObjectMethod') {
-        addMutation(mutated, targetName, propertyKeyName(prop));
-      }
-    }
-  }
-}
-
-// recognise `Reflect.defineProperty(target, key, desc)`, `Reflect.deleteProperty(target, key)`,
-// and `Reflect.set(target, key, value)` - the Reflect call-forms of `Object.defineProperty`,
-// `delete target[key]`, and `target[key] = value`, all monkey-patching a named slot on `target`.
-// uniform argument shape: Identifier target + static-string key (arg 1). Reflect.set's [[Set]] can
-// in theory hit a setter rather than overwrite an own slot, but over-collecting is safe for the
-// usage-pure bail (and keeps parity with `Object.assign`, the bulk [[Set]] form, collected above).
-// `Reflect.setPrototypeOf` stays out of scope - it swaps [[Prototype]], not a single named key
-function collectReflectMutations(call, mutated, isShadowed) {
-  const methodName = namespaceStaticCallMethod(call, 'Reflect', isShadowed);
-  if (methodName !== 'defineProperty' && methodName !== 'deleteProperty' && methodName !== 'set') return;
-  const args = call.arguments ?? [];
-  const targetName = mutationTargetIdentifier(args[0], isShadowed);
-  if (targetName !== null) addMutation(mutated, targetName, staticStringKey(args[1]));
-}
-
-// names a node introduces into its OWN scope (params / id / direct declarations / catch
-// param / for-init / class name), or null when it opens no scope. used to drive a binding
-// stack so `collectMutatedStaticMembers` skips a mutation whose receiver is a LOCAL shadow
-// (`const patch = Object => { Object.assign = x }`) rather than a genuine global. a function /
-// Program / StaticBlock frame also folds in `var`s hoisted from nested blocks (a `var Array`
-// buried in a block shadows the global across the WHOLE function, including a mutation site
-// OUTSIDE that block). only TRUE binding positions are recorded - a hoisted `var` genuinely
-// shadows, so it can't drop the bail on a real monkey-patch; under-collecting it would instead
-// suppress the legitimate pure substitution at a real-global use site
-const SCOPE_FUNCTION_TYPES = new Set([
-  'ArrowFunctionExpression',
-  'ClassMethod',
-  'ClassPrivateMethod',
-  'FunctionDeclaration',
-  'FunctionExpression',
-  'ObjectMethod',
-]);
-
-function addDeclarationNames(stmt, set) {
-  if (!stmt) return;
-  if (stmt.type === 'VariableDeclaration') {
-    for (const d of stmt.declarations ?? []) walkPatternIdentifiers(d.id, id => set.add(id.name));
-  } else if ((stmt.type === 'FunctionDeclaration' || stmt.type === 'ClassDeclaration') && stmt.id) {
-    set.add(stmt.id.name);
-  } else if (stmt.type === 'ImportDeclaration') {
-    for (const s of stmt.specifiers ?? []) if (s.local?.name) set.add(s.local.name);
-  } else if ((stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration')
-    && stmt.declaration) {
-    // `export default class Array {}` declares a program binding too - missing it produced a
-    // phantom mutated-static over-bail
-    addDeclarationNames(stmt.declaration, set);
-  }
-}
-
-// fold every `var` hoisted to `scopeNode`'s var scope into `set`. a per-block frame is pushed
-// and popped on block exit, so a nested-block `var` would otherwise be invisible at a sibling
-// statement in the same function - `collectScopeVars` walks the whole body (stopping at nested
-// var-scope boundaries) so the function / Program / StaticBlock frame carries it everywhere
-function addHoistedVarNames(scopeNode, set) {
-  for (const name of collectScopeVars(scopeNode).keys()) set.add(name);
-}
-
-function scopeBoundNames(node) {
-  const { type } = node;
-  if (SCOPE_FUNCTION_TYPES.has(type)) {
-    const set = new Set();
-    for (const p of node.params ?? []) walkPatternIdentifiers(p, id => set.add(id.name));
-    if (node.id?.name) set.add(node.id.name);
-    addHoistedVarNames(node, set);
-    return set;
-  }
-  if (type === 'BlockStatement' || type === 'Program' || type === 'StaticBlock') {
-    const set = new Set();
-    for (const stmt of node.body ?? []) addDeclarationNames(stmt, set);
-    // Program / StaticBlock own a var scope, so a nested-block `var` hoists up to them; a plain
-    // BlockStatement does NOT - its `var`s hoist past it to the enclosing function frame above
-    if (type !== 'BlockStatement') addHoistedVarNames(node, set);
-    return set;
-  }
-  if (type === 'CatchClause' && node.param) {
-    const set = new Set();
-    walkPatternIdentifiers(node.param, id => set.add(id.name));
-    return set;
-  }
-  if (type === 'ForStatement' || type === 'ForInStatement' || type === 'ForOfStatement') {
-    const set = new Set();
-    addDeclarationNames(node.init, set);
-    addDeclarationNames(node.left, set);
-    return set.size ? set : null;
-  }
-  if ((type === 'ClassDeclaration' || type === 'ClassExpression') && node.id?.name) {
-    return new Set([node.id.name]);
-  }
-  return null;
-}
-
 // scan AST for `Object.key = X` / `[Object.key] = X` / `({foo: Object.key} = X)` /
 // `Object.key++` / `Object.key += X` / `delete Object.key` / `for (Object.key of arr)` /
 // `Object.defineProperty(Object, 'key', d)` / `Reflect.defineProperty(...)` /
@@ -1862,56 +1854,6 @@ function scopeBoundNames(node) {
 // for this fast pre-walk - the cases worth catching here are direct `Builtin.method = X`
 // monkey-patches and `Object.defineProperty(Builtin, 'method', d)` shapes which always have
 // an Identifier root
-export function collectMutatedStaticMembers(programNode) {
-  const mutated = new Set();
-  // stack of per-scope bound-name Sets; a mutation receiver present in any enclosing scope is
-  // a LOCAL shadow (not the global) and must NOT poison the file-wide mutation set
-  const scopeStack = [];
-  function isShadowed(name) {
-    for (const scope of scopeStack) if (scope.has(name)) return true;
-    return false;
-  }
-  // iterative post-order DFS over a heap stack - a recursive walk overflows the call stack on
-  // pathologically deep ASTs (hundreds of nested expressions, esp. on engines with a smaller
-  // default stack). a depth cap is NOT an option here: this is a soundness pre-pass, and missing
-  // a deep `Array.from = X` would let the main visitor wrongly substitute the mutated global.
-  // each work item is a node visit; a scope-bearing node pushes its bound-name Set plus a
-  // `popScope` sentinel so the scope is dropped only after its whole subtree is processed (LIFO
-  // keeps the sentinel below the just-pushed children). sibling order is reversed vs the recursive
-  // walk, which is irrelevant - `mutated` is a Set and `isShadowed` only reads enclosing scopes
-  const work = [{ node: programNode, parent: null, grandparent: null }];
-  while (work.length) {
-    const item = work.pop();
-    if (item.popScope) {
-      scopeStack.pop();
-      continue;
-    }
-    const { node, parent, grandparent } = item;
-    if (!node || typeof node !== 'object') continue;
-    const bound = scopeBoundNames(node);
-    if (bound) {
-      scopeStack.push(bound);
-      work.push({ popScope: true });
-    }
-    if (node.type === 'MemberExpression') {
-      // accept a non-computed `Array.from` key AND a computed STATIC-literal key
-      // (`Array["from"]`, `Array[`from`]`) via memberKeyName; a dynamic computed key (`Array[k]`)
-      // resolves to null and stays out of scope (proxy-global chains are excluded too - the
-      // object here is a bare Identifier, not a `globalThis.Array` member access)
-      const targetName = mutationTargetIdentifier(node.object, isShadowed);
-      if (targetName !== null && isMemberMutationContext(node, parent, grandparent)) {
-        addMutation(mutated, targetName, memberKeyName(node));
-      }
-    }
-    if (node.type === 'CallExpression') {
-      collectObjectMutations(node, mutated, isShadowed);
-      collectReflectMutations(node, mutated, isShadowed);
-    }
-    walkAstChildren(node, child => work.push({ node: child, parent: node, grandparent: parent }));
-  }
-  return mutated;
-}
-
 // shape gate for the per-callback consultation against a `collectMutatedStaticMembers` set.
 // shared between babel-plugin and unplugin so the (object, key) string formation stays in
 // lockstep with the pre-pass that built the set - any divergence (different separator, case,

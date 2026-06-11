@@ -4,7 +4,7 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
-import { collectMutatedStaticMembers } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { collectMutationPrePass, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import TransformQueue, { deoptionalizeNeedle, deoptionalizeNeedleAtPositions, hasIdentifierBoundary } from '../../packages/core-js-unplugin/internals/transform-queue.js';
@@ -3447,9 +3447,10 @@ checkSnapshotPeekWithParseMiss();
 // destructure-LHS / pattern-target slots - so reads later in the file bail to preserve
 // the user's monkey-patch (polyfill import is `const`, can't see the mutation)
 function checkCollectMutatedStaticMembers() {
+  const mutationAdapter = createEstreeAdapter(() => null, 'usage-pure');
   function collect(src) {
     // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-    return collectMutatedStaticMembers(parseSync('unit.js', src).program);
+    return collectMutationPrePass(parseSync('unit.js', src).program, mutationAdapter).mutated;
   }
   // direct `=` assignment
   check('collectMutatedStaticMembers/direct assign',
@@ -3475,10 +3476,11 @@ function checkCollectMutatedStaticMembers() {
     mixed.has('Array.of'), true);
   check('collectMutatedStaticMembers/mixed - read-only key not tracked',
     mixed.has('Array.from'), false);
-  // proxy-global chain (`globalThis.Array.from`) NOT detected - out of scope, requires
-  // full receiver resolution; pre-pass intentionally fast-and-direct
-  check('collectMutatedStaticMembers/proxy-global chain not tracked',
-    collect('globalThis.Array.from = X;').has('Array.from'), false);
+  // proxy-global chain (`globalThis.Array.from`) IS tracked: the read side resolves the
+  // same chains, so an Identifier-only gate let the substitution bypass the user's patch
+  // (the node-only walk peels SE / parens per hop - no full receiver resolution needed)
+  check('collectMutatedStaticMembers/proxy-global chain tracked',
+    collect('globalThis.Array.from = X;').has('Array.from'), true);
   // computed STRING-LITERAL key (`Array["from"] = X`) IS detected - dot and bracket access
   // target the same property, so a bracket-key monkey-patch must suppress the polyfill too
   // (staticMemberKey normalizes the literal bracket key to its dot form for write detection)

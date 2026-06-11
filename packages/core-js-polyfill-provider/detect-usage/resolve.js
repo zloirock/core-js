@@ -322,7 +322,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // native undefined-access on the skipped-branch path. global / entry modes keep the call site
   // (side-effect import only) and stay sound regardless, so the gate is pure-only
   if (adapter.method === 'usage-pure'
-    && !varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path })) return null;
+    && !varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path, kind: binding.kind })) return null;
   // dead-init across a closure: resolve the reaching value as the receiver instead of the dead init
   // (`let M = Object; M = Array; () => M.assign()` resolves to Array, not the unreachable Object)
   const reaching = reachingValueOverDeadInit({ binding, adapter, path });
@@ -414,10 +414,11 @@ export function patternBindingName(node) {
 // unplugin's text-emit doesn't queue a parallel `globalThis -> _globalThis` rewrite that
 // would overlap the outer polyfill replacement
 function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
-  // peel chain-assign at every step: `((a = globalThis).Array).from(x)` buries the
-  // assignment inside .object's .object, so a flat unwrapParens loses the proxy-global
-  // root. fixpoint peel covers nested-paren and multi-level `=` shapes
-  let obj = peelChainAssignmentDeep(unwrapParens(receiver));
+  // peel chain-assign AND SE-tail at every step: `((a = globalThis).Array).from(x)` buries
+  // the assignment inside .object's .object, and `(eff(), globalThis).Map.groupBy` buries the
+  // proxy root behind a sequence tail - a flat unwrapParens loses both. this is pure shape
+  // classification: the SE prefix stays in the source and is collected by the emit side
+  let obj = peelChainAssignmentDeep(peelReceiverSequenceTail(receiver));
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
     // carry `seen` into computed-key resolution so a shared alias chain across the
     // proxy-global walk and its intermediate member keys can't exceed the cycle guard
@@ -425,7 +426,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
       ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path })
       : obj.property?.name;
     if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
-    obj = peelChainAssignmentDeep(unwrapParens(obj.object));
+    obj = peelChainAssignmentDeep(peelReceiverSequenceTail(obj.object));
   }
   if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
     const inlined = inlineCallReturnExpression({ callNode: obj, scope, adapter, seen, path });
@@ -485,12 +486,14 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path }) {
 // (declarator init) plus every reachable reassignment RHS that resolves, deduped. a non-Identifier
 // alias or one with no reassignment contributes only the primary. `resolve` maps a value node to its
 // receiver name / key string
-function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path, seen }) {
+export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path, seen }) {
   const values = primary ? [primary] : [];
   if (aliasNode?.type === 'Identifier') {
     const binding = adapter.getBinding(scope, aliasNode.name, path);
     if (binding && isReassignedBeyondDeclarator(binding)) {
-      for (const rhs of reassignmentValueNodes({ binding, usagePath: path })) {
+      // the alias name activates pattern-LHS pairing (`[A] = [Iterator]`) in the enumerator -
+      // adapter binding wrappers do not all surface the bound identifier
+      for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: aliasNode.name })) {
         const value = resolve(rhs);
         if (value) values.push(value);
       }
@@ -578,13 +581,21 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
     // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when
     // the binding's reassignment does not dominate the use (init still live); pure / narrowing bail
     if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
-    if (adapter.getBindingNodeType(scope, name, path) !== 'VariableDeclarator') return null;
-    const initNode = binding.node?.init;
-    if (!initNode) return null;
-    callee = unwrapParens(initNode);
+    if (adapter.getBindingNodeType(scope, name, path) === 'VariableDeclarator') {
+      const initNode = binding.node?.init;
+      if (!initNode) return null;
+      callee = unwrapParens(initNode);
+    } else {
+      // a zero-param FunctionDeclaration is the same inline shape (`function g() { return X; }
+      // const B = g();`) - the declaration node IS the callee function
+      const declNode = binding.path?.node ?? binding.node;
+      if (declNode?.type !== 'FunctionDeclaration') return null;
+      callee = declNode;
+    }
     seen.add(name);
   }
-  if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression')
+  if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
+    && callee.type !== 'FunctionDeclaration')
     || callee.params?.length || callee.async || callee.generator) return null;
   return callee;
 }
@@ -718,7 +729,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // receiver-less polyfill and mask the native TypeError on the skipped path. gate on
         // init-dominance like the receiver branch (usage-global over-injects, so it keeps following)
         if (adapter.method === 'usage-pure'
-          && !varInitDominatesUsage({ declaratorNode: entry.binding.node, usagePath: path })) return null;
+          && !varInitDominatesUsage({ declaratorNode: entry.binding.node, usagePath: path, kind: entry.binding.kind })) return null;
         // usage-global: an unconditional reassignment can kill the init before the use - including one
         // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
         // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
@@ -853,11 +864,14 @@ export function createSelfRefVarGuard(getKind) {
 // find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain.
 // depth-ceiling protects against pathological chains - same MAX_KEY_DEPTH bound used elsewhere
 export function findProxyGlobal(node) {
-  let obj = unwrapParens(node);
+  // peel SE tails too (`(eff(), globalThis).Map`): pure shape classification - the SE prefix
+  // stays in the source and the emit side collects it; a paren-only peel left the root
+  // unclassified and the receiver subtree unskipped (overlapping-rewrite crash on unplugin)
+  let obj = peelReceiverSequenceTail(node);
   let depth = 0;
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
     if (++depth > MAX_KEY_DEPTH) return null;
-    obj = unwrapParens(obj.object);
+    obj = peelReceiverSequenceTail(obj.object);
   }
   return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
 }
