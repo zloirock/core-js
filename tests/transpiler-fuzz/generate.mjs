@@ -301,6 +301,80 @@ const EXPR_FAMILIES = {
     // in-loop upstream reassignment must keep the conservative native path (dominance blocks)
     '(() => { let G = globalThis; const out = []; for (let i = 0; i < 2; i++) { const B = G.Array; '
       + 'class C extends B { static m() { return typeof super.of; } } out.push(C.m()); G = { Array: function () { return 1; } }; } return out; })()',
+    // SE-buried proxy root: the prefix runs exactly once and the static substitutes
+    '(() => { let n = 0; const m = (n++, globalThis).Map.groupBy(["ab", "c"], s => s.length); return [m.get(1)[0], n]; })()',
+    // alias-mutation canonicalization: the user patch through the alias wins over the polyfill
+    // (the original static is RESTORED so the shared fuzz runtime stays clean for other cases;
+    // the mutation marks Array.of, so the restore read stays native too)
+    '(() => { const A2 = Array; const orig = A2.of; A2.of = function () { return "patched"; }; const out = A2.of(1); A2.of = orig; return out; })()',
+    // a reassigned alias: reads of EVERY reachable canonical stay native (mutation honored,
+    // original restored for runtime hygiene)
+    '(() => { let R = Array; R = Map; const orig = R.of; R.of = function () { return "patched"; }; const out = [Map.of === R.of, typeof Array.of]; R.of = orig; return out; })()',
+    // logical-assignment alias value: the mutation through it stays on the NATIVE constructor
+    '(() => { let L = null; L ||= Map; const orig = L.of; L.of = function () { return "lp"; }; const out = [Map.of === L.of]; L.of = orig; return out; })()',
+    // ternary alias value: the mutation through it stays on the NATIVE live branch
+    '(() => { const T = 1 ? Map : Iterator; const orig = T.of; T.of = function () { return "tp"; }; const out = [Map.of === T.of]; T.of = orig; return out; })()',
+    // IIFE-returned ctor alias: the mutation through it stays on the NATIVE constructor
+    '(() => { const F = (() => Map)(); const orig = F.of; F.of = function () { return "fp"; }; const out = [Map.of === F.of]; F.of = orig; return out; })()',
+    // bound-fn-returned and static-object-member aliases keep mutations on the NATIVE ctor
+    '(() => { const fb = () => Map; const Fb = fb(); const orig = Fb.of; Fb.of = function () { return "bf"; }; const out = [Map.of === Fb.of]; Fb.of = orig; return out; })()',
+    '(() => { const NSo = { M: Map }; const Mo = NSo.M; const orig = Mo.of; Mo.of = function () { return "so"; }; const out = [Map.of === Mo.of]; Mo.of = orig; return out; })()',
+    // class-static-field alias keeps the mutation on the NATIVE constructor
+    '(() => { class NSf { static M = Map; } const Mf = NSf.M; const orig = Mf.of; '
+      + 'Mf.of = function () { return "cs"; }; const out = [Map.of === Mf.of]; Mf.of = orig; return out; })()',
+    // duplicate container keys: the mutation lands on the LAST (live) value
+    '(() => { const ND = { M: Array, M: Iterator }; const Md = ND.M; const orig = Md.from; '
+      + 'Md.from = function () { return "dk"; }; const out = [Iterator.from === Md.from, typeof Array.from]; Md.from = orig; return out; })()',
+    // assign-source computed static key: the patch wins over substitution
+    '(() => { const orig = Array.of; Object.assign(Array, { ["of"]: function () { return "ac"; } }); '
+      + 'const out = Array.of(1); Array.of = orig; return out; })()',
+    // delete through an alias suppresses the in-check fold (restored for runtime hygiene)
+    '(() => { const A = Array; const orig = A.of; delete A.of; const out = "of" in Array; A.of = orig; return out; })()',
+    // SE-wrapped proxy-member destructure init: effect exactly once, polyfill binds
+    '(() => { let n = 0; const { from } = (n++, globalThis.Array); return [from([3])[0], n]; })()',
+    // a shadowed bound-fn alias: the mutation through the INNER twin keeps outer reads native
+    '(() => { const fs = () => Map; const out = (function () { const fs2 = () => Iterator; const T = fs2(); '
+      + 'const orig = T.from; T.from = function () { return "sh"; }; const r = [Iterator.from === T.from]; T.from = orig; return r; })(); return out; })()',
+    // an IIFE-returned extends target resolves its super statics like the target itself
+    '(() => { class Fi extends (() => globalThis.Array)() { static m() { return super.of(6); } } return Fi.m()[0]; })()',
+    // an SE-buried extends target resolves its super statics (effect runs once at class-def)
+    '(() => { let n = 0; class Ce extends (n++, globalThis).Array { static m() { return super.of(5); } } return [Ce.m()[0], n]; })()',
+    // method-aware routing precision: the patched key reads the patch, a CLEAN key on the
+    // same constructor keeps its polyfilled receiver-less import
+    '(() => { const orig = Iterator.from; Iterator.from = function () { return "mk"; }; '
+      + 'const a = Iterator.from(0); const b = typeof [1].values().drop(0).toArray; Iterator.from = orig; return [a, b]; })()',
+    // mutated-static routing: the patch and the read share the constructor object (native
+    // or injected), so the patched value flows through reads, destructures and in-checks
+    '(() => { const orig = Iterator.from; Iterator.from = function () { return "rt"; }; '
+      + 'const a = Iterator.from(0); const { from } = Iterator; const b = from(0); '
+      + 'const c = "from" in Iterator; Iterator.from = orig; return [a, b, c]; })()',
+    // a pattern HOLE shifts nothing: the slot still pairs positionally for the mutation set
+    '(() => { const orig = Iterator.from; let A = Array; [, A] = [0, Iterator]; '
+      + 'A.from = function () { return "hs"; }; const out = [Iterator.from === A.from]; Iterator.from = orig; return out; })()',
+    // a REASSIGNED alias reaching a proxy global keys the chain mutation under the ctor leaf
+    '(() => { const orig = Array.of; let h; h = (() => false)() ? null : globalThis; '
+      + 'h.Array.of = function () { return "tp"; }; const out = [Array.of(3)]; Array.of = orig; return out; })()',
+    // alias-of-proxy chain mutation: the patch through `const g = globalThis` wins over reads
+    '(() => { const orig = Array.of; const gp = globalThis; gp.Array.of = function () { return "ga"; }; '
+      + 'const out = [Array.of(2)]; Array.of = orig; return out; })()',
+    // a proxy-chain mutation (SE-buried root included) keeps the patch winning over reads
+    '(() => { const orig = Array.of; let n = 0; (n++, globalThis).Array.of = function () { return "pc"; }; '
+      + 'const out = [Array.of(1), n]; Array.of = orig; return out; })()',
+    // the in-check fold keeps the receiver's SE prefix evaluating
+    '(() => { let n = 0; const has = "groupBy" in (n++, globalThis).Map; return [has, n]; })()',
+    // synth-literal receiver with an SE prefix: effect once, unpolyfilled key reads through
+    '(() => { let n = 0; const r = (({ from, other }) => [typeof from, other])((n++, globalThis.Array)); return [r[0], r[1], n]; })()',
+    // an SE wrapping a PARTIAL member chain stays structurally intact (both effects, in order)
+    '(() => { const log = []; const { from, formatRangeToParts } = ((log.push(2), (log.push(1), globalThis).globalThis)).Array; '
+      + 'return [typeof from, log.join("")]; })()',
+    // a partial-consume residual with an SE-buried proxy-hop root must keep the effect
+    '(() => { let n = 0; const { from, formatRangeToParts } = (n++, globalThis).globalThis.Array; return [typeof from, typeof formatRangeToParts, n]; })()',
+    // gate agreement across prop shapes: defaults, aliases and computed keys all lift once
+    '(() => { let n = 0; const { from = 0, ["of"]: o } = (n++, globalThis.Array); return [from([7])[0], o(8)[0], n]; })()',
+    // SE prefix lifts once for a fully-consumed multi-prop destructure with a proxy tail
+    '(() => { let n = 0; const { from, of } = (n++, globalThis.Array); return [from([3])[0], of(4)[0], n]; })()',
+    // sibling statics through a shared static-object wrapper both resolve
+    '(() => { const w = { a: Array, b: Promise }; const { a: { of }, b: { resolve } } = w; return [of(5)[0], typeof resolve]; })()',
     // a bound capitalized arg preempts (alias resolution), a shadowed constructor name keeps
     // its caller value - both paths must match native byte-for-byte
     '(() => { const A = Array; return (({ of } = Iterator) => typeof of)(A); })()',
