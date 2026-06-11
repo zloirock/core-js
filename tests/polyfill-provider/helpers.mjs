@@ -921,10 +921,11 @@ check('isDirectiveStatement/stmt marker', isDirectiveStatement({ type: 'Expressi
 // sibling-plugin synth shape: marker on the inner StringLiteral / Literal instead of the statement
 check('isDirectiveStatement/inner-literal marker',
   isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } }), true);
-// empty-string directive is not a valid prologue token in either slot
-check('isDirectiveStatement/empty stmt marker', isDirectiveStatement({ type: 'ExpressionStatement', directive: '' }), false);
+// an empty-string directive IS part of the prologue per the spec (any string-literal statement
+// extends it) - rejecting it stopped the prologue scan ahead of a following 'use strict'
+check('isDirectiveStatement/empty stmt marker', isDirectiveStatement({ type: 'ExpressionStatement', directive: '' }), true);
 check('isDirectiveStatement/empty inner marker',
-  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: '', directive: '' } }), false);
+  isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: '', directive: '' } }), true);
 // a bare non-directive string-literal statement must NOT qualify (would wrongly extend the import region)
 check('isDirectiveStatement/non-directive string',
   isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), false);
