@@ -22,3 +22,8 @@ function shadowed(Reflect) { Reflect.ownKeys = c5; }
 export const r7 = Reflect.ownKeys(obj);
 Map.getOrInsert = c6;
 export const r8 = new Map();
+// mutation targets behind transparent wrappers route too: an optional delete (estree wraps
+// the chain), an oxc-preserved paren delete and a paren compound assignment
+delete Iterator?.toAsync;
+delete (Map.customParenDel);
+(Set.customParenOr) ||= parenShim;

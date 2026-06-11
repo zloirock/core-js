@@ -5,6 +5,7 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
+  collectBuriedChainSePrefixes,
   staticStringKey,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
@@ -172,8 +173,17 @@ function resolveConditionalDestructureMeta({ node, key, scope, adapter, path }) 
 // fully-resolved call is rescued ahead of the literal instead (`(<call>, literal)`), a pure one
 // folds away. returns { callBranch, rescueSe }
 export function classifyCallBranchForSynth({ inner, scope, adapter, path }) {
-  if (!isCallShape(inner)) return { callBranch: false, rescueSe: null };
-  return { callBranch: true, rescueSe: seBearingChainRootCall({ node: inner, scope, adapter, path }) };
+  if (isCallShape(inner)) {
+    return { callBranch: true, rescueSe: seBearingChainRootCall({ node: inner, scope, adapter, path }) };
+  }
+  // a member receiver with SE buried along its spine (`(eff(), globalThis).Array`) rescues
+  // the original ahead of the literal too - the synth literal alone would drop the effect
+  // (and a queued inner rewrite would have no needle to compose into)
+  if ((inner?.type === 'MemberExpression' || inner?.type === 'OptionalMemberExpression')
+    && collectBuriedChainSePrefixes(inner.object).length) {
+    return { callBranch: false, rescueSe: inner };
+  }
+  return { callBranch: false, rescueSe: null };
 }
 
 // per-branch synth-swap viability check: branch is a candidate for `{key: _Branch$key}`
