@@ -536,6 +536,16 @@ QUnit.test('URL#search', assert => {
   // eslint-disable-next-line no-script-url -- safe
   assert.same(new URL('javascript:void 0').pathname, 'void 0', 'space preserved in opaque pathname');
 
+  // space before query or fragment in opaque paths should be percent-encoded
+  /*
+  assert.same(new URL('x:path ?query').href, 'x:path%20?query', 'space before query in opaque path encoded as %20');
+  assert.same(new URL('x:path ?query').search, '?query', 'query parsed after encoded space');
+  assert.same(new URL('x:path #frag').href, 'x:path%20#frag', 'space before fragment in opaque path encoded as %20');
+  assert.same(new URL('x:path #frag').hash, '#frag', 'fragment parsed after encoded space');
+  assert.same(new URL('x:a b c ?d').pathname, 'a b c%20', 'only space before query encoded');
+  assert.same(new URL('x:a b c #d').pathname, 'a b c%20', 'only space before fragment encoded');
+  */
+
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/?');
     assert.same(url.search, '');

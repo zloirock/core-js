@@ -244,6 +244,7 @@ export default {
     [125, '27.0'],
     [130, '28.0'],
     [136, '29.0'],
+    [143, '30.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   // https://forums.opera.com/category/20/opera-for-android
@@ -302,11 +303,13 @@ export default {
     [143, 94],
     [144, 95],
     [145, 96],
+    [146, 97],
   ],
   // https://developers.meta.com/horizon/release-notes/web/
   // https://www.meta.com/experiences/browser/1916519981771802/
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
   // https://whatmyuseragent.com/browser/oc/oculus-browser
+  // Quest Browser after 42 uses a similar version to Chromium
   ChromeAndroidToQuest: [
     [57, '3.0'],
     [61, '4.0'],

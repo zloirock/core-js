@@ -2,7 +2,7 @@
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
-var getIteratorMethod = require('../internals/get-iterator-method');
+var getIteratorMethod = require('../internals/get-iterator-method-internal');
 
 module.exports = function (obj, stringHandling) {
   if (!stringHandling || typeof obj !== 'string') anObject(obj);

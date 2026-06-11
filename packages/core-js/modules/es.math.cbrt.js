@@ -10,6 +10,8 @@ var pow = Math.pow;
 $({ target: 'Math', stat: true }, {
   cbrt: function cbrt(x) {
     var n = +x;
-    return sign(n) * pow(abs(n), 1 / 3);
+    var y = sign(n) * pow(abs(n), 1 / 3);
+    // Newton-Raphson refinement for better precision
+    return n !== 0 && isFinite(n) ? (2 * y + n / (y * y)) / 3 : y;
   }
 });

@@ -8,9 +8,10 @@ var isConstructor = require('../internals/is-constructor');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
 var setArrayLength = require('../internals/array-set-length');
-var getIterator = require('../internals/get-iterator');
-var getIteratorMethod = require('../internals/get-iterator-method');
+var getIterator = require('../internals/get-iterator-internal');
+var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var iteratorClose = require('../internals/iterator-close');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 
 var $Array = Array;
 
@@ -32,6 +33,11 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     for (;!(step = call(next, iterator)).done; index++) {
+      try {
+        doesNotExceedSafeInteger(index);
+      } catch (error) {
+        iteratorClose(iterator, 'throw', error);
+      }
       value = mapping ? callWithSafeIterationClosing(iterator, mapfn, [step.value, index], true) : step.value;
       try {
         createProperty(result, index, value);

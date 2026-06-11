@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
-var getIteratorMethod = require('../internals/get-iterator-method');
+var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var IS_PURE = require('../internals/is-pure');
 

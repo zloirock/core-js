@@ -11,7 +11,7 @@ var FORCED = fails(function () {
 
 // `Date.prototype.toJSON` method
 // https://tc39.es/ecma262/#sec-date.prototype.tojson
-$({ target: 'Date', proto: true, arity: 1, forced: FORCED }, {
+$({ target: 'Date', proto: true, forced: FORCED }, {
   // eslint-disable-next-line no-unused-vars -- required for `.length`
   toJSON: function toJSON(key) {
     var O = toObject(this);

@@ -30,6 +30,11 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
   assert.throws(() => array4.setFromHex('4865gc6c6f20576f726c64'), SyntaxError, 'throws on invalid #1');
   assert.deepEqual(array4, new Uint8Array([72, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0]), 'array #4');
 
+  // Line terminators embedded in hex string should not cause incorrect byte writes
+  const array4a = new Uint8Array(3);
+  assert.throws(() => array4a.setFromHex('ab\n\ncd'), SyntaxError, 'throws on line terminators');
+  assert.deepEqual(array4a, new Uint8Array([171, 0, 0]), 'only first byte written before line terminator');
+
   if (ArrayBuffer.prototype.transfer) {
     const array5 = new Uint8Array(11);
     array5.buffer.transfer();

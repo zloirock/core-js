@@ -22,7 +22,9 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
     function match(regexp) {
       var O = requireObjectCoercible(this);
       var matcher = isObject(regexp) ? getMethod(regexp, MATCH) : undefined;
-      return matcher ? call(matcher, regexp, O) : new RegExp(regexp)[MATCH](toString(O));
+      if (matcher) return call(matcher, regexp, O);
+      var S = toString(O);
+      return new RegExp(regexp)[MATCH](S);
     },
     // `RegExp.prototype[@@match]` method
     // https://tc39.es/ecma262/#sec-regexp.prototype-@@match
