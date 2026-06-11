@@ -792,7 +792,7 @@ export default function createDestructureEmitter({
     const valueNode = propBindingIdentifier(prop.node.value);
     if (!valueNode) return false;
     const host = findArrayWrappedDestructureHost(prop.parentPath);
-    if (!host?.hasMultiElementArray) return false;
+    if (!host?.needsResidualExtraction) return false;
     const declaration = host.declarator.parentPath;
     if (!declaration?.isVariableDeclaration()) return false;
     // export host re-exports the extracted binding too (`export const from = _Array$from`)
@@ -963,15 +963,10 @@ export default function createDestructureEmitter({
     // when flatten can't (multi-prop ObjectPattern, complex shape) since there's no
     // alternative emission path for ArrayPattern-wrapped destructures
     if (objectPattern.parentPath?.node !== patternParent?.node && kind !== 'instance') {
-      // ArrayPattern wrap + rest sibling: residual rendering would drop the outer
-      // ArrayPattern wrap (`[{_unused, ...rest}] -> {_unused, ...rest}`), and rest would
-      // gather different keys at runtime ([Array]'s {0, length} vs Array's own statics).
-      // unplugin's planDeclarator has the same constraint; keep symmetric bail
-      const hostWrapIsArrayPattern = objectPattern.parentPath?.node?.type === 'ArrayPattern';
-      const hasRest = objectPattern.node.properties.some(
-        p => p.type === 'RestElement' || p.type === 'SpreadElement',
-      );
-      if (hostWrapIsArrayPattern && hasRest) return;
+      // ArrayPattern wrap + rest sibling flows into the same rest-aware cascade as the unwrapped
+      // shapes: babel's sentinel rename mutates the pattern IN PLACE and unplugin splices the
+      // rebuilt pattern back into the original LHS text, so the wrap survives on both and rest
+      // keeps reading the matching init element
       tryFlattenNestedProxyDestructure(prop, entry, hintName);
       return;
     }
