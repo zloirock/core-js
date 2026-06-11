@@ -123,6 +123,14 @@ export default function createSynthSwapEmitter({
       // `({from: customFn})` still beats the synth-emitted default (default fires only
       // when caller-arg is undefined), preserving caller-passed values
       const rightPath = unwrapSequenceTail(wrapper.get('right'));
+      // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order): a classifiable
+      // live arg wins regardless of the wrapper-default's shape - gating on the default first
+      // bailed `(({ from } = []) => ...)(Array)` to a native-first inline default even though
+      // the live receiver was statically known. the default fires only on caller-omitted
+      // invocation; (Optional)MemberExpression defaults included (`({of} = globalThis.Iterator)
+      // (Array)`) - synthesising onto the dead default would leave the live caller-arg native
+      const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
+      if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
       // a fallback-shaped default (`Array || Iterator`, `Array ?? Iterator`) resolves its meta
       // through the LEFT branch (detection peels fallback wrappers deterministically), so the
       // synth replaces the WHOLE expression with the literal - the same left-collapse the
@@ -135,14 +143,6 @@ export default function createSynthSwapEmitter({
       // `isExpandedClassifiableReceiver`'s `globalProxyMemberName` walk which already handles
       // optional-chain shapes. without OME the OME-default silently bails to inline-default
       if (!fallbackCollapse && !isReceiverShapedNode(rightPath.node)) return null;
-      // IIFE caller-arg overrides the wrapper-default whenever the caller passes a statically
-      // classifiable receiver - the default fires only on caller-omitted invocation, so the
-      // live arg is what actually runs. applies to (Optional)MemberExpression defaults too
-      // (`({of} = globalThis.Iterator)(Array)`): the meta layer consults the caller-arg
-      // unconditionally, so synthesising onto the dead default here would leave the live
-      // caller-arg native and throw at runtime
-      const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
-      if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
       return rightPath;
     }
     // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
