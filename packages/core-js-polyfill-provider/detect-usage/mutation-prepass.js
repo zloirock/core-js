@@ -10,14 +10,13 @@
 // traversal (each dialect collects sites with live paths) and feed `resolveMutationSite`.
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
+  unwrapRuntimeExpr,
   isMemberMutationContext,
-  mayHaveSideEffects,
   memberKeyName,
   propertyKeyName,
   reassignmentValueNodes,
   staticStringKey,
   TS_EXPR_WRAPPERS,
-  unwrapRuntimeExpr,
   walkAstChildren,
 } from '../helpers/ast-patterns.js';
 import { resolveObjectName } from './resolve.js';
@@ -33,12 +32,6 @@ import { walkStaticReceiverChain } from './destructure.js';
 // cannot canonicalize to a built-in downstream and stay silent. object / class containers
 // fire only for CHAIN targets (`NS.M.of = 1`) - a bare `config.port = 1` on a literal-bound
 // name resolves to nothing
-
-const OBJECT_MUTATORS = new Set([
-  'defineProperty',
-  'defineProperties',
-  'assign',
-]);
 
 // value shapes that cannot reach a built-in constructor through the resolver: primitives,
 // derived expressions, fresh instances and function values. everything ELSE marks the bound
@@ -64,9 +57,11 @@ const INERT_VALUE_TYPES = new Set([
 function gateRootOf(node) {
   let root = node;
   let hops = 0;
+  let firstKey = null;
   for (;;) {
     if (!root) return null;
     if (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') {
+      firstKey = memberKeyName(root);
       root = root.object;
       hops++;
     } else if (root.type === 'SequenceExpression' && root.expressions.length) {
@@ -76,7 +71,7 @@ function gateRootOf(node) {
       root = root.expression;
     } else break;
   }
-  return root.type === 'Identifier' ? { name: root.name, chained: hops > 0 } : null;
+  return root.type === 'Identifier' ? { name: root.name, chained: hops > 0, firstKey } : null;
 }
 
 function gatherPatternMemberTargets(pattern, out) {
@@ -95,12 +90,18 @@ function gatherPatternMemberTargets(pattern, out) {
 export function hasMutationCandidateShapes(programNode) {
   const targets = [];
   const valueBound = new Set();
-  const containerBound = new Set();
+  // name -> container nodes: the gate checks the chain's FIRST key against the container's
+  // static keys, so `config.foo.bar = v` over `const config = {}` stays silent while
+  // `NS.M.of = v` over `const NS = { M: Map }` fires
+  const containerBound = new Map();
   function recordValueSource(id, value) {
     if (id?.type === 'Identifier') {
       if (!value || INERT_VALUE_TYPES.has(value.type)) return;
-      if (value.type === 'ObjectExpression' || value.type === 'ClassExpression') containerBound.add(id.name);
-      else valueBound.add(id.name);
+      if (value.type === 'ObjectExpression' || value.type === 'ClassExpression') {
+        let nodes = containerBound.get(id.name);
+        if (!nodes) containerBound.set(id.name, nodes = []);
+        nodes.push(value);
+      } else valueBound.add(id.name);
     } else if (id?.type === 'ArrayPattern' || id?.type === 'ObjectPattern') {
       // pattern slots pair positionally / by key downstream - flat over-approximation here
       const work = [id];
@@ -140,7 +141,11 @@ export function hasMutationCandidateShapes(programNode) {
         recordValueSource(node.id, node.init);
         break;
       case 'ClassDeclaration':
-        if (node.id?.type === 'Identifier') containerBound.add(node.id.name);
+        if (node.id?.type === 'Identifier') {
+          let nodes = containerBound.get(node.id.name);
+          if (!nodes) containerBound.set(node.id.name, nodes = []);
+          nodes.push(node);
+        }
         break;
       case 'CallExpression': {
         const { callee } = node;
@@ -162,12 +167,33 @@ export function hasMutationCandidateShapes(programNode) {
     if (root.name[0] >= 'A' && root.name[0] <= 'Z') return true;
     if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
     if (valueBound.has(root.name)) return true;
-    if (root.chained && containerBound.has(root.name)) return true;
+    if (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey)) return true;
+  }
+  return false;
+}
+
+// any of the name's containers statically carries the chain's first key (object property or
+// class static member); a dynamic key keeps the container in play
+function containerHasKey(containers, key) {
+  if (!containers || !key) return false;
+  for (const container of containers) {
+    const members = container.type === 'ObjectExpression' ? container.properties : container.body?.body;
+    for (const member of members ?? []) {
+      if (member.type === 'SpreadElement') return true;
+      const name = propertyKeyName(member);
+      if (name === null || name === key) return true;
+    }
   }
   return false;
 }
 
 // --- Stage 2: per-site classification (shape only - shadow checks live in the resolver) ---
+
+const OBJECT_MUTATORS = new Set([
+  'defineProperty',
+  'defineProperties',
+  'assign',
+]);
 
 const REFLECT_MUTATORS = new Set([
   'defineProperty',
@@ -190,7 +216,7 @@ function objectLiteralKeys(node) {
 // `{ targetNode, keys, namespace }` entries for a mutation-shaped node; `namespace` names the
 // Object / Reflect callee whose own shadowing the resolver must veto (a local `Object` is not
 // the global namespace)
-export function classifyMutationSite(node, parent, grandparent) {
+function classifyMutationSite(node, parent, grandparent) {
   if (node.type === 'MemberExpression' && isMemberMutationContext(node, parent, grandparent)) {
     const key = memberKeyName(node);
     return key !== null ? [{ targetNode: node.object, keys: [key], namespace: null }] : [];
@@ -222,6 +248,61 @@ export function classifyMutationSite(node, parent, grandparent) {
     return key !== null ? [{ targetNode: args[0], keys: [key], namespace }] : [];
   }
   return [];
+}
+
+// --- the per-site collector callback (shared by both plugins' traversals) ---
+// classify the node as a mutation site, veto shadowed Object / Reflect namespaces, resolve
+// the receiver through the read-side canons and record every `name.key` pair
+export function createMutationSiteHandler({ adapter, mutated }) {
+  return function handleSite(path) {
+    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent)) {
+      if (namespaceIsShadowed(namespace, { scope: path.scope, adapter, path })) continue;
+      const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
+      for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
+    }
+  };
+}
+
+// --- mutated-key enrichment (shared by both plugins) ---
+// imports each mutated key's own PURE entry up front, so core-js initializes from the
+// PRISTINE built-in before the patch statement runs:
+// - a STATIC key (`Iterator.from = patch`) gets its entry when the constructor itself
+//   ROUTES (the same `kind: 'global'` resolution the identifier machinery uses) - the
+//   method then exists on the ponyfill (polyfill-then-patch) and a native-staying receiver
+//   (Array on ie11 targets) skips the dead weight. instance-kind fallbacks are NOT statics
+//   (the key lives on the prototype) and are skipped
+// - an INSTANCE key (`String.prototype.at = patch`) gets its instance entry with NO
+//   ctor-routing gate: the point is initialization ORDER - core-js caches its own
+//   implementation and never adopts the third-party patch, so dispatch helpers keep
+//   serving the core-js polyfill in every file of the bundle
+export function enrichMutatedStatics({ mutatedStatics, resolvePure, injectPureImport }) {
+  for (const mutatedKey of mutatedStatics ?? []) {
+    const dot = mutatedKey.lastIndexOf('.');
+    let ctorName = mutatedKey.slice(0, dot);
+    const protoKey = ctorName.endsWith('.prototype');
+    if (protoKey) {
+      ctorName = ctorName.slice(0, -'.prototype'.length);
+      const pure = resolvePure({
+        kind: 'property', object: ctorName, key: mutatedKey.slice(dot + 1), placement: 'prototype',
+      });
+      if (pure) injectPureImport(pure.entry, pure.hintName);
+      continue;
+    }
+    // a PROXY-GLOBAL receiver names a global SLOT (`window.Promise = Shim`): the mutated
+    // "key" IS a constructor - pin its own entry so core-js modules loading later in the
+    // bundle initialize from the pristine global, not the replacement. explicit for every
+    // proxy name: `window` has no pure entry, so the ctor-routing gate below would skip it
+    if (POSSIBLE_GLOBAL_OBJECTS.has(ctorName)) {
+      const pure = resolvePure({ kind: 'global', name: mutatedKey.slice(dot + 1) });
+      if (pure && pure.kind !== 'instance') injectPureImport(pure.entry, pure.hintName);
+      continue;
+    }
+    if (!resolvePure({ kind: 'global', name: ctorName })) continue;
+    const pure = resolvePure({
+      kind: 'property', object: ctorName, key: mutatedKey.slice(dot + 1), placement: 'static',
+    });
+    if (pure && pure.kind !== 'instance') injectPureImport(pure.entry, pure.hintName);
+  }
 }
 
 // --- Stage 3: canonical receiver resolution ---
@@ -274,18 +355,36 @@ function memberChainParts(node) {
 function resolveLeafName(leaf, { scope, adapter, path }) {
   const direct = resolveObjectName({ objectNode: leaf, scope, adapter, path });
   if (direct) return direct;
-  // static-container chains (`NS.M` over `const NS = { M: Map }` / class statics): the
-  // destructure receiver canon walks the same literal hops
   if (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression') {
     const parts = memberChainParts(leaf);
-    if (parts) return walkStaticReceiverChain({ receiverNode: parts.rootNode, walkPath: parts.keys, scope, adapter, path });
+    if (!parts) return null;
+    // `Ctor.prototype.key = patch` is an INSTANCE mutation, recorded as `Ctor.prototype.key`:
+    // the enrichment imports the key's instance entry UP FRONT, so core-js initializes from
+    // the PRISTINE prototype (caching its own implementation) before the third-party patch
+    // statement runs - dispatch helpers keep serving the core-js polyfill, here and in every
+    // other file of the bundle. proxy-global chains (`globalThis.String.prototype.x`,
+    // `window.self.String.prototype.x`) name the same prototype through the global object
+    if (parts.keys.at(-1) === 'prototype') {
+      if (parts.keys.length === 1) {
+        const root = resolveObjectName({ objectNode: parts.rootNode, scope, adapter, path })
+          ?? (!adapter.hasBinding(scope, parts.rootNode.name, path) ? parts.rootNode.name : null);
+        if (root) return `${ root }.prototype`;
+      } else if (POSSIBLE_GLOBAL_OBJECTS.has(parts.rootNode.name)
+        && parts.keys.slice(0, -2).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key))
+        && !adapter.hasBinding(scope, parts.rootNode.name, path)) {
+        return `${ parts.keys.at(-2) }.prototype`;
+      }
+    }
+    // static-container chains (`NS.M` over `const NS = { M: Map }` / class statics): the
+    // destructure receiver canon walks the same literal hops
+    return walkStaticReceiverChain({ receiverNode: parts.rootNode, walkPath: parts.keys, scope, adapter, path });
   }
   return null;
 }
 
 // canonical names for one mutation receiver, following the read-side canons. over-records by
 // design: every REACHABLE value of a (re)assigned alias is poisoned - the safe direction
-export function resolveMutationSite({ targetNode, scope, adapter, path }) {
+function resolveMutationSite({ targetNode, scope, adapter, path }) {
   const names = new Set();
   const seenBindings = new Set();
   const visitAliasValues = (valueNode, depth) => {
@@ -348,10 +447,6 @@ export function resolveMutationSite({ targetNode, scope, adapter, path }) {
 }
 
 // `namespace` veto: a LOCAL binding named Object / Reflect is not the global namespace
-export function namespaceIsShadowed(namespace, { scope, adapter, path }) {
+function namespaceIsShadowed(namespace, { scope, adapter, path }) {
   return !!namespace && adapter.hasBinding(scope, namespace, path);
 }
-
-// re-exported so plugin-side collectors can suppress taint for effect-bearing leaves the
-// substitution machinery handles separately
-export { mayHaveSideEffects };
