@@ -1286,3 +1286,23 @@ QUnit.test('destructuring: duplicate container keys read the live value', assert
   assert.same(from([7].values()).next().value, 7);
 });
 
+// the assignment-destructure's own write registers the alias: receiver narrowing through
+// the binding serves the typed dispatch and the value flows end to end
+QUnit.test('destructuring: assignment-destructure alias narrows receiver type', assert => {
+  let from;
+  // eslint-disable-next-line prefer-const -- the `let x; ({ x } = Source)` form IS the case under test
+  ({ from } = Array);
+  assert.same(from([5, 6]).at(0), 5);
+  assert.same(from('ab').at(1), 'b');
+});
+
+// a mid-sequence destructure assignment is split by the pre-pass and the alias serves the
+// polyfill - the trailing sequence expression still runs
+QUnit.test('destructuring: mid-sequence assignment destructure polyfills', assert => {
+  let from;
+  const calls = [];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence-slot assignment form IS the case under test
+  (({ from } = Array), calls.push('after'));
+  assert.same(calls.length, 1);
+  assert.same(from([5, 6]).at(-1), 6);
+});
