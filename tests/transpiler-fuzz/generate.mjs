@@ -339,6 +339,20 @@ const EXPR_FAMILIES = {
     '(() => { class Fi extends (() => globalThis.Array)() { static m() { return super.of(6); } } return Fi.m()[0]; })()',
     // an SE-buried extends target resolves its super statics (effect runs once at class-def)
     '(() => { let n = 0; class Ce extends (n++, globalThis).Array { static m() { return super.of(5); } } return [Ce.m()[0], n]; })()',
+    // a prototype patch and the instances reading it live on ONE (routed) constructor
+    '(() => { Map.prototype.customX = Map.prototype.customX || function () { return "mp"; }; '
+      + 'const r = new Map().customX(); delete Map.prototype.customX; return [r]; })()',
+    // a polyfillable-key or-shim stays DEAD: the key's entry is imported up front, the guard
+    // finds it present on the routed constructor, and reads serve the implementation
+    '(() => { Iterator.from ||= function () { return "dead"; }; return [Iterator.from([4].values()).next().value]; })()',
+    '(() => { Promise.allSettled = Promise.allSettled || function () { return "dead"; }; return [typeof Promise.allSettled]; })()',
+    '(() => { if (typeof Object.groupBy != "function") Object.groupBy = function () { return "dead"; }; '
+      + 'return [Object.groupBy([5], x => x)[5].length]; })()',
+    // third-party shim patterns: present-key guards keep the live implementation, a
+    // missing-key or-shim assigns and serves the shim through the same routed object
+    '(() => { if (!Array.from) Array.from = function () { return "dead"; }; return [Array.from([3])[0], typeof Array.from]; })()',
+    '(() => { Map.customShimKey = Map.customShimKey || function () { return "served"; }; '
+      + 'const r = Map.customShimKey(); delete Map.customShimKey; return [r]; })()',
     // method-aware routing precision: the patched key reads the patch, a CLEAN key on the
     // same constructor keeps its polyfilled receiver-less import
     '(() => { const orig = Iterator.from; Iterator.from = function () { return "mk"; }; '

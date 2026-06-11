@@ -1,6 +1,9 @@
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$try from "@core-js/pure/actual/promise/try";
 // mutated-static routing composes with the surrounding machineries: an SE-buried write keeps
 // its prefix around the routed receiver, an in-check receiver routes inside its sequence, a
 // destructure default stays on the raw pattern. a receiver whose global EXISTS on the target

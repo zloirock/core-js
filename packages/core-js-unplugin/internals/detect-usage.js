@@ -11,10 +11,8 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
-  classifyMutationSite,
+  createMutationSiteHandler,
   hasMutationCandidateShapes,
-  namespaceIsShadowed,
-  resolveMutationSite,
 } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import {
   createSelfRefVarGuard,
@@ -218,13 +216,7 @@ function hasRuntimeBinding(scope, name, path = null) {
 export function collectMutationPrePass(ast, adapter) {
   const mutated = new Set();
   if (!hasMutationCandidateShapes(ast)) return { mutated };
-  const handleSite = path => {
-    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent)) {
-      if (namespaceIsShadowed(namespace, { scope: path.scope, adapter, path })) continue;
-      const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
-      for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
-    }
-  };
+  const handleSite = createMutationSiteHandler({ adapter, mutated });
   traverse(ast, {
     $: { scope: true },
     MemberExpression: handleSite,
@@ -813,9 +805,11 @@ export function createUsageVisitors({
     }
     if (handledObjects.has(node)) return;
     if (!isReferenced({ path, skipUpdateTargets })) {
-      // write-only / update members never read the static; their receivers follow the SAME
-      // identifier routing the (always-mutated-by-definition) reads use, so the patch and
-      // the reads land on one object - no marking
+      // a guarded SHIM write stays fully native (its statement is ignored as polyfill
+      // intent); a deliberate override's receiver follows the SAME identifier routing the
+      // reads use, so the patch and the reads land on one object - no marking there
+      // its receiver follows the SAME identifier routing the (always-mutated-by-definition)
+      // reads use, so the patch and the reads land on one object - no marking
       return;
     }
     const meta = handleMemberExpressionNode({
