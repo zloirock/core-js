@@ -53,12 +53,16 @@ export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }
 // binding where `.node` is the bound Identifier and the declarator lives at `.path.node`.
 // branch on `node.type` so a single predicate covers both shapes
 function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
-  if (binding.constantViolations?.length) return false;
+  // dominance-aware - ONE reassignment policy with the extends-target gate: a reassignment
+  // that cannot reach the binding's READ does not block (the flat `constantViolations` bail
+  // dropped a const-captured alias whose upstream source is reassigned only after the capture)
+  if (reassignmentBlocksGlobalResolve({ binding, adapter, path })) return false;
   const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
   const init = unwrapInitForResolution(decl?.init);
   if (init?.type !== 'Identifier') return false;
+  // the NEXT hop's value is read at THIS declarator - anchor its reassignment proof there
   return isProxyGlobalIdentifierNode({
-    node: init, scope: binding.path?.scope ?? scope, adapter, path, seen: new Set(seen).add(binding),
+    node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path, seen: new Set(seen).add(binding),
   });
 }
 
@@ -92,20 +96,27 @@ export function globalProxyMemberName({ node, scope, adapter, path }) {
   return memberKeyName(node) || null;
 }
 
-// strict: IIFE caller-arg overrides wrapper-default ONLY when bare Identifier; other shapes
-// keep the AssignmentPattern default as the synth target so resolution can fall through.
+// strict: IIFE caller-arg overrides wrapper-default ONLY when it is a bare Identifier the
+// static layer can actually CLASSIFY - a known proxy global, a constructor-shaped
+// (capitalised) name, or a binding that follows to a proxy global. an UNRESOLVABLE arg
+// (lowercase unbound name, local non-global binding) must NOT preempt: the wrapper default
+// owns the undefined-arg path, so keeping IT as the synth target leaves the live arg native
+// (caller value wins) while the no-arg / undefined-arg call still gets the polyfill -
+// preempting with an unresolvable arg dropped the usage entirely.
 // the GLOBAL `undefined` arg is special: it makes the runtime apply the parameter default, so
 // it is NOT a classifiable receiver. but `undefined` is shadowable - a local binding named
 // `undefined` is a real value, so the call-arg DOES override the default in that case. consult
 // `adapter.hasBinding` (when scope/adapter are available) to tell global from shadowed; without
-// them, treat `undefined` as the global sentinel. a shadow is always an ordinary binding
-// (`const undefined` / `var` / param), found without position context, so no `path` arg is
-// needed. `void x` is a UnaryExpression and is rejected by the Identifier gate above
+// them, treat `undefined` as the global sentinel. `void x` is a UnaryExpression and is
+// rejected by the Identifier gate above
 export function isClassifiableReceiverArg(node, scope, adapter) {
   if (node?.type !== 'Identifier') return false;
-  if (node.name !== 'undefined') return true;
-  if (!scope || !adapter) return false;
-  return adapter.hasBinding(scope, 'undefined');
+  if (node.name === 'undefined') {
+    if (!scope || !adapter) return false;
+    return adapter.hasBinding(scope, 'undefined');
+  }
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) || (node.name[0] >= 'A' && node.name[0] <= 'Z')) return true;
+  return !!(scope && adapter) && isProxyGlobalIdentifierNode({ node, scope, adapter });
 }
 
 // permissive: no wrapper-default - accept bare Identifier OR proxy-global MemberExpression
@@ -292,28 +303,33 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         return injector.getPureImport?.(name) ? name : null;
       }
       if (decl?.type !== 'VariableDeclarator') return null;
+      // upstream hops anchor their reassignment proofs at THIS declarator: the capture reads
+      // the next binding here, so a reassignment AFTER the capture must not block (one
+      // dominance policy with followLocalBindingToProxyGlobal)
+      const captureAnchor = binding.path ?? classAnchor ?? path;
       const init = unwrapInitForResolution(decl.init);
       // ObjectPattern: `const { Promise: MyP } = R` -> `const MyP = R.Promise`. unplugin
       // keeps raw destructure; babel-plugin already rewrites it
       if (decl.id?.type === 'ObjectPattern') {
         const keyName = findDestructureKeyForBinding(decl.id, name);
         if (!keyName) return null;
-        if (isProxyGlobalIdentifierNode({ node: init, scope, adapter, path })
-            || globalProxyMemberName({ node: init, scope, adapter, path }) !== null) return keyName;
+        if (isProxyGlobalIdentifierNode({ node: init, scope, adapter, path: captureAnchor })
+            || globalProxyMemberName({ node: init, scope, adapter, path: captureAnchor }) !== null) return keyName;
         return resolveBindingToGlobalName({
           type: 'MemberExpression',
           object: init,
           property: { type: 'Identifier', name: keyName },
           computed: false,
-        }, scope, seen, path, classAnchor);
+        }, scope, seen, captureAnchor, captureAnchor);
       }
       if (init?.type === 'Identifier') {
         name = init.name;
+        classAnchor = captureAnchor;
         continue;
       }
       // delegate proxy-global / namespace-member chains; share `seen` so namespace-member
       // recursion can't loop
-      return resolveBindingToGlobalName(init, scope, seen, path, classAnchor);
+      return resolveBindingToGlobalName(init, scope, seen, captureAnchor, captureAnchor);
     }
     return null;
   }
