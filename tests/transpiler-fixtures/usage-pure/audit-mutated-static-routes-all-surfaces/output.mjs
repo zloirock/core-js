@@ -6,6 +6,7 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
+import _Set from "@core-js/pure/actual/set/constructor";
 // every surface of a monkey-patched static routes through the injected constructor - the
 // patch and all observers share one object, working even when the native global is missing
 // on the target. delete, in-check, proxy-chain write and destructure all follow the write
@@ -36,3 +37,8 @@ function shadowed(Reflect) {
 export const r7 = _Reflect$ownKeys(obj);
 _Map.getOrInsert = c6;
 export const r8 = new _Map();
+// mutation targets behind transparent wrappers route too: an optional delete (estree wraps
+// the chain), an oxc-preserved paren delete and a paren compound assignment
+delete _Iterator.toAsync;
+delete _Map.customParenDel;
+_Set.customParenOr ||= parenShim;

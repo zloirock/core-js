@@ -23,3 +23,6 @@ export const r5 = P.try(fn);
 let M = Array;
 M ||= Map;
 export const r6 = M.groupBy(items, fn);
+// optional / wrapped mutation targets classify in global mode too (imports still injected)
+delete Iterator?.toArray;
+(Map.customGlobParen) ||= globShim;
