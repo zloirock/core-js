@@ -48,11 +48,7 @@ let F = Array;
 export const r4 = F.fromEntries(entries);
 // object-pattern slots pair by key
 let P = Array;
-({
-  p: P
-} = {
-  p: Promise
-});
+({ p: P } = { p: Promise });
 export const r5 = P.try(fn);
 // logical assignment flows its RHS as a reachable value
 let M = Array;
@@ -60,4 +56,4 @@ M ||= Map;
 export const r6 = M.groupBy(items, fn);
 // optional / wrapped mutation targets classify in global mode too (imports still injected)
 delete Iterator?.toArray;
-Map.customGlobParen ||= globShim;
+(Map.customGlobParen) ||= globShim;

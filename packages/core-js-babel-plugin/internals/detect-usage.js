@@ -65,8 +65,14 @@ export function collectMutationPrePass(programPath, adapter) {
   if (!hasMutationCandidateShapes(programPath.node)) return { mutated };
   const handleSite = createMutationSiteHandler({ adapter, mutated });
   programPath.traverse({
+    // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
+    // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
     MemberExpression: handleSite,
+    OptionalMemberExpression: handleSite,
     CallExpression: handleSite,
+    AssignmentExpression: handleSite,
+    UpdateExpression: handleSite,
+    UnaryExpression: handleSite,
   });
   return { mutated };
 }

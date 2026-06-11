@@ -74,6 +74,15 @@ function gateRootOf(node) {
   return root.type === 'Identifier' ? { name: root.name, chained: hops > 0, firstKey } : null;
 }
 
+// peel paren / chain / TS wrappers off a mutation-target slot (oxc preserves parens, estree
+// wraps optional chains) so `delete Iterator?.from` / `(Map.groupBy)++` reach the member
+function peelTargetWrappers(node) {
+  let cur = node;
+  while (cur && (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
+    || TS_EXPR_WRAPPERS.has(cur.type))) cur = cur.expression;
+  return cur;
+}
+
 function gatherPatternMemberTargets(pattern, out) {
   const work = [pattern];
   while (work.length) {
@@ -118,20 +127,26 @@ export function hasMutationCandidateShapes(programNode) {
     const node = work.pop();
     if (!node || typeof node !== 'object') continue;
     switch (node.type) {
-      case 'AssignmentExpression':
-        if (node.left?.type === 'MemberExpression' || node.left?.type === 'OptionalMemberExpression') {
-          targets.push(node.left.object);
-        } else if (node.left?.type === 'ArrayPattern' || node.left?.type === 'ObjectPattern') {
-          gatherPatternMemberTargets(node.left, targets);
-          recordValueSource(node.left, node.right);
-        } else recordValueSource(node.left, node.right);
+      case 'AssignmentExpression': {
+        const left = peelTargetWrappers(node.left);
+        if (left?.type === 'MemberExpression' || left?.type === 'OptionalMemberExpression') {
+          targets.push(left.object);
+        } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
+          gatherPatternMemberTargets(left, targets);
+          recordValueSource(left, node.right);
+        } else recordValueSource(left, node.right);
         break;
-      case 'UpdateExpression':
-        if (node.argument?.type === 'MemberExpression') targets.push(node.argument.object);
+      }
+      case 'UpdateExpression': {
+        const arg = peelTargetWrappers(node.argument);
+        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(arg.object);
         break;
-      case 'UnaryExpression':
-        if (node.operator === 'delete' && node.argument?.type === 'MemberExpression') targets.push(node.argument.object);
+      }
+      case 'UnaryExpression': {
+        const arg = node.operator === 'delete' ? peelTargetWrappers(node.argument) : null;
+        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(arg.object);
         break;
+      }
       case 'ForInStatement':
       case 'ForOfStatement':
         if (node.left?.type === 'MemberExpression') targets.push(node.left.object);
@@ -215,9 +230,24 @@ function objectLiteralKeys(node) {
 
 // `{ targetNode, keys, namespace }` entries for a mutation-shaped node; `namespace` names the
 // Object / Reflect callee whose own shadowing the resolver must veto (a local `Object` is not
-// the global namespace)
+// the global namespace). delete / update / assignment classify from the HOST side with a
+// DOWNWARD wrapper peel - parent-side hops can't see through stacked wrappers
+// (`delete ((Map.groupBy))`, `delete (Map.groupBy as any)`), the peel depth is unbounded
+function memberMutationEntry(slot) {
+  const member = peelTargetWrappers(slot);
+  if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return [];
+  const key = memberKeyName(member);
+  return key !== null ? [{ targetNode: member.object, keys: [key], namespace: null }] : [];
+}
+
 function classifyMutationSite(node, parent, grandparent) {
-  if (node.type === 'MemberExpression' && isMemberMutationContext(node, parent, grandparent)) {
+  if (node.type === 'UnaryExpression') {
+    return node.operator === 'delete' ? memberMutationEntry(node.argument) : [];
+  }
+  if (node.type === 'UpdateExpression') return memberMutationEntry(node.argument);
+  if (node.type === 'AssignmentExpression') return memberMutationEntry(node.left);
+  if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+    && isMemberMutationContext(node, parent, grandparent)) {
     const key = memberKeyName(node);
     return key !== null ? [{ targetNode: node.object, keys: [key], namespace: null }] : [];
   }
