@@ -1,2 +1,6 @@
-import _globalThis from "@core-js/pure/actual/global-this";
-delete _globalThis.Promise?.resolve;
+import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
+// a DEEP optional slot-delete collapses onto the routed constructor like any proxy-chain
+// mutation: the delete lands on the object every transformed surface shares, and the
+// mutated key's own entry is imported up front (polyfill-then-patch)
+delete _Promise.resolve;
