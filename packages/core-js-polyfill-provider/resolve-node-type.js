@@ -89,12 +89,12 @@ const { hasOwn } = Object;
 // string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
 // `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
 // from the resolver path (destructure-leaf -> proxy-global)
-function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType) {
+function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding) {
   return {
     packages: null,
-    hasBinding: (scope, name) => !!scope?.getBinding(name),
-    getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type,
-    getBinding: (scope, name) => scope?.getBinding(name),
+    hasBinding: (scope, name) => !!getScopeBinding(scope, name),
+    getBindingNodeType: (scope, name) => getScopeBinding(scope, name)?.path?.node?.type,
+    getBinding: (scope, name) => getScopeBinding(scope, name),
     getBindingPolyfillHint(scope, name) {
       const hint = getPolyfillBindingHint(scope, name);
       return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
@@ -113,8 +113,13 @@ function createResolveNodeType(babelNodeType, t, {
   getPolyfillBindingEntry = () => null,
   getPolyfillBindingHint = () => null,
   isReassignedBinding = () => false,
+  // scope-binding lookup hook: the estree caller filters bindings its tracker OVER-HOISTS out
+  // of `namespace N { ... }` bodies (a raw `scope.getBinding` surfaced the namespace twin for
+  // a use OUTSIDE the block and narrowed to the WRONG flavor); babel scopes namespaces
+  // correctly and keeps the raw lookup
+  getScopeBinding = (scope, name, path = null) => scope?.getBinding(name, path ?? undefined),
 } = {}) {
-  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType);
+  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding);
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
   // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
@@ -714,7 +719,7 @@ function createResolveNodeType(babelNodeType, t, {
   // --- Scope lookup & declarations ---
   function constantBindingPath(name, scope) {
     if (!scope) return null;
-    const binding = scope.getBinding(name);
+    const binding = getScopeBinding(scope, name);
     return binding?.constant ? binding.path : null;
   }
 
@@ -722,7 +727,7 @@ function createResolveNodeType(babelNodeType, t, {
   // (TS uses the annotation, not the narrowed value), which is stable even when X is reassigned -
   // so the const gate of `constantBindingPath` is wrong for that annotation lookup
   function bindingDeclaratorPath(name, scope) {
-    return scope?.getBinding(name)?.path ?? null;
+    return getScopeBinding(scope, name)?.path ?? null;
   }
 
   // type-query cluster (`resolveTypeQuery`, `resolveTypeofFromSegments`,
@@ -1438,6 +1443,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `resolveNodeType` / `substituteTypeParams` thunked
   const patternBindingsCluster = createPatternBindings({
     t,
+    getScopeBinding,
     babelNodeType,
     resolveNodeType,
     resolveRuntimeExpression,
@@ -1692,6 +1698,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `substituteTypeParams` / `resolveNodeType` (forward-decl let bindings)
   const memberResolveCluster = createMemberResolve({
     t,
+    getScopeBinding,
     isLiteralOf,
     unwrapTypeAnnotation,
     getTypeMembers,
@@ -1788,6 +1795,7 @@ function createResolveNodeType(babelNodeType, t, {
   // user-defined type-predicate cluster lives in `resolve-node-type/guard-shapes.js`;
   // wire it with the type-resolution helpers it consumes and bind the two public entries
   const { parseUserPredicateGuard, parseAssertionStatementGuard } = createPredicateGuards({
+    getScopeBinding,
     resolveMemberCallChain,
     unwrapTypeAnnotation,
     memberCallReturnAnnotation,
