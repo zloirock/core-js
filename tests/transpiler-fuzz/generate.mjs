@@ -339,6 +339,12 @@ const EXPR_FAMILIES = {
     '(() => { class Fi extends (() => globalThis.Array)() { static m() { return super.of(6); } } return Fi.m()[0]; })()',
     // an SE-buried extends target resolves its super statics (effect runs once at class-def)
     '(() => { let n = 0; class Ce extends (n++, globalThis).Array { static m() { return super.of(5); } } return [Ce.m()[0], n]; })()',
+    // a mid-sequence destructure assignment splits and polyfills like a standalone statement
+    '(() => { let from; (({ from } = Array), 0); return [from([7, 8]).at(-1), typeof from]; })()',
+    // a nested-sequence-slot destructure splits through the fixpoint
+    '(() => { let of2; ((0, ({ of: of2 } = Array)), 1); return [of2(9).at(0)]; })()',
+    // assignment-destructure alias narrows the receiver type for the typed instance variant
+    '(() => { let from; ({ from } = Array); return [from([5, 6]).at(0), from("ab").at(1)]; })()',
     // a prototype patch and the instances reading it live on ONE (routed) constructor
     '(() => { Map.prototype.customX = Map.prototype.customX || function () { return "mp"; }; '
       + 'const r = new Map().customX(); delete Map.prototype.customX; return [r]; })()',
