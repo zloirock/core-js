@@ -360,9 +360,14 @@ export function createDestructureEmitter({
     for (const expr of outerSequencePrefix) segments.push(`${ bakeRefSplicesInRange(expr, drainedRefs) };`);
     for (const expr of seExprs) segments.push(`${ bakeRefSplicesInRange(expr, drainedRefs) };`);
     if (unusedIds.length) segments.push(`var ${ unusedIds.join(', ') };`);
-    if (result.preservedSrc !== null) segments.push(`(${ result.preservedSrc });`);
-    // full-consume receiver with a non-liftable nested side effect: evaluate it for effect
-    else if (emitReceiverTail) segments.push(`${ bakeRefSplicesInRange(receiverTail, drainedRefs) };`);
+    if (result.preservedSrc !== null) {
+      // parens are REQUIRED only for a `{`-leading LHS (statement-position object pattern);
+      // an ArrayPattern-led rebuild stays bare, matching babel's emit byte-for-byte
+      segments.push(result.preservedSrc.startsWith('{') ? `(${ result.preservedSrc });` : `${ result.preservedSrc };`);
+    } else if (emitReceiverTail) {
+      // full-consume receiver with a non-liftable nested side effect: evaluate it for effect
+      segments.push(`${ bakeRefSplicesInRange(receiverTail, drainedRefs) };`);
+    }
     for (const e of result.extractions) segments.push(`${ e.decl };`);
     return segments;
   }
@@ -1079,7 +1084,10 @@ export function createDestructureEmitter({
       if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1) {
         return { pattern, initSource };
       }
-      let effectiveInit = initSource;
+      // peel SE-tail / paren / TS wrappers first (`(se(), [Array])` descends into the tail's
+      // array; the SE prefix is lifted separately by the host's own machinery, and the
+      // descended element's span stays inside the original init for the residual splice)
+      let effectiveInit = unwrapExpressionChain(initSource);
       // dereference const-bound Identifier (`= wrapper` where `const wrapper = [Array]`).
       // flow-sensitive bail mirrors the object-wrapper static-receiver walk: only a reassignment
       // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
@@ -1116,6 +1124,13 @@ export function createDestructureEmitter({
     const originalId = declarator.id;
     const { pattern, initSource } = peelArrayWrapperPair(originalId, declarator.init, scope, usePath);
     const arrayPeelHappened = pattern !== originalId;
+    // the DESCENDED init element when an ArrayPattern wrapper was peeled WITHIN the original
+    // init's span: a receiver swap in the residual render must target this element, not the
+    // whole init (swapping the whole array dropped the brackets and broke the destructure).
+    // a const-alias dereference lands OUTSIDE the init span - the residual keeps the alias
+    // identifier verbatim, so no element targeting applies
+    const initElement = arrayPeelHappened && initSource !== declarator.init
+      && initSource.start >= declarator.init.start && initSource.end <= declarator.init.end ? initSource : null;
     if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
       // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
@@ -1158,23 +1173,19 @@ export function createDestructureEmitter({
       const receiver = init ? sharedResolveObjectName({ objectNode: init, scope, adapter: estreeAdapter, path: usePath }) : null;
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
         const outerProps = pattern.properties.map(planOuterProp);
-        if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern, discardSe };
+        if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern, discardSe, initElement };
       } else if (receiver && isStaticPlacement(receiver)) {
         // receiver is a known constructor (`Array` / `Map` / ...): pattern's properties
         // are direct method extractions, mirror `planOuterProp`'s constructor-name dispatch.
-        // bail when ArrayPattern peel happened AND there's a rest sibling - residual
-        // rendering can't currently re-wrap into `[{...rest}]` and would emit a
-        // semantically-different `{...rest}` shape (rest gathers different keys)
-        const hasRest = pattern.properties.some(p => p.type === 'RestElement');
-        if (!(arrayPeelHappened && hasRest)) {
-          const outerProps = pattern.properties.map(p => planInnerProp(p, receiver));
-          if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern, discardSe };
-        }
+        // an ArrayPattern wrapper (with or without a rest sibling) survives the residual
+        // render - the rebuilt pattern is spliced back into the original LHS text
+        const outerProps = pattern.properties.map(p => planInnerProp(p, receiver));
+        if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern, discardSe, initElement };
       } else if (init) {
         const outerProps = pattern.properties.map(p => planOuterPropStatic({
           outerProp: p, hostInit: init, path: [], scope, usePath,
         }));
-        if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps, pattern, discardSe };
+        if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps, pattern, discardSe, initElement };
       }
     }
     planCache.set(declarator, plan);
@@ -1475,8 +1486,14 @@ export function createDestructureEmitter({
       // so its inner content (`globalThis`) still earns its own substitution
       const receiverPure = isAliasedIdentifier || plan.discardSe ? null : resolveGlobalPolyfill(plan.receiver);
       if (!receiverPure && plan.discardSe) takeDiscardSe();
+      // wrap-peeled init: the swap targets the DESCENDED element inside the (SE-peeled) tail's
+      // text, keeping the array brackets and sibling elements verbatim
       cachedReceiverEmitSrc = receiverPure
-        ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+        ? plan.initElement && plan.initElement !== tail
+          ? nodeSrc({ start: tail.start, end: plan.initElement.start })
+            + injectPureImport(receiverPure.entry, receiverPure.hintName)
+            + nodeSrc({ start: plan.initElement.end, end: tail.end })
+          : injectPureImport(receiverPure.entry, receiverPure.hintName)
         : tailSrc;
       return cachedReceiverEmitSrc;
     }
@@ -1494,9 +1511,16 @@ export function createDestructureEmitter({
     // transforms and splices them into `preservedSrc`. each target records the original
     // source range plus its offset inside the rebuilt `preservedSrc` for the remap
     const residualTargets = [];
-    // running offset into the rebuilt `{ ... } = init` text: opens with `{ ` (2 chars),
-    // each emitted prop is followed by `, ` except the last
-    let dstOffset = 2;
+    // the consumed pattern may sit under ArrayPattern (and inner-default) wrappers - splice the
+    // rebuilt object pattern back into the ORIGINAL LHS text so the wrapper survives and rest
+    // keeps reading the matching init element (`[{...rest}] = [R]`); the init side needs nothing:
+    // `receiverEmitSrc` falls back to the verbatim whole-init tail for non-proxy receivers
+    const lhsPrefix = declarator.id !== plan.pattern ? nodeSrc({ start: declarator.id.start, end: plan.pattern.start }) : '';
+    const lhsSuffix = declarator.id !== plan.pattern ? nodeSrc({ start: plan.pattern.end, end: declarator.id.end }) : '';
+    // running offset into the rebuilt `<lhsPrefix>{ ... }<lhsSuffix> = init` text: the object
+    // pattern opens with `{ ` past the wrapper prefix, each emitted prop is followed by `, `
+    // except the last
+    let dstOffset = lhsPrefix.length + 2;
     for (let i = 0; i < plan.outerProps.length; i++) {
       const outer = plan.outerProps[i];
       for (const e of outer.extractions ?? []) {
@@ -1539,7 +1563,7 @@ export function createDestructureEmitter({
       return { extractions, preservedSrc: null, receiver: plan.receiver, residualTargets: [], discardSeNode: plan.discardSe ?? null };
     }
     const initSrc = receiverEmitSrc();
-    const preservedSrc = `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`;
+    const preservedSrc = `${ lhsPrefix }{ ${ preservedOuter.join(', ') } }${ lhsSuffix } = ${ initSrc }`;
     // init tail kept verbatim (receiver not polyfilled, e.g. a static-object receiver): its
     // polyfillable contents stay visible to the natural visitor like a residual prop
     const initTail = peelNestedSequenceExpressions(declarator.init).tail;
@@ -2184,7 +2208,7 @@ export function createDestructureEmitter({
     // static keys only: an instance method needs a concrete receiver the residual array can't supply
     if (!pureResult || pureResult.kind === 'instance') return false;
     const host = findArrayWrappedDestructureHost(metaPath.parentPath);
-    if (!host?.hasMultiElementArray) return false;
+    if (!host?.needsResidualExtraction) return false;
     const declaration = host.declarator.parentPath;
     if (declaration?.node?.type !== 'VariableDeclaration') return false;
     const isExport = declaration.parentPath?.node?.type === 'ExportNamedDeclaration';

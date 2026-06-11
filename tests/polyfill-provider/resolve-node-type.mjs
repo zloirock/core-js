@@ -2077,13 +2077,15 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
       directive: 'use strict',
       expression: { type: 'StringLiteral', value: 'use strict' },
     }));
-  // empty `.directive` rejected - not a valid prologue token
+  // an empty-string directive IS part of the prologue per the spec (any string-literal
+  // statement extends it) - rejecting it stopped the prologue scan ahead of a following
+  // `'use strict'` and anchored injected imports before the strict directive
   check('ast-patterns: isDirectiveStatement empty directive',
     isDirectiveStatement({
       type: 'ExpressionStatement',
       directive: '',
       expression: { type: 'StringLiteral', value: '' },
-    }), false);
+    }), true);
   // no `.directive` -> false even if expression is a string literal
   check('ast-patterns: isDirectiveStatement no directive field',
     isDirectiveStatement({
@@ -3074,6 +3076,27 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     const mutated = collectMutatedStaticMembers(program(stmts));
     check('collectMutatedStaticMembers: Object.setPrototypeOf does not mark',
       mutated.size, 0);
+  }
+
+  // `export default class Array {}` declares a program binding: a mutation on the LOCAL class
+  // must not register as a global mutated-static (an unregistered default-export produced a
+  // phantom over-bail)
+  {
+    const stmts = [
+      {
+        type: 'ExportDefaultDeclaration',
+        declaration: { type: 'ClassDeclaration', id: ident('Array'), body: { type: 'ClassBody', body: [] } },
+      },
+      exprStmt({
+        type: 'AssignmentExpression',
+        operator: '=',
+        left: member('Array', 'from'),
+        right: { type: 'NumericLiteral', value: 1 },
+      }),
+    ];
+    const mutated = collectMutatedStaticMembers(program(stmts));
+    check('collectMutatedStaticMembers: export-default class shadows the global',
+      mutated.has('Array.from'), false);
   }
 }
 
