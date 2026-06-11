@@ -74,6 +74,12 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
 // so only sound pass-through wrappers peel
 function peelProxyGlobalObject(node) {
   node = unwrapRuntimeExpr(node);
+  // SE tails peel for CLASSIFICATION only (`(eff(), globalThis).Array` - the prefix stays in
+  // the source and runs at evaluation), mirroring the detect-usage chain walks; without the
+  // peel an SE-buried extends target dropped its super statics
+  while (node?.type === 'SequenceExpression' && node.expressions.length) {
+    node = unwrapRuntimeExpr(node.expressions.at(-1));
+  }
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
   const ret = peelZeroArgIifeReturn(node);
   return ret ? unwrapRuntimeExpr(ret) : node;
@@ -418,7 +424,13 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // class-as-namespace, and any N-level composition through them. shared `seen` enables
   // mutually-recursive alias cycle detection; `path` anchors TS-runtime shadow checks
   function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null, classAnchor = null) {
-    const peeled = unwrapRuntimeExpr(node);
+    let peeled = unwrapRuntimeExpr(node);
+    // a zero-arg IIFE returning the target resolves like the target itself (`class extends
+    // (() => globalThis.Array)()`); the hop walk already peels the same shape mid-chain
+    if (peeled?.type === 'CallExpression' || peeled?.type === 'OptionalCallExpression') {
+      const ret = peelZeroArgIifeReturn(peeled);
+      if (ret) peeled = unwrapRuntimeExpr(ret);
+    }
     if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen, path, classAnchor);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
     const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter, path });

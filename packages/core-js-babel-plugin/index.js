@@ -8,7 +8,6 @@ import {
   isForXWriteTarget,
   isInUpdateOperand,
   isThisReceiver,
-  collectMutatedStaticMembers,
   getMinifierSequenceDestructureExpressions,
   isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
@@ -42,6 +41,7 @@ import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
 import {
+  collectMutationPrePass,
   createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
@@ -166,10 +166,18 @@ export default function plugin(api, options) {
     mode,
     packages,
     pkg,
-    resolvePure,
+    resolvePure: resolvePureUnfiltered,
     resolvePureOrGlobalFallback,
     resolveUsage,
   } = resolver;
+  // pre-pass result: set of `"ObjectName.keyName"` strings the user mutated somewhere in
+  // the current file (`Array.from = X`, `[Array.from] = X`, `delete Array.from`, ...).
+  // factory-scoped so the resolvePure filter and the adapter getter see the per-file value
+  let mutatedStatics = null;
+  // a static the user monkey-patches must never bind to the frozen receiver-less import:
+  // every pipeline (member emission, destructure props, param synth) resolves through this
+  // filter, so the read keeps flowing through the substituted constructor instead
+  const resolvePure = (meta, path) => isMutatedStaticMeta(meta, mutatedStatics) ? null : resolvePureUnfiltered(meta, path);
 
   let injector, importStyle, debugOutput;
 
@@ -192,7 +200,7 @@ export default function plugin(api, options) {
 
   // per-plugin-instance adapter - closure reads current `injector` without module-level state.
   // `method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
-  const adapter = createBabelAdapter(() => injector, method);
+  const adapter = createBabelAdapter(() => injector, method, () => mutatedStatics);
 
   // third arg `path` (when supplied by `extractCheck`) anchors `adapter.hasBinding` at
   // the reference site so TS-runtime shadows (`enum`, `namespace`, `import X = require()`)
@@ -220,12 +228,6 @@ export default function plugin(api, options) {
       let originalBodyNodes = new WeakSet();
       let disabledLines = null;
       let skipFile;
-      // pre-pass result: set of `"ObjectName.keyName"` strings the user mutated somewhere in
-      // this file (`Array.from = X`, `[Array.from] = X`, `delete Array.from`, ...). substitution
-      // for matching reads must bail because the polyfill import is a `const` binding -
-      // user's mutation reaches the original global but not the import, so swapping
-      // `Array.from(...)` for `_Array$from(...)` silently diverges from un-transformed source
-      let mutatedStatics = null;
       // synth-swap pipeline: receivers accumulated as the visitor walks, drained at
       // programExit. factory in `internals/synth-swap-emitter.js`. instantiated per-file
       // in `initFile` so closure-captured `skippedNodes` ref stays in sync with the
@@ -480,12 +482,6 @@ export default function plugin(api, options) {
         // Identifier, and `<_Map/>` would call the polyfill as a React component at runtime
         if (path.node.type === 'JSXIdentifier') return;
 
-        // user monkey-patches `Object.key` in this file - substituting reads with the
-        // `const`-bound polyfill import would silently bypass the user's mutation (unlike
-        // usage-global which shares the global slot). pre-pass collected the mutated keys;
-        // bail substitution + emission for matching property reads
-        if (isMutatedStaticMeta(meta, mutatedStatics)) return;
-
         if (meta.kind === 'in') return handleInExpression(meta, path);
 
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
@@ -533,6 +529,8 @@ export default function plugin(api, options) {
             // (this-receiver, kind='property' but unresolved); remap fills it with the super
             // class name. without the re-check, `this.from(arr)` inside `class C extends Array`
             // silently bypasses user's `Array.from = ...` monkey-patch
+            // this-receiver dispatch cannot route through the substituted constructor object
+            // (the patch lives on the namespace, not the prototype chain) - keep the bail
             if (inheritedStatic && isMutatedStaticMeta(meta, mutatedStatics)) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, meta.sideEffects, meta.receiverEffectCount);
@@ -745,7 +743,7 @@ export default function plugin(api, options) {
         // `Object.key` reads - so it is needed ONLY in usage-pure (entry-global / usage-global
         // never read `mutatedStatics`, the whole-AST walk was dead work there, matching unplugin).
         // internal core-js files don't need it either (they manage their own globals)
-        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS ? collectMutatedStaticMembers(path.node) : null;
+        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS ? collectMutationPrePass(path).mutated : null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)

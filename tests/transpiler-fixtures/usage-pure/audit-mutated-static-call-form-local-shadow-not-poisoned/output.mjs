@@ -39,4 +39,4 @@ _Map$groupBy([1], () => 0);
 _Object$assign(_Promise, {
   any() {}
 });
-Promise.any([1]);
+_Promise.any([1]);
