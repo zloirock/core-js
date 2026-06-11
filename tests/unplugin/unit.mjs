@@ -2230,26 +2230,26 @@ function checkSnapshotFileLocalhost() {
 }
 checkSnapshotFileLocalhost();
 
-// --- skipDirectivePrologue: empty-string directive rejected ---
-// parser-emitable but not a valid prologue: `""` directive should NOT count as the end of
-// the directive prologue. otherwise the `var _ref;` insertion point would skip past the
-// empty statement that the parser produced from `"";` and split it from any real prologue
-// preceding it. shares the same length-0 guard with `directivePrologueEnd` (Program-level)
+// --- skipDirectivePrologue: empty-string directive extends the prologue ---
+// an empty-string directive (`'';`) IS part of the prologue per the spec (any string-literal
+// statement extends it), so the scan advances past it - a following `'use strict'` stays an
+// active directive and the `var _ref;` / import insertion point lands AFTER the full prologue
 function checkSkipDirectivePrologueEmpty() {
   const empty = { type: 'ExpressionStatement', directive: '', end: 5 };
   const real = { type: 'ExpressionStatement', directive: 'use strict', end: 16 };
+  const laterEmpty = { type: 'ExpressionStatement', directive: '', end: 19 };
   const expr = { type: 'ExpressionStatement', expression: { type: 'Identifier' }, end: 20 };
-  // empty `""` doesn't advance past fallback; real prologue advances to its end; non-directive
-  // breaks the scan and returns the last advanced end (or fallback if none seen yet)
-  check('skipDirectivePrologue/empty directive does not advance fallback',
-    skipDirectivePrologue([empty], 0), 0);
+  // empty `""` advances like any directive; non-directive breaks the scan and returns the
+  // last advanced end (or fallback if none seen yet)
+  check('skipDirectivePrologue/empty directive advances to its end',
+    skipDirectivePrologue([empty], 0), 5);
   check('skipDirectivePrologue/use strict advances to its end',
     skipDirectivePrologue([real], 0), 16);
   check('skipDirectivePrologue/non-directive breaks scan',
     skipDirectivePrologue([expr], 0), 0);
-  // mixed: real prologue first, then empty `""` should NOT keep advancing
-  check('skipDirectivePrologue/real then empty stops at real',
-    skipDirectivePrologue([real, empty], 0), 16);
+  // mixed: real prologue first, then empty `""` keeps advancing through the full prologue
+  check('skipDirectivePrologue/real then empty advances past both',
+    skipDirectivePrologue([real, laterEmpty], 0), 19);
   // mixed: real prologue first, then non-directive expression
   check('skipDirectivePrologue/real then expression stops at real',
     skipDirectivePrologue([real, expr], 0), 16);
