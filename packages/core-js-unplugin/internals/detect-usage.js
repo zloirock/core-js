@@ -219,8 +219,13 @@ export function collectMutationPrePass(ast, adapter) {
   const handleSite = createMutationSiteHandler({ adapter, mutated });
   traverse(ast, {
     $: { scope: true },
+    // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
+    // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
     MemberExpression: handleSite,
     CallExpression: handleSite,
+    AssignmentExpression: handleSite,
+    UpdateExpression: handleSite,
+    UnaryExpression: handleSite,
   });
   return { mutated };
 }
