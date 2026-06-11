@@ -1,7 +1,10 @@
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Iterator$zip from "@core-js/pure/actual/iterator/zip";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 // every surface of a monkey-patched static routes through the injected constructor - the
 // patch and all observers share one object, working even when the native global is missing

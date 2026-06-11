@@ -19,6 +19,7 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -559,6 +560,16 @@ export default function createPlugin(options) {
       function injectPureImport(entry, hint) {
         debugOutput?.add(entry);
         return injector.addPureImport(entry, hint);
+      }
+
+      // shared mutated-key enrichment: see `enrichMutatedStatics` for the model. explicitly
+      // mark referenced - no Identifier in the source ever reads the bindings
+      if (method === 'usage-pure') {
+        enrichMutatedStatics({
+          mutatedStatics,
+          resolvePure: resolvePureUnfiltered,
+          injectPureImport: (entry, hint) => injector.trackReferencedName(injectPureImport(entry, hint)),
+        });
       }
 
       function finalize() {
