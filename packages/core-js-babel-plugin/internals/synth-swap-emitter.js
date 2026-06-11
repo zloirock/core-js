@@ -12,6 +12,7 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
+  collectBuriedChainSePrefixes,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
   buildFlatSynthEntries,
@@ -269,7 +270,14 @@ export default function createSynthSwapEmitter({
     const root = findProxyGlobal(receiver);
     const rootPure = root && resolvePure({ kind: 'global', name: root.name });
     if (!rootPure || rootPure.kind === 'instance') return null;
-    return t.memberExpression(injectPureImport(rootPure.entry, rootPure.hintName), t.cloneNode(receiver.property));
+    // SE prefixes buried along the hop chain keep evaluating (root-first order):
+    // `(eff(), globalThis).self.X` collapses to `(eff(), _globalThis).X`, not `_globalThis.X`
+    const prefixes = collectBuriedChainSePrefixes(receiver.object);
+    const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
+    const rootNode = prefixes.length
+      ? t.sequenceExpression([...prefixes.map(expr => t.cloneNode(expr)), rootBinding])
+      : rootBinding;
+    return t.memberExpression(rootNode, t.cloneNode(receiver.property));
   }
 
   // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the

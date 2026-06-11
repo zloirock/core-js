@@ -36,6 +36,7 @@ const CLASS_PATH_TYPES = ['ClassDeclaration'];
 
 export function createMemberResolve({
   t,
+  getScopeBinding,
   isLiteralOf,
   unwrapTypeAnnotation,
   getTypeMembers,
@@ -100,7 +101,7 @@ export function createMemberResolve({
       node = unwrapRuntimeExpr(node.object);
     }
     if (node?.type !== 'Identifier' || !props.length) return null;
-    const binding = scope.getBinding(node.name);
+    const binding = getScopeBinding(scope, node.name);
     if (!binding) return null;
     let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
     const scopeRef = binding.path.scope;

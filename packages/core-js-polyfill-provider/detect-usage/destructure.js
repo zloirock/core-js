@@ -5,6 +5,7 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
+  staticStringKey,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
@@ -41,6 +42,15 @@ import {
 // that doesn't exist on the constructor) while accepting `Array.from` and inherited
 // Function/Object prototype methods like `name`/`toString`.
 export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path = null }) {
+  const meta = buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path });
+  // a static the user monkey-patches is NOT a polyfillable destructure source: the prop
+  // stays raw and the receiver substitutes through the identifier machinery, so the patch
+  // and the extraction read the same object
+  if (meta?.object && meta.placement === 'static' && adapter.isMutatedStatic?.(meta.object, meta.key)) return null;
+  return meta;
+}
+
+function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = null }) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
   const unwrapped = unwrapParens(initNode);
@@ -147,6 +157,9 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path }) {
 function resolveConditionalDestructureMeta({ node, key, scope, adapter, path }) {
   const consequent = buildDestructuringInitMeta({ initNode: node.consequent, key, scope, adapter, path });
   const alternate = buildDestructuringInitMeta({ initNode: node.alternate, key, scope, adapter, path });
+  // a branch may be null (a monkey-patched static) - the whole conditional stays raw then,
+  // matching the single-receiver mutated path (receiver substitution happens per-identifier)
+  if (!consequent || !alternate) return null;
   const resolved = consequent.object ? consequent : alternate.object ? alternate : null;
   return resolved ? { ...resolved, fromFallback: true } : consequent;
 }
@@ -473,6 +486,16 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
       current = { type: 'Identifier', name: proxyName };
       break;
     }
+    // plugin-rewritten CONSTRUCTOR stub (`_Promise` after an earlier in-place literal rewrite
+    // for a SIBLING prop of the shared static-object wrapper): recover the SOURCE constructor
+    // name from the injector hint so this prop's statics still resolve - without recovery the
+    // dereference bails and the binding silently extracts off the polyfill stub (unbound at
+    // runtime where native requires the constructor receiver)
+    const ctorHint = binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(currentScope, current.name);
+    if (ctorHint && ctorHint !== current.name) {
+      current = { type: 'Identifier', name: ctorHint };
+      break;
+    }
     const bindingType = adapter.getBindingNodeType(currentScope, current.name, path);
     // class-bound leaf at empty walkPath: classes are stable bindings (no reassignment
     // legal), so the identifier name reliably identifies the declaration. accept as the
@@ -481,6 +504,12 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     // {Foo}; walkStaticReceiverChain(NS, ['Foo'])` to return 'Foo' (otherwise would bail
     // here since ClassDeclaration isn't VariableDeclarator)
     if (walkPath.length === 0 && bindingType === 'ClassDeclaration') return current.name;
+    if (bindingType === 'ClassDeclaration') {
+      // remaining walkPath descends the class's STATIC fields - hand the declaration node to
+      // the container branch below
+      current = binding.path?.node ?? binding.node;
+      break;
+    }
     if (bindingType !== 'VariableDeclarator') return null;
     // `binding.constant` may be undefined depending on adapter (babel computes it lazily,
     // estree-toolkit doesn't expose it). use the underlying `constantViolations` list which
@@ -513,6 +542,12 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     current = unwrapParens(initNode);
     currentScope = binding.scope ?? currentScope;
   }
+  return walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited });
+}
+
+// post-dereference terminal: leaf extraction, proxy mid-chain lift, intermediate member
+// resolution, and the static-container descents (object literal / class statics)
+function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited }) {
   // leaf return: walkPath consumed - extract the leaf global name.
   // bare Identifier returns its name directly; proxy-global member access
   // (`globalThis.Array` / `_globalThis.Array` after polyfill-injected rewrite) routes
@@ -549,8 +584,19 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
       && walkPath.length === 1) {
     return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path });
   }
+  // class STATIC fields are a member container too (`class NS { static M = Map }`); descend
+  // the matching field's value exactly like an object-literal property
+  if (current?.type === 'ClassDeclaration' || current?.type === 'ClassExpression') {
+    const field = classStaticField(current, walkPath[0]);
+    return field ? walkStaticReceiverStep({
+      node: field.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited,
+    }) : null;
+  }
   if (current?.type !== 'ObjectExpression') return null;
-  for (const prop of current.properties) {
+  // LAST matching key wins, per JS duplicate-literal-key semantics (the same reverse order
+  // findNamespaceMemberValue uses) - a first-match walk resolved the dead first value and
+  // substituted the WRONG constructor's static
+  for (const prop of current.properties.toReversed()) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
     // shared `resolveKey` covers Identifier / StringLiteral / Literal directly AND walks
     // computed-key bindings (`const k = 'a'; { [k]: Array }`) + StringLiteral / `+`-concat
@@ -561,6 +607,18 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     return walkStaticReceiverStep({
       node: prop.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited,
     });
+  }
+  return null;
+}
+
+// the class's static FIELD (value-bearing) matching `key`; methods / accessors are dynamic
+// values and stay out (mutual bail with findNamespaceMemberValue's container rules)
+function classStaticField(classNode, key) {
+  for (const member of classNode.body?.body ?? []) {
+    if (!member.static || member.computed) continue;
+    if (member.type !== 'ClassProperty' && member.type !== 'PropertyDefinition') continue;
+    const keyName = member.key?.type === 'Identifier' ? member.key.name : staticStringKey(member.key);
+    if (keyName === key && member.value) return member;
   }
   return null;
 }

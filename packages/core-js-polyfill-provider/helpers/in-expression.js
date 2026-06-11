@@ -3,7 +3,12 @@
 // renders the returned node references its own way (babel cloneNode / unplugin nodeSrc); a text
 // emitter additionally marks the discarded operand skipped, while an AST emitter drops it
 // implicitly by replacing the node.
-import { sequencePrefixWithSideEffects, unwrapRuntimeExpr, visitSymbolInLhsSe } from './ast-patterns.js';
+import {
+  collectBuriedChainSePrefixes,
+  sequencePrefixWithSideEffects,
+  unwrapRuntimeExpr,
+  visitSymbolInLhsSe,
+} from './ast-patterns.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
 
 export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback }) {
@@ -47,6 +52,10 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     } else if (rhs?.type === 'AssignmentExpression') {
       leadingSe.push(rhs);
       skip = null;
+    } else if (rhs?.type === 'MemberExpression' || rhs?.type === 'OptionalMemberExpression') {
+      // SE buried along the discarded RHS chain's object spine (`'x' in (eff(), globalThis).Map`)
+      // keeps evaluating - the fold replaced the whole operand and silently dropped the effect
+      leadingSe.push(...collectBuriedChainSePrefixes(rhs.object));
     }
     // detection-harvested RHS chain SE runs in RHS position, after any RHS sequence prefix
     if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
