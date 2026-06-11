@@ -226,6 +226,17 @@ function discardedInitFlattenSafe(prop) {
   return !hostInit || fallbackInitWhollyDiscardable(hostInit);
 }
 
+// the AssignmentExpression hosting this destructure prop (`({ x } = Source)`), walking the
+// pattern/property spine only; null for declarator-hosted destructures
+function enclosingDestructureAssignment(prop) {
+  for (let p = prop.parentPath; p; p = p.parentPath) {
+    if (p.isAssignmentExpression()) return p.node;
+    if (!p.isObjectPattern() && !p.isObjectProperty() && !p.isArrayPattern()
+      && !p.isParenthesizedExpression()) return null;
+  }
+  return null;
+}
+
 export default function createDestructureEmitter({
   t,
   adapter,
@@ -556,7 +567,7 @@ export default function createDestructureEmitter({
     flattenSEWrappersToBareAE(exprStmt, assignPath, peeled);
     const id = injectPureImport(entry, hintName);
     // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
-    injector.registerBodyExtractAlias(valueNode.name, entry, assignPath.scope.getBinding(valueNode.name));
+    injector.registerBodyExtractAlias(valueNode.name, entry, assignPath.scope.getBinding(valueNode.name), assignPath.node);
     // skip the orphaned prop subtree before mutation so re-entered visitors don't fire on
     // a removed-from-parent node. receiver tail stays visible so its proxy-global Identifier
     // (`globalThis`) can substitute via the normal visitor pass
@@ -997,7 +1008,14 @@ export default function createDestructureEmitter({
     // canonical entry path, so `arr = from('hi'); arr.at(-1)` narrows correctly post-mutation
     if (kind === 'static') {
       const localName = patternBindingName(prop.node.value);
-      if (localName) injector.registerBodyExtractAlias(localName, entry, prop.scope.getBinding(localName));
+      // the `let x; ({ x } = Source)` form: the destructure's own write is the aliasing
+      // event, not a disqualifying reassignment - pass it so the registrar excludes it
+      // from the violation count (otherwise the alias is rejected and receiver narrowing
+      // through `x` falls to the generic instance variant)
+      if (localName) {
+        injector.registerBodyExtractAlias(localName, entry, prop.scope.getBinding(localName),
+          enclosingDestructureAssignment(prop));
+      }
     }
     // mark property as handled - rest-rename triggers re-traversal which must be skipped
     skippedNodes.add(prop.node);
