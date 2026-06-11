@@ -19,6 +19,7 @@ import { varInitStaleByRedecl } from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
   t,
+  getScopeBinding,
   babelNodeType,
   resolveNodeType,
   resolveRuntimeExpression,
@@ -694,7 +695,7 @@ export function createPatternBindings({
     if (!fnName && fnPath.parentPath?.node?.type === 'VariableDeclarator'
       && fnPath.parentPath.node.id?.type === 'Identifier') fnName = fnPath.parentPath.node.id.name;
     if (!fnName) return false;
-    const binding = fnPath.scope?.getBinding(fnName);
+    const binding = getScopeBinding(fnPath.scope, fnName, fnPath);
     if (!binding || binding.constantViolations?.length) return false;
     if (isExportedFunction(fnPath, fnName)) return false;
     for (const ref of collectBindingReferences(binding, fnName, fnPath) ?? []) {
@@ -717,7 +718,7 @@ export function createPatternBindings({
   // for any non-Identifier path or unresolvable binding shape
   function resolveBindingType(path) {
     if (!t.isIdentifier(path.node)) return null;
-    const binding = path.scope?.getBinding(path.node.name);
+    const binding = getScopeBinding(path.scope, path.node.name, path);
     if (!binding) return null;
     const { path: bindingPath } = binding;
     const { name } = path.node;

@@ -14,7 +14,13 @@ import {
   resolveKey as sharedResolveKey,
   unwrapParens,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode, markGlobalWriteReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  classifyMutationSite,
+  hasMutationCandidateShapes,
+  namespaceIsShadowed,
+  resolveMutationSite,
+} from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   findIifeArgForParam,
@@ -53,13 +59,40 @@ function stringLiteralValue(node) {
 // factory for a Babel scope adapter bound to a specific plugin-instance injector.
 // the closure over `getInjector` avoids module-level mutable state, which would race
 // under parallel transforms (Vite/Rollup/thread-loader)
-export function createBabelAdapter(getInjector = () => null, method = null) {
+// scoped mutation pre-pass: the cheap shape gate runs first; only files that actually
+// monkey-patch pay for the path traverse + canonical receiver resolution. shares every
+// resolution step with the read side via `mutation-prepass` (provider)
+export function collectMutationPrePass(programPath) {
+  const mutated = new Set();
+  if (!hasMutationCandidateShapes(programPath.node)) return { mutated };
+  const adapter = createBabelAdapter();
+  const handleSite = path => {
+    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent)) {
+      if (namespaceIsShadowed(namespace, { scope: path.scope, adapter, path })) continue;
+      const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
+      for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
+    }
+  };
+  programPath.traverse({
+    MemberExpression: handleSite,
+    CallExpression: handleSite,
+  });
+  return { mutated };
+}
+
+export function createBabelAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
   return {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
     // a receiver-less helper (dropping the receiver), so the shared resolver gates the
     // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
     // inject side-effect imports, which is sound regardless of where the alias was assigned
     method,
+    // a static the user monkey-patches is not a polyfillable static (pure only): detection
+    // leaves its receiver to the identifier machinery so the patch and the reads share the
+    // injected constructor object
+    isMutatedStatic(object, key) {
+      return method === 'usage-pure' && !!getMutatedStatics()?.has(`${ object }.${ key }`);
+    },
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
     // detection in `bindingSymbolKey`. null when injector hasn't published packages or
     // adapter constructed without an injector closure (entry-only detect path)
@@ -118,7 +151,7 @@ export function createBabelAdapter(getInjector = () => null, method = null) {
           && b.kind === 'const'
           && !b.constantViolations?.length;
         const polyfillHint = info ? (isAliasBindingShape || isImportBinding ? info.hint : null) : null;
-        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint };
+        return { node: b.path.node, kind: b.kind, constantViolations: b.constantViolations, importSource, polyfillHint };
       }
       if (!info) return null;
       return { node: null, constantViolations: null, importSource: info.source, polyfillHint: info.hint };
@@ -261,11 +294,9 @@ export function createUsageVisitors({
     }
     if (handledObjects.has(node)) return;
     if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
-      // usage-pure: keep a global write-receiver on the global so the static lands on the same
-      // object a same-key read sees (the read-side bails to the global for a mutated static)
-      if (method === 'usage-pure') {
-        markGlobalWriteReceiver({ node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path });
-      }
+      // a write-only member never reads the static; its receiver follows the SAME identifier
+      // routing the (always-mutated-by-definition) reads use, so the patch and the reads
+      // land on one object - no special marking
       return;
     }
     const meta = handleMemberExpressionNode({
@@ -320,7 +351,7 @@ export function createUsageVisitors({
       const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
       const receiverNode = isClassifiableReceiverArg(argNode, parent.scope, adapter) ? argNode : parent.node.right;
       const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
-      onUsage(meta, path);
+      if (meta) onUsage(meta, path);
       return;
     } else if (parent.isAssignmentPattern() && parent.parentPath?.isObjectProperty()
       && parent.node.left === objectPattern.node) {
@@ -373,13 +404,15 @@ export function createUsageVisitors({
       if (!key) return;
       const argNode = resolveCallArgument(site.callPath.node.arguments, site.paramIndex);
       const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path });
-      onUsage(meta, path);
+      if (meta) onUsage(meta, path);
       return;
     } else return;
     if (!initPath?.node) return;
     const key = resolveKey(path.get('key'), path.node.computed);
     if (!key) return;
     let meta = buildDestructuringInitMeta({ initNode: initPath.node, key, scope: initPath.scope, adapter, path });
+    // null = monkey-patched static: the prop stays raw, the receiver substitutes elsewhere
+    if (!meta) return;
     // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization).
     // spread instead of in-place mutation: contract with buildDestructuringInitMeta
     // doesn't promise mutable meta, and a fresh object is cheap here
