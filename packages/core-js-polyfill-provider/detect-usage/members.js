@@ -232,6 +232,12 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     return meta;
   }
   const meta = buildMemberMeta({ node, scope, adapter, path });
+  // a static the user monkey-patches in this file is NOT a polyfillable static: binding the
+  // read to the frozen receiver-less import would bypass the patch, and bailing whole leaves
+  // code referencing a possibly-missing global. return no meta and leave the receiver
+  // UNMARKED - the identifier machinery substitutes the CONSTRUCTOR itself, so the patch and
+  // every read share the injected object (pure only; usage-global overlays the global slot)
+  if (meta?.object && meta.placement === 'static' && adapter.isMutatedStatic?.(meta.object, meta.key)) return null;
   // only mark when we actually resolved a receiver: meta.object === null means
   // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
   // and the receiver identifier-visitor may still need to polyfill it as a standalone global
@@ -391,6 +397,10 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     if (objectName) {
       const placement = isStaticPlacement(objectName);
       if (placement) {
+        // a monkey-patched static must not FOLD: the fold's `true` assumes the polyfill key,
+        // but the user's patch (or delete) owns the slot. no meta + no marking - the RHS
+        // receiver substitutes through the identifier machinery and `in` evaluates live
+        if (adapter.isMutatedStatic?.(objectName, resolvedLeft)) return null;
         const meta = { kind: 'in', key: resolvedLeft, object: objectName, placement };
         // usage-pure FOLDS this meta, discarding the RHS - SE buried in its receiver chain must be
         // harvested here (scope/adapter live at detection; the planner only rescues a direct
@@ -606,13 +616,3 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
   }
 }
 
-// usage-pure: a member WRITE whose receiver resolves to a global (`Map.foo = x`, `globalThis.Map.x
-// = y`) must keep that receiver on the global. left unmarked, the identifier visitor rewrites the
-// bare global to its pure import (`_Map.foo = x`), so the static is written onto the import binding
-// while a same-key READ stays on the global (the read-side bails for a mutated static) - write and
-// read land on different objects. seed handledObjects for the receiver, mirroring the read-side bail.
-// gated on a resolvable global receiver, so a local / non-global write target is left untouched
-export function markGlobalWriteReceiver({ node, scope, adapter, handledObjects, suppressProxyGlobals, path }) {
-  if (!resolveObjectName({ objectNode: unwrapParens(node.object), scope, adapter, path })) return;
-  markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path);
-}
