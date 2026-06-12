@@ -1057,6 +1057,18 @@ function checkSourceMapFileField() {
 }
 checkSourceMapFileField();
 
+// the proxy-hop normalization rides the text-rewrite + re-parse rails, which a CommonJS
+// script must traverse with `sourceType: 'script'` - the reshaped output keeps require-style
+// imports and the flat constructor receiver
+function checkProxyHopNormalizeCJS() {
+  const source = 'const { Map: { customJ } } = globalThis;\nmodule.exports = { customJ };';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, '/src/hop.cjs');
+  check('proxyHop/cjs flat receiver', result?.code?.includes('const { customJ } = _Map'), true);
+  check('proxyHop/cjs require import', result?.code?.includes('var _Map = require('), true);
+}
+checkProxyHopNormalizeCJS();
+
 // `storeName: true` on generateMap populates `map.names` with the original token text
 // for each overwrite that supplied an explicit name. without it the names array stays
 // empty and devtools can't reverse-resolve renamed bindings (`_Array$from` -> `Array.from`)

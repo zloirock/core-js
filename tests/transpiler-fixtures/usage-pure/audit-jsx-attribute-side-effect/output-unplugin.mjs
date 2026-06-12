@@ -4,6 +4,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // invoke iteration / Proxy traps unconditionally). A leading `<X y={fn()} />` in a
 // destructure init is SE-bearing and stays in the lifted statement so `fn()` is
 // preserved at the call site
-(<X y={fn()} />, Array);
+<X y={fn()} />;
 var from = _Array$from;
 from([1]);
