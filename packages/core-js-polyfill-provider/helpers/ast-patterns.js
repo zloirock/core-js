@@ -3102,6 +3102,27 @@ function isObjectDefinePropertyOnExports(expression) {
   return !!first && isNamedIdent(unwrapExpr(first), 'exports');
 }
 
+// any `await` evaluated in the ENCLOSING (top-level) context of the subtree. function-like
+// nodes contribute only their computed KEY and DECORATORS (both evaluate at definition time
+// in the enclosing context; bodies and params are their own await scope) - estree wraps
+// method functions in MethodDefinition, which carries the key/decorators there. for-await
+// carries its await as a statement flag, not an AwaitExpression node, so it needs its own match
+function containsTopLevelAwait(node) {
+  if (node.type === 'AwaitExpression' || (node.type === 'ForOfStatement' && node.await)) return true;
+  if (FUNCTION_LIKE_NODE_TYPES.has(node.type) || node.type === 'MethodDefinition') {
+    if (node.computed && node.key && containsTopLevelAwait(node.key)) return true;
+    for (const decorator of node.decorators ?? []) {
+      if (containsTopLevelAwait(decorator)) return true;
+    }
+    return false;
+  }
+  let found = false;
+  walkAstChildren(node, child => {
+    found ||= containsTopLevelAwait(child);
+  });
+  return found;
+}
+
 export function detectCommonJS(program) {
   let hasCJS = false;
   for (const stmt of program.body) {
@@ -3110,14 +3131,16 @@ export function detectCommonJS(program) {
     if (ESM_MARKER_TYPES.has(stmt.type)) return false;
     if (stmt.type !== 'ExpressionStatement') continue;
     const expression = unwrapExpr(stmt.expression);
-    // top-level `await` is ESM-only syntax (parser would reject in script context),
-    // so treat it as a strong ESM marker even without explicit import/export
-    if (expression?.type === 'AwaitExpression') return false;
     if (hasCJS) continue;
     const isDirectAssign = expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left);
     if (isDirectAssign || isObjectDefinePropertyOnExports(expression)) hasCJS = true;
   }
-  return hasCJS;
+  // top-level `await` is ESM-only syntax (a script parse would reject it), so it overrides
+  // a CJS verdict even without explicit import/export - in ANY top-level host (`const x =
+  // await f()`, `if (await f())`, `for await (...)`), not just a bare expression statement.
+  // gated on hasCJS: the walk runs only for files that produced a CJS verdict to override,
+  // so marker-free files (the common case) never pay it
+  return hasCJS && !program.body.some(containsTopLevelAwait);
 }
 
 // memoized ancestor walk with back-fill: O(depth) worst case, ~O(1) for siblings sharing

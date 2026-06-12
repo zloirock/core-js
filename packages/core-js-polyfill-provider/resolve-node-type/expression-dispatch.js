@@ -15,6 +15,7 @@
 // loss when a sibling polyfill plugin stashes a pre-mutation Type for the rewritten node.
 // WeakMap (vs node-attached property) keeps the side-channel opaque to AST-cloning libs.
 import { $Object, $Primitive } from './base.js';
+import { unaryOperatorResultKind } from './value-ops.js';
 
 const { hasOwn } = Object;
 
@@ -190,43 +191,20 @@ export function createExpressionDispatch({
       // tagged templates are semantically calls: String.raw`foo` ==== String.raw(...)
       case 'TaggedTemplateExpression':
         return resolveCallReturnType(path.get('tag'));
-      case 'UnaryExpression':
-        switch (path.node.operator) {
-          case 'void':
-            return new $Primitive('undefined');
-          case 'typeof':
-            return new $Primitive('string');
-          case '!':
-          case 'delete':
-            return new $Primitive('boolean');
-          // unary + throws on BigInt, result is always Number
-          case '+':
-            return new $Primitive('number');
-          // unary - and ~ work on both Number and BigInt, preserving the type
-          case '-':
-          case '~':
-            return resolveNumericType(path.get('argument'));
-        }
-        return null;
+      case 'UnaryExpression': {
+        // the shared operator table decides; `-` / `~` preserve Number vs BigInt, read
+        // through `resolveNumericType`'s binding descent only when the table asks
+        const kind = unaryOperatorResultKind(path.node.operator,
+          () => resolveNumericType(path.get('argument')).type);
+        return kind ? new $Primitive(kind) : null;
+      }
       case 'UpdateExpression':
         // ++ and -- work on both Number and BigInt, preserving the type
         return resolveNumericType(path.get('argument'));
       case 'BinaryExpression':
-        switch (path.node.operator) {
-          case '==':
-          case '!=':
-          case '===':
-          case '!==':
-          case '<':
-          case '>':
-          case '<=':
-          case '>=':
-          case 'instanceof':
-          case 'in':
-            return new $Primitive('boolean');
-          default:
-            return resolveBinaryOperatorType(path.node.operator, path.get('left'), path.get('right'));
-        }
+        // comparisons included - the shared operator table reports them as boolean
+        // without resolving operands
+        return resolveBinaryOperatorType(path.node.operator, path.get('left'), path.get('right'));
       case 'SequenceExpression': {
         const expressions = path.get('expressions');
         return expressions.length ? resolveNodeType(expressions.at(-1)) : null;
