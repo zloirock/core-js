@@ -24,6 +24,75 @@
 import { $Primitive, primitiveTypeOf } from './base.js';
 import { isBareUndefinedIdentifier } from './ast-shapes.js';
 
+// kind-level result of a binary operator given operand primitive kinds. THE single source
+// of operator semantics - the path-level resolver below, the expression dispatch and the
+// node-level enum-member classifier all consume it (hand-rolled copies drifted: one
+// reported operand kinds for coercing arithmetic and missed bigint entirely). operand
+// kinds come through THUNKS so the cases that decide without them (comparisons, `>>>`)
+// skip operand resolution
+export function binaryOperatorResultKind(operator, leftKindOf, rightKindOf) {
+  switch (operator) {
+    case '==':
+    case '!=':
+    case '===':
+    case '!==':
+    case '<':
+    case '>':
+    case '<=':
+    case '>=':
+    case 'instanceof':
+    case 'in':
+      return 'boolean';
+    case '+': {
+      const left = leftKindOf();
+      const right = rightKindOf();
+      if (left === 'string' || right === 'string') return 'string';
+      if (left === 'number' && right === 'number') return 'number';
+      if (left === 'bigint' && right === 'bigint') return 'bigint';
+      return 'unknown';
+    }
+    // >>> (unsigned right shift) throws on BigInt, result is always Number
+    case '>>>':
+      return 'number';
+    // arithmetic and bitwise operators work on both Number and BigInt; mixing them throws,
+    // so knowing one operand's kind determines the result - `number` when unresolvable, an
+    // acceptable assumption within core-js
+    case '-':
+    case '*':
+    case '/':
+    case '%':
+    case '**':
+    case '|':
+    case '&':
+    case '^':
+    case '<<':
+    case '>>':
+      return leftKindOf() === 'bigint' || rightKindOf() === 'bigint' ? 'bigint' : 'number';
+  }
+  return null;
+}
+
+// kind-level result of a unary operator given the argument's primitive kind (thunked for
+// the same laziness). `-` / `~` preserve Number vs BigInt; unary `+` throws on BigInt, so
+// it is always Number
+export function unaryOperatorResultKind(operator, argKindOf) {
+  switch (operator) {
+    case 'void':
+      return 'undefined';
+    case 'typeof':
+      return 'string';
+    case '!':
+    case 'delete':
+      return 'boolean';
+    case '+':
+      return 'number';
+    case '-':
+    case '~':
+      return argKindOf() === 'bigint' ? 'bigint' : 'number';
+  }
+  return null;
+}
+
 export function createValueOps({
   isLiteralOf,
   literalKeyValue,
@@ -158,38 +227,12 @@ export function createValueOps({
   }
 
   function resolveBinaryOperatorType(operator, leftPath, rightPath) {
-    switch (operator) {
-      case '+': {
-        const leftType = primitiveTypeOf(resolveNodeType(leftPath));
-        const rightType = primitiveTypeOf(resolveNodeType(rightPath));
-        if (leftType === 'string' || rightType === 'string') return new $Primitive('string');
-        if (leftType === 'number' && rightType === 'number') return new $Primitive('number');
-        if (leftType === 'bigint' && rightType === 'bigint') return new $Primitive('bigint');
-        return new $Primitive('unknown');
-      }
-      // >>> (unsigned right shift) throws on BigInt, result is always Number
-      case '>>>':
-        return new $Primitive('number');
-      // arithmetic and bitwise operators work on both Number and BigInt
-      // mixing them throws, so knowing one operand's type determines the result
-      case '-':
-      case '*':
-      case '/':
-      case '%':
-      case '**':
-      case '|':
-      case '&':
-      case '^':
-      case '<<':
-      case '>>': {
-        const leftType = primitiveTypeOf(resolveNodeType(leftPath));
-        const rightType = primitiveTypeOf(resolveNodeType(rightPath));
-        if (leftType === 'bigint' || rightType === 'bigint') return new $Primitive('bigint');
-        // `number` if resolving is not possible - acceptable assumption within `core-js`
-        return new $Primitive('number');
-      }
-    }
-    return null;
+    const kind = binaryOperatorResultKind(
+      operator,
+      () => primitiveTypeOf(resolveNodeType(leftPath)),
+      () => primitiveTypeOf(resolveNodeType(rightPath)),
+    );
+    return kind ? new $Primitive(kind) : null;
   }
 
   return {
