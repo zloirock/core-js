@@ -268,6 +268,9 @@ export default function plugin(api, options) {
       let originalBodyNodes = new WeakSet();
       let disabledLines = null;
       let skipFile;
+      // per-file count of modules injected by entry expansion - a non-zero count means the
+      // emitted import block breaks the directive prologue, making `0;` placeholders moot
+      let entryModulesInjected = 0;
       // synth-swap pipeline: receivers accumulated as the visitor walks, drained at
       // programExit. factory in `internals/synth-swap-emitter.js`. instantiated per-file
       // in `initFile` so closure-captured `skippedNodes` ref stays in sync with the
@@ -718,7 +721,7 @@ export default function plugin(api, options) {
         // `createEntryVisitors` hands us every specifier-less import; mark only actual
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
-        injectModulesForEntry(entry);
+        entryModulesInjected += injectModulesForEntry(entry);
         // indirect-require SE prefix preservation: `(spy(), require)('core-js/...')` passes
         // `getEntrySource` via the SequenceExpression tail peel, but removing the whole
         // statement would silently drop `spy()`. extract observable side effects from the
@@ -743,7 +746,9 @@ export default function plugin(api, options) {
           return;
         }
         if (body && idx >= 0
-          && wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, hasPriorDirective })) {
+          && wouldPromoteDirectiveAfterRemoval({
+            body, entryIndex: idx, hasPriorDirective, injectedImportsBreakPrologue: entryModulesInjected > 0,
+          })) {
           path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
           return;
         }
@@ -1079,6 +1084,7 @@ export default function plugin(api, options) {
       function resetPerFilePrimitives() {
         skipFile = false;
         disabledLines = null;
+        entryModulesInjected = 0;
         importStyle = null;
         originalBodyNodes = null;
         skippedNodes = new WeakSet();
