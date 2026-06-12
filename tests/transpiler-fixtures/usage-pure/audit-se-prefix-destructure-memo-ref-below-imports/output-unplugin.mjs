@@ -6,6 +6,6 @@ var _ref;
 // block-hoist tag the end-of-pipeline pass would otherwise lift ABOVE the imports (import/first
 // violation); it must stay below them. unplugin keeps the dead `(fx(), Array)` receiver babel
 // drops to `fx();` - pre-existing cosmetic divergence in SE-prefix destructure (output-unplugin).
-(fx(), Array);
+fx();
 const from = _Array$from;
 _flatMaybeArray(_ref = getObj()).call(_ref);
