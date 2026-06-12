@@ -733,6 +733,58 @@ runBoth('Array.isArray() built-in predicate narrows to Array',
     }
   });
 
+// --- Resolver precision: ternary nullable-fold, discriminants, predicate-to-interface ---
+
+runBoth('ternary return value folds nullable branch',
+  `
+    const arr: number[] = [1];
+    function f(c: boolean) { return c ? arr : null; }
+    const r = f(true);
+  `,
+  (adapter, prog, lbl) => {
+    const ref = adapter.pickPath(prog, 'Identifier', p => p.node?.name === 'r' && p.parentPath?.node?.type === 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
+runBoth('boolean discriminant narrows union',
+  `
+    type U = { ok: true, xs: number[] } | { ok: false, xs: string };
+    function g(u: U) { if (u.ok === true) { return u.xs; } }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'u');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref.parentPath);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
+runBoth('nested-member discriminant narrows union',
+  `
+    type U = { m: { k: 'a' }, xs: number[] } | { m: { k: 'b' }, xs: string };
+    function g(u: U) { if (u.m.k === 'a') { return u.xs; } }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'u');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref.parentPath);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
+runBoth('user predicate narrowing to an interface feeds member resolution',
+  `
+    interface F { xs: number[] }
+    function isF(o: unknown): o is F { return true; }
+    function g(v: unknown) { if (isF(v)) { return v.xs; } }
+  `,
+  (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'v');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(ref.parentPath);
+    checkTruthy(lbl, type && type.primitive === false && type.constructor === 'Array');
+  });
+
 // --- Switch-case typeof narrowing ---
 // covers typeof-guards.js `findSwitchCaseGuards` - `switch (typeof x) { case 'string': ... }`
 // narrows x to string inside that case body

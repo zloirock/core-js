@@ -142,6 +142,14 @@ export function createValueOps({
     const right = resolveNodeType(rightPath);
     if (left && right && (op === '??' || op === '??=' || op === '||' || op === '||=')
         && isNullableOrNever(left)) return right;
+    // ternary: a statically-nullable branch folds away for polyfill purposes - the
+    // surviving branch's instance helpers are Maybe-dispatched, and a null receiver
+    // throws the same TypeError transformed or not. mirrors the cross-return nullable
+    // fold in return-type, so `c ? arr : null` narrows like `if (c) return arr; return null`
+    if (left && right && op === '?:') {
+      if (isNullableOrNever(left)) return right;
+      if (isNullableOrNever(right)) return left;
+    }
     return left && right ? commonType(left, right) : null;
   }
 
