@@ -10,13 +10,13 @@ import {
   mayHaveSideEffects,
   peelMemoizeWrappers,
   peelNestedSequenceExpressions,
-  staticStringKey,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
+  resolveKey,
   classifyReceiverSE,
   findProxyGlobal,
   keySideEffectsOnly,
@@ -867,14 +867,31 @@ export function createPolyfillEmitter({
         const calleeStep = peelChainStep(current.callee, currentPath.get('callee'));
         if (!calleeStep) return null;
         const [hopCallee, hopCalleePath] = calleeStep;
-        // un-threadable hop callee shapes (computed / non-Identifier / `super`): bail rather than
-        // risk a malformed thread. matches the inner-chainStart gate below
-        if (hopCallee?.type !== 'MemberExpression' || hopCallee.computed
-          || hopCallee.property?.type !== 'Identifier' || hopCallee.object?.type === 'Super') return null;
-        const hopMeta = { kind: 'property', object: null, key: hopCallee.property.name, placement: 'prototype' };
-        const { result: hopResult } = resolvePureOrGlobalFallback(hopMeta, hopCalleePath);
+        if (hopCallee?.type !== 'MemberExpression' || hopCallee.object?.type === 'Super') return null;
+        // the hop key matters only for the hop's own POLYFILL lookup, resolved through the
+        // SAME detection canon every member meta uses (literals, templates, const-bound
+        // identifier chains); a dynamic key threads as a NON-poly hop - its raw text
+        // re-emits verbatim. an SE prefix on the key (`[(eff(), 'map')](...)`) is collected
+        // so the poly emission can replay it - the resolved name alone would drop the effect
+        let hopKeyNode = hopCallee.property;
+        let hopKeySE = [];
+        if (hopCallee.computed) {
+          const { prefix, tail } = peelNestedSequenceExpressions(hopCallee.property);
+          hopKeyNode = tail;
+          hopKeySE = prefix.filter(mayHaveSideEffects).map(e => code.slice(e.start, e.end));
+        }
+        const hopKey = resolveKey({
+          node: hopKeyNode, computed: hopCallee.computed,
+          scope: hopCalleePath.scope, adapter: estreeAdapter, path: hopCalleePath,
+        });
+        let hopResult = null;
+        if (hopKey !== null) {
+          ({ result: hopResult } = resolvePureOrGlobalFallback(
+            { kind: 'property', object: null, key: hopKey, placement: 'prototype' }, hopCalleePath));
+        }
         hops.push({
           poly: hopResult?.kind === 'instance' ? hopResult : null,
+          keySE: hopKeySE,
           args: sliceBetweenParens(current) ?? '',
           rawSrc: code.slice(hopCallee.object.end, current.end),
           // member-optional call hop (`recv?.m(...)`): a nullish receiver short-circuits the whole chain
@@ -899,12 +916,15 @@ export function createPolyfillEmitter({
     // resolve the method name + key side effects. a plain `.flat` uses the Identifier name; a
     // computed key `[(eff(), 'flat')]` peels its SequenceExpression to a static string key and folds
     // the prefix SE into the inner method-get so it evaluates once (instead of being duplicated by a
-    // separate computed-key transform). a dynamic computed key (`[k]`) bails to the standalone path
+    // separate computed-key transform). the detection canon also resolves const-bound keys
+    // (`const k = 'flat'; arr[k]?.()`); a truly dynamic key bails to the standalone path
     let innerKeySE = [];
     let innerMethodName;
     if (callee.computed) {
       const { prefix, tail } = peelNestedSequenceExpressions(callee.property);
-      innerMethodName = staticStringKey(tail);
+      innerMethodName = resolveKey({
+        node: tail, computed: true, scope: currentPath.scope, adapter: estreeAdapter, path: currentPath,
+      });
       if (innerMethodName === null) return null;
       innerKeySE = prefix.filter(mayHaveSideEffects);
     } else if (callee.property?.type === 'Identifier') {
@@ -993,7 +1013,7 @@ export function createPolyfillEmitter({
   // result `mRef` verbatim instead of a redundant memo - matching babel's `_at(_ref).call(_ref)`.
   // non-poly-hop refs allocate OUTERMOST-first (hops array order, after the caller's mRef / outerRef),
   // receiver built INNERMOST-first
-  function buildThreadedReceiver(innerCall, hops, { innermostGuardFolded = false } = {}) {
+  function buildThreadedReceiver(innerCall, hops, { innermostGuardFolded = false, verbatimHops = false } = {}) {
     const innermost = hops.length - 1;
     const slots = hops.map((hop, i) => hop.poly && !(innermostGuardFolded && i === innermost)
       ? { ref: scopeTracker.genRef(), binding: injectPureImport(hop.poly.entry, hop.poly.hintName) }
@@ -1004,20 +1024,34 @@ export function createPolyfillEmitter({
       const slot = slots[i];
       const hop = hops[i];
       const guardFolded = innermostGuardFolded && i === innermost;
-      if (hop.optional && !guardFolded) {
+      // `verbatimHops` (every hop non-poly + optional OUTER test): hops re-emit verbatim with
+      // their own `?.` - the chain short-circuits natively and the single outer test covers
+      // it, matching the babel emission. otherwise an optional hop lifts a guard: a nullish
+      // prefix must short-circuit the WHOLE chain, not flow into a downstream poly dispatch
+      if (hop.optional && !guardFolded && !verbatimHops) {
         const guardRef = scopeTracker.genRef();
         extraTests.push(`null == (${ guardRef } = ${ acc })`);
         acc = guardRef;
       }
       if (slot) {
-        acc = `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ commaArgs(hop.args) })`;
+        // key SE replays between the receiver memo and the helper call - source order
+        // (receiver, key effects, dispatch), mirroring the babel emission
+        acc = hop.keySE?.length
+          ? `(${ slot.ref } = ${ acc }, ${ hop.keySE.join(', ') }, ${ slot.binding }(${ slot.ref }).call(${ slot.ref }${ commaArgs(hop.args) }))`
+          : `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ commaArgs(hop.args) })`;
       } else if (hop.poly) {
         // folded innermost poly hop: `acc` is the memoized chainStart result (mRef), safe to reuse
-        // verbatim rather than allocate a redundant `_refN = mRef` memo (mirrors babel)
+        // verbatim rather than allocate a redundant `_refN = mRef` memo (mirrors babel).
+        // key SE replays ahead of the dispatch, like the slotted branch
         const binding = injectPureImport(hop.poly.entry, hop.poly.hintName);
-        acc = `${ binding }(${ acc }).call(${ acc }${ commaArgs(hop.args) })`;
+        const dispatch = `${ binding }(${ acc }).call(${ acc }${ commaArgs(hop.args) })`;
+        acc = hop.keySE?.length ? `(${ hop.keySE.join(', ') }, ${ dispatch })` : dispatch;
       } else {
-        acc = `${ acc }${ hop.optional ? hop.rawSrc.replace(/^\s*\?\./, '.') : hop.rawSrc }`;
+        // non-poly hops: verbatim mode keeps the `?.`; a guarded one deopts its connector
+        // (`?.m` -> `.m`, `?.[k]` -> `[k]` - a dot before a bracket is a syntax error)
+        acc = `${ acc }${ hop.optional && !verbatimHops
+          ? hop.rawSrc.replace(/^\s*\?\.(?<bracket>\s*\[)?/, (m, bracket) => bracket ?? '.')
+          : hop.rawSrc }`;
       }
     }
     return { threaded: acc, extraTests };
@@ -1079,8 +1113,6 @@ export function createPolyfillEmitter({
     const isReceiverSafe = isReusableReceiver(innerCallee.object);
     const aRef = isReceiverSafe ? receiver : scopeTracker.genRef();
     const anAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
-    const mRef = scopeTracker.genRef();
-    const outerRef = scopeTracker.genRef();
     const innerArgs = sliceBetweenParens(chainStart) ?? '';
     const outerArgs = sliceBetweenParens(parent) ?? '';
 
@@ -1096,11 +1128,25 @@ export function createPolyfillEmitter({
     // the call RESULT and a single `null == mRef` covers BOTH the `m?.()` short-circuit (the `?.call`)
     // and the adjacent `?.hop` short-circuit; the hop then threads on the memoized result. every other
     // chainStart keeps the method-test form (which already matches babel's output)
-    const foldInnerCall = !innerCallee.optional && hops.length > 0 && hops.at(-1).optional;
-    const innerCall = foldInnerCall ? mRef : `${ mRef }.call(${ aRef }${ commaArgs(innerArgs) })`;
-    const { threaded, extraTests } = buildThreadedReceiver(innerCall, hops, { innermostGuardFolded: foldInnerCall });
+    // every hop NON-poly: the whole chain stays a single `?.`-connected expression (the
+    // chainStart folds to `helper(recv)?.call(recv)`, hops re-emit verbatim) and the OUTER
+    // test alone covers the short-circuit - matching the babel emission, which never breaks
+    // such a chain apart
+    const allHopsNonPoly = !innerCallee.optional && hops.length > 0 && hops.every(h => !h.poly)
+      && hops.at(-1).optional && node.optional;
+    const foldInnerCall = !allHopsNonPoly && !innerCallee.optional && hops.length > 0 && hops.at(-1).optional;
+    // no chainStart test exists on the all-non-poly path - skipping the ref keeps the
+    // allocation order (and so the `_refN` numbering) aligned with the babel emission
+    const mRef = allHopsNonPoly ? null : scopeTracker.genRef();
+    const outerRef = scopeTracker.genRef();
+    const innerCall = allHopsNonPoly
+      ? `${ methodGet(methodArg) }?.call(${ aRef }${ commaArgs(innerArgs) })`
+      : foldInnerCall ? mRef : `${ mRef }.call(${ aRef }${ commaArgs(innerArgs) })`;
+    const { threaded, extraTests } = buildThreadedReceiver(innerCall, hops, {
+      innermostGuardFolded: foldInnerCall, verbatimHops: allHopsNonPoly,
+    });
 
-    const tests = innerCallee.optional ? [
+    const tests = allHopsNonPoly ? [] : innerCallee.optional ? [
       `null == ${ anAssign }`,
       `null == (${ mRef } = ${ methodGet(aRef) })`,
     ] : foldInnerCall ? [
