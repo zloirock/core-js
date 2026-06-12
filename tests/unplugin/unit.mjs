@@ -773,6 +773,23 @@ function checkAddSplitAtomicRange() {
 }
 checkAddSplitAtomicRange();
 
+// a SPLIT prefix's physical end understates its logical range: with a same-start non-split
+// sibling the outermost filter must swallow the narrower one (tiebreak by LOGICAL end), or
+// two overlapping splices reach the caller and silently corrupt relocated text
+function checkSameStartSplitTiebreak() {
+  const code = '0123456789abcdef';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.addSplit(0, 4, 10, '[012345]', '+S');
+  q.add(0, 6, 'XYZ');
+  const splices = q.composeAndDrainRange(0, 16);
+  let disjoint = splices.length > 0;
+  for (let i = 1; i < splices.length; i++) {
+    if (splices[i].start < splices[i - 1].end) disjoint = false;
+  }
+  check('TransformQueue/same-start split-prefix tiebreak yields disjoint splices', disjoint, true);
+}
+checkSameStartSplitTiebreak();
+
 // U05-2: composeAndDrainRange drains entries and returns splices the caller bakes into relocated
 // text via spliceInRange, which cannot detect a partial overlap. it must run the same partial-overlap
 // guard apply() does, surfacing the composition bug instead of silently corrupting the relocated text
