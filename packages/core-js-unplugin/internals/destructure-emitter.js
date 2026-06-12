@@ -8,6 +8,7 @@
 // public surface: `applyDestructuringTransforms`, `applySynthSwaps`, `handleDestructuringPure`,
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation)
 import {
+  propertyKeyName,
   isChainAssignment,
   peelZeroArgIifeReturn,
   isReceiverShapedNode,
@@ -788,18 +789,15 @@ export function createDestructureEmitter({
     if (liftSE) {
       if (isForInit) forInitSESinks.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
       else {
-        // emit only the SE PREFIX when the tail is an effect-free PROXY-MEMBER chain: that
-        // tail is dead after the full consume, and keeping it emitted a spurious proxy-global
-        // read + import (babel drops exactly this tail class - import-set parity, fuzzer-
-        // enforced - while keeping bare-constructor tails). the tail's globals were marked at
-        // collection time, so no queued substitution targets the dropped slice
+        // emit only the SE PREFIX when the collection pre-pass marked the tail droppable
+        // (effect-free, fully consumed, statement-liftable host): the dead tail would emit a
+        // spurious read plus its polyfill import. babel's lift trims the same class. the
+        // prefix joins into ONE comma statement, matching babel's flattened sequence emit
         const { prefix, tail } = peelNestedSequenceExpressions(info.initNode);
         const peeledTail = unwrapParens(tail);
-        const dropTail = prefix.length && !mayHaveSideEffects(peeledTail)
-          && (peeledTail?.type === 'MemberExpression' || peeledTail?.type === 'OptionalMemberExpression')
-          && findProxyGlobal(peeledTail);
+        const dropTail = prefix.length && !!peeledTail && skippedNodes.has(peeledTail);
         if (dropTail) {
-          parts.push(...prefix.map(e => transforms.extractContent(e.start, e.end) ?? nodeSrc(e)));
+          parts.push(prefix.map(e => transforms.extractContent(e.start, e.end) ?? nodeSrc(e)).join(', '));
         } else parts.push(initTransformed);
       }
     }
@@ -1235,19 +1233,22 @@ export function createDestructureEmitter({
     return propBindingIdentifier(outerProp.value)?.name ?? null;
   }
 
-  // resolve a nested-flatten prop's key to its static name: a non-computed Identifier (`Array`) or a
-  // computed string / single-quasi literal (`['Array']` / [`Array`]). null for a dynamic computed key
-  // (`[k]`) or non-Identifier shape - the flatten bails to preservedSrc. babel's structural walk is
-  // computed-key-agnostic, so resolving the literal here keeps unplugin's flatten aligned with babel's
+  // resolve a nested-flatten prop's key to its static name via the canonical property-key
+  // resolver: non-computed Identifier AND string-literal keys (`{ "Array": {...} }`), computed
+  // string / single-quasi literals. null for a dynamic computed key (`[k]`) - the flatten
+  // bails to preservedSrc. babel's structural walk is computed-key-agnostic, so resolving the
+  // literal here keeps unplugin's flatten aligned with babel's
   function flattenKeyName(prop) {
     if (prop.computed) return staticStringKey(prop.key);
-    return prop.key?.type === 'Identifier' ? prop.key.name : null;
+    return propertyKeyName(prop);
   }
 
-  // key source for a partially-consumed flatten rebuild: a computed key keeps its `[...]` form so the
-  // residual pattern stays valid (a bare name would corrupt `['Array']: { ... }` -> `undefined: ...`)
+  // key source for a partially-consumed flatten rebuild: a computed key keeps its `[...]`
+  // form and a string-literal key its quotes, so the residual pattern stays valid (a bare
+  // name would corrupt `['Array']: { ... }` -> `undefined: ...`)
   function flattenKeySrc(prop) {
-    return prop.computed ? `[${ nodeSrc(prop.key) }]` : prop.key.name;
+    if (prop.computed) return `[${ nodeSrc(prop.key) }]`;
+    return prop.key?.type === 'Identifier' ? prop.key.name : nodeSrc(prop.key);
   }
 
   // proxy-global outer prop: five shapes
@@ -1412,8 +1413,9 @@ export function createDestructureEmitter({
       const symBinding = injectPureImport('symbol/iterator', 'Symbol$iterator');
       return `[${ symBinding }]: ${ injector.generateUnusedName() }`;
     }
-    const keyName = sourceProp?.key?.name;
-    return keyName ? `${ keyName }: ${ injector.generateUnusedName() }` : null;
+    // the same key renderer the residual rebuild uses: bare Identifier, quoted string
+    // literal (`"Array": _unused`), bracketed computed - all stay valid pattern keys
+    return sourceProp?.key ? `${ flattenKeySrc(sourceProp) }: ${ injector.generateUnusedName() }` : null;
   }
 
   // execute the plan: inject polyfill imports, emit extractions. returns
@@ -1564,6 +1566,23 @@ export function createDestructureEmitter({
   function canFullyConsumeProxyDeclarator(d, scope, usePath = null) {
     const plan = planDeclarator(d, scope, usePath);
     return !!plan && plan.outerProps.every(p => p.preservedSrc === null);
+  }
+
+  // collection-time twin for SE-PREFIXED inits (`const { all } = (sideEff(), Promise)`):
+  // when the destructure fully consumes the TAIL, the lift later emits only the SE prefix -
+  // the dead tail's own rewrites and imports must be suppressed NOW (the drop happens
+  // post-traverse, long after the identifier visitor would have injected them). the
+  // emission's drop gate keys on this very mark, so decision and emission cannot diverge.
+  // bodyless / for-init hosts keep the whole init inline (no lift) and stay unmarked
+  function markDroppableSeTail(d, scope, usePath, declaration, declarationParent) {
+    if (d.init?.type !== 'SequenceExpression') return;
+    const host = classifyVariableDeclarationHost({ declaration, declarationParent });
+    if (host.isBodyless || host.isForInit) return;
+    const { prefix, tail } = peelNestedSequenceExpressions(d.init);
+    const peeledTail = unwrapParens(tail);
+    if (!prefix.length || !peeledTail || mayHaveSideEffects(peeledTail)) return;
+    if (!canFullyConsumeProxyDeclarator({ ...d, init: tail }, scope, usePath)) return;
+    walkAstNodes({ root: tail, visit: n => skippedNodes.add(n) });
   }
 
   // sibling-side companion of `rewriteDeclarator` for multi-decl flatten.
@@ -2781,6 +2800,7 @@ export function createDestructureEmitter({
     applyDestructuringTransforms,
     applySynthSwaps,
     canFullyConsumeProxyDeclarator,
+    markDroppableSeTail,
     handleDestructuringPure,
   };
 }
