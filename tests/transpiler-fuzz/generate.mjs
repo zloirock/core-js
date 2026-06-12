@@ -347,6 +347,14 @@ const EXPR_FAMILIES = {
     // an SE prefix on a poly hop key runs exactly once, in source order
     '(() => { const calls = []; const r = [[1], [2]].flat?.()[(calls.push("k"), "map")](v => v[0])?.at(0); '
       + 'return [r, calls.length]; })()',
+    // a lifted SE prefix keeps its effect; the dead proxy-member tail drops
+    '(() => { const calls = []; const { of: o3 } = (calls.push(1), globalThis.Array); '
+      + 'return [typeof o3, o3(7).length, calls.length]; })()',
+    // a rest sibling excludes the consumed string-literal key (quoted sentinel)
+    '(() => { const { "Array": { from: f8 }, ...others } = globalThis; '
+      + 'return ["Array" in others, typeof f8, f8([3]).length]; })()',
+    // a string-literal outer key flattens like the identifier form
+    '(() => { const { "Array": { from } } = globalThis; return [from([8, 9]).at(0)]; })()',
     // an all-non-poly optional hop tail short-circuits through its own tokens
     '(() => { const o = { cA(v) { return { cB(w) { return [v, w]; } }; } }; '
       + 'const r = [[1]].flat?.()?.[0] && o.cA?.(1)?.cB(2)?.at(1); return [r]; })()',
