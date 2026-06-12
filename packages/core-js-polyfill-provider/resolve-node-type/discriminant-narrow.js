@@ -91,19 +91,42 @@ export function createDiscriminantNarrow({
     return pair && { ...pair, positive: isEq === conditionTrue };
   }
 
-  // `memberExpr.object` peeled through TS wrappers (`(box as A).kind`) to bind narrow
-  // to the underlying binding identity. returns the property name or null when shape
-  // doesn't match: not a member, computed without resolvable key, or object-path
-  // diverges from `targetKey`
-  function matchTargetField(memberExpr, targetKey, scope) {
-    let field = getMemberProperty(memberExpr);
-    // computed alias-key discriminant (`box[K]` with `const K = 'kind'`): getMemberProperty resolves
-    // only literal keys, so fall back to the scope-aware resolver - mirroring the value side, which
-    // already routes through resolveComputedKeyName for identifier-alias / enum-member literals
-    if (field === null && memberExpr.computed && scope) field = resolveComputedKeyName(memberExpr.property, scope);
-    if (field === null) return null;
-    if (pathKey(unwrapRuntimeExpr(memberExpr.object)) !== targetKey) return null;
-    return field;
+  // the discriminant FIELD may sit behind nested hops (`u.m.k === 'a'` discriminates `u`):
+  // collect the field path from the test's member chain down to the narrowed binding.
+  // every hop needs a statically-named key (literal, or alias / enum-member via the
+  // scope-aware resolver - mirroring the value side); the chain below the collected
+  // fields must equal `targetKey` exactly, with TS wrappers peeled (`(box as A).kind`).
+  // returns the root-first field path or null when the shape diverges
+  function matchTargetFieldPath(memberExpr, targetKey, scope) {
+    const fields = [];
+    let current = memberExpr;
+    while (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
+      let field = getMemberProperty(current);
+      if (field === null && current.computed && scope) field = resolveComputedKeyName(current.property, scope);
+      if (field === null) return null;
+      fields.unshift(field);
+      current = unwrapRuntimeExpr(current.object);
+      if (pathKey(current) === targetKey) return fields;
+    }
+    return null;
+  }
+
+  // discriminant literal VALUES span more than KEY literals: a union member can be
+  // discriminated by `true` / `false` and bigint literal TYPES, which `literalKeyValue`
+  // (key-domain: string / number) never extracts. bigints normalize to a `<digits>n`
+  // string so the babel shape (BigIntLiteral, digits in `.value`) and the estree shape
+  // (Literal with a bigint `.value` + raw digits in `.bigint`) compare equal, and never
+  // collide with a same-digit number (number 1 vs string '1n'). null / undefined
+  // discriminants are KEYWORD types (TSNullKeyword), not literal nodes - they keep the
+  // permissive pass-through. used by BOTH comparison sides: the test expression and the
+  // union member's TSLiteralType
+  function discriminantLiteralValue(node) {
+    if (!node) return null;
+    if (typeof node.value === 'boolean' && (node.type === 'BooleanLiteral' || node.type === 'Literal')) return node.value;
+    if (node.type === 'BigIntLiteral' || (node.type === 'Literal' && typeof node.value === 'bigint')) {
+      return `${ node.bigint ?? node.value }n`;
+    }
+    return literalKeyValue(node);
   }
 
   // bare literal first (cheap, no scope walk), then enum-member / alias-chain /
@@ -111,14 +134,14 @@ export function createDiscriminantNarrow({
   // `box.kind === Kind.A` (and `Kind['A']` / `Kind[`A`]`) stays unmatched and the
   // discriminant narrowing falls back to the unrefined union receiver
   function resolveLiteralOrComputed(node, scope) {
-    return literalKeyValue(node) ?? (scope ? resolveComputedKeyName(node, scope) : null);
+    return discriminantLiteralValue(node) ?? (scope ? resolveComputedKeyName(node, scope) : null);
   }
 
   function memberLiteralPair({ memberExpr, literalNode, targetKey, scope }) {
-    const field = matchTargetField(memberExpr, targetKey, scope);
-    if (field === null) return null;
+    const fieldPath = matchTargetFieldPath(memberExpr, targetKey, scope);
+    if (fieldPath === null) return null;
     const value = resolveLiteralOrComputed(literalNode, scope);
-    return value === null ? null : { field, value };
+    return value === null ? null : { fieldPath, value };
   }
 
   // a member sub-path narrow (`obj.a.b`) is invalidated by a write to that exact sub-path
@@ -249,8 +272,8 @@ export function createDiscriminantNarrow({
     if (current.listKey !== 'consequent') return;
     const switchStmt = switchCase.parentPath;
     if (!t.isSwitchStatement(switchStmt?.node)) return;
-    const field = matchTargetField(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey);
-    if (field === null) return;
+    const fieldPath = matchTargetFieldPath(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey, switchStmt.scope);
+    if (fieldPath === null) return;
     if (!discriminantGuardApplies(switchStmt.scope, switchStmt.node.discriminant, ctx)) return;
     const { cases } = switchStmt.node;
     const { scope } = switchCase;
@@ -260,12 +283,12 @@ export function createDiscriminantNarrow({
     if (switchCase.node.test === null) {
       for (const $case of cases) {
         const value = resolveLiteralOrComputed($case.test, scope);
-        if (value !== null) out.push({ field, value, positive: false });
+        if (value !== null) out.push({ fieldPath, value, positive: false });
       }
       return;
     }
     const value = resolveLiteralOrComputed(switchCase.node.test, scope);
-    if (value !== null) out.push({ field, value, positive: true });
+    if (value !== null) out.push({ fieldPath, value, positive: true });
   }
 
   // walk up collecting `<path>.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`,
@@ -445,7 +468,7 @@ export function createDiscriminantNarrow({
       if (p.type === 'SpreadElement' || p.type === 'ExperimentalSpreadProperty') return null;
       if (p.computed || (p.type !== 'ObjectProperty' && p.type !== 'Property')) continue;
       const keyName = getKeyName(p.key);
-      const literalValue = literalKeyValue(p.value);
+      const literalValue = discriminantLiteralValue(p.value);
       if (keyName !== null && literalValue !== null) literals.set(keyName, literalValue);
     }
     return literals;
@@ -498,7 +521,7 @@ export function createDiscriminantNarrow({
       if (m.type !== 'TSPropertySignature' || m.computed) continue;
       const memberType = m.typeAnnotation && unwrapTypeAnnotation(m.typeAnnotation);
       if (memberType?.type !== 'TSLiteralType') continue;
-      const expected = literalKeyValue(memberType.literal);
+      const expected = discriminantLiteralValue(memberType.literal);
       const keyName = getKeyName(m.key);
       if (expected === null || keyName === null || !rhsLiterals.has(keyName)) continue;
       if (rhsLiterals.get(keyName) !== expected) return false;
@@ -560,11 +583,16 @@ export function createDiscriminantNarrow({
     return guards.every(guard => guardMatchesBranchMember(guard, unwrapped, scope));
   }
 
-  function guardMatchesBranchMember({ field, value, positive }, objectType, scope) {
-    const memberType = findTypeMember({ objectType, key: field, scope });
-    if (!memberType) return true;
-    const { node: resolvedNode } = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope);
-    const literal = resolvedNode?.type === 'TSLiteralType' ? literalKeyValue(resolvedNode.literal) : null;
+  function guardMatchesBranchMember({ fieldPath, value, positive }, objectType, scope) {
+    // walk the guard's field path hop by hop; an unresolvable hop passes permissively,
+    // matching the single-hop precedent for unknown member types
+    let current = objectType;
+    for (const field of fieldPath) {
+      const memberType = findTypeMember({ objectType: current, key: field, scope });
+      if (!memberType) return true;
+      current = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope).node;
+    }
+    const literal = current?.type === 'TSLiteralType' ? discriminantLiteralValue(current.literal) : null;
     return literal === null || (literal === value) === positive;
   }
 

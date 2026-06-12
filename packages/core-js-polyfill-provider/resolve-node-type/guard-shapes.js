@@ -180,11 +180,17 @@ export function createPredicateGuards({
       if (c.returnType?.type !== 'TSTypePredicate' || !!c.returnType.asserts !== asserts) continue;
       if (!matchPredicateArg({ predicate: c.returnType, fnNode: c.fnNode, args, varName })) continue;
       const resolved = resolveTypeAnnotation(c.returnType.typeAnnotation, c.scope);
-      const guard = guardFromResolvedType(resolved, negated);
-      if (guard) {
-        if (optionalCall) guard.optionalCall = true;
-        return guard;
-      }
+      // transport the predicate's ANNOTATION on the guard regardless of its nominal kind:
+      // a structural target (interface / type literal) resolves to an UNKNOWN-constructor
+      // nominal type whose members no $-Type can carry, so member resolution retries
+      // against the annotation node once every nominal path has failed. union filtering
+      // treats the annotation-only kind as neutral
+      const guard = guardFromResolvedType(resolved, negated)
+        ?? { kind: 'annotation', negated };
+      guard.annotation = c.returnType.typeAnnotation;
+      guard.scope = c.scope;
+      if (optionalCall) guard.optionalCall = true;
+      return guard;
     }
     return null;
   }
