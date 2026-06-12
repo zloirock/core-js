@@ -17,13 +17,14 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   // pass 1: collect candidate body indices, inject modules eagerly (the per-entry module
   // set is identical whether the slot ends up removed or replaced by `0;`)
   const candidateIndices = [];
+  let injectedModules = 0;
   for (let idx = 0; idx < ast.body.length; idx++) {
     const node = ast.body[idx];
     const source = getEntrySource(node, adapter, shadowScope);
     if (source === null || isDisabled(node)) continue;
     const entry = getCoreJSEntry(source);
     if (entry === null) continue;
-    injectModulesForEntry(entry);
+    injectedModules += injectModulesForEntry(entry);
     candidateIndices.push(idx);
   }
 
@@ -32,6 +33,9 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   const { toRemove, toReplaceWithNoop } = resolveBatchDirectivePromotionPolicy({
     body: ast.body,
     candidateIndices,
+    // a non-empty injected module block lands after the prologue and blocks promotion
+    // for every removed entry - the `0;` placeholder matters only for zero-module files
+    injectedImportsBreakPrologue: injectedModules > 0,
   });
 
   const removeStatement = createTopLevelStatementRemover(ms);
