@@ -22,7 +22,7 @@ import {
   isTransparentDestructureWrapper,
   synthSwapPropKey,
   mayHaveSideEffects,
-  objectPatternPropNeedsReceiverRewrite,
+  isRestProperty,
   paramListReadsName,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
@@ -1046,36 +1046,53 @@ export default function createDestructureEmitter({
     // level don't need extraction - the destructure works as-is in catch params, and
     // leaf bindings (`from`) are local catch bindings, not polyfill candidates. recursive
     // descent here would trigger extraction noise without observable runtime gain
-    if (!param.properties.some(objectPatternPropNeedsReceiverRewrite)) {
-      const destructuredNames = new Set();
-      // shallow Identifier-value collection: only outer-level binding identifiers count
-      // as polyfill candidates that body-scan can match against. nested-pattern bindings
-      // are user's leaf locals, polyfill dispatch doesn't reach them through catch
-      for (const p of param.properties) {
-        if (p.type !== 'ObjectProperty') continue;
-        const name = p.value?.type === 'Identifier' ? p.value.name : null;
-        if (name) destructuredNames.add(name);
+    // only a prop whose KEY resolves to a pure polyfill via the typeless catch meta gets
+    // rewritten against the `_ref` receiver (`{ at }` -> `let at = _at(_ref)`); a
+    // non-polyfillable name (`{ message }`) gets no rewrite, so restructuring for it is
+    // pure churn the unplugin twin never produces - its transform fires only off a
+    // resolved prop to begin with
+    const resolvableProps = param.properties.filter(p => {
+      if (p.type !== 'ObjectProperty' || p.computed) return false;
+      const key = p.key?.name ?? p.key?.value ?? null;
+      return key !== null && !!resolvePure({ kind: 'property', object: null, key, placement: null }, path);
+    });
+    // computed keys host the symbol / SE-key machinery - keep their unconditional
+    // extraction. otherwise extraction needs a rewrite-bound prop AND a pattern-level
+    // reason: a rest sibling (the `_unused` sentinel preserves its exclusion) or a
+    // default on the resolved key (the guarded `_ref`-read rewrite); a plain resolved
+    // prop matters only when the body actually reads it. plain `{ code = 1 }` /
+    // rest-only patterns destructure in place
+    if (!param.properties.some(p => p.computed)) {
+      if (!resolvableProps.length) return;
+      const needsPatternRewrite = param.properties.some(isRestProperty)
+        || resolvableProps.some(p => p.value?.type === 'AssignmentPattern');
+      if (!needsPatternRewrite) {
+        const destructuredNames = new Set();
+        for (const p of resolvableProps) {
+          if (p.value?.type === 'Identifier') destructuredNames.add(p.value.name);
+        }
+        if (!destructuredNames.size) return;
+        // path-based traversal so we can look at `idPath.parent`: `isNonReferencePosition`
+        // filters Identifiers in non-reference slots (method/property keys, member-access
+        // tails, labels, import/export specifier names) - else `Math.includes` body would
+        // false-positive against a `{ includes }` catch binding and force a useless
+        // catch-receiver extraction. matches unplugin's same-named filter for shape parity.
+        // `isBindingPosition` ALSO filters declaration-id slots (function/class id, declarator
+        // id, catch param) - shadow re-declarations like `function from(){}` inside the catch
+        // body are bindings, not references; without skip we'd over-extract on every shadow
+        let referenced = false;
+        path.get('body').traverse({
+          Identifier(idPath) {
+            if (referenced) return idPath.skip();
+            if (!destructuredNames.has(idPath.node.name)) return;
+            if (isNonReferencePosition(idPath.parent, idPath.node)) return;
+            if (isBindingPosition(idPath.parent, idPath.node)) return;
+            referenced = true;
+            idPath.stop();
+          },
+        });
+        if (!referenced) return;
       }
-      // path-based traversal so we can look at `idPath.parent`: `isNonReferencePosition`
-      // filters Identifiers in non-reference slots (method/property keys, member-access
-      // tails, labels, import/export specifier names) - else `Math.includes` body would
-      // false-positive against a `{ includes }` catch binding and force a useless
-      // catch-receiver extraction. matches unplugin's same-named filter for shape parity.
-      // `isBindingPosition` ALSO filters declaration-id slots (function/class id, declarator
-      // id, catch param) - shadow re-declarations like `function from(){}` inside the catch
-      // body are bindings, not references; without skip we'd over-extract on every shadow
-      let referenced = false;
-      path.get('body').traverse({
-        Identifier(idPath) {
-          if (referenced) return idPath.skip();
-          if (!destructuredNames.has(idPath.node.name)) return;
-          if (isNonReferencePosition(idPath.parent, idPath.node)) return;
-          if (isBindingPosition(idPath.parent, idPath.node)) return;
-          referenced = true;
-          idPath.stop();
-        },
-      });
-      if (!referenced) return;
     }
     // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
     // - keeps one naming scheme across the plugin and matches unplugin's output shape
