@@ -60,6 +60,10 @@ export function createNarrowByGuards({
       return null;
     }
     if (guard.kind === 'instanceof') return resolveKnownConstructor(guard.constructorName);
+    // 'annotation'-kind guards (structural predicate targets) stay null here on purpose:
+    // their nominal resolution already failed at guard creation, and re-resolving could
+    // synthesize an open keyword type that wrongly suppresses generic injection - the
+    // member surface lives on the annotation node, consumed by member resolution instead
     return null;
   }
 
@@ -69,6 +73,9 @@ export function createNarrowByGuards({
   // not filter, leaving the candidate in the union
   function guardKeeps(resolved, guard) {
     if (guard.optionalCall && !guard.positive) return true;
+    // an annotation-kind guard carries a structural target that nominal $-Type matching
+    // cannot test - neutral for union filtering in both directions
+    if (guard.kind === 'annotation') return true;
     return matchesGuard(resolved, guard) === guard.positive;
   }
 
@@ -341,6 +348,15 @@ export function createNarrowByGuards({
     return result;
   }
 
+  // positive, mutation-checked annotation-kind predicate guard for an Identifier path.
+  // member resolution retries a structural predicate target (interface) against this
+  // annotation - the only transport for member surfaces that no $-Type can carry
+  function findAnnotationGuard(path) {
+    const info = findGuardsForBinding(path);
+    const guard = info?.guards.find(g => g.annotation && g.positive && !g.negated);
+    return guard ? { annotation: guard.annotation, scope: guard.scope } : null;
+  }
+
   function resolveTypeGuardNarrowing(path) {
     const info = findGuardsForBinding(path);
     if (!info) return null;
@@ -361,6 +377,7 @@ export function createNarrowByGuards({
   return {
     resolveGuardType,
     findGuardsForBinding,
+    findAnnotationGuard,
     resolveTypeGuardNarrowing,
     reset,
   };
