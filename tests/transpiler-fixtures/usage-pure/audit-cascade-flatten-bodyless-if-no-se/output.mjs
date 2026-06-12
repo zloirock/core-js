@@ -6,7 +6,5 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // whole block (including the freshly inserted polyfill assignment). force-wrap up-front
 // and re-resolve the path inside the body[] keeps the polyfill assignment intact.
 let from;
-if (cond) {
-  from = _Array$from;
-}
+if (cond) from = _Array$from;
 console.log(from);
