@@ -5,7 +5,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // the scopedVar's insertPos can coincide for tight nested-block shapes. pins inclusive
 // containment - exclusive `>` would drop the scopedVar at the boundary, leaving _ref
 // undeclared after the bodyWrap overwrite
-((() => {
-var _ref;var x = _atMaybeArray(_ref = [1, 2, 3]).call(_ref, 0); return Array;})(), Array);
+(() => {
+var _ref;var x = _atMaybeArray(_ref = [1, 2, 3]).call(_ref, 0); return Array;})();
 const from = _Array$from;
 console.log(from);

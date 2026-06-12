@@ -656,6 +656,38 @@ function findShorthandKey(objectPattern, bindingName, scope, adapter) {
   return null;
 }
 
+// single-key proxy-hop destructure: `{ K: <ObjectPattern> } = <proxy-global>` reads the
+// global K and then destructures from it - semantically the flat `<pattern> = <proxy>.K`.
+// owns the WHOLE qualification decision; emitters only render the normalization (babel
+// mutates the AST, unplugin rewrites text + re-parses). returns `{ prop, key, pattern }`
+// (the hop Property, its resolved static key name, the inner ObjectPattern) when:
+// exactly one Property whose key statically resolves to a non-proxy global-constructor
+// name, a non-empty (default-peeled) ObjectPattern value, an effect-free init resolving
+// to a proxy-global receiver. the normalized flat form re-anchors a residual to the
+// constructor binding instead of reading the native key off the proxy root (patch-visible
+// for mutated statics, defined on missing-global targets). a default on the hop prop is
+// dead code - the global key is always defined on target engines - matching the
+// nested-flatten's existing inner-default treatment. an SE-bearing init keeps the nested
+// handling: a member synthesized off a sequence would change the receiver shape the
+// SE-lift machinery expects
+export function proxyHopDescent({ pattern, init, scope, adapter, path }) {
+  if (!init || pattern?.type !== 'ObjectPattern' || pattern.properties.length !== 1) return null;
+  // an assignment host qualifies only where its VALUE is discarded (statement context):
+  // `({ K: inner } = G)` evaluates to G, the normalized `(inner = G.K)` to G.K - a used
+  // value would silently change from the proxy object to the hop member
+  if (flattenableHostSlot(path?.node, path) === null) return null;
+  const [prop] = pattern.properties;
+  if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
+  const key = sharedResolveKey({ node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true });
+  if (!key || POSSIBLE_GLOBAL_OBJECTS.has(key) || !isStaticPlacement(key)) return null;
+  const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+  if (value?.type !== 'ObjectPattern' || !value.properties.length) return null;
+  if (mayHaveSideEffects(init)) return null;
+  const receiver = resolveObjectName({ objectNode: init, scope, adapter, path });
+  if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
+  return { prop, key, pattern: value };
+}
+
 // walks the outer-prop chain (Property / ObjectProperty -> ObjectPattern -> ...) up to
 // the destructure host (VariableDeclarator / AssignmentExpression-in-ExpressionStatement).
 // returns the constructor name for the inner prop's receiver across two complementary
