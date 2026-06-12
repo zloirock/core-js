@@ -61,6 +61,7 @@ export function createMemberResolve({
   substituteTypeParams,
   resolveTypeAnnotation,
   findTypeMember,
+  findAnnotationGuard,
   findTypeDeclaration,
   findTypeParameter,
   isKeyofTargeting,
@@ -288,6 +289,13 @@ export function createMemberResolve({
       }
     }
     if (!annotation) return null;
+    return resolveMemberOnAnnotation({ annotation, scope, objectPath, name, callPath });
+  }
+
+  // the annotation-rooted half of `resolveTypedMember`, split out so a predicate-guard
+  // annotation (structural interface target) routes through the SAME machinery as a
+  // declared annotation - generics, class refs, method call returns and all
+  function resolveMemberOnAnnotation({ annotation, scope, objectPath, name, callPath }) {
     // a bare type-parameter that SHADOWS a same-named class/interface (`function f<Box extends Strs>`
     // over an outer `class Box`) is NOT that declaration: its apparent type is the CONSTRAINT. resolve
     // through the constraint so members come from `Strs`, not the unrelated shadowed `Box`. gated on an
@@ -493,8 +501,26 @@ export function createMemberResolve({
       }
     }
     // try typed member on resolved path first, then on original path (in case resolvePath lost annotation)
-    return resolveTypedMember(objectPath, name, callPath)
+    const typed = resolveTypedMember(objectPath, name, callPath)
       || (objectPath !== originalObjectPath ? resolveTypedMember(originalObjectPath, name, callPath) : null);
+    if (typed) return typed;
+    // structural predicate narrow: `isF(v)` proves `v` matches interface F inside the
+    // guarded branch, but F is structural - no $-Type carries its members, so the typed
+    // walks above can't see them. route the predicate's annotation through the same
+    // machinery a declared annotation takes (generics / class refs / method call returns)
+    if (originalObjectPath.node?.type === 'Identifier') {
+      const guard = findAnnotationGuard(originalObjectPath);
+      if (guard) {
+        return resolveMemberOnAnnotation({
+          annotation: unwrapTypeAnnotation(guard.annotation),
+          scope: guard.scope,
+          objectPath: originalObjectPath,
+          name,
+          callPath,
+        });
+      }
+    }
+    return null;
   }
 
   // arr[0], arr[1] - numeric index access on array literals
