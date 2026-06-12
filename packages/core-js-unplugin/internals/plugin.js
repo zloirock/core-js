@@ -47,6 +47,7 @@ import { isCallee, isOutermostOptionalChainMember } from './emit-utils.js';
 import { createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
+  walkAstNodes,
   canFuseWithOpenParen,
   collectAllBindingNames,
   directivePrologueEnd,
@@ -812,11 +813,31 @@ export default function createPlugin(options) {
         }
 
         // skip the receiver leaf Identifier unless a re-emitted sideEffect subtree preserves it
-        // (then its own substitution must stay queued); shared by the fallback + static dispatches
+        // (then its own substitution must stay queued); shared by the fallback + static dispatches.
+        // the outer emit drops the WHOLE receiver text, so a sequence's effect-free PREFIX
+        // operands (`(Iterator, Array).from(x)` - `Iterator` is neither the leaf nor carried in
+        // sideEffects) vanish too: suppress their subtrees, or their own queued rewrites have no
+        // needle left to compose into
         function skipUnpreservedReceiverLeaf(objectNode, sideEffects) {
           const inner = unwrapReceiverLeaf(objectNode);
           if (inner?.type === 'Identifier' && !innerPreservedBySideEffects(inner, sideEffects)) {
             skippedNodes.add(inner);
+          }
+          const work = [objectNode];
+          while (work.length) {
+            const cur = work.pop();
+            if (!cur || typeof cur !== 'object') continue;
+            if (cur.type === 'SequenceExpression') {
+              for (const operand of cur.expressions.slice(0, -1)) {
+                if (!innerPreservedBySideEffects(operand, sideEffects)) {
+                  walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
+                }
+              }
+              work.push(cur.expressions.at(-1));
+            } else if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
+              || TS_EXPR_WRAPPERS.has(cur.type)) {
+              work.push(cur.expression);
+            }
           }
         }
 

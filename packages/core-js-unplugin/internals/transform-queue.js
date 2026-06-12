@@ -896,7 +896,10 @@ export default class TransformQueue {
   // magic-string) and `composeAndDrainRange` (bakes them into relocated text). a split prefix
   // overwrites its FULL logical range; its suffix peer was already excluded in phase 1
   #outermostComposed(composed, composedContent) {
-    composed.sort((a, b) => a.start - b.start || b.end - a.end);
+    // tiebreak by LOGICAL end - the swallow check below compares logical spans, and a split
+    // prefix's physical end understates its range: sorting it after a same-start non-split
+    // sibling would emit BOTH splices (overlapping) instead of swallowing the narrower one
+    composed.sort((a, b) => a.start - b.start || entryLogicalEnd(b) - entryLogicalEnd(a));
     const splices = [];
     let maxEnd = -1;
     for (const t of composed) {
