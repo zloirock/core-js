@@ -171,7 +171,10 @@ function applyMinifierSequenceSplitPass(code, ast) {
       // a parenthesized operand already prints its parens, so it can never become a directive
       if (index === 0 && expr?.type === 'Literal' && typeof expr.value === 'string') return `0, ${ slice };`;
       return `${ parenthesizeExprStmtHazard(slice) };`;
-    }).join('\n');
+      // single-line join: every split product inherits the ORIGINAL statement's line, so a
+      // `core-js-disable-next-line` above the collapsed statement covers ALL of them (the
+      // babel split carries origin loc onto its products - this is the text-engine twin)
+    }).join(' ');
     mutated.overwrite(match.start, match.end, splitText);
     lastKeptEnd = match.end;
   }
@@ -521,8 +524,13 @@ export default function createPlugin(options) {
           adapter: estreeAdapter,
           mode,
           // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be removed,
-          // so the dedup filter must not suppress re-emit
+          // so the dedup filter must not suppress re-emit. the DEFER pass leaves user global
+          // imports COMPLETELY alone (no removal, no registration): its own emission is
+          // deferred to post, so removing here would strand the file import-less if the post
+          // pass never lands (evicted snapshot / sibling bail / watch-mode re-run), and
+          // registering would poison the snapshot dedup against post's atomic remove+re-emit
           onGlobalImport: (mod, node) => {
+            if (deferImports) return;
             injector.addGlobalImport(mod);
             removed.add(node);
           },
@@ -798,6 +806,7 @@ export default function createPlugin(options) {
           applyDestructuringTransforms,
           applySynthSwaps,
           canFullyConsumeProxyDeclarator,
+          markDroppableSeTail,
           handleDestructuringPure,
         } = destructureEmitter;
 
@@ -1014,7 +1023,9 @@ export default function createPlugin(options) {
           Program(path) { injector.rootScope = path.scope; },
           VariableDeclaration(path) {
             for (const d of path.node.declarations) {
-              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) skippedNodes.add(d.init);
+              if (!d.init) continue;
+              if (canFullyConsumeProxyDeclarator(d, path.scope, path)) skippedNodes.add(d.init);
+              else markDroppableSeTail(d, path.scope, path, path.node, path.parentPath?.node);
             }
           },
         }, createUsageVisitors({
