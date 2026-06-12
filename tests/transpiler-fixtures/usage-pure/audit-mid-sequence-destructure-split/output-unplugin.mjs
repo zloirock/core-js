@@ -13,31 +13,24 @@ var _ref, _ref2, _ref3;
 // emitter then polyfills the standalone statement. the TAIL-only rule once left the
 // mid-sequence form native (`from` undefined on engines missing the static)
 let from;
-from = _Array$from;
-use();
+from = _Array$from; use();
 export const r1 = _at(_ref = from([3])).call(_ref, 0);
 let of2;
-pre();
-of2 = _Array$of;
-post();
+pre(); of2 = _Array$of; post();
 export const r2 = _atMaybeArray(_ref2 = of2(4)).call(_ref2, 0);
 // rest sibling: the consumed key renames to the sentinel, rest exclusion preserved
 let keys, rest;
 keys = _Object$keys;
-({ keys: _unused, ...rest } = Object);
-use(rest);
+({ keys: _unused, ...rest } = Object); use(rest);
 // a destructure buried in a NESTED sequence slot splits too (fixpoint over the products)
 let entries2;
-x();
-entries2 = _Object$entries;
-use();
+x(); entries2 = _Object$entries; use();
 export const r3 = _atMaybeArray(_ref3 = entries2({ b: 2 })).call(_ref3, 0);
 // every statement-list host splits, including a switch-case consequent
 let groupBy2;
 switch (cond) {
   case 1:
-    groupBy2 = _Map$groupBy;
-use();
+    groupBy2 = _Map$groupBy; use();
     break;
 }
 export const r4 = groupBy2;
@@ -45,8 +38,7 @@ export const r4 = groupBy2;
 class K {
   static {
     let try2;
-    try2 = _Promise$try;
-use();
+    try2 = _Promise$try; use();
     K.r = try2;
   }
 }

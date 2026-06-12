@@ -316,6 +316,11 @@ export function createUsageVisitors({
     });
     if (!innerKey) return;
     const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
+    // a monkey-patched static is NOT a polyfillable destructure source (the same gate the
+    // provider's init-meta builder applies): emit NO meta at all - the typeless form would
+    // fall to the instance dispatcher. the prop stays raw and the receiver routes through
+    // the identifier machinery, so the patch and the read share one object
+    if (receiverKey !== null && adapter.isMutatedStatic?.(receiverKey, innerKey)) return;
     onUsage(receiverKey !== null
       ? { kind: 'property', object: receiverKey, key: innerKey, placement: 'static' }
       : { kind: 'property', object: null, key: innerKey, placement: null }, path);
@@ -375,11 +380,11 @@ export function createUsageVisitors({
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
       const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
-      if (constructor) {
-        onUsage({ kind: 'property', object: constructor, key, placement: 'static' }, path);
-      } else {
-        onUsage({ kind: 'property', object: null, key, placement: null }, path);
-      }
+      // mutated static: no meta at all (a typeless meta would dispatch the instance helper)
+      if (constructor && adapter.isMutatedStatic?.(constructor, key)) return;
+      onUsage(constructor
+        ? { kind: 'property', object: constructor, key, placement: 'static' }
+        : { kind: 'property', object: null, key, placement: null }, path);
       return;
     } else if (parent.isAssignmentPattern()
       || parent.isForOfStatement()
