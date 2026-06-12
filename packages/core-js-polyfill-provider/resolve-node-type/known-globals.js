@@ -26,9 +26,11 @@
 //   inferPromiseResolveReturnType(callPath)   - `Promise.resolve(x)` arg-based inner peel
 import { PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, $Object, $Primitive } from './base.js';
 import { typeRefName } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
+
+const MAX_PEEL = 16;
 
 export function createKnownGlobals({
   babelNodeType,
@@ -98,11 +100,28 @@ export function createKnownGlobals({
     return group && hasOwn(group, key2) ? group[key2] : null;
   }
 
+  // the receiver may sit behind transparent wrappers or a sequence tail
+  // (`(eff(), Array).from(x)`): peel to the runtime expression before the global lookup,
+  // matching the call dispatch's own runtime-expression peel
+  function peelToRuntimeObject(objectPath) {
+    let cur = objectPath;
+    for (let i = 0; i < MAX_PEEL && cur?.node; i++) {
+      const { type } = cur.node;
+      if (type === 'SequenceExpression' && cur.node.expressions.length) {
+        cur = cur.get('expressions')[cur.node.expressions.length - 1];
+      } else if (type === 'ParenthesizedExpression' || type === 'ChainExpression'
+        || TS_EXPR_WRAPPERS.has(type)) {
+        cur = cur.get('expression');
+      } else break;
+    }
+    return cur;
+  }
+
   // resolve the global object name and property name from a MemberExpression
   function resolveGlobalMember(path) {
     const memberName = resolveMemberPropertyName(path);
     if (!memberName) return null;
-    const objectName = resolveGlobalName(path.get('object'));
+    const objectName = resolveGlobalName(peelToRuntimeObject(path.get('object')));
     return objectName ? { objectName, memberName } : null;
   }
 

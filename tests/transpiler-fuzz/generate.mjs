@@ -341,6 +341,28 @@ const EXPR_FAMILIES = {
     '(() => { let n = 0; class Ce extends (n++, globalThis).Array { static m() { return super.of(5); } } return [Ce.m()[0], n]; })()',
     // a mid-sequence destructure assignment splits and polyfills like a standalone statement
     '(() => { let from; (({ from } = Array), 0); return [from([7, 8]).at(-1), typeof from]; })()',
+    // SE-static receiver: dropped effect-free prefix, preserved SE prefix, value intact
+    '(() => { const calls = []; const r = (calls.push("a"), Iterator, Array).from([7, 8]); '
+      + 'return [r.at(-1), calls.length]; })()',
+    // an SE prefix on a poly hop key runs exactly once, in source order
+    '(() => { const calls = []; const r = [[1], [2]].flat?.()[(calls.push("k"), "map")](v => v[0])?.at(0); '
+      + 'return [r, calls.length]; })()',
+    // an all-non-poly optional hop tail short-circuits through its own tokens
+    '(() => { const o = { cA(v) { return { cB(w) { return [v, w]; } }; } }; '
+      + 'const r = [[1]].flat?.()?.[0] && o.cA?.(1)?.cB(2)?.at(1); return [r]; })()',
+    // a guarded non-poly optional computed hop stays syntactically valid and runs in order
+    '(() => { const calls = []; const o = { customY(v) { calls.push("y"); return [v]; } }; '
+      + 'const r = [[o]].flat?.()?.[(calls.push("k"), "at")](0)?.[0].customY(3); return [r[0], calls.join("-")]; })()',
+    // optional-hop key SE replays once through the folded guard too
+    '(() => { const calls = []; const r = [[5]].flat?.()?.[(calls.push("o"), "map")](v => v[0])?.at(0); '
+      + 'return [r, calls.length]; })()',
+    // a DYNAMIC-keyed call hop threads as a non-poly hop (raw text re-emitted)
+    '(() => { const k = "map"; const r = [[3], [4]].flat?.()[k](v => v + 1)?.at(-1); return [r]; })()',
+    // static-string-keyed call hop threads through the combined optional chain
+    '(() => { const r = [[1], [2]].flat?.()["map"](v => v * 10)?.at(0); return [r]; })()',
+    // healed compose-overlap shapes hold their runtime values
+    '(() => { const a = { b: { c: () => [5, 6] } }; return [a?.b.c().at(0)]; })()',
+    '(() => { const obj = { "a?.b": [9] }; return [obj?.["a?.b"].includes(9)]; })()',
     // a buried SE on a synth-swap receiver spine survives the literal swap
     '(() => { const calls = []; const eff = () => calls.push(1); '
       + 'function f({ from } = (eff(), globalThis).Array) { return typeof from; } '
@@ -351,6 +373,8 @@ const EXPR_FAMILIES = {
     // for-init flatten sibling: every shape (rest / 2-instance) keeps its polyfill
     '(() => { const out = []; for (const { Array: { from } } = globalThis, { at, ...rest } = [4, 5]; out.length < 1; ) '
       + 'out.push([from([6]).at(0), at.call([7, 8], -1), "concat" in rest]); return out; })()',
+    // a split product's alias keeps the typed dispatch downstream
+    '(() => { let from; ("x", ({ from } = Array), 0); return [from([5, 6]).at(1)]; })()',
     // a nested-sequence-slot destructure splits through the fixpoint
     '(() => { let of2; ((0, ({ of: of2 } = Array)), 1); return [of2(9).at(0)]; })()',
     // assignment-destructure alias narrows the receiver type for the typed instance variant
