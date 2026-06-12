@@ -2276,6 +2276,20 @@ function checkSkipDirectivePrologueEmpty() {
 }
 checkSkipDirectivePrologueEmpty();
 
+// the DEFER (pre) pass must leave user core-js imports untouched: its emission is deferred
+// to post, so a destructive remove would strand the file import-less whenever the post pass
+// never lands (evicted snapshot / sibling bail / watch-mode re-run)
+function checkDeferPassKeepsUserImports() {
+  const src = 'import "core-js/modules/es.array.from.js";\nconst r = Array.from(x);\nuse(r);';
+  const opts = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  const twoPass = createPlugin(opts);
+  const preOut = twoPass.transform(src, '/defer-keep.mjs', 'pre')?.code ?? src;
+  check('defer/pre keeps the user global import', preOut.includes('es.array.from'), true);
+  const postOut = twoPass.transform(preOut, '/defer-keep.mjs', 'post')?.code ?? preOut;
+  check('defer/post converges to a single import', (postOut.match(/es\.array\.from/g) ?? []).length, 1);
+}
+checkDeferPassKeepsUserImports();
+
 // --- phase: pre+post pipeline pass-through ---
 // for `pass: 'pre'` the plugin processes and stores snapshot for the next pass. for
 // `pass: 'post'` (re-entered with same code), the plugin should converge to the same

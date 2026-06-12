@@ -195,7 +195,14 @@ function hasRuntimeBinding(scope, name, path = null) {
   // their hasBinding=true is authoritative
   const native = scope?.getBinding?.(name, path);
   if (!native) return true;
-  if (isAmbientBinding(native)) return false;
+  if (isAmbientBinding(native)) {
+    // an ambient shape alone is NOT authoritative: a declaration-merged runtime namespace
+    // (`declare const Map: any; namespace Map {}`) still emits a real `var` after the TS
+    // transform, so the use MUST stay on the user binding. fall through to the TS-runtime
+    // scan and the function-scope var walk - matching the babel adapter's ordering
+    if (hasTSRuntimeBinding(scope, name, path)) return true;
+    return path ? findFunctionScopeVarInPath(path, name) : false;
+  }
   // a namespace-local binding over-hoisted by estree-toolkit doesn't shadow a use OUTSIDE the block
   if (isOverHoistedNamespaceBinding(native, path)) return false;
   return true;
