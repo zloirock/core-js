@@ -129,21 +129,32 @@ QUnit.test('mutated-statics: optional delete routes through the constructor', as
 });
 /* eslint-enable es/no-nonstandard-map-properties -- end of the optional-delete case */
 
-// a nested-proxy destructure of a mutated key stays a RAW read through the global object
-// (the residual-receiver class custom keys share) while the write routes to the ponyfill -
-// the e2e locks the CURRENT contract; unifying the pair is queued (residual receiver
-// routing). on this runtime the raw read sees the real global, so the patch is invisible
-// to it but visible through the routed constructor
-QUnit.test('mutated-statics: nested-proxy destructure keeps the raw global read', assert => {
+// the ctor-slot replacement test above mutates `globalThis.Map`, making (globalThis, Map)
+// a mutated pair FILE-WIDE: a destructure off that slot keeps the REAL global read (a
+// user-installed ctor replacement must win there), so the key patch routed to the ponyfill
+// stays invisible through it on every runtime
+QUnit.test('mutated-statics: slot-mutated ctor keeps the raw global read in destructure', assert => {
   const patched = function () { return 'patched'; };
   Map.groupBy = patched;
   try {
     assert.same(Map.groupBy(), 'patched');
-    // the raw read goes through the real global object, so the routed patch is invisible
-    // to it on EVERY runtime (natively present or missing, it is never the patched fn)
     const { Map: { groupBy: rawRead } } = globalThis;
     assert.notSame(rawRead, patched);
   } finally {
     delete Map.groupBy;
+  }
+});
+
+// with NO slot mutation on the ctor, the nested-proxy destructure normalizes to a flat
+// read off the routed constructor - the patch and the read share one object, so the
+// patched static is visible through the destructured binding
+QUnit.test('mutated-statics: nested-proxy destructure reads through the routed constructor', assert => {
+  const patched = function () { return 'patched'; };
+  Iterator.zip = patched;
+  try {
+    const { Iterator: { zip: routedRead } } = globalThis;
+    assert.same(routedRead, patched);
+  } finally {
+    delete Iterator.zip;
   }
 });

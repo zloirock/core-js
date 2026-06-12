@@ -344,9 +344,29 @@ const EXPR_FAMILIES = {
     // SE-static receiver: dropped effect-free prefix, preserved SE prefix, value intact
     '(() => { const calls = []; const r = (calls.push("a"), Iterator, Array).from([7, 8]); '
       + 'return [r.at(-1), calls.length]; })()',
+    // inner-key SE + hop-key SE run in native order around the inner CALL
+    '(() => { const calls = []; const a1 = () => calls.push("a1"); const a2 = () => calls.push("a2"); '
+      + 'const arr = { flat() { calls.push("f"); return [7, 8]; } }; '
+      + 'const r = arr[(a1(), "flat")]?.()[(a2(), "map")](v => v * 2)?.at(0); return [r, calls.join("-")]; })()',
     // an SE prefix on a poly hop key runs exactly once, in source order
     '(() => { const calls = []; const r = [[1], [2]].flat?.()[(calls.push("k"), "map")](v => v[0])?.at(0); '
       + 'return [r, calls.length]; })()',
+    // an inner instance polyfill (ref-bake) combined with a droppable bare-constructor
+    // tail across sibling declarators keeps every effect exactly once, in order
+    '(() => { const calls = []; const eff = v => calls.push(v); '
+      + 'const { from } = (eff([1].at(0)), (eff(2), Array)), { of: o8 } = (eff(3), Array); '
+      + 'return [from([5]).length, o8(6).length, calls.join()]; })()',
+    // a destructuring-assignment VALUE is the RHS proxy object, not the hop member -
+    // the value-used host must keep it intact
+    '(() => { let x; const v = ({ Map: { x } } = globalThis); return [v === globalThis, typeof x]; })()',
+    // a single-key proxy-hop destructure reads a patched static through the routed
+    // constructor (the original key state is restored for runtime hygiene)
+    '(() => { const orig = Iterator.dispose; Iterator.dispose = () => 41; '
+      + 'const { Iterator: { dispose: read } } = globalThis; const r = read(); '
+      + 'if (orig === undefined) delete Iterator.dispose; else Iterator.dispose = orig; return [r]; })()',
+    // a braceless case-consequent hosts the deferred destructure SE (the drain's
+    // consequent-array branch); the effect lands before the extraction, once
+    '(() => { const calls = []; switch (calls.push(1)) { case 1: const { of: o9 } = (calls.push(2), globalThis.Array); return [typeof o9, o9(7).length, calls.length]; } })()',
     // a lifted SE prefix keeps its effect; the dead proxy-member tail drops
     '(() => { const calls = []; const { of: o3 } = (calls.push(1), globalThis.Array); '
       + 'return [typeof o3, o3(7).length, calls.length]; })()',

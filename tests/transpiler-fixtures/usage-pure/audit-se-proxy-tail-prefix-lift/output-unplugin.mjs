@@ -9,7 +9,7 @@ import _Object$keys from "@core-js/pure/actual/object/keys";
 eff();
 const from = _Array$from;
 from([1]);
-(eff2(), Array);
+eff2();
 const of = _Array$of;
 of(2);
 const keys = _Object$keys;

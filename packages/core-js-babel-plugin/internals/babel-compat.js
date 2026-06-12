@@ -334,11 +334,14 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // the receiver. memoize the receiver and prepend its assignment to the SE list so it evaluates
   // first (native order). returns `[receiverNode, sideEffects]` - the receiver ref to emit and the
   // reordered SE list. no-op for optional (receiver already memoized in the guard) / SE-free receivers
-  function hoistReceiverSE(object, sideEffects, check, scope, seMode) {
+  function hoistReceiverSE(object, sideEffects, check, scope, seMode, receiverEffectCount = 0) {
     // skip the peel case: there the receiver-SE is already replayed in the SE list, and `object`
     // is the peeled tail - hoisting it would reorder the peeled prefix vs the tail (matches the
-    // unplugin `seMode !== 'peel'` gate)
-    if (check || seMode === 'peel' || !sideEffects?.length || !mayHaveSideEffects(object)) return [object, sideEffects];
+    // unplugin `seMode !== 'peel'` gate). a CHECK skips the hoist only when receiver-borne SE
+    // exists (the guard's own memoize replays it); a KEY-only SE list still hoists - the
+    // receiver must evaluate BEFORE the key effects, like native member-call evaluation order
+    if ((check && receiverEffectCount > 0) || seMode === 'peel'
+      || !sideEffects?.length || !mayHaveSideEffects(object)) return [object, sideEffects];
     const [memoAssign, ref] = memoize(object, scope);
     return [ref, [memoAssign, ...sideEffects]];
   }
@@ -417,7 +420,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       callerPath.parentPath.replaceWith(withSideEffects(result, effectiveSE));
       return;
     }
-    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode);
+    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount);
     const result = isCall
       ? buildMethodCall({
         id, object: recvNode, scope: path.scope, args: parent.arguments, optionalCall: parent.optional, anchorNode: parent,
@@ -452,7 +455,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       return;
     }
     const [check, object, embed] = extractCheck(path, skipOptional);
-    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode);
+    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount);
     replaceAndWrap({
       replacePath: callerPath.parentPath,
       // wrap with the caller's accumulated side effects (e.g. computed-key SE from
