@@ -27,3 +27,15 @@ export const r8 = new Map();
 delete Iterator?.toAsync;
 delete (Map.customParenDel);
 (Set.customParenOr) ||= parenShim;
+// nested-proxy and array-wrapped destructures of a mutated key route like every other
+// surface (the dispatch-side gate covers the emitters' own meta constructors too)
+const { Map: { set: setAlias } } = globalThis;
+Map.set = setPatch;
+export const r9 = setAlias;
+const [{ entries: entriesAlias }] = [Object];
+Object.entries = entriesPatch;
+export const r10 = entriesAlias;
+// one pattern, mixed keys: the clean sibling still flattens, only the mutated one stays raw
+const { Promise: { try: tryAlias, allSettled: asAlias } } = globalThis;
+Promise.allSettled = asPatch;
+export const r11 = [tryAlias, asAlias];
