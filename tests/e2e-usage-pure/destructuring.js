@@ -1330,3 +1330,20 @@ QUnit.test('destructuring: synth-swap rescues buried receiver side effects', ass
   f({ from: 'custom' });
   assert.same(calls.length, 1);
 });
+
+// an optional proxy chain in a body-extracted param default collapses onto the substituted
+// root - no read of the (possibly missing) intermediate hop survives at runtime
+QUnit.test('destructuring: optional proxy param default collapses hops', assert => {
+  // eslint-disable-next-line no-unsafe-optional-chaining -- the optional proxy-hop default IS the case under test (the transform collapses it)
+  function f({ from, ...rest } = globalThis?.self?.Array) { return [from, rest]; }
+  const [from, rest] = f();
+  assert.same(typeof from, 'function');
+  assert.same(from([3, 4]).length, 2);
+  assert.false('from' in rest);
+  // a COMPUTED leaf collapses the hop too - no `.self` read survives
+  // eslint-disable-next-line dot-notation -- the computed-leaf hop collapse IS the case under test
+  function k({ entries, ...r4 } = globalThis.self['Object']) { return [entries, r4]; }
+  const [entries] = k();
+  assert.same(typeof entries, 'function');
+  assert.same(entries({ a: 1 })[0][0], 'a');
+});

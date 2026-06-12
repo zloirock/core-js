@@ -1890,7 +1890,40 @@ export function createDestructureEmitter({
     // start the hop-deletion at the WRAPPER-inclusive root end, not the peeled identifier's:
     // for a parenthesized root (`(globalThis).self.Array`) the identifier end lies inside the
     // `)`, so the deletion would overlap the paren-inclusive root substitution and throw
-    transforms.add(proxyGlobalWrappedRoot(receiver).end, prefix.end, '');
+    let member = receiver;
+    while (member && (member.type === 'ParenthesizedExpression' || member.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(member.type))) member = member.expression;
+    if (member?.type !== 'MemberExpression') return;
+    // a leaf that itself resolves to a NEEDED constructor polyfill (`globalThis?.self?.['Map']`
+    // on ie11) is owned WHOLE by the constructor substitution - any hop edit here would
+    // overlap that full-span overwrite
+    if (resolveGlobalPolyfill(memberKeyName(member) ?? '')) return;
+    let start = proxyGlobalWrappedRoot(receiver).end;
+    // an OPTIONAL root connector belongs to the ROOT substitution (`globalThis?.` rewrites to
+    // `_globalThis.` - connector included): start past it or the transforms overlap on those
+    // bytes. the replacement then re-establishes exactly one connector for the leaf: none when
+    // the root substitution already emitted it, `.` otherwise
+    const rootToken = /^\s*\?\./.exec(nodeSrc({ start, end: prefix.end }));
+    if (rootToken) start += rootToken[0].length;
+    // optional root + computed leaf: the root substitution would deopt `globalThis?.` to
+    // `_globalThis.`, but a computed leaf takes NO connector - own the whole receiver-to-
+    // bracket span instead and suppress the root's own rewrite
+    if (member.computed && rootToken) {
+      const rootIdent = findProxyGlobal(receiver);
+      const pure = rootIdent && resolveGlobalPolyfill(rootIdent.name);
+      if (!pure) return;
+      const bracket = /^\s*(?:\?\.\s*)?\[/.exec(nodeSrc({ start: prefix.end, end: member.property.start }));
+      if (!bracket) return;
+      skippedNodes.add(rootIdent);
+      transforms.add(proxyGlobalWrappedRoot(receiver).start, prefix.end + bracket[0].length - 1,
+        injectPureImport(pure.entry, pure.hintName));
+      return;
+    }
+    let spliceEnd = prefix.end;
+    const leafToken = /^\s*(?:\?\.|\.)/.exec(nodeSrc({ start: spliceEnd, end: member.property.start }));
+    if (leafToken) spliceEnd += leafToken[0].length;
+    // a computed leaf (`['Object']`) needs no connector at all
+    transforms.add(start, spliceEnd, member.computed || rootToken ? '' : '.');
   }
 
   // AssignmentPattern value (`{from = []}`): accept and polyfill via synth-swap - the
