@@ -177,6 +177,17 @@ QUnit.test('destructuring: nested-proxy assignment value is the proxy object', a
   assert.same(typeof customY, 'undefined');
 });
 
+// catch-param destructure: a polyfillable key dispatches off the thrown object; a plain
+// key flows through untouched (the pattern stays in place - no receiver restructuring)
+QUnit.test('destructuring: catch param polyfillable and plain keys', assert => {
+  try {
+    throw { flatMap: [1, [2]].flatMap(x => [x]), message: 'boom' };
+  } catch ({ flatMap, message }) {
+    assert.deepEqual(flatMap, [1, [2]]);
+    assert.same(message, 'boom');
+  }
+});
+
 QUnit.test('destructuring: with default value', assert => {
   const { from = null } = Array;
   assert.same(typeof from, 'function');
