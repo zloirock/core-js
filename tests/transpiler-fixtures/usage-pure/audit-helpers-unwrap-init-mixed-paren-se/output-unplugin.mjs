@@ -6,10 +6,10 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 // peel until stable. used to reach the semantic init through any mix of paren wraps and
 // SE-prefix layers. distinct methods (.from / .of / .fromAsync) per line surface the
 // resolved global per-receiver
-(((sideEffect(), Array)));
+sideEffect();
 const from = _Array$from;
 const of = _Array$of;
-(sideEffect(), (0, Array));
+sideEffect(), 0;
 const fromAsync = _Array$fromAsync;
 export const a = from([1]);
 export const b = of(2, 3);

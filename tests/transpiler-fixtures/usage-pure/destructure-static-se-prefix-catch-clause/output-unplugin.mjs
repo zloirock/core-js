@@ -7,7 +7,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // overwrite. both flavors emit the catch-bound instance polyfill; the outputs differ only in
 // codegen - babel renumbers the ref and drops the now-dead `Array` tail of the prefix, unplugin
 // keeps the verbatim side-effect expression - see output-unplugin.mjs
-(setup(() => { try { run(); } catch (_ref) {
-let flat = _flatMaybeArray(_ref); flat([1]); } }), Array);
+setup(() => { try { run(); } catch (_ref) {
+let flat = _flatMaybeArray(_ref); flat([1]); } });
 const from = _Array$from;
 from([1, 2, 3]);

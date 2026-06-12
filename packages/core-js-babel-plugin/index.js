@@ -29,7 +29,7 @@ import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-t
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
-import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { enumerateFallbackDestructureBranches, proxyHopDescent } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   prependChainAssignmentEffect,
   receiverSideEffectsOnly,
@@ -52,6 +52,44 @@ import {
 import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
+
+// single-key proxy-hop destructure pre-pass (usage-pure only): `{ K: {...} } = <proxy-global>`
+// reshapes to the flat `{...} = <proxy>.K` BEFORE detection, so the whole pipeline -
+// member-swap of the new init read, per-prop extraction, mutated-key residual routing -
+// treats it exactly like the flat form and a residual re-anchors to the constructor binding
+// (`{ customY } = _Map`) instead of reading the native key off the proxy root. the
+// qualification decision lives in the shared `proxyHopDescent`; this pass only renders it
+function normalizeProxyHopDestructures(programPath, { t, adapter, isDisabled }) {
+  programPath.traverse({
+    'VariableDeclarator|AssignmentExpression'(path) {
+      // a disabled line opts out of ALL plugin output for its statement - reshaping it
+      // would let the loc-less synthesized member slip past the per-line gate downstream
+      if (isDisabled(path.node)) return;
+      const isDecl = path.isVariableDeclarator();
+      const pattern = isDecl ? path.node.id : path.node.left;
+      const init = isDecl ? path.node.init : path.node.right;
+      const hop = proxyHopDescent({ pattern, init, scope: path.scope, adapter, path });
+      if (!hop) return;
+      // a non-Identifier static key (string literal, resolved computed) re-emits as a
+      // computed string member so the synthesized read stays valid for any key spelling
+      const keyNode = !hop.prop.computed && hop.prop.key.type === 'Identifier'
+        ? t.identifier(hop.key) : t.stringLiteral(hop.key);
+      const member = t.memberExpression(init, keyNode, keyNode.type === 'StringLiteral');
+      // carry the init's source position so the read keeps participating in per-line
+      // disable checks and debug locations, like the minifier-split's synthesized products
+      member.loc = init.loc;
+      member.start = init.start;
+      member.end = init.end;
+      if (isDecl) {
+        path.node.id = hop.pattern;
+        path.node.init = member;
+      } else {
+        path.node.left = hop.pattern;
+        path.node.right = member;
+      }
+    },
+  });
+}
 
 // minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
 // assignment into ANY slot of a statement-position SequenceExpression (minified tail,
@@ -808,6 +846,7 @@ export default function plugin(api, options) {
         // or internal core-js source is returned verbatim, not rewritten (entry-global needs it too,
         // so the gate is `!skipFile`, not the narrower entry exclusion below)
         if (!skipFile) splitMinifierSequenceDestructure(path, t);
+        if (!skipFile && method === 'usage-pure') normalizeProxyHopDestructures(path, { t, adapter, isDisabled });
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();

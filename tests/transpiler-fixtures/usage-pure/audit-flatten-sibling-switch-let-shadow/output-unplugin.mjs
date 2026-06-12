@@ -8,8 +8,7 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 // the let is invisible to `sibling-receiver ref polyfilling`'s walk; the inner reference gets
 // rewritten incorrectly to the polyfill binding name
 const from = _Array$from;
-const val = (function (kind) {
-  var _ref, _ref2;
+const val = (function (kind) { var _ref, _ref2;
   switch (kind) {
     case 'a':
       let globalThis = 'shadow';

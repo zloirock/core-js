@@ -1,6 +1,5 @@
-// a dead effect-free PROXY-MEMBER tail drops from the lifted SE prefix (the collection
-// pre-pass marks it; the emission keys on that same mark); a bare-constructor tail keeps
-// its read - narrow accepted residual, the extraction itself is identical
+// a dead effect-free tail (proxy-member chain or bare constructor) drops from the
+// lifted SE prefix: the collection pre-pass marks it, the emission keys on that same mark
 const { of: o3 } = (eff2(), globalThis.Array);
 export const r3 = o3(2);
 const { all } = (eff4(), Promise);
