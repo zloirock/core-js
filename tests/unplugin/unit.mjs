@@ -7,7 +7,12 @@ import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/inj
 import { collectMutationPrePass, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
-import TransformQueue, { deoptionalizeNeedle, deoptionalizeNeedleAtPositions, hasIdentifierBoundary } from '../../packages/core-js-unplugin/internals/transform-queue.js';
+import TransformQueue, {
+  deoptionalizeNeedle,
+  deoptionalizeNeedleAtPositions,
+  hasIdentifierBoundary,
+  replaceNthOccurrence,
+} from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin, {
   formatLabelLocation,
@@ -1056,6 +1061,31 @@ function checkSourceMapFileField() {
   check('sourceMap/sources[0] preserves full id', result?.map?.sources?.[0], '/src/sm-file.js');
 }
 checkSourceMapFileField();
+
+// a namespace specifier-export (`function make() {}; export { make };`) attaches the
+// runtime static like the declaration form does; the merged-namespace shadow gate must
+// see it (oxc parses this shape; the babel parser rejects it, so this lock is text-side)
+function checkNamespaceSpecifierExportShadow() {
+  const source = 'class Base { static make(): number[] { return [1]; } }\n'
+    + 'class Sub extends Base { static go() { return this.make().at(0); } }\n'
+    + 'namespace Sub { function make(): string { return "s"; } export { make }; }\nSub.go();';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, '/src/ns-spec.ts');
+  check('nsMerge/specifier export bails to generic', result?.code?.includes('actual/instance/at'), true);
+  check('nsMerge/specifier export no array narrow', result?.code?.includes('array/instance/at'), false);
+}
+checkNamespaceSpecifierExportShadow();
+
+// the nth-replacement and the occurrence counter must share ONE enumeration: a
+// self-bordered needle (`a.a` in `a.a.a`) has an OVERLAPPING second match that the
+// non-overlap counter never tallies, so the replacer must not reach it either
+function checkReplaceNthEnumeration() {
+  check('replaceNth/self-bordered n=0', replaceNthOccurrence({ str: 'a.a.a', needle: 'a.a', replacement: 'X', n: 0 }), 'X.a');
+  check('replaceNth/self-bordered n=1 out of range', replaceNthOccurrence({ str: 'a.a.a', needle: 'a.a', replacement: 'X', n: 1 }), 'a.a.a');
+  check('replaceNth/plain n=1', replaceNthOccurrence({ str: 'b(c), b(c)', needle: 'b(c)', replacement: 'X', n: 1 }), 'b(c), X');
+  check('replaceNth/boundary reject', replaceNthOccurrence({ str: '_ab + ab', needle: 'ab', replacement: 'X', n: 0 }), '_ab + X');
+}
+checkReplaceNthEnumeration();
 
 // the proxy-hop normalization rides the text-rewrite + re-parse rails, which a CommonJS
 // script must traverse with `sourceType: 'script'` - the reshaped output keeps require-style
