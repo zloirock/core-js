@@ -147,7 +147,10 @@ export function createClassObjectMember({
   // merged-namespace fall-throughs (whose members are never private class slots)
   function viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode }) {
     if (!viaThis || (foundNode && isPrivateClassMember(foundNode))) return false;
-    return isStatic ? staticFieldShadowable(classPath, name) : instanceMemberShadowable(classPath, name);
+    // a non-null foundNode means the member resolved OUTSIDE the anchor's merged namespace
+    // (own body or an ancestor) - a same-named export on the anchor's namespace is then a
+    // runtime override, not the resolution source
+    return isStatic ? staticFieldShadowable(classPath, name, foundNode !== null) : instanceMemberShadowable(classPath, name);
   }
 
   function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis }) {
