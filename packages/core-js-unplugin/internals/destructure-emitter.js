@@ -84,7 +84,7 @@ import {
   walkUpNestedDestructureToAssignment,
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
-import { skipDirectivePrologue, walkAstNodes } from './plugin-helpers.js';
+import { parenthesizeExprStmtHazard, skipDirectivePrologue, walkAstNodes } from './plugin-helpers.js';
 
 // scope-walker constants for `polyfillSiblingReceiverRefs`. hoisted module-level so each
 // call doesn't re-allocate the Sets. SwitchStatement creates one shared block scope per
@@ -732,25 +732,49 @@ export function createDestructureEmitter({
   // declarator up front) instead of re-draining the queue here
   function emitPolyfilled(info, parts, forInitSESinks, ctx, preDrainedSplices = null) {
     const { stmtPrefix, memoPrefix, isForInit, isAssignment } = ctx;
-    const { entries, allProps, initSrc, initStart, initEnd, scopeSnapshot } = info;
-    let initTransformed = (initStart !== undefined && initEnd !== undefined
-        ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
-    // bake `var _ref;` ref-bindings AND point-inserts anchored inside [initStart, initEnd)
-    // into the lifted init text so the replaceNode-spanning overwrite below stays queue-safe.
-    // both arise during sibling traversal: inner instance-method polyfills (`[1].at(0)` in an
-    // IIFE-bodied init) seed the ref-binding, a catch-clause prelude seeds the insert. left in
-    // the queue either lands inside our overwrite and MagicString rejects the chunk split.
-    // ONLY when the init renders from its RAW source (no split was extracted): position-aligned
-    // spliceInRange maps these original-coord splices into the verbatim slice. when extraction
-    // already returned COMPOSED split text the coords no longer align - leave them in their
-    // queues so applyTransforms re-adds body-wraps as range overwrites that fold into our
-    // statement overwrite by needle (the split text embeds the raw arg), just like the nested
-    // instance-method polyfill. baking here would mis-map; draining-then-discarding would drop it
-    if (initStart !== undefined && initEnd !== undefined && initTransformed === initSrc) {
-      const splices = preDrainedSplices?.length ? preDrainedSplices : consumeRefsAndInserts(initStart, initEnd);
-      if (splices.length) {
-        initTransformed = spliceInRange(initSrc, initStart, splices);
-      }
+    const { entries, allProps, initSrc, scopeSnapshot } = info;
+    const { initStart, initEnd } = info;
+    // the collection pre-pass marked an effect-free droppable SE tail (a dead proxy-member
+    // chain or the consumed bare constructor): process only the SE PREFIX, so the kept text
+    // receives the same extract + ref-bake treatment a whole init does and the dead tail
+    // never reaches the output (babel's lift trims the same class)
+    let liftParts = null;
+    if (initStart !== undefined && info.initNode) {
+      const { prefix: liftPrefix, tail: liftTail } = peelNestedSequenceExpressions(info.initNode);
+      const peeledLiftTail = liftTail !== info.initNode ? unwrapParens(liftTail) : null;
+      if (liftPrefix.length && peeledLiftTail && skippedNodes.has(peeledLiftTail)) liftParts = liftPrefix;
+    }
+    const procSrc = initSrc;
+    // ONE extract-or-bake algorithm for both shapes: the no-drop init is a single part
+    // spanning the whole range; a tail-dropped prefix is one part per kept expression
+    // (nested sequence parens make it NON-CONTIGUOUS in source - `a, (b, tail)` - so a
+    // single range slice would cut through unbalanced parens; the comma join rebuilds the
+    // statement babel's lift produces). per part: extracted split text wins; otherwise
+    // bake `var _ref;` ref-bindings AND point-inserts anchored inside the part into the
+    // raw slice so the replaceNode-spanning overwrite below stays queue-safe. both arise
+    // during sibling traversal: inner instance-method polyfills (`[1].at(0)` in an
+    // IIFE-bodied init) seed the ref-binding, a catch-clause prelude seeds the insert -
+    // left in the queue either lands inside our overwrite and MagicString rejects the
+    // chunk split. the bake applies ONLY to RAW source (position-aligned spliceInRange);
+    // COMPOSED split text no longer aligns with original coords - its splices stay queued
+    // so applyTransforms re-adds body-wraps as range overwrites that fold into our
+    // statement overwrite by needle (the split text embeds the raw arg)
+    let initTransformed;
+    if (initStart === undefined || initEnd === undefined) {
+      initTransformed = procSrc;
+    } else {
+      const initParts = liftParts ?? [{ start: initStart, end: initEnd }];
+      initTransformed = initParts.map(p => {
+        let text = transforms.extractContent(p.start, p.end) ?? null;
+        if (text === null) {
+          text = nodeSrc(p);
+          const splices = preDrainedSplices?.length
+            ? preDrainedSplices.filter(s => s.start >= p.start && s.end <= p.end)
+            : consumeRefsAndInserts(p.start, p.end);
+          if (splices.length) text = spliceInRange(text, p.start, splices);
+        }
+        return text;
+      }).join(', ');
     }
     for (const e of entries) {
       if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
@@ -762,7 +786,7 @@ export function createDestructureEmitter({
     // gate global-identifier substitution on init-being-used to avoid emitting unused
     // proxy-global imports for the all-bindings-discarded case (`const { from } = globalThis`)
     const initIsUsed = remaining.length > 0 || hasRest || hasInstance;
-    if (initIsUsed && initTransformed === initSrc) {
+    if (initIsUsed && initTransformed === procSrc) {
       const polyfilled = polyfillInitGlobals(info);
       if (polyfilled !== null) initTransformed = polyfilled;
     }
@@ -788,18 +812,10 @@ export function createDestructureEmitter({
         && mayHaveSideEffects(info.initNode);
     if (liftSE) {
       if (isForInit) forInitSESinks.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
-      else {
-        // emit only the SE PREFIX when the collection pre-pass marked the tail droppable
-        // (effect-free, fully consumed, statement-liftable host): the dead tail would emit a
-        // spurious read plus its polyfill import. babel's lift trims the same class. the
-        // prefix joins into ONE comma statement, matching babel's flattened sequence emit
-        const { prefix, tail } = peelNestedSequenceExpressions(info.initNode);
-        const peeledTail = unwrapParens(tail);
-        const dropTail = prefix.length && !!peeledTail && skippedNodes.has(peeledTail);
-        if (dropTail) {
-          parts.push(prefix.map(e => transforms.extractContent(e.start, e.end) ?? nodeSrc(e)).join(', '));
-        } else parts.push(initTransformed);
-      }
+      // the lifted text can START a statement (the tail-dropped prefix loses the sequence
+      // parens): a `{` / `class` / `function` head needs the hazard parens the minifier
+      // split applies to its products
+      else parts.push(parenthesizeExprStmtHazard(initTransformed));
     }
 
     for (const e of entries) {
@@ -1566,23 +1582,6 @@ export function createDestructureEmitter({
   function canFullyConsumeProxyDeclarator(d, scope, usePath = null) {
     const plan = planDeclarator(d, scope, usePath);
     return !!plan && plan.outerProps.every(p => p.preservedSrc === null);
-  }
-
-  // collection-time twin for SE-PREFIXED inits (`const { all } = (sideEff(), Promise)`):
-  // when the destructure fully consumes the TAIL, the lift later emits only the SE prefix -
-  // the dead tail's own rewrites and imports must be suppressed NOW (the drop happens
-  // post-traverse, long after the identifier visitor would have injected them). the
-  // emission's drop gate keys on this very mark, so decision and emission cannot diverge.
-  // bodyless / for-init hosts keep the whole init inline (no lift) and stay unmarked
-  function markDroppableSeTail(d, scope, usePath, declaration, declarationParent) {
-    if (d.init?.type !== 'SequenceExpression') return;
-    const host = classifyVariableDeclarationHost({ declaration, declarationParent });
-    if (host.isBodyless || host.isForInit) return;
-    const { prefix, tail } = peelNestedSequenceExpressions(d.init);
-    const peeledTail = unwrapParens(tail);
-    if (!prefix.length || !peeledTail || mayHaveSideEffects(peeledTail)) return;
-    if (!canFullyConsumeProxyDeclarator({ ...d, init: tail }, scope, usePath)) return;
-    walkAstNodes({ root: tail, visit: n => skippedNodes.add(n) });
   }
 
   // sibling-side companion of `rewriteDeclarator` for multi-decl flatten.
@@ -2426,6 +2425,12 @@ export function createDestructureEmitter({
     }
     const pending = pendingDestructuring.get(objectPattern);
     pending.entries.push({ propNode, localName, binding, kind, defaultSrc });
+    // body-extract alias so post-rewrite narrowing resolves the local (`xs = from('hi');
+    // xs.at(0)` -> array-specific helper) - the flatten channel registers the same alias
+    // in its extraction emit; without it this channel's locals narrow to generic helpers
+    if (kind === 'static' && pureResult) {
+      injector.registerBodyExtractAlias(localName, pureResult.entry, metaPath.scope?.getBinding(localName));
+    }
     // once EVERY prop of the pattern is collected as a STATIC entry, the flatten will fully
     // consume the declarator and the render lifts only the SE prefix - an effect-free
     // PROXY-MEMBER tail is then dead, so mark its globals NOW (before the visitor reaches the
@@ -2436,11 +2441,21 @@ export function createDestructureEmitter({
       && pending.entries.length === objectPattern?.properties?.length
       && pending.entries.every(e => e.kind === 'static')
       && declPath?.node?.type === 'VariableDeclaration'
+      // a BODYLESS host keeps the whole init inline (the babel emission keeps the dead tail
+      // read there), so its tail globals must keep substituting - only statement-liftable
+      // hosts drop the tail
+      && !classifyVariableDeclarationHost({
+        declaration: declPath.node, declarationParent: declPath.parentPath?.node,
+      }).isBodyless
       && declPath.parentPath?.node?.type !== 'ForStatement') {
       const { tail } = peelNestedSequenceExpressions(initNode);
       const peeledTail = tail === initNode ? null : unwrapParens(tail);
-      if ((peeledTail?.type === 'MemberExpression' || peeledTail?.type === 'OptionalMemberExpression')
-        && findProxyGlobal(peeledTail) && !mayHaveSideEffects(peeledTail)) markInitGlobals(peeledTail);
+      // a bare-Identifier tail (`(eff(), Promise)`) is the consumed receiver itself - as
+      // dead as the proxy-member chain once every entry extracted receiver-less
+      if ((peeledTail?.type === 'Identifier'
+        || ((peeledTail?.type === 'MemberExpression' || peeledTail?.type === 'OptionalMemberExpression')
+          && findProxyGlobal(peeledTail)))
+        && !mayHaveSideEffects(peeledTail)) markInitGlobals(peeledTail);
     }
   }
 
@@ -2800,7 +2815,6 @@ export function createDestructureEmitter({
     applyDestructuringTransforms,
     applySynthSwaps,
     canFullyConsumeProxyDeclarator,
-    markDroppableSeTail,
     handleDestructuringPure,
   };
 }

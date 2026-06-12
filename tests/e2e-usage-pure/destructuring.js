@@ -140,6 +140,43 @@ QUnit.test('destructuring: sequence expression init', assert => {
   assert.deepEqual(from('abc'), ['a', 'b', 'c']);
 });
 
+// nested sequence parens make the SE prefix non-contiguous in source; the lifted
+// statement must rebuild a flat comma list, in source order, with the dead tail gone
+QUnit.test('destructuring: nested sequence expression init flattens in order', assert => {
+  const log = [];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- nested sequence shape under test
+  const { from } = (log.push('a'), (log.push('b'), Array));
+  assert.deepEqual(log, ['a', 'b']);
+  assert.deepEqual(from('ab'), ['a', 'b']);
+});
+
+QUnit.test('destructuring: triple-nested sequence expression init', assert => {
+  const log = [];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- nested sequence shape under test
+  const { of } = (log.push('a'), (log.push('b'), (log.push('c'), Array)));
+  assert.deepEqual(log, ['a', 'b', 'c']);
+  assert.deepEqual(of(1, 2), [1, 2]);
+});
+
+// a bodyless host can't lift the SE statement, so the init survives whole
+QUnit.test('destructuring: bodyless host keeps the sequence init', assert => {
+  const log = [];
+  // eslint-disable-next-line no-var -- bodyless host shape under test
+  if (log.length === 0) var { fromAsync } = (log.push('eff'), Array);
+  assert.deepEqual(log, ['eff']);
+  assert.same(typeof fromAsync, 'function');
+});
+
+// the value of a destructuring assignment is the RHS object, not the hop member - the
+// proxy-hop normalization must leave a used value alone
+QUnit.test('destructuring: nested-proxy assignment value is the proxy object', assert => {
+  let customY;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- assignment-in-init shape under test
+  const v = ({ Map: { customY } } = globalThis);
+  assert.same(v, globalThis);
+  assert.same(typeof customY, 'undefined');
+});
+
 QUnit.test('destructuring: with default value', assert => {
   const { from = null } = Array;
   assert.same(typeof from, 'function');
