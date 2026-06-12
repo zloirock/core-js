@@ -1698,6 +1698,8 @@ function createResolveNodeType(babelNodeType, t, {
   // `substituteTypeParams` / `resolveNodeType` (forward-decl let bindings)
   const memberResolveCluster = createMemberResolve({
     t,
+    // forward-decl thunk: narrow-by-guards instantiates later in the factory body
+    findAnnotationGuard: path => findAnnotationGuard(path),
     getScopeBinding,
     isLiteralOf,
     unwrapTypeAnnotation,
@@ -1855,6 +1857,7 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     resolveGuardType,
     findGuardsForBinding,
+    findAnnotationGuard,
     resolveTypeGuardNarrowing,
   } = narrowByGuardsCluster;
 
