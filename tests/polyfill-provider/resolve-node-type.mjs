@@ -2339,6 +2339,181 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('ast-patterns: detectCommonJS ESM wins', detectCommonJS(esmWins), false);
   // nothing CJS-like
   check('ast-patterns: detectCommonJS empty', detectCommonJS({ body: [] }), false);
+  // top-level await is an ESM-only marker in ANY statement host, not just a bare
+  // expression statement; an await inside a nested function body is NOT top-level
+  const tlaDecl = {
+    body: [
+      {
+        type: 'VariableDeclaration',
+        kind: 'const',
+        declarations: [{
+          type: 'VariableDeclarator',
+          id: { type: 'Identifier', name: 'x' },
+          init: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'p' } },
+        }],
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS non-bare top-level await wins', detectCommonJS(tlaDecl), false);
+  const forAwait = {
+    body: [
+      {
+        type: 'ForOfStatement',
+        await: true,
+        left: { type: 'Identifier', name: 'x' },
+        right: { type: 'Identifier', name: 'gen' },
+        body: { type: 'BlockStatement', body: [] },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS for-await wins', detectCommonJS(forAwait), false);
+  const fnAwait = {
+    body: [
+      {
+        type: 'FunctionDeclaration',
+        id: { type: 'Identifier', name: 'f' },
+        async: true,
+        params: [],
+        body: {
+          type: 'BlockStatement',
+          body: [{
+            type: 'ExpressionStatement',
+            expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'p' } },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  checkTruthy('ast-patterns: detectCommonJS await inside function stays CJS', detectCommonJS(fnAwait));
+  // a computed method KEY evaluates at class-definition time in the enclosing context -
+  // an await there IS top-level even though the method body is its own await scope
+  const computedKeyAwait = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'ClassMethod',
+            computed: true,
+            key: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'k' } },
+            params: [],
+            body: { type: 'BlockStatement', body: [] },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS computed-key top-level await wins', detectCommonJS(computedKeyAwait), false);
+  const asyncMethod = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'ClassMethod',
+            computed: false,
+            async: true,
+            key: { type: 'Identifier', name: 'm' },
+            params: [],
+            body: {
+              type: 'BlockStatement',
+              body: [{
+                type: 'ExpressionStatement',
+                expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'g' } },
+              }],
+            },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  checkTruthy('ast-patterns: detectCommonJS async method stays CJS', detectCommonJS(asyncMethod));
+  // method decorators evaluate at class-definition time in the enclosing context - an
+  // await there IS top-level even though the method body is its own await scope
+  const decoratorAwait = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'ClassMethod',
+            computed: false,
+            key: { type: 'Identifier', name: 'm' },
+            decorators: [{
+              type: 'Decorator',
+              expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'deco' } },
+            }],
+            params: [],
+            body: { type: 'BlockStatement', body: [] },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS decorator top-level await wins', detectCommonJS(decoratorAwait), false);
+  // estree wraps method functions in MethodDefinition (no ClassMethod node) - the
+  // computed-key carve-out must recognize that shape too
+  const estreeComputedKeyAwait = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'MethodDefinition',
+            computed: true,
+            key: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'k' } },
+            value: { type: 'FunctionExpression', params: [], body: { type: 'BlockStatement', body: [] } },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  check('ast-patterns: detectCommonJS estree computed-key await wins', detectCommonJS(estreeComputedKeyAwait), false);
+  const estreeAsyncMethod = {
+    body: [
+      {
+        type: 'ClassDeclaration',
+        id: { type: 'Identifier', name: 'C' },
+        body: {
+          type: 'ClassBody',
+          body: [{
+            type: 'MethodDefinition',
+            computed: false,
+            key: { type: 'Identifier', name: 'm' },
+            value: {
+              type: 'FunctionExpression',
+              async: true,
+              params: [],
+              body: {
+                type: 'BlockStatement',
+                body: [{
+                  type: 'ExpressionStatement',
+                  expression: { type: 'AwaitExpression', argument: { type: 'Identifier', name: 'g' } },
+                }],
+              },
+            },
+          }],
+        },
+      },
+      ...cjsAssign.body,
+    ],
+  };
+  checkTruthy('ast-patterns: detectCommonJS estree async method stays CJS', detectCommonJS(estreeAsyncMethod));
 
   // mayHaveSideEffects: conservatively SE; only provably pure -> false
   check('ast-patterns: mayHaveSideEffects Identifier',
