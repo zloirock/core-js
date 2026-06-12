@@ -219,7 +219,7 @@ export function createClassFields({
   // in-module descendant declares an own static member of the same name. explicit `Base.<field>`
   // access is unaffected (it reads the named class's own slot), so the caller gates this on
   // `this`-rooted reads only
-  function staticFieldShadowable(classPath, fieldName) {
+  function staticFieldShadowable(classPath, fieldName, anchorNamespaceOverrides = false) {
     const program = findProgramPath(classPath);
     if (!program) return true;
     const descendant = closedDescendants(classPath, program);
@@ -227,7 +227,59 @@ export function createClassFields({
     for (const sub of descendant.paths) {
       if (sub !== classPath && declaresStaticMember(sub, fieldName)) return true;
     }
-    return false;
+    return namespaceMergeDeclaresStatic({ programNode: program.node, descendant, fieldName, classPath, anchorNamespaceOverrides });
+  }
+
+  // a namespace merged onto a class binding (`class Sub extends Base {} namespace Sub {
+  // export function f() {} }`) attaches its exports as runtime statics AFTER the class
+  // definition, overriding the inherited slot - a shadow source class-body scans can't see.
+  // any namespace named like a PROPER descendant exporting `fieldName` reports shadowable;
+  // an ambient declaration over-matches, which is the safe direction (the read falls back
+  // to the generic dispatcher). the anchor class's OWN merged namespace counts only when
+  // the resolution found the member ELSEWHERE (`anchorNamespaceOverrides`): with no other
+  // provider, a same-named export there IS the resolution source (the no-shadow narrow) -
+  // valid TS forbids it from redeclaring a class-body member. the whole program is scanned
+  // because the merge pairs by NAME, not by lexical adjacency
+  function namespaceMergeDeclaresStatic({ programNode, descendant, fieldName, classPath, anchorNamespaceOverrides }) {
+    const classNames = new Set();
+    for (const sub of descendant.paths) {
+      if (sub === classPath && !anchorNamespaceOverrides) continue;
+      const name = sub.node?.id?.name;
+      if (name) classNames.add(name);
+    }
+    if (!classNames.size) return false;
+    let found = false;
+    (function scan(node) {
+      if (found || !node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (const item of node) scan(item);
+        return;
+      }
+      if (typeof node.type !== 'string') return;
+      if (node.type === 'TSModuleDeclaration' && node.id?.type === 'Identifier' && classNames.has(node.id.name)) {
+        for (const stmt of node.body?.body ?? []) {
+          if (stmt?.type !== 'ExportNamedDeclaration') continue;
+          // specifier form (`function f() {}; export { f };` / `export { f as g }`): the
+          // EXPORTED name becomes the runtime static slot
+          for (const spec of stmt.specifiers ?? []) {
+            const exported = spec.exported?.name ?? spec.exported?.value;
+            if (exported === fieldName) found = true;
+          }
+          const decl = stmt.declaration;
+          if (!decl) continue;
+          if (decl.type === 'VariableDeclaration') {
+            for (const d of decl.declarations ?? []) {
+              if (d.id?.type === 'Identifier' && d.id.name === fieldName) found = true;
+            }
+          } else if (decl.id?.type === 'Identifier' && decl.id.name === fieldName) {
+            found = true;
+          }
+        }
+        if (found) return;
+      }
+      for (const key of Object.keys(node)) scan(node[key]);
+    })(programNode);
+    return found;
   }
 
   // does a class-body member shadow `fieldName`? a computed key only names a fixed slot when it

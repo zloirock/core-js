@@ -108,17 +108,14 @@ export function hasIdentifierBoundary(str, idx, needle) {
   return true;
 }
 
-function replaceNthOccurrence({ str, needle, replacement, n }) {
+// the nth-occurrence index MUST come from the same enumeration the counter uses
+// (`collectOccurrencePositions`: non-overlapping advance + boundary filter) - a private
+// overlapping scan here would disagree with the counted `nth` on a self-bordered needle
+// (`a.a` in `a.a.a`) and silently replace a different physical occurrence
+export function replaceNthOccurrence({ str, needle, replacement, n }) {
   if (n < 0 || !needle.length) return str;
-  let idx = -1;
-  let matches = 0;
-  for (;;) {
-    idx = str.indexOf(needle, idx + 1);
-    if (idx === -1) return str;
-    if (!hasIdentifierBoundary(str, idx, needle)) continue;
-    if (matches === n) break;
-    matches++;
-  }
+  const idx = collectOccurrencePositions(str, needle)[n];
+  if (idx === undefined) return str;
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
