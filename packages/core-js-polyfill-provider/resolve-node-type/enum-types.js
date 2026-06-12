@@ -1,6 +1,7 @@
-// TS enum type resolution. enum bodies carry numeric or string literal initializers; we
-// statically classify each member's value-kind and collapse the enum to a $Primitive type
-// when all members agree. mixed-kind enums (some number, some string) collapse to null -
+// TS enum type resolution. valid-TS enum bodies carry numeric or string initializers;
+// non-type-checked input can carry anything parseable (see ENUM_VALUE_KINDS). we
+// statically classify each member's RUNTIME value-kind and collapse the enum to a
+// $Primitive type when all members agree. mixed-kind enums (some number, some string) collapse to null -
 // caller treats the enum as opaque rather than mis-narrow to one kind.
 //
 // Public surface:
@@ -13,29 +14,41 @@
 // Service object passes `babelNodeType` (Babel/ESTree literal-discriminator normaliser).
 // `$Primitive` and `unwrapParens` are imported directly - no closure deps
 import { $Primitive } from './base.js';
+import { binaryOperatorResultKind, unaryOperatorResultKind } from './value-ops.js';
 import { unwrapParens } from '../helpers/ast-patterns.js';
+
+// kinds an enum member may carry at RUNTIME. valid TS allows ONLY number and string
+// enum members (a bigint / typeof / comparison initializer is a compile error) - but
+// strip-mode transpilation feeds us non-type-checked source, and there the runtime value
+// of `1n * 2n` IS a bigint, so classifying it truthfully beats bailing to an opaque
+// receiver (a known bigint suppresses pointless string-name dispatch; the canonical
+// resolver already treats $Primitive('bigint') as first-class). anything else the shared
+// operator table reports (boolean from a comparison, undefined, unknown) bails the member
+// to null so the caller treats the enum as opaque instead of mis-narrowing
+const ENUM_VALUE_KINDS = new Set(['string', 'number', 'bigint']);
 
 export function createEnumTypes({ babelNodeType }) {
   // ESTree preserves ParenthesizedExpression wrappers (babel strips them); unwrap so
-  // `enum E { A = (1 + 2) }` resolves through BinaryExpression's operand-shape check
+  // `enum E { A = (1 + 2) }` resolves through the operator table
   function resolveEnumMemberKind(initializer) {
     const init = unwrapParens(initializer);
     if (!init) return 'number'; // implicit numeric
     const nodeType = babelNodeType(init);
-    if (nodeType === 'StringLiteral') return 'string';
-    // numeric UnaryExpression: `+`/`-`/`~` yield number; `!` yields boolean (invalid as
-    // enum initializer but TS would reject at compile time); `typeof`/`void`/`delete`
-    // yield non-number. limit to arithmetic operators to stay precise
-    if (init.type === 'UnaryExpression') {
-      return init.operator === '+' || init.operator === '-' || init.operator === '~' ? 'number' : null;
-    }
+    if (nodeType === 'StringLiteral' || init.type === 'TemplateLiteral') return 'string';
     if (nodeType === 'NumericLiteral') return 'number';
-    if (init.type === 'TemplateLiteral') return 'string';
-    if (init.type === 'BinaryExpression') {
-      const left = resolveEnumMemberKind(init.left);
-      return left && left === resolveEnumMemberKind(init.right) ? left : null;
+    if (nodeType === 'BigIntLiteral') return 'bigint';
+    // operator semantics delegate to the SHARED table (value-ops) - the node-level
+    // operand walk below is the only enum-specific part. non-value results (boolean
+    // comparisons etc.) are invalid TS enum initializers reachable through a
+    // non-type-checking parse; the kind gate bails them
+    let kind = null;
+    if (init.type === 'UnaryExpression') {
+      kind = unaryOperatorResultKind(init.operator, () => resolveEnumMemberKind(init.argument));
+    } else if (init.type === 'BinaryExpression') {
+      kind = binaryOperatorResultKind(init.operator,
+        () => resolveEnumMemberKind(init.left), () => resolveEnumMemberKind(init.right));
     }
-    return null;
+    return ENUM_VALUE_KINDS.has(kind) ? kind : null;
   }
 
   // ESTree (oxc-parser): members under body.members; Babel: directly on declaration
