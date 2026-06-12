@@ -263,7 +263,7 @@ export default function createSynthSwapEmitter({
   // directly on the pure-proxy prefix here (a non-proxy hop breaks resolution before synth-swap),
   // so the collapsed form is `<polyfilled root>.<constructor>`. null when not a collapsible chain
   function collapseProxyGlobalReceiver(receiver) {
-    if ((!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) || receiver.computed) return null;
+    if (!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) return null;
     // collapsible only when the whole `.object` is the pure-proxy navigation (its full span is the
     // prefix) and `.property` is the constructor leaf
     if (maximalProxyGlobalPrefix(receiver) !== receiver.object) return null;
@@ -277,7 +277,10 @@ export default function createSynthSwapEmitter({
     const rootNode = prefixes.length
       ? t.sequenceExpression([...prefixes.map(expr => t.cloneNode(expr)), rootBinding])
       : rootBinding;
-    return t.memberExpression(rootNode, t.cloneNode(receiver.property));
+    // keep the leaf's own computed flag: `globalThis.self['Object']` collapses to
+    // `_globalThis['Object']` - leaving the hop verbatim reads `.self` off the global
+    // object, which is undefined on hosts without it (ie:11 pure, Node)
+    return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
   }
 
   // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the
