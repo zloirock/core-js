@@ -23,10 +23,8 @@ for (const of2 = _Array$of, flat = _flatMaybeArray(arr), {
     plain
   } = arr; cond(); next()) use(of2, flat, plain);
 for (const {
-    Array: {
-      isArray
-    }
-  } = _globalThis, inc = _includes(arr); cond(); next()) use(isArray, inc);
+    isArray
+  } = _globalThis.Array, inc = _includes(arr); cond(); next()) use(isArray, inc);
 for (const fromAsync = _Array$fromAsync, {
     indexOf,
     lastIndexOf

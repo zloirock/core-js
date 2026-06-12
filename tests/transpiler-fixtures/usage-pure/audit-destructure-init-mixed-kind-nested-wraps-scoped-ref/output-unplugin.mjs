@@ -5,8 +5,8 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // nested scopedVar. drainage returns ONE outermost wrap (the arrow's body SE) absorbing
 // the inner stmt-wrap via recursive compose, which in turn absorbs the scopedVar at the
 // converted block. pins kind=arrow + kind=stmt cohabiting in a single composed text
-((() => { var _ref2; return (
+(() => { var _ref2; return (
   ((() => { if (Math.random() < 0) { var _ref; _atMaybeArray(_ref = [1]).call(_ref, 0); } return 'inner'; })(), _atMaybeArray(_ref2 = [2]).call(_ref2, 0))
-); })(), Array);
+); })();
 const from = _Array$from;
 console.log(from);
