@@ -65,7 +65,15 @@ const isStringLiteralExpressionStatement = node => node?.type === 'ExpressionSta
 // `pendingRemovals` (optional index Set) treats queued siblings as gone for prefix scan and
 // next-sibling lookup. babel-plugin removes per-callback (live body reflects prior removals);
 // unplugin defers commit until after the whole batch decides, feeding the simulated state in
-export function wouldPromoteDirectiveAfterRemoval({ body, entryIndex, pendingRemovals, hasPriorDirective = false }) {
+// `injectedImportsBreakPrologue`: when the file receives at least one injected module
+// import/require, that block lands right after the prologue and is itself a non-directive
+// statement - promotion becomes impossible for EVERY removed entry, so no `0;` placeholder
+// is ever needed. only a zero-module expansion (modern targets filtering everything out)
+// leaves the bare-removal hazard this guard exists for
+export function wouldPromoteDirectiveAfterRemoval({
+  body, entryIndex, pendingRemovals, hasPriorDirective = false, injectedImportsBreakPrologue = false,
+}) {
+  if (injectedImportsBreakPrologue) return false;
   let hasSurvivingDirective = hasPriorDirective;
   for (let i = 0; i < entryIndex; i++) {
     if (pendingRemovals?.has(i)) continue;
@@ -85,7 +93,9 @@ export function wouldPromoteDirectiveAfterRemoval({ body, entryIndex, pendingRem
 // `pendingRemovals` reproduces, by simulation, the live-body shape babel-plugin sees on its
 // per-callback path (where prior removals are already physical). returns AST nodes in walk
 // order (descending body position) so callers don't re-sort before emit
-export function resolveBatchDirectivePromotionPolicy({ body, candidateIndices, hasPriorDirective = false }) {
+export function resolveBatchDirectivePromotionPolicy({
+  body, candidateIndices, hasPriorDirective = false, injectedImportsBreakPrologue = false,
+}) {
   const toRemove = [];
   const toReplaceWithNoop = [];
   // seed with every candidate so the first iteration sees them all as queued, then peel each
@@ -95,7 +105,7 @@ export function resolveBatchDirectivePromotionPolicy({ body, candidateIndices, h
   for (let i = candidateIndices.length - 1; i >= 0; i--) {
     const idx = candidateIndices[i];
     pendingRemovals.delete(idx);
-    if (wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, pendingRemovals, hasPriorDirective })) {
+    if (wouldPromoteDirectiveAfterRemoval({ body, entryIndex: idx, pendingRemovals, hasPriorDirective, injectedImportsBreakPrologue })) {
       toReplaceWithNoop.push(body[idx]);
     } else {
       pendingRemovals.add(idx);
