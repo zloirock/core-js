@@ -4,7 +4,7 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // emission per fixture and confirms the wrap path is host-agnostic (every bodyless
 // statement slot benefits, not just `if`).
 while (cond) {
-  logEntry(), Object;
+  logEntry();
   var fromEntries = _Object$fromEntries;
   var n = 0;
 }
