@@ -8,13 +8,9 @@
 // public surface: `applyDestructuringTransforms`, `applySynthSwaps`, `handleDestructuringPure`,
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation)
 import {
-  propertyKeyName,
-  isChainAssignment,
-  peelZeroArgIifeReturn,
   isReceiverShapedNode,
   buildFlatSynthEntries,
   paramsHaveInvisibleCallers,
-  findEnclosingFunctionLikePath,
   FUNCTION_LIKE_NODE_TYPES,
   findArrayWrappedDestructureHost,
   getFallbackBranchSlots,
@@ -22,31 +18,26 @@ import {
   isBindingPosition,
   isFunctionParamDestructureParent,
   computedKeysAllBound,
+  dropDeadSequenceTail,
   isIdentifierPropValue,
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
   markAndPeelSkippableWrappers,
-  functionScopeBindsVarOrFunction,
   mayHaveSideEffects,
-  staticStringKey,
   synthSwapPropKey,
   objectPatternPropNeedsReceiverRewrite,
-  paramListReadsName,
   peelFallbackBranchInner,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelToExpressionStatement,
   propBindingIdentifier,
-  reassignmentBlocksGlobalResolve,
   resolveFallbackReceiver,
   sequenceKeyPrefix,
   TS_EXPR_WRAPPERS,
-  unwrapExpressionChain,
   unwrapParens,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
   globalProxyMemberName,
   markSynthReceiverSkipped,
   memberKeyName,
@@ -60,11 +51,9 @@ import {
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
   proxyGlobalWrappedRoot,
-  resolveObjectName as sharedResolveObjectName,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  fallbackInitWhollyDiscardable,
   applyNestedParamSynthPlan,
   renderSynthTree,
   classifyCallBranchForSynth,
@@ -73,10 +62,13 @@ import {
   isViableBranchForKey,
   nestedAssignmentStatementOf,
   planSideEffectKeyStrategy,
+  qualifiesForParamBodyExtract,
   resolveNestedReceiverNode,
-  walkStaticReceiverChain,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { discardRescueNode } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  buildNestedDestructurePlan,
+  peelArrayWrapperPair,
+} from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   canTransformDestructuring,
@@ -159,6 +151,7 @@ export function createDestructureEmitter({
   injectPureImport,
   injector,
   isBodylessStatementBody,
+  isDisabled,
   nodeSrc,
   resolveGlobalPolyfill,
   resolvePure,
@@ -199,11 +192,6 @@ export function createDestructureEmitter({
 
   // ---------- nested proxy-global flatten ----------
 
-  // pre-pass walks every declarator for `canFullyConsumeProxyDeclarator`; main pass walks
-  // the same declarators again via `tryFlattenNestedProxy`. cache by node identity to avoid
-  // double work - amortizes the double traverse to one logical plan per declarator (O(1)
-  // lookup on the second visit instead of re-scanning every property)
-  const planCache = new WeakMap();
   // tracks declarations already rewritten by `tryFlattenNestedProxy` so the visitor's
   // re-entry on every property of a flattened decl is a no-op idempotent
   const flattenedNestedDecls = new WeakSet();
@@ -323,7 +311,7 @@ export function createDestructureEmitter({
       trackedUnusedNamesByAssign.set(assignNode, cached);
     }
     const { result, unusedIds } = cached;
-    if (!result.extractions.length) return false;
+    if (!result.extractions.length && !result.anchored) return false;
     flattenedAssignments.add(assignNode);
     // residual siblings kept verbatim (`other = [1].at(0)` default, a static-method value) stay
     // visible so the natural visitor polyfills them in place; `flushPendingCascade` drains those
@@ -481,13 +469,21 @@ export function createDestructureEmitter({
     // user's default is dropped since the extracted polyfill is always defined (see `planInnerProp`)
     if (!propBindingIdentifier(metaPath.node.value)) return false;
     const declPath = walkUpNestedDestructureToDeclaration(metaPath.parentPath);
-    const declaration = declPath?.node;
-    if (declaration?.type !== 'VariableDeclaration') return false;
+    if (declPath?.node?.type !== 'VariableDeclaration') return false;
+    return flattenDeclarationPath(declPath, metaPath.scope);
+  }
+
+  // declaration-level flatten core, shared by the leaf dispatch above and the unconditional
+  // proxy-hop trigger: plans EVERY declarator of the declaration, accepts the rewrite when
+  // any slot extracts OR re-anchors (an anchored hop with zero extractions still rewrites -
+  // the re-anchored residual is the point)
+  function flattenDeclarationPath(declPath, scope) {
+    const declaration = declPath.node;
     if (flattenedNestedDecls.has(declaration)) return true;
     const parentNode = declPath.parentPath?.node;
     const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
-    const perDecl = declaration.declarations.map(d => rewriteDeclarator(d, metaPath.scope, declPath));
-    if (!perDecl.some(r => r.extractions.length)) return false;
+    const perDecl = declaration.declarations.map(d => rewriteDeclarator(d, scope, declPath));
+    if (!perDecl.some(r => r.extractions.length || r.anchored)) return false;
     flattenedNestedDecls.add(declaration);
     seedSkippedForExtractedDeclarators(declaration, perDecl);
     // defer rendering + transforms.add to applyDestructuringTransforms - sibling subtree
@@ -495,6 +491,34 @@ export function createDestructureEmitter({
     // instance-method polyfills. baking those into preservedSrc requires post-traverse state
     pendingFlatten.push({ declaration, declPath, perDecl, isForInit });
     return true;
+  }
+
+  // unconditional proxy-hop trigger, wired into the MAIN usage-pure traversal (replaces the
+  // text-rewrite + re-parse normalize pre-pass): an anchored plan must fire even when NO
+  // leaf resolves (`{ Map: { customY } } = globalThis` - the point is the re-anchored
+  // residual), so leaf-driven dispatch alone cannot cover it. cheap shape prefilter before
+  // any plan work; a disabled host line opts out like the retired pre-pass did
+  function isProxyHopHostShape(pattern, init) {
+    if (!init || pattern?.type !== 'ObjectPattern' || pattern.properties.length !== 1) return false;
+    const [hopProp] = pattern.properties;
+    if (hopProp.type !== 'Property') return false;
+    const inner = hopProp.value?.type === 'AssignmentPattern' ? hopProp.value.left : hopProp.value;
+    return inner?.type === 'ObjectPattern';
+  }
+
+  function tryFlattenProxyHopHost(path) {
+    const { node } = path;
+    if (node.type === 'VariableDeclaration') {
+      if (!node.declarations.some(d => isProxyHopHostShape(d.id, d.init) && !isDisabled(d))) return;
+      flattenDeclarationPath(path, path.scope);
+      return;
+    }
+    if (node.operator !== '=' || !isProxyHopHostShape(node.left, node.right) || isDisabled(node)) return;
+    const peeled = peelToExpressionStatement(path);
+    if (!peeled) return;
+    cascadeAssignmentExpression({
+      assignNode: node, stmtPath: peeled.exprStmt, scope: path.scope, outerSequencePrefix: peeled.sequencePrefix,
+    });
   }
 
   // apply position-anchored splices (in original-source coordinates) to `src`, which is a
@@ -528,7 +552,7 @@ export function createDestructureEmitter({
       // wrapper is transparent (planDeclarator descended through it to reach the receiver),
       // and the raw array init carries no top-level SE of its own. non-array inits peel to
       // themselves, leaving the bare-receiver path unchanged
-      const { initSource } = peelArrayWrapperPair(decl.id, decl.init);
+      const { init: initSource } = peelArrayWrapperPair({ pattern: decl.id, init: decl.init });
       const { prefix } = peelNestedSequenceExpressions(initSource);
       const refSplices = perDecl[i].drainedRefs ?? [];
       return prefix.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
@@ -630,7 +654,9 @@ export function createDestructureEmitter({
       const splices = slot.drainedRefs;
       if (!splices.length) continue;
       const decl = declaration.declarations[i];
-      if (!slot.extractions.length) bakeFullPreserveSplices(slot, decl, splices);
+      // an anchored zero-extraction slot carries REBUILT text, not a verbatim slice - route
+      // it through the partial-consume tail bake (its binding init hosts no in-range splices)
+      if (!slot.extractions.length && !slot.anchored) bakeFullPreserveSplices(slot, decl, splices);
       else if (!isForInit) bakePartialConsumeTailSplices(slot, decl, splices);
     }
   }
@@ -733,16 +759,32 @@ export function createDestructureEmitter({
   function emitPolyfilled(info, parts, forInitSESinks, ctx, preDrainedSplices = null) {
     const { stmtPrefix, memoPrefix, isForInit, isAssignment } = ctx;
     const { entries, allProps, initSrc, scopeSnapshot } = info;
+    // this slot's first part index - the assignment-host sentinel `var` splices in here
+    // (declare-then-use order, the babel-canon position ahead of the extraction assigns)
+    const slotStart = parts.length;
     const { initStart, initEnd } = info;
-    // the collection pre-pass marked an effect-free droppable SE tail (a dead proxy-member
-    // chain or the consumed bare constructor): process only the SE PREFIX, so the kept text
-    // receives the same extract + ref-bake treatment a whole init does and the dead tail
-    // never reaches the output (babel's lift trims the same class)
+    const polyfillKeys = new Set(entries.map(e => e.propNode));
+    const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
+    const remaining = allProps.filter(p => !polyfillKeys.has(p));
+    const hasInstance = entries.some(e => e.kind === 'instance');
+    // a full consume lifts the SE init as a standalone statement (see `liftSE` below); its
+    // value is then unread, so an effect-free TAIL is dead either way
+    const willLiftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
+        && info.initNode && mayHaveSideEffects(info.initNode);
+    // an effect-free droppable SE tail (a dead proxy-member chain or consumed bare
+    // constructor marked by the collection pre-pass, or ANY effect-free tail of a
+    // full-consume lift): process only the SE PREFIX, so the kept text receives the same
+    // extract + ref-bake treatment a whole init does and the dead tail never reaches the
+    // output (babel's lift trims the same class). a for-init SE sink keeps its tail - the
+    // sink declarator needs a value
     let liftParts = null;
     if (initStart !== undefined && info.initNode) {
       const { prefix: liftPrefix, tail: liftTail } = peelNestedSequenceExpressions(info.initNode);
       const peeledLiftTail = liftTail !== info.initNode ? unwrapParens(liftTail) : null;
-      if (liftPrefix.length && peeledLiftTail && skippedNodes.has(peeledLiftTail)) liftParts = liftPrefix;
+      const tailDead = peeledLiftTail && (skippedNodes.has(peeledLiftTail)
+        || (willLiftSE && !isForInit && !mayHaveSideEffects(peeledLiftTail)));
+      // trailing PURE prefix elements are as dead as the tail - the shared dead-tail policy
+      if (liftPrefix.length && tailDead) liftParts = dropDeadSequenceTail(liftPrefix);
     }
     const procSrc = initSrc;
     // ONE extract-or-bake algorithm for both shapes: the no-drop init is a single part
@@ -779,10 +821,6 @@ export function createDestructureEmitter({
     for (const e of entries) {
       if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
     }
-    const polyfillKeys = new Set(entries.map(e => e.propNode));
-    const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
-    const remaining = allProps.filter(p => !polyfillKeys.has(p));
-    const hasInstance = entries.some(e => e.kind === 'instance');
     // gate global-identifier substitution on init-being-used to avoid emitting unused
     // proxy-global imports for the all-bindings-discarded case (`const { from } = globalThis`)
     const initIsUsed = remaining.length > 0 || hasRest || hasInstance;
@@ -833,15 +871,22 @@ export function createDestructureEmitter({
     }
 
     const entryByProp = hasRest ? new Map(entries.map(e => [e.propNode, e])) : null;
+    // sentinel names on an ASSIGNMENT host are plain LHS writes - they must be pre-declared
+    // (`var _unused;`) or strict mode throws ReferenceError; a declaration host binds them
+    // via the destructure pattern itself
+    const sentinelNames = [];
     const rebuiltProps = hasRest
         ? allProps.map(p => {
           const e = entryByProp.get(p);
           if (!e) return nodeSrc(p);
           const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : propKeySource(p);
-          return `${ keySrc }: ${ injector.generateUnusedName() }`;
+          const sentinel = injector.generateUnusedName();
+          sentinelNames.push(sentinel);
+          return `${ keySrc }: ${ sentinel }`;
         })
         : remaining.map(p => nodeSrc(p));
     if (rebuiltProps.length > 0) {
+      if (isAssignment && sentinelNames.length) parts.splice(slotStart, 0, `var ${ sentinelNames.join(', ') }`);
       parts.push(isAssignment
           ? `({ ${ rebuiltProps.join(', ') } } = ${ objRef })`
           : `${ stmtPrefix }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`);
@@ -864,7 +909,7 @@ export function createDestructureEmitter({
       // destructure the byStatement emit skipped; render its rewrite here (as synthetic
       // extractions) so the polyfill survives instead of emitting the pattern verbatim
       for (let i = 0; i < perDecl.length; i++) {
-        if (perDecl[i].extractions.length) continue;
+        if (perDecl[i].extractions.length || perDecl[i].anchored) continue;
         const sibInfo = flattenSiblingInfos.get(declaration.declarations[i]);
         if (!sibInfo) continue;
         let decls;
@@ -993,7 +1038,7 @@ export function createDestructureEmitter({
   function seedSkippedForExtractedDeclarators(declaration, perDecl) {
     const flattenedReceivers = new Set();
     for (let i = 0; i < perDecl.length; i++) {
-      if (!perDecl[i].extractions.length) continue;
+      if (!perDecl[i].extractions.length && !perDecl[i].anchored) continue;
       const decl = declaration.declarations[i];
       const residualTargets = perDecl[i].residualTargets ?? [];
       // the rebuilt flatten text comes from `nodeSrc` for preserved outer props and synth
@@ -1048,215 +1093,16 @@ export function createDestructureEmitter({
     return { text: lines.join('\n'), count: lines.length };
   }
 
-  // plan factory: classify every outer prop of a destructure declarator without side
-  // effects. returned shape:
-  //   { receiver, outerProps: [{ extractions?, preservedSrc }] }
-  // preservedSrc === null -> outer prop was fully consumed (drop).
-  // null when the init isn't a recognisable host shape or nothing matches.
-  // peel parallel transparent destructure wrappers:
-  //   - single-element ArrayPattern + matching ArrayExpression layer (`[{...}] = [globalThis]`,
-  //     `[[{...}]] = [[globalThis]]`, etc.)
-  //   - inner AssignmentPattern default (`[{...} = {}] = [globalThis]`) - default never fires
-  //     for proxy-global receivers since runtime value is always defined under polyfill-wins
-  // mirrors provider-side `peelDestructureWrappers` + `descendArrayWrapperInit`. bail
-  // (stop iterating) on depth divergence or non-array intermediate - downstream shape
-  // check will reject ambiguous shapes. when scope is passed, dereferences const-bound
-  // Identifier init through its binding so `const wrapper = [Array]; const [{x}] = wrapper`
-  // descends to the leaf via the wrapper's init
-  function peelArrayWrapperPair(pattern, initSource, scope = null, usePath = null) {
-    const visited = new Set();
-    for (;;) {
-      // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
-      // equivalent (defaults sit on the LHS slot), so we only peel pattern here
-      if (pattern?.type === 'AssignmentPattern') {
-        pattern = pattern.left;
-        continue;
-      }
-      if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1) {
-        return { pattern, initSource };
-      }
-      // peel SE-tail / paren / TS wrappers first (`(se(), [Array])` descends into the tail's
-      // array; the SE prefix is lifted separately by the host's own machinery, and the
-      // descended element's span stays inside the original init for the residual splice)
-      let effectiveInit = unwrapExpressionChain(initSource);
-      // dereference const-bound Identifier (`= wrapper` where `const wrapper = [Array]`).
-      // flow-sensitive bail mirrors the object-wrapper static-receiver walk: only a reassignment
-      // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
-      // value provably `[Array]`), instead of bailing on every constantViolation
-      if (scope) {
-        while (effectiveInit?.type === 'Identifier' && !visited.has(effectiveInit.name)) {
-          visited.add(effectiveInit.name);
-          const binding = estreeAdapter.getBinding(scope, effectiveInit.name, usePath);
-          if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter: estreeAdapter, path: usePath })) break;
-          const bindingInit = binding.path?.node?.init ?? binding.node?.init;
-          if (!bindingInit) break;
-          effectiveInit = bindingInit;
-        }
-      }
-      if (effectiveInit?.type !== 'ArrayExpression') return { pattern, initSource };
-      const [innerPattern] = pattern.elements;
-      const [innerInit] = effectiveInit.elements;
-      if (!innerPattern || !innerInit) return { pattern, initSource };
-      pattern = innerPattern;
-      initSource = innerInit;
-    }
-  }
-
-  // dispatches across two complementary host shapes:
-  //   - proxy-global: `{Array: {from}} = globalThis` - outer key IS the constructor name
-  //   - static-object: `{a: {from}} = wrapper` where `wrapper = {a: Array}` - constructor
-  //     hidden behind const-bound ObjectExpression, walk init through outer-key path to
-  //     locate it. mirrors babel-plugin's `tryFlattenNestedProxyDestructure` so both
-  //     pipelines emit the same `const from = _Array$from` extraction (full polyfill-wins
-  //     semantics)
+  // thin wrapper over the provider's shared decision layer (`buildNestedDestructurePlan` -
+  // caching, receiver dispatch and the per-prop plan tree live there); this factory only
+  // threads the estree adapter and its resolver closures. `keepsTail` (the cascade's
+  // tail-preserving variant) rides the provider cache contract: the cascade plans its
+  // synthetic host first, the render-time re-entry reads the same cached plan
   function planDeclarator(declarator, scope, usePath = null, { keepsTail = false } = {}) {
-    if (planCache.has(declarator)) return planCache.get(declarator);
-    let plan = null;
-    const originalId = declarator.id;
-    const { pattern, initSource } = peelArrayWrapperPair(originalId, declarator.init, scope, usePath);
-    const arrayPeelHappened = pattern !== originalId;
-    // the DESCENDED init element when an ArrayPattern wrapper was peeled WITHIN the original
-    // init's span: a receiver swap in the residual render must target this element, not the
-    // whole init (swapping the whole array dropped the brackets and broke the destructure).
-    // a const-alias dereference lands OUTSIDE the init span - the residual keeps the alias
-    // identifier verbatim, so no element targeting applies
-    const initElement = arrayPeelHappened && initSource !== declarator.init
-      && initSource.start >= declarator.init.start && initSource.end <= declarator.init.end ? initSource : null;
-    if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
-      // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
-      // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
-      // TS-wrapped destructure inits bail the flatten path and the SE prefix never lifts
-      let init = unwrapExpressionChain(initSource);
-      // the discard-rescue harvest below must see the PRE-collapse node (a rescued IIFE call,
-      // a chain assignment) - the collapse rewrites `init` to the resolution representative
-      const initBeforeCollapse = init;
-      // a fallback init collapses for identification like the flat meta (left for `||` / `??`,
-      // right for `&&`, the consequent for an agreeing ternary, the inlined return for a
-      // transparent IIFE) - but the flatten DISCARDS the init whole, so it must be wholly
-      // discardable (pure test, no `&&` guard - a guard can select its falsy LEFT and that
-      // path's native TypeError must survive). the cascade KEEPS the tail verbatim
-      // (`keepsTail`), so it only needs the collapsed receiver for resolution
-      if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
-        || isChainAssignment(init)
-        || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
-        if (!keepsTail && !fallbackInitWhollyDiscardable(init)) init = null;
-        else for (let guard = 0; guard < 8 && init; guard++) {
-          const inlined = peelZeroArgIifeReturn(init);
-          if (inlined) init = unwrapExpressionChain(inlined);
-          // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
-          else if (isChainAssignment(init)) init = unwrapExpressionChain(init.right);
-          else if (init.type === 'ConditionalExpression') init = unwrapExpressionChain(init.consequent);
-          else if (init.type === 'LogicalExpression') {
-            init = unwrapExpressionChain(init.operator === '&&' ? init.right : init.left);
-          } else break;
-        }
-      }
-      // observable node in the init the flatten DISCARDS: a chain-assignment (rescued WHOLE - it
-      // updates a binding and may contain an SE-bearing call) or an SE-bearing chain-root call.
-      // harvested into the plan so the emit re-runs it once ahead of the extraction (full consume)
-      // or keeps it verbatim in the residual init (partial consume); mirrors babel's harvest.
-      // span guard: `peelArrayWrapperPair` may have DEREFERENCED a const-alias wrapper
-      // (`const w = [(IIFE)()]; [{x}] = w`) whose init lives OUTSIDE the discarded slot - its
-      // setup already runs at the alias declaration, so harvesting it would double-run
-      const probed = init ? discardRescueNode({ node: initBeforeCollapse, scope, adapter: estreeAdapter, path: usePath }) : null;
-      const discardSe = probed && declarator.init
-        && probed.start >= declarator.init.start && probed.end <= declarator.init.end ? probed : null;
-      const receiver = init ? sharedResolveObjectName({ objectNode: init, scope, adapter: estreeAdapter, path: usePath }) : null;
-      if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
-        const outerProps = pattern.properties.map(planOuterProp);
-        if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern, discardSe, initElement };
-      } else if (receiver && isStaticPlacement(receiver)) {
-        // receiver is a known constructor (`Array` / `Map` / ...): pattern's properties
-        // are direct method extractions, mirror `planOuterProp`'s constructor-name dispatch.
-        // an ArrayPattern wrapper (with or without a rest sibling) survives the residual
-        // render - the rebuilt pattern is spliced back into the original LHS text
-        const outerProps = pattern.properties.map(p => planInnerProp(p, receiver));
-        if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps, pattern, discardSe, initElement };
-      } else if (init) {
-        const outerProps = pattern.properties.map(p => planOuterPropStatic({
-          outerProp: p, hostInit: init, path: [], scope, usePath,
-        }));
-        if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps, pattern, discardSe, initElement };
-      }
-    }
-    planCache.set(declarator, plan);
-    return plan;
-  }
-
-  // peel AssignmentPattern wrapping the inner pattern (`{ Foo: { x } = {} } = R`).
-  // proxy-global / static-object receivers always defined, so default never fires;
-  // transparent under "polyfill always wins". returns the bare value for non-wrapper
-  // shapes unchanged
-  function peelInnerDefault(value) {
-    return value?.type === 'AssignmentPattern' ? value.left : value;
-  }
-
-  // static-object descent. given an outer prop `key: ObjectPattern` at depth N (path =
-  // [k1, k2, ...] from declarator-root to here), walk hostInit through `path + key`:
-  //   - leaf Identifier (constructor name): plan inner ObjectPattern via `planInnerProp`
-  //     so `from` / `from: alias` / `from = default` get extracted
-  //   - intermediate ObjectExpression: recurse one level deeper, descending into the
-  //     inner ObjectPattern with extended path
-  // non-Property / computed / non-ObjectPattern values bail to opaque preservedSrc.
-  // shorthand / Identifier-valued outer props are NOT supported here - they would name a
-  // local binding outside the static path, so static-object descent doesn't apply
-  function planOuterPropStatic({ outerProp, hostInit, path, scope, usePath = null }) {
-    const name = outerProp.type === 'Property' ? flattenKeyName(outerProp) : null;
-    if (name === null) return { preservedSrc: nodeSrc(outerProp) };
-    const value = peelInnerDefault(outerProp.value);
-    if (value?.type !== 'ObjectPattern') return { preservedSrc: nodeSrc(outerProp) };
-    const newPath = [...path, name];
-    // `usePath` (the declaration / assignment site) lets the usage-pure reassignment gate inside
-    // walkStaticReceiverStep prove a reassigned RECEIVER (`w = {}` after `{Arr:{from}} = w`) is
-    // written AFTER the read - so the flatten resolves and collapses to `const from = _Array$from`
-    // (polyfill-always-wins) instead of bailing to the native-wins default-injection
-    const constructor = walkStaticReceiverChain({
-      receiverNode: hostInit, walkPath: newPath, scope, adapter: estreeAdapter, path: usePath,
+    return buildNestedDestructurePlan({
+      declarator, scope, adapter: estreeAdapter, path: usePath, keepsTail,
+      resolvePure, resolveGlobalPolyfill, isDisabledProp: isDisabled,
     });
-    // proxy-global hop (`{root: {Array: {from}}} = {root: globalThis}`): walkStaticReceiverChain
-    // resolves the first segment to `globalThis` / `self` / `window` — that's a proxy-global
-    // intermediate, NOT a constructor. continue descent so the next hop reaches the real
-    // constructor (`Array`) via `walkStaticReceiverStep`'s proxy-global mid-chain lift.
-    // without this gate, planInnerProp would fire with `object: 'globalThis'` and resolvePure
-    // bails, leaving the leaf `from` unpolyfilled
-    if (constructor && !POSSIBLE_GLOBAL_OBJECTS.has(constructor)) {
-      return foldNestedPattern(outerProp, value, innerProp => planInnerProp(innerProp, constructor));
-    }
-    return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic({
-      outerProp: innerProp, hostInit, path: newPath, scope, usePath,
-    }));
-  }
-
-  // structural check: outerProp is a Property with computed `[Symbol.iterator]` key. Symbol
-  // shadow not tracked here - matches `handleDestructuringPure`'s shadowing trust. true for
-  // both extractable shape (`[Symbol.iterator]: ident`) and non-extractable shape
-  // (`[Symbol.iterator]: {nestedPattern}` / spread / etc.) - caller decides what to do
-  function isSymbolIteratorComputedKey(outerProp) {
-    if (outerProp?.type !== 'Property' || !outerProp.computed) return false;
-    const { key } = outerProp;
-    if (key?.type !== 'MemberExpression' || key.computed) return false;
-    if (key.object?.type !== 'Identifier' || key.object.name !== 'Symbol') return false;
-    if (key.property?.type !== 'Identifier' || key.property.name !== 'iterator') return false;
-    return true;
-  }
-
-  // narrowed to extractable shape: value must reduce to a binding Identifier
-  // (`propBindingIdentifier` peels AssignmentPattern defaults - user default fires only
-  // when receiver[Symbol.iterator] is undefined, dead under polyfill-always-wins). returns
-  // the local binding name when extractable, null otherwise
-  function symbolIteratorLocalName(outerProp) {
-    if (!isSymbolIteratorComputedKey(outerProp)) return null;
-    return propBindingIdentifier(outerProp.value)?.name ?? null;
-  }
-
-  // resolve a nested-flatten prop's key to its static name via the canonical property-key
-  // resolver: non-computed Identifier AND string-literal keys (`{ "Array": {...} }`), computed
-  // string / single-quasi literals. null for a dynamic computed key (`[k]`) - the flatten
-  // bails to preservedSrc. babel's structural walk is computed-key-agnostic, so resolving the
-  // literal here keeps unplugin's flatten aligned with babel's
-  function flattenKeyName(prop) {
-    if (prop.computed) return staticStringKey(prop.key);
-    return propertyKeyName(prop);
   }
 
   // key source for a partially-consumed flatten rebuild: a computed key keeps its `[...]`
@@ -1267,86 +1113,49 @@ export function createDestructureEmitter({
     return prop.key?.type === 'Identifier' ? prop.key.name : nodeSrc(prop.key);
   }
 
-  // proxy-global outer prop: five shapes
-  //   - `{ Foo: { bar, ... } }` where Foo is a real global - inner pattern holds static methods
-  //   - `{ Self: { ... } }` where Self is itself a proxy-global - alias hop, recurse keeping
-  //     the chain transparent. enables N-level nests like `{ self: { window: { Array: { from } } } } = globalThis`
-  //   - `{ Foo }` shorthand - polyfill Foo as a global
-  //   - `{ Foo: alias }` aliased - same, different local name
-  //   - `{ [Symbol.iterator]: ident }` computed Symbol.iterator key - synth extraction
-  //     `ident = _getIteratorMethod(receiver)` (mirror of `handleDestructuringPure`'s
-  //     standalone path; in flatten host we absorb it so the rebuilt declaration carries
-  //     the polyfilled call instead of leaking native `Symbol.iterator` to the residual)
-  function planOuterProp(outerProp) {
-    const symbolIterLocal = symbolIteratorLocalName(outerProp);
-    if (symbolIterLocal !== null) {
-      return {
-        extractions: [{ synth: 'symbol-iterator', localName: symbolIterLocal }],
-        preservedSrc: null,
-      };
-    }
-    // `[Symbol.iterator]` key with non-binding value (nested ObjectPattern, ArrayPattern,
-    // etc.). natural visitor would polyfill `Symbol.iterator -> _Symbol$iterator` on the
-    // standalone key, but flatten's blanket `walkAstNodes`-skip in `seedSkipped` suppresses
-    // it. emit the polyfilled key directly so the rebuilt residual carries
-    // `[_Symbol$iterator]: <value>` instead of leaking native `Symbol.iterator` (which
-    // would TypeError on old runtimes without `Symbol`). value source stays verbatim - any
-    // polyfillable refs inside (e.g. `{next}` binding name) aren't polyfillable themselves
-    if (isSymbolIteratorComputedKey(outerProp)) {
+  // render one plan-tree node (see `buildNestedDestructurePlan` for the kinds) to the
+  // text-emit record the rewrite loop consumes: `{ extractions?, preservedSrc, residualTargets? }`.
+  //   - 'verbatim': the original source slice (the caller registers the residual target)
+  //   - 'consumed': extractions only, the prop is dropped (or rest-sentineled by the caller)
+  //   - 'symbol-iterator-key': non-binding value under a computed `[Symbol.iterator]` key.
+  //     natural visitor would polyfill the standalone key, but the flatten's blanket skip in
+  //     `seedSkippedForExtractedDeclarators` suppresses it - emit the polyfilled key directly
+  //     so the rebuilt residual carries `[_Symbol$iterator]: <value>` instead of leaking native
+  //     `Symbol.iterator` (a TypeError on old runtimes without `Symbol`). value source stays
+  //     verbatim - any polyfillable refs inside (e.g. `{next}` binding name) aren't polyfillable
+  //   - 'rebuilt': partially-consumed nested pattern, reassembled by `renderRebuiltNestedProp`
+  function renderOuterPlan(outer) {
+    if (outer.kind === 'consumed') return { extractions: outer.extractions, preservedSrc: null };
+    if (outer.kind === 'symbol-iterator-key') {
       const symBinding = injectPureImport('symbol/iterator', 'Symbol$iterator');
-      return { preservedSrc: `[${ symBinding }]: ${ nodeSrc(outerProp.value) }` };
+      return { preservedSrc: `[${ symBinding }]: ${ nodeSrc(outer.prop.value) }` };
     }
-    const name = outerProp.type === 'Property' ? flattenKeyName(outerProp) : null;
-    if (name === null) return { preservedSrc: nodeSrc(outerProp) };
-    const value = peelInnerDefault(outerProp.value);
-    if (value?.type === 'ObjectPattern') {
-      const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
-        ? planOuterProp
-        : innerProp => planInnerProp(innerProp, name);
-      return foldNestedPattern(outerProp, value, planChild);
-    }
-    if (value?.type === 'Identifier') {
-      const pure = resolveGlobalPolyfill(name);
-      if (!pure) return { preservedSrc: nodeSrc(outerProp) };
-      return {
-        extractions: [{ entry: pure.entry, hint: pure.hintName, localName: value.name }],
-        preservedSrc: null,
-      };
-    }
-    return { preservedSrc: nodeSrc(outerProp) };
+    if (outer.kind === 'rebuilt') return renderRebuiltNestedProp(outer);
+    return { preservedSrc: nodeSrc(outer.prop) };
   }
 
-  // fold an ObjectPattern-valued outer prop: plan each child, concat extractions,
-  // rebuild preserved shape. empty extractions -> bail as opaque; all consumed -> null
-  // preservedSrc (caller drops the prop); partial -> `name: { a, b }` with survivors.
-  // inner-level RestElement (`{ Array: { from, ...rest } }`) needs sentinel exclusion: rest
-  // gathers all OTHER own keys, so a fully-consumed key without placeholder would change
-  // runtime semantics (`rest.from` becomes defined, originally excluded). mirrors the
-  // outer-level treatment in `rewriteDeclarator`
-  function foldNestedPattern(outerProp, innerPattern, planChild) {
-    // innerPattern defaults to outerProp.value when not provided - back-compat for callers
-    // that don't peel AssignmentPattern themselves
-    const pattern = innerPattern ?? outerProp.value;
-    const extractions = [];
+  // reassemble a partially-consumed nested prop as `<key>: { <survivors> }`. a consumed
+  // child under an inner RestElement keeps a `key: _unused` sentinel - rest gathers all
+  // OTHER own keys, so dropping a fully-consumed key would change runtime semantics
+  // (`rest.from` becomes defined, originally excluded); mirrors the outer-level treatment
+  // in `rewriteDeclarator`. residual targets re-anchor the natural visitor's rewrites of
+  // VERBATIM surviving children (e.g. a default `other = [1].at(0)`) into the rebuilt
+  // string - else they leak native APIs in usage-pure. `dstStart` is the offset INSIDE
+  // the rebuilt string; the outer rewriteDeclarator loop shifts it by this prop's offset
+  // in the outer `{ ... }` text
+  function renderRebuiltNestedProp(outer) {
     const preservedInner = [];
-    // residual targets for the VERBATIM surviving inner children of this partially-consumed nested
-    // prop. their polyfillable content (e.g. a default `other = [1].at(0)`) is baked into the rebuilt
-    // `key: { ... }` string below, so the natural visitor's rewrite must be re-anchored there - else
-    // it leaks native APIs in usage-pure. `dstStart` is the offset INSIDE the rebuilt string; the
-    // outer rewriteDeclarator loop shifts it by this prop's offset in the outer `{ ... }` text
     const residualTargets = [];
-    const innerHasRest = pattern.properties.some(p => p.type === 'RestElement');
+    const innerHasRest = outer.pattern.properties.some(p => p.type === 'RestElement');
     // running offset into the rebuilt `<key>: { ... }` text: opens with `<key>: { ` before the first
     // entry, each preserved entry is followed by `, ` except the last
-    let dstOffset = `${ flattenKeySrc(outerProp) }: { `.length;
-    for (const child of pattern.properties) {
-      const e = planChild(child);
+    let dstOffset = `${ flattenKeySrc(outer.prop) }: { `.length;
+    for (const childPlan of outer.children) {
+      const child = childPlan.prop;
+      const e = renderOuterPlan(childPlan);
       let emitted = null;
-      if (e.extractions?.length) {
-        extractions.push(...e.extractions);
-        if (innerHasRest && e.preservedSrc === null && child.type === 'Property' && child.key?.name) {
-          emitted = `${ child.key.name }: ${ injector.generateUnusedName() }`;
-        }
+      if (childPlan.extractions?.length && innerHasRest && e.preservedSrc === null && child.key?.name) {
+        emitted = `${ child.key.name }: ${ injector.generateUnusedName() }`;
       }
       if (e.preservedSrc !== null && e.preservedSrc !== undefined) {
         emitted = e.preservedSrc;
@@ -1366,33 +1175,10 @@ export function createDestructureEmitter({
         dstOffset += emitted.length + 2;
       }
     }
-    if (!extractions.length) return { preservedSrc: nodeSrc(outerProp) };
-    if (!preservedInner.length) return { extractions, preservedSrc: null };
-    return { extractions, preservedSrc: `${ flattenKeySrc(outerProp) }: { ${ preservedInner.join(', ') } }`, residualTargets };
-  }
-
-  // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on
-  // `Array`. only simple Identifier values; rest / default / non-Identifier / unknown
-  // keys fall back to `preservedSrc`. uses the bare `resolveBuiltIn` meta resolver first
-  // to filter instance kind - `resolvePure` with no path would crash on `enhanceMeta`'s
-  // `isMemberLike(path)` for instance resolutions
-  function planInnerProp(prop, receiverName) {
-    // side-effecting computed keys never reach the flatten (they route to the residual via
-    // `tryHandleSideEffectKeyDeclaration`), so only a static-string / Identifier key resolves here
-    const name = prop.type === 'Property' ? flattenKeyName(prop) : null;
-    if (name === null) return { preservedSrc: nodeSrc(prop) };
-    // accept `{ from }`, `{ from: alias }`, `{ from = default }`, `{ from: alias = default }`.
-    // user's default is dropped: polyfill is always defined, the user's default would be
-    // dead code (fires only on undefined property, which polyfill rules out)
-    const valueNode = propBindingIdentifier(prop.value);
-    if (!valueNode) return { preservedSrc: nodeSrc(prop) };
-    const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
-    if (resolveBuiltIn(meta)?.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
-    const pure = resolvePure(meta);
-    if (!pure || pure.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
     return {
-      extractions: [{ entry: pure.entry, hint: pure.hintName, localName: valueNode.name }],
-      preservedSrc: null,
+      extractions: outer.extractions,
+      preservedSrc: `${ flattenKeySrc(outer.prop) }: { ${ preservedInner.join(', ') } }`,
+      residualTargets,
     };
   }
 
@@ -1510,27 +1296,30 @@ export function createDestructureEmitter({
     // rebuilt object pattern back into the ORIGINAL LHS text so the wrapper survives and rest
     // keeps reading the matching init element (`[{...rest}] = [R]`); the init side needs nothing:
     // `receiverEmitSrc` falls back to the verbatim whole-init tail for non-proxy receivers
-    const lhsPrefix = declarator.id !== plan.pattern ? nodeSrc({ start: declarator.id.start, end: plan.pattern.start }) : '';
-    const lhsSuffix = declarator.id !== plan.pattern ? nodeSrc({ start: plan.pattern.end, end: declarator.id.end }) : '';
+    // an ANCHORED residual drops the hop wrapper entirely (`{ Map: { custom } }` ->
+    // `{ custom } = _Map`), so no LHS slices survive; the anchor gate excludes array wrappers
+    const keepsWrapper = !plan.anchor && declarator.id !== plan.pattern;
+    const lhsPrefix = keepsWrapper ? nodeSrc({ start: declarator.id.start, end: plan.pattern.start }) : '';
+    const lhsSuffix = keepsWrapper ? nodeSrc({ start: plan.pattern.end, end: declarator.id.end }) : '';
     // running offset into the rebuilt `<lhsPrefix>{ ... }<lhsSuffix> = init` text: the object
     // pattern opens with `{ ` past the wrapper prefix, each emitted prop is followed by `, `
     // except the last
     let dstOffset = lhsPrefix.length + 2;
     for (let i = 0; i < plan.outerProps.length; i++) {
-      const outer = plan.outerProps[i];
+      const outer = renderOuterPlan(plan.outerProps[i]);
       for (const e of outer.extractions ?? []) {
         extractions.push(emitOuterExtraction(e, scope, receiverEmitSrc));
       }
       let emitted = null;
       if (outer.preservedSrc !== null) {
         emitted = outer.preservedSrc;
-        // verbatim source slice (planOuterProp returned `nodeSrc(prop)`): a residual sibling
-        // whose inner polyfillable content the natural visitor must still rewrite
+        // verbatim source slice (a 'verbatim' plan node): a residual sibling whose inner
+        // polyfillable content the natural visitor must still rewrite
         const sourceProp = plan.pattern.properties[i];
         if (sourceProp && emitted === nodeSrc(sourceProp)) {
           residualTargets.push({ srcStart: sourceProp.start, srcEnd: sourceProp.end, dstStart: dstOffset });
         } else if (outer.residualTargets?.length) {
-          // partially-consumed NESTED prop: foldNestedPattern rebuilt `key: { ... }` and reported the
+          // partially-consumed NESTED prop: the rebuilt `key: { ... }` string reported the
           // residual targets of its surviving inner children (relative to that string). the string sits
           // at `dstOffset` in the outer `{ ... }` text, so shift each target in - without this the inner
           // survivors' polyfillable content leaks native (the U01 nested-residual drop)
@@ -1555,9 +1344,22 @@ export function createDestructureEmitter({
         const eq = last.decl.indexOf(' = ');
         last.decl = `${ last.decl.slice(0, eq) } = (${ sePrefix }, ${ last.decl.slice(eq + 3) })`;
       }
-      return { extractions, preservedSrc: null, receiver: plan.receiver, residualTargets: [], discardSeNode: plan.discardSe ?? null };
+      return {
+        extractions, preservedSrc: null, receiver: plan.receiver, residualTargets: [],
+        discardSeNode: plan.discardSe ?? null, anchored: !!plan.anchor,
+      };
     }
-    const initSrc = receiverEmitSrc();
+    // anchored residual reads through the CONSTRUCTOR binding (`= _Map` - patch-visible for
+    // mutated statics, defined on missing-global targets), or a member off the proxy's own
+    // binding when the ctor has no whole-constructor pure entry (`= _globalThis.Math`)
+    let initSrc;
+    if (plan.anchor) {
+      if (plan.anchorPure) initSrc = injectPureImport(plan.anchorPure.entry, plan.anchorPure.hintName);
+      else {
+        const proxyPure = resolveGlobalPolyfill(plan.receiver);
+        initSrc = `${ proxyPure ? injectPureImport(proxyPure.entry, proxyPure.hintName) : plan.receiver }.${ plan.anchor }`;
+      }
+    } else initSrc = receiverEmitSrc();
     const preservedSrc = `${ lhsPrefix }{ ${ preservedOuter.join(', ') } }${ lhsSuffix } = ${ initSrc }`;
     // init tail kept verbatim (receiver not polyfilled, e.g. a static-object receiver): its
     // polyfillable contents stay visible to the natural visitor like a residual prop
@@ -1574,6 +1376,7 @@ export function createDestructureEmitter({
       receiver: plan.receiver,
       residualTargets,
       discardSeNode: plan.discardSe ?? null,
+      anchored: !!plan.anchor,
     };
   }
 
@@ -1581,7 +1384,7 @@ export function createDestructureEmitter({
   // discard the declarator's init, so `_globalThis` injection can be suppressed
   function canFullyConsumeProxyDeclarator(d, scope, usePath = null) {
     const plan = planDeclarator(d, scope, usePath);
-    return !!plan && plan.outerProps.every(p => p.preservedSrc === null);
+    return !!plan && plan.outerProps.every(p => p.kind === 'consumed');
   }
 
   // sibling-side companion of `rewriteDeclarator` for multi-decl flatten.
@@ -1995,6 +1798,16 @@ export function createDestructureEmitter({
       // preceding statement impossible (loop header) or unsafe (multi-declarator instance receiver bound
       // earlier in the same declaration -> TDZ) - append a trailing sibling declarator instead
       transforms.insert(declaration.declarations.at(-1).end, `, ${ localId.name } = ${ polyfillSrc }`);
+    } else if (flattenedNestedDecls.has(declaration)) {
+      // a flatten already claimed this declaration (a sibling branch dispatched first): a
+      // standalone start-anchored insert would land ABOVE the flatten's whole-range render,
+      // reordering the extractions against source order. append into the claimed slot's
+      // extraction list instead - the flatten render emits it in plan order
+      const entry = pendingFlatten.find(f => f.declaration === declaration);
+      const idx = entry ? declaration.declarations.findIndex(
+        d => d.start <= propNode.start && propNode.end <= d.end) : -1;
+      if (!entry || idx === -1) return false;
+      entry.perDecl[idx].extractions.push({ decl: `${ localId.name } = ${ polyfillSrc }` });
     } else {
       // an EXPORTED declaration: emit the extract as its own `export const` BEFORE the `export` keyword,
       // so the original destructure keeps its export (any real sibling binding stays exported). inserting
@@ -2170,27 +1983,12 @@ export function createDestructureEmitter({
     if (skippedNodes.has(propNode)) return true;
     const localId = propBindingIdentifier(propNode.value);
     if (!localId) return false;
-    // caller-lossiness containment (babel-twin contract): body-extract stays for a prop of the
-    // param-level pattern itself (param default, IIFE caller-arg patterns); nested /
-    // array-wrapped props keep the caller-passed argument via the inline default instead
-    const patternParentType = propPath.parentPath?.parentPath?.node?.type;
-    if (patternParentType === 'Property' || patternParentType === 'ObjectProperty'
-      || patternParentType === 'ArrayPattern') return false;
-    // same contract as babel's twin: only extract when the name is bound by the pattern itself
-    // (parameter binding, removed together with the prop). an assignment-form target is bound
-    // by an OUTER declaration that stays - a body `let` would redeclare it (SyntaxError)
-    const existingBinding = propPath.scope.getBinding(localId.name);
-    if (existingBinding && existingBinding.identifierPath?.node !== localId) return false;
-    const fnPath = findEnclosingFunctionLikePath(propPath);
-    if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return false;
-    // a sibling param / in-pattern default that reads this binding (`{ of, dflt = of }`,
-    // `({ of } = R, y = of)`) evaluates in param scope; relocating the binding into a body
-    // `let` would strand that read. fall through to inline-default, which keeps the binding
-    if (paramListReadsName(fnPath.node.params, localId.name)) return false;
-    // a parameter may be legally redeclared by a function-scoped `var <name>` / `function <name>(){}`
-    // in the body; emitting our body-top `let <name>` alongside it is a SyntaxError (`let`+`var`/
-    // `function` redeclare in one scope). bail to inline-default, which never introduces a `let`
-    if (functionScopeBindsVarOrFunction(fnPath.node, localId.name)) return false;
+    // the qualification chain (caller-lossiness containment / foreign-binding redeclare /
+    // block body / param-scope reads / var-redeclare) lives in the shared provider gate so
+    // both emitters bail on exactly the same shapes
+    const qualified = qualifiesForParamBodyExtract({ propPath, localId });
+    if (!qualified) return false;
+    const { fnPath } = qualified;
     // place `let X = _polyfill;` AFTER any leading directive prologue (`"use strict"`,
     // `"use asm"`, custom directives) - inserting at body.start+1 would push the
     // directive past position 0 and silently flip the function to sloppy mode
@@ -2424,7 +2222,11 @@ export function createDestructureEmitter({
       if (initNode && !mayHaveSideEffects(initNode)) markInitGlobals(initNode);
     }
     const pending = pendingDestructuring.get(objectPattern);
-    pending.entries.push({ propNode, localName, binding, kind, defaultSrc });
+    // the catch default-guard test ref is minted NOW (prop visit, before the default
+    // subtree's inner memo refs) so numbering matches babel's pre-order minting; the
+    // post-traverse render just consumes it
+    const testRef = isCatchClause && kind === 'instance' && defaultSrc ? injector.generateLocalRef() : null;
+    pending.entries.push({ propNode, localName, binding, kind, defaultSrc, testRef });
     // body-extract alias so post-rewrite narrowing resolves the local (`xs = from('hi');
     // xs.at(0)` -> array-specific helper) - the flatten channel registers the same alias
     // in its extraction emit; without it this channel's locals narrow to generic helpers
@@ -2513,9 +2315,8 @@ export function createDestructureEmitter({
   function catchEntryLetDecl(e, ref) {
     const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
     if (!e.defaultSrc) return `let ${ e.localName } = ${ valueSrc };`;
-    const testRef = e.kind === 'instance' ? injector.generateLocalRef() : null;
-    const rhs = defaultGuardedRhs({ valueSrc, defaultSrc: e.composedDefaultSrc, ref: testRef });
-    return `let ${ testRef ? `${ testRef }, ` : '' }${ e.localName } = ${ rhs };`;
+    const rhs = defaultGuardedRhs({ valueSrc, defaultSrc: e.composedDefaultSrc, ref: e.testRef });
+    return `let ${ e.testRef ? `${ e.testRef }, ` : '' }${ e.localName } = ${ rhs };`;
   }
 
   // catch clause: replace param with ref, insert polyfilled + remaining in source order.
@@ -2541,13 +2342,19 @@ export function createDestructureEmitter({
 
     const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
     const lines = [];
+    // non-entry props collect into ONE combined residual destructure emitted AFTER the
+    // extraction lines - the same extraction-first + single-residual shape the babel
+    // emission produces (per-prop residual lines re-read the receiver once per prop and
+    // diverge from the plan-canon `{ survivors } = init` residual). under rest they stay
+    // in the rebuilt pattern instead
+    const residualProps = [];
     for (const p of allProps) {
       if (p.type === 'RestElement' || p.type === 'SpreadElement') continue;
       const e = entryByProp.get(p);
-      // non-entry prop: emit the composed whole-prop slice (any polyfilled key / default baked in)
-      // so it survives the `_ref` overwrite. under rest it stays in the rebuilt pattern instead
+      // non-entry prop: the composed whole-prop slice (any polyfilled key / default baked
+      // in) survives the `_ref` overwrite through the combined residual
       if (!e) {
-        if (!hasRest) lines.push(`let { ${ composedRangeSrc(p) } } = ${ ref };`);
+        if (!hasRest) residualProps.push(composedRangeSrc(p));
         continue;
       }
       // `symbol-key` entries don't extract a value - the rebuilt pattern keeps the prop
@@ -2555,6 +2362,7 @@ export function createDestructureEmitter({
       if (e.kind === 'symbol-key') continue;
       lines.push(catchEntryLetDecl(e, ref));
     }
+    if (residualProps.length) lines.push(`let { ${ residualProps.join(', ') } } = ${ ref };`);
     if (hasRest) {
       const rebuiltProps = allProps.map(p => {
         const e = entryByProp.get(p);
@@ -2816,5 +2624,6 @@ export function createDestructureEmitter({
     applySynthSwaps,
     canFullyConsumeProxyDeclarator,
     handleDestructuringPure,
+    tryFlattenProxyHopHost,
   };
 }

@@ -1,6 +1,6 @@
-// the dead-tail drop applies only to statement-liftable hosts with fully-static patterns;
-// each line below violates one precondition and must keep the tail read alive:
-// a bodyless host can't lift the SE statement
+// the dead-tail drop applies to fully-static full-consume patterns; each line below
+// probes one boundary:
+// a bodyless host block-wraps and trims like any other lift
 if (cond) var { from } = (effB(), Array);
 // a for-init head can't host a statement-level SE
 for (var { of } = (effF(), Array); ; ) break;

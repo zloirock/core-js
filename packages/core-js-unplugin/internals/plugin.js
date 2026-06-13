@@ -20,7 +20,7 @@ import {
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
-import { POSSIBLE_GLOBAL_OBJECTS, createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
+import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
@@ -33,7 +33,7 @@ import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-t
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
-import { enumerateFallbackDestructureBranches, proxyHopDescent } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -181,17 +181,6 @@ function applyMinifierSequenceSplitPass(code, ast) {
   return mutated.toString();
 }
 
-// single-key proxy-hop destructure pre-pass (usage-pure): `{ K: {...} } = <proxy-global>`
-// rewrites to the flat `{...} = <proxy>.K` before any visitor walks the tree - the same
-// contract as babel-plugin's AST-level twin, but text-rewrite + re-parse so node positions
-// stay valid for downstream MagicString edits. the flat pipeline then re-anchors a residual
-// to the constructor binding (`{ customY } = _Map`) instead of reading the native key off
-// the proxy root (patch-visible for mutated statics, defined on missing-global targets).
-// the qualification decision lives in the shared `proxyHopDescent`; this pass only renders it.
-// a qualifying receiver roots at a proxy-global identifier in the source, so files without
-// any of those names skip the scope-crawling traverse entirely
-const PROXY_GLOBAL_NAME_RE = new RegExp(`\\b(?:${ [...POSSIBLE_GLOBAL_OBJECTS].join('|') })\\b`);
-
 // disable-directive state for a (code, ast, comments) snapshot: the offset->line mapper
 // plus the parsed line set. `disable-file` only counts above any code - a `'use strict'`
 // prologue can precede it, so directives before the cutoff are skipped. shared by the
@@ -203,47 +192,6 @@ function parseDisableState(code, ast, comments) {
   const firstNonDirective = ast.body.find(s => !isDirectiveStatement(s));
   const disabledLines = parseDisableDirectives({ comments, offsetToLine, firstStmtStart: firstNonDirective?.start, ast });
   return { offsetToLine, disabledLines };
-}
-
-function applyProxyHopNormalizePass(code, ast, adapter, comments) {
-  if (!PROXY_GLOBAL_NAME_RE.test(code)) return null;
-  // a disabled line opts out of ALL plugin output, including this pass's text reshaping
-  let disabledLines = null;
-  let offsetToLine = null;
-  if (code.includes('core-js-disable')) {
-    ({ offsetToLine, disabledLines } = parseDisableState(code, ast, comments));
-    if (disabledLines === true) return null;
-  }
-  const matches = [];
-  function collect(path) {
-    const { node } = path;
-    if (disabledLines !== null && disabledLines.has(offsetToLine(node.start))) return;
-    const isDecl = node.type === 'VariableDeclarator';
-    const pattern = isDecl ? node.id : node.left;
-    const init = isDecl ? node.init : node.right;
-    const hop = proxyHopDescent({ pattern, init, scope: path.scope, adapter, path });
-    if (!hop) return;
-    // a non-Identifier static key (string literal, resolved computed) re-emits as a
-    // computed string member so the synthesized read stays valid for any key spelling
-    const hopText = !hop.prop.computed && hop.prop.key.type === 'Identifier'
-      ? `.${ hop.key }` : `[${ JSON.stringify(hop.key) }]`;
-    matches.push({ pattern, inner: hop.pattern, initEnd: init.end, hopText });
-  }
-  traverse(ast, {
-    $: { scope: true },
-    VariableDeclarator: collect,
-    AssignmentExpression: collect,
-  });
-  if (!matches.length) return null;
-  const mutated = new MagicString(code);
-  // a qualifying init resolves to a bare proxy-global reference, so one match can never
-  // nest inside another - the rewrites stay disjoint and a single re-parse covers all
-  for (const m of matches) {
-    mutated.remove(m.pattern.start, m.inner.start);
-    mutated.remove(m.inner.end, m.pattern.end);
-    mutated.appendRight(m.initEnd, m.hopText);
-  }
-  return mutated.toString();
 }
 
 // codeframe is preferred (ASCII pointer with line:col baked in); labels are the fallback so
@@ -503,27 +451,6 @@ export default function createPlugin(options) {
     // with an empty body - same shape (id / params / async / generator), scope walker handles
     // it as a regular fn, `resolveParametersParams` still reads params for `Parameters<typeof fn>[N]`
     neutralizeTSDeclareFunctions(ast);
-
-    // single-key proxy-hop normalization (after neutralize - the pass crawls scopes; one
-    // pass suffices: a rewritten init becomes a member chain, which no longer qualifies)
-    if (method === 'usage-pure') {
-      const normalizedCode = applyProxyHopNormalizePass(code, ast, estreeAdapter, comments);
-      if (normalizedCode !== null) {
-        // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-        const reparsed = parseSync(cleanId, normalizedCode, { sourceType: isCJSFile ? 'script' : 'module' });
-        const [reparseFatal] = reparsed.errors?.filter(e => e.severity === 'Error') ?? [];
-        // reparse failure shouldn't happen (the rewrite preserves statement structure);
-        // keep the last good code+ast and let the nested-residual handling cover the shape
-        if (!reparseFatal) {
-          if (preSplitCode === null) preSplitCode = code;
-          code = normalizedCode;
-          ast = reparsed.program;
-          comments = reparsed.comments;
-          typeResolvers.reset();
-          neutralizeTSDeclareFunctions(ast);
-        }
-      }
-    }
 
     // source wins over extension: a `.cjs`/`.cts` with top-level ESM (oxc parses tolerantly)
     // must emit `import`, or bundlers reject the mixed output
@@ -877,6 +804,7 @@ export default function createPlugin(options) {
           injectPureImport,
           injector,
           isBodylessStatementBody,
+          isDisabled,
           nodeSrc,
           resolveGlobalPolyfill,
           resolvePure,
@@ -889,6 +817,7 @@ export default function createPlugin(options) {
           applySynthSwaps,
           canFullyConsumeProxyDeclarator,
           handleDestructuringPure,
+          tryFlattenProxyHopHost,
         } = destructureEmitter;
 
         const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
@@ -1106,7 +1035,11 @@ export default function createPlugin(options) {
             for (const d of path.node.declarations) {
               if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) skippedNodes.add(d.init);
             }
+            // unconditional proxy-hop trigger (the retired normalize pre-pass's job): an
+            // anchored plan must fire even when no leaf resolves
+            tryFlattenProxyHopHost(path);
           },
+          AssignmentExpression(path) { tryFlattenProxyHopHost(path); },
         }, createUsageVisitors({
           adapter: estreeAdapter,
           onUsage: usagePureCallback,
