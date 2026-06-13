@@ -30,6 +30,7 @@ import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
 export function createGlobalResolve({
   t,
+  getScopeBinding,
   isMemberLike,
   keyMatchesName,
   resolveMemberPropertyName,
@@ -44,8 +45,11 @@ export function createGlobalResolve({
   // but at RUNTIME those declarations are elided by tsc and `name` falls through to the
   // global. without the filter, `declare const Map: any; new Map()` reads as
   // "Map shadowed locally -> not global" and the polyfill emit suppression breaks
-  function hasRuntimeBinding(scope, name) {
-    const binding = scope?.getBinding(name);
+  // `path` is the use site: routed through the hook so an over-hoisted `namespace N {}` /
+  // `declare global {}` binding does not read as a local shadow of the global for a use OUTSIDE
+  // the block (estree side). babel's default hook is the raw lookup, so this stays a no-op there
+  function hasRuntimeBinding(scope, name, path = null) {
+    const binding = getScopeBinding(scope, name, path);
     if (!binding) return false;
     return !isAmbientBindingShape(binding.path?.node, binding.path?.parent);
   }
@@ -128,7 +132,7 @@ export function createGlobalResolve({
     const walked = resolveRuntimeExpression(path);
     const node = walked?.node;
     if (!node || node === path.node || !t.isIdentifier(node)) return null;
-    if (hasRuntimeBinding(walked.scope, node.name)) return null;
+    if (hasRuntimeBinding(walked.scope, node.name, walked)) return null;
     return resolveKnownConstructor(node.name) ? node.name : null;
   }
 
@@ -138,7 +142,7 @@ export function createGlobalResolve({
   // `Array.from(...)` loses its return-type narrow because `Array` shows a local binding and
   // `resolveAliasedGlobalName` bails at `followableVarInit` on ObjectPattern ids
   function resolveDestructuredGlobalName(path) {
-    const binding = path.scope?.getBinding(path.node.name);
+    const binding = getScopeBinding(path.scope, path.node.name, path);
     const declarator = binding?.path?.node;
     if (!declarator || binding.constantViolations?.length || !t.isVariableDeclarator(declarator)) return null;
     if (declarator.id?.type !== 'ObjectPattern' || !declarator.init) return null;
@@ -165,7 +169,7 @@ export function createGlobalResolve({
   function resolveGlobalName(path) {
     path = peelParenthesizedPath(path);
     if (t.isIdentifier(path.node)) {
-      if (!hasRuntimeBinding(path.scope, path.node.name)) return path.node.name;
+      if (!hasRuntimeBinding(path.scope, path.node.name, path)) return path.node.name;
       return resolveAliasedGlobalName(path) ?? resolveDestructuredGlobalName(path);
     }
     if (!isMemberLike(path)) return null;
@@ -206,7 +210,7 @@ export function createGlobalResolve({
         : null;
     }
     if (!t.isIdentifier(path.node)) return null;
-    const binding = path.scope?.getBinding(path.node.name);
+    const binding = getScopeBinding(path.scope, path.node.name, path);
     if (!binding || binding.constantViolations?.length) return null;
     if (!isDestructuredAsPrototype(binding.path, path.node.name)) return null;
     return knownConstructorAt(binding.path.get('init'));
