@@ -2443,11 +2443,14 @@ export function createDestructureEmitter({
     // the `self` in `globalThis.self.Array`), not just the root id: keeping `.self` would read an
     // undefined property off the global object on hosts without it (`_globalThis.self` on ie:11
     // pure / Node), breaking the emitted receiver across the target range
-    const prefixEnd = maximalProxyGlobalPrefix(target).end;
-    // slice from the WRAPPER-inclusive root start, not the peeled identifier's: for a
-    // parenthesized root (`(globalThis).self.Array`) the identifier start lies after the `(`,
-    // so `src.slice(0, start)` would keep a dangling open paren while `prefixEnd` drops its match
+    // remove [wrapper-inclusive root start, wrapper-symmetric end). the start spans a wrapper
+    // sitting DIRECTLY around the bare root (`(globalThis)` -> the `(`), so the peeled-identifier
+    // start would leave a dangling open paren. the end must be symmetric: a bare root's
+    // `maximalProxyGlobalPrefix` ends BEFORE the matching `)`, so without the `max` the close paren
+    // dangles (`_globalThis).Array`; an SE-prefixed root doubles it). a proxy-hop prefix
+    // (`(globalThis).self`) ends past the wrapper, so `max` keeps that wider span unchanged
     const wrappedRoot = proxyGlobalWrappedRoot(target);
+    const prefixEnd = Math.max(maximalProxyGlobalPrefix(target).end, wrappedRoot.end);
     const start = wrappedRoot.start - baseStart;
     // SE prefixes buried in the root wrapper keep evaluating (root-first order):
     // `(eff(), globalThis).self.X` collapses to `(eff(), _globalThis).X`, not `_globalThis.X`
