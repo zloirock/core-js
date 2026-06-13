@@ -208,6 +208,13 @@ const EXPR_FAMILIES = {
     'globalThis.Array.from(globalThis.Array.of(1, 2))',
   ],
   'destructure-edge': [
+    // single-ctor-key hop ANCHOR: an unresolvable leaf re-anchors the residual to the ctor
+    // binding (zero-extraction included - the re-anchored read IS the output), a resolvable
+    // sibling still extracts; a multi-key outer keeps the proxy-root residual
+    '(() => { const { Map: { noSuchStatic } } = globalThis; return typeof noSuchStatic; })()',
+    '(() => { const { Map: { groupBy, noSuchStatic } } = globalThis; return [typeof groupBy, typeof noSuchStatic]; })()',
+    '(() => { const { Map: { noSuchStatic }, Promise: p } = globalThis; return [typeof noSuchStatic, typeof p]; })()',
+    '(() => { let n; ({ Map: { noSuchStatic: n } } = globalThis); return typeof n; })()',
     '(() => { const { from = null } = Array; return typeof from; })()',
     '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
     '(() => { const { ["from"]: f } = Array; return typeof f; })()',

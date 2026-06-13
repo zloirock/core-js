@@ -8,8 +8,9 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 // plugin hoists an entry's extraction above the residual destructure, so a non-entry polyfilled
 // key placed before the entry would reorder the ops between the two plugins. regression lock
 try {} catch (_ref) {
-  var _ref2, _ref3, _ref4;
-  let it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? _flatMaybeArray(_ref4 = [9]).call(_ref4) : _ref2;
+  var _ref3, _ref4;
+  let _ref2,
+    it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? _flatMaybeArray(_ref4 = [9]).call(_ref4) : _ref2;
   let {
     [_atMaybeArray(_ref3 = [1]).call(_ref3, 0)]: b
   } = _ref;

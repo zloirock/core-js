@@ -12,6 +12,9 @@ import {
   peelNestedSequenceExpressions,
   FUNCTION_LIKE_NODE_TYPES,
   FN_NODE_TYPES,
+  findEnclosingFunctionLikePath,
+  functionScopeBindsVarOrFunction,
+  paramListReadsName,
   destructureReceiverSlot,
   flattenableHostSlot,
   getFallbackBranchSlots,
@@ -316,6 +319,41 @@ export function planSideEffectKeyStrategy({ polyfillKind, isForInit, isMultiDecl
   // twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`)
   if (instance && !receiverIsSafe) return null;
   return { instance, siblingDeclarator: !!(isForInit || (isMultiDeclarator && instance)) };
+}
+
+// param body-extract qualification (the DECISION half of the body-extract fallback both
+// emitters render: `let <local> = _polyfill;` at function-body top + the prop removed /
+// sentineled). returns `{ fnPath }` (the enclosing function-like to host the binding) or
+// null when extraction is unsound:
+//   - caller-lossiness containment: body-extract IGNORES a caller-passed value (the
+//     documented cost), acceptable only for a prop of the param-level pattern itself
+//     (`function f({ x } = R)`, IIFE caller-arg patterns). a NESTED prop
+//     (`{ Array: { from } } = globalThis`) or an array-wrapped one (`[{ from }] = [Array]`)
+//     keeps the caller-passed argument via the inline default instead
+//   - the body-top `let <name>` SHADOWS a parameter binding (valid - the prop and its
+//     binding are removed together), but a name bound by an OUTER declaration that stays
+//     (an assignment-form target reaching this fallback through a non-flattenable host)
+//     would be redeclared by the body `let` (SyntaxError) - only extract when the name is
+//     bound by the pattern itself
+//   - no block body (expression-body arrow): no statement slot to host the binding
+//   - a sibling param / in-pattern default that reads this binding (`{ of, dflt = of }`,
+//     `({ of } = R, y = of)`) evaluates in param scope; relocating the binding into a body
+//     `let` would strand that read - the inline default keeps the binding instead
+//   - a function-scoped `var <name>` / `function <name>(){}` in the body legally redeclares
+//     a parameter; emitting our body-top `let <name>` alongside it is a SyntaxError
+// adapter-agnostic: babel exposes the binding's identifier at `binding.identifier`,
+// estree-toolkit at `binding.identifierPath.node` - fall through both shapes
+export function qualifiesForParamBodyExtract({ propPath, localId }) {
+  const patternParentType = propPath.parentPath?.parentPath?.node?.type;
+  if (patternParentType === 'Property' || patternParentType === 'ObjectProperty'
+    || patternParentType === 'ArrayPattern') return null;
+  const existingBinding = propPath.scope.getBinding(localId.name);
+  if (existingBinding && (existingBinding.identifier ?? existingBinding.identifierPath?.node) !== localId) return null;
+  const fnPath = findEnclosingFunctionLikePath(propPath);
+  if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return null;
+  if (paramListReadsName(fnPath.node.params, localId.name)) return null;
+  if (functionScopeBindsVarOrFunction(fnPath.node, localId.name)) return null;
+  return { fnPath };
 }
 
 // a receiver SAFE TO REFERENCE TWICE: the residual destructure reads it, and the extracted instance
@@ -654,38 +692,6 @@ function findShorthandKey(objectPattern, bindingName, scope, adapter) {
     }
   }
   return null;
-}
-
-// single-key proxy-hop destructure: `{ K: <ObjectPattern> } = <proxy-global>` reads the
-// global K and then destructures from it - semantically the flat `<pattern> = <proxy>.K`.
-// owns the WHOLE qualification decision; emitters only render the normalization (babel
-// mutates the AST, unplugin rewrites text + re-parses). returns `{ prop, key, pattern }`
-// (the hop Property, its resolved static key name, the inner ObjectPattern) when:
-// exactly one Property whose key statically resolves to a non-proxy global-constructor
-// name, a non-empty (default-peeled) ObjectPattern value, an effect-free init resolving
-// to a proxy-global receiver. the normalized flat form re-anchors a residual to the
-// constructor binding instead of reading the native key off the proxy root (patch-visible
-// for mutated statics, defined on missing-global targets). a default on the hop prop is
-// dead code - the global key is always defined on target engines - matching the
-// nested-flatten's existing inner-default treatment. an SE-bearing init keeps the nested
-// handling: a member synthesized off a sequence would change the receiver shape the
-// SE-lift machinery expects
-export function proxyHopDescent({ pattern, init, scope, adapter, path }) {
-  if (!init || pattern?.type !== 'ObjectPattern' || pattern.properties.length !== 1) return null;
-  // an assignment host qualifies only where its VALUE is discarded (statement context):
-  // `({ K: inner } = G)` evaluates to G, the normalized `(inner = G.K)` to G.K - a used
-  // value would silently change from the proxy object to the hop member
-  if (flattenableHostSlot(path?.node, path) === null) return null;
-  const [prop] = pattern.properties;
-  if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
-  const key = sharedResolveKey({ node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true });
-  if (!key || POSSIBLE_GLOBAL_OBJECTS.has(key) || !isStaticPlacement(key)) return null;
-  const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-  if (value?.type !== 'ObjectPattern' || !value.properties.length) return null;
-  if (mayHaveSideEffects(init)) return null;
-  const receiver = resolveObjectName({ objectNode: init, scope, adapter, path });
-  if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
-  return { prop, key, pattern: value };
 }
 
 // walks the outer-prop chain (Property / ObjectProperty -> ObjectPattern -> ...) up to

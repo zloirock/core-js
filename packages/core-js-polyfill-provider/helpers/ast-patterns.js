@@ -3190,6 +3190,16 @@ export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
 // of scope; per-file plugin instances each see fresh nodes anyway. documented for parity check
 const SIDE_EFFECTS_CACHE = new WeakMap();
 const SIDE_EFFECTS_MAX_DEPTH = 256;
+// the dead-tail policy for a lifted sequence: once a destructure consumed every binding,
+// trailing EFFECT-FREE expressions of the lifted init are unread - pop them so the emitted
+// statement keeps only the effects (`(se(), (0, Array))` lifts as `se();`). shared by both
+// emitters so the trim canon lives once; callers pass an already-flattened expression list
+export function dropDeadSequenceTail(expressions) {
+  const out = [...expressions];
+  while (out.length > 1 && !mayHaveSideEffects(out.at(-1))) out.pop();
+  return out;
+}
+
 export function mayHaveSideEffects(node) {
   if (!node) return false;
   if (SIDE_EFFECTS_CACHE.has(node)) return SIDE_EFFECTS_CACHE.get(node);
