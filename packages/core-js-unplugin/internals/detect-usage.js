@@ -39,6 +39,7 @@ import {
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
   resolveCallArgument,
+  synthVarHoistBinding,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -174,6 +175,35 @@ function isOverHoistedNamespaceBinding(native, path) {
   return !!block && !pathContainedBy(path, block);
 }
 
+// estree-toolkit FALSELY records a DECLARATION as a constant-violation babel never does: a
+// same-named `namespace N {}` / `declare global {}` twin (over-hoisted onto the real binding), and a
+// for-init `let`/`const` recording its own declarator. both surface as an Identifier that is the
+// `id` of a declaration node (any kind: VariableDeclarator / FunctionDeclaration / ClassDeclaration /
+// enum ...), never a write. drop exactly those PATH-PRESERVING (a real reassignment's parent is an
+// Assignment/Update/for-x head, and `findPrecedingBlockAssignment` still reads the real write paths),
+// so the resolver's reassignment gates stop bailing on a phantom. estree-only - babel's default hook
+// keeps the raw list (babel scopes namespaces correctly). a declaration's name-id is phantom iff it
+// is EITHER the binding's own declaration (for-init self) OR over-hoisted from a namespace block; a
+// same-scope `function`/`class` redeclaration is neither, so its real last-wins shadow is kept
+// (a same-scope `var` redecl records no violation; a `let`/`const` one is a SyntaxError)
+function isPhantomDeclarationViolation(violation, binding) {
+  const declPath = violation?.parentPath;
+  const decl = declPath?.node;
+  if (!decl || decl.id !== violation.node) return false;
+  return decl === binding?.path?.node || !!namespaceScopedBindingBlock({ path: declPath });
+}
+export function withoutPhantomDeclarationViolations(binding) {
+  const violations = binding.constantViolations;
+  if (!violations?.length) return binding;
+  const real = violations.filter(v => !isPhantomDeclarationViolation(v, binding));
+  if (real.length === violations.length) return binding;
+  // spread (own props), NOT Object.create: a resolver consumer re-spreads the binding
+  // (`{ ...binding, constantViolations: combined }`) and would lose a prototype-inherited
+  // `path` / `scope` / `kind`. carry `constant` explicitly too - it is a prototype getter on the
+  // estree Binding (not copied by spread) and `constantBindingPath` reads it
+  return { ...binding, constantViolations: real, constant: real.length === 0 };
+}
+
 function hasRuntimeBinding(scope, name, path = null) {
   // pass `path` through to `scope.hasBinding` / `scope.getBinding`: native estree-toolkit
   // scopes ignore the extra arg (their signature is name-only), but `makeFrameScope` uses
@@ -261,25 +291,13 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // a namespace-local binding over-hoisted by estree-toolkit doesn't reach an out-of-namespace
       // use: drop it so the boundary-respecting var-hoist fallback governs (matches babel)
       if (isOverHoistedNamespaceBinding(b, path)) b = null;
-      if (!b) {
-        // var-hoist fallback (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var`
-        // from a nested non-function block to its function scope, so `function f(){ if (c) {
-        // var g = globalThis } g.Map.groupBy(...) }` finds no native binding and the proxy-global
-        // alias is lost (babel hoists the var natively, so the two pipelines diverge here). surface a synthetic
-        // binding off the declarator found by walking `path` ancestors so alias resolution can
-        // read its `.init`. path-less callers get null. surface the reassignment sites
-        // too (babel's native binding carries them): without `constantViolations` the resolver's
-        // reassignment guard never fires for a REASSIGNED nested-block var, resolving it to the
-        // global where babel bails (over-inject / wrong pure rewrite dropping the receiver)
-        const declarator = path ? findFunctionScopeVarDeclaratorInPath(path, name) : null;
-        return declarator ? {
-          node: declarator,
-          kind: 'var',
-          constantViolations: collectFunctionScopeVarReassignments(path, name),
-          importSource: null,
-          polyfillHint: null,
-        } : null;
-      }
+      // var-hoist fallback (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var` from a
+      // nested non-function block to its function scope, so `function f(){ if (c) { var g =
+      // globalThis } g.Map.groupBy(...) }` finds no native binding and the proxy-global alias is
+      // lost (babel hoists the var natively, so the two pipelines diverge here). surface a synthetic
+      // binding off the declarator + its reassignment sites so alias resolution reads its `.init`
+      // and the resolver's reassignment guard fires for a REASSIGNED nested-block var
+      if (!b) return synthVarHoistBinding(path, name);
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
       // raw module source at this interface is deliberate - not a leak, just the minimum
@@ -311,10 +329,15 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // estree-toolkit also omits a cross-boundary `let` reassignment (a use in a nested closure does
       // not observe the outer-scope write `let K='a'; K='b'; const f=()=>X[K]()`), so a polyfillable
       // reaching value is dropped while babel's native binding carries it. recompute by the same AST
-      // scan, anchored at the `let`'s own lexical scope (climb the declarator to its block / program)
+      // scan, anchored at the binding's own lexical scope (climb the declarator to its block /
+      // program). `const` shares the lexical-scope recompute with `let`: a const cannot be reassigned,
+      // so the only violations estree records for it are PHANTOM (an over-hoisted `namespace N {}`
+      // twin's declarator, or a for-init `const` self) - the boundary-respecting scan excludes them,
+      // matching babel; without this a const shadowed by a namespace twin keeps the phantom and a
+      // resolvable use (e.g. a computed key `obj[K]`) wrongly bails
       const constantViolations = !path ? b.constantViolations
         : b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
-          : b.kind === 'let' ? collectScopeLetReassignments(b.path, name)
+          : b.kind === 'let' || b.kind === 'const' ? collectScopeLetReassignments(b.path, name)
             : b.constantViolations;
       return {
         node: b.path.node,
