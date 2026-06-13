@@ -219,6 +219,24 @@ const EXPR_FAMILIES = {
     '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
     '(() => { const { ["from"]: f } = Array; return typeof f; })()',
     '(() => { const { [(log.push("k"), "from")]: f } = Array; return typeof f; })()',
+    // a side-effecting computed key in a CATCH param rides the catch extraction: the binding
+    // takes the dispatcher, the key survives in the residual (effect once), a user default is
+    // dead ("polyfill always wins") and rest still gathers the remaining props
+    '(() => { try { throw [1, 2]; } catch ({ [(log.push("k"), "at")]: v }) { return typeof v; } })()',
+    '(() => { try { throw [[1]]; } catch ({ [(log.push("k"), "flat")]: v, message }) { return [typeof v, typeof message]; } })()',
+    '(() => { try { throw [1]; } catch ({ [(log.push("k"), "includes")]: v = (log.push("dead"), 7) }) { return typeof v; } })()',
+    '(() => { try { throw { a: 1, b: 2 }; } catch ({ [(log.push("k"), "flatMap")]: v, ...rest }) { return [typeof v, Object.keys(rest).join(",")]; } })()',
+    // a memo-bearing sibling claims the whole-declaration render; the SE-key pair's trailing
+    // polyfill declarator must bake into the claimed render (key effect once, in source order)
+    // regardless of which declarator slot hosts the SE key (last / first / middle / loop header)
+    '(() => { const a = [1, 2], b = [[3]]; const { at } = (() => { log.push("r"); return a; })(), '
+      + '{ [(log.push("k"), "flat")]: f } = b; return [typeof at, typeof f, log.join("|")]; })()',
+    '(() => { const a = [1, 2], b = [[3]]; const { [(log.push("k"), "includes")]: i } = b, '
+      + '{ at } = (() => { log.push("r"); return a; })(); return [typeof i, typeof at, log.join("|")]; })()',
+    '(() => { const a = [1], b = [[2]], c = { tail: 9 }; const { at } = (() => { log.push("r"); return a; })(), '
+      + '{ [(log.push("k"), "flat")]: f } = b, { tail } = c; return [typeof at, typeof f, tail, log.join("|")]; })()',
+    '(() => { const a = [1], b = [[2]]; let out; for (const { at } = (() => { log.push("r"); return a; })(), '
+      + '{ [(log.push("k"), "flat")]: f } = b; !out;) { out = [typeof at, typeof f]; } return [out, log.join("|")]; })()',
     // SE-bearing chain-root call in a flattenable init: the flatten harvests the discarded call
     // and re-emits it ahead of the extraction (setup runs once, polyfill still wins); the no-SE
     // twin flattens clean. covers the IIFE leaf, a member hop, and the proxy-global-receiver host
