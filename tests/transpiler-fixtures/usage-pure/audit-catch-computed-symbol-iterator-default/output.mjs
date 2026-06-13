@@ -4,7 +4,7 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 // that uses const-binding; here the binding lives in catch parameter scope which
 // triggers the `_ref`-rename + hoisted `_ref2` temp pattern
 try {} catch (_ref) {
-  var _ref2;
-  let it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? fallback : _ref2;
+  let _ref2,
+    it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? fallback : _ref2;
   it();
 }

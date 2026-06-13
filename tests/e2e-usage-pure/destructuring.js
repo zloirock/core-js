@@ -1395,3 +1395,55 @@ QUnit.test('destructuring: optional proxy param default collapses hops', assert 
   assert.same(typeof entries, 'function');
   assert.same(entries({ a: 1 })[0][0], 'a');
 });
+
+// a rest-bearing destructuring ASSIGNMENT runs in strict module code: the rewrite's
+// `_unused` sentinel must be declared, or the assignment throws ReferenceError
+QUnit.test('destructuring: assignment rest sentinel is declared in strict code', assert => {
+  /* eslint-disable prefer-const -- the assignment-destructure form IS the case under test */
+  let resolve, rest;
+  ({ resolve, ...rest } = Promise);
+  let from, r2;
+  ({ Array: { from }, ...r2 } = globalThis);
+  /* eslint-enable prefer-const -- end of the assignment-destructure forms */
+  assert.same(typeof resolve, 'function');
+  assert.false('resolve' in rest);
+  assert.same(from([7]).length, 1);
+  assert.false('Array' in r2);
+});
+
+// a disable directive on a sibling LEAF of a nested-proxy flatten keeps that leaf NATIVE
+// while the enabled sibling still extracts its polyfill
+QUnit.test('destructuring: disable directive gates per leaf', assert => {
+  const {
+    Map: { groupBy },
+    // core-js-disable-next-line
+    Object: { groupBy: og },
+  } = globalThis;
+  assert.same(typeof groupBy, 'function');
+  // the disabled leaf reads the NATIVE static off the real global - absent natives stay
+  // absent (that is the point of the opt-out), so compare against an equally-raw read:
+  // the directive below keeps the right-hand side untranspiled on every engine
+  // core-js-disable-next-line
+  assert.same(og, Object.groupBy);
+});
+
+// multi-declarator hosts keep sibling evaluation order around the extracted slot:
+// pre-sibling effects run first, post-sibling after, receiver SE between
+QUnit.test('destructuring: multi-decl extraction keeps sibling slot order', assert => {
+  const log = [];
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the multi-declarator host IS the case under test
+  const a = (log.push('a'), 1), { Map: { groupBy } } = globalThis, b = (log.push('b'), 2);
+  assert.same(typeof groupBy, 'function');
+  assert.same(`${ log }`, 'a,b');
+  assert.same(a + b, 3);
+});
+
+// a for-init receiver side effect evaluates BEFORE the extracted bindings, exactly once
+QUnit.test('destructuring: for-init receiver SE runs first and once', assert => {
+  const log = [];
+  for (const { from, of } = (log.push('se'), Array), state = { i: 0 }; state.i < 1; state.i++) {
+    assert.same(typeof from, 'function');
+    assert.same(of(1, 2).length, 2);
+  }
+  assert.same(`${ log }`, 'se');
+});
