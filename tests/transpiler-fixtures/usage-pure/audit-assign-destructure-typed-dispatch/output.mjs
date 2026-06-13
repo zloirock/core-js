@@ -13,6 +13,7 @@ let from;
 from = _Array$from;
 export const r1 = _atMaybeArray(_ref = from([1, 2])).call(_ref, 0);
 let keys, rest;
+var _unused;
 keys = _Object$keys;
 ({
   keys: _unused,

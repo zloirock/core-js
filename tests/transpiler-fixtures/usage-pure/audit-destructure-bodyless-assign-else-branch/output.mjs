@@ -4,6 +4,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // conditional on `!cond` rather than leaking to module scope.
 let from;
 if (cond) noop();else {
-  sideEffect(), Array;
+  sideEffect();
   from = _Array$from;
 }
