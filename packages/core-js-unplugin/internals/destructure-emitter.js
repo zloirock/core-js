@@ -213,6 +213,11 @@ export function createDestructureEmitter({
   // transforms.add to flush time lets us drain those inserts and bake them into the
   // pre-segment source first
   const pendingCascade = [];
+  // SE-key trailing polyfill declarators (`, f = _flat(arr)`) deferred to flush: whether the
+  // host declaration gets a whole-statement byStatement render is unknowable at the prop visit
+  // (the claiming sibling may not have been visited yet), and a raw end-anchored insert under a
+  // claim either trips the insert-inside-overwrite invariant or bakes INTO a wrapped init render
+  const pendingSeKeyTrailing = [];
   // declarator node -> its skipped pendingDestructuring info, for declarators that share a
   // VariableDeclaration with a proxy-global flatten declarator. the byStatement emit skips them
   // (a second whole-declaration overwrite would collide on the flatten's range); instead the
@@ -1796,8 +1801,15 @@ export function createDestructureEmitter({
     transforms.add(propNode.value.start, propNode.value.end, injector.generateUnusedName());
     if (plan.siblingDeclarator) {
       // preceding statement impossible (loop header) or unsafe (multi-declarator instance receiver bound
-      // earlier in the same declaration -> TDZ) - append a trailing sibling declarator instead
-      transforms.insert(declaration.declarations.at(-1).end, `, ${ localId.name } = ${ polyfillSrc }`);
+      // earlier in the same declaration -> TDZ) - append a trailing sibling declarator instead.
+      // under a flatten claim the raw insert is safe (the flatten render re-emits declarators
+      // verbatim and bakes end-anchored inserts position-faithfully); otherwise defer to flush,
+      // where the byStatement claim set is complete
+      if (flattenedNestedDecls.has(declaration)) {
+        transforms.insert(declaration.declarations.at(-1).end, `, ${ localId.name } = ${ polyfillSrc }`);
+      } else {
+        pendingSeKeyTrailing.push({ declaration, decl: `${ localId.name } = ${ polyfillSrc }` });
+      }
     } else if (flattenedNestedDecls.has(declaration)) {
       // a flatten already claimed this declaration (a sibling branch dispatched first): a
       // standalone start-anchored insert would land ABOVE the flatten's whole-range render,
@@ -2070,7 +2082,11 @@ export function createDestructureEmitter({
     // IIFE) falls to `handleParameterDestructurePure` (receiver synth-swap)
     if (propNode.computed && sequenceKeyPrefix(propNode.key)) {
       if (tryHandleSideEffectKeyDeclaration(meta, metaPath, propNode)) return;
-      return handleParameterDestructurePure(meta, metaPath, propNode);
+      // a top-level catch-param prop falls through to the catch extraction: `let v = _at(_ref)`
+      // plus the key kept (value renamed) in the combined residual - effect once, default dead
+      if (metaPath.parentPath?.parentPath?.node?.type !== 'CatchClause') {
+        return handleParameterDestructurePure(meta, metaPath, propNode);
+      }
     }
     // peel inner-default AssignmentPattern (`{ Foo: { x } = {} } = R`) so the nested-flatten
     // path fires for the same shape as the bare `{ Foo: { x } } = R` form
@@ -2222,11 +2238,20 @@ export function createDestructureEmitter({
       if (initNode && !mayHaveSideEffects(initNode)) markInitGlobals(initNode);
     }
     const pending = pendingDestructuring.get(objectPattern);
+    // a side-effecting computed key on a catch entry keeps the key in the combined residual
+    // (value renamed - effect once, in order); the polyfill always wins, so the user default
+    // is dead - skip-mark its subtree so the visitor never polyfills inside dropped code
+    const seKeyResidual = isCatchClause && propNode.computed && !!sequenceKeyPrefix(propNode.key);
+    if (seKeyResidual && value) walkAstNodes({ root: value, visit: n => skippedNodes.add(n) });
     // the catch default-guard test ref is minted NOW (prop visit, before the default
     // subtree's inner memo refs) so numbering matches babel's pre-order minting; the
     // post-traverse render just consumes it
-    const testRef = isCatchClause && kind === 'instance' && defaultSrc ? injector.generateLocalRef() : null;
-    pending.entries.push({ propNode, localName, binding, kind, defaultSrc, testRef });
+    const testRef = isCatchClause && kind === 'instance' && defaultSrc && !seKeyResidual ? injector.generateLocalRef() : null;
+    pending.entries.push({
+      propNode, localName, binding, kind, testRef,
+      defaultSrc: seKeyResidual ? null : defaultSrc,
+      keepKeyInResidual: seKeyResidual,
+    });
     // body-extract alias so post-rewrite narrowing resolves the local (`xs = from('hi');
     // xs.at(0)` -> array-specific helper) - the flatten channel registers the same alias
     // in its extraction emit; without it this channel's locals narrow to generic helpers
@@ -2361,6 +2386,12 @@ export function createDestructureEmitter({
       // (with original localName) so `_ref[polyfilledKey]` is bound by destructuring directly
       if (e.kind === 'symbol-key') continue;
       lines.push(catchEntryLetDecl(e, ref));
+      // a side-effecting key survives at its residual slot with a throwaway value: the effect
+      // runs once, in source order, after the extraction lines (the rest-gather rebuild below
+      // reserves the same `_unused` slot, so this applies to the no-rest residual only)
+      if (e.keepKeyInResidual && !hasRest) {
+        residualProps.push(`[${ e.polyfillKeyContent }]: ${ injector.generateUnusedName() }`);
+      }
     }
     if (residualProps.length) lines.push(`let { ${ residualProps.join(', ') } } = ${ ref };`);
     if (hasRest) {
@@ -2548,6 +2579,20 @@ export function createDestructureEmitter({
       byStatement.get(key).push(info);
     }
 
+    // SE-key trailing declarators: a claimed declaration takes its pair into the rendered
+    // statement (appended to the final part below - babel's trailing-sibling canon); an
+    // unclaimed one keeps the raw end-anchored insert (the source text stays in place)
+    const trailingByDecl = new Map();
+    for (const { declaration, decl } of pendingSeKeyTrailing) {
+      if (byStatement.has(declaration)) {
+        if (!trailingByDecl.has(declaration)) trailingByDecl.set(declaration, []);
+        trailingByDecl.get(declaration).push(decl);
+      } else {
+        transforms.insert(declaration.declarations.at(-1).end, `, ${ decl }`);
+      }
+    }
+    pendingSeKeyTrailing.length = 0;
+
     // emit catch-clause rewrites BEFORE the flush: a catch prelude is queued as a point-insert
     // that can land inside a sibling flatten declarator's SE-prefix range, and flushPendingFlatten
     // drains inserts within each declarator range to bake them into the lifted prefix text. the
@@ -2605,9 +2650,17 @@ export function createDestructureEmitter({
         for (const dec of declPath.node.declarations) {
           const info = polyfilledByDecl.get(dec);
           if (info) emitPolyfilled(info, parts, forInitSESinks, emitCtx);
-          else parts.push(`${ stmtPrefix }${ nodeSrc(dec) }`);
+          // composed, not raw: a sibling may carry baked-in transforms of its own - an SE-key
+          // trailing declarator insert anchored at its end, a polyfill rewrite in its init - and
+          // a leftover point-insert inside the whole-declaration overwrite below would throw
+          else parts.push(`${ stmtPrefix }${ composedRangeSrc(dec) }`);
         }
       }
+      // the pair lands after every rendered declarator: source order put it at the declaration
+      // end, and a comma-append onto a statement-shaped part keeps it a sibling declarator
+      const trailing = trailingByDecl.get(declPath.node);
+      if (trailing?.length) parts[parts.length - 1] += `, ${ trailing.join(', ') }`;
+
       if (isForInit && forInitSESinks.length) parts.unshift(...forInitSESinks);
 
       if (isForInit) {

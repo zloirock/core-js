@@ -1393,12 +1393,44 @@ export default function createDestructureEmitter({
     }
   }
 
+  // a flat STATIC destructure (`const { from, of } = Array`) is a degenerate flatten -
+  // receiver + consumed static props, no instance/nested. route it
+  // through the SAME shared-plan renderer the nested/proxy path uses (`renderDeclaratorFlattenPlan`),
+  // retiring the per-prop strategy path for these shapes. the renderer self-gates on plan
+  // existence (instance props plan as verbatim -> no extractions -> no plan -> falls through),
+  // and handles full-consume / residual / rest / export / for-init / multi-declarator uniformly.
+  // the plan resolves a bare-Identifier receiver itself (a const-alias chain, a proxy-global
+  // shorthand) - both route correctly. EXCLUDED shapes (kept on the per-prop strategy path,
+  // where the plan render would diverge byte-wise from the established per-prop / unplugin canon):
+  //   - a non-Identifier init (member / sequence / logical / optional - `globalThis['self'].Array`,
+  //     `(se(), Array)`, `Array || Promise`): needs the per-prop intermediate-hop collapse
+  //     (`globalThis['self'].Array` -> `_globalThis.Array`) and SE-discard the flat-residual
+  //     plan path doesn't reproduce
+  //   - a default prop (`{ from = d() }`): the flat path keeps the always-true guard
+  //     `_X === void 0 ? d() : _X`, the plan drops it (equivalent, but byte-divergent)
+  //   - a leading comment on the declaration: the per-prop path leaves it between the split
+  //     statements, the plan render lifts it to the first - byte-divergent on multi-statement output
+  // those canon merges are separate increments. an AssignmentExpression host has no plan-render here
+  function tryRouteFlatStaticToPlan(prop) {
+    const objectPattern = prop.parentPath;
+    if (!objectPattern.isObjectPattern()) return false;
+    const declarator = objectPattern.parentPath;
+    if (!declarator?.isVariableDeclarator() || objectPattern.node !== declarator.node.id) return false;
+    const { init } = declarator.node;
+    if (!t.isIdentifier(init)) return false;
+    if (objectPattern.node.properties.some(p => t.isObjectProperty(p) && t.isAssignmentPattern(p.value))) return false;
+    if (declarator.parentPath?.node?.leadingComments?.length) return false;
+    return renderDeclaratorFlattenPlan(declarator, prop);
+  }
+
   // babel-plugin's destructure emission counterpart of unplugin's `handleDestructuringPure`.
   // dispatches on the parser-agnostic `planDestructureEmission` strategy enum, then
   // executes the strategy-specific AST mutation. planning logic lives in
   // `./destructure-emission-plan.js` so it stays parser-agnostic and unit-testable;
   // this function owns the babel AST-mutation side
   function handleDestructuredProperty(prop, value) {
+    // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
+    if (tryRouteFlatStaticToPlan(prop)) return;
     const propValue = prop.node.value,
           // captured before default-value processing turns Identifier into ConditionalExpression
           isStaticValue = t.isIdentifier(value);
