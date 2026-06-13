@@ -42,6 +42,7 @@ const { hasOwn } = Object;
 export function createCallResolution({
   t,
   babelNodeType,
+  getScopeBinding,
   babelBindingAdapter,
   isMemberLike,
   isFunctionLike,
@@ -131,7 +132,7 @@ export function createCallResolution({
   // matter for correctness - polyfilled-entry first only because it's the cheaper probe
   function resolveAliasedStaticReturn(callee) {
     const pair = staticPairFromPolyfillEntry(callee.scope, callee.node.name)
-      ?? staticPairFromDestructure(callee.scope, callee.node.name);
+      ?? staticPairFromDestructure(callee.scope, callee.node.name, callee);
     if (!pair) return null;
     const retHint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method);
     return retHint ? typeFromHint(retHint) : null;
@@ -142,8 +143,8 @@ export function createCallResolution({
   // AssignmentPattern wrappers; init walk delegated to `walkStaticReceiverChain`.
   // reassigned bindings bail (current value may differ from pattern-init), except the
   // single-violation `let x; ({x} = Source)` shape which routes to `pairFromAssignmentDestructure`
-  function staticPairFromDestructure(scope, name) {
-    const binding = scope?.getBinding(name);
+  function staticPairFromDestructure(scope, name, path = null) {
+    const binding = getScopeBinding(scope, name, path);
     if (!binding?.path) return null;
     if (binding.constantViolations?.length) {
       if (binding.constantViolations.length !== 1 || binding.path.node?.init) return null;
@@ -176,7 +177,7 @@ export function createCallResolution({
     if (!declarator) return null;
     const { id, init } = declarator.node;
     if (id?.type !== 'ObjectPattern' || !init) return null;
-    return pairFromPatternAndSource({ pattern: id, source: init, name, scope: declarator.scope });
+    return pairFromPatternAndSource({ pattern: id, source: init, name, scope: declarator.scope, path: declarator });
   }
 
   // `let x; ({x} = Source)` style: violationPath is the AssignmentExpression containing
@@ -186,14 +187,17 @@ export function createCallResolution({
     const node = violationPath?.node;
     if (node?.type !== 'AssignmentExpression' || node.operator !== '=') return null;
     if (node.left?.type !== 'ObjectPattern' || !node.right) return null;
-    return pairFromPatternAndSource({ pattern: node.left, source: node.right, name, scope });
+    return pairFromPatternAndSource({ pattern: node.left, source: node.right, name, scope, path: violationPath });
   }
 
-  function pairFromPatternAndSource({ pattern, source, name, scope }) {
+  function pairFromPatternAndSource({ pattern, source, name, scope, path = null }) {
     const keyPath = findDestructuredKeyPath(pattern, name, scope);
     if (!keyPath?.length) return null;
+    // thread the anchor `path` so the estree adapter resolves a function-scope-hoisted var
+    // source (`if (c) { var G = Array } const { from } = G`) the same way babel does; without
+    // it the static-receiver walk loses the source binding and the narrow diverges
     const constructor = walkStaticReceiverChain({
-      receiverNode: source, walkPath: keyPath.slice(0, -1), scope, adapter: babelBindingAdapter,
+      receiverNode: source, walkPath: keyPath.slice(0, -1), scope, adapter: babelBindingAdapter, path,
     });
     if (!constructor || !hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
     return { constructor, method: keyPath.at(-1) };
