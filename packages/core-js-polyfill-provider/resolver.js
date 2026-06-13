@@ -249,7 +249,9 @@ export function createPolyfillResolver(options, {
     // a synthetic inherited-static meta (`super.at()` / `this.at()` in a static method) whose key
     // resolves to an INSTANCE desc means no such static exists on the super class - bail rather than
     // inject the instance polyfill (the over-injection usage-pure already avoids). a real inherited
-    // static (`super.from()`) resolves to a static desc and is unaffected
+    // static (`super.from()`) resolves to a static desc and is unaffected. unlike `Array.concat`,
+    // the synthetic super-meta has no member path for `enhanceMeta` to narrow the receiver type, so
+    // this explicit gate stands in for that narrowing
     if (kind === 'instance' && meta.inheritedStatic) return null;
     if (kind === 'instance') {
       const enhanced = enhanceMeta(meta, path, desc);
