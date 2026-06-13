@@ -32,16 +32,36 @@ const G_RECEIVERS = [
   { id: 'static-array-proxy', src: 'globalThis.Array', type: 'sarray' },
   { id: 'static-object', src: 'Object', type: 'sobject' },
   { id: 'static-object-proxy', src: 'globalThis.Object', type: 'sobject' },
+  { id: 'static-number', src: 'Number', type: 'snumber' },
+  { id: 'static-number-proxy', src: 'globalThis.Number', type: 'snumber' },
 ];
+// `strip: false` marks a method whose target builtin is NOT in strip-builtins.mjs (Number statics):
+// the stripped oracle would be vacuous (native still present), so it stays full-env only. the 3-way
+// (native == babel == unplugin) + import parity still cover its resolution
 const G_METHODS = [
   { id: 'flat', call: 'flat()', types: ['array'] },
   { id: 'at', call: 'at(0)', types: ['array', 'string'] },
   { id: 'includes', call: 'includes(3)', types: ['array'] },
   { id: 'flatMap', call: 'flatMap(x => [x])', types: ['array'] },
+  { id: 'findLast', call: 'findLast(x => x === 3)', types: ['array'] },
+  { id: 'findLastIndex', call: 'findLastIndex(x => x === 3)', types: ['array'] },
+  { id: 'toReversed', call: 'toReversed()', types: ['array'] },
+  { id: 'toSorted', call: 'toSorted()', types: ['array'] },
+  { id: 'toSpliced', call: 'toSpliced(0, 1)', types: ['array'] },
+  { id: 'with', call: 'with(0, 9)', types: ['array'] },
   { id: 'padStart', call: 'padStart(8, "0")', types: ['string'] },
+  { id: 'padEnd', call: 'padEnd(8, "0")', types: ['string'] },
+  { id: 'trimStart', call: 'trimStart()', types: ['string'] },
+  { id: 'trimEnd', call: 'trimEnd()', types: ['string'] },
+  { id: 'replaceAll', call: 'replaceAll("a", "z")', types: ['string'] },
   { id: 'from', call: 'from([1, 2])', types: ['sarray'] },
   { id: 'of', call: 'of(1, 2)', types: ['sarray'] },
   { id: 'fromEntries', call: 'fromEntries([["a", 1]])', types: ['sobject'] },
+  { id: 'hasOwn', call: 'hasOwn({ a: 1 }, "a")', types: ['sobject'] },
+  { id: 'isInteger', call: 'isInteger(3)', types: ['snumber'], strip: false },
+  { id: 'isFinite', call: 'isFinite(3)', types: ['snumber'], strip: false },
+  { id: 'isSafeInteger', call: 'isSafeInteger(3)', types: ['snumber'], strip: false },
+  { id: 'isNaN', call: 'isNaN(3)', types: ['snumber'], strip: false },
 ];
 // each wrapper renders the full `receiver.method` so it owns both the receiver dressing and the
 // call join (`.` vs `?.`); `ts: true` wrappers make the whole snippet TypeScript
@@ -76,7 +96,7 @@ function * generateGrammar() {
           // call, so the builtin-stripped oracle applies (a leftover native call = a real missed
           // injection). hand-written EXPR_FAMILIES include deliberate bail cases (unprovable
           // receivers) where a native call legitimately survives, so they stay full-env only
-          yield { ...snippet(name, ctx.tpl(inner)), ts: ctx.ts || wrapper.ts, strip: true };
+          yield { ...snippet(name, ctx.tpl(inner)), ts: ctx.ts || wrapper.ts, strip: method.strip !== false };
         }
       }
     }
@@ -116,12 +136,83 @@ function * generateDestructure() {
   }
 }
 
+// --- Chain grammar (MULTI-hop; single calls are generateGrammar's job) ---
+// the generative core for the optional-chain / chained / inner-poly-chain families: a RECEIVER
+// followed by 2-3 HOPS, under an OPTIONALITY pattern. this is the most entangled area (babel
+// chain-combined AST emit vs unplugin threaded-receiver text), so the cross-product of receiver x
+// hop-shape x optionality is high-signal for the runtime three-way (native == babel == unplugin),
+// including short-circuit (null receiver) and side-effect-once (`se` receiver). full-env only - a
+// chain mixes optional / native / poly hops, so a stripped-realm native call can survive benignly.
+const C_RECEIVERS = [
+  { id: 'live', src: 'arr' },
+  { id: 'lit', src: '[3, [1, 2]]' },
+  { id: 'null', src: 'nul' },
+  { id: 'se', src: '(log.push("e"), arr)' },
+];
+// hop: { n: method, a: args, poly }. only a poly (polyfilled-instance) hop takes call-optional `?.()`
+const C_CHAINS = [
+  { id: 'flat-at', hops: [{ n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
+  { id: 'slice-flat', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }] },
+  { id: 'flatMap-flat', hops: [{ n: 'flatMap', a: 'x => [x]', poly: true }, { n: 'flat', a: '', poly: true }] },
+  { id: 'flat-map', hops: [{ n: 'flat', a: '', poly: true }, { n: 'map', a: 'x => x' }] },
+  { id: 'slice-flat-at', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
+];
+// per-hop optionality: `member` -> `?.method`, `call` -> `method?.(` (poly hops only)
+const C_OPT = [
+  { id: 'dot', at: () => ({}) },
+  { id: 'member', at: () => ({ member: true }) },
+  { id: 'call', at: h => h.poly ? { call: true } : {} },
+  { id: 'first-opt', at: (h, i) => i === 0 ? { member: true } : {} },
+  { id: 'member-call', at: h => h.poly ? { member: true, call: true } : { member: true } },
+];
+function renderChain(src, hops, opt) {
+  let out = src;
+  hops.forEach((h, i) => {
+    const o = opt.at(h, i);
+    out += `${ o.member ? '?.' : '.' }${ h.n }${ o.call ? '?.' : '' }(${ h.a })`;
+  });
+  return out;
+}
+function * generateChains() {
+  for (const recv of C_RECEIVERS) {
+    for (const chain of C_CHAINS) {
+      for (const opt of C_OPT) {
+        yield { ...snippet(`chain/${ recv.id }/${ chain.id }/${ opt.id }`, renderChain(recv.src, chain.hops, opt)), strip: true };
+      }
+    }
+  }
+}
+
+// --- `in`-expression grammar (KEY in OBJECT) ---
+// exercises `planInExpression` (symbol / fold / noop, + SE-harvest) - a decision path distinct from
+// method calls. every key-kind x object-kind yields a boolean, so the runtime three-way checks the
+// babel/unplugin parity of the in-rewrite directly. full-env only: `in` reads the prototype, and
+// pure mode never patches it, so a stripped realm would flip the result for a benign reason.
+const IN_KEYS = [
+  { id: 'instance', src: '"flat"' },
+  { id: 'static', src: '"from"' },
+  { id: 'symbol', src: 'Symbol.iterator' },
+  { id: 'nonpoly', src: '"foo"' },
+  { id: 'se', src: '(log.push("k"), "flat")' },
+];
+const IN_OBJS = [
+  { id: 'array', src: 'arr' },
+  { id: 'array-lit', src: '[]' },
+  { id: 'static', src: 'Array' },
+  { id: 'proxy', src: 'globalThis' },
+];
+function * generateIn() {
+  for (const key of IN_KEYS) {
+    for (const obj of IN_OBJS) {
+      yield snippet(`in/${ key.id }/${ obj.id }`, `${ key.src } in ${ obj.src }`);
+    }
+  }
+}
+
 // expression families (one valid + observable snippet each), weighted to fragile areas
 const EXPR_FAMILIES = {
   'optional-chain': [
-    'arr?.flat()',
     'arr?.flat?.()',
-    'arr?.slice()?.flat()',
     'nul?.flat()',
     'nul?.flat?.()',
     '(nul ?? arr).flat()',
@@ -129,9 +220,6 @@ const EXPR_FAMILIES = {
     '(log.push("e"), arr)?.flat()',
   ],
   chained: [
-    'arr.slice().flat()',
-    'arr.flat().map(x => x)',
-    'arr.flatMap(x => [x]).flat()',
     'arr.slice()?.flat().at(0)',
     'arr?.slice()?.flat()?.at(-1)',
   ],
@@ -140,7 +228,6 @@ const EXPR_FAMILIES = {
   'inner-poly-chain': [
     'arr.flat?.().at(0)',
     'arr?.flat?.().at(0)',
-    'arr.flatMap(x => [x]).flat()',
     'arr?.slice()?.flatMap(x => [x])?.flat()',
     '[[1], [2]].flat()?.includes(1)',
     'arr.slice().flat?.().at(-1)',
@@ -148,22 +235,17 @@ const EXPR_FAMILIES = {
   ],
   'proxy-global': [
     'globalThis.Array.from("ab")',
-    'globalThis.Object.fromEntries([["a", 1]])',
     'globalThis?.Array.from([1, 2])',
     '(globalThis).Array.from([1])',
     '(log.push("e"), globalThis).Array.from([1])',
   ],
   static: [
     'Array.from("ab")',
-    'Array.of(1, 2)',
-    'Object.fromEntries([["a", 1]])',
     'Object.assign({}, { a: 1 })',
   ],
+  // key-kind x object-kind combinations live in `generateIn`; this family keeps only the
+  // SE-bearing key shape (a sequence-expression LHS the grammar doesn't enumerate)
   'in-expr': [
-    '"flat" in []',
-    '"from" in Array',
-    'Symbol.iterator in arr',
-    '"foo" in arr',
     '(log.push("e"), "flat") in []',
   ],
   'symbol-iterator': [
@@ -173,9 +255,7 @@ const EXPR_FAMILIES = {
     '(() => { const it = arr[Symbol.iterator](); return it.next().value; })()',
   ],
   destructure: [
-    '(() => { const { from } = Array; return typeof from; })()',
     '(() => { const [first] = arr; return first; })()',
-    '(() => { const { fromEntries } = Object; return typeof fromEntries; })()',
   ],
   // receiver-SE must evaluate BEFORE argument-SE (native order); the log records the sequence so
   // a reorder shows as ['a','r'] instead of ['r','a']
@@ -255,7 +335,6 @@ const EXPR_FAMILIES = {
     '(() => { const { from = null } = Array; return typeof from; })()',
     '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
     '(() => { const { ["from"]: f } = Array; return typeof f; })()',
-    '(() => { const { [(log.push("k"), "from")]: f } = Array; return typeof f; })()',
     // a side-effecting computed key in a CATCH param rides the catch extraction: the binding
     // takes the dispatcher, the key survives in the residual (effect once), a user default is
     // dead ("polyfill always wins") and rest still gathers the remaining props
@@ -307,11 +386,9 @@ const EXPR_FAMILIES = {
     '(() => { let f; for (({ Array: { from: f } } = globalThis), 0; false;) {} return typeof f; })()',
     '(() => { let f; const id = x => x; id(({ Array: { from: f } } = globalThis)); return typeof f; })()',
     '(() => { let f; const g = () => ({ Array: { from: f } } = globalThis); g(); return typeof f; })()',
-    '(() => { function g({ Array: { from } } = globalThis) { return typeof from; } return g(); })()',
     '(() => { function g([{ of }] = [Array]) { return typeof of; } return g(); })()',
     '(() => { function g({ Array: { from } } = globalThis) { return from; } return g({ Array: { from: "custom" } }); })()',
     '(() => { function g({ Array: { from: renamed } } = globalThis) { return renamed; } return g({ Array: { from: "custom" } }); })()',
-    '(() => { function g({ Array: { from, of } } = globalThis) { return [typeof from, typeof of]; } return g(); })()',
     '(() => { function g({ Array: { from, ...rest } } = globalThis) { return [typeof from, typeof rest]; } return g(); })()',
     // an ABSENT leaf in a caller-supplied object stays undefined exactly as native - the
     // synthesized default fires only for the no-argument call
@@ -810,7 +887,6 @@ const EXPR_FAMILIES = {
     'new WeakSet().has({})',
   ],
   'static-more': [
-    'Object.hasOwn({ a: 1 }, "a")',
     'Object.groupBy([1, 2, 3, 4], x => (x % 2 ? "odd" : "even"))',
     'Array.of(1, 2, 3)',
     'structuredClone([1, [2]])',
@@ -1174,6 +1250,8 @@ const TS_FAMILIES = {
 export function * generate() {
   yield * generateGrammar();
   yield * generateDestructure();
+  yield * generateChains();
+  yield * generateIn();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) yield snippet(`${ family }: ${ expr }`, expr);
   }
