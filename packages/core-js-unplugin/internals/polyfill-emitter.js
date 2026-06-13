@@ -705,6 +705,21 @@ export function createPolyfillEmitter({
     return resolveGlobalPolyfill(obj.name);
   }
 
+  // single-level SE-tail proxy-global substitution, shared by the direct-SE receiver
+  // (`(eff(), globalThis).flat()`) and the SE-rooted member chain (`(eff(), globalThis).list.at()`):
+  // substitute the tail proxy-global to its pure binding, keep the prefix verbatim ahead of it in
+  // eval order. returns `{ leaf, src }` (leaf = the tail Identifier to skip) or null. a non-Identifier
+  // tail (nested SE `(a, (b, X))`) returns null - reconstruction would drop the inner prefix's effects
+  function seTailProxyGlobalSubst(node, metaPath) {
+    if (node?.type !== 'SequenceExpression' || !(node.expressions?.length >= 2)) return null;
+    const leaf = unwrapNode(node.expressions.at(-1));
+    if (leaf?.type !== 'Identifier' || metaPath?.scope?.hasBinding?.(leaf.name)) return null;
+    const pure = resolveGlobalPolyfill(leaf.name);
+    if (!pure) return null;
+    const prefixSrcs = node.expressions.slice(0, -1).map(expr => nodeSrc(expr));
+    return { leaf, src: `(${ [...prefixSrcs, injectPureImport(pure.entry, pure.hintName)].join(', ') })` };
+  }
+
   // member-chain receiver rooted at a polyfillable global Identifier (`globalThis?.X.Y`,
   // `(globalThis as any)?.X.Y`, `(globalThis?.X).Y`). substitute the leaf with its polyfill
   // binding so the receiver doesn't reference the raw global (engines without `globalThis`
@@ -731,12 +746,24 @@ export function createPolyfillEmitter({
       cur = next;
     }
     const wrappedLeaf = hops.at(-1).object;
-    const leaf = unwrapNode(wrappedLeaf);
-    if (leaf?.type !== 'Identifier') return null;
-    if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
-    const pure = resolveGlobalPolyfill(leaf.name);
-    if (!pure) return null;
-    const polyfillBinding = injectPureImport(pure.entry, pure.hintName);
+    const unwrappedLeaf = unwrapNode(wrappedLeaf);
+    // SE-tail leaf: a member chain rooted at a sequence with a polyfillable proxy-global tail
+    // (`(eff(), globalThis).list.at(0)`). without it the chain walk bottoms at the SequenceExpression
+    // and bails, leaving the raw proxy-global while `skipProxyGlobal` (SE-aware) suppresses the
+    // fallback -> ReferenceError ie:11. shares the single-level subst with the direct-SE branch
+    const seTail = seTailProxyGlobalSubst(unwrappedLeaf, metaPath);
+    let leaf, polyfillBinding;
+    if (seTail) {
+      leaf = seTail.leaf;
+      polyfillBinding = seTail.src;
+    } else {
+      leaf = unwrappedLeaf;
+      if (leaf?.type !== 'Identifier') return null;
+      if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
+      const pure = resolveGlobalPolyfill(leaf.name);
+      if (!pure) return null;
+      polyfillBinding = injectPureImport(pure.entry, pure.hintName);
+    }
     if (!hasMidChainWrappers) {
       const tailStart = afterOptional(wrappedLeaf.end, !hops.at(-1).computed);
       return { src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: leaf };
@@ -791,26 +818,16 @@ export function createPolyfillEmitter({
       skipNode: chain.leafNode,
       substituted: true,
     };
-    // SE-tail proxy-global: `(0, globalThis).flat?.(...)` - receiver is a
-    // SequenceExpression whose DIRECT tail is a polyfillable Identifier. resolve the
-    // tail via the same Identifier-polyfill path and rebuild src preserving the SE
-    // wrapping. checking `expressions.at(-1)` directly (not peeling recursively) keeps
-    // nested-SE shapes `(a, (b, X))` out of scope - reconstruction would otherwise drop
-    // the inner SE's prefix and lose side-effects
-    if (unwrapped?.type === 'SequenceExpression' && unwrapped.expressions?.length >= 2) {
-      const tailNode = unwrapped.expressions.at(-1);
-      const tailDirect = resolveReceiverPolyfill(tailNode, metaPath);
-      if (tailDirect) {
-        const tailSrc = injectPureImport(tailDirect.entry, tailDirect.hintName);
-        const prefixSrcs = unwrapped.expressions.slice(0, -1).map(e => nodeSrc(e));
-        return {
-          src: `(${ [...prefixSrcs, tailSrc].join(', ') })`,
-          isNonIdent: true,
-          skipNode: tailNode,
-          substituted: true,
-        };
-      }
-    }
+    // SE-tail proxy-global receiver: `(0, globalThis).flat?.(...)` - direct SequenceExpression whose
+    // single-level tail is a polyfillable proxy-global. shares `seTailProxyGlobalSubst` with the
+    // SE-rooted member chain; nested-SE `(a, (b, X))` stays out of scope (helper bails)
+    const seTail = seTailProxyGlobalSubst(unwrapped, metaPath);
+    if (seTail) return {
+      src: seTail.src,
+      isNonIdent: true,
+      skipNode: seTail.leaf,
+      substituted: true,
+    };
     return {
       src: unwrapParensSrc(receiverObj),
       isNonIdent: !isReusableReceiver(receiverObj),
