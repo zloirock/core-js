@@ -2,8 +2,15 @@
 // only what actually matters - the injected import-set (strict) and runtime behaviour (native ==
 // babel == unplugin). Body-shape (AST codegen vs text rewrite) is deliberately NOT compared: that
 // divergence is architectural (the `output-unplugin.mjs` sidecars), not a bug.
+//
+// On top of the full-environment three-way, a STRIPPED-realm oracle re-runs each polyfilled output
+// in a realm where the leaf builtins are gone (a persistent worker preloaded with strip-builtins.mjs).
+// That run must still reproduce the full-env native reference - which catches a MISSED injection (the
+// leftover native call now throws instead of being masked by the present builtin) and proves the
+// polyfill stands alone. See strip-builtins.mjs / stripped-worker.mjs.
 import { transformAsync } from '@babel/core';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { fork } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import tsStrip from '@babel/plugin-transform-typescript';
@@ -11,8 +18,12 @@ import decoratorsPlugin from '@babel/plugin-proposal-decorators';
 import classPropsPlugin from '@babel/plugin-transform-class-properties';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { runtimeKey, serialize } from './serialize.mjs';
 
-const TMP = join(dirname(fileURLToPath(import.meta.url)), 'tmp');
+export { serialize };
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const TMP = join(HERE, 'tmp');
 // `decorators-legacy` is harmless for non-decorator TS, so one parser config covers all TS snippets
 const TS_PARSER = { plugins: ['typescript', 'decorators-legacy'] };
 // strip TS to runnable JS; legacy decorators + class properties make decorated classes executable
@@ -47,18 +58,6 @@ export function importSet(code) {
   return set;
 }
 
-// stable serialization for runtime comparison: distinguishes undefined / non-finite / bigint /
-// function so e.g. `undefined` and `null` never collide
-export function serialize(value) {
-  return JSON.stringify(value, (key, val) => {
-    if (val === undefined) return '__undefined__';
-    if (typeof val === 'function') return '__function__';
-    if (typeof val === 'bigint') return `${ val }n`;
-    if (typeof val === 'number' && !Number.isFinite(val)) return `__${ val }__`;
-    return val;
-  }) ?? '__undefined__';
-}
-
 // strip TS syntax so a TS plugin-output becomes runnable; only TS nodes are removed, the injected
 // polyfill imports / rewrites are untouched
 async function stripTypeScript(code) {
@@ -67,22 +66,56 @@ async function stripTypeScript(code) {
 }
 
 let counter = 0;
-// execute a module text and capture the observable (`export const r` + `export const effects`) or
-// the thrown error name. fresh filename per write so dynamic import is not cached
+// write a module to a fresh temp file (no dynamic-import cache reuse) and execute it in THIS realm
+// (full builtins). returns the observable result plus the file path, so the same file can later be
+// re-run in the stripped worker without re-transforming. the filename carries the PID: parallel
+// shard processes share `tmp/`, and a bare per-process counter would collide (shard A's `m0.mjs`
+// overwriting shard B's mid-import -> cross-contaminated results)
 async function evalModule(code, ts = false) {
   await mkdir(TMP, { recursive: true });
-  const file = join(TMP, `m${ counter++ }.mjs`);
+  const file = join(TMP, `m${ process.pid }_${ counter++ }.mjs`);
   await writeFile(file, ts ? await stripTypeScript(code) : code);
   try {
     const mod = await import(pathToFileURL(file).href);
-    return { ok: true, r: mod.r, effects: mod.effects };
+    return { result: { ok: true, r: mod.r, effects: mod.effects }, file };
   } catch (error) {
-    return { ok: false, errorName: error?.name ?? 'Error' };
+    return { result: { ok: false, errorName: error?.name ?? 'Error' }, file };
   }
 }
 
-function runtimeKey(result) {
-  return result.ok ? `OK|${ serialize(result.r) }|${ serialize(result.effects) }` : `ERR|${ result.errorName }`;
+// --- stripped-realm worker (lazy, one per process; killed via closeStrippedWorker) ---
+let worker = null;
+let workerReady = null;
+let nextId = 0;
+const pending = new Map();
+function ensureWorker() {
+  if (workerReady) return workerReady;
+  const stripUrl = pathToFileURL(join(HERE, 'strip-builtins.mjs')).href;
+  worker = fork(join(HERE, 'stripped-worker.mjs'), [], { execArgv: ['--import', stripUrl] });
+  workerReady = new Promise(resolve => {
+    worker.on('message', msg => {
+      if (msg.ready) return resolve();
+      const settle = pending.get(msg.id);
+      if (!settle) return;
+      pending.delete(msg.id);
+      settle(msg.key);
+    });
+  });
+  return workerReady;
+}
+// re-run an already-written module file in the builtin-stripped realm; returns its runtimeKey
+async function evalStripped(file) {
+  await ensureWorker();
+  const id = nextId++;
+  return new Promise(resolve => {
+    pending.set(id, resolve);
+    worker.send({ id, file });
+  });
+}
+export function closeStrippedWorker() {
+  if (worker) worker.kill();
+  worker = null;
+  workerReady = null;
 }
 
 function setEqual(a, b) {
@@ -91,7 +124,7 @@ function setEqual(a, b) {
 
 // run both oracles on one snippet; returns the verdict + raw materials for reporting. a transform
 // that THROWS (e.g. an unplugin composition invariant) is itself a bug - captured, not propagated
-export async function checkSnippet(src, options, ts = false) {
+export async function checkSnippet(src, options, ts = false, stripCheck = false) {
   let babelOut;
   let unpluginOut;
   let babelError = null;
@@ -111,18 +144,59 @@ export async function checkSnippet(src, options, ts = false) {
   const babelImports = importSet(babelOut);
   const unpluginImports = importSet(unpluginOut);
 
-  const native = runtimeKey(await evalModule(src, ts));
-  const babelRun = runtimeKey(await evalModule(babelOut, ts));
-  const unpluginRun = runtimeKey(await evalModule(unpluginOut, ts));
+  const native = runtimeKey((await evalModule(src, ts)).result);
+  const babelEval = await evalModule(babelOut, ts);
+  const unpluginEval = await evalModule(unpluginOut, ts);
+  const babelRun = runtimeKey(babelEval.result);
+  const unpluginRun = runtimeKey(unpluginEval.result);
+
+  // stripped-realm oracle: only meaningful once an injection happened (non-empty import set) - the
+  // polyfilled output must reproduce the full-env native reference with the native builtins gone.
+  // skipped for no-injection snippets (nothing replaced -> a leftover native call would throw for a
+  // benign reason). a divergence here is a missed injection or a polyfill that leaned on the native
+  let strippedMismatch = false;
+  let babelStripped = null;
+  let unpluginStripped = null;
+  if (stripCheck && babelImports.size > 0) {
+    babelStripped = await evalStripped(babelEval.file);
+    unpluginStripped = await evalStripped(unpluginEval.file);
+    strippedMismatch = babelStripped !== native || unpluginStripped !== native;
+  }
 
   return {
     importMismatch: !setEqual(babelImports, unpluginImports),
     runtimeMismatch: !(native === babelRun && babelRun === unpluginRun),
     pluginRuntimeDiverge: babelRun !== unpluginRun,
+    strippedMismatch,
     babelImports,
     unpluginImports,
     native,
     babelRun,
     unpluginRun,
+    babelStripped,
+    unpluginStripped,
   };
+}
+
+// interpret a verdict: is it a failure, and (if so) the human-readable detail. lives next to
+// checkSnippet so the verdict's shape and its meaning stay in one place - a runner shouldn't decode
+// the verdict's internals itself. `detail` is empty when not failed
+export function summarizeVerdict(v) {
+  if (!(v.transformCrash || v.importMismatch || v.runtimeMismatch || v.strippedMismatch)) {
+    return { failed: false, detail: '' };
+  }
+  const details = [];
+  if (v.babelError) details.push(`babel threw: ${ v.babelError }`);
+  if (v.unpluginError) details.push(`unplugin threw: ${ v.unpluginError }`);
+  if (v.importMismatch) {
+    details.push(`import-set babel={ ${ [...v.babelImports].join(', ') } } unplugin={ ${ [...v.unpluginImports].join(', ') } }`);
+  }
+  if (v.runtimeMismatch) {
+    const kind = v.pluginRuntimeDiverge ? 'PLUGIN DIVERGENCE' : 'polyfill vs native';
+    details.push(`runtime [${ kind }] native=${ v.native } babel=${ v.babelRun } unplugin=${ v.unpluginRun }`);
+  }
+  if (v.strippedMismatch) {
+    details.push(`stripped-realm native=${ v.native } babel=${ v.babelStripped } unplugin=${ v.unpluginStripped }`);
+  }
+  return { failed: true, detail: details.join('; ') };
 }

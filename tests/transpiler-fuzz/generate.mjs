@@ -72,9 +72,46 @@ function * generateGrammar() {
         for (const wrapper of G_WRAPPERS) {
           const inner = wrapper.render(recv.src, method.call);
           const name = `grammar/${ ctx.id }/${ recv.id }/${ method.id }/${ wrapper.id }`;
-          yield { ...snippet(name, ctx.tpl(inner)), ts: ctx.ts || wrapper.ts };
+          // grammar receivers are typed + provable -> the plugin MUST inject every polyfillable
+          // call, so the builtin-stripped oracle applies (a leftover native call = a real missed
+          // injection). hand-written EXPR_FAMILIES include deliberate bail cases (unprovable
+          // receivers) where a native call legitimately survives, so they stay full-env only
+          yield { ...snippet(name, ctx.tpl(inner)), ts: ctx.ts || wrapper.ts, strip: true };
         }
       }
+    }
+  }
+}
+
+// --- Destructure grammar ---
+// the generative core for the destructure family: an extraction PATTERN off a provable receiver,
+// dropped into a binding HOST (declaration / param-default / assignment). replaces hand-adding
+// single destructure examples - the cross-product covers shorthand / alias / multi / rest / nested
+// proxy-hop / side-effect-key uniformly. each pattern OBSERVES an injected binding (`typeof from`)
+// so the stripped-realm oracle stays valid (the observable never reads a native that wasn't replaced).
+// `strip` is pattern.strip && host.strip: only declaration hosts off a guaranteed-injected pattern
+// qualify; param-default (synth-swap may bail) and assignment hosts stay full-env only
+const D_PATTERNS = [
+  { id: 'shorthand', recv: 'Array', lhs: '{ from }', names: ['from'], observe: 'typeof from', strip: true },
+  { id: 'alias', recv: 'Array', lhs: '{ from: f }', names: ['f'], observe: 'typeof f', strip: true },
+  { id: 'multi', recv: 'Array', lhs: '{ from, of }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
+  { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true },
+  { id: 'object', recv: 'Object', lhs: '{ fromEntries }', names: ['fromEntries'], observe: 'typeof fromEntries', strip: true },
+  { id: 'nested-proxy', recv: 'globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
+  { id: 'nested-proxy-multi', recv: 'globalThis', lhs: '{ Array: { from, of } }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
+  { id: 'se-key', recv: 'Array', lhs: '{ [(log.push("k"), "from")]: f }', names: ['f'], observe: 'typeof f', strip: true },
+];
+const D_HOSTS = [
+  { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
+  { id: 'param-default', strip: false, build: p => `(() => { function g(${ p.lhs } = ${ p.recv }) { return ${ p.observe }; } return g(); })()` },
+  { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
+];
+
+function * generateDestructure() {
+  for (const host of D_HOSTS) {
+    for (const pat of D_PATTERNS) {
+      const name = `destructure-grammar/${ host.id }/${ pat.id }`;
+      yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip };
     }
   }
 }
@@ -1136,6 +1173,7 @@ const TS_FAMILIES = {
 
 export function * generate() {
   yield * generateGrammar();
+  yield * generateDestructure();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) yield snippet(`${ family }: ${ expr }`, expr);
   }
