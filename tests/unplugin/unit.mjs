@@ -1,10 +1,11 @@
 import { parseSync } from 'oxc-parser';
+import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
-import { collectMutationPrePass, createEstreeAdapter } from '../../packages/core-js-unplugin/internals/detect-usage.js';
+import { collectMutationPrePass, createEstreeAdapter, withoutPhantomDeclarationViolations } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import TransformQueue, {
@@ -3847,6 +3848,68 @@ function checkPrePostBundlerDowngrade() {
   check('phase pre+post downgrade warns once per unsafe bundler', warned.filter(w => /pre\+post/.test(w)).length, 2);
 }
 checkPrePostBundlerDowngrade();
+
+// --- withoutPhantomDeclarationViolations ---
+// estree-toolkit FALSELY records a DECLARATION (over-hoisted `namespace N {}` twin, for-init self)
+// as a constant-violation; the filter drops exactly those while PRESERVING real reassignment paths
+// (the resolver's `findPrecedingBlockAssignment` consumes them) and the binding identity when there
+// is nothing to drop. broadening this to a wholesale recompute fed nodes to a path-consumer and
+// reordered every reassigned binding, so the narrow predicate + path-preservation are load-bearing
+function checkPhantomViolationFilter() {
+  function bindingFor(src, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      Program(path) { result = path.scope.getBinding(name); },
+    });
+    return result;
+  }
+  function bindingInFn(src, fnName, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      FunctionDeclaration(path) { if (path.node.id?.name === fnName) result = path.scope.getBinding(name); },
+    });
+    return result;
+  }
+  const filteredCount = (src, name) => withoutPhantomDeclarationViolations(bindingFor(src, name)).constantViolations.length;
+
+  check('phantom namespace-twin declaration violation dropped',
+    filteredCount('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x'), 0);
+  check('real assignment violation preserved',
+    filteredCount('let x = 1; x = 2; x;', 'x'), 1);
+  check('var redeclaration records no violation (unchanged)',
+    filteredCount('var x = 1; { var x = 2; } x;', 'x'), 0);
+  // every over-hoisted namespace twin is phantom regardless of declaration kind (var/const/function/class)
+  check('const namespace-twin declaration violation dropped',
+    filteredCount('const K = 1; namespace N { const K = 2; } K;', 'K'), 0);
+  check('function namespace-twin declaration violation dropped',
+    filteredCount('function F() {} namespace N { function F() {} } F();', 'F'), 0);
+  check('class namespace-twin declaration violation dropped',
+    filteredCount('class C {} namespace N { class C {} } new C();', 'C'), 0);
+  // a same-scope function/class redeclaration is a REAL shadow (last wins), NOT phantom - must be KEPT
+  const redecl = bindingInFn('function outer() { function F() { return 1; } function F() { return 2; } F(); }', 'outer', 'F');
+  check('same-scope function redeclaration is recorded as a violation', redecl.constantViolations.length, 1);
+  check('same-scope function redeclaration violation kept (not phantom)',
+    withoutPhantomDeclarationViolations(redecl).constantViolations.length, 1);
+
+  // identity: nothing to drop returns the SAME binding object (no needless wrapping)
+  const realBinding = bindingFor('let x = 1; x = 2; x;', 'x');
+  check('no-phantom binding returned by identity', withoutPhantomDeclarationViolations(realBinding) === realBinding, true);
+  // path-preserving: the scrubbed wrapper keeps the original binding.path (findPrecedingBlockAssignment reads it)
+  const twinBinding = bindingFor('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x');
+  const scrubbed = withoutPhantomDeclarationViolations(twinBinding);
+  check('scrubbed wrapper preserves binding.path identity', scrubbed.path === twinBinding.path, true);
+  // a resolver consumer re-spreads the binding (`{ ...binding, constantViolations: combined }`),
+  // so own props (path/scope) must survive object-spread - not live on a prototype
+  check('scrubbed wrapper survives object-spread (path own-enumerable)', { ...scrubbed }.path === twinBinding.path, true);
+  // `constant` is a prototype getter on the estree Binding (not spread-copyable); the wrapper
+  // carries it explicitly, reflecting the filtered list (all-phantom -> effectively constant)
+  check('scrubbed wrapper exposes constant from filtered violations', scrubbed.constant, true);
+}
+checkPhantomViolationFilter();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
