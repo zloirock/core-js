@@ -7,6 +7,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // and execute unconditionally.
 let from;
 if (cond) {
-  sideEffect(), Array;
+  sideEffect();
   from = _Array$from;
 }

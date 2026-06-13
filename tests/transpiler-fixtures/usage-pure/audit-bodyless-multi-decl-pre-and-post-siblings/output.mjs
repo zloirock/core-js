@@ -6,7 +6,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // effect order under unrelated-looking `var`-hoist semantics.
 if (cond) {
   var a = trackA(1);
-  trackB(), Array;
+  trackB();
   var from = _Array$from;
   var b = trackC(2);
 }

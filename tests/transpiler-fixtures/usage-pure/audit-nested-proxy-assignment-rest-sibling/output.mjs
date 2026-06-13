@@ -14,8 +14,9 @@ var _unused;
   ...rest
 } = _globalThis);
 from = _Array$from;
-fromEntries = _Object$fromEntries;
+var _unused2;
 ({
   fromEntries: _unused2,
   ...inner
 } = _globalThis.Object);
+fromEntries = _Object$fromEntries;
