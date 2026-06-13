@@ -24,6 +24,15 @@ function createMetaResolver({ globals, statics, instance }) {
       if (placement === 'static' && hasOwn(statics, object) && hasOwn(statics[object], key)) {
         return { kind: 'static', desc: statics[object][key], name: `${ object }$${ key }` };
       }
+      // a `key in <namespace>` membership test (handleBinaryIn only builds an `in` meta for a
+      // static-placement receiver) is true ONLY for the receiver's own statics/globals, resolved
+      // just above. instance (prototype) methods are never own properties of the constructor/global,
+      // so the `in` case must NOT fall through to the placement-agnostic instance map: that resolves
+      // `'flat' in Array` to the `Array.prototype.flat` desc and folds the `in` to a wrong `true`
+      // (native: false). a member ACCESS (`kind: 'property'`, e.g. `Array.name`) is different - the
+      // receiver-type narrowing in `enhanceMeta` keeps genuinely-present Function.prototype members
+      // and drops prototype-only ones, so property reads still consult the instance map below
+      if (meta.kind === 'in') return undefined;
       if (!hasOwn(instance, key)) return undefined;
       const desc = instance[key];
       if (desc) return { kind: 'instance', desc, name: key };
