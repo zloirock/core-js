@@ -2,10 +2,13 @@ import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types
 import { entryToGlobalHint } from './index.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import {
+  findFunctionScopeVarDeclaratorInPath,
+  findFunctionScopeVarInPath,
   getTypeArgs,
   kebabToCamel,
   singleQuasiString,
   staleVarRedeclNodes,
+  synthVarHoistBinding,
   unwrapRuntimeExpr,
   varInitStaleByRedecl,
 } from './helpers/ast-patterns.js';
@@ -92,9 +95,17 @@ const { hasOwn } = Object;
 function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding) {
   return {
     packages: null,
-    hasBinding: (scope, name) => !!getScopeBinding(scope, name),
-    getBindingNodeType: (scope, name) => getScopeBinding(scope, name)?.path?.node?.type,
-    getBinding: (scope, name) => getScopeBinding(scope, name),
+    // forward the use-site `path` to the scope-binding hook so the estree caller applies its
+    // namespace-over-hoist filter (+ phantom declaration-violation filter) position-aware; a
+    // path-less lookup drops a namespace twin conservatively. babel's default hook ignores the arg.
+    // var-hoist fallback (estree side only - fires when the native lookup is empty, a no-op for
+    // babel which hoists natively): estree-toolkit leaves a `var` declared in a nested block out
+    // of the function scope, so a static-receiver source like `if (c) { var G = Array } ({from}=G)`
+    // would otherwise lose its binding here and diverge from babel
+    hasBinding: (scope, name, path = null) => !!getScopeBinding(scope, name, path) || (!!path && !!findFunctionScopeVarInPath(path, name)),
+    getBindingNodeType: (scope, name, path = null) => getScopeBinding(scope, name, path)?.path?.node?.type
+      ?? (path && findFunctionScopeVarDeclaratorInPath(path, name) ? 'VariableDeclarator' : undefined),
+    getBinding: (scope, name, path = null) => getScopeBinding(scope, name, path) ?? synthVarHoistBinding(path, name),
     getBindingPolyfillHint(scope, name) {
       const hint = getPolyfillBindingHint(scope, name);
       return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
@@ -392,7 +403,10 @@ function createResolveNodeType(babelNodeType, t, {
     if (quasi !== null) return quasi;
     if (!scope) return null;
     if (key?.type === 'Identifier') {
-      const binding = scope.getBinding?.(key.name);
+      // route through the hook (not raw `scope.getBinding`) so an over-hoisted namespace twin
+      // does not surface here for a use outside its block; no use-path at this site, so the
+      // estree hook drops the twin conservatively (generic dispatch) rather than mis-resolving
+      const binding = getScopeBinding(scope, key.name);
       if (!binding || binding.constantViolations?.length) return null;
       const decl = binding.path;
       if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
@@ -621,6 +635,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveClassInheritance,
   } = createGlobalResolve({
     t,
+    getScopeBinding,
     isMemberLike,
     keyMatchesName,
     resolveMemberPropertyName,
@@ -949,7 +964,11 @@ function createResolveNodeType(babelNodeType, t, {
     let depth = MAX_DEPTH;
     while (depth-- && t.isIdentifier(path.node)) {
       if (!path.scope) break;
-      const binding = path.scope?.getBinding(path.node.name);
+      // route through the hook with the use-path: drops an over-hoisted namespace twin for a
+      // use outside its block, and (estree side) drops the phantom declaration-violations the
+      // gate below reads - a phantom namespace/declare-global twin or a for-init self-violation
+      // no longer abandons a sound alias narrow babel performs
+      const binding = getScopeBinding(path.scope, path.node.name, path);
       if (!binding) break;
       // injector-recorded reassignment flag: the destructure-emitter saw `constantViolations`
       // at registration time (pre-AST-mutation, when scope was fresh) and stored the flag.
@@ -1544,6 +1563,7 @@ function createResolveNodeType(babelNodeType, t, {
   const callResolutionCluster = createCallResolution({
     t,
     babelNodeType,
+    getScopeBinding,
     babelBindingAdapter,
     isMemberLike,
     isFunctionLike,

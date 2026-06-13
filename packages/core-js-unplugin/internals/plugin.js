@@ -41,7 +41,14 @@ import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js';
-import { pathContainedBy, collectMutationPrePass, createEstreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
+import {
+  pathContainedBy,
+  withoutPhantomDeclarationViolations,
+  collectMutationPrePass,
+  createEstreeAdapter,
+  createUsageVisitors,
+  createSyntaxVisitors,
+} from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
 import { isCallee, isOutermostOptionalChainMember } from './emit-utils.js';
 import { createPolyfillEmitter } from './polyfill-emitter.js';
@@ -267,8 +274,11 @@ export default function createPlugin(options) {
       const binding = scope?.getBinding(name);
       if (!binding) return binding;
       const block = namespaceScopedBindingBlock(binding);
-      if (!block) return binding;
-      return path && pathContainedBy(path, block) ? binding : null;
+      if (block && !(path && pathContainedBy(path, block))) return null;
+      // drop estree-toolkit's phantom declaration-violations (over-hoisted namespace twin, for-init
+      // self) so the resolver's reassignment gates don't abandon a sound narrow babel performs;
+      // path-preserving, so real reassignment paths still reach `findPrecedingBlockAssignment`
+      return withoutPhantomDeclarationViolations(binding);
     },
   });
 

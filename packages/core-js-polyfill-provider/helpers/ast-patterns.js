@@ -635,6 +635,23 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
   return findVarOwnerDeclaring(path, name)?.declarator ?? null;
 }
 
+// synthesize a binding for a function-scoped `var` declared in a nested block that estree-toolkit
+// fails to hoist to the function scope (`function f(){ if (c) { var G = Array } G.from(...) }`).
+// babel hoists natively, so callers reach this only on the estree side after a null native lookup -
+// a no-op for babel. shape carries `.node` (declarator) + recomputed violations, the minimum the
+// static-receiver walk + reassignment gates read (they fall back to `.node` when there is no `.path`)
+export function synthVarHoistBinding(path, name) {
+  const declarator = path ? findFunctionScopeVarDeclaratorInPath(path, name) : null;
+  if (!declarator) return null;
+  return {
+    node: declarator,
+    kind: 'var',
+    constantViolations: collectFunctionScopeVarReassignments(path, name),
+    importSource: null,
+    polyfillHint: null,
+  };
+}
+
 // names of block-nested `function f(){}` declarations hoisted to `scopeNode`'s var scope under
 // sloppy-mode Annex-B semantics (a block-level function declaration is function-scoped, not
 // block-scoped, in non-strict code). reuses `walkVarScope` (descend non-boundary nodes, stop at
