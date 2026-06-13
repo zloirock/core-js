@@ -1,7 +1,0 @@
-import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
-import _includes from "@core-js/pure/actual/instance/includes";
-import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-try {} catch (_ref) {
-let iter = _getIteratorMethod(_ref);
-let _ref2, includes = (_ref2 = _includes(_ref)) === void 0 ? fb : _ref2;
-let { [_Symbol$iterator]: _unused, includes: _unused2, ...rest } = _ref; iter(); includes("x"); }

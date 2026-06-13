@@ -6,7 +6,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // globally but its initializer was dropped, leaving `export { ..., y }` consumers with
 // `undefined`. block-bodied `if` cases (already correct) are not exercised here.
 if (cond) {
-  sideEffect(), Array;
+  sideEffect();
   var from = _Array$from;
   var y = 1;
 }
