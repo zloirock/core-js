@@ -5,5 +5,5 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // checking for SE init, so the TS cast hides the SE: forInitRaw stays as TSAsExpression,
 // the `isForInitWithSE` gate misses, and `se()` gets dropped from the rewrite. peel must
 // also strip TS / Chain wrappers to reach the underlying SequenceExpression.
-for (var from = _Array$from, _unused = (se(), _globalThis) as any; from === undefined;) break;
+for (var from = _Array$from, _unused = (se(), _globalThis); from === undefined;) break;
 export { from };

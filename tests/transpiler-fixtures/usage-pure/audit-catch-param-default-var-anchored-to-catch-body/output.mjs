@@ -9,8 +9,9 @@ function probe(arr) {
   try {
     throw {};
   } catch (_ref) {
-    var _ref2, _ref3;
-    let at = (_ref2 = _at(_ref)) === void 0 ? null == (_ref3 = _flatMaybeArray(arr)) ? void 0 : _at(_ref3.call(arr)) : _ref2;
+    var _ref3;
+    let _ref2,
+      at = (_ref2 = _at(_ref)) === void 0 ? null == (_ref3 = _flatMaybeArray(arr)) ? void 0 : _at(_ref3.call(arr)) : _ref2;
     return at;
   }
 }

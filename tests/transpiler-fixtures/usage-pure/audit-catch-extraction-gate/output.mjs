@@ -38,8 +38,8 @@ try {
 try {
   f5();
 } catch (_ref2) {
-  var _ref3;
-  let entries = (_ref3 = _entries(_ref2)) === void 0 ? fb : _ref3;
+  let _ref3,
+    entries = (_ref3 = _entries(_ref2)) === void 0 ? fb : _ref3;
   use(entries);
 }
 // rest alone stays in place; rest beside a polyfillable sibling extracts (sentinel)

@@ -6,8 +6,8 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // `_ref2`, an `it` extractor with default fallback, and a residual destructure for
 // `Symbol.asyncIterator` + `...rest` - all in one catch clause
 try {} catch (_ref) {
-  var _ref2;
-  let it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? altIter : _ref2;
+  let _ref2,
+    it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? altIter : _ref2;
   let {
     [_Symbol$iterator]: _unused,
     [_Symbol$asyncIterator]: ait,

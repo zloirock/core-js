@@ -4,6 +4,6 @@ import _Array$from from "@core-js/pure/actual/array/from";
 // subtree's `Array.from(xs)` still gets visited and polyfilled on the second pass -
 // no nested polyfill should be lost during the body-lift rewrite
 if (cond) {
-  _Array$from(xs), Array;
+  _Array$from(xs);
   var from = _Array$from;
 }
