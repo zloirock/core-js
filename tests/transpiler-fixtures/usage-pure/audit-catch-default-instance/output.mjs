@@ -5,7 +5,7 @@ import _includes from "@core-js/pure/actual/instance/includes";
 try {
   risky();
 } catch (_ref) {
-  var _ref2;
-  let includes = (_ref2 = _includes(_ref)) === void 0 ? alt : _ref2;
+  let _ref2,
+    includes = (_ref2 = _includes(_ref)) === void 0 ? alt : _ref2;
   includes;
 }
