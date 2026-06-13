@@ -5,8 +5,8 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // the default-value param wrapper - default fallback fires only when extracted value is
 // undefined, then the residual destructure leaves rest pointing at the original error
 try {} catch (_ref) {
-  var _ref2;
-  let it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? fallback : _ref2;
+  let _ref2,
+    it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? fallback : _ref2;
   let {
     [_Symbol$iterator]: _unused,
     ...rest
