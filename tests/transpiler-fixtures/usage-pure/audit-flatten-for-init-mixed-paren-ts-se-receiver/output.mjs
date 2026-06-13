@@ -4,5 +4,5 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // requires the peel to recurse: strip outer paren, strip TS `as`, strip inner paren -
 // reach the SE underneath. asserts the peel is a fixpoint over the wrapper set, not a
 // single shot of one wrapper type.
-for (var from = _Array$from, _unused = (se(), _globalThis) as any; from === undefined;) break;
+for (var from = _Array$from, _unused = (se(), _globalThis); from === undefined;) break;
 export { from };

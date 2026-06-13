@@ -4,7 +4,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // branch slot (which only accepts a single statement, same as bodyless if/while).
 // `Array.of` polyfill source distinct from prior fixtures pins emission to this case.
 if (cond) noop();else {
-  logEvent(), Array;
+  logEvent();
   var of = _Array$of;
   var n = 0;
 }

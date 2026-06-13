@@ -7,7 +7,6 @@ import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 var _ref, _ref2, _ref3;
-const from = _Array$from;
 // a NESTED proxy flatten that is PARTIALLY consumed: `Array.from` is extracted to a binding, but the
 // sibling `other` survives inside the rebuilt `Array: { ... }` text. its default carries polyfillable
 // content (an instance `.at` call, a static `Promise.any` call) that the natural visitor must still
@@ -16,6 +15,7 @@ const from = _Array$from;
 // (.at instance, Promise.any static) show each survivor's content is independently re-anchored. the
 // `Object` line carries TWO survivors in one nested prop, exercising the running dst-offset across
 // multiple rebuilt entries (the second survivor's residual target must clear the first's text length)
+const from = _Array$from;
 const {
   withAt = _atMaybeArray(_ref = [1]).call(_ref, 0)
 } = _globalThis.Array;
