@@ -29,7 +29,8 @@ export const STRATEGIES = Object.freeze({
   DEFER_SE_AND_SPLICE: 'defer-se-and-splice',
   // block-level single-decl + static value - defer SE to programExit, replace declaration
   DEFER_SE_AND_REPLACE: 'defer-se-and-replace',
-  // block-level multi-decl, instance value - splice extracted + split mixed export runs
+  // block-level multi-decl, instance value - replace the consumed declarator in place
+  // (the post-traverse drain renders the statement-per-declarator split)
   SPLICE_AND_SPLIT: 'splice-and-split',
   // block-level single-decl - replace declaration with extracted
   REPLACE_DECL: 'replace-decl',

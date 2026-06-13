@@ -7,7 +7,8 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 // polyfill alias. without `using` / `await using` in `LEXICAL_DECL_KINDS`, the binding
 // is invisible to `sibling-receiver ref polyfilling`; inner reference gets wrongly rewritten
 const from = _Array$from;
-const val = (() => { var _ref;
+const val = (() => {
+  var _ref;
   using globalThis = makeResource();
   return _valuesMaybeArray(_ref = [globalThis]).call(_ref);
 })();

@@ -20,6 +20,7 @@ pre(); of2 = _Array$of; post();
 export const r2 = _atMaybeArray(_ref2 = of2(4)).call(_ref2, 0);
 // rest sibling: the consumed key renames to the sentinel, rest exclusion preserved
 let keys, rest;
+var _unused;
 keys = _Object$keys;
 ({ keys: _unused, ...rest } = Object); use(rest);
 // a destructure buried in a NESTED sequence slot splits too (fixpoint over the products)
