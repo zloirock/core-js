@@ -6,8 +6,9 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // default) BEFORE the rest-gather pattern is rebuilt; the rebuilt pattern reserves a `_unused`
 // slot for the entry's key so rest exclusion still works. both must hold. regression lock
 try {} catch (_ref) {
-  var _ref2, _ref3;
-  let it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? _flatMaybeArray(_ref3 = [9]).call(_ref3) : _ref2;
+  var _ref3;
+  let _ref2,
+    it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? _flatMaybeArray(_ref3 = [9]).call(_ref3) : _ref2;
   let {
     [_Symbol$iterator]: _unused,
     ...rest
