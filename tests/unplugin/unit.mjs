@@ -860,23 +860,107 @@ function checkSingleBrandAfterTagError() {
 }
 checkSingleBrandAfterTagError();
 
-// `extractContent` on a split-pair half must remove BOTH halves. orphaning the peer
-// would emit it alone at apply time, corrupting output (peer covers only half the
-// logical range)
-function checkExtractSplitRemovesPeer() {
+// `extractContent` operates on LOGICAL ranges. a split pair is keyed in #byRange by its two
+// PHYSICAL halves, never its logical [start, end], so only the logical range resolves the
+// assembled pair AND removes both halves. a physical-half range has no logical owner: it returns
+// null and leaves the pair queued, so apply() still emits the whole rewrite. returning a lone half
+// (or orphaning a peer) would corrupt output - a half covers only part of the logical range
+function checkExtractSplitLogicalContract() {
+  const code = '0123456789';
+  // logical range -> assembled pair, both halves drained, apply leaves source untouched
+  {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
+    check('TransformQueue/extractContent logical range assembles pair', q.extractContent(0, 10), 'PREFIXSUFFIX');
+    q.apply();
+    check('TransformQueue/extractContent logical range drains both halves', ms.toString(), code);
+  }
+  // physical prefix half -> null, pair stays queued and applies whole
+  {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
+    check('TransformQueue/extractContent physical prefix half returns null', q.extractContent(0, 5), null);
+    q.apply();
+    check('TransformQueue/extractContent physical prefix half leaves pair intact', ms.toString(), 'PREFIXSUFFIX');
+  }
+  // physical suffix half -> null, pair intact
+  {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
+    check('TransformQueue/extractContent physical suffix half returns null', q.extractContent(5, 10), null);
+    q.apply();
+    check('TransformQueue/extractContent physical suffix half leaves pair intact', ms.toString(), 'PREFIXSUFFIX');
+  }
+}
+checkExtractSplitLogicalContract();
+
+// composeAndDrainRange membership is by LOGICAL span: a split half qualifies only together with
+// its peer. a drain range beginning inside a split (covering the suffix's physical start but not
+// the prefix's) must NOT admit the suffix alone - draining it while leaving the prefix would emit
+// the receiver fragment by itself. nothing is drained; the pair survives and apply() emits it whole
+function checkComposeAndDrainRangePartialSplitLeavesPairIntact() {
   const code = '0123456789';
   const ms = new MagicString(code);
   const q = new TransformQueue(code, ms);
-  q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
-  // extract prefix; peer (suffix) must also leave the queue so apply doesn't emit
-  // the orphan suffix alone
-  const extracted = q.extractContent(0, 5);
-  check('TransformQueue/extractContent returns prefix content', extracted, 'PREFIX');
-  // queue should be empty now - apply should leave the source untouched
+  q.addSplit(2, 5, 10, 'PRE', 'SUF'); // logical [2,10); physical halves [2,5) + [5,10)
+  const splices = q.composeAndDrainRange(5, 10); // begins at the split mid - touches suffix half only
+  check('TransformQueue/composeAndDrainRange partial split drains nothing', splices.length, 0);
   q.apply();
-  check('TransformQueue/extractContent drops peer half', ms.toString(), code);
+  check('TransformQueue/composeAndDrainRange partial split leaves pair intact', ms.toString(), '01PRESUF');
 }
-checkExtractSplitRemovesPeer();
+checkComposeAndDrainRangePartialSplitLeavesPairIntact();
+
+// composeAndDrainRange covering a split's FULL logical range drains BOTH halves (peer-aware) and
+// returns one assembled splice - no half is left orphaned in the queue for apply() to emit alone
+function checkComposeAndDrainRangeWholeSplitDropsBothHalves() {
+  const code = '0123456789';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.addSplit(2, 5, 10, 'PRE', 'SUF');
+  const splices = q.composeAndDrainRange(0, 10);
+  check('TransformQueue/composeAndDrainRange whole split returns one splice', splices.length, 1);
+  if (splices.length) check('TransformQueue/composeAndDrainRange whole split assembles pair', splices[0].content, 'PRESUF');
+  q.apply(); // both halves drained -> source untouched, no orphan peer emitted
+  check('TransformQueue/composeAndDrainRange whole split drains both halves', ms.toString(), code);
+}
+checkComposeAndDrainRangeWholeSplitDropsBothHalves();
+
+// hasTransformWithin is split-aware on the logical START: a split that STRADDLES the queried range
+// (prefix outside, suffix inside) is NOT "within" - only a split whose full logical span fits counts.
+// a physical-start test would admit the suffix alone and wrongly report the straddling split as nested
+function checkHasTransformWithinSplitLogicalStart() {
+  const code = '0123456789abcdef';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.addSplit(2, 5, 10, 'PRE', 'SUF'); // logical [2,10); physical halves [2,5) + [5,10)
+  // [3,10) begins inside the prefix half, so the split straddles it - prefix lies outside -> not within
+  check('TransformQueue/hasTransformWithin straddling split is not within', q.hasTransformWithin(3, 10), false);
+  // full logical span fits inside the query -> within
+  check('TransformQueue/hasTransformWithin enclosed split is within', q.hasTransformWithin(0, 12), true);
+  check('TransformQueue/hasTransformWithin exact logical range is within', q.hasTransformWithin(2, 10), true);
+}
+checkHasTransformWithinSplitLogicalStart();
+
+// the relocation path (composedRangeSrc) drains a node range through BOTH drainInsertsInRange (point
+// inserts) and composeAndDrainRange (overwrites/splits). a split + a point-insert in the same range
+// must each drain cleanly without corrupting the other: the split assembles as one logical splice and
+// both its halves leave the queue (peer-aware), the insert leaves as a zero-length splice
+function checkDrainSplitAndInsertSameRange() {
+  const code = '0123456789abcdef';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.addSplit(2, 5, 10, 'PRE', 'SUF'); // logical [2,10)
+  q.insert(11, 'INS'); // point-insert outside the split, inside the drained range
+  const inserts = q.drainInsertsInRange(0, 16);
+  const splices = q.composeAndDrainRange(0, 16);
+  check('TransformQueue/drain split+insert: insert drained as zero-length splice', inserts.length, 1);
+  check('TransformQueue/drain split+insert: split assembled as one splice', splices.length === 1 && splices[0].content, 'PRESUF');
+  q.apply(); // queue fully drained (both split halves + insert) -> source untouched
+  check('TransformQueue/drain split+insert: queue empty, source untouched', ms.toString(), code);
+}
+checkDrainSplitAndInsertSameRange();
 
 // --- ImportInjector.snapshot() ---
 // snapshot must hand the post-pass an immutable view; mutating the pre injector after
