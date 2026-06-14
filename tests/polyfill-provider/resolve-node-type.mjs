@@ -978,6 +978,100 @@ runBoth('destructure default with statically present member takes the member typ
       { primitive: true, kind: 'string' });
   });
 
+// numeric destructuring key present: the init literal supplies key `0` (a NumericLiteral), so the
+// default is dead and the present string member wins. the presence probe matches the numeric init key
+// against the stringified pattern key via the canonical extractor - a raw number-vs-string compare
+// judged it absent and wrongly narrowed to the array default
+runBoth('destructure default with numeric key present takes the member type',
+  "const { 0: x = [] } = { 0: 'hello' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// duplicate object-literal keys: ECMAScript keeps the LAST property (a string here), so the present
+// member's type wins over the array default. a find-first scan saw the leading `undefined` and
+// wrongly narrowed to the default
+runBoth('destructure default with duplicate key takes the last property type',
+  "const { a = [] } = { a: undefined, a: 'tail' }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// duplicate keys where the LAST property is `undefined`: the member is absent, so the array default
+// fires - the symmetric last-wins case (find-first would have taken the leading string)
+runBoth('destructure default with duplicate key last-undefined takes the default type',
+  "const { a = [] } = { a: 'head', a: undefined }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// duplicate key whose LAST property is a setter: the slot reads undefined, so last-wins must land on
+// the setter and stay undecided (the fold keeps the generic dispatch) - a find-first scan took the
+// leading data string and wrongly narrowed it to the string `at` helper
+runBoth('destructure default with data-then-setter duplicate key folds to null',
+  "const { a = [] } = { a: 'str', set a(v) {} }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    check(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')), null);
+  });
+
+// duplicate key whose LAST property is a getter returning an array: last-wins lands on the getter and
+// its array return folds with the array default
+runBoth('destructure default with data-then-getter duplicate key takes the getter type',
+  "const { a = [] } = { a: 'str', get a() { return []; } }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// a getter shadowed by a trailing data string: last-wins takes the string data property (a find-first
+// scan stopped at the getter and stayed undecided, dropping the precise string narrow)
+runBoth('destructure default with getter-then-data duplicate key takes the last string',
+  "const { a = [] } = { get a() { return 1; }, a: 'plain' }; a.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// numeric key AND duplicate key together: last-wins lands on the trailing string under the numeric
+// key, so both the key-coercion and the last-property-wins paths must hold at once
+runBoth('destructure default with duplicate numeric key takes the last string',
+  "const { 0: x = [] } = { 0: undefined, 0: 'tail' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// computed numeric PATTERN key resolved to a string path entry must still match the numeric init key
+// through the canonical extractor, so the present string member wins over the array default
+runBoth('destructure default with computed numeric pattern key present takes the member type',
+  "const { [0]: x = [] } = { 0: 'hello' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
+// numeric keys match by VALUE, not source text: a hex pattern key and a decimal init key denote the
+// same property `16`, so the present string member wins - the canonical extractor stringifies the
+// numeric value identically for both forms
+runBoth('destructure default with hex pattern key matches decimal init key',
+  "const { 0x10: x = [] } = { 16: 'hello' }; x.at(0);",
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: true, kind: 'string' });
+  });
+
 // --- globalThis member access ---
 
 runBoth('globalThis.Map() resolved as Map constructor invocation',

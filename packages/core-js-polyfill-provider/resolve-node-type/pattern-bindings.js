@@ -168,7 +168,13 @@ export function createPatternBindings({
       const keyPath = findDestructuredKeyPath(pattern, varName, bindingPath.scope);
       if (keyPath?.length !== 1 || typeof keyPath[0] !== 'string') return null;
       if (init.properties.some(prop => prop.type === 'SpreadElement' || prop.computed)) return null;
-      const match = init.properties.find(prop => (prop.key?.name ?? prop.key?.value) === keyPath[0]);
+      // match via the SAME canonical `getKeyName` the pattern side used to build `keyPath`, so a
+      // numeric key `{ 0: ... }` (stringified to `'0'` by getKeyName) matches its path entry - a raw
+      // `prop.key.value` probe compared the number `0` against the string `'0'` and judged it absent.
+      // findLast honours ECMAScript last-property-wins for duplicate keys. deliberately NOT
+      // findObjectMember: its set-accessor skip would mis-read a data-then-setter slot
+      // (`{ a: 1, set a(v) {} }` reads undefined) as present
+      const match = init.properties.findLast(prop => getKeyName(prop.key) === keyPath[0]);
       // a method / accessor property (babel ObjectMethod; estree Property with a get / set /
       // method kind) carries a defined value the plain `.value` probe cannot see - stay
       // undecided so the member x default fold keeps both sides (a false 'absent' narrowed a
