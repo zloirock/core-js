@@ -263,6 +263,26 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return out;
   }
 
+  // a reassignment whose home is a DEFERRED function (NOT an immediately-invoked one) runs at an
+  // unknown call time - it can fire before the use even when textually after it - so any positional
+  // narrow is unsound. an IIFE-body reassignment lifts to a straight-line position (it lands in
+  // sortedAssigns and is bounded positionally instead), so `liftThroughIIFEs` succeeding means it
+  // is NOT deferred. distinguishing the two is why the blanket `violationInCapturedFunction` gate
+  // (which findPrecedingBlockAssignment can use only because it never narrows to a function value)
+  // is wrong here - it would also drop the legitimate IIFE-reassigned narrows
+  function violationRunsDeferred(v, bindingScope) {
+    const stop = scopeNode(bindingScope);
+    let inFn = false;
+    for (let p = v.parentPath; p?.node && p.node !== stop && !inFn; p = p.parentPath) {
+      if (t.isFunction(p.node)) inFn = true;
+    }
+    if (!inFn) return false;
+    const ap = violationToAssignment(v);
+    if (!ap) return false;
+    const wrapStmtType = ap.node.type === 'VariableDeclarator' ? 'VariableDeclaration' : 'ExpressionStatement';
+    return !liftThroughIIFEs(ap, wrapStmtType, bindingScope);
+  }
+
   // last straight-line assignment before usagePath: `x = v`, `x += v`, `({x} = v)`, or a
   // `var x = v` redecl in the same var-scope (possibly through plain blocks / sync IIFEs).
   // O(V) build per binding (cached), O(log V) per query
@@ -270,6 +290,9 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     const beforePos = usagePath.node.start;
     if (beforePos === undefined || beforePos === null) return null;
     if (!binding.constantViolations?.length) return null;
+    // a reassignment in a deferred (non-IIFE) function runs at an unknown time - possibly before the
+    // use even when textually later - so the positional narrow below cannot be trusted
+    if (binding.constantViolations.some(v => violationRunsDeferred(v, binding.scope))) return null;
     if (!isInBindingVarScope(usagePath.scope, binding.scope)) return null;
     // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
     // use, so the positional "last assignment before use" is stale from iteration 2 - degrade to generic
