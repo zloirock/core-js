@@ -46,6 +46,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { buildNestedDestructurePlan } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { globalProxyMemberName, peelProxyGlobalObject } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   planDestructureEmission,
@@ -266,6 +267,9 @@ export default function createDestructureEmitter({
   // `var _unused, _unused2;`. matches unplugin's single-pass shape for byte-identical ordering
   const bodyExtractLastInsert = new WeakMap(),
         assignHostBookkeeping = new WeakMap();
+  // per-statement nested-instance overwrite tail: chains each overwrite off the previous one so a
+  // multi-element pattern emits them in SOURCE order (last element wins, as native destructuring)
+  const nestedOverwriteLastInsert = new WeakMap();
   function getAssignHostBookkeeping(assignNode) {
     let bk = assignHostBookkeeping.get(assignNode);
     if (!bk) {
@@ -996,8 +1000,14 @@ export default function createDestructureEmitter({
       // no local re-check (a duplicate gate here once drifted from the planner and left a literal native)
       polyfillValue = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
     } else {
+      // global ctor (`{ [(eff(), 'Promise')]: P } = globalThis`): register a GLOBAL alias so member reads
+      // re-polyfill (`P.allSettled` -> the pure static). ALSO registering it as a body-extract alias would
+      // clobber that and leave the member read raw against the bare ctor (which lacks the static) -> a
+      // TypeError on ie:11. static method (`{ [(eff(), 'from')]: from } = Array`): body-extract alias so
+      // post-rewrite narrowing resolves the extracted local. both bind the local to the pure import
+      // (`const P = _Promise` / `const from = _Array$from`) and keep the SE-key as a `_unused` residual
       if (kind === 'global') injector.registerGlobalAlias(valueNode.name, hintName);
-      injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
+      else injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
       polyfillValue = t.cloneNode(injectPureImport(entry, hintName));
     }
     if (siblingDeclarator) {
@@ -1119,9 +1129,17 @@ export default function createDestructureEmitter({
       // native. `resolveNestedReceiverNode` already gates the receiver (Identifier / side-effect-free literal)
       const statement = nestedAssignmentStatementOf(prop);
       const receiverNode = resolveNestedReceiverNode(prop);
-      if (statement && prop.node.value?.type === 'Identifier' && receiverNode) {
-        statement.insertAfter(t.expressionStatement(t.assignmentExpression('=', t.cloneNode(prop.node.value),
-          t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)]))));
+      if (statement && prop.node.value?.type === 'Identifier' && receiverNode && !skippedNodes.has(prop.node)) {
+        // mark handled so a re-visit (babel re-crawls after the insertAfter mutation) doesn't append
+        // a second identical overwrite
+        skippedNodes.add(prop.node);
+        // chain each overwrite off the previous one for this statement: the elements of a multi-element
+        // pattern (`[{ flat: x }, { at: x }] = [a, b]`) must overwrite in SOURCE order so the last one
+        // wins, as native destructuring does - a bare `statement.insertAfter` per element reverses them
+        const overwriteStmt = t.expressionStatement(t.assignmentExpression('=', t.cloneNode(prop.node.value),
+          t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)])));
+        const prevInsert = nestedOverwriteLastInsert.get(statement.node);
+        nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
       }
       return;
     }
@@ -1266,6 +1284,21 @@ export default function createDestructureEmitter({
     const objectNode = parent.node[initKey];
     if (!objectNode) return null;
     if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
+      // the ctor the receiver resolves to (peel SE prefix, zero-arg IIFE return, paren / TS wrappers,
+      // walk proxy-global hops) - drives both the inline decision and the memo's global-alias name
+      const proxyCtor = globalProxyMemberName({ node: peelProxyGlobalObject(objectNode), scope: path.scope, adapter, path });
+      // a NO-SE receiver resolving to a bare pure-ctor (`globalThis.Promise`, incl. a hop) is a single
+      // SE-free reference: return it RAW (no memoize, no collapse) and let the natural visitor substitute
+      // it to the pure import (`-> _Promise`) - exactly the non-symbol-iter / single-prop fall-through.
+      // a memo `_ref`, or collapsing to `_globalThis.Promise` (then re-substituted), would be superfluous;
+      // the substituted import resolves sibling reads on its own. an SE prefix still memoizes (SE once)
+      if (proxyCtor && peelNestedSequenceExpressions(objectNode).prefix.length === 0
+        && resolveGlobalPure(proxyCtor)) return objectNode;
+      // collapse a proxy-global hop before memoizing (`globalThis.self.Array` -> `globalThis.Array`) -
+      // the same collapse the retained-residual path applies - so the memo isn't `_globalThis.self.Array`,
+      // whose `.self` is runtime-undefined on ie:11 / Node
+      collapseRetainedProxyReceiver(synthSwap, parent.node, initKey);
+      const receiver = parent.node[initKey];
       // declare=false: we emit our own `const _ref = init;` below, no extra `var _ref;`
       const ref = generateLocalRef(path.scope);
       // sibling-declarator insert keeps the memo AT ITS SOURCE SLOT (a declaration-level
@@ -1274,15 +1307,20 @@ export default function createDestructureEmitter({
       // for-init keeps the comma shape (loop header). an AssignmentExpression host has no
       // declarator list, so it keeps the preceding-statement insert
       if (parent.isVariableDeclarator()) {
-        const memoDeclarator = t.variableDeclarator(ref, objectNode);
+        const memoDeclarator = t.variableDeclarator(ref, receiver);
         memoDeclarators.add(memoDeclarator);
         parent.insertBefore(memoDeclarator);
       } else parent.parentPath.insertBefore(t.variableDeclaration('const', [
-        t.variableDeclarator(ref, objectNode),
+        t.variableDeclarator(ref, receiver),
       ]));
       const cloned = t.cloneNode(ref);
       // store resolved type for subsequent destructured properties to resolve type hints
       if (typeOfReceiver) resolvedType.set(cloned, typeOfReceiver);
+      // a memoized proxy-global-member receiver (`_ref = _globalThis.Array`) is registered as a global
+      // alias for its ctor so SIBLING statics destructured off `_ref` re-polyfill - a `[Symbol.iterator]`
+      // key has no instance type, so the resolvedType channel above doesn't carry the ctor, and the
+      // inserted `_ref` is not scope-registered, leaving `from` native otherwise (undefined on ie:11)
+      if (proxyCtor) injector.registerGlobalAlias(ref.name, proxyCtor);
       parent.node[initKey] = cloned;
       return ref;
     }
@@ -1419,6 +1457,11 @@ export default function createDestructureEmitter({
     const { init } = declarator.node;
     if (!t.isIdentifier(init)) return false;
     if (objectPattern.node.properties.some(p => t.isObjectProperty(p) && t.isAssignmentPattern(p.value))) return false;
+    // a computed key (`[Symbol.iterator]: it`) has no resolvePure entry, so the plan leaves it a
+    // verbatim survivor - re-rendering the whole declarator here would clobber the per-prop symbol-key
+    // extraction (`it = _getIteratorMethod(_ref)`). keep computed-key patterns on the per-prop path,
+    // where the symbol key and its sibling statics each emit independently
+    if (objectPattern.node.properties.some(p => t.isObjectProperty(p) && p.computed)) return false;
     if (declarator.parentPath?.node?.leadingComments?.length) return false;
     return renderDeclaratorFlattenPlan(declarator, prop);
   }

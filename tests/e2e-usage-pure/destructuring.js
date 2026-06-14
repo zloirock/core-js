@@ -1447,3 +1447,62 @@ QUnit.test('destructuring: for-init receiver SE runs first and once', assert => 
   }
   assert.same(`${ log }`, 'se');
 });
+
+// a side-effect computed key destructuring a GLOBAL constructor: the key SE runs, and member reads
+// through the local binding re-polyfill (`P.allSettled` resolves the pure static) rather than landing
+// raw on a bare constructor that lacks it (which would throw TypeError)
+QUnit.test('destructuring: SE-key global-ctor alias re-polyfills member read', assert => {
+  const log = [];
+  const { [(log.push('se'), 'Promise')]: P } = globalThis;
+  assert.same(`${ log }`, 'se');
+  const async = assert.async();
+  P.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
+    assert.same(r[0].status, 'fulfilled');
+    assert.same(r[1].status, 'rejected');
+    async();
+  });
+});
+
+// a nested-instance assignment overwrite in a bodyless control body stays CONDITIONAL: a false
+// guard must not run it (the overwrite joins the destructure inside the implied block)
+QUnit.test('destructuring: bodyless-control nested-instance overwrite stays conditional', assert => {
+  const arr = [1, [2], 3];
+  const grab = guard => {
+    let m;
+    if (guard) [{ flat: m }] = [arr];
+    return m;
+  };
+  // false guard: the overwrite must NOT run, so `m` stays undefined (the bug ran it unconditionally)
+  assert.same(grab(false), undefined);
+  // true guard: the overwrite runs, binding `m` to the polyfilled `flat` (a function)
+  assert.same(typeof grab(true), 'function');
+});
+
+// a multi-element pattern whose elements overwrite the SAME nested-instance target must apply the
+// overwrites in SOURCE order, so the last element wins - exactly as native destructuring does. emitting
+// them in reverse (a per-element insert hazard) would leave the FIRST element's method bound instead
+QUnit.test('destructuring: multi-element nested-instance overwrite is last-wins', assert => {
+  const a = [1, [2]];
+  const b = [7, 8, 9];
+  let m;
+  // eslint-disable-next-line no-useless-assignment -- the first assignment is intentionally overwritten; last-wins is the behavior under test
+  [{ flat: m }, { at: m }] = [a, b];
+  // last-wins => `m` is `at` (element 1), not `flat` (element 0). `at` returns the element at an index;
+  // `flat` returns a flattened array - call with a receiver to disambiguate which method landed
+  assert.same(m.call(b, 1), 8);
+});
+
+// a `let`-bound global-ctor alias must re-polyfill member reads exactly like a `const` one: `P.allSettled`
+// resolves to the pure static. a const-only shadow gate left `let` aliases raw against the bare pure ctor
+// (which lacks the static) -> TypeError. the alias is identified by its init resolving to the global, not
+// by declaration kind
+QUnit.test('destructuring: let-bound global-ctor alias re-polyfills member read', assert => {
+  // eslint-disable-next-line prefer-const -- `let` is the binding kind under test (a const alias already worked)
+  let { Promise: P } = globalThis;
+  const async = assert.async();
+  P.allSettled([Promise.resolve(1), Promise.reject(2)]).then(r => {
+    assert.same(r[0].status, 'fulfilled');
+    assert.same(r[1].status, 'rejected');
+    async();
+  });
+});
