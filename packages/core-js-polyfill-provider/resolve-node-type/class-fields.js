@@ -23,7 +23,7 @@ import {
   createMemberWriteShape,
   memberWriteTargetPath,
 } from './class-member-shapes.js';
-import { forEachPatternWriteMember, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { forEachPatternWriteMember, peelSkippableWrapperPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { nodeRangeContains } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
@@ -565,9 +565,34 @@ export function createClassFields({
     // already in the skip set, so they don't need explicit entries (and adding babel-
     // incompatible ESTree names like `MethodDefinition` crashes babel-traverse).
     // Arrow functions inherit outer `this`, so they're NOT skipped
+    // run the this-write scan over a sub-path: traverse descendants, then handle the root itself
+    // (an expression-bodied arrow / a computed key that IS the assignment - neither visited by
+    // `traverse`, which walks descendants only)
+    function scanForThisWrites(target) {
+      if (!target?.node) return;
+      target.traverse(visitors);
+      if (target.node.type === 'AssignmentExpression') handleAssignment(target);
+      else if (target.node.type === 'UpdateExpression') handle(target);
+    }
+    // sub-paths of a skipped this-rebinding node that STILL evaluate in the outer `this`: a babel
+    // `ObjectMethod` computed key (estree splits the method into Property + FunctionExpression, so
+    // its key is already reached by the normal walk), and a class's heritage (`extends (this.x=1,
+    // Base)`) + every member's computed key. field / method bodies and static-field values rebind
+    // `this`, so they stay pruned - only the keys / heritage carry an outer-`this` write
+    function outerThisKeyPaths(p) {
+      const { node } = p;
+      if (node.type === 'ObjectMethod') return node.computed ? [p.get('key')] : [];
+      if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+        const out = node.superClass ? [p.get('superClass')] : [];
+        for (const member of p.get('body').get('body')) if (member.node?.computed) out.push(member.get('key'));
+        return out;
+      }
+      return [];
+    }
     const visitors = {
       'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
         p.skip();
+        for (const keyPath of outerThisKeyPaths(p)) scanForThisWrites(keyPath);
       },
       AssignmentExpression: handleAssignment,
       UpdateExpression: handle,
@@ -579,13 +604,7 @@ export function createClassFields({
     };
     for (const path of methodPaths) {
       if (!path?.node) continue;
-      const target = path.node.type === 'StaticBlock' ? path : path.get('body');
-      if (!target?.node) continue;
-      target.traverse(visitors);
-      // arrow expression-body root: body IS the AssignmentExpression / UpdateExpression
-      // and isn't visited by path.traverse (which walks descendants only)
-      if (target.node.type === 'AssignmentExpression') handleAssignment(target);
-      else if (target.node.type === 'UpdateExpression') handle(target);
+      scanForThisWrites(path.node.type === 'StaticBlock' ? path : path.get('body'));
     }
     return index;
   }
@@ -622,7 +641,10 @@ export function createClassFields({
   // FE-valued is included conservatively - call-site `this` may not be class/instance, but
   // any write that DOES fire under the expected receiver still mutates the field
   function fieldFunctionPath(memberPath) {
-    const value = memberPath.get('value');
+    // peel TS casts / parens so a wrapped fn field (`f = (() => ...) as () => void`) is still
+    // recognized; return the unwrapped function PATH so the field-flow scan reaches its `.body`
+    // and folds the `this.X = ...` writes inside (a raw `value` path would dead-end on `.get('body')`)
+    const value = peelSkippableWrapperPath(memberPath.get('value'));
     if (value?.node?.type === 'ArrowFunctionExpression'
       || value?.node?.type === 'FunctionExpression') return value;
     return null;
