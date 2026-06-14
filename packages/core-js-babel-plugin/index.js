@@ -406,18 +406,14 @@ export default function plugin(api, options) {
       // (a dead `_ref` via extractCheck). the receiver subtree (innerCallee.object) stays
       // VISITABLE so its proxy-globals (`globalThis` -> `_globalThis`), statics (`Array.from` ->
       // `_Array$from`), and nested polyfillable chains (`a.flat?.()`) still substitute - matching
-      // the single-call path. EXCEPTION: a TS-cast-wrapped receiver (`(globalThis as any)`) is kept
-      // verbatim in the memo by both plugins (unplugin can't compose a substitution spanning the
-      // Paren+cast), so blanket-skip it here too rather than substitute through the cast
+      // the single-call path, including through a TS-cast wrapper (`(globalThis as any).flat?.()`):
+      // the memo reuses the original receiver node, so leaving its inner proxy-global visitable
+      // lets the Identifier visitor substitute it (`_ref = _globalThis as any`) instead of stranding
+      // a raw global. unplugin's combined-chain delegates to the same receiver resolver for parity
       function markCombinedChainConsumed({ chainStartNode, innerCallee }) {
         skippedNodes.add(chainStartNode);
         skippedNodes.add(innerCallee);
         if (innerCallee.property) skippedNodes.add(innerCallee.property);
-        let receiverLeaf = innerCallee.object;
-        while (receiverLeaf?.type === 'ParenthesizedExpression') receiverLeaf = receiverLeaf.expression;
-        if (receiverLeaf && TS_EXPR_WRAPPERS.has(receiverLeaf.type)) {
-          t.traverseFast(innerCallee.object, node => { skippedNodes.add(node); });
-        }
       }
 
       // inherited-static dispatch -- super.method(args) or this.method(args) in static ctx
@@ -732,6 +728,9 @@ export default function plugin(api, options) {
         ...commonVisitorOptions,
         suppressProxyGlobals: isPure,
         walkAnnotations: !isPure,
+        // gates proxy-global receiver suppression on the member resolving to a real pure
+        // replacement (usage-pure only - usage-global never suppresses proxy receivers)
+        resolveMeta: isPure ? resolvePure : undefined,
       }) : null;
       // usage-pure already has walkAnnotations=false, matching the helper-pass config;
       // usage-global diverges (annotations needed for usage, not helpers) and needs its own

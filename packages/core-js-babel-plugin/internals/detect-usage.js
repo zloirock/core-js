@@ -197,6 +197,7 @@ export function createUsageVisitors({
   method,
   onUsage,
   onWarning,
+  resolveMeta,
   resolvedType,
   suppressProxyGlobals = false,
   toHint,
@@ -299,7 +300,7 @@ export function createUsageVisitors({
       return;
     }
     const meta = handleMemberExpressionNode({
-      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path,
+      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta,
     });
     if (meta) {
       onUsage(meta, path);
