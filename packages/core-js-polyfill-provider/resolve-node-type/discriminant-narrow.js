@@ -20,11 +20,11 @@
 // straight-line execution).
 import {
   isMemberAccessNode,
+  isMemberWriteHost,
   peelLabeledStatementPath,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
-import { memberWriteTargetPath } from './class-member-shapes.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
@@ -158,13 +158,15 @@ export function createDiscriminantNarrow({
       // climb to the top of the member-access chain rooted at this `obj` reference
       let p = ref;
       while (isMemberAccessNode(p.parentPath?.node) && p.parentPath.node.object === p.node) p = p.parentPath;
-      const host = p.parentPath;
-      const hostType = host?.node?.type;
-      if (hostType !== 'AssignmentExpression' && hostType !== 'UpdateExpression') continue;
+      // record only when the climbed member chain is itself the WRITE TARGET of its host -
+      // assignment / update / delete, OR a destructure-pattern slot / for-x head (the canonical
+      // `isMemberWriteHost` enumeration; the bare hostType check missed those, so a `[obj.a] = v`
+      // or `for (obj.a of it)` write left the narrow unsoundly retained)
+      if (!isMemberWriteHost(p)) continue;
       // exact narrowed path, or a strict segment-prefix of it (`obj.a` vs target `obj.a.b`); a
       // deeper write (`obj.a.b.c`) only mutates a property OF the narrowed object, so it is excluded
-      const writeKey = pathKey(memberWriteTargetPath(host).node);
-      if (writeKey !== null && (writeKey === targetKey || targetKey.startsWith(`${ writeKey }.`))) out.push({ node: host.node });
+      const writeKey = pathKey(p.node);
+      if (writeKey !== null && (writeKey === targetKey || targetKey.startsWith(`${ writeKey }.`))) out.push({ node: p.parentPath.node });
     }
     return out;
   }

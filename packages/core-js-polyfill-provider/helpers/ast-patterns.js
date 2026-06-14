@@ -313,6 +313,33 @@ export function isMemberAccessNode(node) {
   return node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression';
 }
 
+// canonical write-host enumeration: is the member-access at `memberPath` the WRITE TARGET of its
+// enclosing host? covers `=` / update / `delete`, every destructuring-pattern slot (ArrayPattern,
+// ObjectPattern value, default, rest), and for-of/in heads - shapes that rebind a member without
+// appearing as a bare assignment LHS. one source for isDynamicComputedKeyWrite (computed-key alias
+// bail) and memberPathWriteViolations (discriminant-narrow invalidation) so the two stay in lockstep
+export function isMemberWriteHost(memberPath) {
+  const member = memberPath?.node;
+  const host = memberPath?.parentPath?.node;
+  if (!member || !host) return false;
+  switch (host.type) {
+    case 'AssignmentExpression': return host.left === member;
+    case 'UpdateExpression': return host.argument === member;
+    case 'UnaryExpression': return host.operator === 'delete' && host.argument === member;
+    case 'ArrayPattern': return true;
+    case 'AssignmentPattern': return host.left === member;
+    case 'RestElement': return host.argument === member;
+    // a property VALUE is a write only inside a destructuring ObjectPattern (`({ x: m } = v)`);
+    // inside an ObjectExpression value (`{ x: m }`) the member is a READ
+    case 'ObjectProperty':
+    case 'Property':
+      return host.value === member && memberPath.parentPath?.parent?.type === 'ObjectPattern';
+    case 'ForOfStatement':
+    case 'ForInStatement': return host.left === member;
+    default: return false;
+  }
+}
+
 // tracking-free peel of `SKIPPABLE_WRAPPER_TYPES` (TS_EXPR_WRAPPERS + ParenthesizedExpression
 // + ChainExpression). used wherever a caller needs the semantically meaningful node and
 // doesn't care which wrappers were skipped. babel-plugin's `isCallee`, unplugin's `isCallee`,
@@ -3305,7 +3332,29 @@ function jsxHasSideEffects(node, type, depth) {
 // `extends` clause at class-eval time. method bodies / instance-field initializers
 // execute later (instance construction); static-field initializers and StaticBlock
 // bodies execute at class-eval, so they count
-const CLASS_FIELD_TYPES = new Set(['ClassProperty', 'PropertyDefinition']);
+// regular fields (`ClassProperty` babel / `PropertyDefinition` estree) AND auto-accessor fields
+// (`ClassAccessorProperty` babel / `AccessorProperty` estree): both carry an initializer `.value`
+// that runs at class-eval (static) or construction (instance), so both gate field-init contexts
+const CLASS_FIELD_TYPES = new Set([
+  'ClassProperty',
+  'PropertyDefinition',
+  'ClassAccessorProperty',
+  'AccessorProperty',
+]);
+
+// walk ancestors from `startPath` up to (excluding) Program, returning true at the first DEFERRED
+// evaluation context: a function body (runs at call time) OR an INSTANCE class-field initializer
+// VALUE (runs at construction / `new`-time). a static field, a StaticBlock, and any computed key
+// run at class-eval (straight-line), so they are NOT deferred. shared by closure-analysis (call
+// temporal bound) and class-fields (this-write deferral) so both treat new-time evaluation alike
+export function hasDeferredContextAncestor(t, startPath) {
+  for (let fp = startPath?.parentPath, child = startPath; fp?.node && !t.isProgram(fp.node); child = fp, fp = fp.parentPath) {
+    if (t.isFunction(fp.node)) return true;
+    if (CLASS_FIELD_TYPES.has(fp.node.type) && !fp.node.static && child.key === 'value') return true;
+  }
+  return false;
+}
+
 function classMemberHasSideEffects(member, depth) {
   if (!member) return false;
   if (member.computed && recurse(member.key, depth)) return true;
