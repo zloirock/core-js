@@ -490,6 +490,90 @@ runBoth('TS conditional: `never extends Array<X>` (object extend) still picks tr
     checkType(lbl, type, { primitive: false, ctor: 'Array' });
   });
 
+// --- bigint literal conditional types (canonicalized literal value, cross-parser) ---
+
+// `"1" extends 1n` is FALSE: a string literal is not assignable to a bigint literal. babel stores the
+// bigint magnitude as a digit STRING, so without canonicalization the value compared equal to the
+// string "1" and wrongly picked the true branch (oxc stores a real BigInt and decided correctly)
+runBoth('TS conditional: string literal does not extend bigint literal',
+  'type C = "1" extends 1n ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// `-1n extends -1` is FALSE: a negative bigint literal is a different family than a negative number.
+// the negation wraps a UnaryExpression - babel coerced the bigint magnitude string to a NUMBER (-1),
+// matching the number -1 and wrongly picking the true branch
+runBoth('TS conditional: negative bigint literal does not extend negative number literal',
+  'type C = -1n extends -1 ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// `-2n extends -1n` is FALSE: distinct negative bigint magnitudes. the check side is a type-param ref,
+// so the AST literal shortcut is skipped and the resolved-type path decides - negative bigint literals
+// stamped with no value collapsed to the same wide bigint and wrongly picked the true branch
+runBoth('TS conditional: distinct negative bigint literals via type-param do not extend',
+  'type A<N> = N extends -1n ? string[] : Map<string, number>; let x: A<-2n>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// positive control: `1n extends 1n` is TRUE - identical bigint literals pick the true branch (locks
+// that canonicalization preserves equality, not just inequality)
+runBoth('TS conditional: identical bigint literals extend (true branch)',
+  'type C = 1n extends 1n ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// canonicalization compares by VALUE, not source text: `0x1n` and `1n` are the same bigint, so the
+// hex-form check extends the decimal-form literal and picks the true branch
+runBoth('TS conditional: hex bigint literal extends equal decimal bigint literal (true branch)',
+  'type C = 0x1n extends 1n ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// positive distinct bigints via a type-param check side (AST shortcut skipped, resolved-type path):
+// `2n extends 1n` is FALSE - the stamps must carry distinct positive magnitudes, not collapse to one
+// wide bigint (the negative-magnitude sibling of this is covered above)
+runBoth('TS conditional: distinct positive bigint literals via type-param do not extend',
+  'type A<N> = N extends 1n ? string[] : Map<string, number>; let x: A<2n>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
+// non-bigint regression guards for the shared negation branch: a negative NUMBER literal (also a
+// UnaryExpression) must keep comparing by its numeric value - `-1 extends -1` true, `-2 extends -1`
+// false - so the bigint handling added to the shared extractor did not disturb the number path
+runBoth('TS conditional: identical negative number literals extend (true branch)',
+  'type C = -1 extends -1 ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+runBoth('TS conditional: distinct negative number literals do not extend (false branch)',
+  'type C = -2 extends -1 ? string[] : Map<string, number>; let x: C;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Map' });
+  });
+
 // nested conditional with `never` propagated through both checks: outer picks true, the
 // resolver substitutes T = never into the body, then the inner T extends-check also fires
 // and must pick its own true branch. without bottom-type rule both calls fall through
