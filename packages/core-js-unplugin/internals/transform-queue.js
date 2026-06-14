@@ -320,12 +320,27 @@ function entryLogicalEnd(entry) {
   return entry.splitInfo ? entry.splitInfo.logicalEnd : entry.end;
 }
 
+// a split suffix physically starts at `mid` but the pair logically begins at the prefix's
+// start. selection/containment by logical range must use this so a suffix is never admitted
+// without its prefix (which would orphan the pair when the prefix sits outside the range)
+function entryLogicalStart(entry) {
+  return entry.splitInfo?.role === 'suffix' ? entry.splitInfo.peer.start : entry.start;
+}
+
 function entryLogicalSpan(entry) {
   return entryLogicalEnd(entry) - entry.start;
 }
 
 function isSplit(entry) {
   return !!entry.splitInfo;
+}
+
+// is the entry's FULL logical range within [start, end]? split-aware on BOTH ends, so a
+// split half qualifies only together with its peer - the single predicate every range-drain
+// / range-membership site shares (a physical-start test would admit a suffix whose prefix
+// lies outside the range and orphan it)
+function entryLogicalWithin(entry, start, end) {
+  return entryLogicalStart(entry) >= start && entryLogicalEnd(entry) <= end;
 }
 
 // for a split-pair entry, return the logical inner content (full prefix+suffix range).
@@ -643,29 +658,28 @@ export default class TransformQueue {
   // is not duplicated (the tail would carry both the raw text and the composed rewrite)
   hasTransformWithin(start, end) {
     for (const entry of this.#transforms) {
-      if (entry.start >= start && entryLogicalEnd(entry) <= end) return true;
+      if (entryLogicalWithin(entry, start, end)) return true;
     }
     return false;
   }
 
-  // O(log n) via indexed lookup + sorted binary search (vs 3 x O(n) linear scans).
-  // split-pair handling: extracting just one half (prefix OR suffix) leaves the peer in
-  // the queue as an orphan with a now-invalid splitInfo cycle. apply() would emit the
-  // peer alone and corrupt output (peer covers only half the logical range). drop BOTH
-  // halves together when caller extracts either side
+  // extract the LOGICAL transform covering [start, end] and return its full content, dropping
+  // every physical piece. O(log n) via indexed lookup + sorted binary search.
+  // a split pair is keyed in #byRange by its PHYSICAL halves (start|mid, mid|end), never its
+  // logical start|end - so a #byRange hit on a split half means the caller passed a half-range,
+  // which has no logical owner: the half-content alone is meaningless and emitting it would
+  // desync the still-queued peer. accept ONLY a non-split whole-range entry from the bucket;
+  // otherwise fall through to logical assembly (which returns the assembled pair for the logical
+  // range, or null for a half-range so the caller bakes the raw slice instead)
   extractContent(start, end) {
-    const rKey = rangeKey(start, end);
-    const rList = this.#byRange.get(rKey);
-    if (rList?.length) {
-      const entry = rList.shift();
-      if (!rList.length) this.#byRange.delete(rKey);
-      this.#dropEntryAndPeer(entry);
-      return entry.content;
+    const rList = this.#byRange.get(rangeKey(start, end));
+    const whole = rList?.find(entry => !isSplit(entry));
+    if (whole) {
+      this.#dropEntryAndPeer(whole);
+      return whole.content;
     }
-    // no whole-range entry: try a split pair, whose two halves are keyed by their PHYSICAL ranges
-    // (start|mid, mid|end), never the logical start|end - so the lookup above misses them and a
-    // caller would then bake body-wrap inserts into the raw init, desyncing the still-queued split
-    // needle (apply throws "could not locate inner needle"). assemble prefix+suffix and drop both
+    // no whole-range entry: assemble the split pair whose two physical halves logically span
+    // [start, end] (extracting either half alone would orphan the peer), and drop both
     const prefix = this.#splitPrefixByLogicalRange(start, end);
     if (!prefix) return null;
     const content = prefix.content + prefix.splitInfo.peer.content;
@@ -724,7 +738,7 @@ export default class TransformQueue {
   composeAndDrainRange(start, end) {
     const inRange = [];
     for (const entry of this.#transforms) {
-      if (entry.start >= start && entryLogicalEnd(entry) <= end) inRange.push(entry);
+      if (entryLogicalWithin(entry, start, end)) inRange.push(entry);
     }
     if (!inRange.length) return [];
     // run the SAME sort+partial-overlap guard apply() does (otherwise reached only via
@@ -735,7 +749,10 @@ export default class TransformQueue {
     this.#sortAndAssertNoPartialOverlap(inRange);
     const { composed, composedContent } = this.#composeEntries(inRange);
     const splices = this.#outermostComposed(composed, composedContent);
-    for (const entry of inRange) this.#removeEntry(entry);
+    // peer-aware drain: logical-within membership already admits split halves only in pairs,
+    // and #dropEntryAndPeer is idempotent on an already-removed entry, so dropping via the peer
+    // path leaves no orphaned half even if a future caller hands an unpaired half
+    for (const entry of inRange) this.#dropEntryAndPeer(entry);
     return splices;
   }
 
