@@ -33,7 +33,7 @@ import {
   resolveCallArgument,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isClassifiableReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -78,7 +78,7 @@ export function collectMutationPrePass(programPath, adapter) {
 }
 
 export function createBabelAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
-  return {
+  const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
     // a receiver-less helper (dropping the receiver), so the shared resolver gates the
     // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
@@ -137,16 +137,11 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       if (b) {
         const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
         const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
-        // `info.source !== null` means a registered pure import - only attach the hint when
-        // the actual scope binding IS that import. `info.source === null` is a destructure-
-        // alias from `registerGlobalAlias`; the registered binding is always const-destructured
-        // and never reassigned, so gate on (VariableDeclarator AST shape) + (const kind) + (no
-        // constantViolations) - rejects function / class / let-rebind shadows that happen to
-        // share the same name in an inner scope
-        const isAliasBindingShape = info?.source === null
-          && b.path.node?.type === 'VariableDeclarator'
-          && b.kind === 'const'
-          && !b.constantViolations?.length;
+        // `info.source !== null` means a registered pure import - only attach the hint when the
+        // actual scope binding IS that import. `info.source === null` is a destructure-alias from
+        // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
+        // to the destructured global, any declaration kind) and rejects user-declared shadows
+        const isAliasBindingShape = isPolyfillAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() });
         const polyfillHint = info ? (isAliasBindingShape || isImportBinding ? info.hint : null) : null;
         return { node: b.path.node, kind: b.kind, constantViolations: b.constantViolations, importSource, polyfillHint };
       }
@@ -162,6 +157,7 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
     isStringLiteral,
     getStringValue: stringLiteralValue,
   };
+  return adapter;
 }
 
 // no-tracking adapter for detect-entry's `require('core-js/...')` literal check
