@@ -1058,6 +1058,7 @@ export default function createPlugin(options) {
           suppressProxyGlobals: true,
           walkAnnotations: false,
           isEntryAvailable: isEntryNeeded,
+          resolveMeta: resolvePure,
         }));
         traverse(ast, trackReferences ? mergeVisitors(usageVisitors, {
           Identifier(path) { injector.trackReferencedName(path.node.name); },
