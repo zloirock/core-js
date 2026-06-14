@@ -218,6 +218,11 @@ export function createDestructureEmitter({
   // (the claiming sibling may not have been visited yet), and a raw end-anchored insert under a
   // claim either trips the insert-inside-overwrite invariant or bakes INTO a wrapped init render
   const pendingSeKeyTrailing = [];
+  // bodyless-control assignment statement node -> its appended nested-instance overwrites. a
+  // bodyless control body (`if (c) STMT;`) holds one statement, so the overwrites must join STMT
+  // inside a `{ }` block (else they run unconditionally) - accumulated here and block-wrapped once
+  // at flush (a multi-element pattern appends several to the same statement)
+  const pendingBodylessAssignOverwrites = new Map();
   // declarator node -> its skipped pendingDestructuring info, for declarators that share a
   // VariableDeclaration with a proxy-global flatten declarator. the byStatement emit skips them
   // (a second whole-declaration overwrite would collide on the flatten's range); instead the
@@ -761,7 +766,7 @@ export function createDestructureEmitter({
   // bare `lhs = rhs` parts that renderBlockStatements re-prefixes). `preDrainedSplices`, when given,
   // supplies the init's already-consumed body-wrap/insert splices (the flatten path drains per
   // declarator up front) instead of re-draining the queue here
-  function emitPolyfilled(info, parts, forInitSESinks, ctx, preDrainedSplices = null) {
+  function emitPolyfilled(info, parts, ctx, preDrainedSplices = null) {
     const { stmtPrefix, memoPrefix, isForInit, isAssignment } = ctx;
     const { entries, allProps, initSrc, scopeSnapshot } = info;
     // this slot's first part index - the assignment-host sentinel `var` splices in here
@@ -845,19 +850,17 @@ export function createDestructureEmitter({
       parts.push(`${ memoPrefix }${ objRef } = ${ initTransformed }`);
     }
 
-    // lift the static-init SE so its evaluation point survives extraction. non-for-init
-    // hosts inline the SE at this declarator's slot in `parts` so sibling evaluation
-    // order (pre-sibling -> SE -> extracted -> post-sibling) is preserved. for-init
-    // can't host statement-level SE (the whole declaration is one comma-list), so the
-    // SE is wrapped as `_unused = SE` and routed through `forInitSESinks` to be
-    // prepended into the comma-list by the outer drain
+    // lift the static-init SE so its evaluation point survives extraction, placed at THIS
+    // declarator's slot - `parts` is built in source order, so a preceding sibling's init still
+    // evaluates first (pre-sibling -> SE -> extracted -> post-sibling). for-init can't host a
+    // statement-level SE (the whole for-head is one comma-list), so there it becomes a `_ref = SE`
+    // comma-list member; a statement host emits a standalone (paren-guarded) expression.
+    // the lifted text can START a statement (the tail-dropped prefix loses the sequence parens):
+    // a `{` / `class` / `function` head needs the hazard parens the minifier split applies
     const liftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
         && mayHaveSideEffects(info.initNode);
     if (liftSE) {
-      if (isForInit) forInitSESinks.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
-      // the lifted text can START a statement (the tail-dropped prefix loses the sequence
-      // parens): a `{` / `class` / `function` head needs the hazard parens the minifier
-      // split applies to its products
+      if (isForInit) parts.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
       else parts.push(parenthesizeExprStmtHazard(initTransformed));
     }
 
@@ -926,12 +929,10 @@ export function createDestructureEmitter({
           // entry prefix (renderBlockStatements re-adds the declaration / export keyword) with
           // a `const ` memoPrefix so the receiver-memo stays out of any `export` list
           const parts = [];
-          const seSinks = [];
           const siblingCtx = isForInit
             ? { stmtPrefix: '', memoPrefix: '', isForInit: true, isAssignment: false }
             : { stmtPrefix: '', memoPrefix: 'const ', isForInit: false, isAssignment: false };
-          emitPolyfilled(sibInfo, parts, seSinks, siblingCtx, perDecl[i].drainedRefs);
-          if (seSinks.length) parts.unshift(...seSinks);
+          emitPolyfilled(sibInfo, parts, siblingCtx, perDecl[i].drainedRefs);
           if (parts.length) decls = parts;
         }
         // drainedRefs already baked into the rendered extraction text -> clear so the
@@ -1848,7 +1849,17 @@ export function createDestructureEmitter({
     const pureResult = resolvePure(meta, metaPath);
     if (pureResult?.kind !== 'instance') return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
-    transforms.insert(statement.node.end, `\n${ propNode.value.name } = ${ binding }(${ nodeSrc(receiverNode) });`);
+    const overwrite = `${ propNode.value.name } = ${ binding }(${ nodeSrc(receiverNode) });`;
+    if (isBodylessStatementBody(statement)) {
+      // bodyless control body: the overwrite must join STMT inside a `{ }` (else it runs even when
+      // the guard is false). accumulate per-statement; one block-wrap at flush keeps multi-element
+      // patterns (each appends an overwrite) from emitting nested / duplicated braces
+      let entry = pendingBodylessAssignOverwrites.get(statement.node);
+      if (!entry) pendingBodylessAssignOverwrites.set(statement.node, entry = { statement, overwrites: [] });
+      entry.overwrites.push(overwrite);
+    } else {
+      transforms.insert(statement.node.end, `\n${ overwrite }`);
+    }
     return true;
   }
 
@@ -2643,16 +2654,13 @@ export function createDestructureEmitter({
       const emitCtx = { stmtPrefix, memoPrefix, isForInit, isAssignment };
 
       const parts = [];
-      // populated only when `isForInit` (the only path that can't inline SE at its slot);
-      // outer drain prepends as synthesized `_unused = SE` declarators into the comma-list
-      const forInitSESinks = [];
       if (isAssignment) {
-        for (const info of infos) emitPolyfilled(info, parts, forInitSESinks, emitCtx);
+        for (const info of infos) emitPolyfilled(info, parts, emitCtx);
       } else {
         const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
         for (const dec of declPath.node.declarations) {
           const info = polyfilledByDecl.get(dec);
-          if (info) emitPolyfilled(info, parts, forInitSESinks, emitCtx);
+          if (info) emitPolyfilled(info, parts, emitCtx);
           // composed, not raw: a sibling may carry baked-in transforms of its own - an SE-key
           // trailing declarator insert anchored at its end, a polyfill rewrite in its init - and
           // a leftover point-insert inside the whole-declaration overwrite below would throw
@@ -2664,8 +2672,6 @@ export function createDestructureEmitter({
       const trailing = trailingByDecl.get(declPath.node);
       if (trailing?.length) parts[parts.length - 1] += `, ${ trailing.join(', ') }`;
 
-      if (isForInit && forInitSESinks.length) parts.unshift(...forInitSESinks);
-
       if (isForInit) {
         transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
       } else {
@@ -2673,6 +2679,16 @@ export function createDestructureEmitter({
           wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath));
       }
     }
+
+    // block-wrap bodyless-control nested-instance assignment overwrites: replace the bodyless body
+    // statement with `{ <stmt>; <overwrites> }` so the overwrites stay conditional. one overwrite
+    // per element of a multi-element pattern, joined into the single block (`composedRangeSrc`
+    // folds any inner rewrite of the statement so the range overwrite is queue-safe)
+    for (const { statement, overwrites } of pendingBodylessAssignOverwrites.values()) {
+      transforms.add(statement.node.start, statement.node.end,
+        `{ ${ composedRangeSrc(statement.node) }\n${ overwrites.join('\n') } }`);
+    }
+    pendingBodylessAssignOverwrites.clear();
   }
 
   return {
