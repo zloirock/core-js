@@ -295,14 +295,15 @@ export function createTypeAnnotationResolve({
       case 'BooleanLiteral':
         return new $Primitive('boolean', literal.value);
       case 'BigIntLiteral':
-        return new $Primitive('bigint', literal.value);
-      // signed-numeric literal types: `-1` / `-1n` wrap UnaryExpression around the magnitude.
-      // stamp the negated number via the shared extractor; bigint magnitudes stay unstamped
-      // (literalNodeValue would coerce the string magnitude to a number, the wrong family)
-      case 'UnaryExpression': {
-        const isBig = isLiteralOf(literal.argument, 'BigInt');
-        return new $Primitive(isBig ? 'bigint' : 'number', isBig ? undefined : literalNodeValue(literal));
-      }
+        // canonical real-BigInt stamp (babel `.value` is a digit string); the stamp is compared by
+        // strict equality in the conditional-branch picker, so distinct magnitudes stay disjoint
+        return new $Primitive('bigint', literalNodeValue(literal));
+      // signed-numeric literal types: `-1` / `-1n` wrap UnaryExpression around the magnitude. the
+      // shared extractor returns a real BigInt for a bigint argument and a number otherwise, so each
+      // family carries a value-distinct stamp (a dropped bigint stamp collapsed `-2n`/`-1n` to one wide
+      // bigint and mis-picked `N extends -1n`)
+      case 'UnaryExpression':
+        return new $Primitive(isLiteralOf(literal.argument, 'BigInt') ? 'bigint' : 'number', literalNodeValue(literal));
     }
     return null;
   }
