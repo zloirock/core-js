@@ -43,7 +43,7 @@ import {
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isClassifiableReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
 // --- isReferenced ---
@@ -268,7 +268,7 @@ export function collectMutationPrePass(ast, adapter) {
 }
 
 export function createEstreeAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
-  return {
+  const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
     // a receiver-less helper (dropping the receiver), so the shared resolver gates the
     // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
@@ -306,19 +306,15 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // (`_Promise` -> 'Promise') so `_Promise.resolve(1)` rewrites to `_Promise$resolve(1)`
       // matching babel-plugin's behavior - constructor module typically doesn't expose
       // statics, so the rewrite avoids a runtime undefined-call crash.
-      // shadow guard (symmetric with babel-plugin): `info.source !== null` means a
-      // registered pure import - only attach `polyfillHint` when the actual scope binding
-      // IS an import too. `info.source === null` is a destructure-alias from
-      // `registerGlobalAlias`; the registered binding is always const-destructured and
-      // never reassigned, so gate on (VariableDeclarator) + (const) + (no constantViolations)
-      // - rejects function / class / let-rebind shadows that share the alias name
+      // shadow guard (shared with babel-plugin via the provider): `info.source !== null` means a
+      // registered pure import - only attach `polyfillHint` when the actual scope binding IS an import
+      // too. `info.source === null` is a destructure-alias from `registerGlobalAlias`; the shared
+      // predicate identifies the real alias binding (init resolves to the destructured global, any
+      // declaration kind) and rejects user-declared shadows of the same name
       const info = getInjector()?.getBindingInfo?.(name) ?? null;
       const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
       const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
-      const isAliasBindingShape = info?.source === null
-        && b.path.node?.type === 'VariableDeclarator'
-        && b.kind === 'const'
-        && !b.constantViolations?.length;
+      const isAliasBindingShape = isPolyfillAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() });
       const polyfillHint = info ? (isAliasBindingShape || isImportBinding ? info.hint : null) : null;
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
       // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
@@ -368,6 +364,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       return isLiteralString(inner) ? inner.value : null;
     },
   };
+  return adapter;
 }
 
 function isLiteralString(node) {

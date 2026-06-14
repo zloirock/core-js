@@ -66,13 +66,48 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
   });
 }
 
+// does this alias-binding init reference the destructured global? the proxy-global predicate resolves the
+// proxy-global object case (`= globalThis`, including `_globalThis` via polyfillHint and `const g =
+// globalThis` alias chains); the injector's import table resolves the injected-import case an in-place
+// rewrite leaves behind (`= _Promise`, or the defaulted `_Symbol === void 0 ? d : _Symbol` whose guard
+// ternary is walked). a user binding of the same name resolves to neither - uniqueName keeps injected
+// UIDs collision-free
+function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
+  if (!node) return false;
+  if (node.type === 'Identifier') {
+    return isProxyGlobalIdentifierNode({ node, scope, adapter, path: null }) || !!injector?.getPureImport(node.name);
+  }
+  if (node.type === 'ConditionalExpression') {
+    return aliasInitResolvesToGlobal(node.alternate, scope, adapter, injector)
+      || aliasInitResolvesToGlobal(node.consequent, scope, adapter, injector)
+      || aliasInitResolvesToGlobal(node.test, scope, adapter, injector);
+  }
+  if (node.type === 'LogicalExpression' || node.type === 'BinaryExpression') {
+    return aliasInitResolvesToGlobal(node.left, scope, adapter, injector)
+      || aliasInitResolvesToGlobal(node.right, scope, adapter, injector);
+  }
+  return false;
+}
+
+// shared shadow guard for a `registerGlobalAlias` destructure-alias (`info.source === null`): the binding
+// must be an un-reassigned VariableDeclarator whose init resolves to the destructured global. used by both
+// plugin adapters (babel mutates the init in place, unplugin keeps the source init) so a proxy-global alias
+// re-polyfills its member reads regardless of declaration kind - a const-only gate dropped `let` / for-init
+// aliases. callers pass their parser-specific binding (`.path.node` declarator + `.constantViolations`)
+export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector }) {
+  return info?.source === null
+    && binding?.path?.node?.type === 'VariableDeclarator'
+    && !binding.constantViolations?.length
+    && aliasInitResolvesToGlobal(binding.path.node.init, scope, adapter, injector);
+}
+
 // unwrap paren / TS / SE wrappers AND a zero-arg IIFE returning a proxy-global: at runtime
 // `(function(){return globalThis})().Array` accesses `Array` on `globalThis` exactly like the
 // bare `globalThis.Array` chain. owns the unwrap so callers pass the raw `.object` node;
 // non-IIFE callees (`getGlobal().Array`) return unchanged and keep generic dispatch.
 // `peelZeroArgIifeReturn` already bails on async / generator / spread / control-flow bodies,
 // so only sound pass-through wrappers peel
-function peelProxyGlobalObject(node) {
+export function peelProxyGlobalObject(node) {
   node = unwrapRuntimeExpr(node);
   // SE tails peel for CLASSIFICATION only (`(eff(), globalThis).Array` - the prefix stays in
   // the source and runs at evaluation), mirroring the detect-usage chain walks; without the
