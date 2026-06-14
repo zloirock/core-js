@@ -122,16 +122,34 @@ export function $Object(constructor, inner) {
 
 $Object.prototype.primitive = false;
 
-// extract the runtime value of a literal node: bare literals (`5`, `'s'`, `true`) and `-N`
-// numeric negations (parsed as UnaryExpression around a positive NumericLiteral). returns
+// a bigint literal cross-parser: babel emits `BigIntLiteral`; oxc/estree emit a `Literal` whose
+// `.value` is a real BigInt. used so `literalNodeValue` canonicalizes both to a real BigInt
+function isBigIntLiteralNode(node) {
+  return node?.type === 'BigIntLiteral' || (node?.type === 'Literal' && typeof node.value === 'bigint');
+}
+
+// real BigInt value of a bigint literal: oxc/estree `.value` already is one; babel stores the
+// magnitude as a digit string in `.value` (decimal or `0x`/`0o`/`0b` prefixed - all accepted by
+// `BigInt()`), with the decimal magnitude in `.bigint` as a fallback
+function bigIntLiteralValue(node) {
+  return typeof node.value === 'bigint' ? node.value : BigInt(node.bigint ?? node.value);
+}
+
+// extract the runtime value of a literal node: bare literals (`5`, `'s'`, `true`, `1n`) and `-N`
+// numeric / bigint negations (parsed as UnaryExpression around a positive literal). returns
 // undefined for non-statically-known shapes (template strings, expressions). shared by the
-// conditional-type AST branch-pick and the literal-type primitive stamp so `2` / `-1` compare
+// conditional-type AST branch-pick and the literal-type primitive stamp so `2` / `-1` / `1n` compare
 // consistently across both the AST and Type-object paths
 export function literalNodeValue(literal) {
   if (!literal) return undefined;
+  // canonicalize bigint to a real BigInt FIRST: babel's digit-string `.value` would otherwise compare
+  // equal to a same-text string literal (`"1" === "1"`), and `-string` coerces to the wrong NUMBER family
+  if (isBigIntLiteralNode(literal)) return bigIntLiteralValue(literal);
   if (literal.value !== undefined) return literal.value;
-  if (literal.type === 'UnaryExpression' && literal.operator === '-' && literal.argument?.value !== undefined) {
-    return -literal.argument.value;
+  if (literal.type === 'UnaryExpression' && literal.operator === '-') {
+    const arg = literal.argument;
+    if (isBigIntLiteralNode(arg)) return -bigIntLiteralValue(arg);
+    if (arg?.value !== undefined) return -arg.value;
   }
   return undefined;
 }
