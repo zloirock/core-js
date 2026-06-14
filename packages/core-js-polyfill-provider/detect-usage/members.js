@@ -204,7 +204,7 @@ function buildMemberMeta({ node, scope, adapter, path }) {
 // `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the
 // StaticBlock body, missing local enum/namespace shadows. babel's scope tracker does
 // anchor at StaticBlock so it works without path - the threaded form is a no-op for it
-export function handleMemberExpressionNode({ node, scope, adapter, handledObjects, suppressProxyGlobals, path }) {
+export function handleMemberExpressionNode({ node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta }) {
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
     // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
@@ -242,7 +242,16 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
   // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
   // and the receiver identifier-visitor may still need to polyfill it as a standalone global
   if (meta?.object) {
-    markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path);
+    // suppress the receiver's identifier / member visitors only when the member actually subsumes
+    // the receiver. a "static" on a proxy-global itself (`globalThis.foo`, `(() => globalThis)().flat`)
+    // resolves to a real polyfill ONLY when the key names a global (`self.Map` -> `_Map`); an
+    // unresolved key emits no replacement (and proxy-globals never take the static fallback), so the
+    // receiver survives and its inner proxy-global must keep its own substitution - marking it handled
+    // would strand a raw `globalThis` / `self` (ReferenceError ie:11). constructor-rooted chains
+    // (`globalThis.Array.from`, object = a real ctor) always collapse, so they stay unaffected
+    const subsumesReceiver = !POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
+      || !resolveMeta || !!resolveMeta(meta, path);
+    markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver);
     // a static-placement member collapses the WHOLE `X.prop` to one import (`Symbol.iterator` ->
     // `_Symbol$iterator`, `Promise.resolve` -> `_Promise$resolve`), so the receiver chain is SUBSUMED -
     // unlike a prototype-method receiver (`_Map.prototype.has`) whose constructor member stays the
@@ -253,7 +262,8 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // queue. delegate to the same chain subsumption the symbol-key / `in` paths use: it marks every
     // hop + wrapper, and its root marking skips the inner proxy-global leaf when the call carries
     // observable effects (the re-emitted body keeps a live reference that still needs `_globalThis`)
-    if (suppressProxyGlobals && meta.placement === 'static' && findChainRootCallExpression(node.object, true)) {
+    if (suppressProxyGlobals && subsumesReceiver && meta.placement === 'static'
+      && findChainRootCallExpression(node.object, true)) {
       markSubsumedProxyChain(node.object, handledObjects, scope, adapter, path);
     }
   }
@@ -561,7 +571,7 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
   return POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
-function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path) {
+function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver = true) {
   let obj = unwrapParens(node.object);
   // a sequence receiver `(eff(), globalThis.Array).from` resolves through its LAST element; the
   // prefix expressions survive in the output (their own polyfills must still fire), so descend to
@@ -602,8 +612,13 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
   // would otherwise queue parallel substitutions overlapping the outer constructor rewrite.
   // non-proxy keys (`.Map`, `.prototype`) deliberately stay unmarked so the constructor
   // member visit fires its own substitution and stays the single source of the receiver
-  // replacement. then delegate to `markInlinedProxyGlobalRoot` for the IIFE + inner identifier
-  if (scope && adapter) {
+  // replacement. then delegate to `markInlinedProxyGlobalRoot` for the IIFE + inner identifier.
+  // gated on `subsumesReceiver`: an IIFE-rooted chain whose member does NOT resolve to a real
+  // collapse (`(() => globalThis)().foo`, `(() => globalThis)().Array` where Array is native on
+  // the target) keeps the IIFE in the output, so its inner proxy-global is a LIVE reference that
+  // the identifier visitor must still substitute - marking it handled would strand a raw global.
+  // a bare / SE-tail-rooted chain (handled above) always collapses, so it stays ungated
+  if (scope && adapter && subsumesReceiver) {
     while (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
       const propName = current.computed ? null : current.property?.name;
       if (!propName || !POSSIBLE_GLOBAL_OBJECTS.has(propName)) break;
