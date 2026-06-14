@@ -659,6 +659,7 @@ function isJsxMemberRoot(path) {
 
 export function createUsageVisitors({
   adapter, onUsage, onWarning, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
+  resolveMeta,
 }) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
@@ -848,7 +849,7 @@ export function createUsageVisitors({
       return;
     }
     const meta = handleMemberExpressionNode({
-      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path,
+      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta,
     });
     if (meta) {
       onUsage(meta, path);
