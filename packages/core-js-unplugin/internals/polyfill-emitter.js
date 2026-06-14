@@ -961,18 +961,6 @@ export function createPolyfillEmitter({
     return { chainStart: current, innerCallee: callee, innerResult: result ?? null, hops, innerKeySE, innerMethodName };
   }
 
-  // suppress the inner proxy-global of a TS / Paren wrapped chain receiver. chain emit
-  // keeps the wrapper verbatim (mirroring babel's `_ref = X as any` memo shape) so the
-  // Identifier visitor would otherwise queue a parallel global-rewrite whose needle range
-  // (the wrapped Paren / TS form) wouldn't compose into the verbatim text - silent throw
-  function markWrappedProxyGlobalSkipped(receiverObj, metaPath) {
-    let n = receiverObj;
-    while (n && (n.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(n.type))) {
-      n = n.expression;
-    }
-    if (n?.type === 'Identifier' && resolveReceiverPolyfill(n, metaPath)) skippedNodes.add(n);
-  }
-
   // mark every intermediate hop between the outer callee's receiver and `chainStart` as
   // skipped. visitor walks each polyfilled MemberExpression along the chain (`.map`
   // between `.filter` and `.flat?.()` in `arr.flat?.().map(x=>x).filter?.().some(...)`);
@@ -1006,17 +994,6 @@ export function createPolyfillEmitter({
     const after = skipGap(code, parent.end);
     const c = code[after];
     return (c === '.' && code[after + 1] !== '.') || c === '[';
-  }
-
-  // peel Paren wrappers to the inner Identifier for chain receiver substitution. Paren is
-  // transparent for proxy-global substitution (`(globalThis)` is semantically equivalent
-  // to bare `globalThis`); TS wrappers (`as` / `satisfies` / `!`) stay opaque since babel
-  // preserves them in the memo source `_ref = X as any`. returns null when no bare or
-  // Paren-wrapped Identifier is found
-  function peelParenForDirectSubst(node) {
-    let n = node;
-    while (n?.type === 'ParenthesizedExpression') n = n.expression;
-    return n?.type === 'Identifier' ? n : null;
   }
 
   // thread collected hops onto the inner result. polyfillable hops re-emit inline
@@ -1090,38 +1067,16 @@ export function createPolyfillEmitter({
         : `${ arg.includes('=') ? `(${ arg })` : arg }.${ innerMethodName }`;
       return innerKeySE.length ? `(${ innerKeySE.map(nodeSrc).join(', ') }, ${ core })` : core;
     }
-    // chain-rooted polyfillable receiver: without substituting the leaf, OR-chain emit
-    // would carry `globalThis?.X` etc. verbatim into every `null == ...` slot of the
-    // template. direct-Identifier polyfill is intentionally NOT folded in here -
-    // existing OR-chain semantics for bare globals stay verbatim
-    // resolve the chain receiver to substituted text BEFORE template construction:
-    // the OR-chain template references the receiver text in multiple slots (`null == X`,
-    // `null == (_ref = inner(X))`, `_ref.call(X, ...)`). leaving the receiver raw lets
-    // visitor-driven Identifier substitution patch only the AST-anchored occurrence (the
-    // direct identifier), stranding the duplicated text-only occurrences. also covers
-    // bare-Identifier proxy-globals (`globalThis.flat?.()...`) which the chain resolver
-    // alone rejects since it requires a MemberExpression receiver
-    const chainSubst = resolveProxyGlobalChainSrc(innerCallee.object, metaPath);
-    // direct-Identifier substitution fires for bare AND Paren-wrapped proxy-globals
-    // (`(globalThis)` is semantically transparent). TS / non-null casts stay opaque to
-    // match babel's `_ref = X as any` memo shape - babel substitutes through Paren but
-    // preserves TS wrappers in the source. peeled-to-Identifier shapes get full receiver
-    // substitution; wrapped shapes fall through to verbatim emission
-    const directLeaf = !chainSubst ? peelParenForDirectSubst(innerCallee.object) : null;
-    const directSubst = directLeaf ? resolveReceiverPolyfill(directLeaf, metaPath) : null;
-    let receiver;
-    let substLeafNode = null;
-    if (chainSubst) {
-      receiver = chainSubst.src;
-      substLeafNode = chainSubst.leafNode;
-    } else if (directSubst) {
-      receiver = injectPureImport(directSubst.entry, directSubst.hintName);
-      substLeafNode = directLeaf;
-    } else {
-      receiver = unwrapParensSrc(innerCallee.object);
-    }
-    if (substLeafNode) skippedNodes.add(substLeafNode);
-    else markWrappedProxyGlobalSkipped(innerCallee.object, metaPath);
+    // resolve the receiver to substituted text BEFORE template construction: the OR-chain
+    // references it in multiple slots (`null == X`, `null == (_ref = inner(X))`, `_ref.call(X, ...)`),
+    // so a raw proxy-global leaf would survive into every text-only slot (visitor substitution
+    // patches only the single AST-anchored occurrence) -> ReferenceError on engines lacking it.
+    // delegate to the canonical single-call resolver: it peels Paren / Chain / TS wrappers, then
+    // tries direct-Identifier / chain-rooted / SE-tail substitution, falling back to verbatim.
+    // shared with the non-combined path so a TS-cast bare proxy-global (`(globalThis as any).flat?.()`)
+    // collapses the SAME way it does there, instead of being kept verbatim and leaking the cast
+    const { src: receiver, skipNode } = resolveReceiverSource(innerCallee.object, metaPath);
+    if (skipNode) skippedNodes.add(skipNode);
     // shared `isReusableReceiver` gate (also drives babel's `memoize`): a side-effect-free
     // Identifier / ThisExpression receiver can appear verbatim in every slot without `_ref = X`.
     // skipping the redundant memo aligns the chain-combined emit byte-for-byte with the
