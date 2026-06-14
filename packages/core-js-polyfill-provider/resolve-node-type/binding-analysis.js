@@ -32,6 +32,7 @@ import {
   isBindingPosition,
   isForXStatement,
   isMemberAccessNode,
+  isMemberWriteHost,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   peelTransparentExprAncestorPath,
@@ -381,31 +382,10 @@ export function createBindingAnalysis({
   function isDynamicComputedKeyWrite(parent, refNode, refPath) {
     if (parent?.type !== 'MemberExpression' && parent?.type !== 'OptionalMemberExpression') return false;
     if (parent.object !== refNode || !parent.computed || isStaticComputedKey(parent.property)) return false;
-    const host = refPath?.parentPath?.parent;
-    if (!host) return false;
-    switch (host.type) {
-      case 'AssignmentExpression': return host.left === parent;
-      case 'UpdateExpression': return host.argument === parent;
-      case 'UnaryExpression': return host.operator === 'delete' && host.argument === parent;
-      // a member inside a destructuring pattern is only legal as an assignment target
-      // (declarations / params bind fresh names), so `[c[k]] = v`, `({ x: c[k] } = v)`,
-      // `[c[k] = d] = v`, `[...c[k]] = v` all write through the unenumerable dynamic key
-      case 'ArrayPattern': return true;
-      case 'AssignmentPattern': return host.left === parent;
-      case 'RestElement': return host.argument === parent;
-      // a property VALUE is a write only inside a destructuring ObjectPattern (`({ x: c[k] } = v)`);
-      // inside an ObjectExpression value (`{ x: c[k] }`) the member is a READ and must not bail the
-      // alias closure. both parsers tag the destructuring-LHS object as ObjectPattern (the member's
-      // path is refPath -> MemberExpression -> ObjectProperty/Property -> enclosing object)
-      case 'ObjectProperty':
-      case 'Property':
-        return host.value === parent
-          && refPath?.parentPath?.parentPath?.parent?.type === 'ObjectPattern';
-      // `for (c[k] of it)` / `for (c[k] in o)` rebinds the dynamic key each iteration
-      case 'ForOfStatement':
-      case 'ForInStatement': return host.left === parent;
-      default: return false;
-    }
+    // a dynamic computed-key member (`c[k]`) writes when it is the target of its host; the host
+    // enumeration (assignment / update / delete / destructure slot / for-x head) is the canonical
+    // `isMemberWriteHost`. `refPath.parentPath` is the `c[k]` MemberExpression path
+    return isMemberWriteHost(refPath?.parentPath);
   }
 
   function defaultAliasRefClassifier(parent, refNode, refPath) {
