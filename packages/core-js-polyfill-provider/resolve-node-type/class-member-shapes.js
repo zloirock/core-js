@@ -46,7 +46,11 @@ export function createMemberWriteShape({ t, getKeyName, resolveNodeType }) {
   }
   function writePathContributedType(writePath) {
     if (writePath.node.type === 'AssignmentExpression' && writePath.node.operator === '=') {
-      return resolveNodeType(writePath.get('right'));
+      // an opaque RHS (resolveNodeType -> null) must WIDEN the field to unknown, not be dropped:
+      // consumers gate on a truthy contribution, so a null silently keeps the field narrowed to its
+      // other (e.g. array) writes and emits a type-specific Maybe helper that throws on a foreign
+      // runtime value (ie:11). same `unknown` sentinel the compound / update branch already uses
+      return resolveNodeType(writePath.get('right')) ?? new $Primitive('unknown');
     }
     return new $Primitive('unknown');
   }

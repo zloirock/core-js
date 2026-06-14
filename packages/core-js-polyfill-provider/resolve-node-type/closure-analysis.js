@@ -23,6 +23,7 @@ import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
 import { createMemberWriteShape, memberWriteTargetPath } from './class-member-shapes.js';
 import {
   forEachPatternWriteMember,
+  hasDeferredContextAncestor,
   isMemberAccessNode,
   isTSTypeOnlyIdentifierPath,
   peelParenAndTSParentPath,
@@ -101,14 +102,14 @@ export function createClosureAnalysis({
       || unwrapRuntimeExpr(memberNode.object) !== p.node) return { kind: 'extraction' };
     const ctx = peelParenAndTSParentPath(memberPath)?.node;
     if ((ctx?.type === 'CallExpression' || ctx?.type === 'OptionalCallExpression') && unwrapRuntimeExpr(ctx.callee) === memberNode) {
-      // a `<name>.<X>(...)` call lexically nested inside a function body is a DEFERRED invocation -
-      // it fires whenever that function runs, not at the call's source position - so its position
-      // cannot bound external writes. treat it as an extraction (Infinity bound), mirroring the
-      // write-side `isWriteInsideFunction` guard in class-fields.js. `p` is the call's receiver
-      // root, so an enclosing function on its ancestor chain means the call is deferred
-      for (let fp = p.parentPath; fp && !t.isProgram(fp.node); fp = fp.parentPath) {
-        if (t.isFunction(fp.node)) return { kind: 'extraction' };
-      }
+      // a `<name>.<X>(...)` call nested in a DEFERRED context fires whenever that context runs, not
+      // at the call's source position, so its position cannot bound external writes - treat it as an
+      // extraction (Infinity bound). deferred = a function body OR an instance class-field initializer
+      // value (runs at `new`-time): `class C { f = obj.at(0) }` sees writes that happen before the
+      // construction even when they sit after the field's source position. `p` is the call's receiver
+      // root, so a deferred context on its ancestor chain defers the call. canonical predicate shared
+      // with the write-side deferral
+      if (hasDeferredContextAncestor(t, p)) return { kind: 'extraction' };
       return { kind: 'call', end: ctx.end };
     }
     if (ctx?.type === 'AssignmentExpression' && ctx.operator === '='
