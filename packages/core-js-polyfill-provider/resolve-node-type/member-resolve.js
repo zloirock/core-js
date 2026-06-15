@@ -45,6 +45,7 @@ export function createMemberResolve({
   findExpressionAnnotation,
   functionTypeReturnAnnotation,
   applyAliasSubstDeep,
+  shadowMethodTypeParams,
   foldUnionTypes,
   followTypeAliasChain,
   applySubst,
@@ -202,8 +203,14 @@ export function createMemberResolve({
       const returnAnnotation = memberCallReturnAnnotation(member);
       if (!returnAnnotation) continue;
       // apply subst so generic alias method returns (`type Box<T> = { get(): T[] }`) bind T
-      // through every nested shape (arrays/tuples/unions), not just top-level references
-      const substituted = subst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), subst) : returnAnnotation;
+      // through every nested shape (arrays/tuples/unions), not just top-level references. but a method
+      // that declares its OWN `<T>` shadows the outer alias's `T`: remap those signature-local params
+      // to `unknown` first (shadowMethodTypeParams) so the outer subst can't capture them
+      // (`Box<number[]>.get<T>(): T` must stay generic, not resolve the method's T to number[] ->
+      // `_atMaybeArray` on the real foreign return, ie:11 throw). dropping instead of shadowing would
+      // re-bind the bare `T` to the receiver arg via scope lookup - the same capture
+      const memberSubst = subst ? shadowMethodTypeParams(member.typeParameters, subst) : null;
+      const substituted = memberSubst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), memberSubst) : returnAnnotation;
       const resolved = resolve(substituted);
       if (resolved) resolvedReturns.push(resolved);
     }
