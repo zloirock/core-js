@@ -38,6 +38,7 @@ export function createTypeSubst({
   unwrapTypeAnnotation,
   findTypeDeclaration,
   typeParamName,
+  buildSubstMap,
   unwrapMappedTypePassthrough,
   tupleElements,
   rebuildTupleElements,
@@ -416,23 +417,14 @@ export function createTypeSubst({
       }
       if (visited.has(decl)) break;
       visited.add(decl);
-      // accumulate type parameter substitutions for generic aliases
+      // accumulate type-parameter substitutions for generic aliases through the shared
+      // capture-avoiding builder. threading the running `subst` as `incomingSubst` keeps the
+      // chained-alias resolution (`type A<T> = B<T>; type B<U> = [U, U]` carries T into U) AND
+      // adds the sibling-name capture-avoidance the inline loop lacked, so a collider through the
+      // chain is resolved to its external declaration instead of recaptured
       const declParams = decl.typeParameters?.params;
-      const usageArgs = getTypeArgs(node)?.params;
       if (declParams?.length) {
-        const newSubst = new Map(subst);
-        for (let i = 0; i < declParams.length; i++) {
-          let arg = usageArgs?.[i] ?? declParams[i].default;
-          if (!arg) continue;
-          // resolve through existing substitutions for chained generic aliases:
-          // type A<T> = B<T>; type B<U> = [U, U]; -> A<string> needs U -> T -> string
-          if (subst) {
-            const argName = typeRefName(arg);
-            if (argName && subst.has(argName)) arg = subst.get(argName);
-          }
-          newSubst.set(typeParamName(declParams[i]), arg);
-        }
-        subst = newSubst;
+        subst = buildSubstMap(declParams, getTypeArgs(node)?.params, scope, subst);
       }
       node = unwrapTypeAnnotation(typeAliasBody(decl));
     }
