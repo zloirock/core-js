@@ -254,15 +254,31 @@ export function collectMutationPrePass(ast, adapter) {
   const mutated = new Set();
   if (!hasMutationCandidateShapes(ast)) return { mutated };
   const handleSite = createMutationSiteHandler({ adapter, mutated });
-  traverse(ast, {
-    $: { scope: true },
-    // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
-    // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
+  // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
+  // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
+  const siteVisitors = {
     MemberExpression: handleSite,
     CallExpression: handleSite,
     AssignmentExpression: handleSite,
     UpdateExpression: handleSite,
     UnaryExpression: handleSite,
+  };
+  // estree-toolkit omits `decorators` from the visitor keys of the DEFINED class / member node
+  // types, so a monkey-patch hidden inside a `@decorator(...)` expression escapes the traverse and
+  // the static stays wrongly substitutable (the read side already compensates via walkDecorators).
+  // run the same site classifier over decorator subtrees; the guard inside walkDecorators skips any
+  // owner estree-toolkit already auto-walks, so no node is double-visited
+  function visitDecoratorSites(path) { walkDecorators(path, siteVisitors); }
+  traverse(ast, {
+    $: { scope: true },
+    ...siteVisitors,
+    ClassDeclaration: visitDecoratorSites,
+    ClassExpression: visitDecoratorSites,
+    MethodDefinition: visitDecoratorSites,
+    PropertyDefinition: visitDecoratorSites,
+    AccessorProperty: visitDecoratorSites,
+    TSAbstractPropertyDefinition: visitDecoratorSites,
+    TSAbstractAccessorProperty: visitDecoratorSites,
   });
   return { mutated };
 }

@@ -70,6 +70,9 @@ export function collectMutationPrePass(programPath, adapter) {
     MemberExpression: handleSite,
     OptionalMemberExpression: handleSite,
     CallExpression: handleSite,
+    // `Object?.assign(Array, {...})` is an OptionalCallExpression - without this visitor the
+    // optional-call mutation escapes detection and usage-pure substitutes over the user patch
+    OptionalCallExpression: handleSite,
     AssignmentExpression: handleSite,
     UpdateExpression: handleSite,
     UnaryExpression: handleSite,

@@ -53,10 +53,10 @@ const VALID_TYPES = new Set([
 function isValidHint(hint) {
   // resolution directives (only valid in instance method hints)
   if (hint === 'element' || hint === 'inherit') return true;
-  // normalized hint: always { type, element?, resolved?, mutatesArgument? }
+  // normalized hint: always { type, element?, resolved?, mutatesArgument?, returnsArgument? }
   if (typeof hint !== 'object' || hint === null) return false;
   if (!VALID_TYPES.has(hint.type)) return false;
-  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument']);
+  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument', 'returnsArgument']);
   for (const key of Object.keys(hint)) if (!validKeys.has(key)) return false;
   // mutatesArgument: list of zero-based arg indices a method mutates in place
   // (e.g. Object.assign -> [0] target). only meaningful for staticMethods entries
@@ -66,6 +66,9 @@ function isValidHint(hint) {
       if (!Number.isInteger(i) || i < 0) return false;
     }
   }
+  // returnsArgument: zero-based index of the single argument a method returns unchanged
+  // (e.g. Object.freeze -> 0). a scalar index, not a list - a method returns one value
+  if ('returnsArgument' in hint && (!Number.isInteger(hint.returnsArgument) || hint.returnsArgument < 0)) return false;
   const innerHint = hint.element ?? hint.resolved ?? null;
   return innerHint === null || isValidHint(innerHint);
 }
@@ -116,9 +119,13 @@ deepEqual(knownBuiltInReturnTypes.instanceProperties.URL.searchParams, { type: '
 // type guard
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Array.isArray, { type: 'Array' });
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number' });
-// mutatesArgument annotation
-deepEqual(knownBuiltInReturnTypes.staticMethods.Object.assign, { type: 'Object', mutatesArgument: [0] });
+// mutatesArgument annotation (+ returnsArgument: assign returns its target, arg 0)
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.assign, { type: 'Object', mutatesArgument: [0], returnsArgument: 0 });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.set, { type: 'boolean', mutatesArgument: [0, 3] });
+// returnsArgument-only annotation (identity-returning static)
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.freeze, { type: 'Object', returnsArgument: 0 });
+// Object.create is intentionally absent - its result type is indeterminate (proto-from-arg)
+ok(!('create' in knownBuiltInReturnTypes.staticMethods.Object), 'Object.create has no return-type hint (indeterminate)');
 
 // globalProxies
 ok(Array.isArray(knownBuiltInReturnTypes.globalProxies), 'globalProxies is array');
