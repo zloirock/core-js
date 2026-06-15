@@ -369,7 +369,7 @@ export default function createDestructureEmitter({
     const synthKey = t.isIdentifier(prop.node.key)
       || (prop.node.computed && sequenceKeyStaticName(prop.node.key) !== null);
     const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node, { allowSideEffectComputedKeys: true })
-      && patternComputedKeysSynthSafe(t, objectPattern.node, prop.scope)
+      && patternComputedKeysSynthSafe(t, objectPattern.node, prop.scope, node => injector.isInjectedReference(node))
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
