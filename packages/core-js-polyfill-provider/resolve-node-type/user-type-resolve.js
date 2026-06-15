@@ -19,9 +19,11 @@ import { $Object, MAX_DEPTH } from './base.js';
 import {
   collectQualifiedSegments,
   extendsId,
+  interfaceBodyMembers,
   isInterfaceDeclaration,
   isTypeAlias,
   typeAliasBody,
+  typeRefName,
   typeRefSegments,
 } from './ast-shapes.js';
 import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
@@ -292,29 +294,50 @@ export function createUserTypeResolve({
     return typeName;
   }
 
+  // capture-avoidance: a bare type-arg whose name collides with a sibling type-param refers to an
+  // EXTERNAL declaration (not the param), yet the transitive substitution in `applyAliasSubstDeep`
+  // would re-capture it through that param's own mapping (`Wrap<string, A>` over `Wrap<A, Q>` makes
+  // Q -> A -> string). resolve the external declaration eagerly so the stored value is concrete and
+  // recapture-free, INDEPENDENT of declaration kind: an alias inlines its body, a non-generic
+  // interface its structural members; any other kind (class / enum / generic interface) has no
+  // self-ref-free inline form, so it collapses to `unknown` - that still breaks the capture chain
+  // (the sibling's mapping can no longer bind the wrong type), trading a wrong recapture for a safe
+  // under-resolve. a colliding name with NO external declaration IS the type-param itself (an
+  // intentional sibling reference) and is left untouched for the transitive pass to resolve. applies
+  // to default-valued params too, not only explicit usage args
+  function resolveColliderArg(arg, paramNames, scope) {
+    if (!paramNames || arg?.type !== 'TSTypeReference' || arg.typeName?.type !== 'Identifier'
+        || !paramNames.has(arg.typeName.name)) return arg;
+    const decl = findTypeDeclaration([arg.typeName.name], scope);
+    if (!decl) return arg;
+    if (isTypeAlias(decl)) return typeAliasBody(decl) ?? arg;
+    if (isInterfaceDeclaration(decl) && !decl.typeParameters) {
+      const members = interfaceBodyMembers(decl);
+      if (members.length) return { type: 'TSTypeLiteral', members };
+    }
+    return { type: 'TSUnknownKeyword' };
+  }
+
   // build {paramName -> argNode} from explicit usage args, falling back to decl param defaults
   // builds an AST-valued substitution map: `Map<string, ASTNode>` keyed by declParam
   // name. values are RAW AST nodes (TSTypeReference / TSArrayType / etc.) ready to be
   // spliced into a deep-cloned tree by `applyAliasSubstDeep`. distinct from
-  // `resolveTypeArgs` which builds Type-object-valued binding maps for `substituteTypeParams`
-  function buildSubstMap(declParams, usageArgs, scope) {
-    if (!declParams?.length) return null;
-    const subst = new Map();
+  // `resolveTypeArgs` which builds Type-object-valued binding maps for `substituteTypeParams`.
+  // `incomingSubst` (when threaded by the alias-chain walker) seeds the map AND resolves each arg
+  // through prior hops, so a chained generic alias (`type A<T> = B<T>; type B<U> = ...`) carries
+  // T's binding into U - the single capture-avoiding builder both the single-list callers and the
+  // chain walker share
+  function buildSubstMap(declParams, usageArgs, scope, incomingSubst = null) {
+    if (!declParams?.length) return incomingSubst;
+    const subst = new Map(incomingSubst);
     const paramNames = scope ? new Set(declParams.map(typeParamName)) : null;
     for (let i = 0; i < declParams.length; i++) {
-      const usageArg = usageArgs?.[i];
-      let arg = usageArg ?? declParams[i].default;
+      let arg = usageArgs?.[i] ?? declParams[i].default;
       if (!arg) continue;
-      // capture-avoidance: an EXPLICIT usage-arg that is a bare reference COLLIDING with a sibling
-      // type-param name (`Wrap<string, A>` over `interface Wrap<A, Q>`) would be re-captured by that
-      // sibling's mapping under the transitive substitution in applyAliasSubstDeep (Q -> A -> string).
-      // resolve such a colliding alias arg to its body in the usage scope so the stored value is
-      // concrete + unambiguous. gated on an exact collision so the common no-collision path is unchanged
-      if (paramNames && usageArg && arg.type === 'TSTypeReference' && arg.typeName?.type === 'Identifier'
-          && paramNames.has(arg.typeName.name)) {
-        const aliased = findTypeDeclaration([arg.typeName.name], scope);
-        if (aliased?.type === 'TSTypeAliasDeclaration' && aliased.typeAnnotation) arg = aliased.typeAnnotation;
-      }
+      // chained resolution: an arg naming a prior-hop param resolves to that hop's bound value
+      const argName = incomingSubst && typeRefName(arg);
+      if (argName && incomingSubst.has(argName)) arg = incomingSubst.get(argName);
+      else arg = resolveColliderArg(arg, paramNames, scope);
       subst.set(typeParamName(declParams[i]), arg);
     }
     return subst.size ? subst : null;
