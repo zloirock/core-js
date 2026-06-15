@@ -708,6 +708,7 @@ export default function createPlugin(options) {
       const {
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
+        isInStaticContext,
         isShadowedByClassOwnMember,
       } = createClassHelpers({ t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector });
 
@@ -719,6 +720,7 @@ export default function createPlugin(options) {
           isDisabled,
           resolveStaticInheritedMember,
           isInheritedStaticLookup,
+          isInStaticContext,
           isShadowedByClassOwnMember,
           enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, estreeAdapter),
         });
