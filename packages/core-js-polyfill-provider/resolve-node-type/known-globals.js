@@ -109,6 +109,10 @@ export function createKnownGlobals({
       const { type } = cur.node;
       if (type === 'SequenceExpression' && cur.node.expressions.length) {
         cur = cur.get('expressions')[cur.node.expressions.length - 1];
+      } else if (type === 'AssignmentExpression' && cur.node.operator === '=') {
+        // `(a = Array).from()` evaluates to the assigned value (rightmost operand) at runtime -
+        // parity with resolveRuntimeExpression, so the return type narrows off the real constructor
+        cur = cur.get('right');
       } else if (type === 'ParenthesizedExpression' || type === 'ChainExpression'
         || TS_EXPR_WRAPPERS.has(type)) {
         cur = cur.get('expression');
