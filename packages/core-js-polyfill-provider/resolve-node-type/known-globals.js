@@ -170,6 +170,22 @@ export function createKnownGlobals({
     return new $Object('Promise', argType.constructor === 'Promise' ? resolveInnerType(argType) : argType);
   }
 
+  // a static flagged `returnsArgument: N` returns that argument unchanged (ECMAScript identity,
+  // e.g. Object.freeze -> 0), so the result keeps the argument's concrete container type:
+  // `Object.freeze([...]).includes()` must narrow to the array, not the registry's generic 'Object'
+  // (which drops the polyfill on ie:11). null when the slot is absent / preceded-or-filled by a
+  // spread / unknown, so the caller falls back to the declared hint. mirrors `inferPromiseResolveReturnType`
+  function inferReturnedArgType(callPath, index) {
+    const callType = callPath?.node?.type;
+    if (callType !== 'CallExpression' && callType !== 'OptionalCallExpression') return null;
+    const args = callPath.get('arguments');
+    const argPath = args[index];
+    // a spread at or before the target index makes positional matching undecidable
+    if (!argPath || args.slice(0, index + 1).some(a => babelNodeType(a.node) === 'SpreadElement')) return null;
+    const argType = resolveNodeType(argPath);
+    return argType && !isNullableOrNever(argType) ? argType : null;
+  }
+
   function resolveKnownStaticReturnType(callee, callPath) {
     if (!isMemberLike(callee)) return null;
     const info = resolveGlobalMember(callee);
@@ -178,6 +194,10 @@ export function createKnownGlobals({
     if (!hint) return null;
     if (callPath && info.objectName === 'Promise' && info.memberName === 'resolve') {
       const inferred = inferPromiseResolveReturnType(callPath);
+      if (inferred) return inferred;
+    }
+    if (callPath && typeof hint.returnsArgument === 'number') {
+      const inferred = inferReturnedArgType(callPath, hint.returnsArgument);
       if (inferred) return inferred;
     }
     return typeFromHint(hint);
