@@ -968,14 +968,27 @@ export function createPolyfillEmitter({
   // `.flat?.()` and queues a duplicate chain emit. overlapping chain emits collide in
   // compose (different shapes share the same inner-source range)
   function markIntermediateChainHops(start, chainStart) {
-    for (let hop = start; hop && hop !== chainStart; hop = chainHopChild(hop)) {
+    // peel transparent wrappers at each step (mirrors `peelChainStep`, the detection-side
+    // descent that located `chainStart`): a mid-chain `!` / `as` (TS wrapper) or ESTree
+    // ChainExpression between hops would otherwise leave `chainHopChild` looking at a non-
+    // Member/Call node, terminate the walk early, and leave the trailing poly hops UNMARKED -
+    // the visitor then re-matches the same inner chain and queues an overlapping transform
+    // ("could not locate inner needle" crash). ParenthesizedExpression is a chain terminator
+    // in `peelChainStep` (it bails there, so no combine reaches here across a paren); left
+    // unpeeled it naturally ends this walk too
+    for (let hop = peelChainHopWrappers(start); hop && hop !== chainStart; hop = peelChainHopWrappers(chainHopChild(hop))) {
       skippedNodes.add(hop);
     }
   }
 
+  function peelChainHopWrappers(node) {
+    while (node && (node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(node.type))) node = node.expression;
+    return node;
+  }
+
   // descend one level along the inner-receiver chain. MemberExpression carries the next
   // step on `.object`; CallExpression / OptionalCallExpression on `.callee`. anything else
-  // terminates the walk
+  // terminates the walk. wrappers are peeled by the caller (`peelChainHopWrappers`)
   function chainHopChild(node) {
     if (node.type === 'MemberExpression') return node.object;
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') return node.callee;
