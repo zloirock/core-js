@@ -7,6 +7,7 @@ import {
   getTypeArgs,
   kebabToCamel,
   singleQuasiString,
+  spreadAtOrBefore,
   staleVarRedeclNodes,
   synthVarHoistBinding,
   unwrapRuntimeExpr,
@@ -291,17 +292,6 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
-  // any SpreadElement at AST-index <= `index` shifts the runtime position of subsequent
-  // elements by an unknown amount, so `elements[index]` no longer corresponds to runtime
-  // slot `index`. bail conservatively. forward iteration up to `index` keeps the cost
-  // O(index) per lookup; arrays with deep static lookups stay sub-linear in array length
-  function arrayElementsHaveSpreadAtOrBefore(elements, index) {
-    for (let i = 0; i <= index && i < elements.length; i++) {
-      if (elements[i]?.node?.type === 'SpreadElement') return true;
-    }
-    return false;
-  }
-
   // backward iteration so the LAST assignment wins (`{a: 1, a: 2}` returns 2) and any
   // SpreadElement encountered before the match could have injected `key` -> bail.
   // forward iteration with `return-on-first-match` would be double-wrong: it would return an
@@ -346,7 +336,7 @@ function createResolveNodeType(babelNodeType, t, {
       const index = typeof key === 'number' ? key : Number(key);
       if (!Number.isInteger(index) || index < 0) return null;
       const elements = argPath.get('elements');
-      if (arrayElementsHaveSpreadAtOrBefore(elements, index)) return null;
+      if (spreadAtOrBefore(elements, index)) return null;
       const elementPath = elements[index];
       if (!elementPath?.node) return null;
       return elementPath;
@@ -373,7 +363,7 @@ function createResolveNodeType(babelNodeType, t, {
       const index = typeof key === 'number' ? key : Number(key);
       if (!Number.isInteger(index) || index < 0) return null;
       const elements = argPath.get('elements');
-      if (arrayElementsHaveSpreadAtOrBefore(elements, index)) return null;
+      if (spreadAtOrBefore(elements, index)) return null;
       const elementPath = elements[index];
       if (!elementPath?.node) return null;
       return resolveNodeType(elementPath);
@@ -924,6 +914,9 @@ function createResolveNodeType(babelNodeType, t, {
         // -1 marks rest-element ("whole tail" slice) - no single Path to surface
         if (step < 0) return null;
         if (!t.isArrayExpression(cur.node) || cur.node.elements.length <= step) return null;
+        // a spread at or before `step` shifts the runtime position - the element at AST index `step`
+        // is not the value at runtime slot `step` (same guard the sibling array-literal walks use)
+        if (spreadAtOrBefore(cur.get('elements'), step)) return null;
         const next = cur.get('elements')[step];
         if (!next?.node) return null;
         cur = resolveRuntimeExpression(next);
