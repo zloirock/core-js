@@ -707,6 +707,7 @@ function createResolveNodeType(babelNodeType, t, {
     applyAliasSubstDeep,
     applySubst,
     substMembers,
+    shadowMethodTypeParams,
     reset: resetTypeSubst,
   } = createTypeSubst({
     unwrapTypeAnnotation,
@@ -1722,6 +1723,7 @@ function createResolveNodeType(babelNodeType, t, {
     findExpressionAnnotation,
     functionTypeReturnAnnotation,
     applyAliasSubstDeep,
+    shadowMethodTypeParams,
     foldUnionTypes,
     followTypeAliasChain,
     applySubst,
