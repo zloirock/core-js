@@ -14,6 +14,7 @@
 // pick from `resolveIndexSignatureMember`).
 import { KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
 import {
+  interfaceBodyMembers,
   isInterfaceDeclaration,
   isTypeAlias,
   isUnionType,
@@ -97,13 +98,6 @@ export function createTypeMembers({
     const out = [];
     appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs, visited: visited ?? new Set() });
     return out.length ? out : null;
-  }
-
-  // shared accessor for TS/Flow interface body shape: `TSInterfaceBody.body` (TS) vs
-  // `ObjectTypeAnnotation.properties` (Flow's InterfaceDeclaration). always returns an
-  // array - falsy bodies (parse error / empty decl) collapse to empty
-  function interfaceBodyMembers(iface) {
-    return iface.body?.body ?? iface.body?.properties ?? [];
   }
 
   // shorthand for the `buildSubstMap(decl.typeParameters?.params, receiverArgs)` pattern
