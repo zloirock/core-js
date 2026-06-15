@@ -1184,6 +1184,7 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     resolveThisClass,
     resolveThisObject,
+    resolveExpressionToClassPath,
     resolveSuperClassPath,
     resolveClassContext,
     buildParentClassSubstFromNodes,
@@ -1900,6 +1901,7 @@ function createResolveNodeType(babelNodeType, t, {
     typeFromHint,
     resolveArrayLiteralCommonType,
     resolveThisClass,
+    resolveExpressionToClassPath,
     resolveClassInheritance,
     resolveFromMemberExpression,
     resolveArrayIndexAccess,

@@ -35,6 +35,7 @@ export function createExpressionDispatch({
   typeFromHint,
   resolveArrayLiteralCommonType,
   resolveThisClass,
+  resolveExpressionToClassPath,
   resolveClassInheritance,
   resolveFromMemberExpression,
   resolveArrayIndexAccess,
@@ -63,8 +64,13 @@ export function createExpressionDispatch({
       const ctorType = resolveConstructorType(name, path);
       if (ctorType) return ctorType;
     }
+    // a class callee yields the instance type via the inheritance walk. `resolveExpressionToClassPath`
+    // covers the runtime class AND the ambient `declare class` form (no runtime value binding on Babel,
+    // so a bare Identifier degrades to the foreign nominal `$Object('X')` and misses an `extends
+    // Array`/`Set` base without the ambient-index fallback estree-toolkit gets from `scope.bindings`)
+    const classPath = resolveExpressionToClassPath(callee);
+    if (classPath) return resolveClassInheritance(classPath) || new $Object('Object');
     const resolved = resolveRuntimeExpression(callee);
-    if (t.isClass(resolved.node)) return resolveClassInheritance(resolved) || new $Object('Object');
     // callee resolves to a TSConstructorType signature (or TSFunctionType - they share the
     // `returnType` slot and `functionTypeReturnAnnotation` treats both identically). example:
     // `const Ctor = wrap('a')` where `wrap<T>(): new (...) => string[]` - Ctor's annotation
