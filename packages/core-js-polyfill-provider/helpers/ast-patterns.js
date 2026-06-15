@@ -796,15 +796,21 @@ function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
     return collectScopeVars(scopeNode).has(name);
   }
   // a block-scoped statement re-binding `name`: `let`/`const` declarator, or a class / function
-  // declaration. for-head let/const is left conservative (still recorded: safe over-bail)
+  // declaration
   function stmtRebindsName(stmt) {
     if (stmt.type === 'VariableDeclaration' && stmt.kind !== 'var') return stmt.declarations.some(d => bindsName(d.id));
     return (stmt.type === 'ClassDeclaration' || stmt.type === 'FunctionDeclaration') && stmt.id?.name === name;
   }
-  // a nested BLOCK / catch that re-binds `name` block-scoped shadows the outer var inside it -
-  // writes there are to the inner binding, not the var
+  // a nested BLOCK / catch / for-head that re-binds `name` block-scoped shadows the outer var
+  // inside it - writes there are to the inner binding, not the var. a for-head `let`/`const`
+  // lexically binds `name` PER-LOOP, so head + body writes target that binding (NOT the outer);
+  // halt the descent. a `var` head hoists to the function scope (= the outer) and a bare-identifier
+  // head assigns the existing outer, so those are NOT shadows and stay recorded as real writes below
   function blockShadowsName(node) {
     if (node.type === 'CatchClause') return !!node.param && bindsName(node.param);
+    const forHead = node.type === 'ForOfStatement' || node.type === 'ForInStatement' ? node.left
+      : node.type === 'ForStatement' ? node.init : null;
+    if (forHead?.type === 'VariableDeclaration' && forHead.kind !== 'var') return forHead.declarations.some(d => bindsName(d.id));
     if (!RUNTIME_BLOCK_TYPES.has(node.type)) return false;
     return (node.body ?? []).some(stmtRebindsName);
   }
@@ -3371,15 +3377,21 @@ const CLASS_FIELD_TYPES = new Set([
   'AccessorProperty',
 ]);
 
+// one ancestor step: is `node` (entered via the `child` path) a DEFERRED evaluation context - a
+// function body (runs at call time) OR an INSTANCE class-field initializer VALUE (runs at
+// construction / `new`-time)? a static field, a StaticBlock, and any computed key run at class-eval
+// (straight-line), so they are NOT deferred. single source of truth for the deferral predicate
+export function isDeferredContextStep(t, node, child) {
+  if (t.isFunction(node)) return true;
+  return CLASS_FIELD_TYPES.has(node.type) && !node.static && child?.key === 'value';
+}
+
 // walk ancestors from `startPath` up to (excluding) Program, returning true at the first DEFERRED
-// evaluation context: a function body (runs at call time) OR an INSTANCE class-field initializer
-// VALUE (runs at construction / `new`-time). a static field, a StaticBlock, and any computed key
-// run at class-eval (straight-line), so they are NOT deferred. shared by closure-analysis (call
-// temporal bound) and class-fields (this-write deferral) so both treat new-time evaluation alike
+// evaluation context. shared by closure-analysis (call temporal bound) and class-fields (this-write
+// deferral) and straight-line flow (reassignment timing) so all treat new-time evaluation alike
 export function hasDeferredContextAncestor(t, startPath) {
   for (let fp = startPath?.parentPath, child = startPath; fp?.node && !t.isProgram(fp.node); child = fp, fp = fp.parentPath) {
-    if (t.isFunction(fp.node)) return true;
-    if (CLASS_FIELD_TYPES.has(fp.node.type) && !fp.node.static && child.key === 'value') return true;
+    if (isDeferredContextStep(t, fp.node, child)) return true;
   }
   return false;
 }
