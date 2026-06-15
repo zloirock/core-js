@@ -250,14 +250,18 @@ export function createCallResolution({
     // through findTypeMember. method-shape detection (Layer 2) returns the full signature,
     // not just its return, so functionTypeReturnAnnotation below extracts the substituted
     // return slot. without the peel, indexed-access aliases bypass call narrowing entirely
+    // follow the alias chain (carrying generic subst) BEFORE extracting the return, so a fn-type
+    // alias (`type F = () => number[]`) or generic one (`type Mk<T> = () => T[]; f: Mk<number>`)
+    // surfaces its TSFunctionType - the bare TSTypeReference is not a function-type node, so
+    // `functionTypeReturnAnnotation` would bail to the generic helper. an indexed-access alias still
+    // peels through `findTypeMember` first; a non-function alias yields null (generic), as before
     const aliased = followTypeAliasChain(annotation, info.scope);
-    if (aliased?.node?.type === 'TSIndexedAccessType') {
-      const { subst } = aliased;
-      const aliasedNode = subst ? applyAliasSubstDeep(aliased.node, subst) : aliased.node;
-      const peeled = resolveIndexedAccessMemberAnnotationAST(aliasedNode, info.scope, 0);
-      if (peeled) annotation = peeled;
+    let target = aliased.subst ? applyAliasSubstDeep(aliased.node, aliased.subst) : aliased.node;
+    if (target?.type === 'TSIndexedAccessType') {
+      const peeled = resolveIndexedAccessMemberAnnotationAST(target, info.scope, 0);
+      if (peeled) target = peeled;
     }
-    const ret = functionTypeReturnAnnotation(annotation);
+    const ret = functionTypeReturnAnnotation(target);
     return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
 
