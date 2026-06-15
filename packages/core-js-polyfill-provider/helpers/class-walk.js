@@ -26,6 +26,15 @@ function unwrapInitForResolution(node) {
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
+// classify a root that `findProxyGlobal(node, aliasCtx)` matched: true when it resolved through a
+// const-alias (`g` in `const g = globalThis; g.X`) rather than by a direct global NAME. the emit-side
+// collapse KEEPS an alias root verbatim (its own declaration already rewrote it to the pure global)
+// and drops only the hops, whereas a direct root swaps to its pure binding. shared by both emitters
+// so the keep-vs-swap decision lives in one place
+export function isAliasProxyRoot(rootNode, aliasCtx) {
+  return !!aliasCtx && !!rootNode && !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.name);
+}
+
 // direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
