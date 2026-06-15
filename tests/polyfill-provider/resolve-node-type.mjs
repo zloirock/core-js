@@ -895,6 +895,130 @@ runBoth('generic ambient declare-class extends Array<T> -> instance Array',
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
   });
 
+// --- Type-param substitution capture-avoidance ---
+// a type-arg whose name collides with a sibling type-param refers to an EXTERNAL declaration, but
+// transitive substitution would re-capture it through the param's own mapping. the capture-avoiding
+// builder resolves the external declaration eagerly (alias body / interface members), independent of
+// declaration kind and whether the arg is explicit or a default. these would all under-resolve (or
+// resolve to the wrong sibling type) without it.
+
+runBoth('capture-avoidance: interface collider Wrap<string, A> resolves external interface A',
+  `
+    interface A { rows(): string[]; }
+    interface Wrap<A, Q> { item: Q; }
+    declare const w: Wrap<string, A>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// default-valued colliding param (not only explicit args): `Q = A` defaults to the external alias A
+runBoth('capture-avoidance: default-valued alias collider Wrap<A, Q = A> resolves A=number[]',
+  `
+    type A = number[];
+    interface Wrap<A, Q = A> { item: Q; }
+    declare const w: Wrap<string>;
+    const y = w.item.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
+// the same collision THROUGH an alias chain: the chain walker accumulates each hop via the shared
+// capture-avoiding builder, so the collider is resolved at the hop, not recaptured downstream
+runBoth('capture-avoidance: collider through alias chain type Mid<A,Q> = Wrap<A,Q>',
+  `
+    interface A { rows(): string[]; }
+    interface Wrap<X, Q> { item: Q; }
+    type Mid<A, Q> = Wrap<A, Q>;
+    declare const w: Mid<string, A>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a colliding name with NO external declaration IS the param itself (intentional sibling reference)
+// and must stay transitively resolved - `Wrap<Array<Q>, string>` -> item is Array (Q -> string)
+runBoth('capture-avoidance NEG: intentional sibling ref Wrap<Array<Q>, string> stays Array',
+  `
+    interface Wrap<A, Q> { item: A; }
+    declare const w: Wrap<Array<Q>, string>;
+    const y = w.item;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// a non-colliding external type-arg is unaffected (the common path)
+runBoth('capture-avoidance NEG: non-colliding arg Wrap<string, B> resolves normally',
+  `
+    interface B { rows(): string[]; }
+    interface Wrap<A, Q> { item: Q; }
+    declare const w: Wrap<string, B>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a collider with no self-ref-free inline form (a GENERIC interface) collapses to `unknown` -
+// the recapture chain is still broken (safe under-resolve), and it must not throw
+runBoth('capture-avoidance: generic-interface collider -> safe under-resolve (no recapture, no throw)',
+  `
+    interface G<T> { rows(): string[]; }
+    interface Wrap<G, Q> { item: Q; }
+    declare const w: Wrap<string, G>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    check(`${ lbl } safe null`, adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows')), null);
+  });
+
+// the capture-avoidance holds THROUGH a deep (3-hop) alias chain, not just one hop
+runBoth('capture-avoidance: collider through 3-hop alias chain resolves',
+  `
+    interface I { rows(): string[]; }
+    interface Wrap<X, Q> { item: Q; }
+    type C<A, Q> = Wrap<A, Q>;
+    type B<A, Q> = C<A, Q>;
+    type A<A, Q> = B<A, Q>;
+    declare const w: A<string, I>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// cross-hop collision: the outer alias forwards its param `A` into the inner hop's `Q` slot, where
+// `A` also names the inner hop's first param - the accumulated-subst builder must still resolve the
+// external `A`, not recapture across the hop boundary
+runBoth('capture-avoidance: cross-hop collision Outer<A> = Inner<string, A> resolves',
+  `
+    interface A { rows(): string[]; }
+    interface Inner<X, Q> { item: Q; }
+    type Outer<A> = Inner<string, A>;
+    declare const w: Outer<A>;
+    const y = w.item.rows();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'rows');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
 // --- Type alias chains (multi-hop) ---
 
 runBoth('multi-hop type alias resolves through chain',
