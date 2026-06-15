@@ -170,6 +170,22 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
       if (entry) for (const name of names) onPureImport(entry, name, node);
       continue;
     }
+    // TS `import X = require('<pkg>/<mode>/...')` - the same pure require-import shape tsc/esbuild
+    // emit; without recognising it the `phase: 'pre+post'` post re-scan misses it and re-emits a
+    // duplicate import. only the PURE-mode match short-circuits here - a non-pure (`modules/...`
+    // side-effect) TSImportEquals must still fall through to the global `getEntrySource` path below,
+    // which already handles this node shape. reads the source off the TSExternalModuleReference
+    if (node.type === 'TSImportEqualsDeclaration'
+      && onPureImport && mainPkgs && modePrefix && node.id?.type === 'Identifier'
+      && !node.isExport && node.importKind !== 'type'
+      && node.moduleReference?.type === 'TSExternalModuleReference') {
+      const required = extractStaticString(node.moduleReference.expression, adapter);
+      const entry = typeof required === 'string' ? matchEntrySubpath(required, mainPkgs, modePrefix) : null;
+      if (entry) {
+        onPureImport(entry, node.id.name, node);
+        continue;
+      }
+    }
     // `var X = require('<pkg>/<mode>/...')` - the require import style emits this for pure
     // substitution, so the post re-scan must recognise it as an existing pure import or
     // `phase: 'pre+post'` re-emits a duplicate `require` (double module-eval). a require-bound
