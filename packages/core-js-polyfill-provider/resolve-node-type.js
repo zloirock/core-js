@@ -713,6 +713,9 @@ function createResolveNodeType(babelNodeType, t, {
     unwrapTypeAnnotation,
     findTypeDeclaration,
     typeParamName,
+    // forward-decl thunk: `buildSubstMap` (user-type-resolve cluster) is instantiated later;
+    // `followTypeAliasChain` accumulates each generic hop through it as the one capture-avoiding builder
+    buildSubstMap: (...args) => buildSubstMap(...args),
     unwrapMappedTypePassthrough,
     tupleElements,
     rebuildTupleElements,
