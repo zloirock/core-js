@@ -157,23 +157,20 @@ export function createGlobalResolve({
     });
   }
 
-  // oxc preserves ParenthesizedExpression (babel drops it at parse); peel it off a path so a
-  // parenthesized global / proxy-global callee (`(Array)`, `(globalThis).Map`, member object
-  // `(globalThis.Array).from`, `class C extends (Array)`) resolves identically on both parsers
-  // instead of under-narrowing on the oxc path
-  function peelParenthesizedPath(path) {
-    while (path.node?.type === 'ParenthesizedExpression') path = path.get('expression');
-    return path;
-  }
-
+  // peel transparent wrappers off a path so a parenthesized / TS-cast / optional-chain-wrapped
+  // global or proxy-global callee resolves identically on both parsers (oxc preserves
+  // ParenthesizedExpression + ChainExpression that babel drops at parse): `(Array)`,
+  // `(globalThis).Map`, `(globalThis.Array).from`, `new (globalThis?.Array)()`. canonical
+  // peelSkippableWrapperPath covers paren + ChainExpression + TS (a paren-only peel left an oxc
+  // `(globalThis?.Array)` as a ChainExpression -> not member-like -> under-narrowed)
   function resolveGlobalName(path) {
-    path = peelParenthesizedPath(path);
+    path = peelSkippableWrapperPath(path);
     if (t.isIdentifier(path.node)) {
       if (!hasRuntimeBinding(path.scope, path.node.name, path)) return path.node.name;
       return resolveAliasedGlobalName(path) ?? resolveDestructuredGlobalName(path);
     }
     if (!isMemberLike(path)) return null;
-    const object = peelParenthesizedPath(path.get('object'));
+    const object = peelSkippableWrapperPath(path.get('object'));
     if (!isGlobalProxy(object)) return null;
     // memberKeyName covers `globalThis.Map` and `globalThis['Map']` (literal computed key),
     // returning null for dynamic computed keys so they keep generic dispatch
