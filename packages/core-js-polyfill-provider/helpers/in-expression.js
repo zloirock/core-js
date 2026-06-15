@@ -4,8 +4,7 @@
 // emitter additionally marks the discarded operand skipped, while an AST emitter drops it
 // implicitly by replacing the node.
 import {
-  collectBuriedChainSePrefixes,
-  sequencePrefixWithSideEffects,
+  collectFoldedReceiverSideEffects,
   unwrapRuntimeExpr,
   visitSymbolInLhsSe,
 } from './ast-patterns.js';
@@ -25,41 +24,25 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     visitSymbolInLhsSe(left, e => leadingSe.push(e));
     return { kind: 'symbol', call: meta.key === 'Symbol.iterator', entry: symbolIn.entry, hint: symbolIn.hint, leadingSe, right };
   }
-  // bare-name LHS with a statically-known polyfilled key (`'from' in Array`) folds to `true`
-  // (the polyfill is always defined). BOTH operands still evaluate their SE even though the
-  // result is constant: a SequenceExpression keeps its SE-bearing prefix and drops the consumed
-  // tail; an AssignmentExpression RHS is kept whole (rescues the assignment + binding update);
-  // SE buried deeper in the discarded RHS chain (an SE-bearing chain-root call, a buried
-  // chain-assignment) arrives pre-harvested in `meta.sideEffects` (detection has live
-  // scope/adapter to inline-probe the call).
-  // `skip` names the single operand the fold discards, so a text emitter can mark it skipped (an
-  // AST emitter drops it implicitly by replacing the node); null when nothing is discarded
+  // bare-name LHS with a statically-known polyfilled key (`'from' in Array`) folds to `true` (the
+  // polyfill is always defined). BOTH operands still evaluate their side effects even though the
+  // result is constant, in source-eval order (`a in b` runs the key `a` then the object `b`).
+  // because the fold DISCARDS each operand whole, nothing survives to carry a trailing value, so a
+  // sequence tail and a computed key are side effects too - `collectFoldedReceiverSideEffects` is the
+  // structural harvest (peeling parens / chain / TS wrappers like `(y = Map) as any`), closing the
+  // prior prefix-only gap that dropped SE sequence-tails and computed keys. a value-position bare
+  // RECEIVER call is left to detection's `meta.sideEffects` (scope-aware: drops a provably-pure inline
+  // call), appended last so it keeps its RHS-tail position after the structural RHS effects.
+  // `skip` names the discarded operand a text emitter marks skipped (an AST emitter drops it by
+  // replacing the node); the rescued SE subtrees stay visitable, re-emitted by the replacement
   if (meta.object) {
     if (!resolveFallback(meta).result) return { kind: 'noop' };
-    const leadingSe = [];
-    // peel parens / optional-chain / TS wrappers (`(y=Map) as any`) off both operands here, in the
-    // shared planner, so the SE harvest is single-sourced (the symbol path peels the same way). a
-    // caller-supplied `unwrap` once left this to the dialect - babel's was identity and dropped the
-    // TS-wrapped assignment SE + its import, while unplugin rescued it (divergence)
-    const lhsPrefix = sequencePrefixWithSideEffects(unwrapRuntimeExpr(left));
-    if (lhsPrefix) leadingSe.push(...lhsPrefix);
-    const rhs = unwrapRuntimeExpr(right);
-    const rhsPrefix = sequencePrefixWithSideEffects(rhs);
-    let skip = right;
-    if (rhsPrefix) {
-      leadingSe.push(...rhsPrefix);
-      skip = rhs.expressions.at(-1);
-    } else if (rhs?.type === 'AssignmentExpression') {
-      leadingSe.push(rhs);
-      skip = null;
-    } else if (rhs?.type === 'MemberExpression' || rhs?.type === 'OptionalMemberExpression') {
-      // SE buried along the discarded RHS chain's object spine (`'x' in (eff(), globalThis).Map`)
-      // keeps evaluating - the fold replaced the whole operand and silently dropped the effect
-      leadingSe.push(...collectBuriedChainSePrefixes(rhs.object));
-    }
-    // detection-harvested RHS chain SE runs in RHS position, after any RHS sequence prefix
+    const leadingSe = [
+      ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left)),
+      ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(right)),
+    ];
     if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
-    return { kind: 'fold', leadingSe, skip };
+    return { kind: 'fold', leadingSe, skip: right };
   }
   return { kind: 'noop' };
 }
