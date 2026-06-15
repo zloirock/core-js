@@ -4,7 +4,7 @@
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
   isTopLevelThisContext,
@@ -340,9 +340,10 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   }
   if (pattern && pattern.type !== 'Identifier') return null;
   if (!init) return null;
-  // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value out
-  // only when the preceding expressions are side-effect-free
-  const unwrapped = unwrapParens(init);
+  // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value off its tail.
+  // the binding's init declaration stays verbatim (only USES of the binding are rewritten / import-
+  // injected), so preceding SE effects are preserved in place - resolution peels to the tail value
+  const unwrapped = peelReceiverSequenceTail(init);
   if (unwrapped?.type === 'Identifier') {
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
     // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
@@ -573,6 +574,10 @@ export function collectMemberUnionCandidates(options) {
 // cycle protection (`const f = () => g(); const g = () => f();`); pass an empty Set when
 // recursion isn't possible at the call site
 function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
+  // SE-bail (unwrapParens), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
+  // makes the resolver inline it, but the emit layer cannot compose a receiver-less static
+  // substitution over the SE-wrapped callee (transform-queue "could not locate inner needle" crash).
+  // the SE-bail keeps the shape unresolved (native call survives) - the safe-from-crash outcome
   let callee = unwrapParens(callNode.callee);
   if (callee.type === 'Identifier') {
     const { name } = callee;
@@ -863,7 +868,11 @@ export function createSelfRefVarGuard(getKind) {
 
 // find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain.
 // depth-ceiling protects against pathological chains - same MAX_KEY_DEPTH bound used elsewhere
-export function findProxyGlobal(node) {
+// `aliasCtx` ({ scope, adapter, path }), when supplied, makes the root check follow const-alias
+// roots through the canonical resolver (`const g = globalThis; g.self.X`); without it the root is
+// classified by NAME only (POSSIBLE_GLOBAL_OBJECTS) - byte-identical to every existing node-only
+// caller. the emit-side collapse passes it so an aliased proxy global drops its `.self` hop too
+export function findProxyGlobal(node, aliasCtx = null) {
   // peel SE tails too (`(eff(), globalThis).Map`): pure shape classification - the SE prefix
   // stays in the source and the emit side collects it; a paren-only peel left the root
   // unclassified and the receiver subtree unskipped (overlapping-rewrite crash on unplugin)
@@ -873,7 +882,8 @@ export function findProxyGlobal(node) {
     if (++depth > MAX_KEY_DEPTH) return null;
     obj = peelReceiverSequenceTail(obj.object);
   }
-  return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
+  if (obj.type !== 'Identifier') return null;
+  return isProxyGlobalIdentifierNode({ node: obj, ...aliasCtx }) ? obj : null;
 }
 
 // like `findProxyGlobal`, but returns the root WITH any wrapper directly around it (paren /
@@ -883,13 +893,17 @@ export function findProxyGlobal(node) {
 // root substitution) or a dangling `(` - when the root is parenthesized (`(globalThis).self.X`).
 // returns the bare identifier (same span as `findProxyGlobal`) when no wrapper sits directly
 // around the root, including the parens-around-prefix shape (`(globalThis.self).X`)
-export function proxyGlobalWrappedRoot(node) {
-  if (!findProxyGlobal(node)) return null;
-  let wrapped = unwrapParens(node);
+export function proxyGlobalWrappedRoot(node, aliasCtx = null) {
+  if (!findProxyGlobal(node, aliasCtx)) return null;
+  // peelReceiverSequenceTail (not SE-bailing unwrapParens): for a SE-prefix receiver
+  // `(se(), globalThis.self.Array)` the bare root identifier sits in the SE tail - peeling to it
+  // gives the correct deletion span. identical to unwrapParens for the directly-wrapped-root case
+  // (`(globalThis).self.X` still returns the paren-inclusive `(globalThis)`), so byte-spans are kept
+  let wrapped = peelReceiverSequenceTail(node);
   let root = wrapped;
   while (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') {
     wrapped = root.object;
-    root = unwrapParens(wrapped);
+    root = peelReceiverSequenceTail(wrapped);
   }
   return wrapped;
 }
@@ -901,14 +915,17 @@ export function proxyGlobalWrappedRoot(node) {
 // expression reads the constructor off the global object directly instead of an intermediate proxy:
 // `_globalThis.self.Array` would read an undefined `self` off the global object on hosts without it
 // (ie:11 pure, non-browser), whereas the collapsed `_globalThis.Array` is safe across the target range
-export function maximalProxyGlobalPrefix(node) {
-  const root = findProxyGlobal(node);
+export function maximalProxyGlobalPrefix(node, aliasCtx = null) {
+  const root = findProxyGlobal(node, aliasCtx);
   if (!root) return null;
   const chain = [];
-  let cur = unwrapParens(node);
+  // peel the SE tail (matching findProxyGlobal above, which roots the chain via peelReceiverSequenceTail):
+  // a SE-prefixed proxy receiver `(se(), globalThis.self.Array)` must still collapse its `.self` hop -
+  // SE-bailing unwrapParens left the chain unwalked so `_globalThis.self.Array` survived to ie:11
+  let cur = peelReceiverSequenceTail(node);
   while (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
     chain.push(cur);
-    cur = unwrapParens(cur.object);
+    cur = peelReceiverSequenceTail(cur.object);
   }
   let prefix = root;
   for (let i = chain.length - 1; i >= 0; i--) {
@@ -930,7 +947,7 @@ export function maximalProxyGlobalPrefix(node) {
 // actually changes the output (root + hops) from a bare root (`globalThis.Array`) that the
 // standard root substitution / natural global rewrite already handles. callers that only need
 // to drop the "extra" hops gate on this and leave the bare-root case alone
-export function maximalProxyGlobalHop(node) {
-  const prefix = maximalProxyGlobalPrefix(node);
+export function maximalProxyGlobalHop(node, aliasCtx = null) {
+  const prefix = maximalProxyGlobalPrefix(node, aliasCtx);
   return prefix && prefix.type !== 'Identifier' ? prefix : null;
 }

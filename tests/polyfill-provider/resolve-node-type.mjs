@@ -1156,6 +1156,30 @@ runBoth('destructure default with hex pattern key matches decimal init key',
       { primitive: true, kind: 'string' });
   });
 
+// --- wrapper-peel divergence (C1): runtime-object peel must snip the same wrapper set across sites ---
+
+// optional-chain-wrapped global ctor: `new (globalThis?.Array)()` is an Array instance, so `.at`
+// narrows to the array helper. resolveGlobalName peeled only ParenthesizedExpression, leaving the
+// oxc ChainExpression wrapper -> not member-like -> generic; the canonical skippable-wrapper peel fixes it
+runBoth('wrapper-peel: new (globalThis?.Array)() narrows .at to Array',
+  'new (globalThis?.Array)().at(0);',
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// assignment-expression runtime object: `(a = Array).from([])` evaluates to `Array.from([])` (an
+// Array), so `.at` narrows to the array helper. peelToRuntimeObject lacked the AssignmentExpression
+// branch its sibling resolveRuntimeExpression has, so the return type was unnarrowed -> generic
+runBoth('wrapper-peel: (a = Array).from([]).at narrows to Array via AssignmentExpression peel',
+  'let a; (a = Array).from([1]).at(0);',
+  (adapter, prog, lbl) => {
+    const at = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(at.get('callee').get('object')),
+      { primitive: false, ctor: 'Array' });
+  });
+
 // --- globalThis member access ---
 
 runBoth('globalThis.Map() resolved as Map constructor invocation',
