@@ -22,9 +22,11 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
+  isAliasProxyRoot,
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
   markSynthReceiverSkipped,
+  memberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyCallBranchForSynth, isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -262,18 +264,26 @@ export default function createSynthSwapEmitter({
   // off the global object on hosts without it (ie:11 pure, non-browser). the constructor sits
   // directly on the pure-proxy prefix here (a non-proxy hop breaks resolution before synth-swap),
   // so the collapsed form is `<polyfilled root>.<constructor>`. null when not a collapsible chain
-  function collapseProxyGlobalReceiver(receiver) {
+  function collapseProxyGlobalReceiver(receiver, aliasCtx = null) {
     if (!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) return null;
     // collapsible only when the whole `.object` is the pure-proxy navigation (its full span is the
     // prefix) and `.property` is the constructor leaf
-    if (maximalProxyGlobalPrefix(receiver) !== receiver.object) return null;
-    const root = findProxyGlobal(receiver);
+    if (maximalProxyGlobalPrefix(receiver, aliasCtx) !== receiver.object) return null;
+    // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to the pure ctor by the synth-swap /
+    // leaf path; a root-collapse here would emit the NATIVE `_globalThis.Map` and inject a dead
+    // `_globalThis`. skip it - only a NON-pure leaf (`.Array`, a user member) root-collapses its hops
+    const leafName = memberKeyName(receiver);
+    if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
+    const root = findProxyGlobal(receiver, aliasCtx);
     const rootPure = root && resolvePure({ kind: 'global', name: root.name });
-    if (!rootPure || rootPure.kind === 'instance') return null;
+    // an ALIAS root (`const g = globalThis; g.self.X`) keeps its (already-rewritten) identifier and
+    // only drops the redundant proxy hops (`g.self.X` -> `g.X`); a direct root swaps to its pure ctor
+    const isAliasRoot = isAliasProxyRoot(root, aliasCtx);
+    if ((!rootPure || rootPure.kind === 'instance') && !isAliasRoot) return null;
     // SE prefixes buried along the hop chain keep evaluating (root-first order):
     // `(eff(), globalThis).self.X` collapses to `(eff(), _globalThis).X`, not `_globalThis.X`
     const prefixes = collectBuriedChainSePrefixes(receiver.object);
-    const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
+    const rootBinding = isAliasRoot ? t.cloneNode(root) : injectPureImport(rootPure.entry, rootPure.hintName);
     const rootNode = prefixes.length
       ? t.sequenceExpression([...prefixes.map(expr => t.cloneNode(expr)), rootBinding])
       : rootBinding;
@@ -289,7 +299,7 @@ export default function createSynthSwapEmitter({
   // receiver - injected as a pure import when the receiver is itself a polyfillable global,
   // collapsed to the polyfilled root for a proxy-global member chain, raw otherwise.
   // all-polyfilled cases never call `getReceiverRef`, keeping the import set clean
-  function buildSynthLiteral(receiver, { objectPatternNode, polyfills }, memoParam = null) {
+  function buildSynthLiteral(receiver, { objectPatternNode, polyfills }, memoParam = null, aliasCtx = null) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
     // probing `resolvePure` against; MemberExpression receivers fall through to the as-is
@@ -308,7 +318,7 @@ export default function createSynthSwapEmitter({
       // a memo param (call-branch) replaces every receiver read - cloning the call would re-run it
       if (memoParam) return receiverRef = memoParam;
       if (isPolyfillableGlobal) return receiverRef = injectPureImport(receiverPure.entry, receiverPure.hintName);
-      return receiverRef = collapseProxyGlobalReceiver(readReceiver) ?? readReceiver;
+      return receiverRef = collapseProxyGlobalReceiver(readReceiver, aliasCtx) ?? readReceiver;
     }
 
     // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
@@ -354,7 +364,8 @@ export default function createSynthSwapEmitter({
         const needMemo = pending.callBranch
           && buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills).some(entry => !entry.polyfill);
         const memoParam = needMemo ? path.scope.generateUidIdentifier('ref') : null;
-        const literal = buildSynthLiteral(path.node, pending, memoParam);
+        const literal = buildSynthLiteral(path.node, pending, memoParam,
+          path.scope ? { scope: path.scope, adapter, path } : null);
         path.replaceWith(needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
