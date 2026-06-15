@@ -1,5 +1,8 @@
+import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.includes";
+import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.string.includes";
+import "core-js/modules/esnext.iterator.includes";
 // `super.includes(x)` inside an INSTANCE method of `extends Array` reads the parent PROTOTYPE,
 // where instance methods are live, so usage-global must inject the instance-method polyfill. an
 // over-broad static-context bail used to drop it (the same lookup in a STATIC method is dead and
