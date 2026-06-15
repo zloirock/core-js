@@ -697,27 +697,37 @@ export function createPatternBindings({
     if (!fnPath?.node || !t.isFunction(fnPath.node)) return false;
     const paramIndex = fnPath.node.params.indexOf(bindingPath.node);
     if (paramIndex === -1) return false;
-    let fnName = fnPath.node.id?.name;
-    if (!fnName && fnPath.parentPath?.node?.type === 'VariableDeclarator'
-      && fnPath.parentPath.node.id?.type === 'Identifier') fnName = fnPath.parentPath.node.id.name;
-    if (!fnName) return false;
-    const binding = getScopeBinding(fnPath.scope, fnName, fnPath);
-    if (!binding || binding.constantViolations?.length) return false;
-    if (isExportedFunction(fnPath, fnName)) return false;
-    for (const ref of collectBindingReferences(binding, fnName, fnPath) ?? []) {
-      const callNode = ref.parentPath?.node;
-      if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')
-        || callNode.callee !== ref.node) return false;
-      // a spread at or before this slot can supply the param from the spread iterable, so the
-      // default may be overridden even when arguments[paramIndex] is absent - treat as overridden
-      // (the binding then resolves generic, not narrowed to the default's type). matches the
-      // arg->param spread guard in resolveDirectParam / paramHasOverridingArg
-      if (spreadAtOrBefore(callNode.arguments, paramIndex)) return false;
-      const arg = callNode.arguments?.[paramIndex];
-      if (!arg) continue;
-      if (arg.type === 'UnaryExpression' && arg.operator === 'void') continue;
-      if (isBareUndefinedIdentifier(arg) && !ref.scope?.getBinding?.('undefined')) continue;
-      return false;
+    // the function is callable by EVERY name that binds it: a named function expression's internal
+    // name (recursion only) AND, for `const f = function g(){}`, the outer VariableDeclarator name
+    // (the external callers). resolving only the NFE internal name sees its ~0 recursion sites and
+    // misses every external call -> false "never overridden" -> the default narrows the param even
+    // though callers pass a foreign type (`_atMaybeArray` on a string, ie:11 throw). check all names
+    const sources = [];
+    if (fnPath.node.id?.type === 'Identifier') sources.push({ name: fnPath.node.id.name, scope: fnPath.scope, anchor: fnPath });
+    const declarator = fnPath.parentPath?.node;
+    if (declarator?.type === 'VariableDeclarator' && declarator.id?.type === 'Identifier') {
+      sources.push({ name: declarator.id.name, scope: fnPath.parentPath.scope, anchor: fnPath.parentPath });
+    }
+    if (!sources.length) return false;
+    for (const { name: fnName, scope, anchor } of sources) {
+      const binding = getScopeBinding(scope, fnName, anchor);
+      if (!binding || binding.constantViolations?.length) return false;
+      if (isExportedFunction(fnPath, fnName)) return false;
+      for (const ref of collectBindingReferences(binding, fnName, anchor) ?? []) {
+        const callNode = ref.parentPath?.node;
+        if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')
+          || callNode.callee !== ref.node) return false;
+        // a spread at or before this slot can supply the param from the spread iterable, so the
+        // default may be overridden even when arguments[paramIndex] is absent - treat as overridden
+        // (the binding then resolves generic, not narrowed to the default's type). matches the
+        // arg->param spread guard in resolveDirectParam / paramHasOverridingArg
+        if (spreadAtOrBefore(callNode.arguments, paramIndex)) return false;
+        const arg = callNode.arguments?.[paramIndex];
+        if (!arg) continue;
+        if (arg.type === 'UnaryExpression' && arg.operator === 'void') continue;
+        if (isBareUndefinedIdentifier(arg) && !ref.scope?.getBinding?.('undefined')) continue;
+        return false;
+      }
     }
     return true;
   }
