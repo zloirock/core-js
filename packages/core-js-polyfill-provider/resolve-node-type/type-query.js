@@ -111,7 +111,17 @@ export function createTypeQuery({
         if (type) return type;
       }
     }
-    if (!bindingPath || !memberPath.length) return null;
+    if (!memberPath.length) return null;
+    // ambient `declare class K` has no runtime value binding on Babel (estree-toolkit binds it
+    // regardless), so `typeof K.static` anchors through the ambient-declaration index - otherwise
+    // static-member resolution diverges across parsers. mirrors the annotation-family path in
+    // `findTypeQueryFunctionType`, which already resolves an ambient class static via `findClassMember`
+    if (!bindingPath) {
+      const ambientClass = findAmbientDeclarationPath(objectName, scope, isAmbientFunctionOrClassNode);
+      return ambientClass && t.isClass(ambientClass.node) && memberPath.length === 1
+        ? resolveClassMember({ classPath: ambientClass, name: memberPath[0], isStatic: true })
+        : null;
+    }
     const initPath = t.isVariableDeclarator(bindingPath.node) ? bindingPath.get('init')
       : t.isClassDeclaration(bindingPath.node) ? bindingPath : null;
     if (initPath?.node) {
