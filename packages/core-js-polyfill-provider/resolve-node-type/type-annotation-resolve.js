@@ -118,6 +118,10 @@ export function createTypeAnnotationResolve({
       const substituted = applySubst(member, subst);
       const resolved = resolve(substituted);
       if (!resolved) return null;
+      // `never` is the union identity (`T | never == T`): it contributes no real receiver and
+      // mismatches in `commonTypeLocal`, bailing the whole Extract/Exclude result. skip it before
+      // the assignability fold (mirrors union folding), so the surviving members still resolve
+      if (resolved.primitive && resolved.type === 'never') continue;
       if (isAssignableTo(resolved, target) !== keep) continue;
       anyKept = true;
       result = commonTypeLocal(result, resolved);
