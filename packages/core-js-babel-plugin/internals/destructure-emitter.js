@@ -1151,14 +1151,18 @@ export default function createDestructureEmitter({
       // native. `resolveNestedReceiverNode` already gates the receiver (Identifier / side-effect-free literal)
       const statement = nestedAssignmentStatementOf(prop);
       const receiverNode = resolveNestedReceiverNode(prop);
-      if (statement && prop.node.value?.type === 'Identifier' && receiverNode && !skippedNodes.has(prop.node)) {
+      // gate AND target the overwrite on the canonical binding-Identifier predicate: a defaulted
+      // binding (`{ flat: m = [] }`) is an AssignmentPattern, so a raw `value?.type === 'Identifier'`
+      // check drops the overwrite and the polyfill loses to the native (undefined) destructure
+      const bindingId = propBindingIdentifier(prop.node.value);
+      if (statement && bindingId && receiverNode && !skippedNodes.has(prop.node)) {
         // mark handled so a re-visit (babel re-crawls after the insertAfter mutation) doesn't append
         // a second identical overwrite
         skippedNodes.add(prop.node);
         // chain each overwrite off the previous one for this statement: the elements of a multi-element
         // pattern (`[{ flat: x }, { at: x }] = [a, b]`) must overwrite in SOURCE order so the last one
         // wins, as native destructuring does - a bare `statement.insertAfter` per element reverses them
-        const overwriteStmt = t.expressionStatement(t.assignmentExpression('=', t.cloneNode(prop.node.value),
+        const overwriteStmt = t.expressionStatement(t.assignmentExpression('=', t.cloneNode(bindingId),
           t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)])));
         const prevInsert = nestedOverwriteLastInsert.get(statement.node);
         nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
