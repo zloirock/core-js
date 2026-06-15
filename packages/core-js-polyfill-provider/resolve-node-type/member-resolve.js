@@ -441,8 +441,12 @@ export function createMemberResolve({
       // a function-valued index signature CALLED via a computed key (`d[k]()`) yields the
       // function's RETURN, not the function value itself - peel the return when resolving a call
       if (callPath) {
+        // a CALL through the index signature (`d[k]()`) yields the value's RETURN type. when the
+        // value isn't a function (`[k: string]: number[]`), the call isn't statically resolvable
+        // (`number[]()` throws at runtime) - bail to the generic helper rather than hand back the
+        // non-callable value type as if it were the call's return
         const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(info.annotation));
-        if (ret) return resolveTypeAnnotation(ret, info.scope);
+        return ret ? resolveTypeAnnotation(ret, info.scope) : null;
       }
       return resolveTypeAnnotation(info.annotation, info.scope);
     }
