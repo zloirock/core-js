@@ -265,7 +265,7 @@ export function createPolyfillResolver(options, {
     return entry;
   }
 
-  function resolveUsage(meta, path) {
+  function resolveUsage(meta, path, { skipFilters = false } = {}) {
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'global')) return null;
     let { kind, desc: { global: desc } } = resolved;
@@ -284,7 +284,11 @@ export function createPolyfillResolver(options, {
     }
     const dependencies = getDependencies(desc);
     if (!dependencies?.length) return null;
-    if (rejectsByFilters(desc, path)) return null;
+    // the base-constructor pass injects the constructor BECAUSE a static member is accessed
+    // (`Error.captureStackTrace`), not because the constructor itself is called - so the desc's
+    // call-shape filters (e.g. Error's min-args / cause-option arg check) read the WRONG call (the
+    // static method's args) and flip the injection on that arg count. skip them for that pass
+    if (!skipFilters && rejectsByFilters(desc, path)) return null;
     return dependencies;
   }
 

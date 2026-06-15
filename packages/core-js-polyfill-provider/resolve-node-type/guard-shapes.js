@@ -18,7 +18,7 @@
 //     consumed by the test-resolver to narrow `if (isFoo(x)) { ... }` shapes
 //   parseAssertionStatementGuard(sibling, varName)
 //     consumed by the preceding-exit sibling scan for `asserts x is T` statement guards
-import { PRIMITIVES, peelAssignmentPattern } from './base.js';
+import { PRIMITIVES, dropLeadingThisParam, peelAssignmentPattern } from './base.js';
 import { TS_EXPR_WRAPPERS, unwrapExpressionChain, unwrapSafeSequenceTail } from '../helpers/ast-patterns.js';
 
 // guard shape builders - single point of truth for the guard descriptor literal
@@ -110,7 +110,10 @@ export function createPredicateGuards({
   // args[1]=input to params[1]=x even though the spread may already have filled `x`
   function matchPredicateArg({ predicate, fnNode, args, varName }) {
     if (predicate?.parameterName?.type !== 'Identifier') return false;
-    const params = fnNode?.params ?? fnNode?.parameters;
+    // drop a leading `this` pseudo-param (`function isStr(this: void, x): x is T`) so the type-level
+    // param slots align with the runtime call args - else the index is off by one and binds the wrong
+    // argument, losing the narrow
+    const params = dropLeadingThisParam(fnNode?.params ?? fnNode?.parameters);
     if (!params) return false;
     if (args?.some(a => a?.type === 'SpreadElement')) return false;
     const targetName = predicate.parameterName.name;
