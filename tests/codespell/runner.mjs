@@ -14,6 +14,7 @@ const ignoreWords = [
   'aNumber',
   'customE',
   'disjointness',
+  'forHead',
   'forIn',
   'importEnd',
   'larg',
