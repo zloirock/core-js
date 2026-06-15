@@ -12,7 +12,7 @@
 // Public surface mirrors the previous factory functions - external callers are heavy
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
-import { $Object, $Primitive, PATTERN_WRAPPERS, peelAssignmentPattern } from './base.js';
+import { $Object, $Primitive, PATTERN_WRAPPERS, dropLeadingThisParam, peelAssignmentPattern } from './base.js';
 import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { spreadAtOrBefore, varInitStaleByRedecl } from '../helpers/ast-patterns.js';
@@ -609,14 +609,6 @@ export function createPatternBindings({
     if (node.id?.type === type) return node.id;
     if (node.left?.type === type) return node.left;
     return null;
-  }
-
-  // a TS callback / method signature can declare a leading `this` pseudo-parameter
-  // (`(this: void, x: T) => ...`) which `functionTypeParams` includes, but a runtime arrow /
-  // function carries no `this` in its `params`; drop it so the runtime param index aligns with the
-  // type-level slots (else the off-by-one reads the `this` slot and mis-narrows the real param)
-  function dropLeadingThisParam(params) {
-    return params?.[0]?.type === 'Identifier' && params[0].name === 'this' ? params.slice(1) : params;
   }
 
   // callback-param inference for unannotated arrow / function params passed as a call argument.
