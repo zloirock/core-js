@@ -474,7 +474,7 @@ export function createUsageVisitors({
           walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
         }
       },
-    } : {},
+    } : null,
     // ReferencedIdentifier covers all read positions for polyfill detection. a combined
     // `'ReferencedIdentifier|Identifier'` shape would register the handler twice via
     // `visitors.explode`, firing handleIdentifier twice per referenced Identifier
