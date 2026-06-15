@@ -39,6 +39,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   globalProxyMemberName,
+  isAliasProxyRoot,
   markSynthReceiverSkipped,
   memberKeyName,
   symbolKeyToEntry,
@@ -698,6 +699,16 @@ export function createDestructureEmitter({
     return name !== null && estreeAdapter.hasBinding(scope, name, anchorPath);
   }
 
+  // alias-resolution context for the proxy-global collapse: lets `findProxyGlobal` follow a
+  // const-alias root (`const g = globalThis; g.self.X`) through the canonical resolver. uses the
+  // LIVE estree-toolkit scope on the declarator path (like `globalSubstitutionShadowed`) - the
+  // scope-tracker `scopeSnapshot` is a numeric frame with no binding lookup. unplugin never mutates
+  // the AST, so the alias's `= globalThis` init node is intact at emit time. null -> node-only
+  function aliasCtxFor(info) {
+    const path = info?.declaratorPath;
+    return path?.scope ? { scope: path.scope, adapter: estreeAdapter, path } : null;
+  }
+
   // polyfill each operand of a retained `||` / `??` / `&&` init in place, so neither side
   // ReferenceErrors on old engines: `globalThis.Array || Set` -> `_globalThis.Array || _Set`.
   // bare-global operand -> pure import; proxy-global member chain -> root substitution (keeps
@@ -717,8 +728,28 @@ export function createDestructureEmitter({
         if (peeled.type === 'Identifier') {
           const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
           if (pure) out = injectPureImport(pure.entry, pure.hintName);
-        } else if (findProxyGlobal(peeled)) {
-          out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start });
+        } else if (findProxyGlobal(peeled, aliasCtxFor(info))) {
+          // per-operand parity with the main receiver (polyfillInitGlobals): a PURE-CTOR leaf
+          // whole-swaps to the pure binding (`globalThis.self.Map` -> `_Map`), a non-pure leaf
+          // collapses its proxy hops (`globalThis.self.Array` -> `_globalThis.Array`, alias-aware
+          // `g.self.Array` -> `g.Array`)
+          const ctx = aliasCtxFor(info);
+          // peel SE prefix + chain to the member for the leaf lookup so a pure ctor is recognised
+          // under an SE prefix / optional chain too; else globalProxyMemberName sees the wrapper and
+          // falls through to the root-only swap (crashes the queue against the visitor for an SE pure
+          // ctor). `prefix` (the SE expressions) gates SE-detection - a ChainExpression is NOT an SE
+          const { prefix, tail } = peelNestedSequenceExpressions(peeled);
+          const leafName = globalProxyMemberName({ node: tail ?? peeled, ...ctx });
+          const leafPolyfill = leafName && resolvePure({ kind: 'global', name: leafName }, null);
+          if (leafPolyfill) {
+            // pure-ctor: whole-swap a DIRECT, NON-SE operand here (markInitGlobals skip-marks it, so
+            // this does not fight the natural visitor). an SE-prefixed or ALIAS pure-ctor operand
+            // stays verbatim and the visitor whole-swaps its tail (`(eff(), _Map)` / `_Set`) -
+            // swapping here would drop the SE prefix or crash the queue against the visitor
+            if (!prefix.length && findProxyGlobal(peeled)) out = injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
+          } else {
+            out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start, aliasCtx: ctx });
+          }
         }
       }
       if (out === null) return rawSrc;
@@ -747,13 +778,33 @@ export function createDestructureEmitter({
     }
     // a shadowed proxy-root / bare global is the user's own binding, not the global
     if (globalSubstitutionShadowed(info, initNode)) return null;
-    const leafName = info.initIdentName || globalProxyMemberName({ node: initNode });
+    // an SE init (`(gg(), globalThis.Map)`) keeps its side-effecting prefix verbatim; the
+    // proxy-global ctor to resolve is the tail. peel to the tail before the leaf lookup so a
+    // whole-chain pure ctor is still RECOGNISED under an SE prefix (else `globalProxyMemberName`
+    // sees the SequenceExpression and falls through to the root-only swap below, which kept the
+    // native `_globalThis.Map` instead of `_Map`)
+    const aliasCtx = aliasCtxFor(info);
+    const tail = info.initStart !== undefined ? peelNestedSequenceExpressions(initNode).tail ?? initNode : initNode;
+    // pass aliasCtx so the leaf is RECOGNISED under a const-alias root too (`const g = globalThis;
+    // g.self.Map` -> Map): without it the alias root is unresolved, the leaf is missed, and the
+    // proxy-root fallback below collapses `g.self.Map` -> `g.Map` - which CRASHES the queue against
+    // the natural visitor's whole-ctor `_Map` transform on the original `g.self.Map` text
+    const leafName = info.initIdentName || globalProxyMemberName({ node: tail, ...aliasCtx });
     if (leafName) {
       const leafPolyfill = resolvePure({ kind: 'global', name: leafName }, null);
-      if (leafPolyfill) return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
+      if (leafPolyfill) {
+        // the canonical member visitor rewrites a proxy-global whole-ctor member in place
+        // (`globalThis.Map` -> `_Map`). a skip-marked tail means the visitor was suppressed (the
+        // effect-free non-SE init, marked by `markInitGlobals` at the prop visit), so emit the pure
+        // binding HERE. otherwise DEFER: the visitor stays live and its in-place transform composes
+        // into the verbatim init, so an SE receiver `(gg(), globalThis.Map)` becomes `(gg(), _Map)` -
+        // this shadow resolver must not fight it with a root-only swap
+        if (!skippedNodes.has(tail)) return null;
+        return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
+      }
     }
     if (info.initStart === undefined) return null;
-    return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart });
+    return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart, aliasCtx });
   }
 
   function propKeySource(p) {
@@ -1711,21 +1762,40 @@ export function createDestructureEmitter({
   // undefined property off the global object on hosts without it (ie:11 pure / Node). deleting
   // only the hop abuts the root-substitution range (no overlap), unlike a full-span overwrite.
   // `maximalProxyGlobalHop` gates on a real intermediate hop, so this no-ops on the bare root
-  function collapseRetainedProxyDefault(receiver) {
-    const prefix = receiver && maximalProxyGlobalHop(receiver);
+  function collapseRetainedProxyDefault(receiver, aliasCtx = null) {
+    // a retained LOGICAL receiver (`globalThis.self.Array || Set`) keeps its operands live; an
+    // evaluated operand must not read `_globalThis.self` (undefined on ie:11 / Node, which throws
+    // BEFORE `||` can short-circuit). recurse and collapse the proxy hop in EACH non-pure operand
+    // - mirrors the babel `collapseRetainedProxyReceiver` recursion. pure-ctor operands are skipped
+    // by the per-operand pure-leaf guard below and whole-swapped by the natural visitor. this only
+    // applies when the receiver SURVIVES (body-extract / verbatim-gate / inline-default); the
+    // whole-logical synth-swap path replaces the operands wholesale, so no hop survives to collapse
+    let peeled = receiver;
+    while (peeled && (peeled.type === 'ParenthesizedExpression' || peeled.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(peeled.type))) peeled = peeled.expression;
+    if (peeled?.type === 'LogicalExpression') {
+      collapseRetainedProxyDefault(peeled.left, aliasCtx);
+      collapseRetainedProxyDefault(peeled.right, aliasCtx);
+      return;
+    }
+    const prefix = receiver && maximalProxyGlobalHop(receiver, aliasCtx);
     if (!prefix) return;
     // start the hop-deletion at the WRAPPER-inclusive root end, not the peeled identifier's:
     // for a parenthesized root (`(globalThis).self.Array`) the identifier end lies inside the
     // `)`, so the deletion would overlap the paren-inclusive root substitution and throw
     let member = receiver;
     while (member && (member.type === 'ParenthesizedExpression' || member.type === 'ChainExpression'
-      || TS_EXPR_WRAPPERS.has(member.type))) member = member.expression;
+      || member.type === 'SequenceExpression' || TS_EXPR_WRAPPERS.has(member.type))) {
+      // SE tail carries the proxy chain (`(se(), globalThis.self.Array)`); peel to it so the `.self`
+      // hop is collapsed in the residual too, not just on the non-SE path
+      member = member.type === 'SequenceExpression' ? member.expressions.at(-1) : member.expression;
+    }
     if (member?.type !== 'MemberExpression') return;
     // a leaf that itself resolves to a NEEDED constructor polyfill (`globalThis?.self?.['Map']`
     // on ie11) is owned WHOLE by the constructor substitution - any hop edit here would
     // overlap that full-span overwrite
     if (resolveGlobalPolyfill(memberKeyName(member) ?? '')) return;
-    let start = proxyGlobalWrappedRoot(receiver).end;
+    let start = proxyGlobalWrappedRoot(receiver, aliasCtx).end;
     // an OPTIONAL root connector belongs to the ROOT substitution (`globalThis?.` rewrites to
     // `_globalThis.` - connector included): start past it or the transforms overlap on those
     // bytes. the replacement then re-establishes exactly one connector for the leaf: none when
@@ -1736,13 +1806,13 @@ export function createDestructureEmitter({
     // `_globalThis.`, but a computed leaf takes NO connector - own the whole receiver-to-
     // bracket span instead and suppress the root's own rewrite
     if (member.computed && rootToken) {
-      const rootIdent = findProxyGlobal(receiver);
+      const rootIdent = findProxyGlobal(receiver, aliasCtx);
       const pure = rootIdent && resolveGlobalPolyfill(rootIdent.name);
       if (!pure) return;
       const bracket = /^\s*(?:\?\.\s*)?\[/.exec(nodeSrc({ start: prefix.end, end: member.property.start }));
       if (!bracket) return;
       skippedNodes.add(rootIdent);
-      transforms.add(proxyGlobalWrappedRoot(receiver).start, prefix.end + bracket[0].length - 1,
+      transforms.add(proxyGlobalWrappedRoot(receiver, aliasCtx).start, prefix.end + bracket[0].length - 1,
         injectPureImport(pure.entry, pure.hintName));
       return;
     }
@@ -1900,7 +1970,10 @@ export function createDestructureEmitter({
       // the receiver stays as the param default in every fallback below, so collapse a
       // proxy-global member chain in it (`globalThis.self.Array` -> `_globalThis.Array`)
       const defaultWrapper = metaPath.parentPath?.parentPath?.node;
-      if (defaultWrapper?.type === 'AssignmentPattern') collapseRetainedProxyDefault(defaultWrapper.right);
+      if (defaultWrapper?.type === 'AssignmentPattern') {
+        collapseRetainedProxyDefault(defaultWrapper.right,
+          metaPath.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null);
+      }
       // caller-lossy emissions (body-extract ignores a caller-passed value; a leaf inline
       // default polyfills an ABSENT caller leaf that native leaves undefined) are sound only
       // when no invisible caller exists: an assignment-form host (fixed receiver) or an
@@ -2441,15 +2514,19 @@ export function createDestructureEmitter({
   // `baseStart`. returns null when there's no proxy root or its root has no global polyfill -
   // each caller picks its own fallback. whole-chain-polyfillable chains (`globalThis.Map`)
   // never reach here: they're rewritten to `_Map` upstream and stay bare Identifiers
-  function substituteProxyGlobalRoot({ node, src, baseStart }) {
+  function substituteProxyGlobalRoot({ node, src, baseStart, aliasCtx = null }) {
     // an SE init (`(track(), globalThis.self.Array)`) keeps its side-effecting prefix verbatim -
     // the proxy-global receiver to collapse is the tail. non-SE nodes peel to themselves, so the
     // member / identifier callers (`synthMemberReceiverSrc`, logical operands) are unaffected
     const target = peelNestedSequenceExpressions(node).tail ?? node;
-    const proxyRoot = findProxyGlobal(target);
+    const proxyRoot = findProxyGlobal(target, aliasCtx);
     if (!proxyRoot) return null;
     const rootPure = resolveGlobalPolyfill(proxyRoot.name);
-    if (!rootPure) return null;
+    // an ALIAS root (`const g = globalThis; g.self.X`) keeps its (already-rewritten) name and only
+    // drops the redundant proxy hops (`g.self.X` -> `g.X`); a direct root with no pure entry (`self.X`
+    // where `self` is not polyfilled) still bails to the verbatim fallback
+    const isAliasRoot = isAliasProxyRoot(proxyRoot, aliasCtx);
+    if (!rootPure && !isAliasRoot) return null;
     // replace the WHOLE proxy-global navigation prefix (root + intermediate proxy hops such as
     // the `self` in `globalThis.self.Array`), not just the root id: keeping `.self` would read an
     // undefined property off the global object on hosts without it (`_globalThis.self` on ie:11
@@ -2460,8 +2537,8 @@ export function createDestructureEmitter({
     // `maximalProxyGlobalPrefix` ends BEFORE the matching `)`, so without the `max` the close paren
     // dangles (`_globalThis).Array`; an SE-prefixed root doubles it). a proxy-hop prefix
     // (`(globalThis).self`) ends past the wrapper, so `max` keeps that wider span unchanged
-    const wrappedRoot = proxyGlobalWrappedRoot(target);
-    const prefixEnd = Math.max(maximalProxyGlobalPrefix(target).end, wrappedRoot.end);
+    const wrappedRoot = proxyGlobalWrappedRoot(target, aliasCtx);
+    const prefixEnd = Math.max(maximalProxyGlobalPrefix(target, aliasCtx).end, wrappedRoot.end);
     const start = wrappedRoot.start - baseStart;
     // SE prefixes buried in the root wrapper keep evaluating (root-first order):
     // `(eff(), globalThis).self.X` collapses to `(eff(), _globalThis).X`, not `_globalThis.X`
@@ -2476,7 +2553,8 @@ export function createDestructureEmitter({
         rootCur = peeledRoot.expressions.at(-1);
       } else break;
     }
-    const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
+    // direct root swaps to its pure binding; an alias root keeps its (already-rewritten) name
+    const rootBinding = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : nodeSrc(proxyRoot);
     // an IRREGULAR root wrapper (the unwrap does not bottom at the proxy identifier - e.g.
     // an SE wrapping a partial member chain, `((e2(), (e1(), globalThis).self)).Array`) makes
     // the [wrappedRoot.start, prefixEnd) slice structurally unsound (the full-collapse rewrite
@@ -2485,7 +2563,17 @@ export function createDestructureEmitter({
     // collided with that queued transform and the compose remapped it onto the hop key)
     if (unwrapParens(rootCur) !== proxyRoot) return null;
     const rootText = prefixSrcs.length ? `(${ [...prefixSrcs, rootBinding].join(', ') })` : rootBinding;
-    return src.slice(0, start) + rootText + src.slice(prefixEnd - baseStart);
+    // drop the leaf's redundant optional connector ONLY where babel does, for parity: a pure-import
+    // root (babel's normalizeOptionalChain on the injected `_globalThis`) or a collapsed proxy hop
+    // (babel rebuilds the member non-optional). a bare ALIAS root with NO hop keeps `?.` - babel
+    // does not normalize user-alias optional chains (`g?.Array` stays `g?.Array`). dotted `?.x` ->
+    // `.x` (drop `?`); computed `?.[k]` -> `[k]` (drop `?.`, computed takes no dot). only the
+    // connector DIRECTLY on the always-defined root; deeper `?.` on unknown leaves stay
+    let tailSrc = src.slice(prefixEnd - baseStart);
+    if ((rootPure || prefixEnd > wrappedRoot.end) && tailSrc.startsWith('?.')) {
+      tailSrc = /^\?\.\s*\[/.test(tailSrc) ? tailSrc.slice(2) : tailSrc.slice(1);
+    }
+    return src.slice(0, start) + rootText + tailSrc;
   }
 
   // receiver source for a synth swap's MemberExpression receiver (`globalThis.Array`),
