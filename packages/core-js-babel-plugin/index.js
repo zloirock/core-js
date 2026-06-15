@@ -293,6 +293,7 @@ export default function plugin(api, options) {
       const {
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
+        isInStaticContext,
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
       } = createClassHelpers({ t, adapter, resolveKey: sharedResolveKey, getInjector: () => injector });
@@ -305,6 +306,7 @@ export default function plugin(api, options) {
         isDisabled,
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
+        isInStaticContext,
         isShadowedByClassOwnMember,
         enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, adapter),
       });

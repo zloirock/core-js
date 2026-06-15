@@ -162,9 +162,14 @@ export function hasMutationCandidateShapes(programNode) {
           nodes.push(node);
         }
         break;
-      case 'CallExpression': {
+      case 'CallExpression':
+      case 'OptionalCallExpression': {
+        // babel models `Object?.assign(Array, ...)` as OptionalCallExpression with an
+        // OptionalMemberExpression callee; without these both an optional `Object.assign` /
+        // `Reflect.defineProperty` mutation escapes the gate and usage-pure silently substitutes
+        // over the user monkey-patch (oxc folds the optional into ChainExpression, so it is unaffected)
         const { callee } = node;
-        const method = callee?.type === 'MemberExpression' && !callee.computed
+        const method = (callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression') && !callee.computed
           && callee.object?.type === 'Identifier' && callee.property?.type === 'Identifier'
           ? callee.property.name : null;
         if (((callee?.object?.name === 'Object' && OBJECT_MUTATORS.has(method))
@@ -251,9 +256,10 @@ function classifyMutationSite(node, parent, grandparent) {
     const key = memberKeyName(node);
     return key !== null ? [{ targetNode: node.object, keys: [key], namespace: null }] : [];
   }
-  if (node.type !== 'CallExpression') return [];
+  if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return [];
   const { callee } = node;
-  if (callee?.type !== 'MemberExpression' || callee.computed || callee.object?.type !== 'Identifier') return [];
+  if ((callee?.type !== 'MemberExpression' && callee?.type !== 'OptionalMemberExpression')
+    || callee.computed || callee.object?.type !== 'Identifier') return [];
   const namespace = callee.object.name;
   const method = callee.property?.type === 'Identifier' ? callee.property.name : null;
   const args = node.arguments ?? [];
