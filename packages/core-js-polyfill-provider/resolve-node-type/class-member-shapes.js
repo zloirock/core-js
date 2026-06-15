@@ -6,6 +6,7 @@
 // `.get(...)`); the two factories carry adapter (`t`) and key/type resolvers required by
 // shape-aware variants.
 import { $Primitive } from './base.js';
+import { peelSkippableWrapperPath, peelSkippableWrappers } from '../helpers/ast-patterns.js';
 
 // shape unification of `<expr>.<field> = ...` / `<expr>.<field>++` writes: AssignmentExpression
 // target on `.left`, UpdateExpression target on `.argument`. callers ask "is this a member-
@@ -15,9 +16,13 @@ import { $Primitive } from './base.js';
 // write paths directly (no enclosing assignment node), so the path stands in for the target
 export function memberWriteTargetPath(writePath) {
   const { type } = writePath.node;
-  if (type === 'UpdateExpression') return writePath.get('argument');
+  // peel transparent wrappers (TS `!`/`as`/`satisfies`, parens) so a wrapped write target
+  // (`this.field! = Y`, `(this.field) = Y`) resolves to the member - callers read `.object` /
+  // `memberWriteFieldName` off the result, which a TSNonNull/paren wrapper would strand (the
+  // write then drops from the field's flow union, leaving a stale narrow that throws on ie:11)
+  if (type === 'UpdateExpression') return peelSkippableWrapperPath(writePath.get('argument'));
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') return writePath;
-  return writePath.get('left');
+  return peelSkippableWrapperPath(writePath.get('left'));
 }
 
 // class-member kind predicates. babel emits distinct node types for public / private /
@@ -41,8 +46,13 @@ export function createClassMemberShape({ t }) {
 // (operator-coerced type depends on BOTH operands, not statically precise)
 export function createMemberWriteShape({ t, getKeyName, resolveNodeType }) {
   function memberWriteFieldName(targetNode) {
-    if (!t.isMemberExpression(targetNode)) return null;
-    return getKeyName(targetNode.property);
+    // peel transparent wrappers (TS `!`/`as`/`satisfies`, parens) so a wrapped write target
+    // (`this.field! = s`, `(this.field) = s`) is still recognized as a member write - without the
+    // peel the field name is lost, the write is dropped from the field's type index, and the field
+    // keeps a stale narrow that emits a type-specific Maybe helper throwing on the new value (ie:11)
+    const target = peelSkippableWrappers(targetNode);
+    if (!t.isMemberExpression(target)) return null;
+    return getKeyName(target.property);
   }
   function writePathContributedType(writePath) {
     if (writePath.node.type === 'AssignmentExpression' && writePath.node.operator === '=') {
