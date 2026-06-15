@@ -69,19 +69,29 @@ export function createNameResolution({ t }) {
       || decl?.type === 'TSEnumDeclaration';
   }
 
-  // walk enclosing statement lists collecting ambient declaration paths matching `name`.
-  // `firstMatch=true` short-circuits at the first hit (legacy single-result path);
-  // `firstMatch=false` collects ALL matches AT THE FIRST scope that has matches and stops,
-  // respecting TS lexical shadowing. without the early stop, an inner-scope `declare function
-  // fn` would be polluted by outer-scope siblings - `pickLastAmbientOverload.at(-1)` would
-  // return an outer overload while TS would have used the inner shadow exclusively
-  function walkAmbientDeclarationPath({ name, scope, matchType, firstMatch = true }) {
-    const out = firstMatch ? null : [];
-    // scan a statement-array for the named decl. descends into `declare global { ... }` so a
-    // `class` / `function` declared inside the global augmentation is visible (mirrors the
-    // global-augmentation branch in `walkStatementsForDecl` - without it the babel pipeline
-    // misses an in-global class used as a static-call receiver while oxc's binding fallback finds it)
-    const scanStatements = (stmtPaths, match) => {
+  // per-scope ambient-decl index: name -> matching declPaths (in source order), built once per
+  // (scope-owner, matchType) and reused for every name query at that scope. the previous design
+  // re-scanned the enclosing statement lists on every call, and the (scope, name) cache on
+  // `findAmbientDeclarationPath` does NOT dedupe because resolution passes a DISTINCT call-site scope
+  // per reference - so N type references each re-walked + re-`path.get('body')`'d the O(N) program
+  // body => O(N^2). indexing the program scope once collapses that to O(N). descends into
+  // `declare global { ... }` (its `class`/`function` are ambient even without a `declare` flag, a
+  // no-op for the function matcher). keys are per-parse owner nodes (GC'd with the AST; reset per file)
+  let ambientScanCache = new WeakMap();
+  function scopeAmbientIndex(scopePath, matchType) {
+    const owner = scopePath?.node;
+    if (!owner) return null;
+    let byMatch = ambientScanCache.get(owner);
+    if (!byMatch) ambientScanCache.set(owner, byMatch = new Map());
+    const cached = byMatch.get(matchType);
+    if (cached) return cached;
+    // Program / BlockStatement / TSModuleBlock expose the statement array at `.get('body')`;
+    // function / method scopes wrap it in a BlockStatement, so drill once more. estree-toolkit may
+    // emit a bodyless scope owner whose drill lands on a null path - then there are no statements
+    let bodyPaths = scopePath.get('body');
+    if (bodyPaths && !Array.isArray(bodyPaths)) bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
+    const index = new Map();
+    const add = (stmtPaths, match) => {
       for (const stmtPath of stmtPaths) {
         const { type } = stmtPath.node ?? {};
         const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
@@ -90,48 +100,35 @@ export function createNameResolution({ t }) {
         if (node?.type === 'TSModuleDeclaration' && isGlobalAugmentation(node)) {
           const innerBody = declPath.get('body');
           const innerPaths = innerBody?.node?.type === 'TSModuleDeclaration' ? [innerBody] : innerBody?.get?.('body');
+          // relax the matcher for global-augmentation contents: an in-global `class` is ambient even
+          // without a `declare` flag (no-op for the function matcher - a ClassDeclaration never satisfies it)
           if (Array.isArray(innerPaths)) {
-            // contents of `declare global { ... }` are ambient even without their own `declare`
-            // flag (the class is a plain ClassDeclaration). relax the matcher so an in-global class
-            // is recognized as ambient; a no-op for the function matcher (ClassDeclaration never
-            // satisfies it). functions inside the augmentation already parse as TSDeclareFunction
-            const ambientMatch = n => match(n) || (n?.type === 'ClassDeclaration' && match({ ...n, declare: true }));
-            const found = scanStatements(innerPaths, ambientMatch);
-            if (found) return found;
+            add(innerPaths, n => match(n) || (n?.type === 'ClassDeclaration' && match({ ...n, declare: true })));
           }
           continue;
         }
-        if (node?.id?.name !== name || !match(node)) continue;
-        if (firstMatch) return declPath;
-        out.push(declPath);
+        if (node?.id?.name && match(node)) {
+          let arr = index.get(node.id.name);
+          if (!arr) index.set(node.id.name, arr = []);
+          arr.push(declPath);
+        }
       }
-      return null;
     };
+    if (Array.isArray(bodyPaths)) add(bodyPaths, matchType);
+    byMatch.set(matchType, index);
+    return index;
+  }
+
+  // resolve ambient declaration paths matching `name` up the scope chain. `firstMatch=true` returns
+  // the first hit; `firstMatch=false` returns ALL matches at the FIRST scope that has any and stops,
+  // respecting TS lexical shadowing (an inner `declare function fn` is used exclusively; outer-scope
+  // siblings don't bleed in). per-scope matches come from the cached index, so this is O(scope-depth)
+  function walkAmbientDeclarationPath({ name, scope, matchType, firstMatch = true }) {
     for (let cur = scope; cur; cur = cur.parent) {
-      // Program / BlockStatement / TSModuleBlock - `path.get('body')` already returns the
-      // statement array. Function / method scopes wrap statements in a BlockStatement, so
-      // `path.get('body')` returns the BlockStatement path; drill once more to reach the
-      // array. Without this, ambient declarations inside function bodies
-      // (`function f() { declare function g(): T }`) aren't discovered, falling through to
-      // generic resolution. Mirrors `walkScopesForDecl`'s `block.body.body` for non-Program.
-      // estree-toolkit may emit a bodyless scope owner (e.g. SwitchCase `consequent` array,
-      // for-statement init slots) whose drill-once `.get('body')` lands on a null NodePath -
-      // skip such scopes rather than crash on `.get` over null
-      let bodyPaths = cur.path?.get('body');
-      if (bodyPaths && !Array.isArray(bodyPaths)) {
-        bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
-      }
-      if (!Array.isArray(bodyPaths)) continue;
-      const before = out?.length;
-      const found = scanStatements(bodyPaths, matchType);
-      if (found) return found;
-      // collect-mode: stop at the innermost scope that produced any matches so outer-scope
-      // overloads don't bleed past a shadow. mirrors `walkScopesForDecl`'s collect-then-stop.
-      // `out?.length` short-circuits to undefined for firstMatch (we never reach here when
-      // firstMatch returns early inside the loop); comparison `undefined > undefined` is false
-      if (out && out.length > before) return out;
+      const matches = scopeAmbientIndex(cur.path, matchType)?.get(name);
+      if (matches?.length) return firstMatch ? matches[0] : matches.slice();
     }
-    return out;
+    return firstMatch ? null : [];
   }
 
   // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
@@ -148,10 +145,14 @@ export function createNameResolution({ t }) {
     return result;
   }
 
-  // collect all ambient function decls by name. used for multi-overload predicate
-  // resolution where the FIRST ambient match may carry a non-predicate signature, but a
-  // later sibling carries the asserts/predicate of interest. shape mirrors
-  // `findAmbientDeclarationPath` but returns an array (uncached - rare path)
+  // collect all ambient function decls by name. used for multi-overload predicate resolution where
+  // the FIRST ambient match may carry a non-predicate signature, but a later sibling carries the
+  // asserts/predicate of interest. fires once per IDENTIFIER-form type-guard call site (`if (fn(x))`).
+  // intentionally UNCACHED: a (scope, name) cache like the sibling `findAmbientDeclarationPath` never
+  // hits here because guard resolution passes a DISTINCT call-site scope object per guard (measured:
+  // walk count == call count even for repeats), so it would be pure overhead. the underlying
+  // scope-chain walk is already O(scope-depth): it reads the per-scope ambient index built once by
+  // the shared `walkAmbientDeclarationPath`, so an extra (scope, name) layer would buy nothing
   function findAmbientFunctionPaths(name, scope) {
     return walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false }) ?? [];
   }
@@ -203,8 +204,41 @@ export function createNameResolution({ t }) {
   // `leafMatch` is the predicate the LEAF declaration must satisfy - defaults to type-bearing
   // (alias / interface / class / enum) for findTypeDeclaration; typeof-name resolution swaps
   // in `isFunctionOrClassDeclaration` to also surface `declare function fn` inside a namespace
+  // per-statement-list name -> first-matching-decl index for the HOT single-segment bare-name
+  // first-match lookup (the type-resolution path). building it once per (statements, leafMatch)
+  // turns N distinct-name lookups against an N-statement list from O(N^2) repeated walks into an
+  // O(N) build + O(1) lookups. folds `declare global { ... }` bodies in (their decls are visible at
+  // every depth) in statement order, so first-match semantics match the walk. multi-segment /
+  // collect / import-alias lookups fall through to the full walk below.
+  // INVARIANT: leafMatch is the inner cache key, so callers MUST pass a stable reference (all do:
+  // the module-level isTypeBearingDeclaration / isFunctionOrClassDeclaration). a fresh per-call
+  // closure would never hit the cache and regress this back to an O(N^2) rebuild-per-lookup
+  let stmtDeclIndexCache = new WeakMap();
+  function statementDeclIndex(statements, leafMatch) {
+    let byMatch = stmtDeclIndexCache.get(statements);
+    if (!byMatch) stmtDeclIndexCache.set(statements, byMatch = new Map());
+    const cached = byMatch.get(leafMatch);
+    if (cached) return cached;
+    const index = new Map();
+    (function add(stmts) {
+      for (const statement of stmts) {
+        const decl = unwrapExportedDeclaration(statement);
+        if (!decl) continue;
+        if (decl.id?.name && leafMatch(decl) && !index.has(decl.id.name)) index.set(decl.id.name, decl);
+        if (decl.type === 'TSModuleDeclaration' && isGlobalAugmentation(decl)) {
+          const inner = moduleStatements(decl);
+          if (inner) add(inner);
+        }
+      }
+    })(statements);
+    byMatch.set(leafMatch, index);
+    return index;
+  }
+
   function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration, visited = new Set() }) {
     if (!Array.isArray(statements) || !segments.length) return null;
+    // hot path: single-segment first-match resolves through the O(1) per-statement-list index
+    if (segments.length === 1 && !collect) return statementDeclIndex(statements, leafMatch).get(segments[0]) ?? null;
     const [head, ...rest] = segments;
     for (const statement of statements) {
       const decl = unwrapExportedDeclaration(statement);
@@ -459,9 +493,11 @@ export function createNameResolution({ t }) {
 
   function reset() {
     ambientDeclCache = new WeakMap();
+    ambientScanCache = new WeakMap();
     typeDeclCache = new WeakMap();
     allTypeDeclCache = new WeakMap();
     lookupPathDeclCache = new WeakMap();
+    stmtDeclIndexCache = new WeakMap();
   }
 
   // path-aware variant of `walkScopesForDecl` for qualified names. mirrors the
