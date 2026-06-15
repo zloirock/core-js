@@ -725,6 +725,176 @@ runBoth('class static method return propagates',
     checkType(lbl, resolver.resolveNodeType(call), { primitive: true, kind: 'string' });
   });
 
+// --- Ambient `declare class` instance / static anchoring (cross-parser) ---
+// Babel doesn't register an ambient `declare class` in `scope.bindings`; estree-toolkit (oxc)
+// does. without the ambient-declaration fallback, every site that resolves a class reference
+// from a bare Identifier (`new K()`, `Reflect.construct(K)`, `typeof K.static`) diverged: oxc
+// resolved precisely while babel returned null / a foreign nominal. these pin both parsers to
+// the same precise resolution.
+
+runBoth('ambient declare-class instance method return -> Array (new K())',
+  `
+    declare class K { foo(): string[]; }
+    const v = new K().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('ambient declare-class instance method return -> Array (Reflect.construct)',
+  `
+    declare class K { foo(): string[]; }
+    const v = Reflect.construct(K, []).foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// the instance's OWN method must win over a same-named built-in: `K.at` is user-declared, so the
+// call resolves to its declared return (string), NOT Array.prototype.at - this is the over-inject
+// guard (an unanchored receiver would treat `.at` as a possible Array method)
+runBoth('ambient declare-class own method shadows built-in name -> string',
+  `
+    declare class K { at(i: number): string; }
+    const v = new K().at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'string' });
+  });
+
+// `new K()` where K extends a built-in: the bare instance type must walk inheritance to the
+// polyfill-relevant base (`Array`), not stop at the foreign nominal `$Object('K')`
+runBoth('ambient declare-class extends Array -> instance resolves to Array',
+  `
+    declare class MyArr extends Array<string> {}
+    const v = new MyArr();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// `typeof K.staticField` where K is an ambient class: the static type flows through the
+// ambient-declaration index on babel, matching oxc's scope-binding lookup
+runBoth('ambient declare-class typeof static field -> Array',
+  `
+    declare class K { static rows: string[]; }
+    declare const v: typeof K.rows;
+    const y = v;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// `new NS.Base()` qualified-namespace class: the shared class-path helper descends the namespace
+// segment list, so the instance anchors and its method return resolves (both parsers)
+runBoth('new NS.Base() qualified namespace class -> method return Array',
+  `
+    namespace NS { export class Base { foo(): string[] { return []; } } }
+    const y = new NS.Base().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// regression guard: routing `new` through the shared class-path helper must NOT swallow the
+// construct-signature fallback - a `declare const Ctor: new () => T` binding (no class node, helper
+// returns null) still resolves its instance type via the call-return path
+runBoth('new Ctor() construct-signature binding still resolves -> Array',
+  `
+    declare const Ctor: new () => string[];
+    const y = new Ctor();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// negative: a deeper `typeof K.a.b` ambient chain (member depth > 1) isn't resolved by the
+// single-level ambient-static fallback - must terminate gracefully (null), not throw
+runBoth('deep typeof K.a.b ambient static (depth > 1) -> null, no throw',
+  `
+    declare class K { static a: { b: string[] }; }
+    declare const v: typeof K.a.b;
+    const y = v;
+  `,
+  (adapter, prog, lbl) => {
+    check(`${ lbl } graceful null`, adapter.makeResolver().resolveNodeType(adapter
+      .pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y').get('init')), null);
+  });
+
+// the class-path helper peels TS wrappers before the ambient lookup, so a wrapped ambient callee
+// (`new (K as any)()`) still anchors
+runBoth('TS-wrapped ambient callee new (K as any)().foo() -> Array',
+  `
+    declare class K { foo(): string[]; }
+    const y = new (K as any)().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// optional call on an ambient instance (`new K()?.foo()`) anchors through both parser shapes
+// (babel OptionalCallExpression vs oxc ChainExpression)
+runBoth('optional new K()?.foo() ambient -> Array',
+  `
+    declare class K { foo(): string[]; }
+    const y = new K()?.foo();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+// `Reflect.construct(target, args, newTarget)` 3-arg: the created instance is a `newTarget`, so the
+// ambient class is resolved from arguments[2], not arguments[0]. Base's method returns a primitive,
+// so an Array result proves Derived (arg[2]) was anchored rather than Base (arg[0])
+runBoth('Reflect.construct 3-arg resolves newTarget (ambient) -> Array',
+  `
+    declare class Base { foo(): string; }
+    declare class Derived { foo(): string[]; }
+    const y = Reflect.construct(Base, [], Derived).foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a class-EXPRESSION callee (`new (class {...})()`) resolves through the same helper - the runtime
+// branch (`t.isClass`) matches ClassExpression as well as ClassDeclaration
+runBoth('new (class { foo(): string[] })().foo() class-expression -> Array',
+  `
+    const y = new (class { foo(): string[] { return []; } })().foo();
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'foo');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// a generic ambient `declare class MyList<T> extends Array<T>` instance still resolves the inherited
+// Array base across parsers (element stays unsubstituted, but the container is pinned, not divergent)
+runBoth('generic ambient declare-class extends Array<T> -> instance Array',
+  `
+    declare class MyList<T> extends Array<T> {}
+    const y = new MyList<string>();
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'y');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
 // --- Type alias chains (multi-hop) ---
 
 runBoth('multi-hop type alias resolves through chain',
