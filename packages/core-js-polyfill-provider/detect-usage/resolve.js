@@ -178,16 +178,20 @@ function collectChainAssignsThroughMemberChain(receiverNode) {
   return collected;
 }
 
-// append chain-assignment receivers as side effects for static-method dispatch:
+// splice chain-assignment receivers into the side-effect prelude for static-method dispatch:
 // `(a = Array).from(x)` -> emit `(a = Array, _Array$from)(x)`. mid-chain shapes like
 // `((a = globalThis).Array).from(x)` also surface their assignments to the SE channel.
-// SE prefix in `baseEffects` runs BEFORE the SE-tail chain-assign per source order, so
-// `baseEffects` are emitted first; `(prefix(), (a = Array)).from(x)` keeps prefix() ahead
-// of `a = Array` in the prelude. returns `baseEffects` unchanged when no chain-assign found
-export function prependChainAssignmentEffect(receiverNode, baseEffects) {
+// the chain-assign IS a receiver effect, so per ECMA receiver-before-key it must land at the
+// receiver/key boundary `insertAt` (`meta.receiverEffectCount`), AFTER any receiver-sequence
+// prefix but BEFORE the computed-key SE: `(prefix(), (a = Array))[(eff(), 'from')](x)` ->
+// `(prefix(), a = Array, eff(), _Array$from)(x)`. `insertAt` omitted appends (callers whose
+// `baseEffects` are receiver-only). returns `baseEffects` unchanged when no chain-assign found
+export function prependChainAssignmentEffect(receiverNode, baseEffects, insertAt) {
   const collected = collectChainAssignsThroughMemberChain(receiverNode);
   if (!collected.length) return baseEffects;
-  return baseEffects?.length ? [...baseEffects, ...collected] : collected;
+  if (!baseEffects?.length) return collected;
+  const at = insertAt ?? baseEffects.length;
+  return [...baseEffects.slice(0, at), ...collected, ...baseEffects.slice(at)];
 }
 
 export function isStaticPlacement(name) {
