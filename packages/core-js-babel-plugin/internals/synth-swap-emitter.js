@@ -13,6 +13,7 @@
 // common ancestor remains unsupported
 import {
   collectBuriedChainSePrefixes,
+  collectFoldedReceiverSideEffects,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
   buildFlatSynthEntries,
@@ -366,13 +367,23 @@ export default function createSynthSwapEmitter({
         const memoParam = needMemo ? path.scope.generateUidIdentifier('ref') : null;
         const literal = buildSynthLiteral(path.node, pending, memoParam,
           path.scope ? { scope: path.scope, adapter, path } : null);
-        path.replaceWith(needMemo
+        let replacement = needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
             [t.cloneNode(path.node, true)])
           : pending.rescueSe
             ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
-            : literal);
+            : literal;
+        // fallbackCollapse (`(logSE(), Array) || Set`): the whole `||` / `??` default collapses to the
+        // synth literal (its left is the always-resolved receiver, its right short-circuits), but the
+        // left's SE prefix must still run when the default fires. preserve it ahead of the literal -
+        // the same discarded-operand harvest the `in`-fold uses. a pure left harvests nothing, so the
+        // clean collapse is unchanged (no fixture churn)
+        if (path.node.type === 'LogicalExpression') {
+          const leftSe = collectFoldedReceiverSideEffects(path.node.left);
+          if (leftSe.length) replacement = t.sequenceExpression([...leftSe.map(n => t.cloneNode(n, true)), replacement]);
+        }
+        path.replaceWith(replacement);
         pending.applied = true;
         path.skip();
       },
