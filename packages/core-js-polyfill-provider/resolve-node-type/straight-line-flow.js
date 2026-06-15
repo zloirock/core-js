@@ -13,6 +13,7 @@ import {
   NESTED_BINDING_INTRODUCERS,
   TS_EXPR_WRAPPERS,
   isIifeCallNode,
+  isDeferredContextStep,
 } from '../helpers/ast-patterns.js';
 
 // always-evaluated wrappers between assignment and its enclosing statement.
@@ -263,20 +264,21 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return out;
   }
 
-  // a reassignment whose home is a DEFERRED function (NOT an immediately-invoked one) runs at an
-  // unknown call time - it can fire before the use even when textually after it - so any positional
-  // narrow is unsound. an IIFE-body reassignment lifts to a straight-line position (it lands in
-  // sortedAssigns and is bounded positionally instead), so `liftThroughIIFEs` succeeding means it
-  // is NOT deferred. distinguishing the two is why the blanket `violationInCapturedFunction` gate
-  // (which findPrecedingBlockAssignment can use only because it never narrows to a function value)
-  // is wrong here - it would also drop the legitimate IIFE-reassigned narrows
+  // a reassignment whose home is a DEFERRED context (a function called at an unknown time, or an
+  // INSTANCE class-field initializer run at construction) can fire before the use even when textually
+  // after it - so any positional narrow is unsound. an IIFE-body reassignment lifts to a straight-line
+  // position (it lands in sortedAssigns and is bounded positionally instead), so `liftThroughIIFEs`
+  // succeeding means it is NOT deferred. distinguishing the two is why the blanket
+  // `violationInCapturedFunction` gate (which findPrecedingBlockAssignment can use only because it
+  // never narrows to a function value) is wrong here - it would also drop the legitimate
+  // IIFE-reassigned narrows. the deferral predicate is shared with closure / class-field analysis
   function violationRunsDeferred(v, bindingScope) {
     const stop = scopeNode(bindingScope);
-    let inFn = false;
-    for (let p = v.parentPath; p?.node && p.node !== stop && !inFn; p = p.parentPath) {
-      if (t.isFunction(p.node)) inFn = true;
+    let deferred = false;
+    for (let p = v.parentPath, child = v; p?.node && p.node !== stop && !deferred; child = p, p = p.parentPath) {
+      if (isDeferredContextStep(t, p.node, child)) deferred = true;
     }
-    if (!inFn) return false;
+    if (!deferred) return false;
     const ap = violationToAssignment(v);
     if (!ap) return false;
     const wrapStmtType = ap.node.type === 'VariableDeclarator' ? 'VariableDeclaration' : 'ExpressionStatement';

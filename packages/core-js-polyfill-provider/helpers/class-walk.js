@@ -503,8 +503,13 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     // method - cannot change super.X resolution. both modes anchor here: anchoring at the super
     // site instead would wrongly bail on an in-method pre-super reassign (missed polyfill)
     const classAnchor = ancestorPathOf(path, info.classNode);
+    // resolve the `extends` superclass in the CLASS scope, not the method-body scope: the extends
+    // clause is evaluated where the class is defined, so a method-local shadow (`static m() { const
+    // Array = Object; super.from() }`) must not be seen - using the method scope follows the wrong
+    // binding and drops the inherited-static polyfill (ie:11). classAnchor is the class node path
+    const classScope = classAnchor?.scope ?? path.scope;
     return buildSuperStaticMeta(info.classNode, key,
-      superClass => resolveBindingToGlobalName(superClass, path.scope, new Set(), path, classAnchor));
+      superClass => resolveBindingToGlobalName(superClass, classScope, new Set(), classAnchor ?? path, classAnchor));
   }
 
   let ownNamesCache = new WeakMap();
