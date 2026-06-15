@@ -36,6 +36,7 @@ import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 export default function createSynthSwapEmitter({
   adapter,
   injectPureImport,
+  injector,
   resolvePure,
   skippedNodes,
   t,
@@ -201,7 +202,7 @@ export default function createSynthSwapEmitter({
     // bail when any computed-key sibling is a generated import (polyfill-rewritten symbol) rather
     // than a user const-key, so per-branch synth stays aligned with unplugin (which bails on the
     // original `Symbol.iterator` MemberExpression)
-    if (!patternComputedKeysSynthSafe(t, objectPattern.node, objectPattern.scope)) return false;
+    if (!patternComputedKeysSynthSafe(t, objectPattern.node, objectPattern.scope, node => injector.isInjectedReference(node))) return false;
     // a user-const computed key (`const k = 'from'; [k]`) resolves to its static name for the branch
     // viability lookup but registers under its synth SLOT key (`[k]`), so buildSynthLiteral emits
     // `[k]: _polyfill` instead of dropping the polyfill. the resolved value also polyfills a sibling-
