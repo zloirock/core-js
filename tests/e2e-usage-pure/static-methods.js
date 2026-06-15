@@ -143,3 +143,29 @@ QUnit.test('static: Array.isArray', assert => {
 QUnit.test('static: JSON.stringify', assert => {
   assert.same(JSON.stringify({ a: 1 }), '{"a":1}');
 });
+
+// static dispatch on a chain-assignment receiver with a side-effecting computed key: per ECMA the
+// object `(a = Array)` evaluates before the computed key, so the assignment is visible when the key
+// runs. the key records whether `a` was already set - 'a-set' proves receiver-before-key order
+QUnit.test('static: Array.from chain-assign evaluates before computed key', assert => {
+  const log = [];
+  let a;
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const r = (a = Array)[log.push(a === Array ? 'a-set' : 'a-unset'), 'from']([1, 2]);
+  assert.deepEqual(r, [1, 2]);
+  assert.same(a, Array);
+  assert.deepEqual(log, ['a-set']);
+});
+
+// static dispatch on a chain rooted in a side-effecting call under a SequenceExpression prefix: the
+// receiver chain collapses to the polyfill, but the prefix effect AND the root call still run first
+QUnit.test('static: chain-root call under SE prefix runs before dispatch', assert => {
+  const log = [];
+  const mk = () => {
+    log.push('mk');
+    return globalThis;
+  };
+  const r = (log.push('pre'), mk()).Array.from([1, 2]);
+  assert.deepEqual(r, [1, 2]);
+  assert.deepEqual(log, ['pre', 'mk']);
+});
