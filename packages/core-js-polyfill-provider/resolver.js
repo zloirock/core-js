@@ -34,13 +34,25 @@ function hasHintNotIn(hints, desc) {
   return false;
 }
 
+// excludedHints (typeof-negative) counterpart: after removing the excluded hints, does the admitted
+// set still contain a type `desc` does NOT specialise? then a single matched variant is narrower
+// than the runtime receiver (`typeof x !== 'string'` admits Date/Map/etc. alongside Array)
+function admitsHintNotIn(excludedHints, desc) {
+  for (const h of TYPE_HINTS) if (!excludedHints.has(h) && !hasOwn(desc, h)) return true;
+  return false;
+}
+
 // `String(null/undefined)` produces `'null'/'undefined'` - non-null hint slot that TYPE_HINTS
 // would reject anyway, but returning null up front is cheaper and communicates the intent
 function objectToTypeHint(object) {
   return object === null || object === undefined ? null : String(object).toLowerCase();
 }
 
-function resolveHint(desc, meta) {
+// `crossTypeBackstop` is set only on the usage-pure path: a type-specific Maybe HELPER throws when
+// forwarded a foreign runtime type, so refuse it when the hint-set is broader than the match.
+// usage-global emits no such helper (just side-effect imports - a foreign receiver throws natively
+// regardless), so it keeps the precise single-variant injection and never sets the flag
+function resolveHint(desc, meta, crossTypeBackstop = false) {
   const { placement, object, excludedHints, includedHints, receiverHint } = meta;
   const hint = objectToTypeHint(object);
 
@@ -83,7 +95,18 @@ function resolveHint(desc, meta) {
     return (includedHints || excludedHints) && hasOwn(desc, 'common') && !descHasTypeHints(desc)
       ? desc.common : null;
   }
-  if (rest === null) return first;
+  if (rest === null) {
+    // cross-type backstop: a single type-specific variant matched, but the narrowed hint-set still
+    // admits types this method does NOT specialise - `typeof x === 'object'` keeps Array AND
+    // Date/Map/Set; `typeof x !== 'string'` keeps every non-string. the runtime receiver could be one
+    // of them, and the array-specific Maybe (`_atMaybeArray`) forwards to a native method the foreign
+    // type lacks -> ie:11 TypeError. when the hint-set is broader than the matched variant, prefer the
+    // type-aware `common` dispatcher. concrete (non-typeof) receivers return early above and are unaffected
+    const broader = crossTypeBackstop && (includedHints ? hasHintNotIn(includedHints, desc)
+      : excludedHints ? admitsHintNotIn(excludedHints, desc) : false);
+    if (broader && hasOwn(desc, 'common')) return desc.common;
+    return first;
+  }
 
   // 2+ type-specific variants matched (`typeof === 'object'` against a method with
   // `array` + `domcollection` etc.): merging per-variant deps and picking the first by
@@ -231,7 +254,7 @@ export function createPolyfillResolver(options, {
   function resolvePureEntry({ kind, desc, meta, path }) {
     let target = desc;
     if (kind === 'instance') {
-      target = resolveHint(desc, meta);
+      target = resolveHint(desc, meta, true);
       if (target === null) return null;
     }
     if (rejectsByFilters(target, path)) return null;
