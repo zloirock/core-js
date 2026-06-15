@@ -972,7 +972,7 @@ export function createUsageVisitors({
       CallExpression: checkCallTypeArguments,
       NewExpression: checkCallTypeArguments,
       OptionalCallExpression: checkCallTypeArguments,
-    } : {},
+    } : null,
     Identifier: identifierVisitor,
     // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
     // names and closing-tag dupes. also accept root of `<Map.Provider.X/>` (N-deep
