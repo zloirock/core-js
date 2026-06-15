@@ -159,6 +159,37 @@ runBoth('scanExistingCoreJSImports/finds pure import (named binding)', 'import p
     `expected entry='promise', got ${ JSON.stringify(pures) }`);
 });
 
+// TS `import X = require('<pure>/<mode>/...')` - the require-style pure import tsc/esbuild emit.
+// without recognising it, the `phase: 'pre+post'` post re-scan misses it and re-emits a duplicate
+runBoth('scanExistingCoreJSImports/finds pure TSImportEquals require', 'import promise = require("core-js-pure/actual/promise"); const x = promise;', (adapter, prog, lbl) => {
+  const pures = [];
+  scanExistingCoreJSImports(prog.node, {
+    packages: ['core-js-pure'],
+    pkg: 'core-js-pure',
+    mode: 'actual',
+    adapter: minimalAdapter,
+    onPureImport: (entry, name) => pures.push({ entry, name }),
+  });
+  checkTruthy(lbl, pures.length === 1 && pures[0].entry === 'promise' && pures[0].name === 'promise',
+    `expected entry='promise' name='promise', got ${ JSON.stringify(pures) }`);
+});
+
+// a NON-pure (global side-effect) `import X = require('<pkg>/modules/...')` must still reach the
+// global path - the pure-mode TSImportEquals arm only short-circuits on a pure-entry match, so a
+// modules-style require falls through to `getEntrySource` -> onGlobalImport (not silently dropped)
+runBoth('scanExistingCoreJSImports/global TSImportEquals require reaches onGlobalImport', 'import X = require("core-js/modules/es.array.at");', (adapter, prog, lbl) => {
+  const globals = [];
+  scanExistingCoreJSImports(prog.node, {
+    packages: ['core-js'],
+    pkg: 'core-js',
+    mode: 'usage-global',
+    adapter: minimalAdapter,
+    onGlobalImport: mod => globals.push(mod),
+  });
+  checkTruthy(lbl, globals.length === 1 && globals[0] === 'es.array.at',
+    `expected ['es.array.at'], got ${ JSON.stringify(globals) }`);
+});
+
 // no matches: ignores user imports unrelated to core-js
 runBoth('scanExistingCoreJSImports/ignores foreign import', 'import "lodash";', (adapter, prog, lbl) => {
   const globals = [];
