@@ -4,3 +4,4 @@
 // failures surface as load-time errors here, then `test-babel-plugin-unit` exits non-zero
 import './babel-compat.mjs';
 import './import-injector.mjs';
+import './catch-extractor-mode.mjs';

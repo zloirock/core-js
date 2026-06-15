@@ -761,7 +761,7 @@ export default function plugin(api, options) {
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
         synthSwap = createSynthSwapEmitter({
-          adapter, injectPureImport, resolvePure, skippedNodes, t,
+          adapter, injectPureImport, injector, resolvePure, skippedNodes, t,
         });
         destructureEmit = createDestructureEmitter({
           adapter,
@@ -857,8 +857,14 @@ export default function plugin(api, options) {
       // augment a visitor set with the CatchClause extractor so a catch binding still gets its
       // destructure-derived instance polyfill in the contexts the main traversal doesn't reach:
       // a deferred SE-prefix (`(g(()=>{try{}catch({at}){at()}}),Array)`) and sibling-injected
-      // helper bodies. `destructureEmit` is read lazily so the per-file emitter is always current
+      // helper bodies. `destructureEmit` is read lazily so the per-file emitter is always current.
+      // catch extraction is a usage-pure-only body-extract rewrite; usage-global only adds
+      // side-effect imports and must NOT restructure a catch param, so gate HERE - this is the
+      // single point every caller (deferred-SE drain, helper-body re-traversal) routes through,
+      // so none can attach it in usage-global. without the gate, a sibling-injected helper catch
+      // (`catch ({ at, ...rest })`) reachable from reTraverseHelperBodies gets needlessly rewritten
       function withCatchExtractor(visitors) {
+        if (!isPure) return visitors;
         return { ...visitors, CatchClause: path => destructureEmit.extractCatchClause(path) };
       }
 
