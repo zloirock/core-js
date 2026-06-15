@@ -4427,6 +4427,31 @@ runBoth('callable-field call with single-family annotation keeps the family',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
+// a class-field write through a transparent wrapper (TS `!` / `as` / parens) must JOIN the field's
+// flow type: memberWriteTargetPath / memberWriteFieldName peel the wrapper so the write is indexed.
+// without the peel the write is stranded (target stays the unpeeled wrapper), the field keeps its
+// array-only narrow, and `this.field.at` emits `_atMaybeArray` that throws on the string (ie:11)
+for (const [variant, write] of [
+  ['non-null', 'this.field! = s'],
+  ['as-cast', '(this.field as any) = s'],
+  ['satisfies', '(this.field satisfies number[]) = s'],
+  ['paren', '(this.field) = s'],
+]) {
+  runBoth(`class-field write through ${ variant } wrapper widens the field`,
+    `class C {\n  field = [1];\n  m(s: string) {\n    ${ write };\n    return this.field.at(0);\n  }\n}`,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      check(`${ lbl } widened (not array-narrow)`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+    });
+}
+// negative control: NO write keeps the array narrow, so the wrapped-write widening above is meaningful
+runBoth('class-field with no write keeps the array narrow',
+  'class C {\n  field = [1];\n  m() {\n    return this.field.at(0);\n  }\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
 // a spread arg at the defaulted param's OWN slot makes its runtime value unknown (the spread may or
 // may not supply it), so the body receiver widens to generic - same bail as a spread before the slot
 runBoth('default-param narrow widens when a spread arg covers its slot',
