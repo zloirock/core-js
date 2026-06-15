@@ -100,6 +100,15 @@ export function peelAssignmentPattern(node) {
   return node?.type === 'AssignmentPattern' ? node.left : node;
 }
 
+// a TS callback / method signature can declare a leading `this` pseudo-parameter
+// (`(this: void, x: T) => ...`) which `functionTypeParams` includes, but a runtime arrow /
+// function carries no `this` in its `params`; drop it so the type-level param slots align with
+// the runtime arg indices (else an off-by-one reads the `this` slot). shared by callback-param
+// inference (`pattern-bindings`) and type-predicate arg matching (`guard-shapes`)
+export function dropLeadingThisParam(params) {
+  return params?.[0]?.type === 'Identifier' && params[0].name === 'this' ? params.slice(1) : params;
+}
+
 export function $Primitive(type, literal) {
   this.type = type;
   this.constructor = null;
