@@ -15,7 +15,7 @@
 import { $Object, $Primitive, PATTERN_WRAPPERS, peelAssignmentPattern } from './base.js';
 import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { varInitStaleByRedecl } from '../helpers/ast-patterns.js';
+import { spreadAtOrBefore, varInitStaleByRedecl } from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
   t,
@@ -708,6 +708,11 @@ export function createPatternBindings({
       const callNode = ref.parentPath?.node;
       if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')
         || callNode.callee !== ref.node) return false;
+      // a spread at or before this slot can supply the param from the spread iterable, so the
+      // default may be overridden even when arguments[paramIndex] is absent - treat as overridden
+      // (the binding then resolves generic, not narrowed to the default's type). matches the
+      // arg->param spread guard in resolveDirectParam / paramHasOverridingArg
+      if (spreadAtOrBefore(callNode.arguments, paramIndex)) return false;
       const arg = callNode.arguments?.[paramIndex];
       if (!arg) continue;
       if (arg.type === 'UnaryExpression' && arg.operator === 'void') continue;

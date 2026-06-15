@@ -1244,6 +1244,32 @@ const VALUE_FLOW_ASSIGN_OPS = new Set([
 // the pattern slot's POSSIBLE values for the binding named `name`: the positionally / key-
 // paired RHS value plus the slot's own default (either may be live at runtime). a dynamic
 // RHS or slot contributes nothing
+// true when a SpreadElement sits at OR before `index` in a positional list (array elements or call
+// args). a leading / at-slot spread shifts every later position, so positional narrowing past it is
+// unsound - callers bail. accepts element/arg PATHS (read `.node`) or raw nodes. single source for
+// the array-literal-element and call-arg spread guards repeated across the resolvers
+export function spreadAtOrBefore(list, index) {
+  for (let i = 0; i <= index && i < (list?.length ?? 0); i++) {
+    if ((list[i]?.node ?? list[i])?.type === 'SpreadElement') return true;
+  }
+  return false;
+}
+
+// find the LAST own data property (`Property` / `ObjectProperty`) satisfying `matches` in an
+// ObjectExpression's `properties` array, scanning backward so duplicate keys resolve last-wins.
+// returns null when a SpreadElement sits AFTER a candidate (it could inject / override the key, so
+// the literal value is not authoritative) or when nothing matches. single source for the "object
+// key value, bail on an overriding spread" rule shared by patternSlotValues / resolveNestedReceiver
+// / walkStaticReceiverTerminal (the node-side mirror of findObjectLiteralKey's spread bail)
+export function findObjectKeyBeforeSpread(properties, matches) {
+  for (let i = (properties?.length ?? 0) - 1; i >= 0; i--) {
+    const prop = properties[i];
+    if (prop?.type === 'SpreadElement') return null;
+    if ((prop?.type === 'Property' || prop?.type === 'ObjectProperty') && matches(prop)) return prop;
+  }
+  return null;
+}
+
 function patternSlotValues(pattern, rhs, name) {
   const out = [];
   const slotFor = target => target?.type === 'AssignmentPattern' ? target.left : target;
@@ -1252,8 +1278,10 @@ function patternSlotValues(pattern, rhs, name) {
       const element = pattern.elements[i];
       if (slotFor(element)?.type !== 'Identifier' || slotFor(element).name !== name) continue;
       if (element.type === 'AssignmentPattern') out.push(element.right);
-      const paired = rhs?.type === 'ArrayExpression' ? rhs.elements[i] : null;
-      if (paired && paired.type !== 'SpreadElement') out.push(paired);
+      // a spread at or before slot i shifts every later position, so `rhs.elements[i]` is no longer
+      // the value that lands in slot i - not a reliable narrow source, skip it
+      const paired = rhs?.type === 'ArrayExpression' && !spreadAtOrBefore(rhs.elements, i) ? rhs.elements[i] : null;
+      if (paired) out.push(paired);
     }
   } else if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
@@ -1261,8 +1289,9 @@ function patternSlotValues(pattern, rhs, name) {
       if (slotFor(prop.value)?.type !== 'Identifier' || slotFor(prop.value).name !== name) continue;
       if (prop.value.type === 'AssignmentPattern') out.push(prop.value.right);
       const key = propertyKeyName(prop);
-      const match = key !== null && rhs?.type === 'ObjectExpression'
-        ? rhs.properties.findLast(rp => rp.type !== 'SpreadElement' && propertyKeyName(rp) === key) : null;
+      if (key === null || rhs?.type !== 'ObjectExpression') continue;
+      // last matching key wins, but a trailing spread could override it -> bail (canonical helper)
+      const match = findObjectKeyBeforeSpread(rhs.properties, rp => propertyKeyName(rp) === key);
       if (match?.value) out.push(match.value);
     }
   }

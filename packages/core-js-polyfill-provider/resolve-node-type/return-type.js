@@ -22,7 +22,7 @@
 // `wrapAsyncPromise`, `applyCallSiteSubst`.
 import { MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive, peelAssignmentPattern } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, spreadAtOrBefore } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
@@ -71,22 +71,11 @@ export function createReturnType({
       : resolveNodeType(arg);
   }
 
-  // a spread arg at/before a positional slot makes the arg->param mapping unreliable: the spread
-  // may supply this slot (and shift later ones) or be empty and leave the default, so neither the
-  // positional arg nor the default is authoritative there - callers bail (mirrors `inferCallSiteSubst`
-  // bailing on any spread). accepts call-arg PATHS (`.node`) or raw nodes
-  function spreadArgAtOrBefore(args, index) {
-    for (let j = 0; j <= index && j < (args?.length ?? 0); j++) {
-      if ((args[j]?.node ?? args[j])?.type === 'SpreadElement') return true;
-    }
-    return false;
-  }
-
   // direct named param (`function f(x)` / `function f(x: T = 0)`): return the call
-  // arg at this position (spread-aware), the default's type when no arg was passed,
-  // or null when neither source applies
+  // arg at this position (spread-aware via canonical spreadAtOrBefore), the default's
+  // type when no arg was passed, or null when neither source applies
   function resolveDirectParam(param, i, args, fnPath) {
-    if (spreadArgAtOrBefore(args, i)) return null;
+    if (spreadAtOrBefore(args, i)) return null;
     if (i < args.length) return resolveCallArgType(args[i]);
     if (param.type === 'AssignmentPattern') return resolveNodeType(fnPath.get('params')[i].get('right'));
     return null;
@@ -100,9 +89,10 @@ export function createReturnType({
   // is the fallback
   function resolvePatternParam(param, keyPath, i, args, fnPath) {
     if (i < args.length) {
-      const arg = args[i];
-      if (arg.node?.type === 'SpreadElement') return null;
-      return resolveDestructuredMember(arg, keyPath);
+      // a spread at OR before this slot shifts the arg->param mapping (sibling resolveDirectParam
+      // uses the same guard); `args[i]` is then not the value that reaches this pattern param
+      if (spreadAtOrBefore(args, i)) return null;
+      return resolveDestructuredMember(args[i], keyPath);
     }
     if (param.type === 'AssignmentPattern') {
       return resolveObjectMemberPath(fnPath.get('params')[i].get('right'), keyPath);
@@ -163,7 +153,7 @@ export function createReturnType({
     const args = callPath.node.arguments;
     // a spread arg at/before this slot makes the default possibly overridden: treat as overridden
     // (return true) so the caller bails rather than narrowing the param to its default type
-    if (spreadArgAtOrBefore(args, found.index)) return true;
+    if (spreadAtOrBefore(args, found.index)) return true;
     const arg = args?.[found.index];
     if (!arg) return false;
     // an explicit `undefined` / `void <x>` arg TRIGGERS the param default rather than overriding
