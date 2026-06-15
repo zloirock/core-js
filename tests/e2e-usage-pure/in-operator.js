@@ -93,3 +93,46 @@ QUnit.test("'from' in (eff(), IIFE-chain) -> SE order preserved", assert => {
   assert.true(r);
   assert.deepEqual(log, ['s', 'r']);
 });
+
+// a SequenceExpression RHS whose TAIL is an assignment: the fold discards the tail's value but must
+// still run its effect, so the binding updates even though the membership test collapses to true
+QUnit.test("'groupBy' in (eff(), (m = Map)) -> sequence-tail assignment runs", assert => {
+  const log = [];
+  let m;
+  const r = 'groupBy' in (log.push('e'), m = Map);
+  assert.true(r);
+  assert.deepEqual(log, ['e']);
+  assert.same(typeof m.groupBy, 'function');
+});
+
+// the chain-root call is buried in a SequenceExpression tail; the sequence wrapper must not hide it
+// from the side-effect harvest, so both the prefix and the tail call run in source order
+QUnit.test("'from' in (eff(), mk()).Array -> sequence-tail call runs", assert => {
+  const log = [];
+  const mk = () => {
+    log.push('r');
+    return globalThis;
+  };
+  const r = 'from' in (log.push('s'), mk()).Array;
+  assert.true(r);
+  assert.deepEqual(log, ['s', 'r']);
+});
+
+// a side-effecting COMPUTED KEY on the discarded RHS member still runs - the harvest must reach the
+// bracket key, not just the object spine
+QUnit.test("'fromEntries' in g[(eff(), 'Object')] -> computed-key SE runs", assert => {
+  const log = [];
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const r = 'fromEntries' in globalThis[log.push('k'), 'Object'];
+  assert.true(r);
+  assert.deepEqual(log, ['k']);
+});
+
+// the fold discards BOTH operands but each still evaluates, in source order: per ECMA the key (left)
+// runs before the object (right)
+QUnit.test("(eff(), 'from') in (eff(), Array) -> both operands run, key before object", assert => {
+  const log = [];
+  const r = (log.push('k'), 'from') in (log.push('o'), Array);
+  assert.true(r);
+  assert.deepEqual(log, ['k', 'o']);
+});

@@ -2238,6 +2238,36 @@ export function sequencePrefixWithSideEffects(expr) {
   return prefix.some(mayHaveSideEffects) ? prefix : null;
 }
 
+// STRUCTURAL side effects of an expression whose VALUE is fully DISCARDED (an `in` fold replaces the
+// whole operand with constant `true`), in source-eval order. unlike `sequencePrefixWithSideEffects` /
+// `collectBuriedChainSePrefixes` - which peel to a surviving tail VALUE and harvest only the effects
+// AHEAD of it - nothing survives here, so a sequence's trailing element and a member's computed key
+// carry effects too (their SE ran in the source). eval order: a member's object before its computed
+// key; a sequence left-to-right (its non-final elements are pushed WHOLE when SE-bearing, the final
+// is recursed as a value). a value-position BARE call is intentionally NOT pushed: the caller pairs
+// this with the scope-aware `collectChainRootCallEffect`, which drops a provably-pure inline receiver
+// call (`'groupBy' in (() => Map)()` -> bare `true`) - a purity check this structural walk can't make.
+// closes the prior gap that dropped SE sequence-tails (`(bar(), (k = Array))`) and computed keys
+export function collectFoldedReceiverSideEffects(node, out = []) {
+  let cur = node;
+  while (cur && (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type) || cur.type === 'ChainExpression')) cur = cur.expression;
+  switch (cur?.type) {
+    case 'SequenceExpression':
+      for (const e of cur.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) out.push(e);
+      collectFoldedReceiverSideEffects(cur.expressions.at(-1), out);
+      break;
+    case 'MemberExpression':
+    case 'OptionalMemberExpression':
+      collectFoldedReceiverSideEffects(cur.object, out);
+      if (cur.computed) collectFoldedReceiverSideEffects(cur.property, out);
+      break;
+    case 'AssignmentExpression':
+      out.push(cur);
+      break;
+  }
+  return out;
+}
+
 // the side-effecting prefix of a destructure COMPUTED KEY (`[(eff(), 'from')]`), peeled through paren /
 // chain / TS wrappers, or null when the key isn't such a sequence. single source for both flatten
 // emitters (babel AST + unplugin text) so the key-effect gate AND the lifted prefix are captured
