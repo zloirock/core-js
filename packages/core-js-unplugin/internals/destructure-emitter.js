@@ -1212,8 +1212,13 @@ export function createDestructureEmitter({
       const child = childPlan.prop;
       const e = renderOuterPlan(childPlan);
       let emitted = null;
-      if (childPlan.extractions?.length && innerHasRest && e.preservedSrc === null && child.key?.name) {
-        emitted = `${ child.key.name }: ${ injector.generateUnusedName() }`;
+      // rest-sentinel for a fully-consumed child under an inner rest: keep a `<key>: _unused`
+      // sentinel, else `...rest` captures the originally-excluded key. the key source comes from
+      // the canonical accessor (handles StringLiteral keys, not only Identifier `.name`). guarded by
+      // `extractions?.length` first so a keyless RestElement child never reaches `flattenKeySrc`
+      if (childPlan.extractions?.length && innerHasRest && e.preservedSrc === null) {
+        const childKeySrc = flattenKeySrc(child);
+        if (childKeySrc) emitted = `${ childKeySrc }: ${ injector.generateUnusedName() }`;
       }
       if (e.preservedSrc !== null && e.preservedSrc !== undefined) {
         emitted = e.preservedSrc;
@@ -1912,7 +1917,11 @@ export function createDestructureEmitter({
   // statement-context + bare-Identifier binding only; the receiver must be re-referenceable (Identifier /
   // side-effect-free literal - `resolveNestedReceiverNode` gates it); an expression-context assignment bails
   function tryNestedAssignmentInstanceOverwrite(meta, metaPath, propNode) {
-    if (propNode.value?.type !== 'Identifier') return false;
+    // canonical binding-Identifier predicate (peels `AssignmentPattern.left`) so a defaulted
+    // binding (`{ flat: m = [] }`) overwrites `m`, not just bare-Identifier shapes - a raw
+    // `value?.type === 'Identifier'` check drops the overwrite and the polyfill loses to native
+    const bindingId = propBindingIdentifier(propNode.value);
+    if (!bindingId) return false;
     const statement = nestedAssignmentStatementOf(metaPath);
     if (!statement) return false;
     const receiverNode = resolveNestedReceiverNode(metaPath);
@@ -1920,7 +1929,7 @@ export function createDestructureEmitter({
     const pureResult = resolvePure(meta, metaPath);
     if (pureResult?.kind !== 'instance') return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
-    const overwrite = `${ propNode.value.name } = ${ binding }(${ nodeSrc(receiverNode) });`;
+    const overwrite = `${ bindingId.name } = ${ binding }(${ nodeSrc(receiverNode) });`;
     if (isBodylessStatementBody(statement)) {
       // bodyless control body: the overwrite must join STMT inside a `{ }` (else it runs even when
       // the guard is false). accumulate per-statement; one block-wrap at flush keeps multi-element
