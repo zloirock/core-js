@@ -1010,7 +1010,10 @@ export default function createPlugin(options) {
               binding, node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
             });
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-            replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects: meta.sideEffects, inheritedStatic });
+            replaceGlobalOrStatic({
+              binding, node, parent, metaPath, inheritedStatic,
+              sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+            });
             // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`):
             // without skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol` whose
             // needle composes into the outer's `_Symbol$iterator` replacement as `__Symbol$iterator`

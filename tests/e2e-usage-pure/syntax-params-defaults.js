@@ -232,3 +232,14 @@ QUnit.test('params: default param uses an outer const polyfill alias', assert =>
   assert.deepEqual(fn('ab'), ['a', 'b']);
   assert.deepEqual(fn('zz', x => `<${ x }>`), '<zz>');
 });
+
+// a destructure param default with a `||` fallback whose LEFT carries a side-effect prefix: the
+// synth-swap collapses the fallback to the polyfilled literal, but the left's SE prefix must still
+// run when the default fires. (was dropping the prefix in BOTH emitters)
+QUnit.test('params: fallback default side-effect prefix runs when default fires', assert => {
+  const log = [];
+  const eff = () => { log.push('se'); };
+  const fn = ({ from } = (eff(), Array) || Set) => from([1, 2]);
+  assert.deepEqual(fn(), [1, 2]);
+  assert.deepEqual(log, ['se']);
+});
