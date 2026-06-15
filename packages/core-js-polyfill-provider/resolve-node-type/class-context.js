@@ -112,36 +112,41 @@ export function createClassContext({
   // returns null for unresolvable shapes (parametric mixins, conditionals, etc.);
   // `findClassMember` treats null parent as "no further inheritance" and falls through to
   // the resolver's generic dispatch
-  function resolveSuperClassPath(classPath) {
-    const superClass = classPath.get('superClass');
-    if (!superClass.node) return null;
-    const resolved = resolveRuntimeExpression(superClass);
+  // resolve an expression that should denote a class to its declaration path. an ambient
+  // `declare class X` carries no runtime value binding on Babel (estree-toolkit binds it
+  // regardless), so a bare Identifier is re-resolved through the ambient-declaration index;
+  // qualified shapes (`NS.Base`, `Outer.Inner.Base`) descend the namespace segment list. shared
+  // by the `extends` clause and the `new` / `Reflect.construct` instance anchors so a
+  // `declare class` resolves identically across parsers wherever a class reference is expected.
+  // every shape check reads the PEELED node so a TS wrapper (`(Base as typeof Base)`) doesn't
+  // break Identifier / qualified-segment dispatch - non-identifier links (computed member, call
+  // expressions, etc.) yield null segments so `findDeclPathBySegments` short-circuits
+  function resolveExpressionToClassPath(exprPath) {
+    const resolved = resolveRuntimeExpression(exprPath);
     if (t.isClass(resolved.node)) return resolved;
-    // every downstream shape check reads from the PEELED node so a TS wrapper
-    // (`extends (Base as typeof Base)`) doesn't break Identifier / qualified-segment
-    // dispatch. raw `superClass.node` is the unpeeled wrapper; `resolved.node` is the
-    // semantic expression `resolveRuntimeExpression` already unwrapped
     if (t.isIdentifier(resolved.node)) {
       const ambient = findAmbientDeclarationPath(resolved.node.name, resolved.scope, isAmbientClassNode);
       return AMBIENT_CLASS_DECL_TYPES.has(ambient?.node.type) ? ambient : null;
     }
-    // qualified shapes (`NS.Base`, `Outer.Inner.Base`) reach here as MemberExpression /
-    // TSQualifiedName / QualifiedTypeIdentifier. `collectQualifiedSegments` peels the
-    // chain into a segment list; non-identifier links (computed member, call expressions,
-    // etc.) yield null so `findDeclPathBySegments` short-circuits without descent
     const segments = collectQualifiedSegments(resolved.node);
     if (!segments?.length) return null;
     return findDeclPathBySegments(segments, resolved.scope, isClassLikeDeclaration);
+  }
+
+  function resolveSuperClassPath(classPath) {
+    const superClass = classPath.get('superClass');
+    return superClass.node ? resolveExpressionToClassPath(superClass) : null;
   }
 
   function resolveClassContext(objectPath) {
     const { node } = objectPath;
     // Foo.staticProp - object is the class itself
     if (t.isClass(node)) return { classPath: objectPath, isStatic: true };
-    // new Foo().prop - object is a class instance
+    // new Foo().prop - object is a class instance (`Foo` is a runtime class, an ambient
+    // `declare class`, or a qualified `NS.Foo` - all resolved by the shared class-path helper)
     if (t.isNewExpression(node)) {
-      const classPath = resolveRuntimeExpression(objectPath.get('callee'));
-      if (t.isClass(classPath.node)) return { classPath, isStatic: false };
+      const classPath = resolveExpressionToClassPath(objectPath.get('callee'));
+      if (classPath) return { classPath, isStatic: false };
     }
     // `Reflect.construct(target, args[, newTarget])` is structurally equivalent to
     // `new target(...args)`, EXCEPT the created object's prototype is `newTarget.prototype`
@@ -155,8 +160,8 @@ export function createClassContext({
       && isReflectConstructCallee(node.callee, objectPath.scope)
       && node.arguments?.[0]) {
       const ctorIndex = node.arguments[2] ? 2 : 0;
-      const classPath = resolveRuntimeExpression(objectPath.get('arguments')[ctorIndex]);
-      if (t.isClass(classPath.node)) return { classPath, isStatic: false };
+      const classPath = resolveExpressionToClassPath(objectPath.get('arguments')[ctorIndex]);
+      if (classPath) return { classPath, isStatic: false };
     }
     // this.prop inside a class member
     if (t.isThisExpression(node)) return resolveThisClass(objectPath);
@@ -195,6 +200,7 @@ export function createClassContext({
     resolveThisAnchor,
     resolveThisClass,
     resolveThisObject,
+    resolveExpressionToClassPath,
     resolveSuperClassPath,
     resolveClassContext,
     buildParentClassSubstFromNodes,
