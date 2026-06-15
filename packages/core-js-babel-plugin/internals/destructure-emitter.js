@@ -61,7 +61,7 @@ import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 // gated on `maximalProxyGlobalHop` so only a real intermediate hop is collapsed - the bare-root
 // `globalThis.Array` keeps its natural global-rewrite path. the actual AST rewrite is the shared
 // `collapseProxyGlobalReceiver` (the same helper the synth-swap path uses via `buildSynthLiteral`)
-function collapseRetainedProxyReceiver(synthSwap, hostNode, key) {
+function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null) {
   if (!hostNode) return;
   // peel SE-tail + Paren/TS wrappers to the inner member chain, tracking the slot it lives in so
   // the collapsed receiver writes back UNDER the wrapper - the `(se(), ...)` prefix and the `as`
@@ -81,8 +81,21 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key) {
     } else break;
   }
   const receiver = slotParent[slotKey];
-  if (!receiver || !maximalProxyGlobalHop(receiver)) return;
-  const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver);
+  // a retained LOGICAL receiver (`globalThis.self.Array || Set`) keeps its operands live; collapse
+  // the proxy hop in EACH so an evaluated operand never reads `_globalThis.self` (undefined on
+  // ie:11 / Node, which throws BEFORE the `||` short-circuit can save it). recursion also covers
+  // nested logicals and SE/wrapper-wrapped operands via the same slot peel. NODE-ONLY (null aliasCtx)
+  // - matches the unplugin `polyfillLogicalInitOperands` per-operand collapse, which is node-only;
+  // a const-alias proxy root inside a logical operand stays uncollapsed in BOTH plugins (a both-side
+  // gap, not a divergence). alias-awareness here would diverge from / crash against the natural
+  // visitor's whole-ctor rewrite of an alias pure-ctor operand
+  if (receiver?.type === 'LogicalExpression') {
+    collapseRetainedProxyReceiver(synthSwap, receiver, 'left', aliasCtx);
+    collapseRetainedProxyReceiver(synthSwap, receiver, 'right', aliasCtx);
+    return;
+  }
+  if (!receiver || !maximalProxyGlobalHop(receiver, aliasCtx)) return;
+  const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver, aliasCtx);
   if (collapsed) slotParent[slotKey] = collapsed;
 }
 
@@ -238,6 +251,13 @@ export default function createDestructureEmitter({
   synthSwap,
   getDebugOutput,
 }) {
+  // alias-resolution context for the proxy-global collapse: lets `findProxyGlobal` follow a
+  // const-alias root (`const g = globalThis; g.self.X`) through the canonical resolver, so the
+  // `.self` hop collapses off an aliased global too (it would otherwise read undefined on ie:11 /
+  // Node). null -> node-only collapse (root classified by name)
+  function aliasCtxFromPath(path) {
+    return path?.scope ? { scope: path.scope, adapter, path } : null;
+  }
   // original body index of each declaration, before insertBefore shifts it
   const originalDeclKeys = new WeakMap();
   // flat-family multi-declarator declarations touched by per-prop emission: split into one
@@ -364,7 +384,9 @@ export default function createDestructureEmitter({
       // the receiver stays as the param DEFAULT (`{...} = R`, evaluated when the arg is
       // undefined), so collapse a proxy-global member chain in it before either fallback runs
       const paramDefault = objectPattern.parentPath;
-      if (paramDefault?.isAssignmentPattern()) collapseRetainedProxyReceiver(synthSwap, paramDefault.node, 'right');
+      if (paramDefault?.isAssignmentPattern()) {
+        collapseRetainedProxyReceiver(synthSwap, paramDefault.node, 'right', aliasCtxFromPath(paramDefault));
+      }
       // caller-lossy emissions (body-extract ignores a caller-passed value; a leaf inline
       // default polyfills an ABSENT caller leaf that native leaves undefined) are sound only
       // when no invisible caller exists: an assignment-form host (fixed receiver) or an
@@ -1297,7 +1319,7 @@ export default function createDestructureEmitter({
       // collapse a proxy-global hop before memoizing (`globalThis.self.Array` -> `globalThis.Array`) -
       // the same collapse the retained-residual path applies - so the memo isn't `_globalThis.self.Array`,
       // whose `.self` is runtime-undefined on ie:11 / Node
-      collapseRetainedProxyReceiver(synthSwap, parent.node, initKey);
+      collapseRetainedProxyReceiver(synthSwap, parent.node, initKey, aliasCtxFromPath(parent));
       const receiver = parent.node[initKey];
       // declare=false: we emit our own `const _ref = init;` below, no extra `var _ref;`
       const ref = generateLocalRef(path.scope);
@@ -1527,8 +1549,8 @@ export default function createDestructureEmitter({
     // residual destructure keeps the receiver (a surviving sibling or ...rest reads off it) -
     // collapse a proxy-global member chain so the retained init / right is runtime-safe
     if (hasRest || !isEmpty) {
-      if (parent.isVariableDeclarator()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'init');
-      else if (parent.isAssignmentExpression()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'right');
+      if (parent.isVariableDeclarator()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'init', aliasCtxFromPath(parent));
+      else if (parent.isAssignmentExpression()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'right', aliasCtxFromPath(parent));
     }
 
     if (parent.isVariableDeclarator()) {
