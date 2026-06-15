@@ -27,6 +27,13 @@ export default class ImportInjector extends ImportInjectorState {
   // binding name -> babel Identifier node (flushed imports clone it to preserve range/loc).
   // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
   #idByName = new Map();
+  // every Identifier node this injector PLACED into the AST (the clones `addPureImport`
+  // hands back, which the substitution visitor drops in via `replaceWith`). node-IDENTITY
+  // membership, not name: a polyfill-rewritten member key (`[Symbol.iterator]` -> the placed
+  // `[_Symbol$iterator]`) is in here; a user binding the user typed - including the user's own
+  // deduped `@core-js/pure` import reused under the same UID - is NOT. consumed by the
+  // computed-key synth gate to bail exactly the rewritten-member keys unplugin also bails on
+  #injectedRefs = new WeakSet();
   // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted.
   // `#emittedGlobals`: modules WE wrote out (subtract from `globalImports` in `#buildNodes`
   // to compute newGlobals; drives `hasFlushed` for postHook's late-CJS diagnostic).
@@ -344,7 +351,13 @@ export default class ImportInjector extends ImportInjectorState {
       id = this.#t.identifier(name);
       this.#idByName.set(name, id);
     }
-    return this.#t.cloneNode(id);
+    // track the exact clone we hand back so the synth gate can recognise a reference WE placed
+    // (a rewritten member key) by identity - dedup hits return a clone too, so a `[Symbol.iterator]`
+    // rewrite that reuses the user's pre-imported UID is still flagged, while the user's own
+    // `[_Array$from]` (typed, never routed through here) is not
+    const clone = this.#t.cloneNode(id);
+    this.#injectedRefs.add(clone);
+    return clone;
   }
 
   registerUserPureImport(entry, name) {
@@ -353,6 +366,12 @@ export default class ImportInjector extends ImportInjectorState {
     // overwrite `#idByName` with a fresh Identifier, breaking the node-IDENTITY contract
     // that `addPureImport` relies on (clones share identity with the cached source node)
     if (!this.#idByName.has(name)) this.#idByName.set(name, this.#t.identifier(name));
+  }
+
+  // node-identity test consumed by the computed-key synth-swap gate; see `#injectedRefs` for why
+  // identity (not name) is the right signal
+  isInjectedReference(node) {
+    return this.#injectedRefs.has(node);
   }
 
   registerUserGlobalImport(moduleName) {
