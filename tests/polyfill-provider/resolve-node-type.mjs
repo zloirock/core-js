@@ -1156,7 +1156,7 @@ runBoth('destructure default with hex pattern key matches decimal init key',
       { primitive: true, kind: 'string' });
   });
 
-// --- wrapper-peel divergence (C1): runtime-object peel must snip the same wrapper set across sites ---
+// --- wrapper-peel divergence: runtime-object peel must snip the same wrapper set across sites ---
 
 // optional-chain-wrapped global ctor: `new (globalThis?.Array)()` is an Array instance, so `.at`
 // narrows to the array helper. resolveGlobalName peeled only ParenthesizedExpression, leaving the
@@ -4459,6 +4459,41 @@ runBoth('default-param narrow widens when a spread arg covers its slot',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     check(`${ lbl } widened to generic`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+
+// --- spread-before-slot: positional narrowing must bail when a spread shifts the target slot ---
+// a spread before a LATER defaulted param can supply it from the iterable -> widen
+runBoth('default-param widens when a spread covers an EARLIER slot',
+  'declare const args: any[];\nfunction f(a: any, b = [1, 2, 3]) { return b.at(0); }\nf(...args);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+runBoth('default-param (no spread) keeps the array narrow [control]',
+  'function f(a: any, b = [1, 2, 3]) { return b.at(0); }\nf(1);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// array-pattern slot paired against a RHS with a spread at/before the index -> widen
+runBoth('array-pattern slot widens when RHS has a leading spread',
+  'declare const a: any[];\nlet b;\n([, b] = [...a, [1, 2, 3]]);\nb.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
+  });
+runBoth('array-pattern slot (no spread) keeps the array narrow [control]',
+  'let b;\n([, b] = [9, [1, 2, 3]]);\nb.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// pattern-param return-type narrowing must bail when a spread shifts the arg->param map
+runBoth('pattern-param return-type widens when a spread covers an earlier arg slot',
+  'declare const g: any[];\nfunction f(a: any, { x }) { return x; }\nf(...g, { x: [1, 2, 3] }).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    check(`${ lbl } widened`, adapter.makeResolver().resolveNodeType(member.get('object')), null);
   });
 
 // --- Type-resolution cluster regression locks ---
