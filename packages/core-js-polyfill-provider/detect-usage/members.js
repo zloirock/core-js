@@ -44,9 +44,14 @@ function tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) {
 // `(a = IIFE()).Symbol`, while the SE-harvest callers must NOT - the preserved assignment
 // already re-emits the call, so harvesting it too would double-run the setup
 function findChainRootCallExpression(node, throughChainAssign = false) {
-  let cur = throughChainAssign ? peelChainAssignmentDeep(unwrapParens(node)) : node;
+  // peel through wrappers AND SequenceExpression tails (`(eff(), mk())` -> `mk()`) so a chain-root
+  // call buried in a sequence tail is still found - the SE prefix is harvested separately upstream,
+  // so the root call's purity can still be probed. plain `unwrapParens` BAILED on an SE-prefix
+  // sequence, hiding the call (`'from' in (fn(), mk()).Array` then dropped `mk()`)
+  let cur = peelReceiverSequenceTail(node);
+  if (throughChainAssign) cur = peelChainAssignmentDeep(cur);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    cur = unwrapParens(cur.object);
+    cur = peelReceiverSequenceTail(cur.object);
     if (throughChainAssign) cur = peelChainAssignmentDeep(cur);
   }
   return isCallShape(cur) ? cur : null;
@@ -412,14 +417,15 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
         // receiver substitutes through the identifier machinery and `in` evaluates live
         if (adapter.isMutatedStatic?.(objectName, resolvedLeft)) return null;
         const meta = { kind: 'in', key: resolvedLeft, object: objectName, placement };
-        // usage-pure FOLDS this meta, discarding the RHS - SE buried in its receiver chain must be
-        // harvested here (scope/adapter live at detection; the planner only rescues a direct
-        // sequence prefix / direct assignment RHS). a buried chain-assignment is rescued whole;
-        // otherwise probe the chain root for an SE-bearing inline call
+        // usage-pure FOLDS this meta to `true`, discarding the RHS. the planner harvests the
+        // discarded operand's STRUCTURAL effects (sequence prefixes + tails, computed keys, buried
+        // assignments rescued WHOLE) off `node.right`. detection adds only the scope-aware bit the
+        // structural walk can't decide: a provably-IMPURE inline receiver call at the chain root
+        // (`'from' in mk().Array` keeps `mk()`; a pure `(() => Map)()` is dropped to bare `true`).
+        // a chain-ASSIGNMENT root is NOT probed here - the planner rescues the whole assignment,
+        // which already reruns any call inside it, so harvesting both would double-run the setup
         const sideEffects = [];
-        const buriedAssignment = findBuriedChainAssignment(rightObject);
-        if (buriedAssignment) sideEffects.push(buriedAssignment);
-        else collectChainRootCallEffect({ node: rightObject, sideEffects, scope, adapter, path });
+        collectChainRootCallEffect({ node: rightObject, sideEffects, scope, adapter, path });
         if (sideEffects.length) meta.sideEffects = sideEffects;
         return meta;
       }
