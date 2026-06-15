@@ -1074,7 +1074,16 @@ export function createPolyfillEmitter({
     function methodGet(arg) {
       // poly inner -> `_binding(arg)`; non-poly inner -> `arg.method` (parenthesize an assignment
       // arg so `.method` binds to the assignment result). a computed-key inner folds its key SE in
-      // front so the effect runs exactly once: `(eff(), _binding(arg))`
+      // front so the effect runs exactly once: `(eff(), _binding(arg))`.
+      // when `arg` carries the receiver memo (`aRef = receiver`, the non-optional non-safe case) AND a
+      // computed-key SE precedes the method, the memo MUST run before that key SE: per ECMA the object
+      // evaluates before the computed key, so emit `(aRef = receiver, keySE, _binding(aRef))` rather
+      // than `(keySE, _binding(aRef = receiver))`. without a key SE the order is unobservable, so the
+      // embedded form is kept (matches babel, no churn). aRef resolves at call time (set below)
+      if (innerKeySE.length && arg !== aRef) {
+        const core = innerBinding ? `${ innerBinding }(${ aRef })` : `${ aRef }.${ innerMethodName }`;
+        return `(${ arg }, ${ innerKeySE.map(nodeSrc).join(', ') }, ${ core })`;
+      }
       const core = innerBinding
         ? `${ innerBinding }(${ arg })`
         : `${ arg.includes('=') ? `(${ arg })` : arg }.${ innerMethodName }`;
@@ -1230,7 +1239,7 @@ export function createPolyfillEmitter({
   // shorthand / export / super early-returns don't carry side effects (Identifier /
   // Super can't host a SequenceExpression); only the final MemberExpression replacement
   // wraps with `sideEffects` from the receiver / computed-key
-  function replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects, inheritedStatic }) {
+  function replaceGlobalOrStatic({ binding, node, parent, metaPath, sideEffects, receiverEffectCount, inheritedStatic }) {
     // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
     // same source range for shorthand `{ Promise }` and bare `export { Promise }`
     const directParent = metaPath.parent;
@@ -1275,7 +1284,7 @@ export function createPolyfillEmitter({
     // instance dispatch never reaches here (routes through replaceInstance), so no risk of
     // duplicating with memoize-captured form
     transforms.add(start, end,
-      composeBindingReplacement({ binding, receiverObj: node.object, sideEffects, metaPath, start }));
+      composeBindingReplacement({ binding, receiverObj: node.object, sideEffects, insertAt: receiverEffectCount, metaPath, start }));
   }
 
   // compose the binding's text replacement with receiver-side effects + ASI guard.
@@ -1283,9 +1292,11 @@ export function createPolyfillEmitter({
   // takes over from. shared by `replaceGlobalOrStatic` (whole-MemberExpression rewrite)
   // and `replaceStaticFallback` (object-slot-only rewrite) - both compute
   // `prependChainAssignmentEffect(unwrapNode(receiverObj), sideEffects)` to absorb
-  // chain-assignment receivers + the `meta.sideEffects` captured by detect-usage
-  function composeBindingReplacement({ binding, receiverObj, sideEffects, metaPath, start }) {
-    const allEffects = prependChainAssignmentEffect(unwrapNode(receiverObj), sideEffects);
+  // chain-assignment receivers + the `meta.sideEffects` captured by detect-usage. `insertAt`
+  // (the receiver/key boundary) places the chain-assign before the computed-key SE per ECMA
+  // receiver-before-key; the fallback path passes receiver-only effects so it omits it (appends)
+  function composeBindingReplacement({ binding, receiverObj, sideEffects, insertAt, metaPath, start }) {
+    const allEffects = prependChainAssignmentEffect(unwrapNode(receiverObj), sideEffects, insertAt);
     return asiGuardLeadingParen(wrapSideEffects(binding, allEffects), metaPath, start);
   }
 

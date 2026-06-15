@@ -638,7 +638,7 @@ export default function plugin(api, options) {
             // dropped. emit becomes `(a = Array, _Array$from)(x)`. instance dispatch wouldn't
             // reach here (routes through replaceInstanceLike above), so no risk of duplicating
             // with memoize-captured assignment
-            const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects);
+            const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects, meta.receiverEffectCount);
             replacePath.replaceWith(withSideEffects(id, allEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional) {

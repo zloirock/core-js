@@ -10,6 +10,7 @@
 import {
   isReceiverShapedNode,
   buildFlatSynthEntries,
+  collectFoldedReceiverSideEffects,
   paramsHaveInvisibleCallers,
   FUNCTION_LIKE_NODE_TYPES,
   findArrayWrappedDestructureHost,
@@ -2642,9 +2643,16 @@ export function createDestructureEmitter({
       // an SE-bearing call branch is rescued ahead of the literal; its inner substitutions
       // compose into the re-emitted source text
       const literal = `{ ${ entries.join(', ') } }`;
-      transforms.add(inner.start, inner.end, needMemo
+      const body = needMemo
         ? `(function (${ memoName }) { return ${ literal }; })(${ nodeSrc(inner) })`
-        : rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal);
+        : rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal;
+      // fallbackCollapse (`(logSE(), Array) || Set`): the whole `||`/`??` collapses to the literal (its
+      // left is the always-resolved receiver, its right short-circuits), but the left's SE prefix must
+      // still run when the default fires - re-emit it ahead of the literal (raw, matching babel, since
+      // the whole subtree is skipped). a pure left harvests nothing, so the clean collapse is unchanged
+      const leftSe = inner.type === 'LogicalExpression'
+        ? collectFoldedReceiverSideEffects(inner.left).map(node => nodeSrc(node)) : [];
+      transforms.add(inner.start, inner.end, leftSe.length ? `(${ leftSe.join(', ') }, ${ body })` : body);
     }
   }
 
