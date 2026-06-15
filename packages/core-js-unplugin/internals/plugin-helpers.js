@@ -3,6 +3,7 @@ import {
   isASTNode,
   isDirectiveStatement,
   isTopLevelImportLike,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
@@ -646,10 +647,13 @@ export function collectAllBindingNames(ast) {
     // descending into a function / class body: children see `atTopLevel = false` so nested
     // `_ref = foo()` reserves the name instead of counting as plugin-emitted orphan
     const childAtTopLevel = atTopLevel && !isScopeRebinding(node);
-    // parens are transparent to the orphan classifier's parent check - `case (x)` /
-    // `throw (x)` put ParenthesizedExpression between the structural parent and the
-    // assignment; forwarding the outer parentType lets the user-shape blacklist fire
-    const childParentType = node.type === 'ParenthesizedExpression' ? parentType : node.type;
+    // transparent wrappers (parens + TS `as`/`!`/`satisfies`) are see-through to the orphan
+    // classifier's parent check - `throw (x)`, `case (x as any):`, `if ((x)!)` put a wrapper
+    // between the structural parent and the assignment; forwarding the outer parentType lets the
+    // user-shape blacklist fire. without TS-wrapper transparency a top-level user `_ref = foo() as any`
+    // in throw/case/if is misclassified as a plugin orphan and adopted, injecting a module `var _ref`
+    // that localizes the user's implicit-global write
+    const childParentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? parentType : node.type;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const v = node[key];
