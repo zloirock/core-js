@@ -2157,6 +2157,26 @@ checkDeclared('multi-level assignment chain reserves', 'a = b = _ref = foo();', 
 checkOrphan('assignment rhs of member target',
   'obj.prop = _ref = foo();', [], ['_ref']);
 
+// TS expression wrappers (`as` / `!` / `satisfies`) are transparent to the orphan classifier's
+// parent check, exactly like parens: a top-level user `_ref = X` wrapped in a TS cast inside a
+// throw / case / if head is still user code and must NOT be adopted - a wrapper-blind parent walk
+// would see the TS node, miss the structural blacklist, and inject a module `var _ref;` that
+// localizes the user's implicit-global write. parsed as TS so the wrapper nodes are produced
+function collectBindingsTS(src) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  return collectAllBindingNames(parseSync('unit.ts', src).program);
+}
+function checkOrphanTS(label, src, orphans) {
+  const result = collectBindingsTS(src);
+  check(`collectBindings/${ label }/orphans`, [...result.orphanRefs].sort().join(','), orphans.join(','));
+}
+checkOrphanTS('throw + as-cast', 'throw ((_ref = foo()) as any);', []);
+checkOrphanTS('case + as-cast', 'switch (x) { case ((_ref = foo()) as any): break; }', []);
+checkOrphanTS('if + as-cast', 'if (((_ref = foo()) as any)) {}', []);
+checkOrphanTS('throw + non-null', 'throw ((_ref = foo())!);', []);
+// regression: a genuine plugin-shape `null == (...)` test is still adopted with TS in the file
+checkOrphanTS('plugin binary-test still orphan (ts)', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
+
 // --- deoptionalizeNeedle ---
 // `?.(`/`?.[` drop both chars regardless of intervening whitespace - ECMAScript parsers
 // allow `obj ?. (args)` / `obj?.\n[i]`, so the source slice the queue sees may have
