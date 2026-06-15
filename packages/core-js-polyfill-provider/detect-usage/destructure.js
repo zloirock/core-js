@@ -132,10 +132,13 @@ function resolveLogicalDestructureMeta({ node, key, scope, adapter, path }) {
 // `{from:_Array$from} && _Promise`). `fromFallback` always set when objects differ or left
 // doesn't resolve - runtime value depends on the left's truthiness
 function resolveAndDestructureMeta({ node, key, scope, adapter, path }) {
+  // a branch that resolves to a monkey-patched static yields a null meta - guard before reading
+  // `.object` (null deref -> build crash), leaving the destructure raw exactly as the conditional
+  // path does (the per-identifier receiver substitution handles the mutated static elsewhere)
   const primaryMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path });
-  if (!primaryMeta.object) return primaryMeta;
+  if (!primaryMeta?.object) return primaryMeta;
   const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path });
-  if (leftMeta.object === primaryMeta.object) return primaryMeta;
+  if (leftMeta?.object === primaryMeta.object) return primaryMeta;
   return { ...primaryMeta, fromFallback: true };
 }
 
@@ -146,10 +149,11 @@ function resolveAndDestructureMeta({ node, key, scope, adapter, path }) {
 // `MyArray || Iterator` for `from` registers `Iterator.from` because `_Iterator`'s
 // constructor binding doesn't carry the static method
 function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path }) {
+  // null meta = monkey-patched static branch; null-guard before `.object` (build crash otherwise)
   const primaryMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path });
-  if (primaryMeta.object && resolveBuiltIn(primaryMeta)) return primaryMeta;
+  if (primaryMeta?.object && resolveBuiltIn(primaryMeta)) return primaryMeta;
   const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path });
-  return fallbackMeta.object ? { ...fallbackMeta, fromFallback: true } : fallbackMeta;
+  return fallbackMeta?.object ? { ...fallbackMeta, fromFallback: true } : fallbackMeta;
 }
 
 // `cond ? Array : Set`: try both branches; flag fromFallback so destructure replacement

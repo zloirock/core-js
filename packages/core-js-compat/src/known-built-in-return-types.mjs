@@ -803,12 +803,17 @@ export const staticMethods = {
     parseInt: 'number',
   },
   Object: {
-    assign: { type: 'Object', mutatesArgument: [0] },
-    create: 'Object',
-    defineProperties: { type: 'Object', mutatesArgument: [0] },
-    defineProperty: { type: 'Object', mutatesArgument: [0] },
+    assign: { type: 'Object', mutatesArgument: [0], returnsArgument: 0 },
+    // create: intentionally NOT listed. it returns a NEW object whose [[Prototype]] is arg 0, so the
+    // result's instance-method surface is indeterminate - an array-proto result inherits array methods
+    // (`Object.create([1]).includes` is live), a plain-object proto does not. a static `Object` hint
+    // would wrongly assert "no such methods" and bail those reads to native (ie:11 break); typing it
+    // as the arg would lie to `Array.isArray` guards. an absent hint yields an indeterminate return,
+    // routing the result to the receiver-dispatching generic helper - correct and guard-clean
+    defineProperties: { type: 'Object', mutatesArgument: [0], returnsArgument: 0 },
+    defineProperty: { type: 'Object', mutatesArgument: [0], returnsArgument: 0 },
     entries: { type: 'Array', element: 'Array' },
-    freeze: 'Object',
+    freeze: { type: 'Object', returnsArgument: 0 },
     fromEntries: 'Object',
     // only `Object` - acceptable assumption
     getOwnPropertyDescriptor: 'Object',
@@ -825,9 +830,9 @@ export const staticMethods = {
     isSealed: 'boolean',
     keys: { type: 'Array', element: 'string' },
     keysLength: 'number',
-    preventExtensions: 'Object',
-    seal: 'Object',
-    setPrototypeOf: 'Object',
+    preventExtensions: { type: 'Object', returnsArgument: 0 },
+    seal: { type: 'Object', returnsArgument: 0 },
+    setPrototypeOf: { type: 'Object', returnsArgument: 0 },
     values: 'Array',
   },
   Promise: {
