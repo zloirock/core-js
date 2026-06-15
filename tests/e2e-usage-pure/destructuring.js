@@ -125,9 +125,67 @@ QUnit.test('destructuring: from globalThis', assert => {
   });
 });
 
+// a redundant proxy-global hop (`.self`) off a CONST-ALIASED global must collapse in the retained
+// rest receiver: `g.self` is undefined on non-browser hosts (incl. Node), so an uncollapsed
+// `g.self.Array` would THROW at runtime here. the fix keeps the alias `g` (already the global-this
+// polyfill) and drops only `.self` -> `g.Array`. live runtime oracle (fail-before throws in Node)
+QUnit.test('destructuring: const-alias proxy-global `.self` hop collapses (top-level const)', assert => {
+  const g = globalThis;
+  const { from, ...rest } = g.self.Array;
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+  assert.same(typeof rest, 'object');
+});
+
+// same collapse exercised through the parameter-default receiver path
+QUnit.test('destructuring: const-alias proxy-global `.self` hop collapses (param default)', assert => {
+  const g = globalThis;
+  function withDefault({ from, ...rest } = g.self.Array) {
+    return [from([4, 5]), typeof rest];
+  }
+  assert.deepEqual(withDefault(), [[4, 5], 'object']);
+});
+
 QUnit.test('destructuring: const { from } = Array ?? null', assert => {
   const { from } = Array ?? null;
   assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+// a redundant `.self` hop in a LOGICAL-expression destructure receiver must collapse in the live
+// operand: `globalThis.self` is undefined on non-browser hosts (incl. Node), so an uncollapsed
+// `_globalThis.self.Array` THROWS before the `||` can short-circuit. live runtime oracle (fail-before)
+QUnit.test('destructuring: proxy-global `.self` hop collapses in a logical-operand receiver', assert => {
+  const { from, ...rest } = globalThis.self.Array || Set;
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+  assert.same(typeof rest, 'object');
+});
+
+// a PURE-CTOR logical operand whole-swaps to the pure ctor (`globalThis.self.Map` -> `_Map`): the
+// native `globalThis.self.Map` reads `.self` (undefined in Node) and THROWS. live runtime oracle
+QUnit.test('destructuring: pure-ctor `.self` logical operand whole-swaps', assert => {
+  const { groupBy, ...rest } = globalThis.self.Map || Set;
+  assert.same(typeof groupBy, 'function');
+  assert.same(typeof rest, 'object');
+  assert.same(groupBy([0, 1], n => n % 2).get(0)[0], 0);
+});
+
+// an ALIAS proxy root with a `.self` hop in a logical operand collapses the hop (`g.self.Array` ->
+// `g.Array`): `g.self` is undefined in Node and would throw. live runtime oracle
+QUnit.test('destructuring: alias `.self` logical operand collapses the hop', assert => {
+  const g = globalThis;
+  const { from, ...rest } = g.self.Array || Set;
+  assert.deepEqual(from([4, 5]), [4, 5]);
+  assert.same(typeof rest, 'object');
+});
+
+// the PARAM-DEFAULT logical receiver path collapses the `.self` hop in each live non-pure operand
+// too (`globalThis.self.Array` -> `_globalThis.Array`), mirroring the const-init path: calling with
+// no arg evaluates the default, and an uncollapsed `_globalThis.self.Array` would THROW in Node
+// before the `||` can short-circuit. pure-ctor operands whole-swap. live runtime oracle (fail-before)
+QUnit.test('destructuring: proxy-global `.self` hop collapses in a param-default logical receiver', assert => {
+  function withDefault({ from, ...rest } = globalThis.self.Array || globalThis.self.Set || Map) {
+    return [from([6, 7]), typeof rest];
+  }
+  assert.deepEqual(withDefault(), [[6, 7], 'object']);
 });
 
 QUnit.test('destructuring: const { from } = Array || Promise', assert => {
