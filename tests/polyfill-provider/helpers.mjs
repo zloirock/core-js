@@ -27,11 +27,13 @@ import {
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
   extractIndirectRequireSEPrefix,
+  findObjectKeyBeforeSpread,
   isDirectiveStatement,
   isFunctionParamDestructureParent,
   isReusableReceiver,
   paramListReadsName,
   peelMemoizeWrappers,
+  spreadAtOrBefore,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
@@ -996,5 +998,29 @@ check('isReusableReceiver/chain-wrapped this',
 check('isReusableReceiver/TS-wrapped Identifier needs ref',
   isReusableReceiver({ type: 'TSAsExpression', expression: { type: 'Identifier', name: 'x' } }), false);
 check('isReusableReceiver/null safe', isReusableReceiver(null), false);
+
+// --- canonical spread guards (all positional / object-key spread-bail sites delegate here) ---
+// spreadAtOrBefore: a spread AT or BEFORE the index shifts later positions -> true; accepts paths or nodes
+const SP = { type: 'SpreadElement' };
+const EL = name => ({ type: 'Identifier', name });
+check('spreadAtOrBefore/spread at index', spreadAtOrBefore([SP, EL('b')], 0), true);
+check('spreadAtOrBefore/spread before index', spreadAtOrBefore([SP, EL('b'), EL('c')], 2), true);
+check('spreadAtOrBefore/spread after index', spreadAtOrBefore([EL('a'), EL('b'), SP], 1), false);
+check('spreadAtOrBefore/no spread', spreadAtOrBefore([EL('a'), EL('b')], 1), false);
+check('spreadAtOrBefore/path form (.node)', spreadAtOrBefore([{ node: SP }, { node: EL('b') }], 1), true);
+check('spreadAtOrBefore/empty + null safe', spreadAtOrBefore([], 3) || spreadAtOrBefore(null, 0), false);
+
+// findObjectKeyBeforeSpread: last matching data property, or null if a spread sits AFTER the match
+const prop = (key, tag) => ({ type: 'Property', key, tag });
+const matchA = p => p.key === 'a';
+check('findObjectKeyBeforeSpread/trailing spread bails',
+  findObjectKeyBeforeSpread([prop('a', 1), SP], matchA), null);
+check('findObjectKeyBeforeSpread/leading spread keeps later match',
+  findObjectKeyBeforeSpread([SP, prop('a', 2)], matchA)?.tag, 2);
+check('findObjectKeyBeforeSpread/duplicate keys last-wins',
+  findObjectKeyBeforeSpread([prop('a', 1), prop('a', 2)], matchA)?.tag, 2);
+check('findObjectKeyBeforeSpread/match after a mid spread wins',
+  findObjectKeyBeforeSpread([prop('a', 1), SP, prop('a', 2)], matchA)?.tag, 2);
+check('findObjectKeyBeforeSpread/no match', findObjectKeyBeforeSpread([prop('b', 1)], matchA), null);
 
 finish();

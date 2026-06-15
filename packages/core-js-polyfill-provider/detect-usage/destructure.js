@@ -20,6 +20,7 @@ import {
   getFallbackBranchSlots,
   isChainAssignment,
   isTransparentDestructureWrapper,
+  findObjectKeyBeforeSpread,
   mayHaveSideEffects,
   peelFallbackReceiver,
   peelFallbackBranchInner,
@@ -425,9 +426,10 @@ export function resolveNestedReceiverNode(leafPath) {
     for (const seg of segs) {
       if (seg.index === undefined) {
         if (node?.type !== 'ObjectExpression') return null;
-        // last match wins (duplicate keys); only plain non-computed data properties resolve
-        const match = node.properties.findLast(p => (p.type === 'ObjectProperty' || p.type === 'Property')
-          && !p.computed && (p.key?.type === 'Identifier' ? p.key.name === seg.key : p.key?.value === seg.key));
+        // last match wins (duplicate keys); only plain non-computed data properties resolve, and a
+        // trailing spread that could override the matched key bails (canonical helper)
+        const match = findObjectKeyBeforeSpread(node.properties, p => !p.computed
+          && (p.key?.type === 'Identifier' ? p.key.name === seg.key : p.key?.value === seg.key));
         if (!match) return null;
         node = unwrapExpressionChain(match.value);
       } else {
@@ -641,22 +643,18 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
     }) : null;
   }
   if (current?.type !== 'ObjectExpression') return null;
-  // LAST matching key wins, per JS duplicate-literal-key semantics (the same reverse order
-  // findNamespaceMemberValue uses) - a first-match walk resolved the dead first value and
-  // substituted the WRONG constructor's static
-  for (const prop of current.properties.toReversed()) {
-    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-    // shared `resolveKey` covers Identifier / StringLiteral / Literal directly AND walks
-    // computed-key bindings (`const k = 'a'; { [k]: Array }`) + StringLiteral / `+`-concat
-    // folds to a static string. unresolvable computed keys (dynamic expressions) return null
-    // and the prop is correctly skipped
+  // LAST matching key wins, per JS duplicate-literal-key semantics; a trailing spread that could
+  // inject / override the key bails (canonical helper). shared `resolveKey` covers Identifier /
+  // StringLiteral / Literal directly AND walks computed-key bindings (`const k='a'; { [k]: Array }`)
+  // + StringLiteral / `+`-concat folds; unresolvable computed keys return null and are skipped
+  const match = findObjectKeyBeforeSpread(current.properties, prop => {
     const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope: currentScope, adapter, bailOnSideEffectKey: true });
-    if (keyName !== walkPath[0]) continue;
-    return walkStaticReceiverStep({
-      node: prop.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited,
-    });
-  }
-  return null;
+    return keyName === walkPath[0];
+  });
+  if (!match) return null;
+  return walkStaticReceiverStep({
+    node: match.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited,
+  });
 }
 
 // the class's static FIELD (value-bearing) matching `key`; methods / accessors are dynamic
