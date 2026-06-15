@@ -253,3 +253,22 @@ QUnit.test('optional non-bare root single-eval: getO()?.p.slice(1).flat(2)', ass
   assert.same(calls, 1);
   assert.same(null?.p.slice(1).flat(2), undefined);
 });
+
+// combined chain: optional inner call reached through a side-effecting computed key, with a trailing
+// hop. per ECMA the receiver object evaluates before the computed key, so `recv()` must run before
+// the key effect. (was unplugin-only: key effect emitted ahead of the receiver memo)
+QUnit.test('optional combined chain: receiver evaluates before computed-key SE', assert => {
+  const log = [];
+  const recv = () => {
+    log.push('recv');
+    return [[1]];
+  };
+  const key = () => {
+    log.push('key');
+    return 'flat';
+  };
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const r = recv()[key(), 'flat']?.().map(x => x);
+  assert.deepEqual(r, [1]);
+  assert.deepEqual(log, ['recv', 'key']);
+});
