@@ -242,10 +242,19 @@ export const RENAME_SKIP = Symbol('rename-skip');
 // recover a NodePath for a known AST node by identity match, traversing from `scope`'s
 // program root. `types` is the visitor-key list (`['ClassDeclaration']`,
 // `['FunctionDeclaration', 'TSDeclareFunction']`); caller pre-narrows by type to bound
-// traversal cost. `p.stop()` halts the walk once the match is set. rare slow path -
-// only fires when downstream needs a NodePath but only has the raw node (e.g. namespace
-// merge resolution, qualified type-ref class lookup)
+// traversal cost. `p.stop()` halts the walk once the match is set. fires when downstream needs a
+// NodePath but only has the raw node (namespace merge resolution, qualified type-ref class lookup)
+//
+// a recovered path is intrinsic to its node (one location per parse), so the same node looked up
+// repeatedly - e.g. a widely-referenced `NS.Type` whose decl is recovered once per reference - must
+// not re-traverse the whole program each time. memoize HITS keyed on the node (WeakMap keys are
+// per-parse nodes, GC'd with the AST: no cross-transform leak, no manual reset). misses are NOT
+// cached - they depend on the `types` filter, and a later wider-typed lookup may still find the node
+const nodePathInScopeCache = new WeakMap();
 export function nodePathInScope(targetNode, scope, types) {
+  if (!targetNode) return null;
+  const cached = nodePathInScopeCache.get(targetNode);
+  if (cached) return cached;
   let cur = scope;
   while (cur?.parent) cur = cur.parent;
   const rootPath = cur?.path;
@@ -259,6 +268,7 @@ export function nodePathInScope(targetNode, scope, types) {
   const visitors = {};
   for (const type of types) visitors[type] = visit;
   rootPath.traverse(visitors);
+  if (found) nodePathInScopeCache.set(targetNode, found);
   return found;
 }
 
