@@ -47,7 +47,9 @@ export function createUsageGlobalCallback({
   // `undefined` for `.metadata` instead of throwing). no-op for non-static / receiver-less metas
   function injectBaseConstructor(meta, path) {
     if (meta.kind !== 'property' || meta.placement !== 'static' || !meta.object) return;
-    const constructorDeps = resolveUsage({ kind: 'global', name: meta.object }, path);
+    // skip call-shape filters: this pass injects the constructor because a static member is read,
+    // so the constructor's own arg-count filters must not gate it on the static-method call's args
+    const constructorDeps = resolveUsage({ kind: 'global', name: meta.object }, path, { skipFilters: true });
     if (constructorDeps) for (const entry of constructorDeps) injectModulesForModeEntry(entry);
   }
 
