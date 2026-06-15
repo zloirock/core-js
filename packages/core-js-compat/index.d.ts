@@ -15,11 +15,41 @@ type CompatData = {
   }
 };
 
+/** `element` / `inherit` are resolution directives (defer to the container's element type), not type names */
+type ReturnTypeDirective = 'element' | 'inherit';
+
+type ReturnTypeHint = {
+  /** the value's type name (`Array`, `string`, `Promise`, ...) */
+  type: string,
+  /** container element type, or a resolution directive */
+  element?: ReturnTypeHint | ReturnTypeDirective,
+  /** the settled inner type (e.g. the value a returned Promise resolves to), or a directive */
+  resolved?: ReturnTypeHint | ReturnTypeDirective,
+  /** zero-based indices of arguments the method mutates in place (e.g. `Object.assign` -> `[0]`) */
+  mutatesArgument?: readonly number[],
+  /** zero-based index of the argument the method returns unchanged (e.g. `Object.freeze` -> `0`) */
+  returnsArgument?: number,
+};
+
+/** a method / property return hint, or a bare resolution directive (`Array#at` -> `element`) */
+type ReturnTypeHintValue = ReturnTypeHint | ReturnTypeDirective;
+
+type ConstructorReturnHint = {
+  type: string | null,
+  element?: ReturnTypeHint | ReturnTypeDirective,
+};
+
 type KnownBuiltInReturnTypes = {
-  staticMethods: {[className: string]: {[method: string]: string}},
-  staticProperties: {[className: string]: {[method: string]: string}},
-  instanceMethods: {[className: string]: {[method: string]: string}},
-  instanceProperties: {[className: string]: {[method: string]: string}},
+  globalMethods: {[method: string]: ReturnTypeHintValue},
+  globalProperties: {[property: string]: ReturnTypeHintValue},
+  staticMethods: {[className: string]: {[method: string]: ReturnTypeHintValue}},
+  staticProperties: {[className: string]: {[property: string]: ReturnTypeHintValue}},
+  instanceMethods: {[className: string]: {[method: string]: ReturnTypeHintValue}},
+  instanceProperties: {[className: string]: {[property: string]: ReturnTypeHintValue}},
+  staticTypeGuards: {[className: string]: {[method: string]: ReturnTypeHintValue}},
+  globalProxies: readonly string[],
+  namespaces: readonly string[],
+  constructors: {[name: string]: { new: ConstructorReturnHint, call: ConstructorReturnHint }},
 };
 
 declare const ExportedCompatObject: typeof $compat & {

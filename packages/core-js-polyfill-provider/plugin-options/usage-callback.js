@@ -37,6 +37,7 @@ export function createUsageGlobalCallback({
   isDisabled,
   resolveStaticInheritedMember,
   isInheritedStaticLookup,
+  isInStaticContext,
   isShadowedByClassOwnMember,
   enumerateFallbackBranches,
 }) {
@@ -84,10 +85,15 @@ export function createUsageGlobalCallback({
       && isThisReceiver(path?.node?.object)
       && isShadowedByClassOwnMember(path, meta.key)) return;
     const superMeta = tryResolveSuperStaticMeta({ meta, path, resolveStaticInheritedMember, isInheritedStaticLookup });
-    // inherited-static lookup where the member doesn't exist as static on the super class:
-    // `class C extends Array { static foo() { this.at(0) } }` - `at` is instance-only.
-    // bail rather than fall back to instance-method dispatch which over-injects
-    if (isInheritedStaticLookup && !superMeta && isInheritedStaticLookup(path)) return;
+    // a STATIC-context inherited lookup whose member is not a static on the super class:
+    // `class C extends Array { static foo() { this.at(0) } }` - `at` is instance-only and `this`/
+    // `super` resolve to the class, so the instance polyfill is dead; bail. but `super.X()` in an
+    // INSTANCE method reads the parent PROTOTYPE, where instance methods are live (`super.includes`
+    // -> Array.prototype.includes), so DON'T bail there - fall through to instance dispatch and
+    // inject (a static-named member like `super.from` resolves no prototype dep and no-ops anyway).
+    // gate on the static context so usage-global injects the live instance-method polyfill
+    if (isInheritedStaticLookup && !superMeta && isInheritedStaticLookup(path)
+      && (isInStaticContext?.(path) ?? true)) return;
     // ConditionalExpression / LogicalExpression destructure - runtime picks per-call.
     // dispatch each branch's deps independently so all viable polyfills get emitted at file
     // level; user's `cond ? Array : Iterator` for `from` brings in both `es.array.from` and

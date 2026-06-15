@@ -519,7 +519,9 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
     const callee = unwrapParens(aliasNode.callee);
     const binding = callee.type === 'Identifier' ? adapter.getBinding(scope, callee.name, path) : null;
     if (binding && isReassignedBeyondDeclarator(binding)) {
-      for (const rhs of reassignmentValueNodes({ binding, usagePath: path })) {
+      // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
+      // patternSlotValues - the Identifier-receiver branch above passes it for the same reason
+      for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: callee.name })) {
         const fn = unwrapParens(rhs);
         if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
           && !fn.params?.length && !fn.async && !fn.generator) {

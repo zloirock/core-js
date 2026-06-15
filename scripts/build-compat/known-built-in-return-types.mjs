@@ -24,6 +24,10 @@ function normalizeHint(hint) {
   // mutatesArgument: list of zero-based arg indices a static method mutates in place
   // (e.g. Object.assign -> [0] target). passed through unchanged - no inner hint
   if (hint.mutatesArgument !== undefined) result.mutatesArgument = hint.mutatesArgument;
+  // returnsArgument: zero-based index of the argument a method returns unchanged (ECMAScript
+  // identity, e.g. Object.freeze -> 0). lets the resolver keep the argument's concrete type
+  // instead of the declared `type`. passed through unchanged - no inner hint
+  if (hint.returnsArgument !== undefined) result.returnsArgument = hint.returnsArgument;
   return result;
 }
 
