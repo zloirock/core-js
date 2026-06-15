@@ -58,6 +58,13 @@ export function isInterfaceDeclaration(decl) {
   return decl?.type === 'TSInterfaceDeclaration' || decl?.type === 'InterfaceDeclaration';
 }
 
+// shared accessor for TS/Flow interface body shape: `TSInterfaceBody.body` (TS) vs
+// `ObjectTypeAnnotation.properties` (Flow's InterfaceDeclaration). always returns an
+// array - falsy bodies (parse error / empty decl) collapse to empty
+export function interfaceBodyMembers(iface) {
+  return iface.body?.body ?? iface.body?.properties ?? [];
+}
+
 // TS + Flow union-type predicate. the discriminant narrower, the alias-walk flattener, and
 // several member / call / annotation resolvers all gate on this exact pair - shape parity
 // must stay in sync, so it lives here as the single source
