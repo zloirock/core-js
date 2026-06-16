@@ -198,6 +198,19 @@ QUnit.test('destructuring: sequence expression init', assert => {
   assert.deepEqual(from('abc'), ['a', 'b', 'c']);
 });
 
+// a side-effect-FREE sequence prefix that is an UNINVOKED function expression holding a polyfilled
+// call (`[1].at(0)`): the binding resolves from the static tail (`Array`), so the dead prefix is
+// dropped without injecting the prefix's polyfill or orphaning a transform inside the dropped span.
+// (was unplugin-only: the orphaned inner transform crashed at compose time)
+QUnit.test('destructuring: uninvoked SE-free prefix with inner polyfill is dropped', assert => {
+  const { from } = (function () { return [1].at(0); }, Array);
+  assert.deepEqual(from('xy'), ['x', 'y']);
+  // arrow prefix shape (also uninvoked, also side-effect-free)
+  // eslint-disable-next-line @stylistic/no-extra-parens -- uninvoked-arrow-prefix shape under test
+  const { of } = ((() => [9].at(0)), Array);
+  assert.deepEqual(of(1, 2), [1, 2]);
+});
+
 // nested sequence parens make the SE prefix non-contiguous in source; the lifted
 // statement must rebuild a flat comma list, in source order, with the dead tail gone
 QUnit.test('destructuring: nested sequence expression init flattens in order', assert => {
@@ -233,6 +246,22 @@ QUnit.test('destructuring: nested-proxy assignment value is the proxy object', a
   const v = ({ Map: { customY } } = globalThis);
   assert.same(v, globalThis);
   assert.same(typeof customY, 'undefined');
+});
+
+// inner-level rest beside a consumed [Symbol.iterator] key under a proxy-global hop. the consumed
+// key is extracted via the iterator-method polyfill, and the residual rest pattern re-keys through
+// the polyfilled Symbol.iterator binding so the kept sentinel stays a valid computed key. (was
+// unplugin-only: the inner sentinel leaked the native [Symbol.iterator], a ReferenceError on ie:11)
+// NATIVE-SYMBOL ONLY: conflict with Babel `_toPropertyKey` -> `_toPrimitive`
+if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: nested-proxy inner rest beside consumed Symbol.iterator', assert => {
+  const src = { inner: { [Symbol.iterator]: [1, 2, 3][Symbol.iterator], extra: 'kept' } };
+  const { inner: { [Symbol.iterator]: it, ...rest } } = src;
+  assert.same(typeof it, 'function');
+  // the iterator method works when invoked with its array receiver
+  assert.same(it.call([7, 8]).next().value, 7);
+  // rest gathers OTHER own keys but EXCLUDES the consumed iterator key
+  assert.same(rest.extra, 'kept');
+  assert.false(Symbol.iterator in rest);
 });
 
 // catch-param destructure: a polyfillable key dispatches off the thrown object; a plain

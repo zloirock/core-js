@@ -16,6 +16,8 @@ import {
   isTaggedTemplateTag,
   isThisReceiver,
   isUpdateTarget,
+  mayHaveSideEffects,
+  peelNestedSequenceExpressions,
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -988,13 +990,13 @@ export default function createPlugin(options) {
             const generic = resolvePureGeneric(meta, metaPath);
             if (generic) pureResult = generic;
           }
+          // the inherited-static-resolves-to-instance bail (`super.X` / `this.X` in static ctx where
+          // X has no static on the super class) lives in the provider's `resolvePureWith` now (single
+          // sourced with usage-global's `resolveUsage`), so `pureResult` is already null for that shape
+          // and the `if (!pureResult) return;` above caught it - the fallback never fires (gated on
+          // `!inheritedStatic`)
           if (!pureResult) return;
           const { entry: importEntry, kind, hintName } = pureResult;
-          // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
-          // on the super class - resolve() falls back to instance. for super: syntactically
-          // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
-          // `_at(this)` would treat the class as an array. either way, bail
-          if (kind === 'instance' && node.type === 'MemberExpression' && inheritedStatic) return;
           const binding = injectPureImport(importEntry, hintName);
 
           // proxy-global suppression is dispatch-conditional. instance dispatch leaves the
@@ -1049,7 +1051,23 @@ export default function createPlugin(options) {
           Program(path) { injector.rootScope = path.scope; },
           VariableDeclaration(path) {
             for (const d of path.node.declarations) {
-              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) skippedNodes.add(d.init);
+              if (!d.init || !canFullyConsumeProxyDeclarator(d, path.scope, path)) continue;
+              skippedNodes.add(d.init);
+              // a fully-consumed declarator whose init is a SEQUENCE EXPRESSION drops the whole init
+              // (the emitter neither uses its tail value nor SE-lifts a side-effect-free prefix). a
+              // polyfill buried in a dead SE-free PREFIX operand (`const { from } = ((() =>
+              // [1].at(0)), Array)`: the uninvoked arrow's `[1].at(0)`) would otherwise inject a dead
+              // import AND queue a transform that orphans inside the dropped-init overwrite -> "could
+              // not locate inner needle" composition crash. skip the whole subtree of each
+              // SIDE-EFFECT-FREE prefix operand, matching babel which drops the dead prefix subtree
+              // and prunes its now-unreferenced imports. a side-effecting prefix is kept (SE-lifted),
+              // so its inner polyfill must survive - left visitable. conditional / logical fallback
+              // inits (`cond ? Array : Set`) have NO sequence prefix and are rewritten per-branch -
+              // they must NOT be skipped, so this is gated on a real SE prefix
+              const { prefix } = peelNestedSequenceExpressions(d.init);
+              for (const operand of prefix) {
+                if (!mayHaveSideEffects(operand)) walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
+              }
             }
             // unconditional proxy-hop trigger (the retired normalize pre-pass's job): an
             // anchored plan must fire even when no leaf resolves

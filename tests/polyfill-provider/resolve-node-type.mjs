@@ -684,6 +684,75 @@ runBoth('discriminant union: `&&` clause contributes',
     checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
   });
 
+// a bigint discriminant must canonicalize by VALUE, not source radix: `0x1n` (union member) and
+// `1n` (guard) are the same bigint, so the guard narrows to the `{kind:1n,x:string}` branch and
+// `u.x` is `string`. keying the raw magnitude ("0x1n" != "1n") would drop the narrow and leave
+// `u.x` as the unrefined union (the babel/oxc parity divergence: oxc keeps a decimal magnitude,
+// babel a radix-prefixed one)
+runBoth('discriminant union: hex bigint guard narrows decimal bigint member',
+  `
+    type U = { kind: 0x1n; x: string } | { kind: 0x2n; x: number[] };
+    function f(u: U) { if (u.kind === 1n) { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
+  });
+
+// matched-radix control: decimal member + decimal guard narrows (proves the canonicalization did
+// not over-widen the equality - same-value bigints still compare equal)
+runBoth('discriminant union: decimal bigint guard narrows decimal bigint member',
+  `
+    type U = { kind: 1n; x: string } | { kind: 2n; x: number[] };
+    function f(u: U) { if (u.kind === 1n) { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
+  });
+
+// disjointness control: a bigint guard must NOT match a same-DIGIT number member - `1n !== 1`, so
+// neither branch matches and the narrow yields the unrefined union (the trailing `n` suffix keeps
+// the bigint key disjoint from the number key)
+runBoth('discriminant union: bigint guard does not narrow same-digit number member',
+  `
+    type U = { kind: 1; x: string } | { kind: 2; x: number[] };
+    function f(u: U) { if (u.kind === 1n) { return u.x; } }
+  `,
+  (adapter, prog, lbl) => {
+    const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+      let parent = p.parentPath;
+      while (parent) {
+        if (parent.node?.type === 'ReturnStatement') return true;
+        parent = parent.parentPath;
+      }
+      return false;
+    });
+    const resolver = adapter.makeResolver();
+    // no branch matches the bigint guard, so `u.x` stays the union (`string | number[]`) - the
+    // resolver yields the union, not a single narrowed primitive / ctor
+    const resolved = resolver.resolveNodeType(refs[0]);
+    if (resolved && resolved.primitive === true && resolved.kind === 'string') {
+      throw new Error(`${ lbl }: bigint guard wrongly narrowed a same-digit NUMBER member to string`);
+    }
+  });
+
 // --- Mapped types ---
 // covers `parseMappedTypeShape` (`keyof` vs literal-union dispatch),
 // `expandMappedTypeMembers` (per-key body resolution), and
@@ -933,8 +1002,11 @@ runBoth('capture-avoidance: interface collider Wrap<string, A> resolves external
     checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
   });
 
-// default-valued colliding param (not only explicit args): `Q = A` defaults to the external alias A
-runBoth('capture-avoidance: default-valued alias collider Wrap<A, Q = A> resolves A=number[]',
+// a DEFAULT-valued colliding param is the OPPOSITE of an explicit collider: the default `Q = A`
+// lives in the DECLARATION scope, where the sibling type-param `A` SHADOWS the outer `type A`, so
+// `Q` binds to the param value (`Wrap<string>` sets `A = string`), NOT the external `type A`.
+// capture-avoidance must therefore NOT fire on defaults - only the transitive substitution binds it
+runBoth('capture-avoidance: default collider Wrap<A, Q = A> binds the SHADOWING sibling param',
   `
     type A = number[];
     interface Wrap<A, Q = A> { item: Q; }
@@ -943,6 +1015,56 @@ runBoth('capture-avoidance: default-valued alias collider Wrap<A, Q = A> resolve
   `,
   (adapter, prog, lbl) => {
     const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item = Q = sibling param A = string (string `at`), NOT the outer number[]
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'string' });
+  });
+
+// flipped direction proves it binds the param value, not a fixed answer: outer `type A = string`,
+// sibling `A` bound to `number[]` -> `Q = A` is `number[]`. without the explicit-only gate the
+// resolver returned the EXTERNAL `string` here (the opposite of the case above), so this nails the
+// binding to the param regardless of which side carries the array type
+runBoth('capture-avoidance: default collider binds sibling param value (flipped) Wrap<number[]>',
+  `
+    type A = string;
+    interface Wrap<A, Q = A> { item: Q; }
+    declare const w: Wrap<number[]>;
+    const y = w.item.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item = number[] -> array element narrowing
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
+// a default whose value NESTS the colliding sibling (`Q = { x: A }`) binds the nested `A` to the
+// sibling param too (decl scope), not the external `type A`. mirror of the explicit-nested case
+// below, in the opposite scope direction
+runBoth('capture-avoidance: default nests sibling Wrap<A, Q = { x: A }> binds the param',
+  `
+    type A = string;
+    interface Wrap<A, Q = { x: A }> { item: Q; }
+    declare const w: Wrap<number[]>;
+    const y = w.item.x.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item.x = sibling A = number[] -> array element narrowing
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
+// an EXPLICIT collider nested inside a structural arg (`Wrap<string, { x: A }>`) must still resolve
+// the external `type A` - the structural arg is written in the CALLER scope where the decl's own
+// params are NOT in scope. without nested reach the inner `A` was recaptured to the sibling value
+runBoth('capture-avoidance: explicit collider nested in structural arg Wrap<string, { x: A }>',
+  `
+    type A = number[];
+    interface Wrap<A, Q> { item: Q; }
+    declare const w: Wrap<string, { x: A }>;
+    const y = w.item.x.at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'at');
+    // TS: w.item.x = external A = number[] -> array element narrowing
     checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
   });
 
@@ -4847,6 +4969,28 @@ runBoth('no-subst conditional infer disjoint check resolves false branch (not a 
     checkType(lbl, objType, { primitive: true, kind: 'number' });
   });
 
+// the Promise synonyms `PromiseLike<infer U>` / `Thenable<infer U>` unwrap a `Promise<X>` check the
+// same way `Promise<infer U>` does: the check-side resolver normalizes all three to constructor
+// `'Promise'`, so the container-family guard must fold the synonym pattern names too or it wrongly
+// takes the FALSE branch (a wrong-receiver polyfill: `string` instead of the inferred `number[]`)
+for (const container of ['Promise', 'PromiseLike', 'Thenable']) {
+  runBoth(`${ container }<infer U> over Promise<number[]> unwraps to the inferred Array element`,
+    `type T<P> = P extends ${ container }<infer U> ? U : string;\ndeclare const y: T<Promise<number[]>>;\ny.at(0);`,
+    (adapter, prog, lbl) => {
+      const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(member), { primitive: false, ctor: 'Array' });
+    });
+}
+
+// disjoint control: a `Set<X>` check side does NOT match a `PromiseLike<infer U>` pattern, so the
+// conditional stays the FALSE branch (`string`) - the synonym fold must not over-match unrelated families
+runBoth('PromiseLike<infer U> over Set<number> stays the false branch (string)',
+  'type T<P> = P extends PromiseLike<infer U> ? U : string;\ndeclare const y: T<Set<number>>;\ny.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolvePropertyObjectType(member), { primitive: true, kind: 'string' });
+  });
+
 // a discriminant narrow is dropped when the discriminated binding is reassigned inside a captured
 // function (which may run before the use) - mirrors the typeof-guard captured-mutation soundness filter
 runBoth('discriminant narrow drops on captured-function reassignment',
@@ -4919,6 +5063,19 @@ runBoth('double-SE IIFE proxy-global `(0, (1, () => globalThis))().Array.from(..
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// the binding adapter forwards a pure-import CONSTRUCTOR hint (`_Array` -> `Array`), not just the
+// 4 global-proxy names, so a destructure off a plugin-rewritten constructor stub recovers the source
+// constructor: `const { from } = _Array; from(...)` resolves to `Array.from`'s return type and the
+// chained `.at` receiver narrows to Array. gating the hint to global-proxies left this recovery dead
+runBoth('destructure off a pure-import constructor stub recovers the static-method return narrow',
+  'import _Array from "@core-js/pure/actual/array";\nconst { from } = _Array;\nfrom([1, 2, 3]).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    // mirror injector.getBindingInfo(name).hint: the `_Array` import stub maps to source ctor `Array`
+    const resolver = adapter.makeResolver({ getPolyfillBindingHint: (scope, name) => name === '_Array' ? 'Array' : null });
+    checkType(lbl, resolver.resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
 finish();
