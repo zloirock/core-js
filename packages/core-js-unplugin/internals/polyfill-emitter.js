@@ -54,6 +54,7 @@ export function createPolyfillEmitter({
   estreeAdapter,
   injectPureImport,
   isEntryNeeded,
+  isInStaticContext,
   NEEDS_GUARD_PARENS,
   enclosingExpressionStatementPath,
   isBodylessStatementBody,
@@ -453,18 +454,66 @@ export function createPolyfillEmitter({
   //      the surrounding `?:`
   //   4. source has `?.` continuation right after the replaced span - parens prevent
   //      runaway chain extension into the replacement
-  function guardNeedsParens({ metaPath, isCall, start, end }) {
+  // returns { needsParens, tipEnd }. the four documented cases wrap just the transformed span
+  // [start, end]; a FIFTH case (the gap they miss) handles a TERMINAL non-optional member / call
+  // tail the guard ternary spans (`a?.at(-1).x ** 2`) sitting beneath an OPERATOR - the wrap must
+  // reach `tipEnd` (the tail's end) so the operator binds the whole guarded value, not just the tail
+  function resolveGuardWrap({ metaPath, isCall, start, end }) {
     let outer = (isCall ? metaPath.parentPath : metaPath)?.parentPath;
     let throughTS = false;
     while (outer?.node && (outer.node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(outer.node.type))) {
       if (TS_EXPR_WRAPPERS.has(outer.node.type)) throughTS = true;
       outer = outer.parentPath;
     }
-    if (throughTS && !sharesChainExpression(metaPath, outer)) return true;
-    if (NEEDS_GUARD_PARENS.has(outer?.node?.type)) return true;
-    if (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === end) return true;
+    if ((throughTS && !sharesChainExpression(metaPath, outer))
+      || NEEDS_GUARD_PARENS.has(outer?.node?.type)
+      || (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === end)) {
+      return { needsParens: true, tipEnd: end };
+    }
     const p = skipGap(code, end);
-    return code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end);
+    if (code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end)) {
+      return { needsParens: true, tipEnd: end };
+    }
+    // fifth case: step past Chain / TS wrappers AND non-optional tails sharing the chain start
+    // (the guarded ternary spans them - the trailing `.x` sits UNDER its ChainExpression, so the
+    // walk above stops short of the operator), tracking the tail tip. an optional continuation
+    // (`?.()`) keeps its own guard, so stop there; wrap only if the parent past the tail is an operator
+    let tipEnd = end;
+    while (outer?.node) {
+      const tn = outer.node.type;
+      if (tn === 'ChainExpression' || TS_EXPR_WRAPPERS.has(tn)) {
+        outer = outer.parentPath;
+        continue;
+      }
+      if ((tn === 'MemberExpression' || tn === 'CallExpression')
+        && !outer.node.optional && outer.node.start === start) {
+        if (outer.node.end > tipEnd) tipEnd = outer.node.end;
+        outer = outer.parentPath;
+        continue;
+      }
+      break;
+    }
+    // past the tail, the real parent needs grouping by the SAME rules as the four cases above, now
+    // measured at `tipEnd`: an operator (NEEDS_GUARD_PARENS) OR a ConditionalExpression whose test is
+    // the whole guarded chain (`a?.at(-1).x ? 1 : 2` -> `(guard) ? 1 : 2`, else the `? :` binds to the
+    // success branch only). throughTS / `?.`-continuation stay anchored at `end` (handled above) -
+    // a trailing tail never introduces those
+    if (tipEnd > end && (NEEDS_GUARD_PARENS.has(outer?.node?.type)
+      || (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === tipEnd))) {
+      return { needsParens: true, tipEnd };
+    }
+    return { needsParens: false, tipEnd: end };
+  }
+
+  // splice a guard ternary into its paren wrap, extending over a trailing source tail (`.x` / `[k]`)
+  // when one pushes the chain past the transformed span so a parent operator binds the whole guarded
+  // value (`(a?.at(-1).x) ** 2`, not `a?.at(-1).x ** 2`). returns the [possibly extended] emit end;
+  // a tail carrying its own nested transforms falls back to the plain wrap (range stays [.., end])
+  function wrapGuardOverTail(replacement, start, end, tipEnd) {
+    if (tipEnd > end && !transforms.hasTransformWithin(end, tipEnd)) {
+      return { replacement: `(${ replacement }${ code.slice(end, tipEnd) })`, end: tipEnd };
+    }
+    return { replacement: `(${ replacement })`, end };
   }
 
   // two paths share a ChainExpression iff their closest enclosing ChainExpression
@@ -595,7 +644,7 @@ export function createPolyfillEmitter({
     }
     const argsSrc = isCall ? sliceBetweenParens(parent) : null;
     const start = isCall ? parent.start : node.start;
-    const end = isCall ? parent.end : node.end;
+    let end = isCall ? parent.end : node.end;
     const isNew = parent?.type === 'NewExpression';
     // optional method call (`recv.m?.()`): keep `this` by routing the body through `_ref.call(recv)`.
     // computed before the guard ref so a memoized receiver ref precedes it (matches babel order)
@@ -626,8 +675,9 @@ export function createPolyfillEmitter({
     });
     let { replacement } = built;
     const { split } = built;
-    if (optionalRoot && guardNeedsParens({ metaPath, isCall, start, end })) {
-      replacement = `(${ replacement })`;
+    if (optionalRoot) {
+      const { needsParens, tipEnd } = resolveGuardWrap({ metaPath, isCall, start, end });
+      if (needsParens) ({ replacement, end } = wrapGuardOverTail(replacement, start, end, tipEnd));
     }
     // ASI guard runs UNCONDITIONALLY for any `(`-leading replacement -- covers both the
     // optionalRoot-wrap above and the bare SE-wrap path (`(sideEffect, _at(obj).call(obj,
@@ -925,11 +975,6 @@ export function createPolyfillEmitter({
     if (current?.type !== 'CallExpression' || !current.optional) return null;
     const { callee } = current;
     if (callee?.type !== 'MemberExpression') return null;
-    // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
-    // OR-chain template, but `super` is not a primary expression and the codegen
-    // produces invalid JS. let `super` chains fall through to addInstanceTransform's
-    // dedicated super-call handling instead
-    if (callee.object?.type === 'Super') return null;
     // resolve the method name + key side effects. a plain `.flat` uses the Identifier name; a
     // computed key `[(eff(), 'flat')]` peels its SequenceExpression to a static string key and folds
     // the prefix SE into the inner method-get so it evaluates once (instead of being duplicated by a
@@ -950,15 +995,30 @@ export function createPolyfillEmitter({
     const meta = { kind: 'property', object: null, key: innerMethodName, placement: 'prototype' };
     const { result } = resolvePureOrGlobalFallback(meta, currentPath.get('callee'));
     if (result && result.kind !== 'instance') return null;
-    // non-poly inner (result null): the standalone path already handles a single trailing poly,
+    // a `super.X?.()` chainStart is NOT polyfilled (the parent's method is used via `_ref.call(this)`,
+    // mirroring the standalone super-call path): treat it as a non-poly inner so the combine memoizes
+    // the method-GET `super.X` instead of the receiver `super` (which can't be assigned into a `_ref`).
+    // this is exactly what lets the combine subsume `super.flat?.().map().at()` into ONE guard instead
+    // of falling to overlapping standalones (the "could not locate inner needle" crash)
+    const isSuper = callee.object?.type === 'Super';
+    // only INSTANCE-context super (`super.flat` / `super.custom` in an instance method -> the parent's
+    // native instance method, memoized as the method-GET) is taken over by the combine - it handles a
+    // poly OR a non-poly method. a STATIC-context super method (`super.of` in a static method) resolves
+    // to a polyfillable static the standalone DEOPTIMIZES (always-defined -> no guard,
+    // `_Array$of.call(this)`); keep bailing those to the standalone so the deopt parity is preserved.
+    // delegate to the canonical static-context helper (the static-ness is the enclosing method's, not
+    // a property of the method NAME resolution - a non-poly instance super has no resolved result)
+    if (isSuper && isInStaticContext(currentPath)) return null;
+    const effectiveResult = isSuper ? null : result;
+    // non-poly inner (effectiveResult null): the standalone path already handles a single trailing poly,
     // member-only hops, and static / global inner calls (always-defined -> deopts to no-guard
     // compose) correctly. only take over when MULTIPLE trailing polys are present - each would
     // otherwise queue a standalone transform overlapping the shared optional call (composition
     // crash). exclude always-defined-optional inners so `Array.from?.().flat().at()` keeps its
     // deopt + compose shape rather than emitting a raw guarded `Array.from`
-    if (!result && (!hops.some(h => h.poly)
+    if (!effectiveResult && (!hops.some(h => h.poly)
       || isPolyfillableOptional({ node: current, scope: metaPath.scope, adapter: estreeAdapter, resolve: resolveBuiltIn }))) return null;
-    return { chainStart: current, innerCallee: callee, innerResult: result ?? null, hops, innerKeySE, innerMethodName };
+    return { chainStart: current, innerCallee: callee, innerResult: effectiveResult, hops, innerKeySE, innerMethodName };
   }
 
   // mark every intermediate hop between the outer callee's receiver and `chainStart` as
@@ -996,17 +1056,21 @@ export function createPolyfillEmitter({
   }
 
   // chain emit needs paren-wrap when (a) parent context demands grouping (BinaryExpression
-  // / UnaryExpression / etc. via `guardNeedsParens`), or (b) `.X` / `[X]` trails the chain
+  // / UnaryExpression / etc. via `resolveGuardWrap`), or (b) `.X` / `[X]` trails the chain
   // emit - the conditional `cond ? a : b` would otherwise bind the access to the success
   // branch only, stranding `void 0` in the null path. babel emits the wrap so trailing
   // accesses target the ternary result (restoring native TypeError semantics). discriminator
   // checks `.` (not `..` for rest/spread) and `[` for computed-member access
-  function chainEmitNeedsWrap(metaPath, parent) {
-    if (guardNeedsParens({ metaPath, isCall: true, start: parent.start, end: parent.end })) return true;
-    if (transforms.containsRange(parent.start, parent.end)) return false;
+  function chainEmitWrapInfo(metaPath, parent) {
+    const guard = resolveGuardWrap({ metaPath, isCall: true, start: parent.start, end: parent.end });
+    // operator parent (case a): wrap, extending over any trailing tail to `tipEnd`
+    if (guard.needsParens) return { needsWrap: true, tipEnd: guard.tipEnd };
+    // trailing `.X` / `[X]` (case b): wrap so the access targets the ternary result (native
+    // TypeError on the null path), but do NOT extend - the access stays raw source after the wrap
+    if (transforms.containsRange(parent.start, parent.end)) return { needsWrap: false, tipEnd: parent.end };
     const after = skipGap(code, parent.end);
     const c = code[after];
-    return (c === '.' && code[after + 1] !== '.') || c === '[';
+    return { needsWrap: (c === '.' && code[after + 1] !== '.') || c === '[', tipEnd: parent.end };
   }
 
   // thread collected hops onto the inner result. polyfillable hops re-emit inline
@@ -1066,12 +1130,20 @@ export function createPolyfillEmitter({
 
   function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain, sideEffects }) {
     const { chainStart, innerCallee, innerResult, hops, innerKeySE = [], innerMethodName } = chain;
+    // `super.m?.()` chainStart: memoize the method-GET `super.m` (assignable) instead of the receiver
+    // `super` (not a primary expression - `_ref = super` is invalid JS), and call it with `this`
+    // (`_ref.call(this)`). the super method itself is left native (not polyfilled), mirroring the
+    // standalone super-call path; only the trailing hops / outer poly are rewritten
+    const isSuper = innerCallee.object?.type === 'Super';
     // poly inner: the method-get is the polyfill call `_binding(receiver)`. non-poly inner
     // (innerResult null): the method-get is the raw member access `receiver.method`, guarded the
     // same way so a nullish `recv.m` short-circuits the chain to void 0 like native. a computed-key
     // inner (`recv[(eff(), 'flat')]?.()`) folds its key side effects into the method-get once
     const innerBinding = innerResult ? injectPureImport(innerResult.entry, innerResult.hintName) : null;
     function methodGet(arg) {
+      // super: the method-get is the verbatim `super.m` (already includes any computed key + its SE,
+      // which the single memo evaluates once); the receiver `arg` (`this`) is only the `.call` target
+      if (isSuper) return nodeSrc(innerCallee);
       // poly inner -> `_binding(arg)`; non-poly inner -> `arg.method` (parenthesize an assignment
       // arg so `.method` binds to the assignment result). a computed-key inner folds its key SE in
       // front so the effect runs exactly once: `(eff(), _binding(arg))`.
@@ -1097,14 +1169,19 @@ export function createPolyfillEmitter({
     // tries direct-Identifier / chain-rooted / SE-tail substitution, falling back to verbatim.
     // shared with the non-combined path so a TS-cast bare proxy-global (`(globalThis as any).flat?.()`)
     // collapses the SAME way it does there, instead of being kept verbatim and leaking the cast
-    const { src: receiver, skipNode } = resolveReceiverSource(innerCallee.object, metaPath);
+    // super: the `.call` receiver is `this` (a reusable primary), and the method-get `super.m` is
+    // memoized via the chainStart test, so no receiver substitution is needed
+    const { src: receiver, skipNode } = isSuper
+      ? { src: 'this', skipNode: null }
+      : resolveReceiverSource(innerCallee.object, metaPath);
     if (skipNode) skippedNodes.add(skipNode);
     // shared `isReusableReceiver` gate (also drives babel's `memoize`): a side-effect-free
     // Identifier / ThisExpression receiver can appear verbatim in every slot without `_ref = X`.
     // skipping the redundant memo aligns the chain-combined emit byte-for-byte with the
     // AST runner (e.g. `arr.flat?.().map(y => y)` -> `null == arr || ...` instead of
-    // `null == (_ref = arr) || ...`), saving one allocated `_ref` and matching parity
-    const isReceiverSafe = isReusableReceiver(innerCallee.object);
+    // `null == (_ref = arr) || ...`), saving one allocated `_ref` and matching parity.
+    // super's `this` receiver is always reusable
+    const isReceiverSafe = isSuper || isReusableReceiver(innerCallee.object);
     const aRef = isReceiverSafe ? receiver : scopeTracker.genRef();
     const anAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
     const innerArgs = sliceBetweenParens(chainStart) ?? '';
@@ -1171,11 +1248,14 @@ export function createPolyfillEmitter({
     // babel-compat.js, which folds the same SE into its conditional alternate
     const alternate = wrapSideEffects(`${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`, sideEffects);
     let replacement = `${ tests.join(' || ') } ? void 0 : ${ alternate }`;
-    if (chainEmitNeedsWrap(metaPath, parent)) {
-      replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, parent.start);
+    let emitEnd = parent.end;
+    const { needsWrap, tipEnd } = chainEmitWrapInfo(metaPath, parent);
+    if (needsWrap) {
+      ({ replacement, end: emitEnd } = wrapGuardOverTail(replacement, parent.start, parent.end, tipEnd));
+      replacement = asiGuardLeadingParen(replacement, metaPath, parent.start);
     }
 
-    transforms.add(parent.start, parent.end, replacement);
+    transforms.add(parent.start, emitEnd, replacement);
     skippedNodes.add(innerCallee);
     skippedNodes.add(parent);
     skipProxyGlobal(node);
