@@ -683,9 +683,13 @@ export function createTypeExpansion({
       if (family === 'iterable' || !checkType.constructor || !container) return true;
       // compare BASE container family - strip a `Readonly` prefix so `ReadonlyArray` / `ReadonlySet`
       // share their mutable form's element semantics (a `Set` IS-A `ReadonlySet`, an `Array` IS-A
-      // `ReadonlyArray`, and either direction binds the same element). a same-family match binds U
-      // precisely; a cross-family one (`Set` vs `Array<infer U>`) stays disjoint -> FALSE
-      const base = name => name.startsWith('Readonly') ? name.slice(8) : name;
+      // `ReadonlyArray`, and either direction binds the same element) AND fold the Promise synonyms
+      // (`PromiseLike` / `Thenable`) to `Promise`, matching the check-side resolver which always
+      // normalizes them: the check Type's constructor is `'Promise'` even for a `PromiseLike<infer U>`
+      // pattern, so without this fold the two sides never compare equal and the synonym pattern wrongly
+      // takes the FALSE branch (a wrong-receiver polyfill). a same-family match binds U precisely; a
+      // cross-family one (`Set` vs `Array<infer U>`) stays disjoint -> FALSE
+      const base = name => isPromiseRefName(name) ? 'Promise' : name.startsWith('Readonly') ? name.slice(8) : name;
       return base(checkType.constructor) === base(container);
     }
     return family === 'iterable' && checkType.type === 'string';

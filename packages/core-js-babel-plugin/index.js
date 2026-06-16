@@ -588,10 +588,9 @@ export default function plugin(api, options) {
         if (path.isObjectProperty()) {
           destructureEmit.handleObjectPropertyResult({ prop: path, meta, kind, entry, hintName });
         } else {
-          // inherited-static lookup where resolve() DID return an instance entry - `this` in
-          // static ctx is the constructor, not an instance; `_at(this)` would treat the class
-          // as an array. bail for the same reason as the no-result branch above
-          if (kind === 'instance' && inheritedStatic) return;
+          // the inherited-static-resolves-to-instance bail lives in the provider's `resolvePureWith`
+          // now (single-sourced with usage-global's `resolveUsage`), so `result` is already null here
+          // for that shape and the `inheritedStatic && !result` bail above caught it
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             const innerChain = findInnerPolyChain(path);
