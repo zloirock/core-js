@@ -1068,6 +1068,10 @@ function createResolveNodeType(babelNodeType, t, {
     const arrow = unwrapRuntimeExpr(node.callee);
     if (arrow?.type !== 'ArrowFunctionExpression' || arrow.params?.length) return null;
     if (arrow.body?.type === 'BlockStatement') return null;
+    // an async / generator IIFE evaluates to a Promise / Generator, NOT the body expression - peeling to
+    // the body would narrow `const x = (async () => [1, 2, 3])()` to Array and inject `Array#includes` on a
+    // Promise. keep it opaque so the call's real (wrapper) return type stands
+    if (arrow.async || arrow.generator) return null;
     const arrowPath = walkPathToNode(initPath.get('callee'), arrow);
     return arrowPath?.get('body') ?? null;
   }
