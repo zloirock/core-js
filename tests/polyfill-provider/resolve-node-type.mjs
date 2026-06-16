@@ -456,6 +456,24 @@ runBoth('member object type: "".length -> string',
     checkType(lbl, objType, { primitive: true, kind: 'string' });
   });
 
+// a zero-arg expression-body IIFE init is peeled to its body, so the binding narrows to the body type
+runBoth('member object type: sync zero-arg IIFE init narrows to body (Array)',
+  'const x = (() => [1, 2, 3])(); const n = x.at(-1);', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolvePropertyObjectType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// PP06-1: an ASYNC IIFE returns a Promise, not the body value - the peel must bail so the binding is NOT
+// narrowed to Array (else `Array#includes` would be injected on a Promise)
+runBoth('member object type: async zero-arg IIFE init is NOT narrowed to body (Array)',
+  'const x = (async () => [1, 2, 3])(); const n = x.includes(2);', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const resolver = adapter.makeResolver();
+    const objType = resolver.resolvePropertyObjectType(member);
+    check(`${ lbl } async-IIFE init not narrowed to Array`, !(objType && objType.constructor === 'Array'), true);
+  });
+
 // --- Conditional type resolution ---
 
 runBoth('TS conditional: `T extends string ? Array : Map` with concrete T -> Array',
