@@ -140,3 +140,39 @@ QUnit.test('complex: recursive tree flattened via flat(Infinity) after map', ass
   }
   assert.deepEqual(collect(tree).flat(Infinity), [1, 2, 3, 4]);
 });
+
+// A side-effecting array literal is both the polyfill argument and the `.call(...)` this-arg, so the
+// emitters memoize it into a single `_ref` rather than re-emitting it. these lock that the receiver runs
+// EXACTLY once across the injection forms - a regression to re-emitting would fire the effect twice
+QUnit.test('complex: side-effecting literal receiver evaluated once in a direct call', assert => {
+  let calls = 0;
+  const make = () => {
+    calls += 1;
+    return calls;
+  };
+  const result = [make()].at(0);
+  assert.same(calls, 1);
+  assert.same(result, 1);
+});
+
+QUnit.test('complex: side-effecting literal receiver evaluated once across a method chain', assert => {
+  let calls = 0;
+  const make = () => {
+    calls += 1;
+    return calls;
+  };
+  const result = [make(), [99]].flat().at(-1);
+  assert.same(calls, 1);
+  assert.same(result, 99);
+});
+
+QUnit.test('complex: side-effecting literal receiver evaluated once in an optional call', assert => {
+  let calls = 0;
+  const make = () => {
+    calls += 1;
+    return calls;
+  };
+  const result = [make(), 8, 9]?.at(-1);
+  assert.same(calls, 1);
+  assert.same(result, 9);
+});
