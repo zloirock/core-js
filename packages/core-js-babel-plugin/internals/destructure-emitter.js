@@ -31,6 +31,7 @@ import {
   sequenceKeyStaticName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
+  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   classifyCallBranchForSynth,
@@ -38,6 +39,7 @@ import {
   renderSynthTree,
   buildNestedParamSynthPlan,
   canTransformDestructuring as sharedCanTransformDestructuring,
+  isConstantLiteralReceiver,
   isReReferenceableReceiver,
   nestedAssignmentStatementOf,
   planSideEffectKeyStrategy,
@@ -290,6 +292,25 @@ export default function createDestructureEmitter({
   // per-statement nested-instance overwrite tail: chains each overwrite off the previous one so a
   // multi-element pattern emits them in SOURCE order (last element wins, as native destructuring)
   const nestedOverwriteLastInsert = new WeakMap();
+  // receiver node -> the `_ref` identifier a body-extract memoized it into, so sibling leaves of the SAME
+  // constant-literal receiver (`{ b: { at, flat } } = { b: [..] }`) share one hoist instead of each
+  // duplicating the literal (mirrors unplugin's `bodyExtractReceiverRefs`; see `memoizeReceiver`)
+  const bodyExtractReceiverRefs = new WeakMap();
+  // declarator node -> its binding count, snapshotted on FIRST access (before a sibling prop's emission
+  // mutates the pattern - a static-flatten sibling removes its own prop). keyed so `soleBindingInDeclaration`
+  // is order-independent and matches unplugin (which never mutates the AST, so it always sees the original)
+  const declOriginalBindingCount = new WeakMap();
+  function originalBindingCount(prop) {
+    const declarator = prop.findParent(p => p.isVariableDeclarator());
+    if (!declarator) return 0;
+    let count = declOriginalBindingCount.get(declarator.node);
+    if (count === undefined) {
+      count = 0;
+      walkPatternIdentifiers(declarator.node.id, () => count++);
+      declOriginalBindingCount.set(declarator.node, count);
+    }
+    return count;
+  }
   function getAssignHostBookkeeping(assignNode) {
     let bk = assignHostBookkeeping.get(assignNode);
     if (!bk) {
@@ -1012,15 +1033,39 @@ export default function createDestructureEmitter({
   // `tryExtractArrayWrappedStatic`. returns false when it can't safely extract (no binding name, or an
   // instance receiver that isn't a bare Identifier -> would double-evaluate, since the residual reads it
   // too); the caller then leaves it native
-  function keepKeyInResidual({ prop, kind, entry, hintName, declaration, siblingDeclarator, objectNode }) {
+  function keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode }) {
     const valueNode = propBindingIdentifier(prop.node.value);
     if (!valueNode) return false;
+    // memoize a constant-literal receiver into a shared `_ref` so the surviving residual doesn't keep a
+    // duplicate of the (possibly large) literal beside the extract. one hoist per receiver; sibling leaves
+    // of the same receiver reuse the `_ref`. constant-only, so re-crawling the hoisted clone is inert
+    let receiverArg = objectNode;
+    if (plan.memoizeReceiver) {
+      let ref = bodyExtractReceiverRefs.get(objectNode);
+      if (!ref) {
+        ref = generateLocalRef(declaration.scope);
+        bodyExtractReceiverRefs.set(objectNode, ref);
+        declaration.insertBefore(t.variableDeclaration(declaration.node.kind,
+          [t.variableDeclarator(t.cloneNode(ref), t.cloneNode(objectNode))]));
+        // swap the receiver in the surviving residual for `_ref`, located by identity in the declaration
+        let receiverPath = null;
+        declaration.traverse({
+          enter(p) {
+            if (p.node !== objectNode) return;
+            receiverPath = p;
+            p.stop();
+          },
+        });
+        if (receiverPath) receiverPath.replaceWith(t.cloneNode(ref));
+      }
+      receiverArg = ref;
+    }
     let polyfillValue;
     if (kind === 'instance') {
       // the polyfill `_m(receiver)` re-references the receiver (the residual reads it too). the planner
       // (`planSideEffectKeyStrategy`) already admitted only re-referenceable receivers, so clone directly -
       // no local re-check (a duplicate gate here once drifted from the planner and left a literal native)
-      polyfillValue = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
+      polyfillValue = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverArg)]);
     } else {
       // global ctor (`{ [(eff(), 'Promise')]: P } = globalThis`): register a GLOBAL alias so member reads
       // re-polyfill (`P.allSettled` -> the pure static). ALSO registering it as a body-extract alias would
@@ -1032,7 +1077,17 @@ export default function createDestructureEmitter({
       else injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
       polyfillValue = t.cloneNode(injectPureImport(entry, hintName));
     }
-    if (siblingDeclarator) {
+    // dead residual: this leaf is the declaration's only binding and the init has no effect to preserve, so
+    // the destructure binds nothing observable - replace the whole declaration with just the extracted binding
+    if (plan.eliminateResidual) {
+      const isExport = declaration.parentPath?.isExportNamedDeclaration();
+      const extracted = t.variableDeclaration(declaration.node.kind,
+        [t.variableDeclarator(t.cloneNode(valueNode), polyfillValue)]);
+      (isExport ? declaration.parentPath : declaration)
+        .replaceWith(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
+      return true;
+    }
+    if (plan.siblingDeclarator) {
       // a preceding statement is impossible (loop header) or unsafe (a multi-declarator instance receiver
       // bound earlier in the same declaration would TDZ-fault) - bind the polyfill as a trailing sibling
       const trailing = t.variableDeclarator(t.cloneNode(valueNode), polyfillValue);
@@ -1071,20 +1126,30 @@ export default function createDestructureEmitter({
     if (!declaration) return false;
     const isForInit = declaration.parentPath?.isForStatement()
       && declaration.parentPath.node.init === declaration.node;
-    // resolve the instance receiver once: the planner needs its kind, `keepKeyInResidual` the node
+    // resolve the instance receiver once: the planner needs its kind, `keepKeyInResidual` the node. for the
+    // nested-receiver path `objectNode` is a bare node (no path); the SE-computed-key path resolves the
+    // declarator init, which `resolveNestedReceiverNode` also reaches - either way it gates memo / re-ref
     const objectNode = kind === 'instance'
       ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop)) : null;
+    // the declarator hosting this leaf + whether it is the declaration's only binding and its init is pure -
+    // lets the planner drop a dead residual / memoize a duplicated constant-literal receiver
+    const declarator = declaration.node.declarations.find(d => d.start <= prop.node.start && prop.node.end <= d.end);
+    const bindingCount = originalBindingCount(prop);
     const plan = planSideEffectKeyStrategy({
       polyfillKind: kind,
       isForInit,
       isMultiDeclarator: declaration.node.declarations.length > 1,
       receiverIsSafe: isReReferenceableReceiver(objectNode),
+      receiverIsConstantLiteral: isConstantLiteralReceiver(objectNode),
+      soleBindingInDeclaration: declaration.node.declarations.length === 1 && bindingCount === 1,
+      initIsPure: !!declarator && !mayHaveSideEffects(declarator.init),
+      propKeyIsPure: !(prop.node.computed && sequenceKeyPrefix(prop.node.key)),
     });
     // null = an instance receiver the residual can't safely re-reference (non-Identifier / multi-declarator).
     // leave the destructure NATIVE (return handled): falling through to the default instance extract would
     // discard the whole destructure and with it the key's EFFECT. unplugin likewise leaves it native
     if (!plan) return true;
-    return keepKeyInResidual({ prop, kind, entry, hintName, declaration, siblingDeclarator: plan.siblingDeclarator, objectNode });
+    return keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode });
   }
 
   // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
@@ -1096,6 +1161,9 @@ export default function createDestructureEmitter({
   // so we leave the code intact and warn - runtime correctness depends on which branch
   // fires and on native availability
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
+    // snapshot the original binding count BEFORE any sibling prop's emission below mutates the pattern,
+    // so a later instance prop's `soleBindingInDeclaration` reflects the source, not the shrunken pattern
+    originalBindingCount(prop);
     if (!meta?.fromFallback && prop.node.computed && sequenceKeyPrefix(prop.node.key)
       && handleSideEffectComputedKey({ prop, kind, entry, hintName })) return;
     if (meta?.fromFallback) {

@@ -60,6 +60,7 @@ import {
   renderSynthTree,
   classifyCallBranchForSynth,
   buildNestedParamSynthPlan,
+  isConstantLiteralReceiver,
   isReReferenceableReceiver,
   isViableBranchForKey,
   nestedAssignmentStatementOf,
@@ -191,6 +192,10 @@ export function createDestructureEmitter({
   // side-effecting-computed-key props already handled by `tryHandleSideEffectKeyDeclaration` - re-entry
   // guard so a re-visited prop doesn't queue duplicate (conflicting) transforms
   const handledSideEffectKeyProps = new WeakSet();
+  // receiver node -> the `_ref` name a body-extract memoized it into, so sibling leaves of the SAME
+  // constant-literal receiver (`{ b: { at, flat } } = { b: [..] }`) share one hoist + one text replacement
+  // instead of each duplicating the literal (see `memoizeReceiver` in `planSideEffectKeyStrategy`)
+  const bodyExtractReceiverRefs = new Map();
 
   // ---------- nested proxy-global flatten ----------
 
@@ -1857,11 +1862,20 @@ export function createDestructureEmitter({
     const isForInit = hostNode?.type === 'ForStatement' && hostNode.init === declaration;
     // top-level: `declarator.init`; nested: the receiver walked from the RHS along the nesting keys
     const receiverNode = resolveNestedReceiverNode(metaPath);
+    // the declarator hosting this leaf, plus whether it is the WHOLE declaration's only binding and whether
+    // its init carries no side effect - the planner needs these to drop a dead residual / memoize the receiver
+    const declarator = declaration.declarations.find(d => d.start <= propNode.start && propNode.end <= d.end);
+    let bindingCount = 0;
+    if (declarator) walkPatternIdentifiers(declarator.id, () => bindingCount++);
     const plan = planSideEffectKeyStrategy({
       polyfillKind: pureResult.kind,
       isForInit,
       isMultiDeclarator: declaration.declarations.length > 1,
       receiverIsSafe: isReReferenceableReceiver(receiverNode),
+      receiverIsConstantLiteral: isConstantLiteralReceiver(receiverNode),
+      soleBindingInDeclaration: declaration.declarations.length === 1 && bindingCount === 1,
+      initIsPure: !!declarator && !mayHaveSideEffects(declarator.init),
+      propKeyIsPure: !(propNode.computed && sequenceKeyPrefix(propNode.key)),
     });
     if (!plan) return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
@@ -1870,6 +1884,17 @@ export function createDestructureEmitter({
     const polyfillSrc = plan.instance ? `${ binding }(${ nodeSrc(receiverNode) })` : binding;
     // body-extract alias so post-rewrite narrowing resolves the local (static only; instance has none)
     if (!plan.instance) injector.registerBodyExtractAlias(localId.name, pureResult.entry, metaPath.scope?.getBinding(localId.name));
+    // dead residual: this leaf is the declaration's only binding and the init has no effect to preserve, so
+    // the destructure binds nothing observable - replace the whole declaration with just the extracted
+    // binding. emitted BEFORE the de-shorthand below (which would otherwise land a transform inside this
+    // overwrite). skip the declarator subtree so the visitor doesn't queue a rewrite inside the dropped range
+    if (plan.eliminateResidual) {
+      walkAstNodes({ root: declarator, visit: n => skippedNodes.add(n) });
+      const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
+      const [start, end] = exportNode ? [exportNode.start, exportNode.end] : [declaration.start, declaration.end];
+      transforms.add(start, end, `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ polyfillSrc };`);
+      return true;
+    }
     // rename the key's value to a throwaway: the effect stays in the kept key (runs once), the native
     // value + any dead default are read & discarded. skip the whole value SUBTREE so the visitor doesn't
     // polyfill a call inside a dead default (`= (log.push(), 9)`) - that would leave an orphaned transform
@@ -1904,6 +1929,26 @@ export function createDestructureEmitter({
       if (!entry || idx === -1) return false;
       entry.perDecl[idx].extractions.push({ decl: `${ localId.name } = ${ polyfillSrc }` });
     } else {
+      // memoize a constant-literal receiver into a single `_ref` so the surviving residual doesn't keep a
+      // duplicate of the (possibly large) literal beside the extract. one hoist + one receiver-text swap per
+      // receiver; sibling leaves of the same receiver reuse the `_ref`. only here (the standalone-insert
+      // shape) - the sibling-declarator / flatten branches are gated out of `memoizeReceiver`
+      let hoist = '';
+      let callSrc = polyfillSrc;
+      if (plan.memoizeReceiver) {
+        let refName = bodyExtractReceiverRefs.get(receiverNode);
+        if (refName === undefined) {
+          refName = injector.generateLocalRef();
+          bodyExtractReceiverRefs.set(receiverNode, refName);
+          // swap the receiver in the surviving residual for `_ref`; skip-mark it (a constant carries nothing
+          // to polyfill, and the range is now owned by this overwrite). `nodeSrc` still reads the original
+          // literal for the hoist below
+          walkAstNodes({ root: receiverNode, visit: n => skippedNodes.add(n) });
+          transforms.add(receiverNode.start, receiverNode.end, refName);
+          hoist = `${ declaration.kind } ${ refName } = ${ nodeSrc(receiverNode) };\n`;
+        }
+        callSrc = `${ binding }(${ refName })`;
+      }
       // an EXPORTED declaration: emit the extract as its own `export const` BEFORE the `export` keyword,
       // so the original destructure keeps its export (any real sibling binding stays exported). inserting
       // at `declaration.start` instead would land between `export` and `const`, stealing the keyword and
@@ -1911,7 +1956,7 @@ export function createDestructureEmitter({
       const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
       transforms.insert(
         exportNode ? exportNode.start : declaration.start,
-        `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ polyfillSrc };\n`,
+        `${ hoist }${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ callSrc };\n`,
       );
     }
     return true;
