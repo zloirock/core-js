@@ -1873,9 +1873,15 @@ export function createDestructureEmitter({
     // rename the key's value to a throwaway: the effect stays in the kept key (runs once), the native
     // value + any dead default are read & discarded. skip the whole value SUBTREE so the visitor doesn't
     // polyfill a call inside a dead default (`= (log.push(), 9)`) - that would leave an orphaned transform
-    // overlapping the rename. the default is discarded anyway, so its calls never run
+    // overlapping the rename. the default is discarded anyway, so its calls never run.
+    // a SHORTHAND prop (`{ at }`) has key === value, so renaming only the value span would emit `{ _unused }`
+    // (a shorthand reading the WRONG property `_unused`); de-shorthand to `at: _unused` to keep the original
+    // key read (getter side effects / `...rest` exclusion). a keyed prop (incl. an SE key `[se()]: a`)
+    // already separates key from value, so renaming the value alone preserves the key
     walkAstNodes({ root: propNode.value, visit: n => skippedNodes.add(n) });
-    transforms.add(propNode.value.start, propNode.value.end, injector.generateUnusedName());
+    const sentinel = injector.generateUnusedName();
+    transforms.add(propNode.value.start, propNode.value.end,
+      propNode.shorthand ? `${ flattenKeySrc(propNode) }: ${ sentinel }` : sentinel);
     if (plan.siblingDeclarator) {
       // preceding statement impossible (loop header) or unsafe (multi-declarator instance receiver bound
       // earlier in the same declaration -> TDZ) - append a trailing sibling declarator instead.

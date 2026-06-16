@@ -1095,7 +1095,8 @@ export default class TransformQueue {
           continue;
         }
         throw this.#invariant('could not locate inner needle in outer content. '
-          + `outer=[${ start },${ logicalEnd }] inner=[${ inner.start },${ innerEndLogical }]. `
+          + `outer=[${ start },${ logicalEnd }] inner=[${ inner.start },${ innerEndLogical }] `
+          + `needle=${ JSON.stringify(needle) }. `
           + 'this is a composition bug - please report with a reproducer.');
       }
       content = result.content;
