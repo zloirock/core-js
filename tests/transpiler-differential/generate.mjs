@@ -1,4 +1,4 @@
-// Transpiler-fuzz generator. Each family yields self-contained modules exporting `r` (the observed
+// Transpiler-differential generator. Each family yields self-contained modules exporting `r` (the observed
 // value) and `effects` (a side-effect log, so a receiver double-eval shows up as a duplicated
 // entry). Snippets must run natively without a "boring" throw so the runtime three-way comparison
 // stays high-signal. `arr`, `cond`, `nul`, `log` are bound by the prelude. Node-only: `globalThis`
@@ -528,7 +528,7 @@ const EXPR_FAMILIES = {
     '(() => { const { ["from"]: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
     // assignment-destructure hosts beyond the expression statement: for-init, call-arg and
     // arrow-body positions, plus the nested / array-wrapper parameter DEFAULT. the param
-    // emission is the LEAF inline default, so a caller-passed value keeps winning - fuzzed
+    // emission is the LEAF inline default, so a caller-passed value keeps winning - exercised
     // below with an explicit custom-argument call
     '(() => { let f; for (({ Array: { from: f } } = globalThis), 0; false;) {} return typeof f; })()',
     '(() => { let f; const id = x => x; id(({ Array: { from: f } } = globalThis)); return typeof f; })()',
@@ -549,7 +549,7 @@ const EXPR_FAMILIES = {
     // literal - the shapes stay verbatim (a one-branch literal TypeErrors the other branch;
     // rest must keep collecting the real receiver's extra enumerable keys)
     '(() => { function g({ Array: { from }, Set: { union } } = globalThis) { return [typeof from, typeof union]; } return g(); })()',
-    '(() => { Array.tmpFuzzX = 1; function g({ Array: { from, ...rest } } = globalThis) { return rest.tmpFuzzX; } const r = g(); delete Array.tmpFuzzX; return r; })()',
+    '(() => { Array.tmpDiffX = 1; function g({ Array: { from, ...rest } } = globalThis) { return rest.tmpDiffX; } const r = g(); delete Array.tmpDiffX; return r; })()',
     // full-mirror limits: an effectful default and a pattern-valued leaf stay verbatim - the
     // effect must run on the no-arg call; the leaf reads the native function's own props
     '(() => { const fxLog = []; function g({ Array: { from } } = (fxLog.push(1), globalThis)) { return [typeof from, fxLog.length]; } return g(); })()',
@@ -590,7 +590,7 @@ const EXPR_FAMILIES = {
     // SE-buried proxy root: the prefix runs exactly once and the static substitutes
     '(() => { let n = 0; const m = (n++, globalThis).Map.groupBy(["ab", "c"], s => s.length); return [m.get(1)[0], n]; })()',
     // alias-mutation canonicalization: the user patch through the alias wins over the polyfill
-    // (the original static is RESTORED so the shared fuzz runtime stays clean for other cases;
+    // (the original static is RESTORED so the shared runtime stays clean for other cases;
     // the mutation marks Array.of, so the restore read stays native too)
     '(() => { const A2 = Array; const orig = A2.of; A2.of = function () { return "patched"; }; const out = A2.of(1); A2.of = orig; return out; })()',
     // a reassigned alias: reads of EVERY reachable canonical stay native (mutation honored,
