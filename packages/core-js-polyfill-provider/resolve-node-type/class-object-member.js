@@ -301,15 +301,12 @@ export function createClassObjectMember({
     const retAnno = fnType.typeAnnotation ?? fnType.returnType;
     const ret = retAnno && unwrapTypeAnnotation(retAnno);
     if (!ret) return undefined;
-    if (ret.type !== 'TSUnionType') return resolveTypeAnnotation(ret, scope);
-    let folded = null;
-    for (const branch of ret.types) {
-      const resolved = resolveTypeAnnotation(branch, scope);
-      if (!resolved) return null;
-      folded = folded ? commonType(folded, resolved) : resolved;
-      if (!folded) return null;
-    }
-    return folded;
+    // delegate union folding to `resolveTypeAnnotation` (it already handles TSUnionType via
+    // `foldUnionTypes`, which SKIPS nullable/never members and folds the rest). the prior inline loop
+    // hard-bailed the whole union when any branch was unresolvable, dropping `() => number[] | undefined`
+    // to the generic helper instead of `number[]` (the `undefined` arm throws regardless of the
+    // polyfill choice, so narrowing past it is sound)
+    return resolveTypeAnnotation(ret, scope);
   }
 
   function resolveClassMemberNode(member, callPath, classSubst) {
