@@ -2271,7 +2271,7 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
-      'tests/transpiler-fuzz/tmp/**',
+      'tests/transpiler-differential/tmp/**',
       'tests/type-definitions/tmp/**',
       'website/dist/**',
       'website/src/public/*',

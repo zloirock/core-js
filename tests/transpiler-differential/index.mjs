@@ -1,4 +1,4 @@
-// Transpiler-fuzz coordinator: a differential parity check over GENERATED inputs. Each snippet
+// Transpiler-differential coordinator: a differential parity check over GENERATED inputs. Each snippet
 // passes when babel-plugin and unplugin agree on the injected import-set AND on runtime behaviour
 // (native == babel == unplugin), neither plugin throws, and (for grammar snippets) the polyfilled
 // output reproduces native in a builtin-absent realm. Body-shape (AST codegen vs text rewrite) is
@@ -11,7 +11,7 @@
 // process boundary. The fixed startup per shard (load @babel/core + @core-js + a stripped worker)
 // makes the win modest on a small corpus but it approaches N-fold as the corpus grows - the point.
 // Shard count defaults to ~cores/2 (each shard also forks ONE stripped worker, so cores/2 shards
-// keep total processes near core count); override with FUZZ_SHARDS.
+// keep total processes near core count); override with DIFF_SHARDS.
 import { fork } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 const { cyan, green, red } = chalk;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TMP = join(HERE, 'tmp');
-const SHARDS = Number(process.env.FUZZ_SHARDS) || Math.max(1, Math.floor(os.cpus().length / 2));
+const SHARDS = Number(process.env.DIFF_SHARDS) || Math.max(1, Math.floor(os.cpus().length / 2));
 
 // each eval writes a fresh temp module (dynamic-import never reuses a URL); without this the dir
 // grows unbounded across runs. clear ONCE here, before any shard writes its PID-prefixed files
@@ -34,7 +34,7 @@ function runShard(shard) {
     // execArgv: [] so the shard (a file module) does not inherit a loader / --input-type flag
     const child = fork(join(HERE, 'shard.mjs'), [], {
       execArgv: [],
-      env: { ...process.env, FUZZ_SHARD: `${ shard }/${ SHARDS }` },
+      env: { ...process.env, DIFF_SHARD: `${ shard }/${ SHARDS }` },
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
     let buf = '';
