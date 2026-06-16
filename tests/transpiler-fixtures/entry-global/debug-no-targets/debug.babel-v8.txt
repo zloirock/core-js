@@ -1,16 +1,6 @@
 core-js@4: `DEBUG` option
 
-Using targets: {
-  "android": "148.0.0",
-  "chrome": "109.0.0",
-  "edge": "147.0.0",
-  "firefox": "140.0.0",
-  "ios": "18.5.0",
-  "opera": "127.0.0",
-  "opera-android": "80.0.0",
-  "safari": "26.3.0",
-  "samsung": "29.0.0"
-}
+Using targets: <RESOLVED>
 
 Using polyfills with `entry-global` method:
 Based on your targets, the core-js@4 polyfill did not add any polyfill.
