@@ -13,7 +13,6 @@
 // common ancestor remains unsupported
 import {
   collectBuriedChainSePrefixes,
-  collectFoldedReceiverSideEffects,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
   buildFlatSynthEntries,
@@ -30,6 +29,7 @@ import {
   memberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyCallBranchForSynth, isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { collectFallbackCollapseLeftSe } from '@core-js/polyfill-provider/detect-usage/members';
 import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
@@ -167,11 +167,17 @@ export default function createSynthSwapEmitter({
     const receiver = targetPath.node;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
-    // `_globalThis` etc. into the range that synth-swap will replace. a fallback-logical
-    // receiver is replaced WHOLE - skip its full subtree or the identifier visitor leaks a
-    // dead import for the short-circuited right global
-    if (receiver.type === 'LogicalExpression') t.traverseFast(receiver, node => { skippedNodes.add(node); });
-    else markSynthReceiverSkipped(receiver, skippedNodes);
+    // `_globalThis` etc. into the range that synth-swap will replace.
+    if (receiver.type === 'LogicalExpression') {
+      // a fallback-logical default collapses to the literal; narrow the skip to the parts the literal
+      // consumes - the dead RIGHT operand (short-circuited away, its global would leak a dead import)
+      // and the resolved-left TAIL receiver chain. the live left PREFIX (`([1].at(0), Array)` ->
+      // `[1].at(0)`) and a call-rooted left's internals (`IIFE().Array` -> the IIFE body's globals)
+      // stay visible so the identifier / instance-method visitors polyfill + substitute them in place;
+      // apply() then harvests them from the live tree into the rescued leftSe sequence
+      t.traverseFast(receiver.right, node => { skippedNodes.add(node); });
+      markSynthReceiverSkipped(peelNestedSequenceExpressions(receiver.left).tail, skippedNodes);
+    } else markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
       // capture the ObjectPattern NODE (not path) for the same node-identity reason -
@@ -368,20 +374,30 @@ export default function createSynthSwapEmitter({
         const memoParam = needMemo ? path.scope.generateUidIdentifier('ref') : null;
         const literal = buildSynthLiteral(path.node, pending, memoParam,
           path.scope ? { scope: path.scope, adapter, path } : null);
+        // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
+        // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
+        // into the memo argument (cloning the whole logical would re-substitute the right global on
+        // re-traversal, leaking a dead `_Set` import and diverging from the text emitter). matches the
+        // all-resolved leftSe path, which likewise collapses to the left
+        const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
         let replacement = needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
-            [t.cloneNode(path.node, true)])
+            [t.cloneNode(memoReceiver, true)])
           : pending.rescueSe
             ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
             : literal;
-        // fallbackCollapse (`(logSE(), Array) || Set`): the whole `||` / `??` default collapses to the
-        // synth literal (its left is the always-resolved receiver, its right short-circuits), but the
-        // left's SE prefix must still run when the default fires. preserve it ahead of the literal -
-        // the same discarded-operand harvest the `in`-fold uses. a pure left harvests nothing, so the
-        // clean collapse is unchanged (no fixture churn)
-        if (path.node.type === 'LogicalExpression') {
-          const leftSe = collectFoldedReceiverSideEffects(path.node.left);
+        // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||` / `??`
+        // default collapses to the synth literal (its left is the always-resolved receiver, its right
+        // short-circuits), but the left's side effects must still run when the default fires. preserve
+        // them ahead of the literal in source order via the shared `collectFallbackCollapseLeftSe` plan
+        // (structural prefixes + a call-rooted left's chain-root call). harvested from the LIVE tree
+        // here, AFTER the identifier / instance visitors mutated the left in place, so a polyfillable
+        // left effect (`[1].at(0)`, an IIFE reading `globalThis`) carries its rewrite. a pure left
+        // plans nothing, so the clean collapse is unchanged (no fixture churn). suppressed when
+        // memoizing - the memo argument is the whole receiver, so the left's SE already runs once there
+        if (!needMemo && path.node.type === 'LogicalExpression') {
+          const leftSe = collectFallbackCollapseLeftSe({ leftNode: path.node.left, scope: path.scope, adapter, path });
           if (leftSe.length) replacement = t.sequenceExpression([...leftSe.map(n => t.cloneNode(n, true)), replacement]);
         }
         path.replaceWith(replacement);

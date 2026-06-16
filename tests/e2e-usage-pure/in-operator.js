@@ -136,3 +136,51 @@ QUnit.test("(eff(), 'from') in (eff(), Array) -> both operands run, key before o
   assert.true(r);
   assert.deepEqual(log, ['k', 'o']);
 });
+
+// a concatenated key whose left operand carries a SE: the fold collapses the `+` whole, so the
+// harvest must descend into the BinaryExpression or the embedded effect is lost
+QUnit.test('concat key with a side effect in Array -> the effect runs', assert => {
+  const log = [];
+  // eslint-disable-next-line prefer-template -- the `+` concat IS the folded key under test
+  const r = (log.push(1), 'fr') + 'om' in Array;
+  assert.true(r);
+  assert.deepEqual(log, [1]);
+});
+
+// same for a template-literal key: the fold discards the template whole, so the harvest must reach
+// its interpolated expressions
+QUnit.test('template key with a side effect in Array -> the effect runs', assert => {
+  const log = [];
+  // eslint-disable-next-line no-sequences -- the interpolation sequence IS the case under test
+  const r = `${ log.push(1), 'fr' }om` in Array;
+  assert.true(r);
+  assert.deepEqual(log, [1]);
+});
+
+// the RHS object carries BOTH a chain-root receiver call AND a computed-key SE: each must run at its
+// true source position - the receiver (object) before the bracket key, not at a fixed harvest slot
+QUnit.test('receiver call before a computed key on the RHS object -> source order', assert => {
+  const log = [];
+  const r = 'fromEntries' in (() => {
+    log.push('r');
+    return globalThis;
+    // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  })()[log.push('k'), 'Object'];
+  assert.true(r);
+  assert.deepEqual(log, ['r', 'k']);
+});
+
+// a Symbol.iterator membership rewrites to a get-iterator call; a sequence prefix on its receiver
+// lexically PRECEDES the chain-root receiver call, so it must run first - source order [p, r], not
+// the reverse. gated off sham Symbol (the get-iterator path is unreliable there)
+if (typeof Symbol == 'function' && !Symbol.sham) {
+  QUnit.test('(eff(), IIFE()).Symbol.iterator in [] -> prefix before receiver call', assert => {
+    const log = [];
+    const r = (log.push('p'), (() => {
+      log.push('r');
+      return globalThis;
+    })()).Symbol.iterator in [];
+    assert.true(r);
+    assert.deepEqual(log, ['p', 'r']);
+  });
+}
