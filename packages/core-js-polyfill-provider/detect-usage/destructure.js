@@ -32,7 +32,7 @@ import {
 import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
-import { discardRescueNode, seBearingChainRootCall } from './members.js';
+import { collectFallbackCollapseLeftSe, discardRescueNode, seBearingChainRootCall } from './members.js';
 import {
   isCallShape,
   isStaticPlacement,
@@ -173,23 +173,34 @@ function resolveConditionalDestructureMeta({ node, key, scope, adapter, path }) 
   return resolved ? { ...resolved, fromFallback: true } : consequent;
 }
 
-// call-shaped branch policy for the per-branch synth (`cond ? (() => { c++; return Array; })()
-// : Array`): the synth literal replaces the call, so a key left UNRESOLVED at apply time cannot
-// re-read through the receiver (that would re-run the call) - the emitters memoize the call
-// result through a function-IIFE param (`(function (_ref) { return { ..., custom: _ref.custom };
-// })(<call>)`) so the call runs exactly once and unresolved keys read the memo. an SE-bearing
-// fully-resolved call is rescued ahead of the literal instead (`(<call>, literal)`), a pure one
-// folds away. returns { callBranch, rescueSe }
+// SE-bearing receiver policy for the synth literal (`{key: _Branch$key}` swap of `cond ? (() => { c++;
+// return Array; })() : Array`, `{from} = IIFE().Array`, `{from} = (eff(), Array) || Set`). the literal
+// collapses the receiver, so its observable setup must run EXACTLY once. `callBranch` selects HOW the
+// emitter renders that when a key is left UNRESOLVED (an unpolyfilled sibling): with `callBranch` it
+// memoizes the receiver through a function-IIFE param (`(function (_ref) { return { ..., other:
+// _ref.other }; })(<receiver>)`) so the receiver runs once and unresolved keys read the memo - a
+// re-read would otherwise re-run it (the double-eval). when EVERY key resolves there is no re-read, so
+// the SE is `rescueSe`-d ahead of the literal instead (`(<receiver>, literal)`); a pure receiver folds
+// away. returns { callBranch, rescueSe }
 export function classifyCallBranchForSynth({ inner, scope, adapter, path }) {
   if (isCallShape(inner)) {
     return { callBranch: true, rescueSe: seBearingChainRootCall({ node: inner, scope, adapter, path }) };
   }
-  // a member receiver with SE buried along its spine (`(eff(), globalThis).Array`) rescues
-  // the original ahead of the literal too - the synth literal alone would drop the effect
-  // (and a queued inner rewrite would have no needle to compose into)
+  // a member receiver whose discarded chain hides observable setup: a SE prefix buried along the spine
+  // (`(eff(), globalThis).Array`), OR a SE-bearing call / chain-assignment at the chain ROOT
+  // (`mk().Array`, `IIFE().Array`, `(a = mk()).Array`) - `discardRescueNode` walks `.object` to find it
   if ((inner?.type === 'MemberExpression' || inner?.type === 'OptionalMemberExpression')
-    && collectBuriedChainSePrefixes(inner.object).length) {
-    return { callBranch: false, rescueSe: inner };
+    && (collectBuriedChainSePrefixes(inner.object).length
+      || discardRescueNode({ node: inner, scope, adapter, path }))) {
+    return { callBranch: true, rescueSe: inner };
+  }
+  // a fallback-logical receiver (`(eff(), Array) || Set`, `IIFE().Array || Set`) whose resolved LEFT
+  // carries discarded SE: the emitter rescues it via the separate leftSe plan when every key resolves,
+  // but a mixed key set re-reads the collapsed left, so route through memoization there too. rescueSe
+  // stays null - the leftSe plan (suppressed when memoizing) owns the all-resolved rescue
+  if (inner?.type === 'LogicalExpression' && inner.operator !== '&&'
+    && collectFallbackCollapseLeftSe({ leftNode: inner.left, scope, adapter, path }).length) {
+    return { callBranch: true, rescueSe: null };
   }
   return { callBranch: false, rescueSe: null };
 }

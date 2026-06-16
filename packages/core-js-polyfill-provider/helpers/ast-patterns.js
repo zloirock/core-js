@@ -2248,18 +2248,41 @@ export function sequencePrefixWithSideEffects(expr) {
 // this with the scope-aware `collectChainRootCallEffect`, which drops a provably-pure inline receiver
 // call (`'groupBy' in (() => Map)()` -> bare `true`) - a purity check this structural walk can't make.
 // closes the prior gap that dropped SE sequence-tails (`(bar(), (k = Array))`) and computed keys
-export function collectFoldedReceiverSideEffects(node, out = []) {
+export function collectFoldedReceiverSideEffects(node, out = [], rescue = null) {
   let cur = node;
   while (cur && (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type) || cur.type === 'ChainExpression')) cur = cur.expression;
+  // a value-position chain-root receiver CALL is intentionally NOT pushed by the structural walk
+  // (its purity needs a scope-aware check this helper can't make). detection harvests it scope-aware
+  // (dropping a provably-pure inline call) and threads the surviving call node(s) in via `rescue`;
+  // emit it HERE at its true source position (the object terminus the walk reaches it) so it
+  // INTERLEAVES with the structural effects instead of being appended/prepended at a fixed slot -
+  // `(push('a'), mk())[(push('b'), 'k')]` evaluates object (push 'a', then mk()) before the key
+  if (rescue?.has(cur)) {
+    out.push(cur);
+    rescue.delete(cur);
+  }
   switch (cur?.type) {
     case 'SequenceExpression':
       for (const e of cur.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) out.push(e);
-      collectFoldedReceiverSideEffects(cur.expressions.at(-1), out);
+      collectFoldedReceiverSideEffects(cur.expressions.at(-1), out, rescue);
       break;
     case 'MemberExpression':
     case 'OptionalMemberExpression':
-      collectFoldedReceiverSideEffects(cur.object, out);
-      if (cur.computed) collectFoldedReceiverSideEffects(cur.property, out);
+      collectFoldedReceiverSideEffects(cur.object, out, rescue);
+      if (cur.computed) collectFoldedReceiverSideEffects(cur.property, out, rescue);
+      break;
+    // mirror the other shapes `resolveKey` folds to a static key: a `+`-concat (`(eff(), 'fr') + 'om'`)
+    // and a TemplateLiteral (`` `${(eff(), 'fr')}om` ``). resolveKey peels each operand's sequence tail
+    // and discards the prefix, so the discarded prefix's effects must be harvested here too. recurse
+    // operands in source-eval order (left before right; template expressions left to right). this
+    // harvest stays a SUPERSET of resolveKey's resolvable fold shapes (sequence-tail / computed-member
+    // / `+` / template) - a shape resolveKey does NOT fold never reaches a fold branch
+    case 'BinaryExpression':
+      collectFoldedReceiverSideEffects(cur.left, out, rescue);
+      collectFoldedReceiverSideEffects(cur.right, out, rescue);
+      break;
+    case 'TemplateLiteral':
+      for (const e of cur.expressions) collectFoldedReceiverSideEffects(e, out, rescue);
       break;
     case 'AssignmentExpression':
       out.push(cur);

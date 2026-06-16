@@ -18,10 +18,11 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
   if (symbolIn && isEntryNeeded(symbolIn.entry)) {
     const leadingSe = [];
-    // a folded chain root (IIFE) harvested at detection (`handleBinaryIn`, where scope/adapter live) runs
-    // FIRST in source order; `visitSymbolInLhsSe` then adds any parens/sequence prefix SE the LHS carries
-    if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
+    // a sequence-prefix SE on the LHS lexically PRECEDES the receiver, so it runs BEFORE the chain-root
+    // receiver call harvested at detection (`meta.sideEffects`): `(p(), IIFE()).Symbol.iterator` runs the
+    // prefix `p()` first, THEN the IIFE - source order [p, IIFE], not [IIFE, p]
     visitSymbolInLhsSe(left, e => leadingSe.push(e));
+    if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
     return { kind: 'symbol', call: meta.key === 'Symbol.iterator', entry: symbolIn.entry, hint: symbolIn.hint, leadingSe, right };
   }
   // bare-name LHS with a statically-known polyfilled key (`'from' in Array`) folds to `true` (the
@@ -32,16 +33,21 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   // structural harvest (peeling parens / chain / TS wrappers like `(y = Map) as any`), closing the
   // prior prefix-only gap that dropped SE sequence-tails and computed keys. a value-position bare
   // RECEIVER call is left to detection's `meta.sideEffects` (scope-aware: drops a provably-pure inline
-  // call), appended last so it keeps its RHS-tail position after the structural RHS effects.
+  // call); it is threaded into the RHS harvest as `rescue` so it INTERLEAVES at its true source
+  // position (the object terminus) - `'k' in mk()[(eff(), 'K')]` runs `mk()` before the key effect,
+  // which a fixed append/prepend slot could not reproduce when the object also has its own SE prefix.
   // `skip` names the discarded operand a text emitter marks skipped (an AST emitter drops it by
   // replacing the node); the rescued SE subtrees stay visitable, re-emitted by the replacement
   if (meta.object) {
     if (!resolveFallback(meta).result) return { kind: 'noop' };
+    const rescue = new Set(meta.sideEffects);
     const leadingSe = [
       ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left)),
-      ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(right)),
+      ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(right), [], rescue),
     ];
-    if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
+    // defensive: a chain-root call the structural walk could not position (shape mismatch) keeps the
+    // old append slot rather than being dropped
+    for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
     return { kind: 'fold', leadingSe, skip: right };
   }
   return { kind: 'noop' };
