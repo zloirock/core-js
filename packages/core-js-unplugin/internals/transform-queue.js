@@ -272,10 +272,18 @@ function upperBound(ranges, target) {
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
 function mergeEqualRange({ a, b, originalNeedle, range = null }) {
-  const aFirst = a.indexOf(originalNeedle);
-  const wrapper = aFirst !== -1 ? a : b;
-  const inner = aFirst !== -1 ? b : a;
-  const first = aFirst !== -1 ? aFirst : wrapper.indexOf(originalNeedle);
+  // locate the needle through the boundary-aware `collectOccurrencePositions`, not raw indexOf /
+  // includes: a raw substring scan can match the needle MID-IDENTIFIER (`Array` inside `ArrayBuffer`,
+  // `at` inside `flat`), which would splice at a wrong offset or false-throw the single-occurrence
+  // asserts on a substring hit. the helper applies the same JS identifier-boundary filter used to
+  // resolve every other needle in the queue
+  const aPositions = collectOccurrencePositions(a, originalNeedle);
+  const bPositions = collectOccurrencePositions(b, originalNeedle);
+  // contract: exactly one side (the "wrapper") contains the original source slice as a standalone
+  // occurrence; the other (the "inner" polyfill) does not
+  const [wrapper, inner, wrapperPositions, innerPositions] = aPositions.length
+    ? [a, b, aPositions, bPositions]
+    : [b, a, bPositions, aPositions];
   // `transform-queue: ` subsystem prefix matches the rest of the queue's diagnostics so users can
   // grep failures consistently. the `[core-js] [<fileId>] ` brand + file tag are owned by the
   // outer `tagError` (runTransform's catch), not self-prefixed here - matching the parse-error
@@ -285,7 +293,7 @@ function mergeEqualRange({ a, b, originalNeedle, range = null }) {
   // invariant would silently drop the wrapper text and emit only the inner replacement.
   // production callers (synth-swap, arrow-body wrap) always preserve the needle in exactly
   // one slot - the throw makes a future callsite that drops both copies fail loudly
-  if (first === -1) {
+  if (!wrapperPositions.length) {
     throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // assert single-occurrence invariant on BOTH sides:
@@ -294,17 +302,16 @@ function mergeEqualRange({ a, b, originalNeedle, range = null }) {
   //   - inner-side: contract is "exactly one side wraps the original source". if inner
   //     also contains the needle, both sides are wrappers - picking `a` as wrapper is
   //     arbitrary and produces asymmetric output. fail loudly
-  // slice+includes allocates once on the assert path (rare miss) instead of pulling in
-  // a second `indexOf` with a start position
-  if (wrapper.slice(first + originalNeedle.length).includes(originalNeedle)) {
+  if (wrapperPositions.length > 1) {
     throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
   }
-  if (inner.includes(originalNeedle)) {
+  if (innerPositions.length) {
     throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: both sides contain needle - ambiguous wrapper (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
   // `$n` interpretation if `inner` contains those tokens (user source with `$&` or polyfill
   // names with `$`). also one fewer scan of `wrapper` than a non-regex replace would cost
+  const [first] = wrapperPositions;
   return wrapper.slice(0, first) + inner + wrapper.slice(first + originalNeedle.length);
 }
 
