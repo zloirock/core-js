@@ -23,7 +23,12 @@ import {
   createMemberWriteShape,
   memberWriteTargetPath,
 } from './class-member-shapes.js';
-import { forEachPatternWriteMember, peelSkippableWrapperPath, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import {
+  forEachPatternWriteMember,
+  hasDeferredContextAncestor,
+  peelSkippableWrapperPath,
+  unwrapRuntimeExpr,
+} from '../helpers/ast-patterns.js';
 import { nodeRangeContains } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
@@ -117,17 +122,6 @@ export function createClassFields({
     return candidates;
   }
 
-  // a write nested inside a function body executes whenever that function is invoked - its
-  // source position says nothing about execution order, so a hoisted / deferred writer
-  // (`function corrupt() { c.items = "s" }` called before the use) must fold unconditionally.
-  // only straight-line writes can be dropped by the source-position temporal bound
-  function isWriteInsideFunction(writePath) {
-    for (let p = writePath.parentPath; p && !t.isProgram(p.node); p = p.parentPath) {
-      if (t.isFunction(p.node)) return true;
-    }
-    return false;
-  }
-
   // a write inside a loop whose body ALSO contains the temporal `bound` (the observable use)
   // re-executes on the back-edge before the next-iteration use - its source position is past the
   // bound, but the loop makes it live, so it must NOT be dropped. a write in a SEPARATE loop after
@@ -148,8 +142,13 @@ export function createClassFields({
   function foldExternalWrites({ fieldName, predicate, bound, program, out }) {
     const index = getModuleFieldIndex(program);
     for (const writePath of index.writesByField.get(fieldName) ?? []) {
+      // a write nested in a DEFERRED context (a captured function body, or an instance class-field
+      // initializer that runs at construction) executes whenever that context runs - its source
+      // position says nothing about execution order, so it folds unconditionally; only straight-line
+      // writes can be dropped by the source-position temporal bound. shares the canonical
+      // `hasDeferredContextAncestor` with the read-side gate and the value-flow walk
       if ((writePath.node.start ?? Infinity) >= bound
-        && !isWriteInsideFunction(writePath)
+        && !hasDeferredContextAncestor(t, writePath)
         && !isWriteInsideLoopSpanningBound(writePath, bound)) continue;
       pushIfWriteMatches(writePath, predicate, out);
     }
