@@ -1,12 +1,12 @@
-// One fuzz shard: runs the subset of generated snippets where (index % total === shard) in its OWN
+// One differential shard: runs the subset of generated snippets where (index % total === shard) in its OWN
 // process/realm, SEQUENTIALLY - identical to a single run, isolation from the process boundary. See
 // index.mjs for why process-sharding (global-mutation isolation) is the only safe parallelism.
-// FUZZ_SHARD="k/N" selects the shard; the coordinator (index.mjs) forks N and aggregates.
+// DIFF_SHARD="k/N" selects the shard; the coordinator (index.mjs) forks N and aggregates.
 import { generate } from './generate.mjs';
 import { checkSnippet, closeStrippedWorker, summarizeVerdict } from './harness.mjs';
 
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
-const [shard, total] = (process.env.FUZZ_SHARD ?? '0/1').split('/').map(Number);
+const [shard, total] = (process.env.DIFF_SHARD ?? '0/1').split('/').map(Number);
 
 let index = 0;
 let passed = 0;
