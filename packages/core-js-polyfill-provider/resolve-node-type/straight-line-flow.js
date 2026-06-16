@@ -103,12 +103,22 @@ export function scopeNode(s) {
   return s.block ?? s.path?.node;
 }
 
+// loop back-edge anchor for a binding: its declaration identifier node + kind. position (which loop
+// slot the decl sits in) plus kind (`var` is function-scoped and carries; `let`/`const` are
+// block-scoped and re-created in a body) is the parser-robust signal - estree-toolkit attaches both a
+// for-body `var` and a for-body `let` to the ForStatement scope, so the scope node cannot tell them apart
+export function bindingLoopAnchor(binding) {
+  return {
+    decl: binding?.identifier ?? binding?.identifierPath?.node ?? null,
+    kind: binding?.kind ?? null,
+  };
+}
+
 // `usageCrossesLoopBackEdgeReassign` adapted to a binding: derives its reassignment nodes from
-// `constantViolations` and its declaration-scope node. shared by the value-flow finders to bail a
-// source-position narrow that a loop-carried reassignment makes stale from iteration 2
+// `constantViolations` and its loop anchor. shared by the value-flow finders to bail a source-position
+// narrow that a loop-carried reassignment makes stale from iteration 2
 export function bindingCrossesLoopBackEdge(t, usagePath, binding) {
-  const scopeAnchor = binding?.scope ? scopeNode(binding.scope) : null;
-  return usageCrossesLoopBackEdgeReassign(t, usagePath, binding?.constantViolations?.map(v => v.node), scopeAnchor);
+  return usageCrossesLoopBackEdgeReassign(t, usagePath, binding?.constantViolations?.map(v => v.node), bindingLoopAnchor(binding));
 }
 
 // nearest ancestor (inclusive) of `stmtType`; shared by inner/outer checks

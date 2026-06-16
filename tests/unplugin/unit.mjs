@@ -750,6 +750,21 @@ function checkMergeEqualRangePrefix() {
 }
 checkMergeEqualRangePrefix();
 
+// `mergeEqualRange` locates the needle through the boundary-aware occurrence scan, not a raw
+// indexOf: the needle (`at`) appears MID-IDENTIFIER inside the wrapper (`flat`) before its standalone
+// occurrence. a raw scan would splice at the `flat` offset, corrupting the output to `flX(at)`; the
+// identifier-boundary filter skips the embedded hit and splices the inner at the real `(at)` slot
+function checkMergeEqualRangeBoundaryNeedle() {
+  const code = 'at';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.add(0, 2, 'flat(at)'); // wrapper preserves the original `at`, but `flat` embeds it first
+  q.add(0, 2, 'X');        // inner polyfill replacement
+  q.apply();
+  check('TransformQueue/mergeEqualRange boundary-aware needle', ms.toString(), 'flat(X)');
+}
+checkMergeEqualRangeBoundaryNeedle();
+
 // U05-1: addSplit must validate the FULL range up front (before the first add) so ANY bad offset
 // fails ATOMICALLY with an addSplit-specific diagnostic. a bad `end` is the orphan-critical case
 // (it would pass the prefix add() and throw only in the suffix add(), orphaning the prefix half and
