@@ -311,19 +311,45 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
 //     SAME declaration (`const r = x, { [k]: m } = r`); a preceding `const m = _m(r)` would TDZ-fault. a
 //     trailing sibling runs after the receiver's declarator, so it's safe. (a static binding is receiver-
 //     free, so its multi-declarator stays a preceding statement - no need to change that shape.)
-// Returns `{ instance, siblingDeclarator }` to render the residual, or null for an INSTANCE method whose
-// receiver isn't a bare Identifier (re-referencing it would double-evaluate) - bail to native.
+// Returns `{ instance, siblingDeclarator, eliminateResidual, memoizeReceiver }` to render the residual,
+// or null for an INSTANCE method whose receiver isn't a bare Identifier (re-referencing it would
+// double-evaluate) - bail to native.
+//   - `eliminateResidual`: the destructure binds NOTHING but the extracted leaf and its init is
+//     side-effect-free, so the residual is dead code - drop the whole declaration, leaving only the
+//     extracted binding (`const at = _at(<recv>)`). gated to a single declarator (a shared declaration
+//     can't drop the slot) outside a for-head. the receiver is referenced once (in the extract), so no memo.
+//   - `memoizeReceiver`: the residual SURVIVES (real sibling bindings) and the instance receiver is a
+//     CONSTANT array / object literal. re-emitting it beside the residual would duplicate the whole literal
+//     (a hundred-element array twice); instead the emitters hoist `const _ref = <recv>` once and reference
+//     `_ref` in both the extract and the residual. constant-only (no identifiers / globals / nested calls)
+//     keeps it safe: nothing inside needs polyfilling and hoisting a constant can't reorder side effects.
+//     a bare-Identifier / primitive receiver is cheap to re-reference, so it is NOT memoized.
 //
 // (A simpler 'lift' strategy - hoist the effect, drop the receiver, `eff(); const f = _Array$from` - was
 // removed: its in-place text surgery made shape assumptions that broke on export / default-with-call /
 // nested-sequence keys / array-wrappers. The residual is the single, robust path - so there is no longer
 // a strategy enum, only this keep-in-place plan or a bail.)
-export function planSideEffectKeyStrategy({ polyfillKind, isForInit, isMultiDeclarator, receiverIsSafe }) {
+export function planSideEffectKeyStrategy({
+  polyfillKind, isForInit, isMultiDeclarator, receiverIsSafe,
+  receiverIsConstantLiteral = false, soleBindingInDeclaration = false, initIsPure = false, propKeyIsPure = true,
+}) {
   const instance = polyfillKind === 'instance';
   // an instance polyfill re-references the receiver beside the residual; bail unless it is safe to read
   // twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`)
   if (instance && !receiverIsSafe) return null;
-  return { instance, siblingDeclarator: !!(isForInit || (isMultiDeclarator && instance)) };
+  const siblingDeclarator = !!(isForInit || (isMultiDeclarator && instance));
+  // dead residual: nothing left to bind, no init effect to preserve, AND the key carries no side effect
+  // (`{ [(eff(), 'k')]: f }` keeps the key in place so the effect still runs - dropping it would lose `eff()`).
+  // a sibling-declarator host (for-init / multi-declarator) shares its declaration, so the slot can't drop
+  const eliminateResidual = soleBindingInDeclaration && initIsPure && propKeyIsPure && !siblingDeclarator;
+  return {
+    instance,
+    siblingDeclarator,
+    eliminateResidual,
+    // memo only the standalone-insert shape (a sibling-declarator host's preceding `const _ref` would TDZ
+    // against the same-declaration receiver or has no statement slot in a for-head)
+    memoizeReceiver: instance && receiverIsConstantLiteral && !eliminateResidual && !siblingDeclarator,
+  };
 }
 
 // param body-extract qualification (the DECISION half of the body-extract fallback both
@@ -386,6 +412,43 @@ export function isReReferenceableReceiver(node) {
   if (node.type === 'Identifier' || node.type === 'ThisExpression') return true;
   if (node.type === 'TemplateLiteral') return node.expressions.length === 0;
   return REFERENCEABLE_LITERAL_TYPES.has(node.type) && !mayHaveSideEffects(node);
+}
+
+// a node built ONLY from literal values (numbers / strings / booleans / null / bigint / regexp / constant
+// template, signed numeric, and array / object literals nesting the same). unlike `isReReferenceableReceiver`
+// this rejects ANY identifier or member - so the node references no binding and no polyfillable global, can't
+// re-run a side effect, and reading it yields a fixed value. that makes it safe to HOIST into a `const _ref`
+// without reordering effects or stranding an un-polyfilled global, which is what `memoizeReceiver` needs to
+// collapse a large duplicated literal receiver to a single binding. holes / spreads / computed keys / getters
+// / methods all bail (a hole has no node; the rest carry identifiers or effects)
+function isConstantLiteralNode(node) {
+  if (!node) return false;
+  switch (node.type) {
+    case 'NumericLiteral':
+    case 'StringLiteral':
+    case 'BooleanLiteral':
+    case 'NullLiteral':
+    case 'BigIntLiteral':
+    case 'RegExpLiteral':
+    case 'Literal':
+      return true;
+    case 'TemplateLiteral': return node.expressions.length === 0;
+    case 'UnaryExpression':
+      return (node.operator === '-' || node.operator === '+') && isConstantLiteralNode(node.argument);
+    case 'ArrayExpression':
+      return node.elements.every(el => el !== null && el.type !== 'SpreadElement' && isConstantLiteralNode(el));
+    case 'ObjectExpression':
+      return node.properties.every(p => (p.type === 'ObjectProperty' || p.type === 'Property')
+        && !p.computed && !p.method && p.kind !== 'get' && p.kind !== 'set' && isConstantLiteralNode(p.value));
+    default: return false;
+  }
+}
+
+// gate for `memoizeReceiver`: a structurally-extensible literal (array / object) whose every nested value is
+// also constant. only these can grow large enough that re-emitting beside the residual bloats the output; a
+// primitive receiver is atomic, so re-referencing it is never worth a `_ref` binding
+export function isConstantLiteralReceiver(node) {
+  return !!node && (node.type === 'ArrayExpression' || node.type === 'ObjectExpression') && isConstantLiteralNode(node);
 }
 
 // resolve the receiver node for a (possibly nested) destructure leaf: walk the pattern paths up from the
