@@ -10,7 +10,6 @@
 import {
   isReceiverShapedNode,
   buildFlatSynthEntries,
-  collectFoldedReceiverSideEffects,
   paramsHaveInvisibleCallers,
   FUNCTION_LIKE_NODE_TYPES,
   findArrayWrappedDestructureHost,
@@ -55,6 +54,7 @@ import {
   proxyGlobalWrappedRoot,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { collectFallbackCollapseLeftSe } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   applyNestedParamSynthPlan,
   renderSynthTree,
@@ -1744,7 +1744,7 @@ export function createDestructureEmitter({
     // (`return Promise` -> `return _Promise`) compose into the re-emitted text
     // call-branch policy (single fully-polyfilled key + SE rescue) lives in the shared
     // `classifyCallBranchForSynth`
-    const { rescueSe } = classifyCallBranchForSynth({ inner, scope, adapter: estreeAdapter, path });
+    const { callBranch, rescueSe } = classifyCallBranchForSynth({ inner, scope, adapter: estreeAdapter, path });
     const binding = injectPureImport(pure.entry, pure.hintName);
     // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
     // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
@@ -1759,7 +1759,7 @@ export function createDestructureEmitter({
     markSynthReceiverSkipped(inner, skippedNodes);
     let pending = pendingSynthSwaps.get(branch);
     if (!pending) {
-      pending = { receiver: branch, objectPattern, polyfills: new Map(), rescueSe };
+      pending = { receiver: branch, objectPattern, polyfills: new Map(), callBranch, rescueSe };
       pendingSynthSwaps.set(branch, pending);
     }
     pending.polyfills.set(slotKey, binding);
@@ -2068,7 +2068,7 @@ export function createDestructureEmitter({
     // the shared classifier flags SE-bearing receivers (buried-SE member spines) for the
     // rescue emission: the re-emitted receiver text keeps the effect AND gives queued inner
     // rewrites their compose needle
-    const { rescueSe } = classifyCallBranchForSynth({
+    const { callBranch, rescueSe } = classifyCallBranchForSynth({
       inner: receiver, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
     });
     // synth-swap owns the receiver chain - identifier visitor would race on the same range.
@@ -2076,13 +2076,23 @@ export function createDestructureEmitter({
     // inner Identifier visitors don't emit `_globalThis` etc. into the now-replaced range.
     // a RESCUED receiver re-emits its own source ahead of the literal, so its inner rewrites
     // must keep firing (they compose into the re-emitted text by needle) - no skip marking.
-    // a fallback-logical receiver is replaced WHOLE - skip its full subtree or the inner
-    // Identifier rewrite (`_Iterator`) overlaps the substitution range (babel-twin contract)
-    if (receiver.type === 'LogicalExpression') walkAstNodes({ root: receiver, visit: n => skippedNodes.add(n) });
-    else if (!rescueSe) markSynthReceiverSkipped(receiver, skippedNodes);
+    let leftSe = null;
+    if (receiver.type === 'LogicalExpression') {
+      // a fallback-logical default collapses to the literal; narrow the skip to the parts the literal
+      // consumes - the dead RIGHT operand and the resolved-left TAIL. the live left PREFIX / a
+      // call-rooted left's internals (`IIFE().Array` -> the IIFE body) stay visible so their inner
+      // rewrites fire and compose into the rescued leftSe text (babel-twin contract). the rescue plan
+      // (structural prefixes + chain-root call, in source order) is computed once here in the shared
+      // provider, rendered as text at apply time
+      walkAstNodes({ root: receiver.right, visit: n => skippedNodes.add(n) });
+      markSynthReceiverSkipped(peelNestedSequenceExpressions(receiver.left).tail, skippedNodes);
+      leftSe = collectFallbackCollapseLeftSe({
+        leftNode: receiver.left, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
+      });
+    } else if (!rescueSe) markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = pendingSynthSwaps.get(receiver);
     if (!pending) {
-      pending = { receiver, objectPattern, polyfills: new Map(), rescueSe };
+      pending = { receiver, objectPattern, polyfills: new Map(), callBranch, rescueSe, leftSe };
       pendingSynthSwaps.set(receiver, pending);
     }
     pending.polyfills.set(synthSwapPropKey(propNode), binding);
@@ -2663,7 +2673,7 @@ export function createDestructureEmitter({
   // (some transforms queued, others lost). recovery semantics intentional: catch-and-continue
   // would silently produce inconsistent output, hard fail surfaces the bug to the user
   function applySynthSwaps() {
-    for (const [, { receiver, objectPattern, polyfills, rescueSe }] of pendingSynthSwaps) {
+    for (const [, { receiver, objectPattern, polyfills, callBranch, rescueSe, leftSe: leftSePlan }] of pendingSynthSwaps) {
       if (objectPattern?.type !== 'ObjectPattern') continue;
       // safe-SE peel too: `cond ? (0, Array) : Iterator` registers the branch with the SE as
       // outer receiver. apply step substitutes at the SE TAIL (inner Identifier) so SE prefix
@@ -2683,11 +2693,13 @@ export function createDestructureEmitter({
       const readReceiver = inner.type === 'LogicalExpression'
         ? peelNestedSequenceExpressions(inner.left).tail : inner;
       const receiverPure = readReceiver.type === 'Identifier' ? resolveGlobalPolyfill(readReceiver.name) : null;
-      // a call branch with a key left unresolved memoizes the call result through a
-      // function-IIFE param: the call runs exactly once (as the argument) and unresolved
-      // keys read the memo instead of re-running the call per read (babel-twin emission)
+      // an SE-bearing receiver with a key left unresolved memoizes the receiver through a
+      // function-IIFE param: it runs exactly once (as the argument) and unresolved keys read the memo
+      // instead of re-running it per read (babel-twin emission). `callBranch` (set by the shared
+      // classifier for a call / member / fallback-logical SE receiver - a call is always flagged) is
+      // the single gate, identical to the babel-plugin twin
       const planEntries = buildFlatSynthEntries(objectPattern, polyfills);
-      const needMemo = isCallShape(inner) && planEntries.some(entry => !entry.polyfill);
+      const needMemo = callBranch && planEntries.some(entry => !entry.polyfill);
       const memoName = needMemo ? injector.generateLocalRef() : null;
       let receiverSrc = null;
       const getReceiverSrc = () => receiverSrc ??= memoName ?? (receiverPure
@@ -2712,15 +2724,22 @@ export function createDestructureEmitter({
       // an SE-bearing call branch is rescued ahead of the literal; its inner substitutions
       // compose into the re-emitted source text
       const literal = `{ ${ entries.join(', ') } }`;
+      // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left is
+      // the always-truthy receiver, so the dead right operand short-circuits and must not survive into
+      // the memo argument (keeping it would emit the raw right global - and diverge from the AST
+      // emitter, which drops it). matches the all-resolved leftSe path, which collapses to the left
+      const memoNode = inner.type === 'LogicalExpression' ? inner.left : inner;
       const body = needMemo
-        ? `(function (${ memoName }) { return ${ literal }; })(${ nodeSrc(inner) })`
+        ? `(function (${ memoName }) { return ${ literal }; })(${ nodeSrc(memoNode) })`
         : rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal;
-      // fallbackCollapse (`(logSE(), Array) || Set`): the whole `||`/`??` collapses to the literal (its
-      // left is the always-resolved receiver, its right short-circuits), but the left's SE prefix must
-      // still run when the default fires - re-emit it ahead of the literal (raw, matching babel, since
-      // the whole subtree is skipped). a pure left harvests nothing, so the clean collapse is unchanged
-      const leftSe = inner.type === 'LogicalExpression'
-        ? collectFoldedReceiverSideEffects(inner.left).map(node => nodeSrc(node)) : [];
+      // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||`/`??`
+      // collapses to the literal (its left is the always-resolved receiver, its right short-circuits),
+      // but the left's side effects must still run when the default fires - re-emit them ahead of the
+      // literal in source order via the shared `collectFallbackCollapseLeftSe` plan (structural
+      // prefixes + a call-rooted left's chain-root call). inner rewrites compose into each node's
+      // source text by needle. a pure left plans nothing, so the clean collapse is unchanged.
+      // suppressed when memoizing - the memo argument (the left) already runs its SE once there
+      const leftSe = needMemo ? [] : (leftSePlan ?? []).map(node => nodeSrc(node));
       transforms.add(inner.start, inner.end, leftSe.length ? `(${ leftSe.join(', ') }, ${ body })` : body);
     }
   }
