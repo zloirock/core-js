@@ -25,7 +25,7 @@ import {
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
-import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
+import { scopeNode, bindingLoopAnchor, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
 import { bigIntLiteralValue, isBigIntLiteralNode } from './base.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
@@ -299,7 +299,7 @@ export function createDiscriminantNarrow({
   function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
     const ctx = buildDiscriminantContext(varPath, targetKey);
-    const bindingScopeNode = ctx.objectBinding ? scopeNode(ctx.objectBinding.scope) : null;
+    const anchor = ctx.objectBinding ? bindingLoopAnchor(ctx.objectBinding) : null;
     const violationNodes = ctx.violations.map(v => v.node);
     // once we walk out past a back-edge loop whose body reassigns the binding, every guard above
     // it is outside the loop and cannot re-narrow per iteration - drop it (mirror narrow-by-guards)
@@ -307,7 +307,7 @@ export function createDiscriminantNarrow({
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
       if (!crossedBackEdgeLoop && isLoopStatement(parent.node)
-        && loopReExecRegionHasViolation(parent.node, violationNodes, bindingScopeNode)) {
+        && loopReExecRegionHasViolation(parent.node, violationNodes, anchor)) {
         crossedBackEdgeLoop = true;
       }
       // function boundary: guards above this point fire at call-evaluation time, but

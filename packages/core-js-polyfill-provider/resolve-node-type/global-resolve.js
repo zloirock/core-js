@@ -222,14 +222,11 @@ export function createGlobalResolve({
   function resolveSuperGlobalName(superPath) {
     const direct = resolveGlobalName(superPath);
     if (direct) return direct;
-    // `resolveGlobalName` peels parens only; peel the full TS/Flow wrapper chain off the PATH
-    // (`(Base as any)`, `Base!`, `<Base>x`, `Base satisfies Ctor`) so we keep a real path
-    const peeledPath = peelSkippableWrapperPath(superPath);
-    const peeled = peeledPath?.node;
-    // a bare global base under a wrapper (`extends (Array as any)`) peels to a plain Identifier:
-    // re-run resolveGlobalName on it so it resolves identically to the paren-only `extends (Array)`
-    // form through the same unbound-global / alias logic
-    if (peeled?.type === 'Identifier') return resolveGlobalName(peeledPath);
+    // `resolveGlobalName` already peels the full TS/Flow wrapper chain (`(Base as any)`, `Base!`,
+    // `<Base>x`, `Base satisfies Ctor`) and resolves a bare global under it, so the only shape left to
+    // try is a proxy-global MEMBER chain that `globalProxyMemberName` accepts beyond `resolveGlobalName`
+    // (a computed proxy member `globalThis['Array']`, a post-rewrite alias `_globalThis.Array`)
+    const peeled = peelSkippableWrapperPath(superPath)?.node;
     if (!peeled || (peeled.type !== 'MemberExpression' && peeled.type !== 'OptionalMemberExpression')) return null;
     return globalProxyMemberName({ node: peeled, scope: superPath.scope, adapter: babelBindingAdapter, path: superPath });
   }
