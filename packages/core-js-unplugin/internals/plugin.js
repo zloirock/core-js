@@ -786,6 +786,7 @@ export default function createPlugin(options) {
           injectPureImport,
           isBodylessStatementBody,
           isEntryNeeded,
+          isInStaticContext,
           NEEDS_GUARD_PARENS,
           resolveGlobalPolyfill,
           resolvePureOrGlobalFallback,
