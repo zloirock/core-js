@@ -58,6 +58,7 @@ import {
   isInterfaceDeclaration,
   isQualifiedNameNode,
   isTypeAlias,
+  loopReExecRegionHasViolation,
   qualifiedNameLeft,
   qualifiedNameRight,
   synthInterfaceExtendsRef,
@@ -65,6 +66,7 @@ import {
   typeRefName,
   typeRefSegments,
 } from '../../packages/core-js-polyfill-provider/resolve-node-type/ast-shapes.js';
+import { bindingLoopAnchor } from '../../packages/core-js-polyfill-provider/resolve-node-type/straight-line-flow.js';
 import {
   ESM_MARKER_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
@@ -5077,5 +5079,54 @@ runBoth('destructure off a pure-import constructor stub recovers the static-meth
     const resolver = adapter.makeResolver({ getPolyfillBindingHint: (scope, name) => name === '_Array' ? 'Array' : null });
     checkType(lbl, resolver.resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
+
+// `loopReExecRegionHasViolation` back-edge soundness across binding kinds / declaration sites. the
+// anchor's SCOPE node classifies re-creation (function-scoped `var` lands outside the loop,
+// block-scoped `let`/`const` inside); its DECL position pins the C-style for-header binding (its scope
+// IS the loop, yet it carries). run cross-parser - estree-toolkit attaches a for-body `let` to the
+// ForStatement scope while babel uses the body block, so the cases below exercise both shapes
+function loopBackEdgeCase(label, code, varName, expected) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const loop = adapter.pickPath(prog, 'ForStatement', () => true)
+      ?? adapter.pickPath(prog, 'ForOfStatement', () => true)
+      ?? adapter.pickPath(prog, 'ForInStatement', () => true)
+      ?? adapter.pickPath(prog, 'WhileStatement', () => true);
+    const assign = adapter.pickPath(prog, 'AssignmentExpression', p => assignLeftName(p.node) === varName);
+    const binding = assign.scope.getBinding(varName);
+    const violationNodes = binding.constantViolations.map(v => v.node);
+    check(lbl, loopReExecRegionHasViolation(loop.node, violationNodes, bindingLoopAnchor(binding)), expected);
+  });
+}
+function assignLeftName(node) {
+  return node?.type === 'AssignmentExpression' && node.left?.type === 'Identifier' ? node.left.name : null;
+}
+// C-style for-header `let`: the per-iteration binding is copied from the previous iteration, so an
+// in-body reassignment survives the back-edge -> violation
+loopBackEdgeCase('loopReExec: C-style for-header let carries across the back-edge',
+  'for (let x = []; cond; ) { x.flat(); x = "s"; }', 'x', true);
+// body-block `let`: block-scoped, fresh per iteration -> exempt
+loopBackEdgeCase('loopReExec: for-body block let is re-created each iteration -> exempt',
+  'for (let i = 0; i < 1; i++) { let z = []; z.flat(); z = "s"; }', 'z', false);
+// body `var`: hoists to FUNCTION scope (outside the loop), so it is NOT re-created - carries -> violation
+loopBackEdgeCase('loopReExec: for-body var hoists to function scope and carries',
+  'function f() { for (let i = 0; i < 1; i++) { var v = []; v.flat(); v = "s"; } }', 'v', true);
+// for-of loop variable: re-bound to the next element each iteration -> exempt
+loopBackEdgeCase('loopReExec: for-of loop variable is re-bound -> exempt',
+  'for (let y of arr) { y.flat(); y = "s"; }', 'y', false);
+// `var` declared outside the loop: function-scoped, carries across the back-edge -> violation
+loopBackEdgeCase('loopReExec: outer var reassigned in the loop body carries',
+  'var w = []; for (let i = 0; i < 1; i++) { w.flat(); w = "s"; }', 'w', true);
+// reassignment confined to the once-only for-INIT slot does not re-execute on the back-edge -> exempt
+loopBackEdgeCase('loopReExec: for-init-slot-only reassignment is excluded',
+  'var u; for (u = []; cond; ) { u.flat(); }', 'u', false);
+// for-in loop variable: re-bound to the next key each iteration -> exempt (mirrors for-of via `left`)
+loopBackEdgeCase('loopReExec: for-in loop variable is re-bound -> exempt',
+  'for (let k in obj) { k.at(0); k = "s"; }', 'k', false);
+// non-`for` loop body (`while`): a block-scoped body `let` is still re-created each iteration -> exempt
+loopBackEdgeCase('loopReExec: while-body block let is re-created each iteration -> exempt',
+  'function f() { while (cond) { let m = []; m.flat(); m = "s"; } }', 'm', false);
+// while-body `var` hoists to function scope and carries across the back-edge -> violation
+loopBackEdgeCase('loopReExec: while-body var hoists to function scope and carries',
+  'function f() { while (cond) { var n = []; n.flat(); n = "s"; } }', 'n', true);
 
 finish();
