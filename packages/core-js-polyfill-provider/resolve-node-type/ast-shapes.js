@@ -7,7 +7,7 @@
 //
 // the shape predicates here encode cross-parser compatibility (babel / oxc / flow), discovered
 // empirically per parser - change them only with care
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isDeferredContextStep } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
@@ -198,15 +198,17 @@ export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, b
 }
 
 // soundness filter for source-position narrows: a reassignment of the binding that lives inside a
-// function nested below the binding scope can run before the use (`mutate(); use; function mutate(){ x
-// = y }`) regardless of source position, so a positional check can't see it. true when any violation
-// sits inside a function on the parent chain up to (but not including) `stopPath` (the binding scope
-// path). shared by the discriminant-narrow and guard-narrow soundness gates
+// DEFERRED evaluation context nested below the binding scope can run before the use regardless of
+// source position, so a positional check can't see it - a captured function (`mutate(); use; function
+// mutate(){ x = y }`) OR an instance class-field initializer (`class C { f = (x = y) }`, which runs at
+// construction time). true when any violation sits inside such a context on the parent chain up to
+// (but not including) `stopPath` (the binding scope path). uses the canonical `isDeferredContextStep`
+// so the read-side gate stays in lockstep with the write-side fold and the value-flow walk
 export function violationInCapturedFunction(t, violations, stopPath) {
   if (!violations?.length) return false;
   return violations.some(v => {
-    for (let p = v.parentPath; p && p !== stopPath; p = p.parentPath) {
-      if (t.isFunction(p.node)) return true;
+    for (let p = v.parentPath, child = v; p && p !== stopPath; child = p, p = p.parentPath) {
+      if (isDeferredContextStep(t, p.node, child)) return true;
     }
     return false;
   });
