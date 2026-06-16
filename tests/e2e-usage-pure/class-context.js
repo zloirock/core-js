@@ -222,3 +222,24 @@ QUnit.test('class: optional super-method call preserves this', assert => {
   }
   assert.same(new C().m(), 1);
 });
+
+// non-poly STATIC-context super method (`super.custom`, the parent's own static - no polyfill) with
+// >=2 trailing instance polys must combine into one guard like an instance super, calling the
+// inherited static with `this === subclass constructor`. (was unplugin-only: the chain bailed to
+// overlapping standalone transforms and crashed at compose time)
+QUnit.test('class: non-poly static super + trailing instance polys combines', assert => {
+  class Base {
+    seed = [10, 20, 30];
+    static custom() { return [10, 20, 30]; }
+  }
+  class C extends Base {
+    static build() { return super.custom?.().map(x => x * 2).at(-1); }
+  }
+  assert.same(C.build(), 60);
+  assert.deepEqual(new Base().seed, [10, 20, 30]);
+  // optional short-circuit: a nullish super method skips the whole trailing chain
+  class D extends Base {
+    static build() { return super.missing?.().map(x => x).at(-1); }
+  }
+  assert.same(D.build(), undefined);
+});

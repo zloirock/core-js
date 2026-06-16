@@ -59,6 +59,18 @@ function normalizeOutput(code) {
   return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }
 
+// under BABEL_VARIANT the debug `Using targets: { ... }` block can carry environment-derived,
+// time-varying values: babel@8 resolves an empty/no-targets config to the `["defaults"]`
+// browserslist query, whose per-browser version floors come from the installed caniuse-lite
+// (re-resolved by `npm install`, NOT pinned, in the v8 harness) and shift on each release. pin the
+// meaningful assertion (the "did not add any polyfill" verdict) by collapsing the resolved-targets
+// JSON to a placeholder. baseline (v7) leaves targets empty / user-explicit, so this only applies
+// in variant mode; explicit user-set targets do not drift, so collapsing them is harmless
+function normalizeVariantDebug(text) {
+  if (text === null || !BABEL_VARIANT) return text;
+  return text.replace(/Using targets: \{[^}]*\}/, 'Using targets: <RESOLVED>');
+}
+
 // hijack console.log + warn + error so untracked diagnostics don't leak past the runner.
 // returns the captured-buffer arrays plus a `restore` callback for the finally block.
 // error shares the warnings channel since neither plugin emitter distinguishes severity
@@ -166,12 +178,15 @@ async function runFixture(directory) {
   const actualFile = error ? errorFile : outputFile;
   const staleFile = error ? outputFile : errorFile;
   const actual = error ? normalizeOutput(error.message) : result;
-  const debugOutput = logs.length ? normalizeOutput(logs.join('\n')) : null;
+  const debugOutput = normalizeVariantDebug(logs.length ? normalizeOutput(logs.join('\n')) : null);
   const warningsOutput = warns.length ? normalizeOutput(warns.join('\n')) : null;
 
+  // the debug slot carries `normalizeVariantDebug` so the EXPECTED fixture content gets the same
+  // resolved-targets collapse the actual went through - keeps both comparison sides aligned in
+  // variant mode without touching the baseline (a no-op normalizer there)
   const expected = [
     [actualFile, actual],
-    [debugFile, debugOutput],
+    [debugFile, debugOutput, normalizeVariantDebug],
     [warningsFile, warningsOutput],
   ];
 
@@ -212,7 +227,7 @@ async function runFixture(directory) {
     return echo`${ cyan(label(directory)) } ${ yellow('created') }`;
   }
 
-  for (const [file, content] of expected) {
+  for (const [file, content, normalizeExpected = x => x] of expected) {
     if (content === null) {
       if (await exists(file)) {
         failed++;
@@ -225,7 +240,7 @@ async function runFixture(directory) {
       return echo(red(`${ cyan(label(directory)) } failed: ${ cyan(file) } is missing`));
     }
     try {
-      strictEqual(content, await readFile(file, UTF8));
+      strictEqual(content, normalizeExpected(await readFile(file, UTF8)));
     } catch (equalError) {
       failed++;
       echo(red(`${ cyan(label(directory)) } failed:`));

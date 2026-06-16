@@ -76,6 +76,15 @@ export function collectMutationPrePass(programPath, adapter) {
     AssignmentExpression: handleSite,
     UpdateExpression: handleSite,
     UnaryExpression: handleSite,
+    // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this scoped
+    // traverse never descends into a constructor parameter-property's legacy decorator and a
+    // monkey-patch hidden there escapes detection - usage-pure would then substitute over the
+    // user patch. requeue each decorator so the mutation-site visitors fire on it, mirroring
+    // the read-side requeue in createUsageVisitors
+    TSParameterProperty(path) {
+      if (!path.node.decorators?.length) return;
+      for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
+    },
   });
   return { mutated };
 }

@@ -1218,12 +1218,14 @@ export function createDestructureEmitter({
       const e = renderOuterPlan(childPlan);
       let emitted = null;
       // rest-sentinel for a fully-consumed child under an inner rest: keep a `<key>: _unused`
-      // sentinel, else `...rest` captures the originally-excluded key. the key source comes from
-      // the canonical accessor (handles StringLiteral keys, not only Identifier `.name`). guarded by
-      // `extractions?.length` first so a keyless RestElement child never reaches `flattenKeySrc`
+      // sentinel, else `...rest` captures the originally-excluded key. route through the SAME
+      // synth-aware renderer the OUTER-level sentinel (and babel) use, so a consumed
+      // `[Symbol.iterator]` child re-keys through the polyfilled `_Symbol$iterator` binding here
+      // too (a plain `flattenKeySrc` would leak the native `[Symbol.iterator]`, a ReferenceError on
+      // runtimes without native Symbol). guarded by `extractions?.length` first so a keyless
+      // RestElement child never reaches the key renderer
       if (childPlan.extractions?.length && innerHasRest && e.preservedSrc === null) {
-        const childKeySrc = flattenKeySrc(child);
-        if (childKeySrc) emitted = `${ childKeySrc }: ${ injector.generateUnusedName() }`;
+        emitted = emitRestSentinel(childPlan, child);
       }
       if (e.preservedSrc !== null && e.preservedSrc !== undefined) {
         emitted = e.preservedSrc;
@@ -1783,7 +1785,14 @@ export function createDestructureEmitter({
     // whole-logical synth-swap path replaces the operands wholesale, so no hop survives to collapse
     let peeled = receiver;
     while (peeled && (peeled.type === 'ParenthesizedExpression' || peeled.type === 'ChainExpression'
-      || TS_EXPR_WRAPPERS.has(peeled.type))) peeled = peeled.expression;
+      || peeled.type === 'SequenceExpression' || TS_EXPR_WRAPPERS.has(peeled.type))) {
+      // peel a SE tail too (`(effect(), globalThis.self.Array || Set)`) so an SE-wrapped logical
+      // reaches the per-operand recursion, matching the babel twin `collapseRetainedProxyReceiver`.
+      // without this the logical's `.self` hop survives uncollapsed -> runtime-undefined
+      // `_globalThis.self.Array` (ie:11 throw). the SE prefix stays in source; only the tail's hop
+      // bytes are edited, so peeling to the tail does not drop the effect
+      peeled = peeled.type === 'SequenceExpression' ? peeled.expressions.at(-1) : peeled.expression;
+    }
     if (peeled?.type === 'LogicalExpression') {
       collapseRetainedProxyDefault(peeled.left, aliasCtx);
       collapseRetainedProxyDefault(peeled.right, aliasCtx);

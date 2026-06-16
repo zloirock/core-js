@@ -1,6 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint } from './index.js';
-import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import {
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
@@ -107,9 +106,15 @@ function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScope
     getBindingNodeType: (scope, name, path = null) => getScopeBinding(scope, name, path)?.path?.node?.type
       ?? (path && findFunctionScopeVarDeclaratorInPath(path, name) ? 'VariableDeclarator' : undefined),
     getBinding: (scope, name, path = null) => getScopeBinding(scope, name, path) ?? synthVarHoistBinding(path, name),
+    // forward the raw hint verbatim (mirroring the unplugin estree adapter's `polyfillHint`):
+    // it carries BOTH proxy-global aliases (`_globalThis` -> `globalThis`) AND pure-import
+    // constructor stubs (`_Array$from` -> `Array`, `_Promise` -> `Promise`). each consumer
+    // applies its OWN gate - `proxyGlobalNameOf` / `isProxyGlobalIdentifierNode` re-check
+    // `POSSIBLE_GLOBAL_OBJECTS` (so a constructor hint resolves to null there, unchanged), while
+    // `walkStaticReceiverStep` wants the ungated constructor name to recover a sibling-rewritten
+    // stub. gating here stripped the constructor hints and left that recovery dead on babel only
     getBindingPolyfillHint(scope, name) {
-      const hint = getPolyfillBindingHint(scope, name);
-      return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
+      return getPolyfillBindingHint(scope, name) ?? null;
     },
     isStringLiteral: node => babelNodeType(node) === 'StringLiteral',
     getStringValue: node => babelNodeType(node) === 'StringLiteral' ? node.value : null,
@@ -789,6 +794,7 @@ function createResolveNodeType(babelNodeType, t, {
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     dropMapKeys,
+    applyAliasSubstDeep,
   });
 
   // --- Type annotation resolver ---
