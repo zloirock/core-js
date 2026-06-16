@@ -48,6 +48,14 @@ function isPlainMemberHopChain(outerObject, innerCall) {
   return cur === innerCall;
 }
 
+// the polyfill fallback for a static-context `super.X` resolving to an inherited STATIC, or null.
+// resolvers are injected (they close over the per-file injector); module-level so the emitter
+// factory stays under its statement budget
+function inheritedStaticFallback(superCalleePath, methodName, resolveStaticInherited, resolveFallback) {
+  const meta = resolveStaticInherited(superCalleePath, methodName);
+  return meta ? resolveFallback(meta, superCalleePath).result : null;
+}
+
 export function createPolyfillEmitter({
   canFuseWithOpenParen,
   code,
@@ -474,20 +482,28 @@ export function createPolyfillEmitter({
     if (code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end)) {
       return { needsParens: true, tipEnd: end };
     }
-    // fifth case: step past Chain / TS wrappers AND non-optional tails sharing the chain start
+    // fifth case: step past Chain / TS wrappers AND member / call tails sharing the chain start
     // (the guarded ternary spans them - the trailing `.x` sits UNDER its ChainExpression, so the
-    // walk above stops short of the operator), tracking the tail tip. an optional continuation
-    // (`?.()`) keeps its own guard, so stop there; wrap only if the parent past the tail is an operator
+    // walk above stops short of the operator), tracking the tail tip. a NON-optional tail extends
+    // `tipEnd` (the wrap reaches over it). a SURVIVING optional continuation (`?.y`) keeps its own
+    // short-circuit guard and stays OUTSIDE the parens (matching babel's `(guard.x)?.y` shape), so
+    // peel past it WITHOUT extending `tipEnd` and keep climbing to find the real operator parent
     let tipEnd = end;
+    let chainEnd = end;
     while (outer?.node) {
       const tn = outer.node.type;
       if (tn === 'ChainExpression' || TS_EXPR_WRAPPERS.has(tn)) {
         outer = outer.parentPath;
         continue;
       }
-      if ((tn === 'MemberExpression' || tn === 'CallExpression')
-        && !outer.node.optional && outer.node.start === start) {
-        if (outer.node.end > tipEnd) tipEnd = outer.node.end;
+      if ((tn === 'MemberExpression' || tn === 'CallExpression') && outer.node.start === start) {
+        // only a non-optional tail is absorbed into the wrap (`tipEnd`); the surviving optional
+        // continuation is left verbatim after the closing paren, so its end must not move `tipEnd`.
+        // `chainEnd` tracks the FULL guarded chain end (incl. the surviving optional) so the
+        // ConditionalExpression-test check below recognises the chain when an optional suffix
+        // extends the test past `tipEnd`
+        if (!outer.node.optional && outer.node.end > tipEnd) tipEnd = outer.node.end;
+        if (outer.node.end > chainEnd) chainEnd = outer.node.end;
         outer = outer.parentPath;
         continue;
       }
@@ -496,10 +512,11 @@ export function createPolyfillEmitter({
     // past the tail, the real parent needs grouping by the SAME rules as the four cases above, now
     // measured at `tipEnd`: an operator (NEEDS_GUARD_PARENS) OR a ConditionalExpression whose test is
     // the whole guarded chain (`a?.at(-1).x ? 1 : 2` -> `(guard) ? 1 : 2`, else the `? :` binds to the
-    // success branch only). throughTS / `?.`-continuation stay anchored at `end` (handled above) -
+    // success branch only; the test ends at `chainEnd`, which trails `tipEnd` when an optional `?.y`
+    // continuation survives). throughTS / `?.`-continuation stay anchored at `end` (handled above) -
     // a trailing tail never introduces those
     if (tipEnd > end && (NEEDS_GUARD_PARENS.has(outer?.node?.type)
-      || (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === tipEnd))) {
+      || (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === chainEnd))) {
       return { needsParens: true, tipEnd };
     }
     return { needsParens: false, tipEnd: end };
@@ -1001,14 +1018,17 @@ export function createPolyfillEmitter({
     // this is exactly what lets the combine subsume `super.flat?.().map().at()` into ONE guard instead
     // of falling to overlapping standalones (the "could not locate inner needle" crash)
     const isSuper = callee.object?.type === 'Super';
-    // only INSTANCE-context super (`super.flat` / `super.custom` in an instance method -> the parent's
-    // native instance method, memoized as the method-GET) is taken over by the combine - it handles a
-    // poly OR a non-poly method. a STATIC-context super method (`super.of` in a static method) resolves
-    // to a polyfillable static the standalone DEOPTIMIZES (always-defined -> no guard,
-    // `_Array$of.call(this)`); keep bailing those to the standalone so the deopt parity is preserved.
-    // delegate to the canonical static-context helper (the static-ness is the enclosing method's, not
-    // a property of the method NAME resolution - a non-poly instance super has no resolved result)
-    if (isSuper && isInStaticContext(currentPath)) return null;
+    // a super method is taken over by the combine (memoized as the method-GET `super.X`, called with
+    // `this`) UNLESS it resolves to a polyfillable inherited STATIC: that one the standalone path
+    // DEOPTIMIZES (always-defined -> no guard, `_Array$of.call(this)`), and keeping it there preserves
+    // deopt parity. consult the canonical static-inheritance resolver, NOT the coarse enclosing-method
+    // static-ness: a static-context super to the parent's OWN static (`super.custom`, no core-js
+    // polyfill) resolves to no meta, so it must be combined like an instance super - bailing it left
+    // >=2 trailing instance polys as overlapping standalones (the "could not locate inner needle"
+    // crash). only `super.of` / `super.from` (a needed inherited-static fallback) keeps bailing
+    if (isSuper && isInStaticContext(currentPath) && inheritedStaticFallback(
+      currentPath.get('callee'), innerMethodName, resolveStaticInheritedMember, resolvePureOrGlobalFallback,
+    )) return null;
     const effectiveResult = isSuper ? null : result;
     // non-poly inner (effectiveResult null): the standalone path already handles a single trailing poly,
     // member-only hops, and static / global inner calls (always-defined -> deopts to no-guard
