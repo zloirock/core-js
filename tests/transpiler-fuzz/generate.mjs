@@ -27,6 +27,10 @@ const G_RECEIVERS = [
   { id: 'array-lit', src: '[3, [1, 2]]', type: 'array' },
   { id: 'array-local', src: 'arr', type: 'array' },
   { id: 'array-call', src: 'arr.slice()', type: 'array' },
+  // a STATIC-call result whose return type narrows to Array (KNOWN_STATIC_METHOD_RETURN_TYPES) - distinct
+  // resolver path from the instance-call result above; the `from` static AND the chained instance method
+  // both inject, so import parity + the cast/optional/context cross all exercise the return-narrow surface
+  { id: 'static-call', src: 'Array.from([3, [1, 2]])', type: 'array' },
   { id: 'string-lit', src: '"abcde"', type: 'string' },
   { id: 'static-array', src: 'Array', type: 'sarray' },
   { id: 'static-array-proxy', src: 'globalThis.Array', type: 'sarray' },
@@ -120,6 +124,15 @@ const D_PATTERNS = [
   { id: 'nested-proxy', recv: 'globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
   { id: 'nested-proxy-multi', recv: 'globalThis', lhs: '{ Array: { from, of } }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
   { id: 'se-key', recv: 'Array', lhs: '{ [(log.push("k"), "from")]: f }', names: ['f'], observe: 'typeof f', strip: true },
+  // nested INSTANCE-method destructure (`{ y: { flat: m } } = { y: <recv> }`) - the body-extract path
+  // distinct from the static / proxy-hop patterns above. a SOLE binding off a side-effect-free receiver
+  // drops the dead residual entirely (`const m = _flat(<recv>)`); a SIBLING binding keeps the residual and
+  // memoizes a constant-literal receiver into one `_ref`. `m` is the polyfilled method, so `typeof m` is
+  // `function` on every realm once injected (stripped oracle valid). the sibling form's `a: log.push("e")`
+  // pins side-effect-once: a memoize that re-ran the receiver, or a dropped sibling, shows in `effects`
+  { id: 'nested-instance-lit', recv: '{ y: [3, [1, 2]] }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-ident', recv: '{ y: arr }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-sibling', recv: '{ a: log.push("e"), y: [3, [1, 2]] }', lhs: '{ a, y: { flat: m } }', names: ['a', 'm'], observe: '[a, typeof m]', strip: true },
 ];
 const D_HOSTS = [
   { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
@@ -143,19 +156,30 @@ function * generateDestructure() {
 // hop-shape x optionality is high-signal for the runtime three-way (native == babel == unplugin),
 // including short-circuit (null receiver) and side-effect-once (`se` receiver). full-env only - a
 // chain mixes optional / native / poly hops, so a stripped-realm native call can survive benignly.
+// each receiver carries a `type` (mirrors the main grammar) so only type-valid chains are emitted.
+// `null` is type-agnostic: it short-circuits before any hop, so it pairs with chains of any type
 const C_RECEIVERS = [
-  { id: 'live', src: 'arr' },
-  { id: 'lit', src: '[3, [1, 2]]' },
-  { id: 'null', src: 'nul' },
-  { id: 'se', src: '(log.push("e"), arr)' },
+  { id: 'live', src: 'arr', type: 'array' },
+  { id: 'lit', src: '[3, [1, 2]]', type: 'array' },
+  { id: 'null', src: 'nul', type: null },
+  { id: 'se', src: '(log.push("e"), arr)', type: 'array' },
+  // static-call result feeding a multi-hop instance chain (return-narrow -> chained dispatch + receiver-memo)
+  { id: 'static-call', src: 'Array.from([3, [1, 2]])', type: 'array' },
+  { id: 'str-lit', src: '"abcde"', type: 'string' },
+  { id: 'str-se', src: '(log.push("e"), "abcde")', type: 'string' },
 ];
-// hop: { n: method, a: args, poly }. only a poly (polyfilled-instance) hop takes call-optional `?.()`
+// hop: { n: method, a: args, poly }. only a poly (polyfilled-instance) hop takes call-optional `?.()`.
+// `type` gates the chain to a receiver type; a non-poly hop is a native method valid on that type
 const C_CHAINS = [
-  { id: 'flat-at', hops: [{ n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
-  { id: 'slice-flat', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }] },
-  { id: 'flatMap-flat', hops: [{ n: 'flatMap', a: 'x => [x]', poly: true }, { n: 'flat', a: '', poly: true }] },
-  { id: 'flat-map', hops: [{ n: 'flat', a: '', poly: true }, { n: 'map', a: 'x => x' }] },
-  { id: 'slice-flat-at', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
+  { id: 'flat-at', type: 'array', hops: [{ n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
+  { id: 'slice-flat', type: 'array', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }] },
+  { id: 'flatMap-flat', type: 'array', hops: [{ n: 'flatMap', a: 'x => [x]', poly: true }, { n: 'flat', a: '', poly: true }] },
+  { id: 'flat-map', type: 'array', hops: [{ n: 'flat', a: '', poly: true }, { n: 'map', a: 'x => x' }] },
+  { id: 'slice-flat-at', type: 'array', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
+  // string-method chains (the receiver-memo + optional-deopt path on a non-array type)
+  { id: 'padStart-at', type: 'string', hops: [{ n: 'padStart', a: '8, "0"', poly: true }, { n: 'at', a: '0', poly: true }] },
+  { id: 'trimEnd-padEnd', type: 'string', hops: [{ n: 'trimEnd', a: '', poly: true }, { n: 'padEnd', a: '8, "x"', poly: true }] },
+  { id: 'slice-padStart', type: 'string', hops: [{ n: 'slice', a: '1' }, { n: 'padStart', a: '8, "0"', poly: true }] },
 ];
 // per-hop optionality: `member` -> `?.method`, `call` -> `method?.(` (poly hops only)
 const C_OPT = [
@@ -176,6 +200,8 @@ function renderChain(src, hops, opt) {
 function * generateChains() {
   for (const recv of C_RECEIVERS) {
     for (const chain of C_CHAINS) {
+      // type-agnostic null receiver pairs with any chain (short-circuits before the first hop)
+      if (recv.type !== null && recv.type !== chain.type) continue;
       for (const opt of C_OPT) {
         yield { ...snippet(`chain/${ recv.id }/${ chain.id }/${ opt.id }`, renderChain(recv.src, chain.hops, opt)), strip: true };
       }
@@ -205,6 +231,127 @@ function * generateIn() {
   for (const key of IN_KEYS) {
     for (const obj of IN_OBJS) {
       yield snippet(`in/${ key.id }/${ obj.id }`, `${ key.src } in ${ obj.src }`);
+    }
+  }
+}
+
+// --- Mutated-static grammar (usage-pure MUST bail, keeping the user's monkey-patch) ---
+// the corpus is otherwise non-mutating (a global write leaks across a shard's sequential imports). these
+// snippets stay isolated by SELF-RESTORING in a `finally`, so the realm is clean the instant the IIFE
+// returns - the only mutation window is the synchronous IIFE body. each patches a static to a sentinel
+// (`() => "P"`), USES it, restores. usage-pure must DETECT the mutation (collectMutatedStaticMembers) and
+// bail substitution, so the call keeps the patch: native == bailed-output == "P". a plugin that wrongly
+// injected the pure static would return a real value (!= "P") -> runtime mismatch, AND carry an import the
+// other side lacks -> import mismatch. full-env only (mutation, not a strip target)
+const M_STATICS = [
+  { recv: 'Array', key: 'from', use: 'Array.from([1, 2])' },
+  { recv: 'Array', key: 'of', use: 'Array.of(1, 2)' },
+  { recv: 'Object', key: 'fromEntries', use: 'Object.fromEntries([["a", 1]])' },
+  { recv: 'Object', key: 'hasOwn', use: 'Object.hasOwn({ a: 1 }, "a")' },
+  { recv: 'Number', key: 'isInteger', use: 'Number.isInteger(3)' },
+];
+const M_MUTATORS = [
+  { id: 'assign', patch: s => `${ s.recv }.${ s.key } = () => "P";` },
+  { id: 'defineprop', patch: s => `Object.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
+  { id: 'reflect', patch: s => `Reflect.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
+];
+function * generateMutatedStatic() {
+  for (const s of M_STATICS) {
+    for (const mut of M_MUTATORS) {
+      const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ mut.patch(s) } return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
+      yield { ...snippet(`mutated-static/${ mut.id }/${ s.recv }.${ s.key }`, body), strip: false };
+    }
+  }
+}
+
+// the bail is per-KEY: mutate ONE static, USE a DIFFERENT static of the same constructor - the used one
+// must STILL inject (a regression to a whole-constructor bail would drop that import on one emitter only)
+const M_SIBLINGS = [
+  { recv: 'Array', mut: 'of', useKey: 'from', use: 'Array.from([1, 2])' },
+  { recv: 'Array', mut: 'from', useKey: 'of', use: 'Array.of(1, 2)' },
+  { recv: 'Object', mut: 'hasOwn', useKey: 'fromEntries', use: 'Object.fromEntries([["a", 1]])' },
+];
+function * generateMutatedSibling() {
+  for (const s of M_SIBLINGS) {
+    const body = `(() => { const _o = ${ s.recv }.${ s.mut }; try { ${ s.recv }.${ s.mut } = () => "P"; return ${ s.use }; } finally { ${ s.recv }.${ s.mut } = _o; } })()`;
+    yield { ...snippet(`mutated-sibling/${ s.recv }/mut-${ s.mut }-use-${ s.useKey }`, body), strip: false };
+  }
+}
+
+// the mutated static is consumed via DESTRUCTURE extraction (`const { from } = Array`) - a different
+// consumption path that must also consult the mutation set and bail (keep the patch), not lift the pure
+// static into a `const from = _Array$from` that would ignore the user's monkey-patch
+const M_DESTRUCTURE = [
+  { recv: 'Array', key: 'from', use: 'from([1])' },
+  { recv: 'Object', key: 'fromEntries', use: 'fromEntries([["a", 1]])' },
+];
+function * generateMutatedDestructure() {
+  for (const s of M_DESTRUCTURE) {
+    const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ s.recv }.${ s.key } = () => "P"; const { ${ s.key } } = ${ s.recv }; return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
+    yield { ...snippet(`mutated-destructure/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// the mutated static is the chain ROOT: `Array.from = patch; Array.from([1]).flat()`. the static bails
+// (mutation), but the static-call's return type still narrows to Array, so the TRAILING instance method
+// must still inject - the bail decision and the return-type narrow are orthogonal, and both emitters must
+// agree on emitting the instance helper while leaving the mutated static alone (patch returns an array so
+// the chain stays runnable)
+const M_NARROW = [
+  { recv: 'Array', key: 'from', patch: '() => [9, [8]]', use: 'Array.from([1]).flat()' },
+  { recv: 'Array', key: 'of', patch: '() => [3, [1]]', use: 'Array.of(1).at(0)' },
+];
+function * generateMutatedNarrowChain() {
+  for (const s of M_NARROW) {
+    const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ s.recv }.${ s.key } = ${ s.patch }; return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
+    yield { ...snippet(`mutated-narrow-chain/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// --- Side-effect ORDER through nested-instance body-extract ---
+// distinct side-effecting siblings (`log.push("x")` / `"z"`) flank the body-extracted binding; the
+// receiver is constant (memoize), an identifier (re-reference), or itself side-effecting (bail). every
+// shape must keep source order x -> z and run each effect ONCE. the receiver memo / re-ref / bail decision
+// must not pull a sibling effect out of order or duplicate it - `effects` is compared 3-way (native ==
+// babel == unplugin), so any reorder / drop / double-eval surfaces. the `log.push` siblings are themselves
+// polyfilled, so this also exercises SE-order with polyfilled siblings around the extracted receiver
+const SE_LAYOUTS = [
+  { id: 'before', lhs: '{ a, b: { flat: m } }', rhs: '{ a: log.push("x"), b: $R }', obs: '[a, typeof m]' },
+  { id: 'after', lhs: '{ b: { flat: m }, c }', rhs: '{ b: $R, c: log.push("z") }', obs: '[c, typeof m]' },
+  { id: 'flank', lhs: '{ a, b: { flat: m }, c }', rhs: '{ a: log.push("x"), b: $R, c: log.push("z") }', obs: '[a, c, typeof m]' },
+];
+const SE_RECVS = [
+  { id: 'const', src: '[1, 2, 3]', strip: true },
+  { id: 'ident', src: 'arr', strip: true },
+  { id: 'se', src: '[log.push("y"), 1]', strip: false },
+];
+function * generateSeOrder() {
+  for (const layout of SE_LAYOUTS) {
+    for (const recv of SE_RECVS) {
+      const body = `(() => { const ${ layout.lhs } = ${ layout.rhs.replace('$R', recv.src) }; return ${ layout.obs }; })()`;
+      yield { ...snippet(`se-order/${ layout.id }/${ recv.id }`, body), strip: recv.strip };
+    }
+  }
+}
+
+// --- Optional short-circuit must SKIP a downstream call-ARGUMENT side effect ---
+// `nul?.at(log.push("m"))`: the null receiver short-circuits BEFORE the argument runs, so `effects` stays
+// empty; a live receiver runs it exactly ONCE. the argument is itself polyfilled (`log.push`), so the
+// optional deopt must keep it INSIDE the short-circuited call - hoisting or pre-evaluating the arg would
+// fire `log.push` on the null path. compared 3-way via `effects`
+const ARG_SE_RECVS = [
+  { id: 'null', src: 'nul' },
+  { id: 'live', src: 'arr' },
+];
+const ARG_SE_CHAINS = [
+  { id: 'at', tail: '?.at(log.push("m"))' },
+  { id: 'flat-at', tail: '?.flat()?.at(log.push("m"))' },
+  { id: 'includes', tail: '?.includes(log.push("m"))' },
+];
+function * generateOptionalArgSe() {
+  for (const recv of ARG_SE_RECVS) {
+    for (const chain of ARG_SE_CHAINS) {
+      yield { ...snippet(`optional-arg-se/${ chain.id }/${ recv.id }`, `${ recv.src }${ chain.tail }`), strip: false };
     }
   }
 }
@@ -1252,6 +1399,12 @@ export function * generate() {
   yield * generateDestructure();
   yield * generateChains();
   yield * generateIn();
+  yield * generateMutatedStatic();
+  yield * generateMutatedSibling();
+  yield * generateMutatedDestructure();
+  yield * generateMutatedNarrowChain();
+  yield * generateSeOrder();
+  yield * generateOptionalArgSe();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) yield snippet(`${ family }: ${ expr }`, expr);
   }
