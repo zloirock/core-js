@@ -243,3 +243,92 @@ QUnit.test('params: fallback default side-effect prefix runs when default fires'
   assert.deepEqual(fn(), [1, 2]);
   assert.deepEqual(log, ['se']);
 });
+
+// a flat (non-fallback) param default that is a member chain rooted at a side-effecting IIFE: the
+// synth literal discards the chain, so the IIFE setup must be rescued (run exactly once) when the
+// default fires - it was being dropped entirely (and crashed the text emitter)
+QUnit.test('params: call-rooted member default rescues the IIFE setup once', assert => {
+  let calls = 0;
+  const fn = ({ from } = (() => {
+    calls++;
+    return globalThis;
+  })().Array) => from([1, 2]);
+  assert.deepEqual(fn(), [1, 2]);
+  assert.same(calls, 1);
+  // caller-passed value beats the synth default; the default (and its IIFE) does not evaluate
+  assert.same(fn({ from: () => 'x' }), 'x');
+  assert.same(calls, 1);
+});
+
+// a `||` fallback default whose resolved LEFT is a member chain rooted at a side-effecting IIFE: the
+// fallback collapses to the polyfilled literal, but the left's chain-root call must be rescued (run
+// exactly once) - the structural prefix harvest alone stopped at the chain root and dropped it
+QUnit.test('params: fallback default call-rooted left rescues the chain-root call once', assert => {
+  let calls = 0;
+  const fn = ({ from } = (() => {
+    calls++;
+    return globalThis;
+  })().Array || Set) => from([3, 4]);
+  assert.deepEqual(fn(), [3, 4]);
+  assert.same(calls, 1);
+  assert.same(fn({ from: () => 'y' }), 'y');
+  assert.same(calls, 1);
+});
+
+// a `||` fallback default whose LEFT prefix is itself a polyfillable instance call: narrowing the
+// collapse skip to the dead right + resolved-left tail keeps the prefix live (it runs, and on ie:11
+// is itself polyfilled) rather than swallowed whole
+QUnit.test('params: fallback default polyfillable left prefix still runs', assert => {
+  const seen = [];
+  const fn = ({ from } = (seen.push([9].at(0)), Array) || Set) => from([5, 6]);
+  assert.deepEqual(fn(), [5, 6]);
+  assert.deepEqual(seen, [9]);
+});
+
+// a SE-bearing synth-swap receiver with an UNRESOLVED sibling key (`isArray` has no pure entry): the
+// receiver is memoized (run once) so the unresolved key reads the memo rather than re-running it -
+// rescuing AND re-reading would run the effect twice
+QUnit.test('params: SE receiver with an unresolved sibling key runs the effect once', assert => {
+  let calls = 0;
+  const fn = ({ from, isArray } = (() => {
+    calls++;
+    return globalThis;
+  })().Array) => [from([1]), isArray([])];
+  const result = fn();
+  assert.deepEqual(result[0], [1]);
+  assert.true(result[1]);
+  assert.same(calls, 1);
+  // caller-passed values beat the synth default; the default (and its IIFE) does not evaluate
+  assert.deepEqual(fn({ from: () => 'z', isArray: () => 'w' }), ['z', 'w']);
+  assert.same(calls, 1);
+});
+
+// the same memoize-once contract through the per-branch conditional registration site: the taken
+// branch is a SE-rooted member with an unresolved sibling key, so it memoizes (runs once) rather
+// than rescue-and-re-read
+QUnit.test('params: conditional branch SE receiver with unresolved sibling runs once', assert => {
+  let calls = 0;
+  const fn = (cond, { from, isArray } = cond ? (() => {
+    calls++;
+    return globalThis;
+  })().Array : Set) => [from([1]), isArray([])];
+  const result = fn(true);
+  assert.deepEqual(result[0], [1]);
+  assert.true(result[1]);
+  assert.same(calls, 1);
+});
+
+// a `||` fallback receiver (call-rooted left) with an unresolved sibling key: the memo argument is
+// the resolved LEFT only, so the IIFE runs once, the unresolved key reads the memo, and the dead
+// right operand is dropped - the result is identical to the non-fallback receiver
+QUnit.test('params: fallback SE receiver with unresolved sibling memoizes the left', assert => {
+  let calls = 0;
+  const fn = ({ from, isArray } = (() => {
+    calls++;
+    return globalThis;
+  })().Array || Set) => [from([1]), isArray([])];
+  const result = fn();
+  assert.deepEqual(result[0], [1]);
+  assert.true(result[1]);
+  assert.same(calls, 1);
+});
