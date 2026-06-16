@@ -13,7 +13,8 @@
 // narrow; mutation inside a nested captured function also invalidates (deferred calls
 // may fire between the guard and the usage)
 import { peelLabeledStatementNode } from '../helpers/ast-patterns.js';
-import { isUnionType, OPEN_KEYWORD_ANNOTATION_TYPES, violationInCapturedFunction } from './ast-shapes.js';
+import { isUnionType, loopReExecRegionHasViolation, OPEN_KEYWORD_ANNOTATION_TYPES, violationInCapturedFunction } from './ast-shapes.js';
+import { bindingLoopAnchor } from './straight-line-flow.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 import { $Object, $Primitive, PRIMITIVES } from './base.js';
 
@@ -232,8 +233,16 @@ export function createNarrowByGuards({
     // wrapping outer guard (tracked via outermostGuardHost), it sets no host, so the
     // violatesBetweenHosts check below can't see it - this flag carries the staleness instead
     let stalePrecedingOuterGuard = false;
+    // back-edge soundness shared with the value-flow walk: a reassignment that re-executes on the loop
+    // back-edge before the next-iteration use makes a guard outside the loop stale. delegate to the
+    // canonical `loopReExecRegionHasViolation` instead of an inline `violatesInsideNode(loop)` - the
+    // canonical excludes the once-only for-init slot AND keeps the for-header binding exemption sound
+    // (a C-style `for (let x = init; ;)` header carries across; a for-of var / body block does not)
+    const loopViolationNodes = constantViolations.map(v => v.node);
+    const loopBindingAnchor = bindingLoopAnchor(binding);
     for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
-      if (!innerFreshConditional && isLoopStatement(parent.node) && violatesInsideNode(parent.node)) crossedBackEdgeLoop = true;
+      if (!innerFreshConditional && isLoopStatement(parent.node)
+        && loopReExecRegionHasViolation(parent.node, loopViolationNodes, loopBindingAnchor)) crossedBackEdgeLoop = true;
       if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
       // a guard reached only after crossing a back-edge loop is outside it - it cannot
       // re-establish the narrow per iteration, so the loop-carried reassignment wins

@@ -164,14 +164,22 @@ export function nodeRangeContains(outer, inner) {
 }
 
 // does `loopNode`'s re-executing region (body / test / for-update slot, but NOT the once-only
-// for-init slot) contain a reassignment that survives the back-edge? `bindingScopeNode` (the
-// binding's declaration-scope node) gates it: a binding whose scope lives INSIDE the loop is
-// re-created each iteration (block-scoped `let`/`const` in the body), so its in-loop reassignment is
-// straight-line, not a back-edge; a `var` scopes to the enclosing function (scope node outside the
-// loop), so it stays live. shared soundness core for the value-flow walk and the discriminant walk
-export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingScopeNode) {
-  if (bindingScopeNode && nodeRangeContains(loopNode, bindingScopeNode)) return false;
+// for-init slot) contain a reassignment that survives the back-edge? `bindingAnchor` ({ decl, kind })
+// gates it by declaration POSITION + binding KIND, NOT scope: estree-toolkit attaches BOTH a for-body
+// `let` and a for-body `var` to the ForStatement scope (babel uses the body block for `let`, the
+// function for `var`), so a scope test cannot tell function-scoped `var` from block-scoped `let`.
+// a binding is re-created / re-bound each iteration (no back-edge) when it is a for-of/in loop variable
+// (declared in `left`, re-bound to the next element, any kind) OR a block-scoped (`let`/`const`)
+// binding declared in the loop BODY (fresh per iteration). a `var` is function-scoped and carries even
+// when written in the body; a C-style `for (let x = init; ;)` HEADER binding is declared in the
+// once-only init slot and is COPIED per iteration (carries); an outer binding is declared outside the
+// loop. shared soundness core for the value-flow walk and the discriminant walk
+export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingAnchor) {
+  const { decl, kind } = bindingAnchor ?? {};
   const initNode = loopNode.type === 'ForStatement' ? loopNode.init : null;
+  const reBoundInLeft = decl && loopNode.left && nodeRangeContains(loopNode.left, decl);
+  const blockScopedInBody = decl && kind && kind !== 'var' && nodeRangeContains(loopNode.body, decl);
+  if (reBoundInLeft || blockScopedInBody) return false;
   return violationNodes.some(v => nodeRangeContains(loopNode, v) && !(initNode && nodeRangeContains(initNode, v)));
 }
 
@@ -181,10 +189,10 @@ export function loopReExecRegionHasViolation(loopNode, violationNodes, bindingSc
 // iteration 2 onward. true when `usagePath` sits inside a loop whose re-executing region contains
 // one of `violationNodes` (a reassignment of the binding). walk stops at the function boundary -
 // mirrors the crossedBackEdgeLoop guard in narrow-by-guards.js
-export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, bindingScopeNode) {
+export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, bindingAnchor) {
   if (!violationNodes?.length) return false;
   for (let cur = usagePath, parent; (parent = cur.parentPath) && !t.isFunction(parent.node); cur = parent) {
-    if (isLoopStatement(parent.node) && loopReExecRegionHasViolation(parent.node, violationNodes, bindingScopeNode)) return true;
+    if (isLoopStatement(parent.node) && loopReExecRegionHasViolation(parent.node, violationNodes, bindingAnchor)) return true;
   }
   return false;
 }
