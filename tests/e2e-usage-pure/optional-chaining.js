@@ -272,3 +272,32 @@ QUnit.test('optional combined chain: receiver evaluates before computed-key SE',
   assert.deepEqual(r, [1]);
   assert.deepEqual(log, ['recv', 'key']);
 });
+
+// poly-optional call -> non-optional member tail -> SURVIVING optional continuation, under an
+// operator / unary / logical / ternary context. the guard ternary must be parenthesized over the
+// deoptionalized prefix so the operator binds the guarded value; on a nullish root the whole chain
+// short-circuits to undefined BEFORE the operator. (was unplugin-only: the unparenthesized guard
+// flipped `-a == null` or applied the operator to the guard's nullish test / alternate)
+QUnit.test('optional poly tail + surviving optional under operator: nullish short-circuit', assert => {
+  // null root: each chain short-circuits to undefined, then the operator applies to undefined
+  // eslint-disable-next-line @stylistic/no-extra-parens -- mirrors the exact grammar under test
+  assert.true(Number.isNaN((null)?.at(-1).x?.y ** 2));
+  // the unary case is the one that THREW pre-fix (`-a == null` flipped the guard, calling on null)
+  assert.true(Number.isNaN(-null?.flat().x?.y));
+  assert.same(null?.findLast(Boolean).x?.y || 7, 7);
+  assert.same(null?.at(-1).x?.y ? 'then' : 'else', 'else');
+  // live root: the chain runs; `.x` is absent so the surviving `?.y` short-circuits to undefined
+  assert.true(Number.isNaN([2, 3]?.at(-1).x?.y ** 2));
+  assert.same([2, 3]?.findLast(Boolean).x?.y || 7, 7);
+});
+
+// the same poly-optional tail + surviving optional in a PLAIN ASSIGNMENT (no operator). babel and
+// unplugin render the guard ternary differently (`(guard.x)?.y` vs `guard.x?.y`, locked by the
+// fixture sidecar) but both are runtime-equivalent: a nullish root short-circuits the whole chain
+// to undefined, and a live root whose `.x` is absent short-circuits the surviving `?.y` too.
+QUnit.test('optional poly tail + surviving optional in plain assignment: undefined on both paths', assert => {
+  const nullRoot = null?.at(-1).x?.y;
+  assert.same(nullRoot, undefined);
+  const liveRoot = [2, 3]?.findLast(Boolean).x?.y;
+  assert.same(liveRoot, undefined);
+});

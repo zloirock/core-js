@@ -300,6 +300,15 @@ export function createPolyfillResolver(options, {
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
     const { kind, desc: { pure: desc } } = resolved;
+    // a synthetic inherited-static meta (`super.at()` / `this.at()` in a static method) whose key
+    // resolves to an INSTANCE desc means no such static exists on the super class - bail rather than
+    // emit the instance polyfill (`_at(this)` would treat the class constructor as an array). single
+    // sources the decision `resolveUsage` already makes for usage-global, so both pure emitters drop
+    // their own copies. the synthetic super-meta has no member path for `enhanceMeta` to narrow, so
+    // this explicit gate stands in for that narrowing. the `inheritedStatic && !result` fallback bail
+    // in each emitter still runs (fallback fires only for `!inheritedStatic`), so no global-fallback
+    // rewrite leaks in once the result is null
+    if (kind === 'instance' && meta.inheritedStatic) return null;
     const effectiveMeta = buildEffectiveMeta(kind, desc, meta, path);
     if (!effectiveMeta) return null;
     const entry = resolvePureEntry({ kind, desc, meta: effectiveMeta, path });
