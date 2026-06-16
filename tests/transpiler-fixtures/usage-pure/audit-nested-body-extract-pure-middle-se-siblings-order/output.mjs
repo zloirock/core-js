@@ -1,16 +1,18 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// The body-extracted polyfill binding (`at`) sits in the MIDDLE property, flanked by sibling
-// receiver values that carry side effects (`a: [x()]` before, `c: [z()]` after). the middle value
-// `b: [1]` is a pure literal, so the body-extract fires - and must NOT pull the side-effecting
-// siblings out of source order: the hoisted `_at...([1])` is side-effect-free, and the residual
-// destructure re-runs the WHOLE receiver literal, so `x()` then `z()` still fire in order
+// The body-extracted polyfill binding (`at`) sits in the MIDDLE property, flanked by sibling receiver values
+// that carry side effects (`a: [x()]` before, `c: [z()]` after). the middle value is a CONSTANT array literal,
+// so the body-extract fires and memoizes it into a single `_ref` (re-emitting it would duplicate the whole
+// literal beside the surviving residual). the residual keeps the real sibling bindings `a` / `c`, so it is
+// NOT eliminated. order is preserved: `_ref` holds a side-effect-free constant (hoisting it can't reorder),
+// and the residual still runs `x()` then `z()` in source order
 function x() {
   return 1;
 }
 function z() {
   return 3;
 }
-const at = _atMaybeArray([1]);
+const _ref = [1, 2, 3];
+const at = _atMaybeArray(_ref);
 const {
   a,
   b: {
@@ -19,7 +21,7 @@ const {
   c
 } = {
   a: [x()],
-  b: [1],
+  b: _ref,
   c: [z()]
 };
 at();
