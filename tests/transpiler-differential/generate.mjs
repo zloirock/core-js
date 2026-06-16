@@ -526,6 +526,19 @@ const EXPR_FAMILIES = {
     '(() => { const { from } = (() => { log.push("r"); return Array; })() || Iterator; return [typeof from, log.length]; })()',
     '(() => { const { from: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
     '(() => { const { ["from"]: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
+    // a SE-bearing synth-swap receiver with an UNRESOLVED sibling key (`isArray` has no pure entry)
+    // forces the receiver to be MEMOIZED (run once, the sibling reads the memo) instead of rescued
+    // AND re-read. `log.length` pins effect-once; import parity + the 3-way value pin that both
+    // emitters resolve `from` and read `isArray` identically (a clone of the discarded `|| Set` that
+    // re-substituted to a pure ctor on one side only would leak a dead import). covers the flat
+    // member, buried prefix, `||` fallback, and per-branch conditional registration sites
+    '(() => { function g({ from, isArray } = (() => { log.push("r"); return globalThis; })().Array) { return [typeof from, typeof isArray, log.length]; } return g(); })()',
+    '(() => { function g({ from, isArray } = (log.push("r"), globalThis).Array) { return [typeof from, typeof isArray, log.length]; } return g(); })()',
+    '(() => { function g({ from, isArray } = (() => { log.push("r"); return globalThis; })().Array || Set) { return [typeof from, typeof isArray, log.length]; } return g(); })()',
+    '(() => { function g(c, { from, isArray } = c ? (() => { log.push("r"); return globalThis; })().Array : Set) '
+      + '{ return [typeof from, typeof isArray, log.length]; } return g(true); })()',
+    '(() => { function g({ from, isArray } = cond && (() => { log.push("r"); return globalThis; })().Array) '
+      + '{ return [typeof from, typeof isArray, log.length]; } return g(); })()',
     // assignment-destructure hosts beyond the expression statement: for-init, call-arg and
     // arrow-body positions, plus the nested / array-wrapper parameter DEFAULT. the param
     // emission is the LEAF inline default, so a caller-passed value keeps winning - exercised
