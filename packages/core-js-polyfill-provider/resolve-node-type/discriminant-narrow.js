@@ -27,6 +27,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import { scopeNode, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
+import { bigIntLiteralValue, isBigIntLiteralNode } from './base.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
@@ -113,19 +114,17 @@ export function createDiscriminantNarrow({
 
   // discriminant literal VALUES span more than KEY literals: a union member can be
   // discriminated by `true` / `false` and bigint literal TYPES, which `literalKeyValue`
-  // (key-domain: string / number) never extracts. bigints normalize to a `<digits>n`
-  // string so the babel shape (BigIntLiteral, digits in `.value`) and the estree shape
-  // (Literal with a bigint `.value` + raw digits in `.bigint`) compare equal, and never
-  // collide with a same-digit number (number 1 vs string '1n'). null / undefined
-  // discriminants are KEYWORD types (TSNullKeyword), not literal nodes - they keep the
-  // permissive pass-through. used by BOTH comparison sides: the test expression and the
-  // union member's TSLiteralType
+  // (key-domain: string / number) never extracts. bigints key off the canonical real-BigInt
+  // VALUE (via the shared `bigIntLiteralValue`) so the babel shape (BigIntLiteral, magnitude in
+  // `.value` - decimal OR `0x`/`0o`/`0b` prefixed) and the estree shape (Literal with a real
+  // bigint `.value`) compare equal regardless of source radix, suffixed `n` so a same-digit
+  // NUMBER (key `1`) never collides with a bigint (key `1n`). null / undefined discriminants are
+  // KEYWORD types (TSNullKeyword), not literal nodes - they keep the permissive pass-through.
+  // used by BOTH comparison sides: the test expression and the union member's TSLiteralType
   function discriminantLiteralValue(node) {
     if (!node) return null;
     if (typeof node.value === 'boolean' && (node.type === 'BooleanLiteral' || node.type === 'Literal')) return node.value;
-    if (node.type === 'BigIntLiteral' || (node.type === 'Literal' && typeof node.value === 'bigint')) {
-      return `${ node.bigint ?? node.value }n`;
-    }
+    if (isBigIntLiteralNode(node)) return `${ bigIntLiteralValue(node) }n`;
     return literalKeyValue(node);
   }
 
