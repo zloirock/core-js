@@ -72,6 +72,7 @@ export function createUserTypeResolve({
   substituteTypeParams,
   resolveTypeAnnotation,
   dropMapKeys,
+  applyAliasSubstDeep,
 }) {
   function resolveTypeArgs({ decl, node, typeParamMap, scope, depth, seen }) {
     const declParams = decl.typeParameters?.params;
@@ -294,28 +295,52 @@ export function createUserTypeResolve({
     return typeName;
   }
 
-  // capture-avoidance: a bare type-arg whose name collides with a sibling type-param refers to an
-  // EXTERNAL declaration (not the param), yet the transitive substitution in `applyAliasSubstDeep`
-  // would re-capture it through that param's own mapping (`Wrap<string, A>` over `Wrap<A, Q>` makes
-  // Q -> A -> string). resolve the external declaration eagerly so the stored value is concrete and
-  // recapture-free, INDEPENDENT of declaration kind: an alias inlines its body, a non-generic
-  // interface its structural members; any other kind (class / enum / generic interface) has no
-  // self-ref-free inline form, so it collapses to `unknown` - that still breaks the capture chain
-  // (the sibling's mapping can no longer bind the wrong type), trading a wrong recapture for a safe
-  // under-resolve. a colliding name with NO external declaration IS the type-param itself (an
-  // intentional sibling reference) and is left untouched for the transitive pass to resolve. applies
-  // to default-valued params too, not only explicit usage args
-  function resolveColliderArg(arg, paramNames, scope) {
-    if (!paramNames || arg?.type !== 'TSTypeReference' || arg.typeName?.type !== 'Identifier'
-        || !paramNames.has(arg.typeName.name)) return arg;
-    const decl = findTypeDeclaration([arg.typeName.name], scope);
-    if (!decl) return arg;
-    if (isTypeAlias(decl)) return typeAliasBody(decl) ?? arg;
+  // inline form of an EXTERNAL declaration named by a sibling-colliding ref, INDEPENDENT of
+  // declaration kind: an alias inlines its body, a non-generic interface its structural members;
+  // any other kind (class / enum / generic interface) has no self-ref-free inline form, so it
+  // collapses to `unknown` - that still breaks the capture chain (the sibling's mapping can no
+  // longer bind the wrong type), trading a wrong recapture for a safe under-resolve. returns null
+  // when no external declaration exists - the colliding name IS the type-param itself (an
+  // intentional sibling reference), to be left for the transitive pass to bind
+  function externalColliderInline(name, scope) {
+    const decl = findTypeDeclaration([name], scope);
+    if (!decl) return null;
+    if (isTypeAlias(decl)) return typeAliasBody(decl) ?? null;
     if (isInterfaceDeclaration(decl) && !decl.typeParameters) {
       const members = interfaceBodyMembers(decl);
       if (members.length) return { type: 'TSTypeLiteral', members };
     }
     return { type: 'TSUnknownKeyword' };
+  }
+
+  // capture-avoidance for an EXPLICIT usage-arg: a bare type-arg whose name collides with a sibling
+  // type-param refers to an EXTERNAL declaration (the arg is written in the CALLER scope, where the
+  // decl's own params are NOT in scope), yet the transitive substitution in `applyAliasSubstDeep`
+  // would re-capture it through that param's own mapping (`Wrap<string, A>` over `Wrap<A, Q>` makes
+  // Q -> A -> string). resolve the external declaration eagerly so the stored value is concrete and
+  // recapture-free. a collider is not always the WHOLE arg: `Wrap<string, { x: A }>` / `Array<A>` /
+  // tuple / union nest it, where the same recapture rewrites the inner free `A` (the external decl
+  // in TS caller scope) to the sibling's value. resolve nested colliders by delegating to the
+  // canonical `applyAliasSubstDeep` with a `{collider -> external inline}` map built only for names
+  // that HAVE an external decl - a colliding name with none stays untouched (intentional sibling
+  // ref). NB: only explicit args route here; a DEFAULT lives in the DECLARATION scope where sibling
+  // params shadow outer decls, so its colliding refs (bare or nested) must bind to the param, never
+  // the external decl - left untouched for the transitive pass
+  function resolveColliderArg(arg, paramNames, scope) {
+    if (!paramNames || !arg || typeof arg !== 'object') return arg;
+    // whole-arg bare collider fast path: inline the external decl directly
+    if (arg.type === 'TSTypeReference' && arg.typeName?.type === 'Identifier' && paramNames.has(arg.typeName.name)) {
+      return externalColliderInline(arg.typeName.name, scope) ?? arg;
+    }
+    // nested collider: build a per-name subst of the external inline forms reachable in this arg,
+    // then let the shared deep walk splice them in (names with no external decl stay as the param)
+    let colliderSubst = null;
+    for (const name of paramNames) {
+      if (!name) continue;
+      const inline = externalColliderInline(name, scope);
+      if (inline) (colliderSubst ??= new Map()).set(name, inline);
+    }
+    return colliderSubst ? applyAliasSubstDeep(arg, colliderSubst) : arg;
   }
 
   // build {paramName -> argNode} from explicit usage args, falling back to decl param defaults
@@ -332,12 +357,16 @@ export function createUserTypeResolve({
     const subst = new Map(incomingSubst);
     const paramNames = scope ? new Set(declParams.map(typeParamName)) : null;
     for (let i = 0; i < declParams.length; i++) {
-      let arg = usageArgs?.[i] ?? declParams[i].default;
+      const explicit = usageArgs?.[i];
+      let arg = explicit ?? declParams[i].default;
       if (!arg) continue;
       // chained resolution: an arg naming a prior-hop param resolves to that hop's bound value
       const argName = incomingSubst && typeRefName(arg);
+      // capture-avoidance is EXPLICIT-only: an explicit arg lives in the caller scope (a colliding
+      // ref means the external decl), a default lives in the decl scope (a colliding ref means the
+      // shadowing sibling param, bound by the transitive pass)
       if (argName && incomingSubst.has(argName)) arg = incomingSubst.get(argName);
-      else arg = resolveColliderArg(arg, paramNames, scope);
+      else if (explicit) arg = resolveColliderArg(arg, paramNames, scope);
       subst.set(typeParamName(declParams[i]), arg);
     }
     return subst.size ? subst : null;
