@@ -1,6 +1,6 @@
-// an ArrayPattern that DIRECTLY wraps the instance pattern (`[{ flat: m }]`, no intervening object key).
-// the wrapper peels to the declarator, the receiver resolver walks the array INDEX to `arr`, and the same
-// residual the object-key case uses extracts `const m = _flatMaybeArray(arr)` - the kept slot renames to a
-// throwaway. a multi-element wrapper (`[z, { flat: m }]`) or a hole keeps its siblings; a spread bails
+// an ArrayPattern that DIRECTLY wraps the instance pattern (`[{ flat: m }]`, no intervening object key). the
+// receiver resolver walks the array INDEX to `arr`, and `const m = _flatMaybeArray(arr)` is extracted. `m` is
+// the sole binding and the init `[arr]` is pure, so the dead residual destructure is dropped entirely. a
+// multi-element wrapper (`[z, { flat: m }]`) keeps the destructure (sibling bindings survive); a spread bails
 const arr = [1, [2]];
 const [{ flat: m }] = [arr];
