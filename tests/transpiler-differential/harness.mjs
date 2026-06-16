@@ -1,4 +1,4 @@
-// Transpiler-fuzz harness: run the same source through BOTH plugins (usage-pure), then compare
+// Transpiler-differential harness: run the same source through BOTH plugins (usage-pure), then compare
 // only what actually matters - the injected import-set (strict) and runtime behaviour (native ==
 // babel == unplugin). Body-shape (AST codegen vs text rewrite) is deliberately NOT compared: that
 // divergence is architectural (the `output-unplugin.mjs` sidecars), not a bug.
