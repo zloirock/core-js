@@ -1,6 +1,7 @@
 // member-expression resolution + `key in obj` BinaryExpression handler. produces meta for
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
+import { collectFoldedReceiverSideEffects } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
@@ -97,6 +98,20 @@ export function findBuriedChainAssignment(node) {
 export function discardRescueNode({ node, scope, adapter, path }) {
   return (node.type === 'AssignmentExpression' ? node : findBuriedChainAssignment(node))
     ?? seBearingChainRootCall({ node, scope, adapter, path });
+}
+
+// ordered side effects a fallback-logical synth-collapse (`{from} = LEFT || Set`) must re-emit ahead
+// of the polyfill literal: the structural prefixes of the resolved LEFT operand (`(eff(), Array)` ->
+// `eff()`, plus the `+`-concat / template / computed-key fold-shapes the harvest already descends)
+// AND a SE-bearing call at the chain ROOT of a call-rooted left (`IIFE().Array` / `mk().Array` -> the
+// call), which the structural walk stops short of. the root call evaluates at its source position
+// (after any structural prefix), so it appends last. shared by both emitters so the rescue set and
+// its order cannot diverge between AST mutation and text compose
+export function collectFallbackCollapseLeftSe({ leftNode, scope, adapter, path }) {
+  const out = collectFoldedReceiverSideEffects(leftNode);
+  const rootCall = seBearingChainRootCall({ node: leftNode, scope, adapter, path });
+  if (rootCall && !out.includes(rootCall)) out.push(rootCall);
+  return out;
 }
 
 // a static dispatch on a member-chain receiver collapses the WHOLE receiver into a single
