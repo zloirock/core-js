@@ -4,7 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // the generic instance polyfill
 enum Mixed {
   A = 'a',
-  B = 1,
+  B = 1
 }
 declare const x: Mixed;
 const arr: string[] = ['a', 'b'];

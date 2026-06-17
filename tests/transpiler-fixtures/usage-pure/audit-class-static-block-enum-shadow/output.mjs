@@ -6,7 +6,7 @@ class C {
   static {
     enum Map {
       Foo,
-      Bar,
+      Bar
     }
     captured = new Map.Foo();
   }

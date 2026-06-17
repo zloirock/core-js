@@ -10,7 +10,7 @@ var _ref;
 namespace N {
   export enum E {
     A = "alpha",
-    B = "beta",
+    B = "beta"
   }
 }
 _atMaybeString(_ref = (N as typeof N).E.A).call(_ref, 0);

@@ -9,6 +9,6 @@ interface A {
 interface B {
   make(): number[];
 }
-declare const x: (A | B);
+declare const x: A | B;
 const r = _atMaybeArray(_ref = x.make()).call(_ref, 0);
 export { r };

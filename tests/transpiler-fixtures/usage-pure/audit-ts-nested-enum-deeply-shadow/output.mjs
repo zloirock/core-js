@@ -5,7 +5,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 export function outer() {
   if (Math.random() < 0.5) {
     enum Map {
-      A = 1,
+      A = 1
     }
     return new Map();
   }

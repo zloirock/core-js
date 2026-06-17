@@ -1,4 +1,3 @@
-import "core-js/modules/es.array.at";
 // explicit `targets: null` passes validation (isEmpty bypass) and skips target parsing;
 // falls back to project browserslist (or none). no error when no config is present
 export {};
