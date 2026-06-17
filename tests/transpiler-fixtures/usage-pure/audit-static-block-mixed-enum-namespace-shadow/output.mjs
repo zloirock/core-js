@@ -4,7 +4,7 @@ let m: unknown, s: unknown;
 class Container {
   static {
     enum Map {
-      Foo,
+      Foo
     }
     namespace Set {
       export const value = 1;

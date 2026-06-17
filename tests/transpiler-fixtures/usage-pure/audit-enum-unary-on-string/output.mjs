@@ -7,7 +7,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 enum N {
   A = +'42',
   B = -3,
-  C = ~0,
+  C = ~0
 }
 declare const v: N;
 const tag = String(v);
