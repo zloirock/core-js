@@ -3,6 +3,6 @@
 // detected. without unwrap, the wrapping named-export node was inspected directly and the
 // runtime declaration's id was missed
 export enum Map {
-  A = 1,
+  A = 1
 }
 export const a = new Map();

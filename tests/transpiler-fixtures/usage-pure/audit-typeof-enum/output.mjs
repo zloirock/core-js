@@ -6,7 +6,7 @@ var _ref;
 // String instance polyfill
 enum Color {
   Red = 'r',
-  Green = 'g',
+  Green = 'g'
 }
 declare const cons: typeof Color;
 _atMaybeString(_ref = cons.Red).call(_ref, 0);

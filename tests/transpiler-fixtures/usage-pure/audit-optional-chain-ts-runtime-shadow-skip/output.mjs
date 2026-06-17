@@ -11,7 +11,7 @@ function probe() {
   enum Promise {
     Pending,
     Fulfilled,
-    Rejected,
+    Rejected
   }
   return Promise?.Pending;
 }

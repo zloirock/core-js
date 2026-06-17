@@ -5,7 +5,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 enum Color {
   Red,
   Green,
-  Blue,
+  Blue
 }
 declare const c: Color;
 const arr: string[] = ['a', 'b', 'c'];

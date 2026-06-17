@@ -10,7 +10,7 @@ import "core-js/modules/es.string.trim-start";
 // without the singleQuasiString branch both methods over-emit array siblings
 enum Codes {
   Ok = 'ok',
-  Fail = 'fail',
+  Fail = 'fail'
 }
 function probe() {
   Codes[`Ok`].padEnd(8, '.');
