@@ -4,7 +4,7 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // `E`-typed value narrows to String instance polyfill since members are string-typed
 const enum E {
   A = 'hello',
-  B = 'world',
+  B = 'world'
 }
 declare const e: E;
 _atMaybeString(e).call(e, 0);

@@ -30,6 +30,7 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   prependChainAssignmentEffect,
   receiverSideEffectsOnly,
@@ -329,7 +330,15 @@ export default function plugin(api, options) {
           const parentNode = cur.parentPath.node;
           if (!parentNode) return true;
           const slot = cur.listKey ? parentNode[cur.listKey]?.[cur.key] : parentNode[cur.key];
-          if (slot !== cur.node) return true;
+          if (slot !== cur.node) {
+            // a stale LIST index is NOT an orphan: a sibling insert (e.g. a memoize `var _ref;`
+            // pushed ahead of this statement) shifts the container, and babel@8 re-keys cached
+            // ancestor paths lazily, so `cur.key` can point past the node while it still lives at
+            // a new index. fall back to membership - a genuine remove/replace (node absent from
+            // the list, or any non-list slot mismatch) stays orphaned
+            if (cur.listKey && parentNode[cur.listKey]?.includes(cur.node)) continue;
+            return true;
+          }
         }
         // root: a sibling plugin may have installed a new Program (`file.ast.program = clone`)
         // while keeping the old tree reachable through our cached paths. the slot-check above
@@ -964,14 +973,43 @@ export default function plugin(api, options) {
         }
       }
 
-      // usage-pure post-sweep for raw globals: sibling plugins (regenerator) may mutate
-      // original nodes in-place, injecting raw globals (Promise). scan for unbound global
-      // Identifiers only - MemberExpression would double-process already-polyfilled chains.
-      // usage-global doesn't need this - globals stay as-is, imports from pre() suffice
-      function postSweepUnboundGlobals(path) {
-        if (method !== 'usage-pure') return;
+      // one whole-program post-sweep for built-ins a sibling transform injects AFTER our pre-pass.
+      // BOTH methods need it: usage-pure SUBSTITUTES the introduced reference (`Promise`->`_Promise`),
+      // usage-global INJECTS the side-effect import - either way the reference surfaced after pre() ran,
+      // so the primary pass never saw it. two shapes:
+      //   - raw globals (regenerator mutating a node in-place to `Promise`, `using` referencing
+      //     `SuppressedError`). a sibling-introduced bare global lands here whenever it is not otherwise
+      //     covered; current transforms happen to put such globals in helper bodies (swept by
+      //     reTraverseHelperBodies) or beside instance methods that pull the constructor in transitively,
+      //     but neither is guaranteed, so this is the backstop - an isolated bare-global reference (no
+      //     helper, no co-located method) reaches a polyfill ONLY through here
+      //   - statics inlined into an EXISTING statement (babel@8 emits `Object.assign(...)` for object
+      //     spread under setSpreadProperties; the rest-spread plugin skips it, so pre() never saw it).
+      //     an introduced static is `<global>.<static>`, synthetic (no source position); source members
+      //     carry a position and were already handled in pre(). shape alone is NOT enough to isolate it
+      //     (see the member visitor: the plugin's own proxy chains share the shape) - the object must
+      //     also be a real polyfillable global
+      // `core-js-disable-file` is honored upstream (programExit returns before this runs); a line-level
+      // disable cannot reach an introduced node - it has no source position to match against disabledLines
+      function postSweepIntroduced(path) {
+        const memberHandler = helperVisitors?.['MemberExpression|OptionalMemberExpression'];
+        // entry-global has no usage visitor (it replaces an entry import, never detects usage), so
+        // there is nothing to sweep - skip the whole-program walk
+        if (!memberHandler) return;
         const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
         path.traverse({
+          'MemberExpression|OptionalMemberExpression'(member) {
+            const obj = member.node.object;
+            // gate the object on `isKnownGlobalName`, NOT shape alone: the plugin's own synthetic
+            // members (`_globalThis.Array` proxy chains, `_Array$from.call` substitution wrappers)
+            // ALSO present as `<Identifier>.<static>` with the object unresolved by `getBinding`
+            // (the injected import binding is invisible to scope) - shape cannot tell them from a
+            // sibling-introduced `Object.assign`. requiring the object to be a real polyfillable
+            // global excludes those synth names (`_globalThis` / `_Array$from` are not globals);
+            // the handler then makes the polyfillability call (bails on already-handled / no-polyfill)
+            if (typeof member.node.start !== 'number' && obj?.type === 'Identifier'
+              && isKnownGlobalName(obj.name) && !member.scope.getBinding(obj.name)) memberHandler(member);
+          },
           Identifier(idPath) {
             if (!idPath.isReferencedIdentifier()) return;
             // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
@@ -981,12 +1019,14 @@ export default function plugin(api, options) {
             // `function f() { enum Map; ... }` shadowing); without it the walk anchors at the
             // Program scope and misses nested TS-runtime bindings
             if (adapter.hasBinding(idPath.scope, idPath.node.name, idPath)) return;
-            // post-sweep is usage-pure only: skip a global at a write position a frozen import
-            // binding cannot occupy (same rationale as the primary pass) - UpdateExpression
-            // operand (`Map++`), for-of / for-in head bare-Identifier LHS (`for (Map of arr)`),
-            // or assignment LHS (`Map = x`, `Map ||= x`). a TS-non-null / paren wrapper
-            // (`Map! ||= x`, `for (Map! of arr)`) keeps `isReferencedIdentifier` true, so the
-            // for-x / assignment checks peel transparent ancestors first
+            // skip a global at a write position - UpdateExpression operand (`Map++`), for-of /
+            // for-in head bare-Identifier LHS (`for (Map of arr)`), or assignment LHS (`Map = x`,
+            // `Map ||= x`). for usage-pure a frozen import binding cannot occupy that slot, so this is
+            // required; for usage-global it is harmless - the primary pass over-injects at writes, but
+            // a sibling never INTRODUCES a write-position global (the introduced shapes are all reads),
+            // and a global being overwritten needs no polyfill anyway. a TS-non-null / paren wrapper
+            // (`Map! ||= x`, `for (Map! of arr)`) keeps `isReferencedIdentifier` true, so the for-x /
+            // assignment checks peel transparent ancestors first
             if (isInUpdateOperand(idPath.parentPath) || isAssignOrForXWriteTargetPath(idPath)) return;
             // same predicate as the primary visitor - skip disabled / type-annotation /
             // delete-target positions so this sweep doesn't overrule their exclusions
@@ -1021,7 +1061,7 @@ export default function plugin(api, options) {
         processDeferredSideEffects(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.splitFlatMultiDecls();
-        postSweepUnboundGlobals(path);
+        postSweepIntroduced(path);
         // drain deferred synth-swap receivers via program walk - finds receivers via
         // node-identity WeakMap regardless of where sibling plugins (transform-parameters
         // extracting param defaults to body var declarations) moved them. `?.` symmetric

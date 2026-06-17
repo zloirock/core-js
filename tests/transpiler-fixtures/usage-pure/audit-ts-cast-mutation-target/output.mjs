@@ -18,6 +18,6 @@ export const r3 = _Map.groupBy(y, g);
 // an ENUM-member computed key stays unresolved - the detection canon resolves literals,
 // templates and const-bound identifier chains, not type-layer enums (consistent boundary)
 enum HopKeys {
-  MAP = 'map',
+  MAP = 'map'
 }
 export const r4 = null == (_ref = _flatMaybeArray(arr)) || null == (_ref2 = _ref.call(arr)[HopKeys.MAP](f)) ? void 0 : _at(_ref2).call(_ref2, 0);

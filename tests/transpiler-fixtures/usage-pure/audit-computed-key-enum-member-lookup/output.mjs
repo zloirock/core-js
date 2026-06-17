@@ -4,7 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // getMemberProperty fallback after the computed-literal normalization
 enum Kind {
   A = 'a',
-  B = 'b',
+  B = 'b'
 }
 type Box = {
   kind: 'a';

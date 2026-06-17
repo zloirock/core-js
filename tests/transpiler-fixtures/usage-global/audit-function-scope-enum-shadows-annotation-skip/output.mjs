@@ -4,7 +4,7 @@
 // would only check program-level bindings and miss inner-scope TS-runtime shadows
 function f() {
   enum Map {
-    A,
+    A
   }
   let x: Map;
   return x;

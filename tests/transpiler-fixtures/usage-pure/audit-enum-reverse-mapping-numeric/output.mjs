@@ -7,7 +7,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 // here, so `v.includes('A')` narrows to `_includesMaybeString` instead of generic `_includes`
 enum E {
   A,
-  B,
+  B
 }
 declare const arr: number[];
 const v = E[E.A];

@@ -6,7 +6,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 // member access falls through to generic dispatch. distinct methods make the resolution observable.
 enum Bag {
   Big = 100n,
-  Small = 1n,
+  Small = 1n
 }
 declare const v: Bag;
 const tag = String(v);

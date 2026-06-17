@@ -6,5 +6,5 @@ type T = {
   a: number[];
   b: number[];
 };
-declare const obj: (T)[keyof T];
+declare const obj: T[keyof T];
 _atMaybeArray(obj).call(obj, 0);
