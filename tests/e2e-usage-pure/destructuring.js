@@ -508,6 +508,63 @@ QUnit.test('computed-key: side-effecting prefix on instance-method key kept', as
   assert.strictEqual(typeof m, 'function');
 });
 
+// the same instance-method SE-key in a destructuring-ASSIGNMENT (no declaration to extract into): the
+// destructure stays in place so the effect runs once, then a post-statement overwrite binds the polyfill.
+// regression: the effect was dropped (babel) / nothing polyfilled (unplugin bailed native)
+QUnit.test('computed-key: side-effecting prefix on instance-method key in assignment', assert => {
+  const log = [];
+  const arr = [7, [8]];
+  let m;
+  // eslint-disable-next-line prefer-const -- the ASSIGNMENT form (not a declaration) is the shape under test
+  ({ [(log.push('eff'), 'flat')]: m } = arr);
+  assert.deepEqual(log, ['eff']);
+  assert.strictEqual(typeof m, 'function');
+  assert.deepEqual(m.call(arr), [7, 8]);
+});
+
+// the computed key's side effect REASSIGNS the receiver binding (a DECLARATION). the instance extraction is
+// emitted BEFORE the residual that runs the key, so the polyfill reads the property off the receiver as it
+// was before the reassignment - matching native (which reads off the RHS value evaluated ahead of the key).
+// `flat` is array-only, so reading off the reassigned-to-string receiver would yield `undefined` - so this
+// asserts the pre-key (array) value is read
+QUnit.test('computed-key: SE key reassigning the receiver - declaration reads pre-key value', assert => {
+  // eslint-disable-next-line no-useless-assignment -- read as the destructure RHS, which evaluates before the computed-key reassignment
+  let arr = [[1], [2]];
+  const { [(arr = 'overwritten', 'flat')]: m } = arr;
+  assert.strictEqual(arr, 'overwritten');
+  assert.strictEqual(typeof m, 'function');
+  assert.deepEqual(m.call([[3], [4]]), [3, 4]);
+});
+
+// multiple SE-key INSTANCE keys on one receiver: every key effect runs once in order, and each binding gets
+// its own polyfilled method (each re-references the receiver). regression: babel dropped the 2nd element of
+// an assignment (undefined) / crashed on a multi-declarator
+QUnit.test('computed-key: multi-element SE-key assignment - both bindings polyfilled', assert => {
+  const log = [];
+  const arr = [3, [4]];
+  let a, b;
+  // eslint-disable-next-line prefer-const -- the ASSIGNMENT form (not a declaration) is the shape under test
+  ({ [(log.push('e1'), 'flat')]: a, [(log.push('e2'), 'at')]: b } = arr);
+  assert.deepEqual(log, ['e1', 'e2']);
+  assert.strictEqual(typeof a, 'function');
+  assert.strictEqual(typeof b, 'function');
+  assert.deepEqual(a.call(arr), [3, 4]);
+  assert.deepEqual(b.call(arr, -1), [4]);
+});
+
+QUnit.test('computed-key: multi-element SE-key in a multi-declarator - both bindings polyfilled', assert => {
+  const log = [];
+  const arr = [3, [4]];
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the multi-declarator is under test
+  const z = 7, { [(log.push('e1'), 'flat')]: x, [(log.push('e2'), 'at')]: y } = arr;
+  assert.strictEqual(z, 7);
+  assert.deepEqual(log, ['e1', 'e2']);
+  assert.strictEqual(typeof x, 'function');
+  assert.strictEqual(typeof y, 'function');
+  assert.deepEqual(x.call(arr), [3, 4]);
+  assert.deepEqual(y.call(arr, -1), [4]);
+});
+
 // instance-method key with side-effecting siblings on both sides: effects run in source order, every
 // binding survives
 QUnit.test('computed-key: instance-method key with side-effecting siblings runs in order', assert => {
