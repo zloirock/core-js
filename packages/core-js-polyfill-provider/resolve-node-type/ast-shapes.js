@@ -207,7 +207,10 @@ export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, b
 export function violationInCapturedFunction(t, violations, stopPath) {
   if (!violations?.length) return false;
   return violations.some(v => {
-    for (let p = v.parentPath, child = v; p && p !== stopPath; child = p, p = p.parentPath) {
+    // guard `p?.node` (not just `p`): the parent chain can overshoot `stopPath` and reach a
+    // detached / tree-root path with a null node, so terminate there - matches the canonical
+    // `hasDeferredContextAncestor` / `violationRunsDeferred` walkers that share this predicate
+    for (let p = v.parentPath, child = v; p?.node && p !== stopPath; child = p, p = p.parentPath) {
       if (isDeferredContextStep(t, p.node, child)) return true;
     }
     return false;

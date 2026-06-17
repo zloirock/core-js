@@ -4,7 +4,7 @@ var _ref;
 // read for the computed-key value, then the `Record<number, string[]>` annotation
 // resolves `rec[0]` to `string[]`, so `.at(0)` picks the Array instance method
 enum NumKey {
-  Zero = 0,
+  Zero = 0
 }
 const rec = {
   0: ['x']

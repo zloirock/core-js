@@ -7,7 +7,7 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 namespace NS {
   export enum E {
     A,
-    B,
+    B
   }
 }
 declare const v: NS.E;
