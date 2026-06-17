@@ -816,6 +816,7 @@ export default function createPlugin(options) {
         const destructureEmitter = createDestructureEmitter({
           paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
           estreeAdapter,
+          getDebugOutput: () => debugOutput,
           injectPureImport,
           injector,
           isBodylessStatementBody,
