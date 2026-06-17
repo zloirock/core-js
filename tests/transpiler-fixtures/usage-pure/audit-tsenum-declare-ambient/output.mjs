@@ -4,7 +4,7 @@ import _Map from "@core-js/pure/actual/map/constructor";
 // fire for legacy targets, and the declaration LHS must not be renamed
 declare enum Map {
   A,
-  B,
+  B
 }
 const m = new _Map();
 export { m };

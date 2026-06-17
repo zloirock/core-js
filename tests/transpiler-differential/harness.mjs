@@ -26,8 +26,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TMP = join(HERE, 'tmp');
 // `decorators-legacy` is harmless for non-decorator TS, so one parser config covers all TS snippets
 const TS_PARSER = { plugins: ['typescript', 'decorators-legacy'] };
-// strip TS to runnable JS; legacy decorators + class properties make decorated classes executable
-const STRIP_PLUGINS = [[decoratorsPlugin, { legacy: true }], classPropsPlugin, tsStrip];
+// strip TS to runnable JS; legacy decorators + class properties make decorated classes executable.
+// babel@8 replaced the `legacy: true` shorthand with a required `version: 'legacy' | '2023-11'`
+const STRIP_PLUGINS = [[decoratorsPlugin, { version: 'legacy' }], classPropsPlugin, tsStrip];
 
 export async function transformBabel(src, options, ts = false) {
   const out = await transformAsync(src, {

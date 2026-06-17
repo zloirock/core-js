@@ -6,7 +6,7 @@ class C {
   static {
     const enum Set {
       Foo,
-      Bar,
+      Bar
     }
     captured = Set.Foo;
   }
