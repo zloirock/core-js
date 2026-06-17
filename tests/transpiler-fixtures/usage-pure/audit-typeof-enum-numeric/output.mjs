@@ -6,7 +6,7 @@ var _ref;
 // carry that primitive through the TSTypeQuery annotation chain
 enum Num {
   A = 1,
-  B = 2,
+  B = 2
 }
 declare const e: typeof Num;
 _toExponentialMaybeNumber(_ref = e.A).call(_ref, 2);

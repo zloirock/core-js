@@ -8,6 +8,6 @@ function user() {
 }
 export enum Map {
   Foo,
-  Bar,
+  Bar
 }
 export { user };
