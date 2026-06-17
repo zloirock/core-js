@@ -308,6 +308,22 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   return out.length ? out : null;
 }
 
+// gate for the "conditional destructure left untouched" warn: it is only meaningful when some branch
+// resolves to a GENUINE per-branch-synth candidate for the key, so a real candidate was blocked (by a
+// structural pattern issue) from per-branch synth-swap. when NO branch is a real candidate the meta
+// is a false positive of the build's permissive object-tagging - `{ from } = cond ? Set : WeakMap`
+// (`Set`/`WeakMap` carry no pure static `from`) or `{ banana } = ...` (not a method at all): there was
+// no polyfill to leave untouched, so warning "polyfill candidate left untouched" would lie. uses the
+// SAME `resolvePure`-static viability the per-branch synth applies (`isViableBranchForKey`: a pure,
+// non-instance resolution) so the gate and the registration cannot disagree on what "candidate" means.
+// single-sourced so both emitters share the gate (each calls it from its own synth-failure site)
+export function fallbackDestructureHasPolyfillableBranch(meta, path, adapter, resolvePure) {
+  return !!enumerateFallbackDestructureBranches(meta, path, adapter)?.some(branchMeta => {
+    const pure = resolvePure(branchMeta);
+    return pure && pure.kind !== 'instance';
+  });
+}
+
 // Single source of truth for HOW a polyfillable destructure prop whose computed key has a side effect
 // (`{ [(eff(), 'from')]: f } = R`) is emitted on a `var/let/const` declarator. The two emitters render
 // differently (babel mutates the AST, unplugin rewrites text) but the strategy decision lives here, so
@@ -365,6 +381,14 @@ export function planSideEffectKeyStrategy({
     // referenceable, reads the same pre-key value either way - the residual's key effect still runs once)
     memoizeReceiver: instance && receiverIsConstantLiteral && !eliminateResidual && !siblingDeclarator,
   };
+}
+
+// debug-warn message for a conditional-destructure (`{ k } = cond ? A : B` / `= A || B`) whose polyfill
+// candidate could NOT be registered as a per-branch synth-swap, so the key is left untouched - whether the
+// polyfill applies then depends on which branch the condition selects at runtime. single-sourced so both
+// emitters emit the identical diagnostic (babel emitted it inline; unplugin previously stayed silent)
+export function conditionalDestructureLeftUntouchedWarning(key) {
+  return `conditional destructure with polyfill candidate left untouched ("${ key }" on fallback branch) - runtime availability depends on the selected branch`;
 }
 
 // param body-extract qualification (the DECISION half of the body-extract fallback both
