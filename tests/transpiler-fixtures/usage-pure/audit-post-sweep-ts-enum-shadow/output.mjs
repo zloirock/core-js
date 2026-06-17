@@ -6,7 +6,7 @@
 function f() {
   enum Map {
     Foo,
-    Bar,
+    Bar
   }
   return Map;
 }

@@ -1,8 +1,6 @@
 core-js@4: `DEBUG` option
 
-Using targets: {
-  "chrome": "135"
-}
+Using targets: <RESOLVED>
 
 Using polyfills with `usage-pure` method:
 The core-js@4 polyfill added the following polyfills:

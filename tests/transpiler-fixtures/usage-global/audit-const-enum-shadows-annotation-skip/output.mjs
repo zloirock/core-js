@@ -3,7 +3,7 @@
 // walk picks up TSEnumDeclaration (`declare` flag absent), shadowing the Map polyfill in the
 // downstream type annotation
 const enum Map {
-  A = 1,
+  A = 1
 }
 let x: Map;
 export { x };

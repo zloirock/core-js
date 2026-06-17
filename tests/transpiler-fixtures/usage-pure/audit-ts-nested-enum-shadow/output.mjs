@@ -4,7 +4,7 @@
 // namespace anchors upward to detect the shadow before polyfill emission
 export function viaFunction() {
   enum Map {
-    A = 1,
+    A = 1
   }
   return new Map();
 }

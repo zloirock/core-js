@@ -11,7 +11,7 @@ var _ref, _ref3, _ref4;
 interface Foo {
   xs: number[];
 }
-type M = { [K in keyof (Foo)]: (Foo)[K] };
+type M = { [K in keyof Foo]: Foo[K] };
 declare const m: M;
 _atMaybeArray(_ref = m.xs).call(_ref, 0);
 // a computed STRING-literal class-field key names a fixed slot - the field type applies
@@ -48,6 +48,6 @@ _trimEndMaybeString(cs).call(cs);
 // a heterogeneous enum stays opaque as a WHOLE type, but each member keeps its own kind
 enum H {
   A,
-  B = 'x',
+  B = 'x'
 }
 _repeatMaybeString(_ref4 = H.B).call(_ref4, 2);
