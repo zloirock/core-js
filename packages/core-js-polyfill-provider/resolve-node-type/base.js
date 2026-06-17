@@ -137,10 +137,10 @@ export function isBigIntLiteralNode(node) {
   return node?.type === 'BigIntLiteral' || (node?.type === 'Literal' && typeof node.value === 'bigint');
 }
 
-// real BigInt value of a bigint literal: oxc/estree `.value` already is one; babel stores the
-// magnitude as a digit string in `.value` (decimal or `0x`/`0o`/`0b` prefixed - all accepted by
-// `BigInt()`), with the decimal magnitude in `.bigint` as a fallback. canonical: radix-agnostic
-// (`BigInt('0x1') === 1n`) so every caller keys a bigint by VALUE, not raw source magnitude
+// real BigInt value of a bigint literal: babel@8 and oxc/estree `.value` already is a native bigint;
+// babel@7 stored the magnitude as a digit string in `.value` (decimal or `0x`/`0o`/`0b` prefixed -
+// all accepted by `BigInt()`), with the decimal magnitude in `.bigint` as a fallback. canonical:
+// radix-agnostic (`BigInt('0x1') === 1n`) so every caller keys a bigint by VALUE, not raw magnitude
 export function bigIntLiteralValue(node) {
   return typeof node.value === 'bigint' ? node.value : BigInt(node.bigint ?? node.value);
 }

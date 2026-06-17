@@ -333,8 +333,10 @@ export function createReturnType({
           if (hasTypeParamReference(member.typeAnnotation, typeParamNames, depth + 1)) return true;
           if (hasTypeParamReference(member.returnType, typeParamNames, depth + 1)) return true;
           // method signatures carry params (`{ foo(x: T): U }`); a T in param must propagate
-          // so call-site subst captures it. property signatures lack `parameters`, skipped
-          if (member.parameters) for (const param of member.parameters) {
+          // so call-site subst captures it. babel@8 renamed the slot `parameters`->`params`
+          // (oxc/babel@7 use `parameters`); property signatures have neither, skipped
+          const memberParams = member.params ?? member.parameters;
+          if (memberParams) for (const param of memberParams) {
             if (hasParamTypeRef(param, typeParamNames, depth + 1)) return true;
           }
         }
