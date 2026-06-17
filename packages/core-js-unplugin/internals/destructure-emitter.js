@@ -813,6 +813,52 @@ export function createDestructureEmitter({
     return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart, aliasCtx });
   }
 
+  // render a COPIED receiver's source with polyfillable globals substituted. the natural visitor only
+  // rewrites a global in its ORIGINAL position, so a `nodeSrc` copy beside the residual (the residual-
+  // extract's `_m(recv)` argument, or an eliminated-residual / assignment-overwrite replacement) keeps the
+  // raw global and ReferenceErrors on engines lacking it. mirrors babel's re-traversed clone: walk the
+  // re-referenceable receiver (a bare global / member chain, or the array / object literals nesting them)
+  // and splice each substitution into the copy at relative offsets. resolution delegates to the canonical
+  // `resolvePure` / `globalProxyMemberName` / `substituteProxyGlobalRoot`; a shadowed name keeps its user
+  // binding. SE / call nodes never reach here - a re-referenceable receiver is side-effect-free by construction
+  function substituteReceiverCopyGlobals(receiverNode, anchorPath) {
+    const info = { declaratorPath: anchorPath };
+    const splices = [];
+    const visit = node => {
+      const peeled = unwrapParens(node);
+      if (!peeled) return;
+      if (peeled.type === 'ArrayExpression') {
+        for (const el of peeled.elements) if (el && el.type !== 'SpreadElement') visit(el);
+        return;
+      }
+      if (peeled.type === 'ObjectExpression') {
+        for (const p of peeled.properties) if ((p.type === 'ObjectProperty' || p.type === 'Property') && !p.computed) visit(p.value);
+        return;
+      }
+      if (globalSubstitutionShadowed(info, peeled)) return;
+      if (peeled.type === 'Identifier') {
+        const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
+        if (pure) splices.push({ start: peeled.start, end: peeled.end, content: injectPureImport(pure.entry, pure.hintName) });
+        return;
+      }
+      if (peeled.type === 'MemberExpression') {
+        // whole-constructor proxy member (`globalThis.Map` -> `_Map`) when the leaf names a pure global,
+        // else a proxy-root swap (`globalThis.foo` -> `_globalThis.foo`); mirrors `polyfillInitGlobals`
+        const aliasCtx = aliasCtxFor(info);
+        const leafName = globalProxyMemberName({ node: peeled, ...aliasCtx });
+        const leafPure = leafName && resolvePure({ kind: 'global', name: leafName }, null);
+        if (leafPure) {
+          splices.push({ start: peeled.start, end: peeled.end, content: injectPureImport(leafPure.entry, leafPure.hintName) });
+        } else {
+          const swapped = substituteProxyGlobalRoot({ node: peeled, src: nodeSrc(peeled), baseStart: peeled.start, aliasCtx });
+          if (swapped !== null) splices.push({ start: peeled.start, end: peeled.end, content: swapped });
+        }
+      }
+    };
+    visit(receiverNode);
+    return splices.length ? spliceInRange(nodeSrc(receiverNode), receiverNode.start, splices) : nodeSrc(receiverNode);
+  }
+
   function propKeySource(p) {
     return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
   }
@@ -1889,14 +1935,16 @@ export function createDestructureEmitter({
     if (!plan) return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     handledSideEffectKeyProps.add(propNode);
-    // instance polyfill re-references the receiver (an Identifier - the planner bailed other shapes)
-    const polyfillSrc = plan.instance ? `${ binding }(${ nodeSrc(receiverNode) })` : binding;
+    // instance polyfill re-references the receiver; the copy substitutes any global the in-place residual's
+    // visitor rewrite can't reach (`_m([1, Promise])` -> `_m([1, _Promise])`)
+    const polyfillSrc = plan.instance ? `${ binding }(${ substituteReceiverCopyGlobals(receiverNode, metaPath) })` : binding;
     // body-extract alias so post-rewrite narrowing resolves the local (static only; instance has none)
     if (!plan.instance) injector.registerBodyExtractAlias(localId.name, pureResult.entry, metaPath.scope?.getBinding(localId.name));
     // dead residual: this leaf is the declaration's only binding and the init has no effect to preserve, so
     // the destructure binds nothing observable - replace the whole declaration with just the extracted
     // binding. emitted BEFORE the de-shorthand below (which would otherwise land a transform inside this
     // overwrite). skip the declarator subtree so the visitor doesn't queue a rewrite inside the dropped range
+    // (`polyfillSrc` already carries the global-substituted receiver copy, so nothing is stranded)
     if (plan.eliminateResidual) {
       walkAstNodes({ root: declarator, visit: n => skippedNodes.add(n) });
       const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
@@ -1938,10 +1986,12 @@ export function createDestructureEmitter({
       if (!entry || idx === -1) return false;
       entry.perDecl[idx].extractions.push({ decl: `${ localId.name } = ${ polyfillSrc }` });
     } else {
-      // memoize a constant-literal receiver into a single `_ref` so the surviving residual doesn't keep a
-      // duplicate of the (possibly large) literal beside the extract. one hoist + one receiver-text swap per
-      // receiver; sibling leaves of the same receiver reuse the `_ref`. only here (the standalone-insert
-      // shape) - the sibling-declarator / flatten branches are gated out of `memoizeReceiver`
+      // capture the receiver into a single `_ref` hoisted BEFORE the residual: dedups a constant-literal
+      // (so the surviving residual doesn't keep a duplicate) AND, for a side-effecting key, reads the
+      // receiver ONCE before the key SE so the extraction can't re-read a receiver the key reassigned (the
+      // pre-key value, matching native). one hoist + one receiver-text swap per receiver; sibling leaves of
+      // the same receiver reuse the `_ref`. only here (the standalone-insert shape) - the sibling-declarator
+      // / flatten branches are gated out of `memoizeReceiver`
       let hoist = '';
       let callSrc = polyfillSrc;
       if (plan.memoizeReceiver) {
@@ -1950,8 +2000,8 @@ export function createDestructureEmitter({
           refName = injector.generateLocalRef();
           bodyExtractReceiverRefs.set(receiverNode, refName);
           // swap the receiver in the surviving residual for `_ref`; skip-mark it (a constant carries nothing
-          // to polyfill, and the range is now owned by this overwrite). `nodeSrc` still reads the original
-          // literal for the hoist below
+          // to polyfill, and the range is now owned by this overwrite). `nodeSrc` reads the original literal
+          // for the hoist below
           walkAstNodes({ root: receiverNode, visit: n => skippedNodes.add(n) });
           transforms.add(receiverNode.start, receiverNode.end, refName);
           hoist = `${ declaration.kind } ${ refName } = ${ nodeSrc(receiverNode) };\n`;
@@ -1963,10 +2013,8 @@ export function createDestructureEmitter({
       // at `declaration.start` instead would land between `export` and `const`, stealing the keyword and
       // dropping the destructure - and every sibling binding - out of the export. matches babel
       const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
-      transforms.insert(
-        exportNode ? exportNode.start : declaration.start,
-        `${ hoist }${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ callSrc };\n`,
-      );
+      const extraction = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ callSrc };`;
+      transforms.insert(exportNode ? exportNode.start : declaration.start, `${ hoist }${ extraction }\n`);
     }
     return true;
   }
@@ -1989,7 +2037,9 @@ export function createDestructureEmitter({
     const pureResult = resolvePure(meta, metaPath);
     if (pureResult?.kind !== 'instance') return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
-    const overwrite = `${ bindingId.name } = ${ binding }(${ nodeSrc(receiverNode) });`;
+    // re-reference the receiver in the overwrite, substituting any global the in-place destructure's visitor
+    // rewrite can't reach (`m = _flatMaybeArray([1, _Promise])`)
+    const overwrite = `${ bindingId.name } = ${ binding }(${ substituteReceiverCopyGlobals(receiverNode, metaPath) });`;
     if (isBodylessStatementBody(statement)) {
       // bodyless control body: the overwrite must join STMT inside a `{ }` (else it runs even when
       // the guard is false). accumulate per-statement; one block-wrap at flush keeps multi-element
@@ -2246,6 +2296,10 @@ export function createDestructureEmitter({
     // IIFE) falls to `handleParameterDestructurePure` (receiver synth-swap)
     if (propNode.computed && sequenceKeyPrefix(propNode.key)) {
       if (tryHandleSideEffectKeyDeclaration(meta, metaPath, propNode)) return;
+      // an assignment host has no declaration: an instance method appends the post-statement overwrite
+      // (`m = _m(recv)`), leaving the destructure in place so the in-place key effect still runs once.
+      // matches babel - else the SE-key assignment falls to a native bail that drops the polyfill
+      if (tryNestedAssignmentInstanceOverwrite(meta, metaPath, propNode)) return;
       // a top-level catch-param prop falls through to the catch extraction: `let v = _at(_ref)`
       // plus the key kept (value renamed) in the combined residual - effect once, default dead
       if (metaPath.parentPath?.parentPath?.node?.type !== 'CatchClause') {
@@ -2531,11 +2585,9 @@ export function createDestructureEmitter({
 
     const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
     const lines = [];
-    // non-entry props collect into ONE combined residual destructure emitted AFTER the
-    // extraction lines - the same extraction-first + single-residual shape the babel
-    // emission produces (per-prop residual lines re-read the receiver once per prop and
-    // diverge from the plan-canon `{ survivors } = init` residual). under rest they stay
-    // in the rebuilt pattern instead
+    // non-entry props collect into ONE combined residual destructure emitted AFTER the extraction lines
+    // (per-prop residual lines re-read the receiver once per prop and diverge from the plan-canon
+    // `{ survivors } = init` residual); under rest they stay in the rebuilt pattern instead
     const residualProps = [];
     for (const p of allProps) {
       if (p.type === 'RestElement' || p.type === 'SpreadElement') continue;
@@ -2550,9 +2602,9 @@ export function createDestructureEmitter({
       // (with original localName) so `_ref[polyfilledKey]` is bound by destructuring directly
       if (e.kind === 'symbol-key') continue;
       lines.push(catchEntryLetDecl(e, ref));
-      // a side-effecting key survives at its residual slot with a throwaway value: the effect
-      // runs once, in source order, after the extraction lines (the rest-gather rebuild below
-      // reserves the same `_unused` slot, so this applies to the no-rest residual only)
+      // a side-effecting key survives at its residual slot with a throwaway value: the effect runs once,
+      // after the extraction lines (the rest-gather rebuild below reserves the same `_unused` slot, so
+      // this applies to the no-rest residual only)
       if (e.keepKeyInResidual && !hasRest) {
         residualProps.push(`[${ e.polyfillKeyContent }]: ${ injector.generateUnusedName() }`);
       }
