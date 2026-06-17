@@ -469,7 +469,7 @@ export function createNameResolution({ t }) {
     return collected;
   }
 
-  // ESTree (oxc-parser): TSTypeParameter.name is Identifier node; Babel: it's a string
+  // TSTypeParameter.name: Identifier node on babel@8 and oxc-parser, a bare string on babel@7
   function typeParamName(param) {
     if (!param) return undefined;
     return typeof param.name === 'string' ? param.name : param.name?.name;
