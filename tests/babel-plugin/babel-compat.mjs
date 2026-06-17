@@ -3,7 +3,7 @@
 // surface here, not behind a fixture-output diff.
 // BABEL_REQUIRE_FROM resolves @babel/parser, @babel/traverse, @babel/types from an
 // alternate workspace - mirrors the fixture runner's hook so unit tests run under
-// babel@7 (default) and babel@8 (with BABEL_REQUIRE_FROM=../babel-plugin-v8) alike
+// babel@8 (default) and babel@7 (with BABEL_REQUIRE_FROM=../babel-plugin-v7) alike
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import * as nodePath from 'node:path';

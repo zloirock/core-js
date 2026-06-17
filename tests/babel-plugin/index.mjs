@@ -1,13 +1,13 @@
 // runner for the @core-js/babel-plugin fixture suite. by default uses the zx host's
-// @babel/core (the v7 install at the repo root); BABEL_REQUIRE_FROM points at an
-// alternate workspace dir (used by the babel@8-RC harness) so we can swap babel out
-// without duplicating this script.
+// @babel/core (the v8 install at the repo root, which the baseline fixtures track);
+// BABEL_REQUIRE_FROM points at an alternate workspace dir (used by the babel@7 harness)
+// so we can swap babel out without duplicating this script.
 //
 // divergence policy when BABEL_REQUIRE_FROM is set:
 //   1) skip list (BABEL_SKIP, an ESM module exporting `{ '<bucket>': [...paths] }`):
-//      fixtures whose v8 output cannot be expressed as a baseline match. listed entries
-//      are tracked by bucket so the migration story stays inspectable.
-//   2) per-fixture override: when BABEL_VARIANT is set (e.g. `babel-v8`) the runner
+//      fixtures whose alternate-babel output cannot be expressed as a baseline match.
+//      listed entries are tracked by bucket so the divergence story stays inspectable.
+//   2) per-fixture override: when BABEL_VARIANT is set (e.g. `babel-v7`) the runner
 //      prefers a `<stem>.<variant>.<ext>` sibling for each expected file and falls back
 //      to the baseline otherwise.
 const { strictEqual } = require('node:assert');
@@ -59,15 +59,17 @@ function normalizeOutput(code) {
   return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }
 
-// under BABEL_VARIANT the debug `Using targets: { ... }` block can carry environment-derived,
-// time-varying values: babel@8 resolves an empty/no-targets config to the `["defaults"]`
-// browserslist query, whose per-browser version floors come from the installed caniuse-lite
-// (re-resolved by `npm install`, NOT pinned, in the v8 harness) and shift on each release. pin the
-// meaningful assertion (the "did not add any polyfill" verdict) by collapsing the resolved-targets
-// JSON to a placeholder. baseline (v7) leaves targets empty / user-explicit, so this only applies
-// in variant mode; explicit user-set targets do not drift, so collapsing them is harmless
-function normalizeVariantDebug(text) {
-  if (text === null || !BABEL_VARIANT) return text;
+// the debug `Using targets: { ... }` block can carry environment-derived, time-varying values:
+// babel@8 resolves an empty/no-targets config to the `["defaults"]` browserslist query, whose
+// per-browser version floors come from the installed caniuse-lite (re-resolved by `npm install`,
+// NOT pinned) and shift on each release. collapse the resolved-targets JSON to a placeholder so the
+// meaningful assertion (the polyfill verdict) is pinned. applied SYMMETRICALLY in both legs (and in
+// the unplugin runner): the baseline debug.txt is stored collapsed, so the v7 variant leg must
+// collapse its actual too, else every explicit-targets debug fixture spuriously needs a
+// `debug.babel-v7.txt` (and an all-or-nothing `output.babel-v7.mjs`). explicit targets do not drift,
+// so collapsing them only drops a debug assertion the output already reflects
+function normalizeDriftingTargets(text) {
+  if (text === null) return text;
   return text.replace(/Using targets: \{[^}]*\}/, 'Using targets: <RESOLVED>');
 }
 
@@ -117,8 +119,8 @@ function variantPath(directory, baseName) {
 // under variant mode the rule is all-or-nothing per fixture: if ANY variant sibling exists, the
 // variant declares the full expected state - missing variant siblings still resolve to variant
 // paths (so stale-file checks compare against the variant's view, not the baseline). without
-// this lock, a v8-errors-where-v7-succeeded fixture (error.babel-v8.txt but no output.babel-v8.mjs)
-// would mis-flag the v7 baseline output.mjs as v8-stale
+// this lock, a v7-errors-where-v8-succeeded fixture (error.babel-v7.txt but no output.babel-v7.mjs)
+// would mis-flag the v8 baseline output.mjs as v7-stale
 async function resolveExpectedSlots(directory) {
   const entries = Object.entries(EXPECTED_SLOTS);
   if (!BABEL_VARIANT) {
@@ -132,11 +134,11 @@ async function resolveExpectedSlots(directory) {
   ]));
 }
 
-// OVERWRITE under BABEL_VARIANT targets the variant siblings only, never the v7 baseline: write
+// OVERWRITE under BABEL_VARIANT targets the variant siblings only, never the v8 baseline: write
 // each slot to its `<stem>.<variant>.<ext>` sibling, but when this version's whole output state
 // matches the baseline drop every sibling so the fixture falls back to baseline. all-or-nothing -
 // mirrors resolveExpectedSlots' lock (one sibling => the variant owns every slot). so a plain
-// `OVERWRITE=1 npm run test-babel-plugin-v8` regenerates v8 variants with no manual placeholder
+// `OVERWRITE=1 npm run test-babel-plugin-v7` regenerates v7 variants with no manual placeholder
 // and never clobbers output.mjs. `slots` is [[slotName, desiredContent | null], ...]
 async function overwriteVariant(directory, slots) {
   const baseline = await Promise.all(slots.map(async ([name]) => {
@@ -178,22 +180,22 @@ async function runFixture(directory) {
   const actualFile = error ? errorFile : outputFile;
   const staleFile = error ? outputFile : errorFile;
   const actual = error ? normalizeOutput(error.message) : result;
-  const debugOutput = normalizeVariantDebug(logs.length ? normalizeOutput(logs.join('\n')) : null);
+  const debugOutput = normalizeDriftingTargets(logs.length ? normalizeOutput(logs.join('\n')) : null);
   const warningsOutput = warns.length ? normalizeOutput(warns.join('\n')) : null;
 
-  // the debug slot carries `normalizeVariantDebug` so the EXPECTED fixture content gets the same
-  // resolved-targets collapse the actual went through - keeps both comparison sides aligned in
-  // variant mode without touching the baseline (a no-op normalizer there)
+  // the debug slot carries `normalizeDriftingTargets` so the EXPECTED fixture content gets the same
+  // resolved-targets collapse the actual went through - keeps both comparison sides aligned in the
+  // default (babel@8) run without touching the variant leg (a no-op normalizer there)
   const expected = [
     [actualFile, actual],
-    [debugFile, debugOutput, normalizeVariantDebug],
+    [debugFile, debugOutput, normalizeDriftingTargets],
     [warningsFile, warningsOutput],
   ];
 
   // baseline OVERWRITE writes the resolved slots directly. under BABEL_VARIANT it instead routes to
   // `overwriteVariant`, which auto-creates the variant sibling on divergence and drops it on a
-  // baseline match - so a plain `OVERWRITE=1` run regenerates v8 variants without the old manual
-  // `touch <stem>.<variant>.<ext>` placeholder step and never clobbers the v7 baseline
+  // baseline match - so a plain `OVERWRITE=1` run regenerates v7 variants without the old manual
+  // `touch <stem>.<variant>.<ext>` placeholder step and never clobbers the v8 baseline
   if (OVERWRITE) {
     if (BABEL_VARIANT) return overwriteVariant(directory, [
       [EXPECTED_SLOTS.errorFile, error ? actual : null],

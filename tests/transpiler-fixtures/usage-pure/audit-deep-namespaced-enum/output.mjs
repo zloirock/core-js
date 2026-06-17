@@ -9,7 +9,7 @@ namespace N {
   export namespace M {
     export enum E {
       A,
-      B,
+      B
     }
   }
 }

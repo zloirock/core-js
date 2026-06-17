@@ -1,4 +1,5 @@
 import "core-js/modules/es.suppressed-error.constructor";
+import "core-js/modules/es.promise.try";
 import "core-js/modules/es.async-disposable-stack.constructor";
 import "core-js/modules/es.async-iterator.async-dispose";
 import "core-js/modules/es.disposable-stack.constructor";
