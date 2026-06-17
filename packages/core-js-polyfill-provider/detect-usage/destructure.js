@@ -357,8 +357,12 @@ export function planSideEffectKeyStrategy({
     instance,
     siblingDeclarator,
     eliminateResidual,
-    // memo only the standalone-insert shape (a sibling-declarator host's preceding `const _ref` would TDZ
-    // against the same-declaration receiver or has no statement slot in a for-head)
+    // memoize a constant-literal receiver into a shared `_ref` so the surviving residual doesn't keep a
+    // duplicate of the (possibly large) literal beside the extract. only the standalone-insert shape (a
+    // sibling-declarator host's preceding `const _ref` would TDZ against the same-declaration receiver or
+    // has no statement slot in a for-head). a side-effecting computed key is NOT captured: the instance
+    // extraction re-references the receiver and is emitted BEFORE the residual (the receiver, being re-
+    // referenceable, reads the same pre-key value either way - the residual's key effect still runs once)
     memoizeReceiver: instance && receiverIsConstantLiteral && !eliminateResidual && !siblingDeclarator,
   };
 }
