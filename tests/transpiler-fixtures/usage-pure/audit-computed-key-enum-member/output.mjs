@@ -4,7 +4,7 @@ var _ref;
 // through the enum's member initialiser. plugin picks up the narrowed string value, which
 // then narrows `.at(0)` on the looked-up array to the Array-specific polyfill
 enum Keys {
-  A = 'a',
+  A = 'a'
 }
 const obj = {
   a: ['x']
