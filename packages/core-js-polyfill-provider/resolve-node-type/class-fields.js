@@ -102,9 +102,10 @@ export function createClassFields({
   //   1. earlyBail (anonymous binding, exported binding) -> null candidates, no inference
   //   2. initPath value type -> seed candidate
   //   3. internalThisScan (own methods of class / object) -> `this.<field> = ...` writes
-  //   4. private gate (class-private fields are scope-closed: external scan skipped)
-  //   5. programGate (leak detection: instances escaping via fn-arg / return / spread) -> bail
-  //   6. programWritesPush (subclass `this.X = ...` + module-wide `<expr>.X = Y` writes)
+  //   4. programGate (leak detection: instances escaping via fn-arg / return / spread) -> bail.
+  //      a private field is scope-closed (can't escape), so its gate never bails
+  //   5. programWritesPush (subclass `this.X = ...` + module-wide `<expr>.X = Y` writes; for a
+  //      private field, the in-class-body `<expr>.#X = Y` writes - see the per-collector branches)
   // null result signals "writer set not enumerable" - caller treats as no inference
   function collectFieldCandidates(opts) {
     if (opts.earlyBail?.()) return null;
@@ -114,12 +115,23 @@ export function createClassFields({
       if (initType) candidates.push(initType);
     }
     opts.internalThisScan?.(candidates);
-    if (opts.isPrivate) return candidates;
     const program = findProgramPath(opts.anchor);
     if (!program) return candidates;
     if (opts.programGate?.(program)) return null;
     opts.programWritesPush?.(program, candidates);
     return candidates;
+  }
+
+  // a `#field` write is lexically pinned to its declaring class body, so a private field's writer set
+  // is exactly the `<expr>.#field = Y` writes inside `classNode` - `internalThisScan` covers only the
+  // `this.#field` subset, missing `C.#field = Y` (class binding) and `other.#field = Y` (sibling
+  // instance). a nested class declaring a same-named `#field` shares the module-field-index key, so the
+  // fold is scoped by NEAREST enclosing class (range containment would over-fold the nested twin)
+  function nearestEnclosingClassIsThis(writePath, classNode) {
+    for (let p = writePath.parentPath; p && !t.isProgram(p.node); p = p.parentPath) {
+      if (t.isClass(p.node)) return p.node === classNode;
+    }
+    return false;
   }
 
   // a write inside a loop whose body ALSO contains the temporal `bound` (the observable use)
@@ -158,8 +170,10 @@ export function createClassFields({
   // module-field index and is consumed by both the class-fields flow scan and the
   // class-instance closure builder)
 
-  // private class members ARE scope-closed: `#foo` is only reachable from inside the class
-  // body, so external write tracking can be skipped. covers all three private shapes:
+  // private class members are scope-closed: `#foo` is only reachable from inside the class body, so
+  // the writer set never bails on escape - but the in-body `<expr>.#foo = Y` writes (beyond `this.#foo`)
+  // STILL feed its type, so the external-write fold runs (gated to this class body). covers all three
+  // private shapes:
   //   - `#foo = init;` (ClassPrivateProperty in babel, PropertyDefinition with
   //     PrivateIdentifier key in ESTree)
   //   - `#foo() {}` (private method - not used as field)
@@ -174,7 +188,7 @@ export function createClassFields({
 
   // dispatch to static-vs-instance pipeline. static fields are mutated via the class
   // binding (`C.x = Y`); instance fields are mutated via instance bindings (`<inst>.x = Y`)
-  // including subclass instances. private fields skip external scan entirely
+  // including subclass instances. private fields fold only their in-class-body writes (scope-closed)
   function collectClassFieldCandidates(member, fieldName) {
     const classPath = member.parentPath.parentPath;
     const isPrivate = isPrivateMember(member.node);
@@ -375,6 +389,15 @@ export function createClassFields({
         return false;
       },
       programWritesPush: (program, candidates) => {
+        // private static field: not inherited, scope-closed - its writers are the `<expr>.#field = Y`
+        // writes inside this class body (`C.#field = Y` plus the `this.#field` writes internalThisScan
+        // already pushed). descendant / closure are unbuilt for private (programGate short-circuits)
+        if (isPrivate) {
+          foldExternalWrites({
+            fieldName, predicate: p => nearestEnclosingClassIsThis(p, classPath.node), bound: Infinity, program, out: candidates,
+          });
+          return;
+        }
         // every descendant's static surface - subclass static `this.<field> = Y` / static-block
         // writes feed the inherited slot. skip the base (internalThisScan already covered it)
         for (const sub of descendant.paths) {
@@ -415,6 +438,17 @@ export function createClassFields({
         return closure === null;
       },
       programWritesPush: (program, candidates) => {
+        // private instance field: scope-closed - its writers are the `<expr>.#field = Y` writes inside
+        // this class body (`other.#field = Y` on a sibling instance plus the `this.#field` writes
+        // internalThisScan pushed). bound=Infinity (fold all): a private field can't be observed by an
+        // external deferred call, so folding every in-body write is the sound widening direction.
+        // closure / descendant are unbuilt for private (programGate short-circuits)
+        if (isPrivate) {
+          foldExternalWrites({
+            fieldName, predicate: p => nearestEnclosingClassIsThis(p, classPath.node), bound: Infinity, program, out: candidates,
+          });
+          return;
+        }
         const bound = getClassInstanceTemporalBound(closure, descendant.names, program);
         // every descendant's non-static methods - subclass `this.X = Y` writes affect the
         // inherited field slot. recursive via descendant set, not just direct subclasses;
