@@ -1086,6 +1086,16 @@ function checkRunTransformStateIsolation() {
   check('isolation/transform a has no Promise import', /promise\//.test(a?.code ?? ''), false);
   check('isolation/transform b emits Promise.resolve', /promise\/resolve/.test(b?.code ?? ''), true);
   check('isolation/transform b has no Array import', /array\/from/.test(b?.code ?? ''), false);
+  // `currentMutatedStatics` is the second per-transform slot (saved/restored together with
+  // `currentInjector`). a transform whose source monkey-patches a static suppresses that static's pure
+  // rewrite; a later transform using the same static UNMUTATED must still rewrite it - the suppression
+  // slot is per-transform, not instance-global. (true re-entrancy - an inner transform clobbering the
+  // outer's slot mid-scan - is bundler-specific and not reproducible via direct transform calls; the
+  // save/restore makes that case safe, this guards the per-transform set + that the slot does not bleed.)
+  const mutated = plugin.transform('Array.from = () => [];\nArray.from([1]);', '/m.ts');
+  const clean = plugin.transform('Array.from([1]);', '/n.ts');
+  check('isolation/mutated static suppresses its own rewrite', /array\/from/.test(mutated?.code ?? ''), false);
+  check('isolation/later clean transform still rewrites the static', /array\/from/.test(clean?.code ?? ''), true);
 }
 checkRunTransformStateIsolation();
 
