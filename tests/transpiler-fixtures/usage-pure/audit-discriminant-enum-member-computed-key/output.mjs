@@ -4,7 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // inside the guard `box.data` is `number[]` and `.at` narrows to the array variant (distinct from
 // the const-string-alias computed-key fixture)
 enum Keys {
-  Kind = "kind",
+  Kind = "kind"
 }
 type Box = {
   kind: "a";

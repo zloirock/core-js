@@ -7,5 +7,5 @@ interface A {
 interface B {
   items: number[];
 }
-declare const v: A & (B);
+declare const v: A & B;
 v.items.at(-1);

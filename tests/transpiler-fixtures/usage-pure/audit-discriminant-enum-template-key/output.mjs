@@ -4,7 +4,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // as `Kind.A` so the discriminated union narrows to the array branch
 enum Kind {
   A = 'a',
-  B = 'b',
+  B = 'b'
 }
 type Box = {
   kind: 'a';
