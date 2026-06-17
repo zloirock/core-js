@@ -71,6 +71,10 @@ const shouldTransformCases = [
   ['/src/App.vue?vue&type=script', true, 'Vue SFC default JS script'],
   ['/src/App.vue?vue&type=script&setup=true', true, 'Vue SFC default JS script with setup'],
   ['/src/Page.astro?astro&type=script', true, 'Astro SFC default JS script'],
+  // SFC query param order is bundler-dependent (vite vs farm vs custom emitters); admission is
+  // order-independent - the framework marker may sit after `type=`
+  ['/src/App.vue?type=script&vue', true, 'framework marker after type= (order-independent)'],
+  ['/src/Page.astro?type=module&astro#L10', true, 'marker after type= with hash, order-independent'],
   ['/src/App.vue?vue&type=style', false, 'Vue SFC style block (default-JS only matches script/module)'],
   // explicit non-JS lang= blocks the default-JS fallback
   ['/src/App.vue?vue&type=script&lang=scss', false, 'Vue SFC explicit lang=scss blocks default-JS fallback'],
@@ -90,6 +94,11 @@ const shouldTransformCases = [
   ['/src/App.vue?vue&type=script&lang=d.ts', false, 'SFC declaration block (lang=d.ts)'],
   ['/src/App.vue?xlang=ts', false, 'xlang= substring guard'],
   ['/src/App.vue?lang=', false, 'empty lang='],
+  // a default-JS SFC block whose query carries a param merely ENDING in `lang` must still
+  // transform: the non-JS `lang=` negative gate is anchored to a param boundary, so `clang=`/
+  // `slang=` no longer match it as a substring and drop the block
+  ['/src/App.vue?vue&type=script&clang=gcc', true, 'clang= param does not block default-JS SFC'],
+  ['/src/App.vue?vue&type=script&slang=en', true, 'slang= param does not block default-JS SFC'],
   // `.js`/`.ts` token appears only inside the query — strip query before extension-check
   ['/virtual:foo?output=main.js', false, '.js inside query only'],
   ['/virtual:foo?output=main.ts#bar', false, '.ts inside query only'],
@@ -1941,6 +1950,14 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/Page.astro?astro&type=script&lang=ts', { tag: 'astro-ts' });
   check('SnapshotCache/astro plain', cache.take('/src/Page.astro?astro&type=script')?.tag, 'astro-plain');
   check('SnapshotCache/astro lang=ts', cache.take('/src/Page.astro?astro&type=script&lang=ts')?.tag, 'astro-ts');
+  // framework marker at the very END of the query, followed by a `#L<n>` sourcemap suffix: the marker
+  // must still register so two such sub-blocks of one file keep DISTINCT keys instead of both collapsing
+  // to the stripped-path key (which would clobber the first snapshot). a raw scan whose marker boundary
+  // excluded `#` missed a marker pinned between `&` and `#`
+  cache.store('/src/App.vue?type=script&vue#L1', { tag: 'tail-marker-script' });
+  cache.store('/src/App.vue?type=template&vue#L2', { tag: 'tail-marker-template' });
+  check('SnapshotCache/tail marker + hash script distinct', cache.take('/src/App.vue?type=script&vue#L1')?.tag, 'tail-marker-script');
+  check('SnapshotCache/tail marker + hash template distinct', cache.take('/src/App.vue?type=template&vue#L2')?.tag, 'tail-marker-template');
   // Vite virtual module: `/@id/virtual:foo` must normalize to `virtual:foo` so pre/post
   // pair round-trips when the resolver strips the prefix between passes
   cache.store('/@id/virtual:mod', { tag: 'virt' });
