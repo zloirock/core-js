@@ -959,7 +959,25 @@ function createResolveNodeType(babelNodeType, t, {
     if (!redeclPaths.length) return null;
     const combined = [...binding.constantViolations ?? [], ...redeclPaths];
     const reaching = findLastStraightLineAssignment({ ...binding, constantViolations: combined }, usagePath);
-    return reaching?.node?.type === 'VariableDeclarator' && reaching.node.init ? reaching.get('init') : null;
+    if (reaching?.node?.type !== 'VariableDeclarator' || !reaching.node.init) return null;
+    const initPath = reaching.get('init');
+    // a destructure-pattern redecl (`var [x] = ['s']`) binds the SLOT for `name`, not the whole RHS -
+    // follow the key-path to the destructured element, the same way resolvePath's assignment-destructure
+    // branch does. without this the whole array `['s']` narrows `x`, dispatching the array-only `at`
+    // variant onto a string receiver (wrong on ie:11)
+    const { id } = reaching.node;
+    if (id?.type === 'ArrayPattern' || id?.type === 'ObjectPattern') {
+      const keyPath = findPatternKeyPath(id, name, reaching.scope);
+      if (!keyPath) return null;
+      // a rest-bound slot (`[...r]`, `[a, [...b]]`) is always an Array - the destructuring init's RHS
+      // is itself an array literal that resolves to Array, the slot's correct type; the trailing rest
+      // marker has no single element path to follow. a key READ off a rest (`[...{ length }]`) is NOT
+      // the rest array, so bail to the generic helper (safe), matching followKeyPathInRhs's rest bail
+      const restIndex = keyPath.indexOf(-1);
+      if (restIndex !== -1) return restIndex === keyPath.length - 1 ? initPath : null;
+      return followKeyPathInRhs(initPath, keyPath) ?? null;
+    }
+    return initPath;
   }
 
   // --- Type utilities & runtime expression resolver ---
