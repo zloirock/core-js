@@ -3,7 +3,7 @@
 // resolved against the runtime enum rather than rewriting it to the polyfill `_Map.A`
 enum Map {
   A,
-  B,
+  B
 }
 const m = new Map.A();
 export { m };
