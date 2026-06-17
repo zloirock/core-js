@@ -64,6 +64,8 @@ import {
   isReReferenceableReceiver,
   isViableBranchForKey,
   nestedAssignmentStatementOf,
+  conditionalDestructureLeftUntouchedWarning,
+  fallbackDestructureHasPolyfillableBranch,
   planSideEffectKeyStrategy,
   qualifiesForParamBodyExtract,
   resolveNestedReceiverNode,
@@ -151,6 +153,7 @@ function defaultGuardedRhs({ valueSrc, defaultSrc, ref }) {
 export function createDestructureEmitter({
   paramDefaultNeverOverridden = null,
   estreeAdapter,
+  getDebugOutput = null,
   injectPureImport,
   injector,
   isBodylessStatementBody,
@@ -172,6 +175,19 @@ export function createDestructureEmitter({
   // that legitimately contain a `\n` for cosmetic separation)
   function wrapBodylessIfMulti(src, isMulti, hostPath) {
     return isMulti && isBodylessStatementBody(hostPath) ? `{ ${ src } }` : src;
+  }
+
+  // emit the shared "conditional destructure left untouched" debug-warn when a fromFallback prop's
+  // per-branch synth-swap could not be registered (no resolvable fallback receiver, or an unviable
+  // pattern). gated on a GENUINE candidate (some branch actually polyfills the key) via the shared
+  // provider predicate, so a key no branch polyfills does not get the misleading "polyfill candidate"
+  // diagnostic. mirrors babel's identical warn via the single-sourced message helper + gate
+  function warnConditionalFallbackUntouched(meta, metaPath) {
+    // the gate (branch enumeration + resolution) is a debug-only concern - skip it entirely when
+    // debug output is off, so the common build path pays nothing for the diagnostic
+    const debug = getDebugOutput?.();
+    if (!debug || !fallbackDestructureHasPolyfillableBranch(meta, metaPath, estreeAdapter, resolvePure)) return;
+    debug.warn?.(conditionalDestructureLeftUntouchedWarning(meta.key));
   }
 
   // ---------- pending collections (drained post-traverse) ----------
@@ -1730,10 +1746,12 @@ export function createDestructureEmitter({
   // top-level destructure path (`const {from} = cond ? Array : Set`, assignment-target).
   // resolves the wrapper's RHS via the unified slot/IIFE helper, then delegates to the
   // shared per-branch helper. wraps to keep `handleDestructuringPure` under lint statement-cap
-  function tryFromFallbackPerBranchSynth(metaPath, propNode) {
+  function tryFromFallbackPerBranchSynth(meta, metaPath, propNode) {
     const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
-    if (!desc) return;
-    tryRegisterPerBranchSynth({ rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope, path: metaPath });
+    const registered = desc && tryRegisterPerBranchSynth({
+      rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope, path: metaPath,
+    });
+    if (!registered) warnConditionalFallbackUntouched(meta, metaPath);
   }
 
   // ConditionalExpression / LogicalExpression in destructure-receiver position
@@ -2063,9 +2081,10 @@ export function createDestructureEmitter({
       // polyfill object literal, so a non-Identifier receiver (`cond ? Array : Set`) still
       // gets array narrowing on each branch independently
       const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
-      if (desc) tryRegisterPerBranchSynth({
+      const registered = desc && tryRegisterPerBranchSynth({
         rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope,
       });
+      if (!registered) warnConditionalFallbackUntouched(meta, metaPath);
       return;
     }
     const isAssign = value.type === 'AssignmentPattern';
@@ -2358,7 +2377,7 @@ export function createDestructureEmitter({
     if (propNode.value?.type === 'Identifier'
         && injector.hasGeneratedUnusedName(propNode.value.name)) return;
     if (!canTransformDestructuring(metaPath)) return;
-    if (meta.fromFallback) return tryFromFallbackPerBranchSynth(metaPath, propNode);
+    if (meta.fromFallback) return tryFromFallbackPerBranchSynth(meta, metaPath, propNode);
     const patternHasRest = metaPath.parent?.properties?.some(
       p => p.type === 'RestElement' || p.type === 'SpreadElement');
     // export + rest of a static polyfills like the nested-proxy export+rest path: the consumed
