@@ -1979,10 +1979,20 @@ export function isAmbientTypeDeclaration(node) {
 // excludes ambient forms (`declare enum/namespace`, `import type X = require()`) - those
 // have no runtime emission, references resolve to the global, polyfill should fire
 function isTSRuntimeBindingDeclaration(node) {
-  if (!node?.id?.name) return false;
+  if (!node?.id) return false;
   if (node.type === 'TSImportEqualsDeclaration') return !isTypeOnlyImportEquals(node);
   if (node.type === 'TSEnumDeclaration' || node.type === 'TSModuleDeclaration') return !node.declare;
   return false;
+}
+
+// runtime binding NAME of a TS declaration's id. `namespace A.B {}` (babel@8 / oxc) carries a
+// TSQualifiedName id whose RUNTIME binding is the LEFTMOST segment (`A` - the namespace-object var
+// the IIFE lowering creates); enum / import-equals / single-segment-namespace / class ids are plain
+// Identifiers; `declare module "foo"` carries a StringLiteral. returns the leftmost-segment name,
+// or undefined for an id shape that binds no runtime name (StringLiteral / anonymous)
+export function tsRuntimeBindingName(id) {
+  while (id?.type === 'TSQualifiedName') id = id.left;
+  return id?.type === 'Identifier' ? id.name : undefined;
 }
 
 // names of TS-specific runtime declarations at program top level. estree-toolkit's scope
@@ -2018,7 +2028,10 @@ function getTSRuntimeBindings(scopeNode) {
     // without the unwrap, `export enum Map { A } new Map()` would falsely polyfill `Map` even
     // though the local enum shadows the global. ExportDefaultDeclaration also handled
     const decl = unwrapExportedDeclaration(stmt);
-    if (isTSRuntimeBindingDeclaration(decl)) cached.add(decl.id.name);
+    if (isTSRuntimeBindingDeclaration(decl)) {
+      const name = tsRuntimeBindingName(decl.id);
+      if (name) cached.add(name);
+    }
   }
   tsRuntimeBindingsCache.set(scopeNode, cached);
   return cached;
@@ -3220,7 +3233,8 @@ function statementShadowsRequireAtProgramScope(stmt) {
     // `findTSRuntimeBindingInPath`, not `getBindingIdentifier`
     case 'TSEnumDeclaration':
     case 'TSModuleDeclaration':
-      return node.id?.name === 'require';
+      // `namespace require.X {}` binds the leftmost segment (`require`) at runtime
+      return tsRuntimeBindingName(node.id) === 'require';
   }
   return false;
 }
