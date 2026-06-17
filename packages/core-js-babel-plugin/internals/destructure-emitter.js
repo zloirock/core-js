@@ -42,6 +42,8 @@ import {
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
   nestedAssignmentStatementOf,
+  conditionalDestructureLeftUntouchedWarning,
+  fallbackDestructureHasPolyfillableBranch,
   planSideEffectKeyStrategy,
   qualifiesForParamBodyExtract,
   resolveNestedReceiverNode,
@@ -1213,8 +1215,12 @@ export default function createDestructureEmitter({
       // identifier visitor still rewrites bare globals via the standard path
       const rhsPath = resolveFallbackReceiverPath(prop.parentPath?.parentPath, prop.parentPath?.node);
       const registered = rhsPath && synthSwap.tryRegisterPerBranchSynth(rhsPath, prop);
-      if (!registered) {
-        getDebugOutput()?.warn(`conditional destructure with polyfill candidate left untouched ("${ meta.key }" on fallback branch) - runtime availability depends on the selected branch`);
+      // warn only for a GENUINE candidate a structural pattern issue blocked - not for a key no
+      // branch actually polyfills (the build tags `object` permissively), which would lie. the gate
+      // is a debug-only concern, so skip it unless debug output is on
+      const debug = getDebugOutput();
+      if (!registered && debug && fallbackDestructureHasPolyfillableBranch(meta, prop, adapter, resolvePure)) {
+        debug.warn(conditionalDestructureLeftUntouchedWarning(meta.key));
       }
       return;
     }
