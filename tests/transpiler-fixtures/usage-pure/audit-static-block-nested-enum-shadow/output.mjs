@@ -5,13 +5,13 @@ let outer: unknown, inner: unknown;
 class Outer {
   static {
     enum Map {
-      Outer,
+      Outer
     }
     outer = new Map.Outer();
     class Inner {
       static {
         enum Map {
-          Inner,
+          Inner
         }
         inner = new Map.Inner();
       }

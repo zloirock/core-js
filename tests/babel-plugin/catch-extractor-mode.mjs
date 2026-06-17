@@ -5,8 +5,8 @@
 // alongside such a sibling so the gate is exercised directly: usage-global must NOT restructure
 // the catch param (it only adds side-effect imports), while usage-pure must (the body-extract
 // rewrite routes the destructure-derived binding through the pure helper).
-// BABEL_REQUIRE_FROM mirrors the fixture runner's hook so the suite runs under babel@7 (default)
-// and babel@8 (with BABEL_REQUIRE_FROM=../babel-plugin-v8) alike.
+// BABEL_REQUIRE_FROM mirrors the fixture runner's hook so the suite runs under babel@8 (default)
+// and babel@7 (with BABEL_REQUIRE_FROM=../babel-plugin-v7) alike.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import * as nodePath from 'node:path';
