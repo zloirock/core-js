@@ -490,7 +490,6 @@ export default function createPlugin(options) {
     // installs on the same global slot, user's mutation overlays cleanly)
     const mutationInfo = method === 'usage-pure' ? collectMutationPrePass(ast, estreeAdapter) : null;
     const mutatedStatics = mutationInfo?.mutated ?? null;
-    currentMutatedStatics = mutatedStatics;
 
     const ms = new MagicString(code, { filename: id });
     // late-bound: debugOutput is constructed below (after createPolyfillResolver) but the
@@ -505,17 +504,19 @@ export default function createPlugin(options) {
       inherit,
       getDebugOutput: () => debugOutput,
     });
-    // typeResolvers' `getPolyfillBindingEntry` AND estreeAdapter's `polyfillHint` both
-    // close over the plugin instance's `currentInjector` slot. save/restore via try/finally
-    // (closing at runTransformInner's tail) so a re-entrant inner transform leaves the
-    // outer's injector intact - the early-return guards above (typeof/isCoreJSFile/
-    // disable-file/parse-fail) run BEFORE the save and never touch the slot. cross-transform
-    // AST node identity won't carry through (ASTs differ per transform), so resolver's
-    // WeakMap caches don't observe the swap. `import _Promise from '.../constructor';
-    // _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the Promise
+    // typeResolvers' `getPolyfillBindingEntry` AND estreeAdapter's `polyfillHint` close over the
+    // plugin instance's `currentInjector` slot; `resolvePure` + the adapter close over the
+    // `currentMutatedStatics` slot. save/restore BOTH per-transform slots together via try/finally
+    // (closing at runTransformInner's tail) so a re-entrant inner transform leaves the outer's slots
+    // intact - the early-return guards above (typeof/isCoreJSFile/disable-file/parse-fail) run BEFORE
+    // the save and never touch them. cross-transform AST node identity won't carry through (ASTs differ
+    // per transform), so resolver's WeakMap caches don't observe the swap. `import _Promise from
+    // '.../constructor'; _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the Promise
     // constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
     const previousInjector = currentInjector;
+    const previousMutatedStatics = currentMutatedStatics;
     currentInjector = injector;
+    currentMutatedStatics = mutatedStatics;
     try {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
@@ -1098,6 +1099,7 @@ export default function createPlugin(options) {
       return null;
     } finally {
       currentInjector = previousInjector;
+      currentMutatedStatics = previousMutatedStatics;
     }
   }
 
