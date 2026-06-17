@@ -5,7 +5,7 @@
 // bodies), so `super.try` would route to the global
 namespace M {
   export enum Promise {
-    A = 0,
+    A = 0
   }
   const Local = Promise;
   export class C extends (Local as any) {

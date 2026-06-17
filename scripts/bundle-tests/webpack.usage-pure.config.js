@@ -17,7 +17,11 @@ module.exports = {
         options: {
           ...babelConfig,
           plugins: [
-            ['@core-js', { method: 'usage-pure', version: 'node_modules', mode: 'full' }],
+            ['@core-js', {
+              method: 'usage-pure',
+              mode: 'full',
+              targets: 'IE 11, Chrome>=38, Safari>=7.1, FF>=15',
+            }],
             ...babelConfig.plugins,
           ],
           assumptions: {
