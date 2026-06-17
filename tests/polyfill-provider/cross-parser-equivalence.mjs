@@ -137,6 +137,19 @@ await runEquivalence('async generator', 'async function* g() { yield 1; }', USAG
 await runEquivalence('for-of', 'for (const x of arr) {}', USAGE_GLOBAL_IE11);
 await runEquivalence('for-await-of', 'async function f() { for await (const x of arr) {} }', USAGE_GLOBAL_IE11);
 
+// for-x HEAD reassignment of an outer `var`: the loop head's per-iteration write is a constantViolation
+// that babel records as a NodePath while oxc / estree-toolkit recompute the violation set differently;
+// the resolvers must still agree on the polyfill set. A head-reassign that DOMINATES the use bails the
+// pure receiver walk (no stale-init array/from) on BOTH parsers; the same shape with the use BEFORE the
+// reassign resolves it on both. Exercises the for-x-head branch of the var-reassignment recovery in
+// lockstep so a parser-only difference in the phantom head-write can never desync the polyfill set.
+await runEquivalence('for-x head reassign dominates use (pure bail)',
+  'var A = Array;\nfor (A of [Set]) {}\nA.from([1]);', USAGE_PURE);
+await runEquivalence('for-x head reassign after use (pure resolves)',
+  'var A = Array;\nA.from([1]);\nfor (A of [Set]) {}', USAGE_PURE);
+await runEquivalence('for-x head reassign dominates use (global)',
+  'var A = Array;\nfor (A of [Set]) {}\nA.from([1]);', USAGE_GLOBAL_IE11);
+
 // using declaration (resources)
 await runEquivalence('using declaration', 'function f() { using r = res(); }', USAGE_GLOBAL_IE11);
 await runEquivalence('await using declaration', 'async function f() { await using r = res(); }', USAGE_GLOBAL_IE11);
