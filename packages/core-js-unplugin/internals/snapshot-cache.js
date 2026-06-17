@@ -2,7 +2,7 @@ import {
   stripQueryHash,
   WINDOWS_UNC_PREFIX_RE,
 } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { SFC_FRAMEWORK_GROUP, SFC_LANG_RE, SFC_NON_JS_TYPE_RE } from './sfc-shapes.js';
+import { isSfcSubBlock, parseModuleId } from './sfc-shapes.js';
 
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
 // output emits `_ref = ...` free assignments; post lands the matching `var _ref;` via
@@ -27,13 +27,6 @@ import { SFC_FRAMEWORK_GROUP, SFC_LANG_RE, SFC_NON_JS_TYPE_RE } from './sfc-shap
 // follow with `/` after the empty optional group either, so the regex passes through
 const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/(?:localhost)?(?=\/)|\/@fs(?=\/|$)|\/@id\/)/i;
 const REPEATED_SLASHES_RE = /\/{2,}/g;
-// only framework SFC markers count as sub-block identifiers. pairing `type=`/`lang=`/`setup`
-// with a framework key avoids matching generic `?type=module` or `?lang=en` on non-SFC
-// bundlers that would otherwise get a stray `?type=...` tail kept in the snapshot key -
-// causing pre/post lookups to miss when the same file is visited under slightly different
-// queries in an unrelated transform pipeline. `/i` flag keeps mixed-case `?VUE` admissible
-// (consistent with the rest of the SFC stack)
-const SFC_QUERY_MARKER_RE = new RegExp(`[&?]${ SFC_FRAMEWORK_GROUP }(?:[&=?]|$)`, 'i');
 const QUERY_OR_HASH_RE = /[#?]/;
 // `WINDOWS_UNC_PREFIX_RE` (shared) matches `//?/` long-path AND `//./` device-path forms.
 // strip to canonical `C:/...` so SnapshotCache lookups align across path-mangling stages
@@ -107,16 +100,14 @@ function normalizeSFCQueryTail(tail) {
   return `?${ tokens.join('&') }${ hash }`;
 }
 
-// an id earns the query-preserving (sub-block) key when it is a transformable SFC sub-block:
-// either framework-marked (`?vue&type=script&lang=ts`) OR a `lang=`-admitted block with no
-// marker (`?type=script&lang=ts`). this MUST mirror `shouldTransform`'s SFC admission - any id
-// the plugin transforms as a distinct sub-block needs a distinct snapshot key, else two marker-
-// less sub-blocks of one file collapse to the stripped path key and cross-contaminate imports
-// in `phase: 'pre+post'` (last pre write wins, post inherits the wrong deferred imports).
-// `SFC_LANG_RE` matches only JS/TS langs (`[cm]?[jt]sx?`), so a generic `?lang=en` / `?type=
-// module` on a non-SFC bundler still falls through to the query-stripping path as before
+// an id earns the query-preserving (sub-block) key when it is an SFC sub-block: framework-marked
+// (`?vue&type=script&lang=ts`, incl. style / template blocks, which still need a distinct key) OR a
+// markerless `lang=`-admitted JS block (`?type=script&lang=ts`). a distinct sub-block needs a distinct
+// snapshot key, else two sub-blocks of one file collapse to the stripped path key and cross-contaminate
+// imports in `phase: 'pre+post'`. delegates to the shared structured predicate so the cache-key SFC
+// detection and `shouldTransform`'s admission can never drift apart on the same query shapes
 function isTransformableSfcSubBlock(id) {
-  return SFC_QUERY_MARKER_RE.test(id) || (SFC_LANG_RE.test(id) && !SFC_NON_JS_TYPE_RE.test(id));
+  return isSfcSubBlock(parseModuleId(id).params);
 }
 
 function normalizeKey(id) {
