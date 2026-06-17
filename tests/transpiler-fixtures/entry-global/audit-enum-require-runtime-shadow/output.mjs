@@ -4,6 +4,6 @@
 // require-binding detector must enumerate TSEnumDeclaration / TSModuleDeclaration
 // (non-`declare`) so the two pipelines agree.
 enum require {
-  foo = 1,
+  foo = 1
 }
 require('core-js/actual/array/from');

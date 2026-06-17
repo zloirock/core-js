@@ -3,7 +3,7 @@
 // `_Map` const enum exists post-rewrite). treat as binding shadow same as regular enum
 const enum Map {
   A,
-  B,
+  B
 }
 const m = Map.A;
 export { m };

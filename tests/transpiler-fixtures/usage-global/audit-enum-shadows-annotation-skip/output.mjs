@@ -3,6 +3,6 @@
 // adapter hasBinding (which walks the path's ancestor body for TSEnumDeclaration / TSModule
 // Declaration) so the enum properly shadows the Map polyfill in `let x: Map`
 enum Map {
-  A,
+  A
 }
 let x: Map;

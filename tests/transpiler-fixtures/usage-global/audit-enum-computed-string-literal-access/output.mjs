@@ -6,7 +6,7 @@ import "core-js/modules/es.string.includes";
 // `.at`, `.includes` each emit only the string-instance polyfill.
 enum E {
   Alpha = 'alpha',
-  Beta = 'beta',
+  Beta = 'beta'
 }
 function probe() {
   E.Alpha.repeat(2);

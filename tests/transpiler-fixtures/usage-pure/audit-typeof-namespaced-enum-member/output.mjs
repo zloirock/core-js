@@ -6,7 +6,7 @@ import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 namespace NS {
   export enum E {
     A = 'alpha',
-    B = 'beta',
+    B = 'beta'
   }
 }
 declare const v: typeof NS.E.A;

@@ -14,6 +14,6 @@ interface I {
 }
 type M = { [Set in K]: 1 };
 enum E {
-  WeakMap,
+  WeakMap
 }
 Promise.resolve(1);

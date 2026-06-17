@@ -8,7 +8,7 @@ import _includesMaybeString from "@core-js/pure/actual/string/instance/includes"
 namespace N {
   export enum E {
     A,
-    B,
+    B
   }
 }
 const head = N.E[N.E.A];

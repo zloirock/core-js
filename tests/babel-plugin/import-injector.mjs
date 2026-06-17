@@ -3,8 +3,8 @@
 // express a SIBLING plugin's `scope.push` sharing Babel's reused per-block `var` node with
 // our memoize `_ref`. this suite drives a full @babel/core transform alongside such a
 // sibling so the import/first ordering contract is exercised directly.
-// BABEL_REQUIRE_FROM mirrors the fixture runner's hook so the suite runs under babel@7
-// (default) and babel@8 (with BABEL_REQUIRE_FROM=../babel-plugin-v8) alike.
+// BABEL_REQUIRE_FROM mirrors the fixture runner's hook so the suite runs under babel@8
+// (default) and babel@7 (with BABEL_REQUIRE_FROM=../babel-plugin-v7) alike.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import * as nodePath from 'node:path';
