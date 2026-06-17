@@ -4,6 +4,7 @@ import {
   isDirectiveStatement,
   isTopLevelImportLike,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
+  tsRuntimeBindingName,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
@@ -603,11 +604,14 @@ export function collectAllBindingNames(ast) {
       case 'ClassDeclaration':
       case 'ClassExpression':
       case 'TSEnumDeclaration':
-      case 'TSModuleDeclaration':
-        // `declare module "foo"` - id is a Literal, not Identifier (no `.name`). guard to
-        // avoid polluting the Set with `undefined`
-        if (node.id?.name) addDecl(node.id.name);
+      case 'TSModuleDeclaration': {
+        // canonical id->runtime-name: leftmost segment for a `namespace A.B {}` TSQualifiedName id,
+        // `.name` for a plain Identifier id, undefined for `declare module "foo"` (StringLiteral) or
+        // an anonymous class - so the StringLiteral / anonymous cases stay out of the Set
+        const declName = tsRuntimeBindingName(node.id);
+        if (declName) addDecl(declName);
         break;
+      }
       case 'CatchClause': if (node.param) addPattern(node.param); break;
       case 'ImportSpecifier':
       case 'ImportDefaultSpecifier':
