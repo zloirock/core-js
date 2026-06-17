@@ -1106,14 +1106,45 @@ export default function createDestructureEmitter({
     return true;
   }
 
+  // an assignment host (`({ ... } = R)`) has no declaration to extract a `const` into. for a statement-
+  // context assignment with a bare-Identifier binding and a re-referenceable receiver, append
+  // `m = _flatMaybeArray(recv)` AFTER the statement: the destructure assigns `m` natively first (running any
+  // in-place computed-key effect, leaving `m` undefined on engines lacking the method), then this overwrite
+  // makes the polyfill win. returns true when this IS a statement-context assignment (overwrite emitted, or
+  // left native when the receiver can't be re-referenced), false otherwise (declaration / param /
+  // expression-context whose value would need preserving) so the caller continues
+  function emitAssignmentInstanceOverwrite({ prop, entry, hintName }) {
+    const statement = nestedAssignmentStatementOf(prop);
+    if (!statement) return false;
+    // `resolveNestedReceiverNode` gates the receiver (Identifier / side-effect-free literal); `propBinding-
+    // Identifier` unwraps a defaulted binding (`{ flat: m = [] }` is an AssignmentPattern), so a raw
+    // `value?.type === 'Identifier'` check wouldn't drop the overwrite and lose the polyfill to the native read
+    const receiverNode = resolveNestedReceiverNode(prop);
+    const bindingId = propBindingIdentifier(prop.node.value);
+    if (bindingId && receiverNode && !skippedNodes.has(prop.node)) {
+      // mark handled so a re-visit (babel re-crawls after the insertAfter mutation) doesn't append a
+      // second identical overwrite
+      skippedNodes.add(prop.node);
+      // chain each overwrite off the previous one for this statement: the elements of a multi-element
+      // pattern (`[{ flat: x }, { at: x }] = [a, b]`) must overwrite in SOURCE order so the last one wins,
+      // as native destructuring does - a bare `statement.insertAfter` per element reverses them
+      const overwriteStmt = t.expressionStatement(t.assignmentExpression('=', t.cloneNode(bindingId),
+        t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)])));
+      const prevInsert = nestedOverwriteLastInsert.get(statement.node);
+      nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
+    }
+    return true;
+  }
+
   // dispatch a polyfillable key whose KEY must stay in the pattern - either a side-effecting computed key
   // (`{ [(eff(), 'from')]: from } = R`, the effect runs in place) OR a nested INSTANCE method (the polyfill
   // `_m(receiver)` needs the receiver the residual preserves). the ONE robust emission (decided by the
   // shared `planSideEffectKeyStrategy`): keep the key IN PLACE (value renamed to a throwaway) and bind the
   // polyfill separately - uniform across statement / nested / for-init / rest / default / export / array-
   // wrapper / nested-sequence keys. a param-default / IIFE host can't host that separate binding, so it
-  // synth-swaps the receiver instead. returns true when handled (caller stops); false lets the caller
-  // continue (no host declaration)
+  // synth-swaps the receiver instead. an assignment host (no declaration) emits the post-statement overwrite
+  // for an instance method; an SE-computed key never falls through to the discarding instance extract.
+  // returns true when handled (caller stops); false lets the caller continue (non-instance assignment host)
   function handleSideEffectComputedKey({ prop, kind, entry, hintName }) {
     const objectPattern = prop.parentPath;
     const { parent: synthHost } = peelTransparentWrappers(objectPattern);
@@ -1123,7 +1154,14 @@ export default function createDestructureEmitter({
       return true;
     }
     const declaration = hostDeclarationOf(prop);
-    if (!declaration) return false;
+    // an assignment host has no declaration to extract into. an INSTANCE method emits the post-statement
+    // overwrite (which leaves the destructure in place so an in-place computed-key effect still runs) and is
+    // always reported handled - an SE-computed key must never fall through to the default instance extract,
+    // which discards the destructure AND the key's effect. a non-instance (static) bails to its flatten path
+    if (!declaration) {
+      if (kind === 'instance') emitAssignmentInstanceOverwrite({ prop, entry, hintName });
+      return kind === 'instance';
+    }
     const isForInit = declaration.parentPath?.isForStatement()
       && declaration.parentPath.node.init === declaration.node;
     // resolve the instance receiver once: the planner needs its kind, `keepKeyInResidual` the node. for the
@@ -1205,36 +1243,14 @@ export default function createDestructureEmitter({
     }
     // nested INSTANCE method (`{ y: { flat: m } } = { y: arr }`, or array-wrapped `[{ y: { flat: m } }] =
     // [{ y: arr }]` / `[{ flat: m }] = [arr]`): the static flatten doesn't apply (the receiver is an
-    // instance, not a constructor). delegate to the shared declarator-key residual path - it resolves the
+    // instance, not a constructor). delegate to the shared SE-key path - for a declaration it resolves the
     // nested receiver through object keys AND array indices (bare Identifier only, else native), respects
     // the planner (bails a multi-declarator / non-Identifier receiver, routes a for-init to a sibling
-    // declarator), and extracts `const m = _flatMaybeArray(recv)`. an ArrayPattern host peels past
-    // `patternParent` (a single-element wrapper collapses to the declarator), so gate on it directly
+    // declarator), and extracts `const m = _flatMaybeArray(recv)`; for an assignment host it emits the
+    // post-statement overwrite. an ArrayPattern host peels past `patternParent` (a single-element wrapper
+    // collapses to the declarator), so gate on it directly
     if ((patternParent?.isObjectProperty() || objectPattern.parentPath?.isArrayPattern()) && kind === 'instance') {
-      if (handleSideEffectComputedKey({ prop, kind, entry, hintName })) return;
-      // an ASSIGNMENT host has no declaration to extract a `const` into. for a statement-context assignment
-      // with a bare-Identifier binding and a re-referenceable receiver, append `m = _flatMaybeArray(recv)`
-      // AFTER the statement: the destructure assigns `m` natively first (undefined on engines lacking the
-      // method), then this overwrite makes the polyfill win. expression-context / member-receiver bails to
-      // native. `resolveNestedReceiverNode` already gates the receiver (Identifier / side-effect-free literal)
-      const statement = nestedAssignmentStatementOf(prop);
-      const receiverNode = resolveNestedReceiverNode(prop);
-      // gate AND target the overwrite on the canonical binding-Identifier predicate: a defaulted
-      // binding (`{ flat: m = [] }`) is an AssignmentPattern, so a raw `value?.type === 'Identifier'`
-      // check drops the overwrite and the polyfill loses to the native (undefined) destructure
-      const bindingId = propBindingIdentifier(prop.node.value);
-      if (statement && bindingId && receiverNode && !skippedNodes.has(prop.node)) {
-        // mark handled so a re-visit (babel re-crawls after the insertAfter mutation) doesn't append
-        // a second identical overwrite
-        skippedNodes.add(prop.node);
-        // chain each overwrite off the previous one for this statement: the elements of a multi-element
-        // pattern (`[{ flat: x }, { at: x }] = [a, b]`) must overwrite in SOURCE order so the last one
-        // wins, as native destructuring does - a bare `statement.insertAfter` per element reverses them
-        const overwriteStmt = t.expressionStatement(t.assignmentExpression('=', t.cloneNode(bindingId),
-          t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)])));
-        const prevInsert = nestedOverwriteLastInsert.get(statement.node);
-        nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
-      }
+      handleSideEffectComputedKey({ prop, kind, entry, hintName });
       return;
     }
     // transparent wrap between ObjectPattern and host (`const [{from}] = wrapper` -
