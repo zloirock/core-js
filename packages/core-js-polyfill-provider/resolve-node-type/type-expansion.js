@@ -59,7 +59,8 @@ export function createTypeExpansion({
 
   // string-shaped numeric keys (`'0'`, `'42'`) are produced by `getKeyName` when iterating
   // member lists of a `keyof T` source whose underlying T uses numeric indexers. detection
-  // mirrors the runtime `Number.isFinite(Number(k))` check but stays statically evaluable.
+  // matches numeric-literal SHAPE statically; it intentionally over-matches Infinity-shaped keys
+  // (`1e999`) rather than a runtime `Number.isFinite` guard (accepted over-emit direction).
   // `constraint` on the mapped type itself. key name is a bare string in babel-parser
   // ASTs and an Identifier in oxc/ESTree. returns null for non-`keyof T` shapes
   function isNumericKeyShape(keyValue) {

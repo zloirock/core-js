@@ -197,8 +197,10 @@ const REGEX_PRECEDING_KEYWORDS = new Set([
 // phantom template / string region spanning newlines, swallowing the next statement boundary
 // and defeating the ASI guard. regex-vs-division is decided by the previous significant token
 // (conservative: an unterminated candidate or a `}` is treated as division, never tracked, so
-// a misread can only LEAVE a `/` untracked - the existing escape hatch - never fabricate a
-// region over real code). `${...}` bodies use the SAME regex-aware classification (the body is
+// a misread mostly LEAVES a `/` untracked - the existing escape hatch. a quote inside such an
+// untracked regex can still open a phantom literal region, but the sole consumer
+// `canFuseWithOpenParen` is bias-safe - it can only over-insert a `;`, never drop one).
+// `${...}` bodies use the SAME regex-aware classification (the body is
 // JS context), so a quote or `}` inside an interpolation regex can't fabricate a phantom region
 // or close the interpolation early
 

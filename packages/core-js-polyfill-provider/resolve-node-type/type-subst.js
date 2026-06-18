@@ -23,10 +23,10 @@
 //   swapAliasToTSTypeQueryWithSubst(ann, scope) - terminal TSTypeQuery + subst, or pass-through
 //   applyAliasSubstDeep(node, subst, depth?, visited?) - core AST walker (cached + cycle-safe)
 //   applySubst(node, subst)                     - predicate-style helper
-//   substMemberAnnotations({ member, subst, depth?, visited? }) - clone member with subst
 //   substMembers(members, subst)                - batch-apply over a member list
-//   dropTypeParamSubst(typeParameters, subst)   - alpha-rename guard
 //   reset()                                     - per-file cache invalidation
+// (`substMemberAnnotations` / `dropTypeParamSubst` stay cluster-internal - used by the
+// member / function-type substitution paths, not exposed on the returned surface)
 //
 // Pure predicates (`isTypeAlias`, `typeAliasBody`, `typeRefName`) come from `ast-shapes`;
 // imported directly because they're closure-free
@@ -460,9 +460,7 @@ export function createTypeSubst({
     swapAliasToTSTypeQueryWithSubst,
     applyAliasSubstDeep,
     applySubst,
-    substMemberAnnotations,
     substMembers,
-    dropTypeParamSubst,
     shadowMethodTypeParams,
     reset,
   };
