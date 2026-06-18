@@ -335,7 +335,7 @@ export const TRANSPARENT_WRAPPERS = new Set([
 
 // key-filtering wrappers: member set is a SUBSET of first arg's, selected by second arg.
 // when second arg is a statically-evaluable literal / literal-union, `getTypeMembers`
-// filters accordingly; otherwise passthrough (over-emit per §6 accepted)
+// filters accordingly; otherwise passthrough (over-emit per spec section 6 accepted)
 export const KEY_FILTERING_WRAPPERS = new Set(['Pick', 'Omit']);
 
 // umbrella: wrappers safe to PEEL for member-lookup / tuple-shape recovery without

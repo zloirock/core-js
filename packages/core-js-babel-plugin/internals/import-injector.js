@@ -93,8 +93,9 @@ export default class ImportInjector extends ImportInjectorState {
   // writing to babel internals is fragile but intentional: `scope.generateUid` strips
   // trailing digits (turning `_ref9` into `_ref` on next call), which breaks our skip-1
   // `_ref, _ref2, _ref3, ...` scheme. publishing to .references/.uids is the smallest
-  // bridge to babel's UID tracking that preserves the scheme. `scope.crawl()` at
-  // programExit may re-derive `.references`, but `.uids` sticks through crawls
+  // bridge to babel's UID tracking that preserves the scheme. `scope.crawl()` at programExit
+  // resets both `.references` and `.uids` (babel@7 and @8 `resetScope` clears both Sets), so the
+  // scheme survives via `usedNames` durability + reads happening after the crawl, not via `.uids`
   uniqueName(prefix, extraCheck) {
     const name = super.uniqueName(prefix, extraCheck);
     const program = this.#programPath.scope.getProgramParent();
