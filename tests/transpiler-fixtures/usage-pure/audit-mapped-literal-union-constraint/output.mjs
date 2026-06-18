@@ -2,9 +2,9 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 var _ref, _ref2;
-// parseMappedTypeShape requires a TSTypeOperator with operator 'keyof' as constraint.
-// Mapped types over a literal union (`{ [K in 'items' | 'name' ]: ... }`) have
-// TSUnionType as constraint instead. Resolution falls through to generic dispatch
+// a mapped type whose constraint is a literal union (`{ [K in 'items' | 'name']: V }`) is
+// expanded like the `keyof T` form: each member resolves to V. with `Pluck<number[]>` the
+// members are `number[]`, so the chained calls dispatch array-specific helpers, not generic
 type Pluck<V> = { [K in 'items' | 'name']: V };
 declare const r: Pluck<number[]>;
 _atMaybeArray(_ref = r.items).call(_ref, 0);

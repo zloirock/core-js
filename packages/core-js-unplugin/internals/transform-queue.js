@@ -53,9 +53,9 @@ function lowerBoundNumber(arr, target) {
 
 // factory: per-haystack memoized lookup of `(needle) -> { positions, countInRange }`.
 // the inner-substitution loop calls countInRange once per inner plus once per
-// processedRange-per-inner pair; without memoization that yields O(N² L) for N inners
+// processedRange-per-inner pair; without memoization that yields O(N^2 L) for N inners
 // over a slice of length L. caching positions arrays per unique needle reduces it to
-// O(unique × L) precompute + O(N² log positions) range queries via binary search
+// O(unique * L) precompute + O(N^2 log positions) range queries via binary search
 function createNeedleScanner(haystack) {
   const cache = new Map();
   function positionsFor(needle) {
@@ -999,7 +999,7 @@ export default class TransformQueue {
   // apply substituteInner per inner, tracking processedRanges for nth adjustment and
   // for skipping inners already swallowed by a wider sibling. throws on locate failure.
   // `createNeedleScanner` memoizes per-needle position arrays for the originalSlice so
-  // the loop runs in O(N L_unique + N² log L) instead of O(N² L) for N inners.
+  // the loop runs in O(N L_unique + N^2 log L) instead of O(N^2 L) for N inners.
   // `verbatimAbsorbing` short-circuits the dominant cost on deeply-nested receiver chains
   // (`a.flat().flat()...`): once a wider inner matches via its raw source slice, every
   // narrower inner nested in its source range is a phantom and is skipped before the
