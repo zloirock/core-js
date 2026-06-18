@@ -7,8 +7,6 @@
 //     - main entry for `TSTypeReference` / `GenericTypeAnnotation` to user decl resolution
 //   buildSubstMap(declParams, usageArgs, scope)
 //     - declParam name -> AST node Map (for `applyAliasSubstDeep`); pass `scope` for capture-avoidance
-//   buildDefaultTypeParamMap(annotation, scope)
-//     - utility-type alias receiver -> Map (Type objects) for `substituteTypeParams`
 //
 // Cluster-private:
 //   resolveTypeArgs                  - phase-1 / phase-2 type-arg resolution with alpha-
@@ -24,7 +22,6 @@ import {
   isTypeAlias,
   typeAliasBody,
   typeRefName,
-  typeRefSegments,
 } from './ast-shapes.js';
 import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -84,11 +81,13 @@ export function createUserTypeResolve({
     // resolve params left-to-right so a later default that references an earlier param
     // (`<T, U = T>`) sees its already-resolved value. an explicit call-arg lives in caller
     // scope (resolve under the OUTER `base`; its refs may collide with this decl's param names
-    // but bind via outer scope), while a default lives in this decl's scope and may reference
-    // earlier type-params, so it resolves under the progressively-built local map. without the
-    // sequential fold a bare-ref default (`U = T`) resolves against an unbound param -> null
+    // but bind via outer scope), while a default lives in THIS decl's scope: it may reference an
+    // earlier type-param (the progressively-built `localMap`) or an outer lexical type, but NOT a
+    // colliding instantiation binding from `base` whose name is not a param here (that name is a
+    // sibling/prior-hop generic's param, lexically out of scope - it must resolve to the outer decl).
+    // seeding the local map from `base` re-captured such a default to the foreign binding
     const trimmedBase = dropMapKeys(base, declParamNames);
-    const localMap = new Map(trimmedBase);
+    const localMap = new Map();
     let didSubst = false;
     declParams.forEach((p, i) => {
       const explicit = callArgs?.[i];
@@ -107,35 +106,6 @@ export function createUserTypeResolve({
     // identity preserves for downstream memoize keys
     if (!didSubst && trimmedBase === base) return typeParamMap;
     return localMap;
-  }
-
-  // `Container<string>` -> { T: string }; `Container` with `<T = number[]>` -> { T: Array }
-  function buildDefaultTypeParamMap(annotation, scope) {
-    const segments = typeRefSegments(annotation);
-    if (!segments) return null;
-    const declaration = findTypeDeclaration(segments, scope);
-    if (!declaration) return null;
-    const declParams = declaration.typeParameters?.params;
-    if (!declParams?.length) return null;
-    const callArgs = getTypeArgs(annotation)?.params;
-    // `<T, U = T[]>`: U sees already-resolved T from earlier iterations
-    let map = null;
-    for (let i = 0; i < declParams.length; i++) {
-      const explicit = callArgs?.[i];
-      const arg = explicit ?? declParams[i].default;
-      if (!arg) continue;
-      // explicit call-args resolve in the CALLER scope (no local map) - a bare ref whose name
-      // collides with an earlier declParam (`Wrap<string, A>` where param 0 is also named `A`)
-      // must not be captured by the progressive map. only DEFAULTS see earlier-resolved params
-      const resolved = !explicit && map
-        ? substituteTypeParams(arg, map, scope, 0)
-        : resolveTypeAnnotation(arg, scope);
-      if (resolved) {
-        map ??= new Map();
-        map.set(typeParamName(declParams[i]), resolved);
-      }
-    }
-    return map;
   }
 
   // resolve a single interface extends clause:
@@ -354,19 +324,25 @@ export function createUserTypeResolve({
   // chain walker share
   function buildSubstMap(declParams, usageArgs, scope, incomingSubst = null) {
     if (!declParams?.length) return incomingSubst;
-    const subst = new Map(incomingSubst);
+    // the result maps ONLY this hop's params: prior-hop bindings RESOLVE this hop's args (via
+    // `incomingSubst` below) but are not carried forward, mirroring the Type-object `resolveTypeArgs`
+    // path - else a colliding free ref in this hop's body / default would resolve through the stale
+    // prior binding instead of its own lexical scope
+    const subst = new Map();
     const paramNames = scope ? new Set(declParams.map(typeParamName)) : null;
     for (let i = 0; i < declParams.length; i++) {
       const explicit = usageArgs?.[i];
       let arg = explicit ?? declParams[i].default;
       if (!arg) continue;
-      // chained resolution: an arg naming a prior-hop param resolves to that hop's bound value
-      const argName = incomingSubst && typeRefName(arg);
-      // capture-avoidance is EXPLICIT-only: an explicit arg lives in the caller scope (a colliding
-      // ref means the external decl), a default lives in the decl scope (a colliding ref means the
-      // shadowing sibling param, bound by the transitive pass)
-      if (argName && incomingSubst.has(argName)) arg = incomingSubst.get(argName);
-      else if (explicit) arg = resolveColliderArg(arg, paramNames, scope);
+      // capture-avoidance is EXPLICIT-only, for BOTH capture branches: an explicit arg lives in the
+      // CALLER scope (a colliding ref means a prior-hop binding via the chained-rewrite, OR the external
+      // decl via the collider inline); a DEFAULT lives in THIS decl's scope (a colliding ref means the
+      // shadowing sibling param or an outer decl, bound by the transitive pass) - so a default is left
+      // untouched by both branches
+      if (explicit) {
+        const argName = incomingSubst && typeRefName(arg);
+        arg = argName && incomingSubst.has(argName) ? incomingSubst.get(argName) : resolveColliderArg(arg, paramNames, scope);
+      }
       subst.set(typeParamName(declParams[i]), arg);
     }
     return subst.size ? subst : null;
@@ -375,6 +351,5 @@ export function createUserTypeResolve({
   return {
     resolveUserDefinedType,
     buildSubstMap,
-    buildDefaultTypeParamMap,
   };
 }
