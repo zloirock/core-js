@@ -30,7 +30,7 @@ export function createPatternBindings({
   resolveEnumMemberType,
   findTypeMember,
   substituteTypeParams,
-  buildDefaultTypeParamMap,
+  followTypeAliasChain,
   promiseRefInner,
   unwrapPromise,
   unwrapTypeAnnotation,
@@ -430,7 +430,10 @@ export function createPatternBindings({
     }
     const memberType = findTypeMember({ objectType: unwrapped, key: keyName, scope });
     if (!memberType) return null;
-    const defaultMap = buildDefaultTypeParamMap(unwrapped, scope);
+    // key the subst by the CHAIN's terminal alias (capture-avoiding), not the top alias: a
+    // destructured member of `Outer<string>` where `type Outer<A> = Inner<A>` belongs to Inner, so
+    // its default must resolve in Inner's scope instead of being captured by Outer's `A` binding
+    const defaultMap = followTypeAliasChain(unwrapped, scope).subst;
     return defaultMap
       ? substituteTypeParams(memberType, defaultMap, scope, 0)
       : resolveTypeAnnotation(memberType, scope);
