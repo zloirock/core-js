@@ -13,8 +13,10 @@ function extractStaticString(node, adapter) {
   if (!node) return null;
   // peel paren / TS wrappers so `require((`core-js/...`))` (oxc keeps the ParenthesizedExpression
   // that babel strips) and `require('core-js/...' as const)` reach the literal check on both
-  // parsers. SequenceExpression is deliberately NOT peeled: babel keeps it and getStringValue
-  // returns null, so peeling `require((0, 'core-js/...'))` here would detect on unplugin only
+  // parsers. SequenceExpression is deliberately NOT peeled here: `adapter.getStringValue` already
+  // resolves a side-effect-free SE tail (`require((0, 'core-js/...'))`) to its literal on BOTH
+  // parsers via the shared paren-unwrap, and a side-effecting prefix bails on both - detection
+  // stays parser-symmetric without peeling SE at this layer
   const inner = peelSkippableWrappers(node);
   if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
   return adapter.getStringValue(inner);

@@ -1,9 +1,8 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// `resolveEnumMemberKind` covers StringLiteral / NumericLiteral / TemplateLiteral / BinaryExpression
-// / UnaryExpression. BigIntLiteral / 'Literal' (oxc) for bigint is NOT in the table, so a member
-// initialized with a BigInt literal returns null kind -> resolveEnumType bails -> `typeof Bag`
-// member access falls through to generic dispatch. distinct methods make the resolution observable.
+// bigint enum members (`100n` / `1n`) are classified like numeric / string ones. here the
+// receiver is `String(v)`, so `tag` is a plain string regardless of the enum's value kind, and
+// the chained calls dispatch string-specific helpers. distinct methods make the resolution observable.
 enum Bag {
   Big = 100n,
   Small = 1n

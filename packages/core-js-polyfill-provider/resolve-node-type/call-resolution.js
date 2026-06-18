@@ -203,10 +203,10 @@ export function createCallResolution({
     return { constructor, method: keyPath.at(-1) };
   }
 
-  // Babel TSFunctionType: `typeAnnotation` (TSTypeAnnotation wrapper)
-  // oxc TSFunctionType / Flow FunctionTypeAnnotation: `returnType` (raw type).
-  // TSMethodSignature / TSDeclareMethod / ClassMethod / ClassPrivateMethod use the same
-  // slot pair (babel `typeAnnotation`, oxc `returnType`) directly on the member node.
+  // both babel and oxc store the return type on `.returnType` for TSFunctionType /
+  // TSConstructorType / TSMethodSignature / TSDeclareMethod / ClassMethod / ClassPrivateMethod
+  // (Flow FunctionTypeAnnotation too); the `node.typeAnnotation ??` arm below is defensive and
+  // currently never populated for these kinds on either parser.
   // ESTree MethodDefinition and its abstract sibling TSAbstractMethodDefinition wrap the function
   // in `.value` so the return type lives one level deeper (oxc emits `abstract m(): T` as the
   // latter). consumers (e.g. ReturnType<typeof X.method>) call into this when `findTypeMember`
