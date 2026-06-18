@@ -308,9 +308,10 @@ export function checkTypeAnnotations(node, onGlobal) {
       const peeled = param.type === 'TSParameterProperty' ? param.parameter : param;
       const p = peeled?.type === 'AssignmentPattern' ? peeled.left : peeled;
       if (p?.typeAnnotation) walkTypeAnnotationGlobals(p.typeAnnotation, onGlobal);
-      // RestElement parser divergence: babel puts `typeAnnotation` directly on the rest
-      // element (covered above); oxc TS-ESTree places it on the inner `argument` (Identifier).
-      // check both slots so `function f(...args: Array<Foo>)` detects Foo on both parsers
+      // RestElement annotation: the pinned parsers (babel + oxc) place it directly on the rest
+      // element's `typeAnnotation` (covered above); `.argument.typeAnnotation` is a defensive
+      // fallback for an alternate ESTree shape neither currently emits. check both so
+      // `function f(...args: Array<Foo>)` detects Foo regardless of slot
       if (p?.type === 'RestElement' && p.argument?.typeAnnotation) {
         walkTypeAnnotationGlobals(p.argument.typeAnnotation, onGlobal);
       }

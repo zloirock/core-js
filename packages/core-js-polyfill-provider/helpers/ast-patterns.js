@@ -1885,7 +1885,7 @@ export function staticStringKey(node) {
   return singleQuasiString(node);
 }
 
-// a computed key that is a (paren / TS-wrapped) SequenceExpression with a static-string TAIL
+// a computed key that is a (paren-wrapped) SequenceExpression with a static-string TAIL
 // (`[(eff(), 'from')]`) resolves to that tail name ('from'); null otherwise. used by the synth-swap
 // gates so a side-effecting computed key is replayable: the SE prefix stays on the PATTERN key
 // (evaluated once at destructure), and only the resolved tail name is mirrored into the synth
@@ -2793,7 +2793,7 @@ export function synthSwapPropKey(prop) {
 // a synth-literal builder can replay a property whose key is a plain Identifier or a computed static
 // string / template literal (`['from']` / [`from`]); anything else (dynamic / side-effecting computed
 // key) is skipped. shared so both emitters apply the same rule isSynthSimpleObjectPattern gated on
-export function isReplayableSynthKey(prop) {
+function isReplayableSynthKey(prop) {
   return prop.key?.type === 'Identifier'
     || (prop.computed && (staticStringKey(prop.key) !== null || sequenceKeyStaticName(prop.key) !== null));
 }
@@ -2838,15 +2838,6 @@ export function computedKeysAllBound(objectPattern, scope) {
   return true;
 }
 
-// single-chain nested destructure shape: `const { X: { y } } = Z`.
-// inner + outer patterns each hold exactly one property and the declaration carries a
-// single declarator. only under this shape can we safely flatten to `const y = _polyfill`
-// - any sibling would be silently lost by a full declarator replace
-export function isSingleNestedProxyChain(innerPattern, outerPattern, declaration) {
-  return innerPattern?.type === 'ObjectPattern' && (innerPattern.properties?.length ?? 0) === 1
-    && outerPattern?.type === 'ObjectPattern' && (outerPattern.properties?.length ?? 0) === 1
-    && declaration?.type === 'VariableDeclaration' && declaration.declarations?.length === 1;
-}
 // prototype-method polyfills bind `this` to their first arg, but a tagged-template call
 // passes `(strings, ...values)` - the polyfilled fn would treat the `strings` array as
 // the receiver and break. static methods tagged as template are just odd user code

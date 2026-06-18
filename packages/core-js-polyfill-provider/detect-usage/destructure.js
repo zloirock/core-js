@@ -827,13 +827,11 @@ function peelDestructureWrappers(pattern) {
   // read-only receiver resolution, not the flatten emit that must preserve sibling bindings),
   // so `[{Array:{from}}, other] = [globalThis, ...]` resolves `from` to globalThis.Array.from
   const indices = [];
-  let sawMultiElementArray = false;
   for (;;) {
     if (!parent) break;
     if (parent.node.type === 'ArrayPattern') {
       const idx = parent.node.elements.indexOf(prev);
       if (idx === -1) break;
-      if (parent.node.elements.length > 1) sawMultiElementArray = true;
       indices.unshift(idx);
     } else if (parent.node.type === 'AssignmentPattern' && parent.node.left === prev) {
       // an INNER default (`[{x} = {}] = [R]`, `{a: {x} = {}} = R`) is transparent - the real
@@ -848,7 +846,7 @@ function peelDestructureWrappers(pattern) {
     prev = parent.node;
     parent = parent.parentPath;
   }
-  return { parent, indices, sawMultiElementArray };
+  return { parent, indices };
 }
 
 // follow const-bound Identifier through its init at each hop, peeling parens / chain / TS /
