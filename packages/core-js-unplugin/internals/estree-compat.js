@@ -67,13 +67,11 @@ export const types = {
   isClassPrivateProperty: n => (n?.type === 'PropertyDefinition' || n?.type === 'AccessorProperty')
     && n.key?.type === 'PrivateIdentifier',
   isStaticBlock: n => n?.type === 'StaticBlock',
-  isLabeledStatement: n => n?.type === 'LabeledStatement',
   isAwaitExpression: n => n?.type === 'AwaitExpression',
   // oxc's raw `type` on string literals is `'Literal'`; `nodeType()` above translates that
   // to `'StringLiteral'` for babel parity. callers use either this predicate OR
   // `nodeType(n) === 'StringLiteral'` - NOT `n.type === 'StringLiteral'` directly
   isStringLiteral: n => n?.type === 'Literal' && typeof n.value === 'string',
-  isTemplateLiteral: n => n?.type === 'TemplateLiteral',
   // only nodes that DIRECTLY expose `params`/`body`/`returnType` etc. - wrappers like
   // `MethodDefinition` (function lives on `.value`) are excluded so resolve-node-type
   // doesn't read undefined fields and silently abort
