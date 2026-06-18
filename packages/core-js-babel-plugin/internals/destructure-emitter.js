@@ -88,8 +88,8 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null
   // a retained LOGICAL receiver (`globalThis.self.Array || Set`) keeps its operands live; collapse
   // the proxy hop in EACH so an evaluated operand never reads `_globalThis.self` (undefined on
   // ie:11 / Node, which throws BEFORE the `||` short-circuit can save it). recursion also covers
-  // nested logicals and SE/wrapper-wrapped operands via the same slot peel. NODE-ONLY (null aliasCtx)
-  // - matches the unplugin `polyfillLogicalInitOperands` per-operand collapse, which is node-only;
+  // nested logicals and SE/wrapper-wrapped operands via the same slot peel, forwarding the same
+  // aliasCtx. matches the unplugin `polyfillLogicalInitOperands` per-operand collapse;
   // a const-alias proxy root inside a logical operand stays uncollapsed in BOTH plugins (a both-side
   // gap, not a divergence). alias-awareness here would diverge from / crash against the natural
   // visitor's whole-ctor rewrite of an alias pure-ctor operand

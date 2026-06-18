@@ -2463,7 +2463,7 @@ export function createDestructureEmitter({
         initEnd: initNode?.end,
         initNode,
         initIdentName: unwrapParens(initNode)?.type === 'Identifier' ? unwrapParens(initNode).name : null,
-        // snapshot only `scope` — flushPendingFlatten replays via `scopeTracker.genRef(snapshot)`
+        // snapshot only `scope` - flushPendingFlatten replays via `scopeTracker.genRef(snapshot)`
         // which falls to the scope path (hoisted `var _ref;`). bodyWrap is intentionally
         // omitted: the flatten emit handles bodyless-stmt / arrow-body wrap itself via
         // `wrapBodylessIfMulti`, and routing the snapshot through bodyWrap would produce
