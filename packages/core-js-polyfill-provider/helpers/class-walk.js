@@ -87,9 +87,10 @@ function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
     return isProxyGlobalIdentifierNode({ node, scope, adapter, path: null }) || !!injector?.getPureImport(node.name);
   }
   if (node.type === 'ConditionalExpression') {
+    // only the value branches resolve to the alias's runtime value; the `test` is the condition,
+    // never a value the alias takes, so it is not a resolution source
     return aliasInitResolvesToGlobal(node.alternate, scope, adapter, injector)
-      || aliasInitResolvesToGlobal(node.consequent, scope, adapter, injector)
-      || aliasInitResolvesToGlobal(node.test, scope, adapter, injector);
+      || aliasInitResolvesToGlobal(node.consequent, scope, adapter, injector);
   }
   if (node.type === 'LogicalExpression' || node.type === 'BinaryExpression') {
     return aliasInitResolvesToGlobal(node.left, scope, adapter, injector)
