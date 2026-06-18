@@ -50,6 +50,7 @@ export function createClassFields({
   isReceiverNewOfClass,
   collectClassDescendantPaths,
   getClassBindingClosure,
+  getClassConstructorNames,
   getClassInstanceClosure,
   getClassInstanceTemporalBound,
   getClosureTemporalBound,
@@ -449,7 +450,12 @@ export function createClassFields({
           });
           return;
         }
-        const bound = getClassInstanceTemporalBound(closure, descendant.names, program);
+        // an aliased `new D()` (`const D = C`) instantiates this class too, so the shared
+        // constructor-name set (class + subclasses + binding aliases) drives both the temporal
+        // bound and the external-write predicate - without it an `new D().field = X` write would
+        // silently drop from field-flow narrowing
+        const constructorNames = getClassConstructorNames(classPath, program);
+        const bound = getClassInstanceTemporalBound(closure, constructorNames, program);
         // every descendant's non-static methods - subclass `this.X = Y` writes affect the
         // inherited field slot. recursive via descendant set, not just direct subclasses;
         // skip the base classPath since `internalThisScan` already covered it
@@ -457,7 +463,7 @@ export function createClassFields({
           if (sub === classPath) continue;
           appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates);
         }
-        const predicate = p => isReceiverInClosure(p, closure) || isReceiverNewOfClass(p, descendant.names);
+        const predicate = p => isReceiverInClosure(p, closure) || isReceiverNewOfClass(p, constructorNames);
         foldExternalWrites({ fieldName, predicate, bound, program, out: candidates });
       },
     });
