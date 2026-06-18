@@ -140,12 +140,21 @@ export function createClosureAnalysis({
       for (const [name, entries] of newExprByName) {
         for (const entry of entries) {
           if (!entry.isMemberRecv) continue;
-          const ctx = entry.path.parentPath?.parent;
-          if (ctx?.type !== 'CallExpression' && ctx?.type !== 'OptionalCallExpression') continue;
-          if (ctx.callee !== entry.path.parent) continue;
+          // `isMemberRecv` guarantees `wrapperPath.parent` is the `.X` member on the
+          // wrapper-peeled new-expression; peel paren / TS up to the call exactly like
+          // `classifyClosureRef` so a wrapped chain receiver (`(new C() as any).m()`, oxc-preserved
+          // parens) is recognised - reading the raw new-expr parent here lands one level short
+          const memberPath = entry.wrapperPath.parentPath;
+          const ctx = peelParenAndTSParentPath(memberPath)?.node;
+          if ((ctx?.type !== 'CallExpression' && ctx?.type !== 'OptionalCallExpression')
+            || unwrapRuntimeExpr(ctx.callee) !== memberPath.node) continue;
           let ends = newCallsByName.get(name);
           if (!ends) newCallsByName.set(name, ends = []);
-          ends.push(ctx.end);
+          // a deferred-context call (function body / instance field initializer) fires at an unknown
+          // time, so it can observe writes anywhere - record Infinity (extraction) so the fold
+          // widens, exactly as the bound-binding call path returns `{ kind: 'extraction' }`. a
+          // straight-line call bounds only writes up to its own end position
+          ends.push(hasDeferredContextAncestor(t, entry.wrapperPath) ? Infinity : ctx.end);
         }
       }
       return { classifiedByBinding, newCallsByName };
@@ -268,14 +277,39 @@ export function createClosureAnalysis({
     return { name: id.name, scope: declarator.scope, anchorPath: declarator };
   }
 
+  // constructor-name set for matching `new <X>()` against this class: class + transitive subclasses
+  // PLUS const-alias binding names of the class (`const D = C`) AND of each subclass (`const D = Sub`).
+  // single source so the instance-closure collection, the external-write predicate, and the temporal
+  // bound recognise an aliased `new D()` the same as `new C()`. mirrors the static-field path: a
+  // descendant whose binding leaks (aliases unenumerable) means an unknown alias could write the
+  // inherited field, so bail to null and let the caller skip the narrow. base-class leak is already
+  // caught upstream (earlyBail on export / the closure collection's own alias-walk bail), so a null
+  // base closure just contributes no aliases. memoized by class node so the set keeps stable identity
+  // (the temporal bound caches by it)
+  let classConstructorNamesCache = new WeakMap();
+  function getClassConstructorNames(classPath, programPath) {
+    return memoize(classConstructorNamesCache, classPath.node, () => {
+      const desc = collectClassDescendantPaths(classPath, programPath);
+      const names = new Set(desc?.names);
+      const baseClosure = getClassBindingClosure(classPath, programPath);
+      if (baseClosure) for (const aliasName of baseClosure.values()) names.add(aliasName);
+      for (const sub of desc?.paths ?? []) {
+        if (sub === classPath) continue;
+        const subClosure = getClassBindingClosure(sub, programPath);
+        if (subClosure === null) return null;
+        for (const aliasName of subClosure.values()) names.add(aliasName);
+      }
+      return names;
+    });
+  }
+
   function collectClassInstanceClosure(classPath, programPath) {
     const desc = collectClassDescendantPaths(classPath, programPath);
     if (!desc) return null;
     const { newExprByName } = buildProgramIndex(programPath);
     const closure = new Map();
-    const constructorNames = new Set(desc.names);
-    const bindingClosure = getClassBindingClosure(classPath, programPath);
-    if (bindingClosure) for (const aliasName of bindingClosure.values()) constructorNames.add(aliasName);
+    const constructorNames = getClassConstructorNames(classPath, programPath);
+    if (constructorNames === null) return null;
     for (const name of constructorNames) {
       const entries = newExprByName.get(name);
       if (!entries) continue;
@@ -489,6 +523,7 @@ export function createClosureAnalysis({
     classInstanceTemporalBoundCache = new WeakMap();
     classInstanceClosureCache = new WeakMap();
     classBindingClosureCache = new WeakMap();
+    classConstructorNamesCache = new WeakMap();
     classDescendantPathsCache = new WeakMap();
     moduleFieldIndexCache = new WeakMap();
     programClosureIndexCache = new WeakMap();
@@ -501,6 +536,7 @@ export function createClosureAnalysis({
     getClassInstanceTemporalBound,
     getClassInstanceClosure,
     getClassBindingClosure,
+    getClassConstructorNames,
     extendsClauseName,
     collectClassDescendantPaths,
     pushIfWriteMatches,
