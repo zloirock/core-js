@@ -58,7 +58,6 @@ export function createMemberResolve({
   resolveClassContext,
   resolveClassMember,
   resolveAnnotatedMember,
-  buildDefaultTypeParamMap,
   substituteTypeParams,
   resolveTypeAnnotation,
   findTypeMember,
@@ -352,10 +351,15 @@ export function createMemberResolve({
         if (result) return result;
       }
     }
-    // lazily resolve default type parameter map for generic types used without explicit type arguments
+    // lazily resolve the type-param subst for a generic receiver used without explicit args. follow
+    // the alias CHAIN (not just the top alias): a member of `Outer<string>` where `type Outer<A> =
+    // Inner<A>` belongs to Inner, so the map must key Inner's params (`{X:string}`), not Outer's
+    // (`{A:string}`). keying the top alias lets Outer's `A` binding capture an inner default that
+    // lexically references an unrelated outer `type A` - the chain builder is capture-avoiding and
+    // gates defaults, so the member type's own default resolves in its decl scope instead
     let defaultMap;
     const resolve = p => {
-      if (defaultMap === undefined) defaultMap = buildDefaultTypeParamMap(annotation, scope);
+      if (defaultMap === undefined) defaultMap = followTypeAliasChain(annotation, scope).subst;
       return defaultMap ? substituteTypeParams(p, defaultMap, scope, 0) : resolveTypeAnnotation(p, scope);
     };
     // property access (not a call): delegate to findTypeMember

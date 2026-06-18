@@ -779,7 +779,6 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     resolveUserDefinedType,
     buildSubstMap,
-    buildDefaultTypeParamMap,
   } = createUserTypeResolve({
     typeParamName,
     findTypeDeclaration,
@@ -1499,7 +1498,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveEnumMemberType,
     findTypeMember: (...args) => findTypeMember(...args),
     substituteTypeParams: (...args) => substituteTypeParams(...args),
-    buildDefaultTypeParamMap,
+    followTypeAliasChain,
     promiseRefInner,
     unwrapPromise,
     unwrapTypeAnnotation,
@@ -1768,7 +1767,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveClassContext,
     resolveClassMember,
     resolveAnnotatedMember,
-    buildDefaultTypeParamMap,
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     resolveTypeAnnotation,
     findTypeMember,
