@@ -418,8 +418,9 @@ export default function createPlugin(options) {
       const [fatal] = parsed.errors?.filter(e => e.severity === 'Error') ?? [];
       if (fatal) {
         // emit a tagged breadcrumb so the user knows core-js saw the bad source first.
-        // bundler-less callers (esbuild post-resolve adapter, bun, direct tests) have no
-        // `warn` hook - throw so the breadcrumb propagates instead of silently dropping the file
+        // a caller without a `warn` hook (direct tests / bare invocations - the real bundlers
+        // supply one via unplugin's context) gets a throw instead, so the breadcrumb propagates
+        // rather than silently dropping the file
         if (typeof this?.warn !== 'function') throw new Error(formatParseErrorForThrow({ error: fatal, code }));
         this.warn(formatParseErrorForWarn({ id, error: fatal, code }));
         return null;

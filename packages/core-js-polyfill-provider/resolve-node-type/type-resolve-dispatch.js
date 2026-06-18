@@ -47,7 +47,7 @@ export function createTypeResolveDispatch({
     return substituteTypeParams(node, typeParamMap, scope, depth + 1, seen);
   }
 
-  // direct typeparam ref: `T` → map.get('T'). non-typeparam ref: container substitution
+  // direct typeparam ref: `T` -> map.get('T'). non-typeparam ref: container substitution
   // (Array<T>, Promise<T>, etc.) via `resolveKnownContainerType`, then user-alias /
   // utility-type chain through `resolveUserDefinedType` / `resolveNamedType`.
   // dotted refs (`NS.Foo<T>` / TSQualifiedName) keep the segment path joined - downstream
@@ -80,13 +80,13 @@ export function createTypeResolveDispatch({
     return new $Object(bound.constructor, safeInnerType(inner));
   }
 
-  // T[] / Array<T> → $Object('Array', inner) with substituted element type
+  // T[] / Array<T> -> $Object('Array', inner) with substituted element type
   function substArrayAsType(node, typeParamMap, scope, depth, seen) {
     const inner = substRecurse({ node: node.elementType, typeParamMap, scope, depth, seen });
     return new $Object('Array', safeInnerType(inner));
   }
 
-  // [T, U] → Array<commonInner> per-element folded via shared `tupleAsArrayType`
+  // [T, U] -> Array<commonInner> per-element folded via shared `tupleAsArrayType`
   function substTupleAsType(node, typeParamMap, scope, depth, seen) {
     return tupleAsArrayType(node, e => substRecurse({ node: e, typeParamMap, scope, depth, seen }));
   }
@@ -122,8 +122,8 @@ export function createTypeResolveDispatch({
     return new $Object('Function');
   }
 
-  // dispatch table: AST shape → Type-object construction. parallels `applyAliasSubstDeepInner`'s
-  // `SUBST_DISPATCH` (AST→AST) - structural symmetry over the same node-type set, different
+  // dispatch table: AST shape -> Type-object construction. parallels `applyAliasSubstDeepInner`'s
+  // `SUBST_DISPATCH` (AST->AST) - structural symmetry over the same node-type set, different
   // output domain (Type Object vs AST). cannot unify via shared walker - each handler builds
   // a fundamentally different result (Type construction vs AST reconstruction)
   const SUBST_TYPE_DISPATCH = {

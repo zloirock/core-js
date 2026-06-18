@@ -265,9 +265,10 @@ export function createReturnType({
   }
 
   // probe a function-like param's annotation for a type-param reference. handles plain
-  // Identifier params (`x: T`) and RestElement (`...args: T[]`) - babel nests the annotation
-  // on `.argument.typeAnnotation`, oxc hoists it to the RestElement itself. AssignmentPattern
-  // default (`x: T = v`) carries its annotation on `.left.typeAnnotation`
+  // Identifier params (`x: T`) and RestElement (`...args: T[]`) - the pinned parsers place the
+  // rest annotation on the RestElement's own `typeAnnotation`; `.argument.typeAnnotation` is a
+  // defensive fallback for the alternate ESTree shape. AssignmentPattern default (`x: T = v`)
+  // carries its annotation on `.left.typeAnnotation`
   function hasParamTypeRef(param, typeParamNames, depth) {
     if (!param) return false;
     if (hasTypeParamReference(param.typeAnnotation, typeParamNames, depth)) return true;

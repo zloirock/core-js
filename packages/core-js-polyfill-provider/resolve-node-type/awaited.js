@@ -13,9 +13,9 @@
 // the forward-decl thunks a split would need to break the cycle.
 //
 // Public surface:
-//   peelAwaitedArgument({ arg, scope, depth, typeParamMap, seen })
+//   peelAwaitedArgument({ arg, scope, depth })
 //   peelAwaitedCommonSteps(peeled, scope, depth)
-//   peelAwaitedTupleElement({ element, scope, depth, typeParamMap, seen })
+//   peelAwaitedTupleElement({ element, scope, depth })
 //   peelAwaitedWrapper(node, scope)
 //   peelStructurePreservingWrapper(node)
 //   unwrapPassthroughWrapper(node, scope)
@@ -96,21 +96,14 @@ export function createAwaited({
   // returns a Type object (not AST), but callers like findTypeMember need a substituted AST
   // to recurse into - so this helper runs the same peel structurally and returns AST.
   // depth bound matches `followTypeAliasChain`'s budget; cycle prevention via the depth cap.
-  // typeParamMap / seen flow through so the conditional-branch picker can resolve check /
-  // extends with the caller's substitution context - dropping them causes inferable branches
-  // (`Awaited<Cond<T>>` where Cond's body conditionals reference parent T) to bail to the
-  // AST-as-is fallback, and findTypeMember's later AST-only pick misses concrete narrowing
-  function peelAwaitedArgument({ arg, scope, depth, typeParamMap, seen }) {
+  // AST walker carries no substitution context: its only entry (`peelAwaitedWrapper`) runs the
+  // peel structurally with no typeParamMap. type-param substitution is applied OUTSIDE this
+  // walker by findTypeMember at the call site (with the proper alias subst); the Type walker
+  // (`resolveAwaitedAnnotation`) is the surface that threads typeParamMap / seen
+  function peelAwaitedArgument({ arg, scope, depth }) {
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
-    const recurse = next => peelAwaitedArgument({ arg: next, scope, depth: depth + 1, typeParamMap, seen });
-    // SUBSTITUTE first: `Awaited<T>` with subst T -> Promise<X[]> must unwrap the SUBSTITUTED
-    // promise layer - a bare type-param reference fails every peel step below and returned
-    // verbatim, dropping the member lookup entirely
-    if (typeParamMap?.size) {
-      const substituted = applySubst(peeled, typeParamMap);
-      if (substituted !== peeled) return recurse(substituted);
-    }
+    const recurse = next => peelAwaitedArgument({ arg: next, scope, depth: depth + 1 });
     // distribute Awaited over union / intersection. filter null members - a nested
     // union / intersection that collapses to empty `types[]` returns null; carrying
     // nulls into the parent's `.types` crashes findTypeMember's member-walk. drop
@@ -129,7 +122,7 @@ export function createAwaited({
     // TSRestType wrappers without dropping their structure so downstream findTupleElement
     // still sees the tuple shape with the awaited inner types
     if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
-      return rebuildTupleElements(peeled, el => peelAwaitedTupleElement({ element: el, scope, depth, typeParamMap, seen }));
+      return rebuildTupleElements(peeled, el => peelAwaitedTupleElement({ element: el, scope, depth }));
     }
     // nested `Awaited<Awaited<X>>` - inner Awaited reaches here as a TSTypeReference whose
     // name fails Promise / wrapper / alias-chain checks. peel once so recursion sees the
@@ -144,7 +137,7 @@ export function createAwaited({
     // its own AST-only pick downstream. INTENTIONAL DIVERGENCE: resolveAwaitedAnnotation
     // folds both branches via foldUnionTypes instead since it produces a Type Object output
     if (peeled.type === 'TSConditionalType') {
-      const branch = pickAwaitedConditionalBranch({ node: peeled, scope, depth, typeParamMap, seen });
+      const branch = pickAwaitedConditionalBranch({ node: peeled, scope, depth });
       if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
       return peeled;
     }
@@ -191,11 +184,11 @@ export function createAwaited({
   // peel Awaited inside a tuple element preserving TSNamedTupleMember / TSRestType
   // wrappers (`[name: Promise<X>]`, `[...Promise<X>[]]`) - we want the inner type peeled
   // but the labelled / rest structure kept so findTupleElement still recognises the shape
-  function peelAwaitedTupleElement({ element, scope, depth, typeParamMap, seen }) {
+  function peelAwaitedTupleElement({ element, scope, depth }) {
     if (element.type === 'TSNamedTupleMember') {
       return {
         ...element,
-        elementType: peelAwaitedTupleElement({ element: element.elementType, scope, depth: depth + 1, typeParamMap, seen }),
+        elementType: peelAwaitedTupleElement({ element: element.elementType, scope, depth: depth + 1 }),
       };
     }
     if (element.type === 'TSRestType') {
@@ -205,29 +198,29 @@ export function createAwaited({
       // array case, so peeling the TSArrayType node itself would leave the inner Promise untouched)
       const rest = element.typeAnnotation;
       if (rest?.type === 'TSArrayType') {
-        const innerElement = peelAwaitedArgument({ arg: rest.elementType, scope, depth: depth + 1, typeParamMap, seen });
+        const innerElement = peelAwaitedArgument({ arg: rest.elementType, scope, depth: depth + 1 });
         return { ...element, typeAnnotation: { ...rest, elementType: innerElement } };
       }
-      const inner = peelAwaitedArgument({ arg: rest, scope, depth: depth + 1, typeParamMap, seen });
+      const inner = peelAwaitedArgument({ arg: rest, scope, depth: depth + 1 });
       return { ...element, typeAnnotation: inner };
     }
     // `[A, B?]` form - TSOptionalType wraps the inner annotation. peel into the wrapper
     // so Promise / union / wrapper distribution on the inner type fires; the rest of the
     // tuple-shape stays preserved
     if (element.type === 'TSOptionalType') {
-      const inner = peelAwaitedArgument({ arg: element.typeAnnotation, scope, depth: depth + 1, typeParamMap, seen });
+      const inner = peelAwaitedArgument({ arg: element.typeAnnotation, scope, depth: depth + 1 });
       return { ...element, typeAnnotation: inner };
     }
-    return peelAwaitedArgument({ arg: element, scope, depth: depth + 1, typeParamMap, seen });
+    return peelAwaitedArgument({ arg: element, scope, depth: depth + 1 });
   }
 
   // `Awaited<X>` wrapper: returns the peeled inner X (with Promise / union / intersection
   // distribution applied per Awaited semantics) when `node` is a TSTypeReference to Awaited;
   // null for any other shape. used by findTypeMember so member access through `Awaited<T>`
   // walks T's members directly (TS spec: Awaited<T> = T when T is not Promise-like).
-  // typeParamMap / seen are best-effort - findTypeMember's caller chain doesn't have them
-  // here yet (separate plumbing), so leave undefined and rely on the AST-level pick + alias
-  // chase below; the conditional-branch resolved-fallback only fires when AST + alias miss
+  // findTypeMember reaches Awaited<T> member-access through here; the AST-level pick + alias
+  // chase resolve the inner shape with no substitution context (substitution is applied by the
+  // caller). the conditional-branch resolved-fallback only fires when AST + alias miss
   function peelAwaitedWrapper(node, scope) {
     const arg = getSingleTypeRefArg(node, n => n === 'Awaited');
     return arg ? peelAwaitedArgument({ arg, scope, depth: 0 }) : null;

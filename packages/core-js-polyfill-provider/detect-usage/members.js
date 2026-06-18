@@ -303,10 +303,11 @@ function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
   if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
     || (type === 'BinaryExpression' && node.operator === '+')) return false;
   // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape.
-  // also verify the property reads a well-known symbol name (not `Symbol.someUserKey`):
-  // well-known symbols live under specific names exposed by `symbolKeyToEntry`; random
-  // dot-access on Symbol (`Symbol.foo`) resolves to `undefined` at runtime and should
-  // not trigger symbol-routed polyfill dispatch.
+  // also confirm the property is a symbol-name shape: `symbolKeyToEntry` maps ANY lowercase-first
+  // name to a synthetic `symbol/<name>` entry, so it does not itself filter to well-known symbols
+  // (`Symbol.someUserKey` passes here too). the real well-known gate is downstream `isEntryNeeded`
+  // / `isEntryAvailable`, which turns a non-well-known name into a noop plan (no dead import), so a
+  // random `Symbol.foo` never triggers symbol-routed dispatch.
   // for `Symbol[key]` with statically-resolvable computed key - resolve via `resolveKey`
   // and validate the resulting name. when the key isn't statically resolvable (dynamic
   // expression), return true conservatively: we know the shape is Symbol-indexed, even
