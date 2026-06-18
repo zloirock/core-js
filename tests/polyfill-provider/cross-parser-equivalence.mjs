@@ -150,6 +150,17 @@ await runEquivalence('for-x head reassign after use (pure resolves)',
 await runEquivalence('for-x head reassign dominates use (global)',
   'var A = Array;\nfor (A of [Set]) {}\nA.from([1]);', USAGE_GLOBAL_IE11);
 
+// function PARAM reassigned via MULTIPLE same-name destructuring-pattern assignments. estree-toolkit
+// records each violation as the LHS Identifier and does NOT recompute it to an AssignmentExpression for
+// kind=param (unlike var/let/const), so the value-flow recovery must pair each violation to its OWN
+// assignment by NODE IDENTITY. A by-name match collapsed every `[M] = ...` onto the first, dropping the
+// later globals from the union - babel (which records AssignmentExpression violations and skips this path)
+// kept them, so unplugin under-injected es.array.from. Both walkers must now union the same polyfill set.
+await runEquivalence('param multi-pattern-reassign union (by-name collapse guard)',
+  'function f(M, a, b) {\n  const O = Object, A = Array;\n  if (a) [M] = [O];\n  if (b) [M] = [A];\n  M.from([1]);\n}', USAGE_GLOBAL_IE11);
+await runEquivalence('param multi-object-pattern-reassign union',
+  'function f(M, a, b) {\n  const O = Object, A = Array;\n  if (a) ({ x: M } = { x: O });\n  if (b) ({ x: M } = { x: A });\n  M.from([1]);\n}', USAGE_GLOBAL_IE11);
+
 // using declaration (resources)
 await runEquivalence('using declaration', 'function f() { using r = res(); }', USAGE_GLOBAL_IE11);
 await runEquivalence('await using declaration', 'async function f() { await using r = res(); }', USAGE_GLOBAL_IE11);
