@@ -787,9 +787,7 @@ function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
   if (perName.has(name)) return perName.get(name);
   const violations = [];
   function bindsName(patternNode) {
-    let hit = false;
-    walkPatternIdentifiers(patternNode, id => { if (id.name === name) hit = true; });
-    return hit;
+    return patternBindsIdentifier(patternNode, id => id.name === name);
   }
   function shadowsName(scopeNode) {
     if ((scopeNode.params ?? []).some(bindsName)) return true;
@@ -1329,7 +1327,7 @@ const enclosingValueFlowAssignment = memoizeByNodePair((node, ownerNode) => {
     if (found || !isAstNode(n)) return;
     if (n.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(n.operator)
       && (n.left === node || ((n.left?.type === 'ArrayPattern' || n.left?.type === 'ObjectPattern')
-        && patternSlotValues(n.left, n.right, node.name).length))) {
+        && patternBindsIdentifier(n.left, id => id === node)))) {
       found = n;
       return;
     }
@@ -2544,7 +2542,7 @@ function prefixStmtRebindsParam(expr, paramNames) {
     return expr.argument?.type === 'Identifier' && paramNames.has(expr.argument.name);
   }
   if (expr.type === 'AssignmentExpression') {
-    if (patternBindsAnyParam(expr.left, paramNames)) return true;
+    if (patternBindsIdentifier(expr.left, id => paramNames.has(id.name))) return true;
     // RHS may carry its own rebind too (`other = (arg = X)`) - keep walking
     return prefixStmtRebindsParam(expr.right, paramNames);
   }
@@ -2557,9 +2555,14 @@ function prefixStmtRebindsParam(expr, paramNames) {
   return false;
 }
 
-function patternBindsAnyParam(pattern, paramNames) {
+// does the pattern bind a target Identifier satisfying `predicate`? walks exactly the binding leaves
+// via the canonical `walkPatternIdentifiers`. callers supply the match: by NODE IDENTITY (an estree
+// violation Identifier IS this leaf - so two same-name pattern reassignments pair to their OWN
+// assignment, not collapse onto the first by name) or by NAME membership (a rebind of one of a set
+// of params)
+function patternBindsIdentifier(pattern, predicate) {
   let found = false;
-  walkPatternIdentifiers(pattern, id => { if (paramNames.has(id.name)) found = true; });
+  walkPatternIdentifiers(pattern, id => { if (predicate(id)) found = true; });
   return found;
 }
 
@@ -3240,12 +3243,7 @@ function statementShadowsRequireAtProgramScope(stmt) {
 }
 
 function declaratorsBindName(decls, name) {
-  let found = false;
-  for (const d of decls ?? []) {
-    walkPatternIdentifiers(d.id, id => { if (id.name === name) found = true; });
-    if (found) return true;
-  }
-  return false;
+  return (decls ?? []).some(d => patternBindsIdentifier(d.id, id => id.name === name));
 }
 
 // `Object.defineProperty(exports, 'x', ...)` is tsc/esbuild's CJS emit shape for
