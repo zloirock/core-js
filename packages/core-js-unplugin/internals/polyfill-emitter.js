@@ -262,7 +262,7 @@ export function createPolyfillEmitter({
   }
 
   // dispatch classifier for `buildReplacement` - selects body-builder strategy by emit shape.
-  // mutually-exclusive ladder (isNew → bareMember → parenLookup → call); `call` is the
+  // mutually-exclusive ladder (isNew -> bareMember -> parenLookup -> call); `call` is the
   // default for `obj.method(args)` instance-call shape
   function classifyEmitStrategy(opts) {
     if (opts.isNew) return 'new';
