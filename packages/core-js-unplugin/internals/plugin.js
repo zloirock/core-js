@@ -627,7 +627,7 @@ export default function createPlugin(options) {
             preRewroteSource: !canReuseParse,
           });
         }
-        // post's snapshot delete happens at the top of runTransform (via `takeWithParse`)
+        // post's snapshot delete happens earlier in runTransform (via `snapshots.take(id)`)
         // so it runs even on early-return paths (parse error, disabled directive). the
         // `isCoreJSFile` check runs BEFORE the snapshot is taken, so its early-return
         // doesn't need cleanup - the snapshot was never claimed
