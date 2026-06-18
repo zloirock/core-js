@@ -28,9 +28,9 @@ const VALID_PHASES = ['pre', 'post', 'pre+post'];
 // bundlers where `phase: 'pre+post'` doesn't reliably enforce pre-then-post ordering against
 // sibling plugins. upstream unplugin's `enforce` field is dropped silently on bun (no
 // priority concept; bun processes Bun.plugin() registrations in declaration order without
-// inter-plugin interleaving slots). esbuild emulates the `transform` hook through a first-wins
-// `onLoad`, so two sibling plugin instances can't both run on one module - whichever esbuild
-// calls first wins and the other pass is silently dropped, which breaks pre-then-post. on farm
+// inter-plugin interleaving slots). esbuild chains transform hooks but exposes no enforce /
+// priority for ordering them against sibling plugins, so a guaranteed pre-then-post interleave
+// can't be expressed and the two passes may not straddle a sibling. on farm
 // `enforce` IS honored via priority mapping (pre->102 / post->98), so sibling default-priority
 // 100 lands BETWEEN our pre and post - that's the design intent for pre+post. fall back to
 // single-mode 'post' only where the ordering truly breaks; user gets a one-time warn

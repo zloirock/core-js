@@ -175,7 +175,7 @@ export function createTypeMembers({
     if (!segments) return null;
     // structure-preserving wrappers: `Readonly<{...}>.x` / `Pick<T, 'a'>.x` look up on T.
     // Pick / Omit narrow the member set when their second arg is statically-evaluable
-    // (literal / literal-union); otherwise passthrough as over-emit (per §6 accepted)
+    // (literal / literal-union); otherwise passthrough as over-emit (per spec section 6 accepted)
     if (segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
       return resolveStructureWrapperMembers({ wrapperName: segments[0], objectType, scope, depth, visited });
     }

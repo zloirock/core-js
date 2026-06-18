@@ -186,8 +186,8 @@ export default class SnapshotCache {
   // per-file invalidation hook for Vite/Rollup `watchChange`. drops the bare-path snapshot
   // AND any SFC sub-block entries (`/abs/App.vue?vue&type=script&lang=ts`, `?vue&type=template`
   // etc.) that share the same source file. without sub-block fanout, edits to an SFC would
-  // leave the script/template/style snapshots stale in cache until cap eviction. prevents
-  // unbounded growth in long-running dev servers where a pre-pass ran but the matching post
+  // leave the script/template/style snapshots stale in cache indefinitely (the cache has no
+  // size cap). bounds growth in long-running dev servers where a pre-pass ran but the matching post
   // was skipped (tree-shake, sibling bail). returns true when any entry was removed
   invalidate(id) {
     const key = normalizeKey(id);

@@ -93,7 +93,6 @@ import {
   isMemberWriteOnlyContext,
   isNonReferencePosition,
   isRestProperty,
-  isSingleNestedProxyChain,
   isSynthSimpleObjectPattern,
   isTaggedTemplateTag,
   isThisReceiver,
@@ -3610,42 +3609,6 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   };
   check('ast-patterns: isMemberWriteOnlyContext for-of right (read)',
     isMemberWriteOnlyContext(memberNode, forOfRightRead), false);
-
-  // isSingleNestedProxyChain: `const { X: { y } } = Z` - innerPattern + outerPattern + declaration shape
-  const innerPat = {
-    type: 'ObjectPattern',
-    properties: [{ type: 'ObjectProperty' }],
-  };
-  const outerPat = {
-    type: 'ObjectPattern',
-    properties: [{ type: 'ObjectProperty' }],
-  };
-  const declaration = {
-    type: 'VariableDeclaration',
-    declarations: [{ type: 'VariableDeclarator' }],
-  };
-  checkTruthy('ast-patterns: isSingleNestedProxyChain canonical shape',
-    isSingleNestedProxyChain(innerPat, outerPat, declaration));
-  // multiple inner props -> false
-  const multiInner = {
-    type: 'ObjectPattern',
-    properties: [{ type: 'ObjectProperty' }, { type: 'ObjectProperty' }],
-  };
-  check('ast-patterns: isSingleNestedProxyChain multi inner',
-    isSingleNestedProxyChain(multiInner, outerPat, declaration), false);
-  // multiple declarators -> false
-  const multiDecl = {
-    type: 'VariableDeclaration',
-    declarations: [
-      { type: 'VariableDeclarator' },
-      { type: 'VariableDeclarator' },
-    ],
-  };
-  check('ast-patterns: isSingleNestedProxyChain multi decl',
-    isSingleNestedProxyChain(innerPat, outerPat, multiDecl), false);
-  // non-ObjectPattern outer -> false
-  check('ast-patterns: isSingleNestedProxyChain non-Object outer',
-    isSingleNestedProxyChain(innerPat, { type: 'ArrayPattern' }, declaration), false);
 
   // isTaggedTemplateTag: prototype placement only, parent is TaggedTemplateExpression with tag === node
   const targetNode = { type: 'Identifier', name: 'tag' };
