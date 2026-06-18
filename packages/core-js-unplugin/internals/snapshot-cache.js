@@ -174,16 +174,11 @@ export default class SnapshotCache {
     };
   }
 
-  // post-pass entry: take + decide whether pre's cached parse can be reused
-  takeWithParse(id, code) {
-    return SnapshotCache.#withParseShape(this.take(id), code);
-  }
-
-  // non-destructive variant: returns the same shape as `takeWithParse` but leaves the
-  // snapshot in place. used by callers that need to inspect the cached AST (disable-directive
-  // scan) before deciding whether to commit to the snapshot. on the commit path, callers
-  // follow up with `take(id)` to drop the entry; on bail paths the snapshot survives so a
-  // subsequent retry can still consume it
+  // non-destructive parse-reuse lookup: returns the cached snapshot plus whether pre's parse
+  // (AST / comments) can be reused for `code`, leaving the snapshot in place. used by callers that
+  // need to inspect the cached AST (disable-directive scan) before deciding whether to commit to
+  // the snapshot. on the commit path, callers follow up with `take(id)` to drop the entry; on bail
+  // paths the snapshot survives so a subsequent retry can still consume it
   peekWithParse(id, code) {
     return SnapshotCache.#withParseShape(this.#snapshots.get(normalizeKey(id)), code);
   }

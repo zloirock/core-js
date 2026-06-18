@@ -3586,59 +3586,9 @@ function checkSnapshotStoreBumpsRecency() {
 }
 checkSnapshotStoreBumpsRecency();
 
-// takeWithParse: dev-server fast-path - reuse pre's AST when post-input byte-matches.
-// covers `applyTransforms`' parse-cache check so post avoids re-parsing pre's input
-function checkSnapshotTakeWithParseMiss() {
-  const cache = new SnapshotCache();
-  const result = cache.takeWithParse('/a.js', 'foo();');
-  check('takeWithParse/miss snapshot null', result.snapshot, null);
-  check('takeWithParse/miss ast null', result.ast, null);
-  check('takeWithParse/miss comments null', result.comments, null);
-}
-checkSnapshotTakeWithParseMiss();
-
-function checkSnapshotTakeWithParseReuse() {
-  const cache = new SnapshotCache();
-  const fakeAst = { type: 'Program', body: [] };
-  const fakeComments = [];
-  const snap = { signal: 'ok' };
-  cache.store('/a.js', { snapshot: snap, ast: fakeAst, comments: fakeComments, postInput: 'foo();' });
-  const result = cache.takeWithParse('/a.js', 'foo();');
-  check('takeWithParse/reuse same bytes -> snapshot returned', result.snapshot, snap);
-  check('takeWithParse/reuse same bytes -> ast cached', result.ast, fakeAst);
-  check('takeWithParse/reuse same bytes -> comments cached', result.comments, fakeComments);
-}
-checkSnapshotTakeWithParseReuse();
-
-function checkSnapshotTakeWithParseMismatch() {
-  // sibling plugin mutated text between pre and post: snapshot survives, parse-cache invalidated
-  const cache = new SnapshotCache();
-  const snap = { signal: 'ok' };
-  cache.store('/a.js', { snapshot: snap, ast: { type: 'Program' }, comments: [], postInput: 'before' });
-  const result = cache.takeWithParse('/a.js', 'after');
-  check('takeWithParse/mismatch snapshot kept', result.snapshot, snap);
-  check('takeWithParse/mismatch ast invalidated', result.ast, null);
-  check('takeWithParse/mismatch comments invalidated', result.comments, null);
-}
-checkSnapshotTakeWithParseMismatch();
-
-// pre intentionally stores `ast: null` (e.g. mode rewrote pre's output) - post must still
-// see the snapshot but cannot reuse parse. shared `#withParseShape` must collapse a stored
-// null ast into the empty-parse shape regardless of postInput byte match
-function checkSnapshotTakeWithParseNullAst() {
-  const cache = new SnapshotCache();
-  const snap = { signal: 'ok' };
-  cache.store('/a.js', { snapshot: snap, ast: null, comments: null, postInput: 'foo();' });
-  const result = cache.takeWithParse('/a.js', 'foo();');
-  check('takeWithParse/null ast - snapshot returned', result.snapshot, snap);
-  check('takeWithParse/null ast - ast stays null', result.ast, null);
-  check('takeWithParse/null ast - comments stay null', result.comments, null);
-}
-checkSnapshotTakeWithParseNullAst();
-
-// peekWithParse byte-mismatch must invalidate the parse-cache fields (same as takeWithParse)
-// while keeping the snapshot. the refactor extracts a shared `#withParseShape` helper - both
-// public methods must produce identical shape; this is the regression guard
+// peekWithParse byte-mismatch must invalidate the parse-cache fields while keeping the snapshot.
+// the shared `#withParseShape` helper collapses to the empty-parse shape on any non-byte-match
+// (and on a stored null ast); these peekWithParse cases are the regression guard for that helper
 function checkSnapshotPeekWithParseMismatch() {
   const cache = new SnapshotCache();
   const snap = { signal: 'peek-mismatch' };
@@ -3660,6 +3610,34 @@ function checkSnapshotPeekWithParseMiss() {
   check('peekWithParse/miss comments null', result.comments, null);
 }
 checkSnapshotPeekWithParseMiss();
+
+// post-input byte-matches pre: `#withParseShape` reuses the cached AST/comments (dev-server
+// fast-path so post avoids re-parsing pre's input)
+function checkSnapshotPeekWithParseReuse() {
+  const cache = new SnapshotCache();
+  const fakeAst = { type: 'Program', body: [] };
+  const fakeComments = [];
+  const snap = { signal: 'peek-reuse' };
+  cache.store('/a.js', { snapshot: snap, ast: fakeAst, comments: fakeComments, postInput: 'foo();' });
+  const result = cache.peekWithParse('/a.js', 'foo();');
+  check('peekWithParse/reuse same bytes -> snapshot returned', result.snapshot, snap);
+  check('peekWithParse/reuse same bytes -> ast cached', result.ast, fakeAst);
+  check('peekWithParse/reuse same bytes -> comments cached', result.comments, fakeComments);
+}
+checkSnapshotPeekWithParseReuse();
+
+// pre intentionally stored `ast: null` (e.g. mode rewrote pre's output): `#withParseShape` must
+// collapse to the empty-parse shape regardless of a postInput byte match while keeping the snapshot
+function checkSnapshotPeekWithParseNullAst() {
+  const cache = new SnapshotCache();
+  const snap = { signal: 'peek-null-ast' };
+  cache.store('/a.js', { snapshot: snap, ast: null, comments: null, postInput: 'foo();' });
+  const result = cache.peekWithParse('/a.js', 'foo();');
+  check('peekWithParse/null ast - snapshot returned', result.snapshot, snap);
+  check('peekWithParse/null ast - ast stays null', result.ast, null);
+  check('peekWithParse/null ast - comments stay null', result.comments, null);
+}
+checkSnapshotPeekWithParseNullAst();
 
 // --- collectMutatedStaticMembers ---
 // pre-pass scan that backs the usage-pure substitution gate. detects every shape of
