@@ -1278,6 +1278,149 @@ QUnit.test('destructuring: ternary inits over proxy aliases', assert => {
   assert.same(log.length, 1);
 });
 
+// a ternary whose branches DIVERGE - the consequent is a global proxy but the alternate is a
+// user object carrying its own static. a falsy test selects the alternate at runtime, so the
+// flatten must NOT force the polyfill receiver onto that path; both branches have to agree on a
+// global proxy or the destructure stays native (else the alternate's own member is lost)
+QUnit.test('destructuring: diverging ternary keeps the native alternate member', assert => {
+  const userObj = { Array: { from: x => `USER:${ x }` } };
+  const useGlobal = false;
+  const { Array: { from } } = useGlobal ? globalThis : userObj;
+  assert.same(from('a'), 'USER:a');
+});
+
+// a diverging ternary mirroring MULTIPLE inner statics must keep BOTH on the native alternate when
+// the test is falsy - each leaf is mirrored independently, so forcing the polyfill on either would
+// drop the alternate's own method
+QUnit.test('destructuring: diverging ternary keeps native alternate for multiple statics', assert => {
+  const userObj = { Array: { from: x => `UF:${ x }`, of: x => `UO:${ x }` } };
+  const useGlobal = false;
+  const { Array: { from, of } } = useGlobal ? globalThis : userObj;
+  assert.same(from('a'), 'UF:a');
+  assert.same(of('b'), 'UO:b');
+});
+
+// an un-mirrorable conditional destructure (rest / computed key) whose selected user-object branch
+// lacks the static must NOT bind a per-branch default - the default would fire on that branch's
+// legitimate `undefined` and replace it with the polyfill. it bails to native, so `from` stays
+// undefined exactly as the untransformed code (a `= _polyfill` default here would read `function`)
+QUnit.test('destructuring: un-mirrorable conditional keeps native undefined on a user branch', assert => {
+  const userObj = { Array: {} };
+  const useGlobal = false;
+  const { Array: { from, ...rest } } = useGlobal ? globalThis : userObj;
+  assert.same(typeof from, 'undefined');
+  assert.deepEqual(rest, {});
+});
+
+// the user object can hide one level deeper - inside the inner ternary's alternate. the bail must
+// follow the recursion through the nested conditional: with the inner alternate selected, `from`
+// stays undefined exactly as native (a default fired by a top-level-only classifier would bind the
+// polyfill here instead)
+QUnit.test('destructuring: un-mirrorable nested ternary keeps native undefined on a deep user branch', assert => {
+  const userObj = { Array: {} };
+  const outer = true;
+  const inner = false;
+  const { Array: { from, ...rest } } = outer ? (inner ? globalThis : userObj) : globalThis;
+  assert.same(typeof from, 'undefined');
+  assert.deepEqual(rest, {});
+});
+
+// a diverging ternary whose inner key is a COMPUTED const reference (`k = 'from'`) is statically
+// resolvable, so it mirrors per branch like a static key rather than bailing: the user-object branch
+// keeps its legitimate undefined (no corruption), the proxy branch binds the static. the pattern's
+// own `[k]` reads the synth's resolved key
+QUnit.test('destructuring: diverging ternary with resolvable computed key mirrors per branch', assert => {
+  const k = 'from';
+  const userObj = { Array: {} };
+  function pick(useGlobal) {
+    const { Array: { [k]: f } } = useGlobal ? globalThis : userObj;
+    return f;
+  }
+  assert.same(typeof pick(false), 'undefined');
+  assert.same(typeof pick(true), 'function');
+});
+
+// a SIDE-EFFECTING computed key on a DIVERGING receiver: the proxy branch polyfills via a per-branch
+// synth swap, the user branch keeps its native undefined (a `const f = _polyfill` extraction would bind
+// the polyfill on BOTH branches, corrupting the user one), and the key effect runs EXACTLY ONCE per
+// evaluation - it lives in the residual LHS pattern, never duplicated into the swapped synth literal
+QUnit.test('destructuring: diverging receiver with side-effecting computed key mirrors per branch', assert => {
+  const userObj = { Array: {} };
+  let effs = 0;
+  function pick(useGlobal) {
+    const { Array: { [(effs++, 'from')]: f } } = useGlobal ? globalThis : userObj;
+    return f;
+  }
+  assert.same(typeof pick(false), 'undefined');
+  assert.same(effs, 1);
+  assert.same(typeof pick(true), 'function');
+  assert.same(effs, 2);
+});
+
+// the same diverging SE-key mirror on the PARAMETER-DEFAULT host (a distinct path from the declarator):
+// calling with no argument uses the default receiver, so the user branch keeps native undefined and the
+// proxy branch polyfills, the key effect running exactly once
+QUnit.test('destructuring: param-default diverging receiver with side-effecting computed key mirrors', assert => {
+  const userObj = { Array: {} };
+  let effs = 0;
+  function pick(useGlobal) {
+    return (function ({ Array: { [(effs++, 'from')]: from } } = useGlobal ? globalThis : userObj) {
+      return from;
+    })();
+  }
+  assert.same(typeof pick(false), 'undefined');
+  assert.same(typeof pick(true), 'function');
+  assert.same(effs, 2);
+});
+
+// a multi-element ARRAY-WRAPPED destructure whose consumed element is a diverging receiver: the
+// array-wrapped static extraction must not bind the polyfill unconditionally. on the user branch
+// `from` stays the user's own value (undefined here), the proxy branch reads the global. a
+// `const from = _polyfill` extraction would read the polyfill on the user branch instead
+QUnit.test('destructuring: array-wrapped diverging receiver keeps native undefined on the user branch', assert => {
+  const userObj = { Array: {} };
+  function pick(useGlobal) {
+    const [, { Array: { from } }] = [0, useGlobal ? globalThis : userObj];
+    return from;
+  }
+  assert.same(typeof pick(false), 'undefined');
+  assert.same(typeof pick(true), 'function');
+});
+
+// the assignment-form cascade respects the same `&&` short-circuit the declarator does: a falsy
+// guard makes native destructure off the falsy operand and THROW, so the receiver must not be
+// collapsed and bound unconditionally - the per-branch default binds only on the truthy selection
+QUnit.test('destructuring: cascade &&-guarded proxy keeps falsy-path throw', assert => {
+  function attempt(guard) {
+    let from;
+    try {
+      ({ Array: { from } } = guard && globalThis);
+      return typeof from;
+    } catch {
+      return 'throw';
+    }
+  }
+  assert.same(attempt(1), 'function');
+  assert.same(attempt(0), 'throw');
+});
+
+// the declarator `&&`+rest form takes a per-branch default (the inner rest is un-mirrorable, but the
+// `&&` right is the only value branch and a falsy guard throws on the intermediate hop, so no user
+// `undefined` is reachable). the default must bind only behind the preserved guard: the truthy path
+// polyfills, the falsy path still throws exactly as native
+QUnit.test('destructuring: declarator &&-guarded proxy with rest keeps falsy-path throw', assert => {
+  function attempt(guard) {
+    try {
+      const { Array: { from, ...rest } } = guard && globalThis;
+      return [typeof from, Object.keys(rest).length];
+    } catch {
+      return 'throw';
+    }
+  }
+  assert.deepEqual(attempt(1), ['function', 0]);
+  assert.same(attempt(0), 'throw');
+});
+
 // transparent IIFE inits: the call keeps running (body effects once per evaluation, selection
 // native), the polyfill binds through the mirrored return leaves
 QUnit.test('destructuring: transparent IIFE inits', assert => {

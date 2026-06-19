@@ -60,6 +60,8 @@ import {
   renderSynthTree,
   classifyCallBranchForSynth,
   buildNestedParamSynthPlan,
+  destructureValueBranchesAllProxy,
+  outerDestructureReceiver,
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
   isViableBranchForKey,
@@ -336,7 +338,7 @@ export function createDestructureEmitter({
         // standalone statement) - neutralize the plan-level discard-SE harvest so the setup isn't
         // ALSO re-run by an extraction prefix. planning runs INSIDE the tracked window: it may
         // mint `_unused` sentinel names that need the explicit declarations
-        const plan = planDeclarator(fake, scope, stmtPath, { keepsTail: true });
+        const plan = planDeclarator(fake, scope, stmtPath);
         if (plan?.discardSe) plan.discardSe = null;
         return rewriteDeclarator(fake, scope, stmtPath);
       });
@@ -1220,12 +1222,12 @@ export function createDestructureEmitter({
 
   // thin wrapper over the provider's shared decision layer (`buildNestedDestructurePlan` -
   // caching, receiver dispatch and the per-prop plan tree live there); this factory only
-  // threads the estree adapter and its resolver closures. `keepsTail` (the cascade's
-  // tail-preserving variant) rides the provider cache contract: the cascade plans its
-  // synthetic host first, the render-time re-entry reads the same cached plan
-  function planDeclarator(declarator, scope, usePath = null, { keepsTail = false } = {}) {
+  // threads the estree adapter and its resolver closures. the cascade rides the provider
+  // cache contract: it plans its synthetic host first, the render-time re-entry reads the
+  // same cached plan
+  function planDeclarator(declarator, scope, usePath = null) {
     return buildNestedDestructurePlan({
-      declarator, scope, adapter: estreeAdapter, path: usePath, keepsTail,
+      declarator, scope, adapter: estreeAdapter, path: usePath,
       resolvePure, resolveGlobalPolyfill, isDisabledProp: isDisabled,
     });
   }
@@ -1765,8 +1767,11 @@ export function createDestructureEmitter({
   function tryRegisterPerBranchSynth({ rhs, propNode, objectPattern, scope, path = null }) {
     if (!rhs || !propNode || !objectPattern) return false;
     // per-branch has no body-extract fallback, so it accepts static-literal computed keys (`['from']`)
-    // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value)
-    if (!isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys: true })) return false;
+    // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value).
+    // a SIDE-EFFECTING computed key (`[(eff(), 'from')]`) is accepted too: synthSwapPropKey folds it to
+    // its static `["from"]` slot (no effect in the synth literal) while the effect stays in the residual
+    // LHS pattern and runs exactly once - so the proxy branch polyfills instead of bailing to native
+    if (!isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys: true, allowSideEffectComputedKeys: true })) return false;
     // a bare-global computed-key sibling (`[Set]`) would be emitted raw into each branch's synth
     // literal and throw ReferenceError on the target engine - bail rather than leak (matches babel)
     if (!computedKeysAllBound(objectPattern, scope)) return false;
@@ -1938,6 +1943,23 @@ export function createDestructureEmitter({
     // the declarator hosting this leaf, plus whether it is the WHOLE declaration's only binding and whether
     // its init carries no side effect - the planner needs these to drop a dead residual / memoize the receiver
     const declarator = declaration.declarations.find(d => d.start <= propNode.start && propNode.end <= d.end);
+    // a CONDITIONAL / LOGICAL receiver (`c ? globalThis : userObj`, `m && globalThis`, `g || self`)
+    // must NOT extract `const f = _polyfill` unconditionally: on a diverging branch that binds the
+    // polyfill where native reads the user's own `undefined`, corrupting it. decline (no emission) so
+    // it falls through to the receiver-aware nested mirror, which swaps only the proxy operand(s) and
+    // keeps the SE key in the residual LHS (runs once). mirrors babel; a bare receiver keeps the sound
+    // SE-extraction (the effect is preserved by the residual and the polyfill always wins)
+    // decline (-> receiver-aware mirror) for a DIVERGING receiver (a reachable non-proxy value branch:
+    // the case the extraction would corrupt) OR an `&&` guard (babel keeps its `&&` structure and
+    // mirrors only the right operand, so match it - a single swap, no composition risk). an all-proxy
+    // ternary / `||` collapses to one proxy and extracts on both sides (mirroring would have to swap
+    // BOTH branches, which the text composer can't compose). `outerDestructureReceiver` descends array
+    // wrappers (`[{ Array: { [se]: f } }] = [c ? gt : u]`); AST intact here, so the proxy check holds
+    const recv = outerDestructureReceiver(metaPath.parentPath, metaPath.scope, estreeAdapter);
+    const recvType = recv?.type;
+    const mirrorReceiver = (recvType === 'ConditionalExpression' || recvType === 'LogicalExpression')
+      && (!destructureValueBranchesAllProxy(recv) || (recvType === 'LogicalExpression' && recv.operator === '&&'));
+    if (pureResult.kind !== 'instance' && mirrorReceiver) return false;
     let bindingCount = 0;
     if (declarator) walkPatternIdentifiers(declarator.id, () => bindingCount++);
     const plan = planSideEffectKeyStrategy({
@@ -2202,13 +2224,12 @@ export function createDestructureEmitter({
   // shared `buildNestedParamSynthPlan`; this is a dumb renderer, babel renders the same plan as AST)
   function renderNestedParamSynth({ metaPath, meta }) {
     const plan = buildNestedParamSynthPlan({
-      leafPatternPath: metaPath.parentPath, meta, resolvePure: m => resolvePure(m, metaPath),
+      leafPatternPath: metaPath.parentPath, meta, resolvePure: m => resolvePure(m, metaPath), adapter: estreeAdapter,
     });
     return applyNestedParamSynthPlan({
       plan,
       renderTree: tree => renderSynthTree(tree, {
         polyfill: (entry, hintName) => injectPureImport(entry, hintName),
-        array: element => `[${ element }]`,
         object: entries => `{ ${ entries.map(({ key, value }) => `${ key }: ${ value }`).join(', ') } }`,
       }),
       replaceTarget(targetNode, rendered, needsParens) {
@@ -2286,6 +2307,12 @@ export function createDestructureEmitter({
     const pureResult = resolvePure(meta, metaPath);
     // static keys only: an instance method needs a concrete receiver the residual array can't supply
     if (!pureResult || pureResult.kind === 'instance') return false;
+    // a CONDITIONAL / LOGICAL array element (`[, { Array: { from } }] = [0, c ? globalThis : u]`) must
+    // NOT extract `const from = _polyfill` unconditionally - the diverging branch reads the user's own
+    // value, so the unconditional bind corrupts it. cede to the receiver-aware mirror (it descends the
+    // array wrapper and swaps only the proxy branch inside the element); a bare element still extracts
+    const recv = outerDestructureReceiver(metaPath.parentPath, metaPath.scope, estreeAdapter);
+    if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return false;
     const host = findArrayWrappedDestructureHost(metaPath.parentPath);
     if (!host?.needsResidualExtraction) return false;
     const declaration = host.declarator.parentPath;
@@ -2362,6 +2389,9 @@ export function createDestructureEmitter({
     if (outerHost?.node?.type === 'Property') {
       if (tryFlattenNestedProxy(metaPath)) return;
       if (tryFlattenAssignmentExpression(metaPath)) return;
+      // conditional receiver: mirror per branch. an un-mirrorable pattern bails to native via the
+      // shared plan when a value branch is a non-proxy (avoids a corrupting default); a proxy-only
+      // receiver keeps the sound inline default
       return handleParameterDestructurePure(meta, metaPath, propNode);
     }
     // transparent wrap between ObjectPattern and host (ArrayPattern / AssignmentPattern):
