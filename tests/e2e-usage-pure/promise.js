@@ -147,6 +147,7 @@ QUnit.test('Promise constructor with polyfill inside', assert => {
 
 QUnit.test('Promise.all over Set-deduped array, map with Promise.resolve', assert => {
   const async = assert.async();
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const deduped = Array.from(new Set([3, 1, 2, 1, 3]));
   Promise.all(deduped.map(v => Promise.resolve(v * 2))).then(collected => {
     assert.deepEqual(collected, [6, 2, 4]);
