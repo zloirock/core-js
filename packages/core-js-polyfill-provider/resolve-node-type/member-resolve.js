@@ -27,7 +27,9 @@
 // `findExpressionAnnotation` / `substituteTypeParams` / `applySubst` / `applyAliasSubstDeep` /
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
-import { collectQualifiedSegments, isQualifiedNameNode, isUnionType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import {
+  collectQualifiedSegments, isMethodShapeMember, isQualifiedNameNode, isUnionType, peelTSParenthesized, typeRefName,
+} from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { memberKeyName } from '../helpers/class-walk.js';
@@ -415,6 +417,13 @@ export function createMemberResolve({
     if (!isKeyofTargeting(propAnnotation, objAnnotation, propInfo.scope)) return null;
     const members = getTypeMembers({ objectType: unwrapTypeAnnotation(param.constraint), scope: param.scope });
     if (!members?.length) return null;
+    // `obj[k]` (k: keyof T) is a member VALUE. a data property / index value yields its annotation,
+    // and a GETTER (`kind === 'get'`) yields its return on access - both readable. but a regular
+    // METHOD's value is the function itself (not its return), and a SETTER yields nothing - so a
+    // method-shaped member that isn't a getter makes `obj[k]` a Function / undefined, which the
+    // readable-value union below can't represent. narrowing then would mis-dispatch (e.g.
+    // `_atMaybeArray` on a method that returns an array). bail to the generic helper (sound)
+    if (members.some(m => isMethodShapeMember(m.type) && m.kind !== 'get')) return null;
     const valueAnnotations = members
       .map(m => m.typeAnnotation ?? m.returnType)
       .filter(Boolean);
