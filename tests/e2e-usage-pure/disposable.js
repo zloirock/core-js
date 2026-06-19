@@ -86,6 +86,7 @@ QUnit.test('using: Symbol.dispose class returning polyfill-built data', assert =
   let disposed = 0;
   class Lock {
     [Symbol.dispose]() { disposed += 1; }
+    // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
     names() { return Array.from(new Set(['a', 'b', 'a'])).toSorted(); }
   }
   {
