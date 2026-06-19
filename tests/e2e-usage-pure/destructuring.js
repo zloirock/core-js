@@ -221,6 +221,20 @@ QUnit.test('destructuring: nested sequence expression init flattens in order', a
   assert.deepEqual(from('ab'), ['a', 'b']);
 });
 
+// a `var [...r]` redeclared in a block with a STRING right-hand side: the string spreads into a
+// fresh Array, so `r` is an Array and `.at` must use the array-specific helper. a slot-narrow that
+// inherited the string RHS would dispatch the string `.at`, which coerces the array via String()
+// (`['a','b','c']` -> "a,b,c") and reads ',' at index 1 instead of 'b'. live runtime oracle
+QUnit.test('destructuring: var rest redecl with string RHS stays an Array', assert => {
+  /* eslint-disable no-var, no-redeclare, block-scoped-var, no-lone-blocks, no-useless-assignment -- block-scoped var rest redecl is the resolver path under test */
+  var [...r] = [1, 2];
+  {
+    var [...r] = 'abc';
+  }
+  assert.same(r.at(1), 'b');
+  /* eslint-enable no-var, no-redeclare, block-scoped-var, no-lone-blocks, no-useless-assignment -- end shape-under-test region */
+});
+
 QUnit.test('destructuring: triple-nested sequence expression init', assert => {
   const log = [];
   // eslint-disable-next-line @stylistic/no-extra-parens -- nested sequence shape under test
