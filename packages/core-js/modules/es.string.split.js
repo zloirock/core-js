@@ -33,6 +33,7 @@ var SPLIT_WORKS_WITH_OVERWRITTEN_EXEC = !fails(function () {
   return result.length !== 2 || result[0] !== 'a' || result[1] !== 'b';
 });
 
+// eslint-disable-next-line unicorn/prefer-split-limit -- probing native split bug; a limit would change the result shape
 var BUGGY = 'abbc'.split(/(b)*/)[1] === 'c' ||
   // eslint-disable-next-line regexp/no-empty-group -- required for testing
   'test'.split(/(?:)/, -1).length !== 4 ||
