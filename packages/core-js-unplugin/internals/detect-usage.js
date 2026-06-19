@@ -331,7 +331,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
       const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
       const isAliasBindingShape = isPolyfillAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() });
-      const polyfillHint = info ? (isAliasBindingShape || isImportBinding ? info.hint : null) : null;
+      const polyfillHint = info && (isAliasBindingShape || isImportBinding) ? info.hint : null;
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
       // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
       // same-named namespace/declare-global var twin as a violation. recompute from the AST via the

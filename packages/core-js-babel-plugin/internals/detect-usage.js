@@ -154,7 +154,7 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
         // to the destructured global, any declaration kind) and rejects user-declared shadows
         const isAliasBindingShape = isPolyfillAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() });
-        const polyfillHint = info ? (isAliasBindingShape || isImportBinding ? info.hint : null) : null;
+        const polyfillHint = info && (isAliasBindingShape || isImportBinding) ? info.hint : null;
         return { node: b.path.node, kind: b.kind, constantViolations: b.constantViolations, importSource, polyfillHint };
       }
       if (!info) return null;

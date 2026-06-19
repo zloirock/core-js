@@ -595,16 +595,22 @@ const base = {
   'promise/valid-params': ERROR,
 
   // unicorn
+  // prefer better DOM traversal APIs
+  'unicorn/better-dom-traversing': ERROR,
   // enforce a specific parameter name in `catch` clauses
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
   // enforce consistent assertion style with `node:assert`
   'unicorn/consistent-assert': ERROR,
+  // enforce consistent spelling of compound words in identifiers
+  'unicorn/consistent-compound-words': ERROR,
   // prefer passing `Date` directly to the constructor when cloning
   'unicorn/consistent-date-clone': ERROR,
   // prefer consistent types when spreading a ternary in an array literal
   'unicorn/consistent-empty-array-spread': ERROR,
   // enforce consistent style for element existence checks with `indexOf()`, `lastIndexOf()`, `findIndex()`, and `findLastIndex()`
   'unicorn/consistent-existence-index-check': ERROR,
+  // enforce consistent JSON file reads before `JSON.parse()`
+  'unicorn/consistent-json-file-read': [ERROR, 'buffer'],
   // enforce consistent style for escaping ${ in template literals
   'unicorn/consistent-template-literal-escape': ERROR,
   // enforce correct `Error` subclassing
@@ -619,12 +625,28 @@ const base = {
   'unicorn/no-abusive-eslint-disable': ERROR,
   // disallow recursive access to `this` within getters and setters
   'unicorn/no-accessor-recursion': ERROR,
+  // disallow using reference values as `Array#fill()` values
+  'unicorn/no-array-fill-with-reference-type': ERROR,
+  // disallow `.fill()` after `Array.from`
+  'unicorn/no-array-from-fill': ERROR,
   // prefer `Array#toReversed()` over `Array#reverse()`
   'unicorn/no-array-reverse': ERROR,
   // disallow using `await` in `Promise` method parameters
   'unicorn/no-await-in-promise-methods': ERROR,
+  // disallow unnecessary `Blob` to `File` conversion
+  'unicorn/no-blob-to-file': ERROR,
+  // prefer drawing canvases directly instead of converting them to images
+  'unicorn/no-canvas-to-image': ERROR,
+  // disallow confusing uses of `Array#{ splice, toSpliced }()`
+  'unicorn/no-confusing-array-splice': ERROR,
   // do not use leading/trailing space between `console.log` parameters
   'unicorn/no-console-spaces': ERROR,
+  // disallow duplicate values in `Set` constructor array literals
+  'unicorn/no-duplicate-set-values': ERROR,
+  // disallow empty files
+  'unicorn/no-empty-file': [ERROR, { allowComments: true }],
+  // disallow exports in scripts
+  'unicorn/no-exports-in-scripts': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': ERROR,
   // disallow immediate mutation after variable assignment
@@ -632,12 +654,18 @@ const base = {
   // don't wanna add an option to allow it, manually disable this rule in such problem cases
   // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/2796
   'unicorn/no-immediate-mutation': ERROR,
+  // disallow incorrect `querySelector()` and `querySelectorAll()` usage
+  'unicorn/no-incorrect-query-selector': ERROR,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': [ERROR, { strategy: 'loose' }],
   // disallow invalid options in `fetch` and `Request`
   'unicorn/no-invalid-fetch-options': ERROR,
+  // disallow invalid `accept` values on file inputs
+  'unicorn/no-invalid-file-input-accept': ERROR,
   // prevent calling `EventTarget#removeEventListener()` with the result of an expression
   'unicorn/no-invalid-remove-event-listener': ERROR,
+  // disallow accessing `event.currentTarget` after the synchronous event dispatch has finished
+  'unicorn/no-late-current-target-access': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
   // disallow named usage of default import and export
@@ -660,12 +688,16 @@ const base = {
   'unicorn/no-unnecessary-array-splice-count': ERROR,
   // disallow awaiting non-promise values
   'unicorn/no-unnecessary-await': ERROR,
+  // disallow unnecessary nested ternary expressions
+  'unicorn/no-unnecessary-nested-ternary': ERROR,
   // disallow using `.length` or `Infinity` as the end argument of `{ Array, String, %TypedArray% }#slice()`
   'unicorn/no-unnecessary-slice-end': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unreadable IIFEs
   'unicorn/no-unreadable-iife': ERROR,
+  // disallow ignoring the return value of selected array methods
+  'unicorn/no-unused-array-method-return': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
   // disallow useless values or fallbacks in `Set`, `Map`, `WeakSet`, or `WeakMap`
@@ -692,6 +724,8 @@ const base = {
   'unicorn/prefer-array-flat-map': ERROR,
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
   'unicorn/prefer-array-index-of': ERROR,
+  // prefer last-oriented array methods over `Array#reverse()` or `Array#toReversed()` followed by a method
+  'unicorn/prefer-array-last-methods': ERROR,
   // prefer `.some()` over `.filter().length` check and `.find()`
   'unicorn/prefer-array-some': ERROR,
   // prefer `.at()` method for index access and `String#charAt()`
@@ -710,10 +744,14 @@ const base = {
   'unicorn/prefer-default-parameters': ERROR,
   // prefer `EventTarget` over `EventEmitter`
   'unicorn/prefer-event-target': ERROR,
+  // prefer `.getOrInsertComputed()` when the default value has side effects
+  'unicorn/prefer-get-or-insert-computed': ERROR,
   // prefer `globalThis` over `window`, `self`, and `global`
   'unicorn/prefer-global-this': ERROR,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
   'unicorn/prefer-includes': ERROR,
+  // prefer moving `.toArray()` to the end of iterator helper chains
+  'unicorn/prefer-iterator-to-array-at-end': ERROR,
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
@@ -730,22 +768,32 @@ const base = {
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': ERROR,
+  // prefer `queueMicrotask()` over `process.nextTick()`, `setImmediate()`, and `setTimeout(…, 0)`
+  'unicorn/prefer-queue-microtask': ERROR,
   // prefer `Response.json()` over `new Response(JSON.stringify())`
   'unicorn/prefer-response-static-json': ERROR,
-  // prefer simple conditions first in logical expressions
-  'unicorn/prefer-simple-condition-first': ERROR,
-  // prefer using `structuredClone` to create a deep clone
-  'unicorn/prefer-structured-clone': ERROR,
+  // prefer `Set#has()` over `Array#includes()` when checking for existence or non-existence
+  'unicorn/prefer-set-has': ERROR,
   // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
+  // prefer simple conditions first in logical expressions
+  'unicorn/prefer-simple-condition-first': ERROR,
   // enforce combining multiple `Array#push`, `Element#classList.{ add, remove }()` or `importScripts` into one call
   'unicorn/prefer-single-call': ERROR,
+  // prefer `String#split()` with a limit
+  'unicorn/prefer-split-limit': ERROR,
+  // prefer String#matchAll() over RegExp#exec() loops
+  'unicorn/prefer-string-match-all': ERROR,
+  // prefer `String#padStart()` and `String#padEnd()` over manual string padding
+  'unicorn/prefer-string-pad-start-end': ERROR,
   // prefer `String#replaceAll()` over regex searches with the global flag
   'unicorn/prefer-string-replace-all': ERROR,
   // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
   'unicorn/prefer-string-starts-ends-with': ERROR,
   // prefer `String#{ trimStart, trimEnd }()` over `String#{ trimLeft, trimRight }()`
   'unicorn/prefer-string-trim-start-end': ERROR,
+  // prefer using `structuredClone` to create a deep clone
+  'unicorn/prefer-structured-clone': ERROR,
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
   // enforce consistent relative `URL` style
@@ -1471,6 +1519,8 @@ const forbidES2015BuiltIns = {
   'math/prefer-number-min-safe-integer': OFF,
   // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': OFF,
+  // prefer `Set#has()` over `Array#includes()` when checking for existence or non-existence
+  'unicorn/prefer-set-has': OFF,
   // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
   'unicorn/prefer-string-starts-ends-with': OFF,
 };
@@ -1488,6 +1538,8 @@ const forbidES2017BuiltIns = {
   'es/no-object-values': ERROR,
   'es/no-shared-array-buffer': ERROR,
   'es/no-string-prototype-padstart-padend': ERROR,
+  // prefer `String#padStart()` and `String#padEnd()` over manual string padding
+  'unicorn/prefer-string-pad-start-end': OFF,
 };
 
 const forbidES2018BuiltIns = {
@@ -1516,6 +1568,8 @@ const forbidES2020BuiltIns = {
   'es/no-symbol-matchall': ERROR,
   // prefer `BigInt` literals over the constructor
   'unicorn/prefer-bigint-literals': OFF,
+  // prefer String#matchAll() over RegExp#exec() loops
+  'unicorn/prefer-string-match-all': OFF,
 };
 
 const forbidES2021BuiltIns = {
@@ -1549,6 +1603,8 @@ const forbidES2023BuiltIns = {
   'es/no-regexp-unicode-property-escapes-2023': ERROR,
   // prefer `Array#toReversed()` over `Array#reverse()`
   'unicorn/no-array-reverse': OFF,
+  // prefer last-oriented array methods over `Array#reverse()` or `Array#toReversed()` followed by a method
+  'unicorn/prefer-array-last-methods': OFF,
 };
 
 const forbidES2024BuiltIns = {
@@ -1613,6 +1669,8 @@ const forbidES2026BuiltIns = {
   'es/no-uint8array-prototype-tohex': ERROR,
   'es/no-weakmap-prototype-getorinsert': ERROR,
   'es/no-weakmap-prototype-getorinsertcomputed': ERROR,
+  // prefer `.getOrInsertComputed()` when the default value has side effects
+  'unicorn/prefer-get-or-insert-computed': OFF,
   // enforce the use of `Math.sumPrecise` instead of other summation methods
   'math/prefer-math-sum-precise': OFF,
 };
@@ -1706,6 +1764,8 @@ const forbidModernBuiltIns = {
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
   ...forbidES2026IntlBuiltIns,
+  // prefer `queueMicrotask()` over `process.nextTick()`, `setImmediate()`, and `setTimeout(…, 0)`
+  'unicorn/prefer-queue-microtask': OFF,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
 };
@@ -1833,6 +1893,8 @@ const tests = {
   'unicorn/no-immediate-mutation': OFF,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
+  // disallow ignoring the return value of selected array methods
+  'unicorn/no-unused-array-method-return': OFF,
   // prefer `.at()` method for index access and `String#charAt()`
   'unicorn/prefer-at': OFF,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
@@ -2134,6 +2196,8 @@ const packageJSON = {
 };
 
 const packagesPackageJSON = {
+  // requires that dependencies do not use local file paths
+  'package-json/no-local-dependencies': ERROR,
   // enforce either object or shorthand declaration for repository
   'package-json/repository-shorthand': [ERROR, { form: 'object' }],
   // ensures that proper attribution is included, requiring that either `author` or `contributors` is defined,
@@ -2210,6 +2274,10 @@ const markdown = {
   'regexp/prefer-regexp-exec': OFF,
   // variables should be defined before being used
   'sonarjs/no-reference-error': OFF,
+  // disallow duplicate values in `Set` constructor array literals
+  'unicorn/no-duplicate-set-values': OFF,
+  // disallow ignoring the return value of selected array methods
+  'unicorn/no-unused-array-method-return': OFF,
   // specify the maximum length of a line in your program
   '@stylistic/max-len': [ERROR, { ...base['@stylistic/max-len'][1], code: 200 }],
 };
