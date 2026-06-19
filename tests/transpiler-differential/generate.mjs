@@ -149,6 +149,35 @@ function * generateDestructure() {
   }
 }
 
+// --- Proxy-global full-consume from a side-effecting receiver ---
+// a full-consume proxy-global destructure (every binding resolves to a proxy-global static /
+// constructor) off a receiver wrapped in a side-effecting SequenceExpression. the emitter drops the
+// dead receiver value but lifts the SE prefix; the dropped proxy-global root must NOT orphan a
+// `globalThis -> _globalThis` rewrite inside the statement overwrite (an unplugin text-composition
+// crash that aborts the whole file) nor leak a now-dead import. flat + nested-hop patterns across
+// declaration and assignment hosts; the prefix's `log.push` pins the effect so a dropped / doubled
+// SE shows in `effects`. for-init keeps the tail in a sink declarator (static-fixture territory).
+// declaration host is stripped-valid (every binding is an injected polyfill); assignment host stays
+// full-env like the other assignment-host destructure families
+const PGS_PATTERNS = [
+  { id: 'flat-single', lhs: '{ Map }', names: ['Map'], observe: 'typeof Map' },
+  { id: 'flat-multi', lhs: '{ Map, Set }', names: ['Map', 'Set'], observe: '[typeof Map, typeof Set]' },
+  { id: 'nested-hop', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from' },
+];
+const PGS_HOSTS = [
+  { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = (log.push("r"), globalThis); return ${ p.observe }; })()` },
+  { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = (log.push("r"), globalThis)); return ${ p.observe }; })()` },
+];
+
+function * generateProxyGlobalSEReceiver() {
+  for (const host of PGS_HOSTS) {
+    for (const pat of PGS_PATTERNS) {
+      const name = `proxy-global-se-receiver/${ host.id }/${ pat.id }`;
+      yield { ...snippet(name, host.build(pat)), strip: host.strip };
+    }
+  }
+}
+
 // --- Conditional-receiver destructure mirror grammar ---
 // the receiver is a runtime-selected ternary / `&&` / `||` carrying a global-PROXY operand beside a
 // USER-object (or short-circuit) operand. each snippet exercises BOTH runtime selections; the bug
@@ -1455,6 +1484,7 @@ const TS_FAMILIES = {
 export function * generate() {
   yield * generateGrammar();
   yield * generateDestructure();
+  yield * generateProxyGlobalSEReceiver();
   yield * generateConditionalMirror();
   yield * generateChains();
   yield * generateIn();
