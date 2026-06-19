@@ -186,13 +186,13 @@ export function createKnownGlobals({
     return argType && !isNullableOrNever(argType) ? argType : null;
   }
 
-  function resolveKnownStaticReturnType(callee, callPath) {
-    if (!isMemberLike(callee)) return null;
-    const info = resolveGlobalMember(callee);
-    if (!info) return null;
-    const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
-    if (!hint) return null;
-    if (callPath && info.objectName === 'Promise' && info.memberName === 'resolve') {
+  // resolve a known static method's return type from its registry hint + call path. the arg-inference
+  // specials run BEFORE the declared hint: `Promise.resolve(x)` peels the arg's inner type, and a
+  // `returnsArgument: N` static (Object.freeze / seal / defineProperty ...) returns that argument's
+  // concrete type. shared by the direct (`Object.freeze(a)`) and aliased (`const { freeze } = Object;
+  // freeze(a)`) paths so both narrow identically instead of the aliased one dropping to generic 'Object'
+  function resolveStaticReturnFromHint({ objectName, memberName, hint, callPath }) {
+    if (callPath && objectName === 'Promise' && memberName === 'resolve') {
       const inferred = inferPromiseResolveReturnType(callPath);
       if (inferred) return inferred;
     }
@@ -201,6 +201,15 @@ export function createKnownGlobals({
       if (inferred) return inferred;
     }
     return typeFromHint(hint);
+  }
+
+  function resolveKnownStaticReturnType(callee, callPath) {
+    if (!isMemberLike(callee)) return null;
+    const info = resolveGlobalMember(callee);
+    if (!info) return null;
+    const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
+    if (!hint) return null;
+    return resolveStaticReturnFromHint({ objectName: info.objectName, memberName: info.memberName, hint, callPath });
   }
 
   function resolveKnownPropertyReturnType(path) {
@@ -238,6 +247,7 @@ export function createKnownGlobals({
     isPromiseRefName,
     lookupNested,
     resolveKnownInstanceMember,
+    resolveStaticReturnFromHint,
     resolveKnownStaticReturnType,
     resolveKnownPropertyReturnType,
     resolveGlobalStaticReference,
