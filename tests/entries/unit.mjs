@@ -312,6 +312,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     const Map = load(NS, 'map/constructor');
     ok(new Map([[1, 2], [3, 4]]).size === 2);
     const Set = load(NS, 'set/constructor');
+    // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
     ok(new Set([1, 2, 3, 2, 1]).size === 3);
     const WeakMap = load(NS, 'weak-map/constructor');
     ok(new WeakMap([[O = {}, 42]]).get(O) === 42);

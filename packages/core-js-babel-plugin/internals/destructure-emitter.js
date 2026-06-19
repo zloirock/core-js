@@ -1501,7 +1501,7 @@ export default function createDestructureEmitter({
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
       const sink = t.variableDeclarator(ref, t.cloneDeep(parent.node.init));
-      decls.splice(idx, 1, t.variableDeclarator(localBinding, value));
+      decls[idx] = t.variableDeclarator(localBinding, value);
       const firstExtraction = decls.findIndex(d => forInitExtractionDecls.has(d));
       decls.splice(firstExtraction === -1 ? idx : firstExtraction, 0, sink);
       declaration.scope?.registerDeclaration(declaration);

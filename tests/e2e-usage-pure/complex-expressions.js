@@ -1,5 +1,6 @@
 // Complex expressions: nested calls, method calls on results, IIFE, ternary
 QUnit.test('complex: Array.from on Set result', assert => {
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   assert.deepEqual(Array.from(new Set([3, 1, 2, 1])), [3, 1, 2]);
 });
 
