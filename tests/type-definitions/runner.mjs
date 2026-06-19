@@ -42,6 +42,7 @@ const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
 ]];
 
 const ENVIRONMENTS = ALL_TESTS ? [
+  '@types/node@26',
   '@types/node@25',
   '@types/node@24',
   '@types/node@22',
@@ -52,12 +53,12 @@ const ENVIRONMENTS = ALL_TESTS ? [
   // '@types/bun@latest', // ArrayBuffer.resize signature incorrect. Return type ArrayBuffer instead of void.
   // '@types/deno@latest', // fails
 ] : CI_TESTS ? [
-  '@types/node@25',
+  '@types/node@26',
   '@types/node@24',
   '@types/node@22',
   '@types/node@16',
 ] : [
-  '@types/node@25',
+  '@types/node@26',
 ];
 
 const LIBS = [
