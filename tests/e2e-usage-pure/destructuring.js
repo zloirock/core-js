@@ -1143,6 +1143,7 @@ QUnit.test('destructuring: nested conditional call branches memoize per leaf', a
   const a = false;
   const b = true;
   let c = 0;
+  // eslint-disable-next-line unicorn/no-unnecessary-nested-ternary -- the nested conditional receiver is the subject under test
   const { of, custom } = a ? (() => {
     c++;
     return Array;
