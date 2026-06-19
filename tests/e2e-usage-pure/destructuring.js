@@ -364,6 +364,22 @@ QUnit.test('destructuring: IIFE member-default overridden by caller-arg', assert
   assert.deepEqual(result, [1]);
 });
 
+// a NESTED spread inside the inline-array spread argument makes the destructured param's runtime
+// position variadic, so the synth-swap can't statically locate the live arg and bails to native. a
+// mis-counted lift treats `...tail` as one position: with tail length 2 the runtime arg at param 2 is
+// the USER object, so a synth / default keyed on the static slot would read the polyfill on its
+// legitimate undefined - native keeps the real per-call argument. probing the user object (not a
+// proxy) keeps the assertion engine-independent: the bail injects NO polyfill, so a `from` assertion
+// would otherwise just read the host's native Array.from (present here, absent on the ie:11 target)
+QUnit.test('destructuring: IIFE param-default with nested-spread arg bails to native', assert => {
+  const userArg = { other: 1 };
+  function pick(tail) {
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties, unicorn/no-useless-spread -- testing nested-spread bail
+    return ((a, b, { from } = []) => from)(...[0, ...tail, Array]);
+  }
+  assert.same(typeof pick([1, userArg]), 'undefined');
+});
+
 // --- Computed-key destructuring ---
 // a const-Identifier computed key `[k]` is recognised as a polyfill alias just like a plain key:
 // declaration form body-extracts (`const m = _polyfill`), param-default form mirrors the key into
