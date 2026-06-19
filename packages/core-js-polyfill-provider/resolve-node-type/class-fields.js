@@ -29,7 +29,7 @@ import {
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
-import { nodeRangeContains } from './ast-shapes.js';
+import { isPrivateMemberNode, nodeRangeContains } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 export function createClassFields({
@@ -173,26 +173,15 @@ export function createClassFields({
 
   // private class members are scope-closed: `#foo` is only reachable from inside the class body, so
   // the writer set never bails on escape - but the in-body `<expr>.#foo = Y` writes (beyond `this.#foo`)
-  // STILL feed its type, so the external-write fold runs (gated to this class body). covers all three
-  // private shapes:
-  //   - `#foo = init;` (ClassPrivateProperty in babel, PropertyDefinition with
-  //     PrivateIdentifier key in ESTree)
-  //   - `#foo() {}` (private method - not used as field)
-  //   - `accessor #foo = init;` (TC39 stage-3 ClassAccessorProperty with PrivateIdentifier
-  //     key in babel; ESTree shape varies). `t.isClassPrivateProperty` matches only the
-  //     babel ClassPrivateProperty shape, so the PrivateIdentifier-key check catches the
-  //     accessor variant + the ESTree PropertyDefinition shape uniformly
-  function isPrivateMember(node) {
-    if (t.isClassPrivateProperty?.(node)) return true;
-    return node?.key?.type === 'PrivateIdentifier';
-  }
+  // STILL feed its type, so the external-write fold runs (gated to this class body). every private
+  // shape (field / method / accessor / static) is recognised by `isPrivateMemberNode` via its key
 
   // dispatch to static-vs-instance pipeline. static fields are mutated via the class
   // binding (`C.x = Y`); instance fields are mutated via instance bindings (`<inst>.x = Y`)
   // including subclass instances. private fields fold only their in-class-body writes (scope-closed)
   function collectClassFieldCandidates(member, fieldName) {
     const classPath = member.parentPath.parentPath;
-    const isPrivate = isPrivateMember(member.node);
+    const isPrivate = isPrivateMemberNode(member.node);
     if (!isPrivate && !classBindingName(classPath)) return null;
     return member.node.static
       ? collectStaticFieldCandidates({ member, fieldName, classPath, isPrivate })
