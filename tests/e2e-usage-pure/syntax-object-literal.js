@@ -228,6 +228,7 @@ QUnit.test('object: accessor result chained into a polyfill keeps its receiver',
 });
 
 QUnit.test('object: polyfill result stored then read back through the literal', assert => {
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const wrap = { data: Array.from(new Set([1, 1, 2, 3])) };
   assert.deepEqual(wrap.data, [1, 2, 3]);
   assert.same(wrap.data.at(-1), 3);

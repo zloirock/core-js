@@ -19,6 +19,7 @@ QUnit.test('globals: Map', assert => {
 });
 
 QUnit.test('globals: Set', assert => {
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const set = new Set([1, 2, 3, 2, 1]);
   assert.same(set.size, 3);
   assert.true(set.has(1));

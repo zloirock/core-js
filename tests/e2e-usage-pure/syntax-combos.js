@@ -33,6 +33,7 @@ QUnit.test('syntax: IIFE destructuring', assert => {
 // --- spread + polyfill ---
 
 QUnit.test('syntax: spread Set into array', assert => {
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   assert.deepEqual([...new Set([1, 2, 2, 3])], [1, 2, 3]);
 });
 

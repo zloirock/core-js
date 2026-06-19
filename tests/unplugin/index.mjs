@@ -251,7 +251,7 @@ function checkOutputParses(directory, code, testId) {
   if (!errors?.length) return true;
   counts.failed++;
   echo(red(`${ cyan(label(directory)) } output has parse errors:`));
-  for (const err of errors.slice(0, 3)) echo(`  ${ err.message?.split('\n')[0] ?? err }`);
+  for (const err of errors.slice(0, 3)) echo(`  ${ err.message?.split('\n', 1)[0] ?? err }`);
   return false;
 }
 
