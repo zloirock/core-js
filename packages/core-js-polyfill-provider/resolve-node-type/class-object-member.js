@@ -24,7 +24,7 @@
 //   isMethodMember(node)
 //   isPropertyMember(node)
 import { $Object, MAX_DEPTH, nodePathInScope } from './base.js';
-import { isOpenKeywordAnnotation } from './ast-shapes.js';
+import { isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 
 const NAMESPACE_FN_PATH_TYPES = ['FunctionDeclaration', 'TSDeclareFunction'];
@@ -66,15 +66,6 @@ export function createClassObjectMember({
   // PropertyDefinition with a PrivateIdentifier key. shared `./class-member-shapes.js`
   // collapses both shapes so `resolveClassMemberNode` doesn't miss private members
   const { isMethodMember, isPropertyMember } = createClassMemberShape({ t });
-
-  // private members (`#x`, `static #x`, `accessor #x`) are lexically class-scoped: a subclass
-  // declaring `#x` creates a distinct brand, never an override of the base's slot, so a
-  // `this.#x` read always resolves to the lexical class's member regardless of the runtime
-  // instance. the subclass-shadow bail must skip them (matches `class-fields.js` isPrivateMember)
-  function isPrivateClassMember(node) {
-    return node?.key?.type === 'PrivateIdentifier'
-      || t.isClassPrivateProperty?.(node) || t.isClassPrivateMethod?.(node);
-  }
 
   // does the class body own a getter / setter for `name` matching `isStatic`? used to
   // gate `resolveMergedNamespaceStatic` fallback - setter-only members own the slot even
@@ -146,7 +137,7 @@ export function createClassObjectMember({
   // `foundNode` is the resolved class-body member, or null for the merged-interface /
   // merged-namespace fall-throughs (whose members are never private class slots)
   function viaThisShadowBail({ classPath, name, isStatic, viaThis, foundNode }) {
-    if (!viaThis || (foundNode && isPrivateClassMember(foundNode))) return false;
+    if (!viaThis || (foundNode && isPrivateMemberNode(foundNode))) return false;
     // a non-null foundNode means the member resolved OUTSIDE the anchor's merged namespace
     // (own body or an ancestor) - a same-named export on the anchor's namespace is then a
     // runtime override, not the resolution source
