@@ -60,7 +60,7 @@ function init() {
   dropdownTriggers.forEach(el => {
     el.addEventListener('click', function (e) {
       e.preventDefault();
-      this.parentElement.parentElement.classList.toggle('active');
+      this.closest('.dropdown').classList.toggle('active');
     });
   });
 

@@ -6,14 +6,14 @@ QUnit.test('Array#includes', assert => {
   assert.looksNative(includes);
   assert.nonEnumerable(Array.prototype, 'includes');
   const object = {};
-  const array = [1, 2, 3, -0, object];
-  assert.true(array.includes(1));
-  assert.true(array.includes(-0));
-  assert.true(array.includes(0));
-  assert.true(array.includes(object));
-  assert.false(array.includes(4));
-  assert.false(array.includes(-0.5));
-  assert.false(array.includes({}));
+  const array = new Set([1, 2, 3, -0, object]);
+  assert.true(array.has(1));
+  assert.true(array.has(-0));
+  assert.true(array.has(0));
+  assert.true(array.has(object));
+  assert.false(array.has(4));
+  assert.false(array.has(-0.5));
+  assert.false(array.has({}));
   assert.true(Array(1).includes(undefined));
   assert.true([NaN].includes(NaN));
   // https://bugs.webkit.org/show_bug.cgi?id=309342
