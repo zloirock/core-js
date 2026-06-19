@@ -7,7 +7,7 @@ var FIND = 'find';
 var SKIPS_HOLES = true;
 
 // Shouldn't skip holes
-// eslint-disable-next-line es/no-array-prototype-find -- testing
+// eslint-disable-next-line es/no-array-prototype-find, unicorn/no-unused-array-method-return -- testing
 if ([][FIND]) Array(1)[FIND](function () { SKIPS_HOLES = false; });
 
 // `Array.prototype.find` method

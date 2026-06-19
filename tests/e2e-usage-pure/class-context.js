@@ -85,6 +85,7 @@ QUnit.test('class: mixin factory producing class with polyfilled methods', asser
   }
   class SortedBasket extends Sorted(Basket) {}
   // Set dedupes [3,1,4,1,5] → {3,1,4,5}; Array.from preserves insertion order
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const b = new SortedBasket(new Set([3, 1, 4, 1, 5]));
   assert.deepEqual(b.asSorted(), [1, 3, 4, 5]);
   assert.deepEqual(b.asReversed(), [5, 4, 1, 3]);
@@ -200,6 +201,7 @@ QUnit.test('class: post-declaration static tags survive extends chain', assert =
     kind() { return 'base'; }
     static first() { return Base.tags.at(0); }
   }
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   Base.tags = Array.from(new Set(['x', 'y', 'z', 'y']));
   class Child extends Base {}
   assert.same(Child.first(), 'x');

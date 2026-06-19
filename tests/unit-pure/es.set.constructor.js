@@ -36,6 +36,7 @@ QUnit.test('Set', assert => {
   assert.deepEqual(result, [1, 2, 3]);
   assert.same(new Set(createIterable([1, 2, 3])).size, 3, 'Init from iterable');
   assert.same(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   assert.same(new Set([NaN, NaN, NaN]).size, 1);
   assert.deepEqual(from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
   let done = false;
