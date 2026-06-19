@@ -53,10 +53,10 @@ export function createCallResolution({
   findAmbientFunctionPath,
   resolveFromMemberExpression,
   resolveKnownStaticReturnType,
+  resolveStaticReturnFromHint,
   resolveKnownInstanceMember,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   staticPairFromPolyfillEntry,
-  typeFromHint,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
   findDestructuredKeyPath,
@@ -104,11 +104,11 @@ export function createCallResolution({
     // covers post-rewrite `const from = _Array$from` / destructure / default-with-fallback
     // shapes), then walked-resolved Identifier as fallback when alias-map missed
     if (t.isIdentifier(callee.node)) {
-      const aliased = resolveAliasedStaticReturn(callee);
+      const aliased = resolveAliasedStaticReturn(callee, callee.parentPath);
       if (aliased) return aliased;
     }
     if (resolved.node?.type === 'Identifier' && resolved.node !== callee.node) {
-      const aliased = resolveAliasedStaticReturn(resolved);
+      const aliased = resolveAliasedStaticReturn(resolved, callee.parentPath);
       if (aliased) return aliased;
     }
     // ambient `declare function` (not in scope.bindings) keyed by Identifier name. cast-on-
@@ -130,12 +130,15 @@ export function createCallResolution({
   // until one yields a (constructor, method) pair, then runs the shared registry lookup.
   // both extractors return null for non-matching shapes so the caller order doesn't
   // matter for correctness - polyfilled-entry first only because it's the cheaper probe
-  function resolveAliasedStaticReturn(callee) {
+  function resolveAliasedStaticReturn(callee, callPath) {
     const pair = staticPairFromPolyfillEntry(callee.scope, callee.node.name)
       ?? staticPairFromDestructure(callee.scope, callee.node.name, callee);
     if (!pair) return null;
     const retHint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method);
-    return retHint ? typeFromHint(retHint) : null;
+    // delegate to the shared hint resolver so an aliased `freeze(a)` honors `returnsArgument` /
+    // Promise.resolve arg-inference exactly like the direct `Object.freeze(a)` - not just the
+    // declared hint, which would drop the array narrow to the generic 'Object'
+    return retHint ? resolveStaticReturnFromHint({ objectName: pair.constructor, memberName: pair.method, hint: retHint, callPath }) : null;
   }
 
   // resolve `const { from } = Array` / nested `const { a: { from } } = wrapper` patterns
