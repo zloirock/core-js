@@ -17,6 +17,7 @@ import {
   peelNestedSequenceExpressions,
   buildFlatSynthEntries,
   findIifeCallSite,
+  resolveCallArgumentCoords,
   getFallbackBranchSlots,
   isSynthSimpleObjectPattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -84,28 +85,19 @@ export default function createSynthSwapEmitter({
   // has its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
   // via `arguments[0]` only when body reads it (rare pattern). polyfill-always-wins contract
   // for usage-pure mode wins the trade-off vs preserving original arg in `arguments`.
-  // nested SpreadElement inside the spread array (`f(...[a, ...rest])`) is variadic at
-  // compile-time - `rest` may expand to any number of positions. counting it as `1` shifts
-  // every subsequent positional, breaking paramIndex match. bail rather than miscount
+  // the spread-expansion + nested-spread bail (`f(...[a, ...rest])` is variadic, can't locate a
+  // later positional) is the canonical `resolveCallArgumentCoords` semantics - delegate it and only
+  // LOCATE the resolved coordinate as a path here, so babel and unplugin can't drift on the rules
   function detectIifeArgPath(wrapper, objectPattern) {
     if (!wrapper?.isArrowFunctionExpression() && !wrapper?.isFunctionExpression()) return null;
     const site = findIifeCallSite(wrapper, objectPattern.node);
     if (!site) return null;
-    let positionIndex = 0;
-    for (const argPath of site.callPath.get('arguments')) {
-      if (argPath.isSpreadElement()) {
-        if (!argPath.get('argument').isArrayExpression()) return null;
-        for (const elementPath of argPath.get('argument').get('elements')) {
-          if (elementPath?.isSpreadElement()) return null;
-          if (positionIndex === site.paramIndex) return unwrapSequenceTail(elementPath);
-          positionIndex++;
-        }
-        continue;
-      }
-      if (positionIndex === site.paramIndex) return unwrapSequenceTail(argPath);
-      positionIndex++;
-    }
-    return null;
+    const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex);
+    if (!coords) return null;
+    const argPath = site.callPath.get('arguments')[coords.argIndex];
+    const elementPath = coords.elementIndex < 0
+      ? argPath : argPath.get('argument').get('elements')[coords.elementIndex];
+    return unwrapSequenceTail(elementPath);
   }
 
   // NodePath whose `.node` becomes the synth object; null means inline-default fallback.
