@@ -155,6 +155,15 @@ export function isOpenKeywordAnnotation(node) {
   return OPEN_KEYWORD_ANNOTATION_TYPES.has(node?.type);
 }
 
+// is this class member private? `#x` field / method / getter-setter / `accessor #x` / `static #x`.
+// EVERY private form keys on a PrivateName (babel) or PrivateIdentifier (oxc), so the key type alone
+// is the cross-parser-complete signal - no node-type list (ClassPrivateProperty / ClassPrivateMethod /
+// ClassAccessorProperty ...) which would differ per parser and drift (babel `accessor #x` is a
+// ClassAccessorProperty, not a ClassPrivateProperty, so a node-type check silently mis-routes it public)
+export function isPrivateMemberNode(node) {
+  return node?.key?.type === 'PrivateName' || node?.key?.type === 'PrivateIdentifier';
+}
+
 // byte-range containment: `inner`'s span sits within `outer`'s span (both need source positions)
 function hasRange(node) {
   return node && node.start !== null && node.start !== undefined && node.end !== null && node.end !== undefined;
