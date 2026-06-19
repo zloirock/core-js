@@ -1432,36 +1432,52 @@ export function namespaceScopedBindingBlock(binding) {
   return owner?.node.type === 'TSModuleBlock' ? owner.node : null;
 }
 
-// resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
-// spread of an inline array literal. returns null if a non-literal spread precedes `index`,
-// since we can't statically know the expanded length
-export function resolveCallArgument(args, index) {
-  let i = 0;
-  for (const arg of args) {
+// resolve which raw position in `args` holds the effective argument at `index`, expanding `...[lit]`
+// spreads of inline array literals. returns { argIndex, elementIndex } (elementIndex < 0 for a
+// top-level arg, else the position WITHIN the spread array) or null when undecidable: a non-inline-
+// array spread, OR a NESTED spread inside the inline array (`...[a, ...rest]`) - either makes the
+// expanded length variadic at compile time, so a later positional can't be statically located.
+// shared by the node lifter (`resolveCallArgument`) and the babel synth-swap path so they can't drift
+export function resolveCallArgumentCoords(args, index) {
+  let effective = 0;
+  for (let argIndex = 0; argIndex < args.length; argIndex++) {
+    const arg = args[argIndex];
     if (arg?.type === 'SpreadElement') {
       if (arg.argument?.type !== 'ArrayExpression') return null;
-      for (const el of arg.argument.elements) {
-        if (i === index) return el;
-        i++;
+      const { elements } = arg.argument;
+      for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
+        if (elements[elementIndex]?.type === 'SpreadElement') return null;
+        if (effective === index) return { argIndex, elementIndex };
+        effective++;
       }
       continue;
     }
-    if (i === index) return arg;
-    i++;
+    if (effective === index) return { argIndex, elementIndex: -1 };
+    effective++;
   }
   return null;
 }
 
+// resolve the argument NODE at `index` in a call's `arguments` list (see resolveCallArgumentCoords)
+export function resolveCallArgument(args, index) {
+  const coords = resolveCallArgumentCoords(args, index);
+  if (!coords) return null;
+  return coords.elementIndex < 0 ? args[coords.argIndex] : args[coords.argIndex].argument.elements[coords.elementIndex];
+}
+
 // effective argument count after expanding inline-array spreads (`...[a, b, c]` -> 3).
-// returns null when a non-inline-array spread is present - the length is undecidable
-// at static-analysis time. used by IIFE-identity callers to validate `params.length ===
+// returns null when undecidable: a non-inline-array spread, or a NESTED spread inside the inline
+// array (`...[a, ...rest]`) whose own length is variadic - same bail as resolveCallArgumentCoords,
+// so counting and lifting agree. used by IIFE-identity callers to validate `params.length ===
 // effective args.length` symmetric with `resolveCallArgument`'s expansion semantics
 function effectiveArgsLength(args) {
   let length = 0;
   for (const arg of args) {
     if (arg?.type === 'SpreadElement') {
       if (arg.argument?.type !== 'ArrayExpression') return null;
-      length += arg.argument.elements?.length ?? 0;
+      const elements = arg.argument.elements ?? [];
+      if (elements.some(el => el?.type === 'SpreadElement')) return null;
+      length += elements.length;
       continue;
     }
     length++;
