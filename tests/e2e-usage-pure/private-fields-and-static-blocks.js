@@ -7,6 +7,7 @@ QUnit.test('private fields: init via Array.from, access via Array.prototype.at',
     head() { return this.#data.at(0); }
     tail() { return this.#data.at(-1); }
   }
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const r = new Ring(new Set([3, 1, 2, 1, 3]));
   assert.same(r.head(), 3);
   assert.same(r.tail(), 2);
@@ -83,6 +84,7 @@ QUnit.test('private methods: Array.from inside #private consumed by public metho
     #normalize() { return Array.from(this.#src); }
     asReversed() { return this.#normalize().toReversed(); }
   }
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   assert.deepEqual(new Reversed(new Set([1, 2, 3, 2, 1])).asReversed(), [3, 2, 1]);
 });
 
@@ -93,6 +95,7 @@ QUnit.test('static block: polyfilled init, class exposes public static result', 
     static data;
     static {
       // Array.from polyfill runs at class-evaluation time inside static-init block
+      // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
       this.data = Array.from(new Set([10, 20, 10, 30, 20]));
     }
   }
@@ -119,6 +122,7 @@ QUnit.test('static block: multiple blocks share state via private static', asser
   class Build {
     static #steps = [];
     static { this.#steps.push(...Array.from([1, 2])); }
+    // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
     static { this.#steps.push(...Array.from(new Set([3, 3, 4]))); }
     static trace() { return Array.from(this.#steps); }
   }
@@ -149,6 +153,7 @@ QUnit.test('static block + extends polyfilled receiver: super.from inside static
     static {
       // polyfill resolves `super.from(x)` to Array.from via super-class walking;
       // runs inside static-init block context
+      // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
       this.snapshot = super.from(new Set([1, 1, 2, 3]));
     }
   }

@@ -76,6 +76,7 @@ QUnit.test('transform: for-of + destructuring + early break', assert => {
 // --- spread + for-of + Set + polyfill ---
 
 QUnit.test('transform: spread + for-of over polyfilled Set', assert => {
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const s = new Set([3, 1, 4, 1, 5]);
   const result = [];
   for (const v of s) result.push(v);
