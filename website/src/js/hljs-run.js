@@ -23,7 +23,7 @@ export default class RunButtonPlugin {
       urlParams.set('code', text);
       const hash = urlParams.toString();
       const hasVersion = this.RELATIVE_PATH !== '' && !this.RELATIVE_PATH.startsWith('docs/') && !this.RELATIVE_PATH.startsWith('index');
-      const version = hasVersion ? `${ this.RELATIVE_PATH.split('/')[0] }/` : '';
+      const version = hasVersion ? `${ this.RELATIVE_PATH.split('/', 1)[0] }/` : '';
       location.href = `${ this.ORIGIN }${ this.BASE_URL }${ version }${ this.PLAYGROUND_URL }#${ hash }`;
     });
     const wrapper = document.createElement('div');

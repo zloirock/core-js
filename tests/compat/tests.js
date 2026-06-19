@@ -1608,6 +1608,7 @@ GLOBAL.tests = {
   },
   'es.typed-array.fill': function () {
     var count = 0;
+    // eslint-disable-next-line unicorn/no-array-fill-with-reference-type -- testing
     new Int8Array(2).fill({ valueOf: function () { return count++; } });
     return count === 1;
   },
