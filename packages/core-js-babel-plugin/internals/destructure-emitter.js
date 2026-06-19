@@ -1096,10 +1096,14 @@ export default function createDestructureEmitter({
     }
     if (plan.siblingDeclarator) {
       // a preceding statement is impossible (loop header) or unsafe (a multi-declarator instance receiver
-      // bound earlier in the same declaration would TDZ-fault) - bind the polyfill as a trailing sibling
+      // bound earlier in the same declaration would TDZ-fault) - bind the polyfill as a trailing sibling.
+      // `pushContainer` (not a raw `node.declarations.push`) re-queues the new declarator for the active
+      // traversal, so a nested instance / static / global inside the cloned receiver (a function body the
+      // outer extraction can't reach) gets re-visited and polyfilled - matching the standalone branch's
+      // `insertBefore` re-traversal, and the consumed / unplugin paths
       const trailing = t.variableDeclarator(t.cloneNode(valueNode), polyfillValue);
       attachToPrevDeclarator.add(trailing);
-      declaration.node.declarations.push(trailing);
+      declaration.pushContainer('declarations', trailing);
     } else {
       const isExport = declaration.parentPath?.isExportNamedDeclaration();
       const extracted = t.variableDeclaration(declaration.node.kind,
