@@ -1,0 +1,6 @@
+// the copied receiver's FUNCTION body is re-polyfilled SCOPE-AWARELY (visitor-driven, not a flat node walk):
+// a global shadowed by a local binding (`Map`) stays raw, while a genuinely-free global (`Set`) substitutes -
+// in BOTH the copy and the kept residual. a flat copy-substituter blind to the function's own scope would
+// wrongly rewrite the shadowed `Map`. distinct from the plain function-body fixtures by the shadowing axis.
+const { y: { at: a }, k } = { y: [() => { const Map = 1; return [Map, Set]; }], k: 1 };
+export const r = [a, k];

@@ -243,6 +243,19 @@ export function createDestructureEmitter({
   // (the claiming sibling may not have been visited yet), and a raw end-anchored insert under a
   // claim either trips the insert-inside-overwrite invariant or bakes INTO a wrapped init render
   const pendingSeKeyTrailing = [];
+  // deferred instance-receiver copies (a consumed `eliminateResidual` extraction `m = _m(recv)`): the
+  // receiver is kept VISIBLE for the natural visitor (so its globals / instance / static polyfill in
+  // place, scope-aware - incl. function bodies a node-walk can't reach), then `composedRangeSrc` bakes
+  // those substitutions into the receiver copy at flush. matches babel's re-traversed clone
+  const pendingReceiverExtracts = [];
+  // deferred DUPLICATED instance-receiver copies (the residual SURVIVES, so the receiver is both
+  // kept in place AND copied into the extraction). like `pendingReceiverExtracts` the receiver stays
+  // VISIBLE for the natural visitor; at flush `composedRangeSrc` bakes the visitor's full substitution
+  // (globals / instance / static, incl. function bodies) into the copy text and re-adds it to the
+  // surviving residual's receiver range, matching babel's clone+re-traverse duplicate. each entry's
+  // `emit(text)` routes the copy to its branch-specific sink (trailing sibling / flatten slot /
+  // standalone insert / assignment overwrite)
+  const pendingReceiverCopies = [];
   // bodyless-control assignment statement node -> its appended nested-instance overwrites. a
   // bodyless control body (`if (c) STMT;`) holds one statement, so the overwrites must join STMT
   // inside a `{ }` block (else they run unconditionally) - accumulated here and block-wrapped once
@@ -829,52 +842,6 @@ export function createDestructureEmitter({
     }
     if (info.initStart === undefined) return null;
     return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart, aliasCtx });
-  }
-
-  // render a COPIED receiver's source with polyfillable globals substituted. the natural visitor only
-  // rewrites a global in its ORIGINAL position, so a `nodeSrc` copy beside the residual (the residual-
-  // extract's `_m(recv)` argument, or an eliminated-residual / assignment-overwrite replacement) keeps the
-  // raw global and ReferenceErrors on engines lacking it. mirrors babel's re-traversed clone: walk the
-  // re-referenceable receiver (a bare global / member chain, or the array / object literals nesting them)
-  // and splice each substitution into the copy at relative offsets. resolution delegates to the canonical
-  // `resolvePure` / `globalProxyMemberName` / `substituteProxyGlobalRoot`; a shadowed name keeps its user
-  // binding. SE / call nodes never reach here - a re-referenceable receiver is side-effect-free by construction
-  function substituteReceiverCopyGlobals(receiverNode, anchorPath) {
-    const info = { declaratorPath: anchorPath };
-    const splices = [];
-    const visit = node => {
-      const peeled = unwrapParens(node);
-      if (!peeled) return;
-      if (peeled.type === 'ArrayExpression') {
-        for (const el of peeled.elements) if (el && el.type !== 'SpreadElement') visit(el);
-        return;
-      }
-      if (peeled.type === 'ObjectExpression') {
-        for (const p of peeled.properties) if ((p.type === 'ObjectProperty' || p.type === 'Property') && !p.computed) visit(p.value);
-        return;
-      }
-      if (globalSubstitutionShadowed(info, peeled)) return;
-      if (peeled.type === 'Identifier') {
-        const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
-        if (pure) splices.push({ start: peeled.start, end: peeled.end, content: injectPureImport(pure.entry, pure.hintName) });
-        return;
-      }
-      if (peeled.type === 'MemberExpression') {
-        // whole-constructor proxy member (`globalThis.Map` -> `_Map`) when the leaf names a pure global,
-        // else a proxy-root swap (`globalThis.foo` -> `_globalThis.foo`); mirrors `polyfillInitGlobals`
-        const aliasCtx = aliasCtxFor(info);
-        const leafName = globalProxyMemberName({ node: peeled, ...aliasCtx });
-        const leafPure = leafName && resolvePure({ kind: 'global', name: leafName }, null);
-        if (leafPure) {
-          splices.push({ start: peeled.start, end: peeled.end, content: injectPureImport(leafPure.entry, leafPure.hintName) });
-        } else {
-          const swapped = substituteProxyGlobalRoot({ node: peeled, src: nodeSrc(peeled), baseStart: peeled.start, aliasCtx });
-          if (swapped !== null) splices.push({ start: peeled.start, end: peeled.end, content: swapped });
-        }
-      }
-    };
-    visit(receiverNode);
-    return splices.length ? spliceInRange(nodeSrc(receiverNode), receiverNode.start, splices) : nodeSrc(receiverNode);
   }
 
   function propKeySource(p) {
@@ -1975,21 +1942,31 @@ export function createDestructureEmitter({
     if (!plan) return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     handledSideEffectKeyProps.add(propNode);
-    // instance polyfill re-references the receiver; the copy substitutes any global the in-place residual's
-    // visitor rewrite can't reach (`_m([1, Promise])` -> `_m([1, _Promise])`)
-    const polyfillSrc = plan.instance ? `${ binding }(${ substituteReceiverCopyGlobals(receiverNode, metaPath) })` : binding;
     // body-extract alias so post-rewrite narrowing resolves the local (static only; instance has none)
     if (!plan.instance) injector.registerBodyExtractAlias(localId.name, pureResult.entry, metaPath.scope?.getBinding(localId.name));
     // dead residual: this leaf is the declaration's only binding and the init has no effect to preserve, so
     // the destructure binds nothing observable - replace the whole declaration with just the extracted
     // binding. emitted BEFORE the de-shorthand below (which would otherwise land a transform inside this
     // overwrite). skip the declarator subtree so the visitor doesn't queue a rewrite inside the dropped range
-    // (`polyfillSrc` already carries the global-substituted receiver copy, so nothing is stranded)
+    // (the instance receiver stays visible + defers; a static polyfill carries no receiver, so nothing is stranded)
     if (plan.eliminateResidual) {
-      walkAstNodes({ root: declarator, visit: n => skippedNodes.add(n) });
       const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
       const [start, end] = exportNode ? [exportNode.start, exportNode.end] : [declaration.start, declaration.end];
-      transforms.add(start, end, `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ polyfillSrc };`);
+      const prefix = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = `;
+      // INSTANCE: the receiver is consumed (this whole declaration is dropped, receiver appears only in
+      // the copy). keep the receiver subtree VISIBLE so the natural visitor polyfills it in place, skip
+      // the rest of the declarator, and defer the overwrite to flush where `composedRangeSrc` bakes the
+      // visitor's substitutions into the copy (one occurrence -> compose-drain is safe). a static
+      // polyfill has no receiver, so it emits its bare binding immediately
+      if (plan.instance) {
+        walkAstNodes({ root: declarator, visit: n => {
+          if (n.start < receiverNode.start || n.end > receiverNode.end) skippedNodes.add(n);
+        } });
+        pendingReceiverExtracts.push({ start, end, prefix, binding, receiverNode });
+        return true;
+      }
+      walkAstNodes({ root: declarator, visit: n => skippedNodes.add(n) });
+      transforms.add(start, end, `${ prefix }${ binding };`);
       return true;
     }
     // rename the key's value to a throwaway: the effect stays in the kept key (runs once), the native
@@ -2004,57 +1981,70 @@ export function createDestructureEmitter({
     const sentinel = injector.generateUnusedName();
     transforms.add(propNode.value.start, propNode.value.end,
       propNode.shorthand ? `${ flattenKeySrc(propNode) }: ${ sentinel }` : sentinel);
-    if (plan.siblingDeclarator) {
-      // preceding statement impossible (loop header) or unsafe (multi-declarator instance receiver bound
-      // earlier in the same declaration -> TDZ) - append a trailing sibling declarator instead.
-      // under a flatten claim the raw insert is safe (the flatten render re-emits declarators
-      // verbatim and bakes end-anchored inserts position-faithfully); otherwise defer to flush,
-      // where the byStatement claim set is complete
-      if (flattenedNestedDecls.has(declaration)) {
-        transforms.insert(declaration.declarations.at(-1).end, `, ${ localId.name } = ${ polyfillSrc }`);
-      } else {
-        pendingSeKeyTrailing.push({ declaration, decl: `${ localId.name } = ${ polyfillSrc }` });
-      }
-    } else if (flattenedNestedDecls.has(declaration)) {
-      // a flatten already claimed this declaration (a sibling branch dispatched first): a
-      // standalone start-anchored insert would land ABOVE the flatten's whole-range render,
-      // reordering the extractions against source order. append into the claimed slot's
-      // extraction list instead - the flatten render emits it in plan order
-      const entry = pendingFlatten.find(f => f.declaration === declaration);
-      const idx = entry ? declaration.declarations.findIndex(
+    // resolve the branch sink ONCE; a flatten claim's lookup + bail stays eager (it can refuse the
+    // whole handler). `emit(copyExpr, hoist)` then routes `localId = copyExpr` to that sink, shared by
+    // the eager paths (static binding / memoized `_ref`) and the deferred duplicated-instance copy
+    const isFlattenClaimed = !plan.siblingDeclarator && flattenedNestedDecls.has(declaration);
+    let flattenEntry = null;
+    let flattenIdx = -1;
+    if (isFlattenClaimed) {
+      // a flatten already claimed this declaration (a sibling branch dispatched first): a standalone
+      // start-anchored insert would land ABOVE the flatten's whole-range render, reordering the
+      // extractions against source order. the claimed slot's extraction list emits in plan order
+      flattenEntry = pendingFlatten.find(f => f.declaration === declaration);
+      flattenIdx = flattenEntry ? declaration.declarations.findIndex(
         d => d.start <= propNode.start && propNode.end <= d.end) : -1;
-      if (!entry || idx === -1) return false;
-      entry.perDecl[idx].extractions.push({ decl: `${ localId.name } = ${ polyfillSrc }` });
-    } else {
-      // capture the receiver into a single `_ref` hoisted BEFORE the residual: dedups a constant-literal
-      // (so the surviving residual doesn't keep a duplicate) AND, for a side-effecting key, reads the
-      // receiver ONCE before the key SE so the extraction can't re-read a receiver the key reassigned (the
-      // pre-key value, matching native). one hoist + one receiver-text swap per receiver; sibling leaves of
-      // the same receiver reuse the `_ref`. only here (the standalone-insert shape) - the sibling-declarator
-      // / flatten branches are gated out of `memoizeReceiver`
-      let hoist = '';
-      let callSrc = polyfillSrc;
-      if (plan.memoizeReceiver) {
-        let refName = bodyExtractReceiverRefs.get(receiverNode);
-        if (refName === undefined) {
-          refName = injector.generateLocalRef();
-          bodyExtractReceiverRefs.set(receiverNode, refName);
-          // swap the receiver in the surviving residual for `_ref`; skip-mark it (a constant carries nothing
-          // to polyfill, and the range is now owned by this overwrite). `nodeSrc` reads the original literal
-          // for the hoist below
-          walkAstNodes({ root: receiverNode, visit: n => skippedNodes.add(n) });
-          transforms.add(receiverNode.start, receiverNode.end, refName);
-          hoist = `${ declaration.kind } ${ refName } = ${ nodeSrc(receiverNode) };\n`;
+      if (!flattenEntry || flattenIdx === -1) return false;
+    }
+    function emit(copyExpr, hoist = '') {
+      if (plan.siblingDeclarator) {
+        // preceding statement impossible (loop header) or unsafe (multi-declarator instance receiver
+        // bound earlier in the same declaration -> TDZ) - append a trailing sibling declarator instead.
+        // under a flatten claim the insert is safe (the flatten render re-emits declarators verbatim and
+        // bakes end-anchored inserts position-faithfully); otherwise defer to flush, where the byStatement
+        // claim set is complete
+        if (flattenedNestedDecls.has(declaration)) {
+          transforms.insert(declaration.declarations.at(-1).end, `, ${ localId.name } = ${ copyExpr }`);
+        } else {
+          pendingSeKeyTrailing.push({ declaration, decl: `${ localId.name } = ${ copyExpr }` });
         }
-        callSrc = `${ binding }(${ refName })`;
+      } else if (isFlattenClaimed) {
+        flattenEntry.perDecl[flattenIdx].extractions.push({ decl: `${ localId.name } = ${ copyExpr }` });
+      } else {
+        // an EXPORTED declaration: emit the extract as its own `export const` BEFORE the `export` keyword,
+        // so the original destructure keeps its export (any real sibling binding stays exported). inserting
+        // at `declaration.start` instead would land between `export` and `const`, stealing the keyword and
+        // dropping the destructure - and every sibling binding - out of the export. matches babel
+        const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
+        const extraction = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ copyExpr };`;
+        transforms.insert(exportNode ? exportNode.start : declaration.start, `${ hoist }${ extraction }\n`);
       }
-      // an EXPORTED declaration: emit the extract as its own `export const` BEFORE the `export` keyword,
-      // so the original destructure keeps its export (any real sibling binding stays exported). inserting
-      // at `declaration.start` instead would land between `export` and `const`, stealing the keyword and
-      // dropping the destructure - and every sibling binding - out of the export. matches babel
-      const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
-      const extraction = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ callSrc };`;
-      transforms.insert(exportNode ? exportNode.start : declaration.start, `${ hoist }${ extraction }\n`);
+    }
+    if (!plan.instance) {
+      emit(binding);  // static: the bare binding, no receiver
+    } else if (plan.memoizeReceiver && !isFlattenClaimed) {
+      // standalone constant-literal receiver: capture it into a single `_ref` hoisted BEFORE the residual,
+      // dedups so the surviving residual keeps no duplicate AND, for a side-effecting key, reads the
+      // receiver ONCE before the key SE (the pre-key value, matching native). sibling leaves of the same
+      // receiver reuse the `_ref`
+      let hoist = '';
+      let refName = bodyExtractReceiverRefs.get(receiverNode);
+      if (refName === undefined) {
+        refName = injector.generateLocalRef();
+        bodyExtractReceiverRefs.set(receiverNode, refName);
+        // swap the receiver in the surviving residual for `_ref`; skip-mark it (a constant carries nothing
+        // to polyfill, and the range is now owned by this overwrite). `nodeSrc` reads the original literal
+        walkAstNodes({ root: receiverNode, visit: n => skippedNodes.add(n) });
+        transforms.add(receiverNode.start, receiverNode.end, refName);
+        hoist = `${ declaration.kind } ${ refName } = ${ nodeSrc(receiverNode) };\n`;
+      }
+      emit(`${ binding }(${ refName })`, hoist);
+    } else {
+      // DUPLICATED instance receiver: keep it VISIBLE for the natural visitor, defer the copy to flush
+      // where `composedRangeSrc` bakes the full scope-aware substitution (globals / instance / static,
+      // incl. function bodies a node-walk can't reach) into the copy text and re-adds it to the surviving
+      // residual's receiver range - babel's clone+re-traverse duplicate
+      pendingReceiverCopies.push({ receiverNode, emit: text => emit(`${ binding }(${ text })`) });
     }
     return true;
   }
@@ -2077,19 +2067,22 @@ export function createDestructureEmitter({
     const pureResult = resolvePure(meta, metaPath);
     if (pureResult?.kind !== 'instance') return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
-    // re-reference the receiver in the overwrite, substituting any global the in-place destructure's visitor
-    // rewrite can't reach (`m = _flatMaybeArray([1, _Promise])`)
-    const overwrite = `${ bindingId.name } = ${ binding }(${ substituteReceiverCopyGlobals(receiverNode, metaPath) });`;
-    if (isBodylessStatementBody(statement)) {
-      // bodyless control body: the overwrite must join STMT inside a `{ }` (else it runs even when
-      // the guard is false). accumulate per-statement; one block-wrap at flush keeps multi-element
-      // patterns (each appends an overwrite) from emitting nested / duplicated braces
-      let entry = pendingBodylessAssignOverwrites.get(statement.node);
-      if (!entry) pendingBodylessAssignOverwrites.set(statement.node, entry = { statement, overwrites: [] });
-      entry.overwrites.push(overwrite);
-    } else {
-      transforms.insert(statement.node.end, `\n${ overwrite }`);
-    }
+    // re-reference the receiver in the overwrite. the in-place destructure keeps + polyfills the receiver,
+    // so this is a DUPLICATED copy: defer to flush where `composedRangeSrc` bakes the full scope-aware
+    // substitution into the copy text (`m = _flatMaybeArray([1, _Promise])`) and re-adds it to the residual
+    pendingReceiverCopies.push({ receiverNode, emit(text) {
+      const overwrite = `${ bindingId.name } = ${ binding }(${ text });`;
+      if (isBodylessStatementBody(statement)) {
+        // bodyless control body: the overwrite must join STMT inside a `{ }` (else it runs even when
+        // the guard is false). accumulate per-statement; one block-wrap at flush keeps multi-element
+        // patterns (each appends an overwrite) from emitting nested / duplicated braces
+        let entry = pendingBodylessAssignOverwrites.get(statement.node);
+        if (!entry) pendingBodylessAssignOverwrites.set(statement.node, entry = { statement, overwrites: [] });
+        entry.overwrites.push(overwrite);
+      } else {
+        transforms.insert(statement.node.end, `\n${ overwrite }`);
+      }
+    } });
     return true;
   }
 
@@ -2852,6 +2845,31 @@ export function createDestructureEmitter({
   // share `pendingDestructuring` / `pendingSynthSwaps` accumulators; differ only in the
   // shape of the AST anchor being emitted into. final flush via the host's queue.apply()
   function applyDestructuringTransforms() {
+    // deferred consumed instance-receiver extractions: the natural visitor has now polyfilled each
+    // receiver in place (full substitution, scope-aware), so `composedRangeSrc` bakes those into the
+    // copy and drains them from the queue before the dropped-declaration overwrite replaces the range
+    for (const { start, end, prefix, binding, receiverNode } of pendingReceiverExtracts) {
+      transforms.add(start, end, `${ prefix }${ binding }(${ composedRangeSrc(receiverNode) });`);
+    }
+    pendingReceiverExtracts.length = 0;
+    // deferred DUPLICATED copies: compose each receiver ONCE per range (sibling leaves of the same
+    // receiver share the text), re-add the composed text to the SURVIVING residual's receiver range
+    // (only when it changed - an unpolyfilled receiver keeps its verbatim slice, no extra transform),
+    // then let each leaf's `emit` route its copy. ordered before the byStatement rebuild and the
+    // trailing / flatten / bodyless-assign drains so a re-add folds into the residual render and a
+    // routed copy lands in those still-pending lists
+    const composedReceiverCopyText = new Map();
+    for (const { receiverNode, emit } of pendingReceiverCopies) {
+      const key = `${ receiverNode.start }:${ receiverNode.end }`;
+      let text = composedReceiverCopyText.get(key);
+      if (text === undefined) {
+        text = composedRangeSrc(receiverNode);
+        composedReceiverCopyText.set(key, text);
+        if (text !== nodeSrc(receiverNode)) transforms.add(receiverNode.start, receiverNode.end, text);
+      }
+      emit(text);
+    }
+    pendingReceiverCopies.length = 0;
     const byStatement = new Map();
     for (const [, info] of pendingDestructuring) {
       if (!info.declPath?.node || !info.declaratorPath?.node) continue;
