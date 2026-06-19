@@ -969,6 +969,20 @@ const CONDITIONAL_BRANCH_FIELDS = {
   ConditionalExpression: ['consequent', 'alternate'],
 };
 
+// logical-assignment operators write the LHS only on the short-circuit path (`A ||= x` assigns just
+// when A is falsy, `A &&= x` just when truthy, `A ??= x` just when nullish). the write is therefore
+// CONDITIONAL like an if-guarded reassign - not an unconditional dominating overwrite. shared with
+// VALUE_FLOW_ASSIGN_OPS below (the value-flow set is these plus plain `=`)
+const LOGICAL_ASSIGN_OPS = new Set(['||=', '&&=', '??=']);
+
+// is `node` (a reassignment site) a logical-assignment of its binding? babel records the
+// AssignmentExpression directly; estree-toolkit records the target Identifier, so resolve the
+// enclosing `name <op>= ...` to read its operator
+function isLogicalAssignReassignment(node, ownerNode) {
+  const assignment = node.type === 'AssignmentExpression' ? node : enclosingValueFlowAssignment(node, ownerNode);
+  return !!assignment && LOGICAL_ASSIGN_OPS.has(assignment.operator);
+}
+
 // locate `target` in `ownerNode`'s var scope and return the ordered conditional-branch nodes
 // guarding it, or null when not found. don't descend past nested var-scope boundaries (`var`
 // doesn't hoist across them). array-valued branch fields record the parent node as the guard
@@ -983,7 +997,9 @@ const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
       // so the head write doesn't dominate (usage-global keeps resolving the alias, over-inject-safe;
       // usage-pure still bails since the write isn't after the use). a use INSIDE the body is already
       // excluded by nodeDominatesUsage's precedence check (the loop doesn't end before it)
-      result = isForXStatement(node) ? [...guards, node] : guards;
+      // a logical-assignment is likewise conditional - record it as its own guard so a use after it
+      // (not nested under the short-circuit write) is not treated as dominated by it
+      result = (isForXStatement(node) || isLogicalAssignReassignment(node, ownerNode)) ? [...guards, node] : guards;
       return;
     }
     if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
@@ -1092,6 +1108,12 @@ export function reassignmentDominatesUsage({ reassignmentNodes, usagePath }) {
   if (!usagePath || !reassignmentNodes?.length) return false;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
+  // a use re-run by a loop back-edge can observe a textually-EARLIER-but-later-executing write (a
+  // `for (;; M = x)` update runs after the body, so the first iteration's body read precedes it). no
+  // reassignment provably dominates such a use - keep resolving the init (over-inject-safe). the
+  // textual-precedence check below can't see this, so guard it the same way the pure / reaching
+  // siblings (`noReassignmentReachesUsage`, `reassignmentValueNodes`) do
+  if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return false;
   return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, climb: false }));
 }
 
@@ -1238,12 +1260,7 @@ export function reassignmentValueNodes({ binding, usagePath, name = null }) {
 // assignment operators that flow the RHS into the LHS binding as a POSSIBLE value: plain `=`
 // plus the logical forms (`A ||= Map` makes Map reachable). compound arithmetic (`+=`) and
 // updates produce derived values, not replacements, and stay out
-const VALUE_FLOW_ASSIGN_OPS = new Set([
-  '=',
-  '||=',
-  '&&=',
-  '??=',
-]);
+const VALUE_FLOW_ASSIGN_OPS = new Set(['=', ...LOGICAL_ASSIGN_OPS]);
 
 // the pattern slot's POSSIBLE values for the binding named `name`: the positionally / key-
 // paired RHS value plus the slot's own default (either may be live at runtime). a dynamic
