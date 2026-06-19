@@ -23,7 +23,7 @@ export function shouldTransform(id) {
   return isSfcScriptBlock(params);
 }
 
-const VALID_PHASES = ['pre', 'post', 'pre+post'];
+const VALID_PHASES = new Set(['pre', 'post', 'pre+post']);
 
 // bundlers where `phase: 'pre+post'` doesn't reliably enforce pre-then-post ordering against
 // sibling plugins. upstream unplugin's `enforce` field is dropped silently on bun (no
@@ -49,7 +49,7 @@ const unplugin = createUnplugin((options, meta) => {
   }
 
   const effective = isEntryGlobal ? 'pre' : phase ?? 'pre';
-  if (!VALID_PHASES.includes(effective)) {
+  if (!VALID_PHASES.has(effective)) {
     // show the string value quoted, otherwise show its type - avoids JSON.stringify
     // blowing up on BigInt, circular objects, Symbol, etc.
     const got = typeof phase === 'string' ? `'${ phase }'` : typeof phase;
