@@ -18,6 +18,7 @@ import {
   isUpdateTarget,
   mayHaveSideEffects,
   peelNestedSequenceExpressions,
+  peelToExpressionStatement,
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -1042,41 +1043,66 @@ export default function createPlugin(options) {
         // `referencedInSource` populated, otherwise `pruneUnusedRefs`'s dead-import filter
         // strips ALL pure imports because no Identifier ever calls `trackReferencedName`.
         //
-        // VariableDeclaration enter handler folded in from a separate pre-pass: detects
-        // declarations that WILL be fully flattened (every outer prop resolvable as
-        // proxy-global shorthand or nested static method). the outer rewrite discards the
-        // init span, so suppress handleIdentifier's `_globalThis` injection for it -
-        // otherwise a now-dead import leaks into the final bundle. enter fires before
-        // descending into the declarator, beating the usage callback that would observe
-        // the init's children
+        // a fully-consumed proxy-global destructure (every outer prop resolvable as proxy-global
+        // shorthand or nested static method) discards its init span in the outer rewrite, so the
+        // natural visitor must be suppressed on every part of the init that gets dropped - else a
+        // proxy-global root inside it injects a now-dead `_globalThis` import AND queues a transform
+        // that orphans inside the dropped-init overwrite ("could not locate inner needle" crash).
+        // under an SE SequenceExpression the SIDE-EFFECT-FREE prefix operands (`((() => [1].at(0)),
+        // Array)`: the uninvoked arrow's `[1].at(0)`) are always dropped; the effect-free receiver
+        // tail (`(eff(), globalThis)`: the `globalThis` root) is dropped too EXCEPT in a for-init,
+        // which can't lift the prefix standalone and instead re-embeds `(SE, tail)` into a sink
+        // declarator - there the tail's proxy-global root MUST stay visible so it is polyfilled (a
+        // raw `globalThis` would ReferenceError on engines lacking it). a side-effecting operand is
+        // kept (SE-lifted / emitted standalone for effect) and stays visitable. matches babel, which
+        // drops the dead subtrees and prunes their unreferenced imports. a bare (non-sequence) init
+        // has `tail === init` so `skippedNodes.add(init)` already covers it; conditional / logical
+        // fallback inits (`cond ? Array : Set`) are also `tail === init` and rewritten per-branch, so
+        // the tail guard leaves them visitable. enter fires before descending into the init, beating
+        // the usage callback that would observe its children
+        function skipFullConsumeDeadInit(init, isForInit) {
+          skippedNodes.add(init);
+          const { prefix, tail } = peelNestedSequenceExpressions(init);
+          for (const operand of prefix) {
+            if (!mayHaveSideEffects(operand)) walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
+          }
+          if (!isForInit && tail !== init && !mayHaveSideEffects(tail)) {
+            walkAstNodes({ root: tail, visit: n => skippedNodes.add(n) });
+          }
+        }
+
+        function isForInitHost(path) {
+          const parent = path.parentPath?.node;
+          return parent?.type === 'ForStatement' && parent.init === path.node;
+        }
+
         const usageVisitors = mergeVisitors({
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
           VariableDeclaration(path) {
+            const isForInit = isForInitHost(path);
             for (const d of path.node.declarations) {
-              if (!d.init || !canFullyConsumeProxyDeclarator(d, path.scope, path)) continue;
-              skippedNodes.add(d.init);
-              // a fully-consumed declarator whose init is a SEQUENCE EXPRESSION drops the whole init
-              // (the emitter neither uses its tail value nor SE-lifts a side-effect-free prefix). a
-              // polyfill buried in a dead SE-free PREFIX operand (`const { from } = ((() =>
-              // [1].at(0)), Array)`: the uninvoked arrow's `[1].at(0)`) would otherwise inject a dead
-              // import AND queue a transform that orphans inside the dropped-init overwrite -> "could
-              // not locate inner needle" composition crash. skip the whole subtree of each
-              // SIDE-EFFECT-FREE prefix operand, matching babel which drops the dead prefix subtree
-              // and prunes its now-unreferenced imports. a side-effecting prefix is kept (SE-lifted),
-              // so its inner polyfill must survive - left visitable. conditional / logical fallback
-              // inits (`cond ? Array : Set`) have NO sequence prefix and are rewritten per-branch -
-              // they must NOT be skipped, so this is gated on a real SE prefix
-              const { prefix } = peelNestedSequenceExpressions(d.init);
-              for (const operand of prefix) {
-                if (!mayHaveSideEffects(operand)) walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
-              }
+              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) skipFullConsumeDeadInit(d.init, isForInit);
             }
             // unconditional proxy-hop trigger (the retired normalize pre-pass's job): an
             // anchored plan must fire even when no leaf resolves
             tryFlattenProxyHopHost(path);
           },
-          AssignmentExpression(path) { tryFlattenProxyHopHost(path); },
+          AssignmentExpression(path) {
+            // assignment-host analog of the VariableDeclaration skip above: `({ Map } = (eff(),
+            // globalThis));` fully consumes through `emitPolyfilled` too, dropping the same dead init.
+            // gated on STATEMENT position (`peelToExpressionStatement`, which also admits the minifier
+            // `(0, ({...} = R))` SE-tail wrapper): only there does the full-consume emit fire and drop
+            // the receiver. an expression-context destructure-assignment (`(({ Map } = R), x)`) is left
+            // untransformed by the emit, so skipping its receiver would strip a needed proxy-global
+            // polyfill (raw `globalThis` -> ReferenceError); never for-init (not an ExpressionStatement)
+            const { node } = path;
+            if (node.operator === '=' && node.left?.type === 'ObjectPattern' && peelToExpressionStatement(path)
+              && canFullyConsumeProxyDeclarator({ id: node.left, init: node.right }, path.scope, path)) {
+              skipFullConsumeDeadInit(node.right, false);
+            }
+            tryFlattenProxyHopHost(path);
+          },
         }, createUsageVisitors({
           adapter: estreeAdapter,
           onUsage: usagePureCallback,
