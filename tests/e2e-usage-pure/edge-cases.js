@@ -619,6 +619,7 @@ QUnit.test('SE-prefix: in object property value', assert => {
 
 QUnit.test('export: arrow re-exporting polyfilled value', assert => {
   // simulated re-export pattern: function returning polyfilled call
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const exportedFn = () => Array.from(new Set([1, 1, 2, 3]));
   assert.deepEqual(exportedFn(), [1, 2, 3]);
 });

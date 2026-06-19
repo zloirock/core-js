@@ -12,7 +12,7 @@ var $RangeError = RangeError;
 // Firefox bug
 var INCORRECT_EXCEPTION_ON_COERCION_FAIL = (function () {
   try {
-    // eslint-disable-next-line es/no-array-prototype-with, no-throw-literal -- needed for testing
+    // eslint-disable-next-line es/no-array-prototype-with, no-throw-literal, unicorn/no-unused-array-method-return -- testing
     [].with({ valueOf: function () { throw 4; } }, null);
   } catch (error) {
     return error !== 4;
