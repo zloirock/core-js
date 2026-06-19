@@ -149,6 +149,51 @@ function * generateDestructure() {
   }
 }
 
+// --- Conditional-receiver destructure mirror grammar ---
+// the receiver is a runtime-selected ternary / `&&` / `||` carrying a global-PROXY operand beside a
+// USER-object (or short-circuit) operand. each snippet exercises BOTH runtime selections; the bug
+// classes surface in the three-way (native == babel == unplugin):
+//   - MIRRORABLE pattern (single / multi key): the proxy operand becomes a synth literal binding the
+//     polyfill, the user branch stays native. forcing the polyfill onto the user branch is a VALUE
+//     divergence (the user branch returns a sentinel a real Array.from never produces); dropping a
+//     `&&` short-circuit is a THROW divergence. stripped-valid (the polyfill is an imported binding)
+//   - a RESOLVABLE computed key (string literal / const binding) mirrors exactly like a static key:
+//     the synth literal carries the resolved key, so it joins the mirrorable set above
+//   - UN-MIRRORABLE pattern (rest) on a shape WITH a user branch (ternary / `||`): the synth literal
+//     can't carry the unknown rest keys, so the receiver stays NATIVE (an inline default would
+//     corrupt the user branch's legitimate `undefined`). the user branch here LACKS the static, and
+//     the observe is `typeof from` - a default-synth that wrongly fires the polyfill on that branch
+//     reads `function` instead of native `undefined`, caught full-env (the proxy branch is native
+//     too, so full-env only)
+//   - UN-MIRRORABLE pattern on `&&` (proxy-only value): the sound inline default fires only when the
+//     global static is absent, so it stays stripped-valid
+const CM_USER = '{ Array: { from: () => "U", of: () => "U" } }';
+const CM_USER_NOSTATIC = '{ Array: {} }';
+const CM_PATTERNS = [
+  { id: 'single', lhs: '{ Array: { from } }', obs: 'String(from([1, 2]))', mirror: true },
+  { id: 'multi', lhs: '{ Array: { from, of } }', obs: 'String(from([1])) + "/" + String(of(9))', mirror: true },
+  { id: 'rest', lhs: '{ Array: { from, ...rest } }', obs: 'String(from([1, 2]))', mirror: false },
+  { id: 'computed', lhs: '{ Array: { ["from"]: from } }', obs: 'String(from([1, 2]))', mirror: true },
+];
+const CM_SHAPES = [
+  { id: 'ternary', recv: 'sel ? globalThis : U', sels: ['true', 'false'], hasUser: true },
+  { id: 'logical-or', recv: 'sel || globalThis', sels: ['U', '0'], hasUser: true },
+  { id: 'logical-and', recv: 'sel && globalThis', sels: ['1', '0'], hasUser: false },
+];
+
+function * generateConditionalMirror() {
+  for (const shape of CM_SHAPES) {
+    for (const pat of CM_PATTERNS) {
+      const bails = !pat.mirror && shape.hasUser;
+      const user = bails ? CM_USER_NOSTATIC : CM_USER;
+      const obs = bails ? 'typeof from' : pat.obs;
+      const pick = `sel => { try { const ${ pat.lhs } = ${ shape.recv }; return ${ obs }; } catch { return "THROW"; } }`;
+      const body = `(() => { const U = ${ user }; const pick = ${ pick }; return [pick(${ shape.sels[0] }), pick(${ shape.sels[1] })]; })()`;
+      yield { ...snippet(`conditional-mirror/${ shape.id }/${ pat.id }`, body), strip: !bails };
+    }
+  }
+}
+
 // --- Chain grammar (MULTI-hop; single calls are generateGrammar's job) ---
 // the generative core for the optional-chain / chained / inner-poly-chain families: a RECEIVER
 // followed by 2-3 HOPS, under an OPTIONALITY pattern. this is the most entangled area (babel
@@ -1410,6 +1455,7 @@ const TS_FAMILIES = {
 export function * generate() {
   yield * generateGrammar();
   yield * generateDestructure();
+  yield * generateConditionalMirror();
   yield * generateChains();
   yield * generateIn();
   yield * generateMutatedStatic();
