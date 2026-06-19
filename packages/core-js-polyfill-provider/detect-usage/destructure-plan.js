@@ -30,7 +30,7 @@ import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { discardRescueNode } from './members.js';
 import { isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName } from './resolve.js';
-import { fallbackInitWhollyDiscardable, walkStaticReceiverChain } from './destructure.js';
+import { fallbackInitWhollyDiscardable, resolveBranchProxyName, walkStaticReceiverChain } from './destructure.js';
 
 // object-prop node across parsers: estree `Property`, babel `ObjectProperty`
 function isPropertyNode(node) {
@@ -130,9 +130,9 @@ function hasExtractions(planNode) {
 
 // plan cache keyed by declarator node identity (unique per parse, so a module-level
 // WeakMap is per-file safe; entries GC with the program). the FIRST build wins: the
-// AssignmentExpression cascade plans a synthetic `{ id, init }` host with `keepsTail`
-// and the render-time re-entry on the same object must read THAT plan (the cascade also
-// neutralizes `plan.discardSe` on the shared object before rendering)
+// AssignmentExpression cascade plans a synthetic `{ id, init }` host and the render-time
+// re-entry on the same object must read THAT plan (the cascade also neutralizes
+// `plan.discardSe` on the shared object before rendering)
 const planCache = new WeakMap();
 
 // classify a destructure declarator (`{ id, init }` - a real VariableDeclarator or the
@@ -144,14 +144,14 @@ const planCache = new WeakMap();
 //   - static-object: `{a: {from}} = wrapper` where `wrapper = {a: Array}` - constructor
 //     hidden behind const-bound ObjectExpression, walk init through the outer-key path
 // a fallback init (logical / ternary / chain-assignment / transparent IIFE) collapses for
-// identification like the flat meta, but the flatten DISCARDS the init whole, so it must
-// be wholly discardable; the cascade KEEPS the tail verbatim (`keepsTail`), so it only
-// needs the collapsed receiver for resolution. `discardSe` harvests the observable node
+// identification like the flat meta, but the flatten BINDS the polyfill to the collapsed
+// operand, so the init must be wholly discardable (a guarded / diverging operand bails to
+// stay native) - for BOTH the declarator and the cascade. `discardSe` harvests the observable node
 // the discard would drop (a chain assignment, an SE-bearing chain-root call) for the
 // emitters to re-run exactly once; `initElement` is the descended array element within
 // the original init's span a residual receiver swap must target
 export function buildNestedDestructurePlan({
-  declarator, scope, adapter, path = null, keepsTail = false, resolvePure, resolveGlobalPolyfill,
+  declarator, scope, adapter, path = null, resolvePure, resolveGlobalPolyfill,
   isDisabledProp = null,
 }) {
   if (planCache.has(declarator)) return planCache.get(declarator);
@@ -307,22 +307,29 @@ export function buildNestedDestructurePlan({
     // a chain assignment) - the collapse rewrites `init` to the resolution representative
     const initBeforeCollapse = init;
     // a fallback init collapses for identification like the flat meta (left for `||` / `??`,
-    // right for `&&`, the consequent for an agreeing ternary, the inlined return for a
-    // transparent IIFE) - but the flatten DISCARDS the init whole, so it must be wholly
-    // discardable (pure test, no `&&` guard - a guard can select its falsy LEFT and that
-    // path's native TypeError must survive). the cascade KEEPS the tail verbatim
-    // (`keepsTail`), so it only needs the collapsed receiver for resolution
+    // right for `&&`, the consequent for an AGREEING ternary, the inlined return for a
+    // transparent IIFE) - but the flatten BINDS the polyfill to the collapsed operand, so that
+    // operand must be unconditionally taken: the init has to be wholly discardable (pure test,
+    // no `&&` guard - a guard can select its falsy LEFT and that path's native short-circuit /
+    // TypeError must survive). this holds for the cascade too - keeping the RHS tail verbatim
+    // does not make a conditionally-evaluated receiver safe to bind unconditionally
     if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
       || isChainAssignment(init)
       || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
-      if (!keepsTail && !fallbackInitWhollyDiscardable(init)) init = null;
+      if (!fallbackInitWhollyDiscardable(init)) init = null;
       else for (let guard = 0; guard < 8 && init; guard++) {
         const inlined = peelZeroArgIifeReturn(init);
         if (inlined) init = unwrapExpressionChain(inlined);
         // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
         else if (isChainAssignment(init)) init = unwrapExpressionChain(init.right);
-        else if (init.type === 'ConditionalExpression') init = unwrapExpressionChain(init.consequent);
-        else if (init.type === 'LogicalExpression') {
+        // a ternary collapses to its consequent ONLY when the alternate agrees on a global proxy
+        // (the shared predicate the identification resolver uses); a diverging alternate means
+        // the runtime may pick a receiver the polyfill is wrong for, so bail and stay native
+        else if (init.type === 'ConditionalExpression') {
+          init = resolveBranchProxyName({ branchNode: init.consequent, scope, adapter, path })
+            && resolveBranchProxyName({ branchNode: init.alternate, scope, adapter, path })
+            ? unwrapExpressionChain(init.consequent) : null;
+        } else if (init.type === 'LogicalExpression') {
           init = unwrapExpressionChain(init.operator === '&&' ? init.right : init.left);
         } else break;
       }
