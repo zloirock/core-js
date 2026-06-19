@@ -82,8 +82,11 @@ export function createClassObjectMember({
 
   function findClassMember({ classPath, name, isStatic, classSubst, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
-    // reverse-walk: duplicate keys are legal; runtime takes the last definition.
-    // `findObjectMember` does the same; both must agree
+    // reverse-walk: duplicate member keys are legal; the last matching definition wins. setters are
+    // skipped because a read resolves to the getter / data member, never the setter - and a class
+    // FIELD is an own data property that shadows a prototype setter on read, so returning an earlier
+    // field past a setter is correct here. NOTE this legitimately diverges from `findObjectMember`,
+    // where a later setter makes the object-literal key a setter-only accessor (read -> undefined)
     const members = classPath.get('body').get('body');
     for (let i = members.length - 1; i >= 0; i--) {
       const member = members[i];
@@ -402,8 +405,21 @@ export function createClassObjectMember({
     for (let i = properties.length - 1; i >= 0; i--) {
       const prop = properties[i];
       if (t.isSpreadElement(prop.node)) return null;
-      if (prop.node.kind === 'set') continue;
-      if (memberKeyMatches(prop.node.key, prop.node.computed, name)) return prop;
+      if (!memberKeyMatches(prop.node.key, prop.node.computed, name)) continue;
+      // the LAST declaration for `name` decides its nature (later object-literal members override).
+      // a setter as that last declaration makes the key an ACCESSOR: reading it yields the paired
+      // getter's value, or `undefined` when setter-only - either way the earlier data property is
+      // shadowed and must NOT be returned (stale). search for a getter of the same key behind the
+      // setter; return it if present, else bail (setter-only -> undefined, generic helper)
+      if (prop.node.kind === 'set') {
+        for (let j = i - 1; j >= 0; j--) {
+          const earlier = properties[j];
+          if (t.isSpreadElement(earlier.node)) return null;
+          if (earlier.node.kind === 'get' && memberKeyMatches(earlier.node.key, earlier.node.computed, name)) return earlier;
+        }
+        return null;
+      }
+      return prop;
     }
     return null;
   }
