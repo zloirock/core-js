@@ -537,6 +537,7 @@ function createResolveNodeType(babelNodeType, t, {
     isPromiseRefName,
     lookupNested,
     resolveKnownInstanceMember,
+    resolveStaticReturnFromHint,
     resolveKnownStaticReturnType,
     resolveKnownPropertyReturnType,
     resolveGlobalStaticReference,
@@ -968,12 +969,17 @@ function createResolveNodeType(babelNodeType, t, {
     if (id?.type === 'ArrayPattern' || id?.type === 'ObjectPattern') {
       const keyPath = findPatternKeyPath(id, name, reaching.scope);
       if (!keyPath) return null;
-      // a rest-bound slot (`[...r]`, `[a, [...b]]`) is always an Array - the destructuring init's RHS
-      // is itself an array literal that resolves to Array, the slot's correct type; the trailing rest
-      // marker has no single element path to follow. a key READ off a rest (`[...{ length }]`) is NOT
-      // the rest array, so bail to the generic helper (safe), matching followKeyPathInRhs's rest bail
+      // a rest-bound slot (`[...r]`, `[a, [...b]]`) is always an Array - but the RHS being spread is
+      // not necessarily one: `var [...r] = "abc"` spreads a STRING into a fresh Array, so returning the
+      // RHS init would mis-type the slot as the RHS (`_atMaybeString` on an Array). return the RHS only
+      // when it itself resolves to an Array (the slot then IS that array, and resolving the reaching RHS
+      // keeps the narrow precise where `resolveBindingType` can't - estree drops the redecl's scope);
+      // otherwise bail to the generic helper (sound on the array). a key READ off a rest
+      // (`[...{ length }]`) likewise bails (NOT the rest array itself)
       const restIndex = keyPath.indexOf(-1);
-      if (restIndex !== -1) return restIndex === keyPath.length - 1 ? initPath : null;
+      if (restIndex !== -1) {
+        return restIndex === keyPath.length - 1 && resolveNodeType(initPath)?.constructor === 'Array' ? initPath : null;
+      }
       return followKeyPathInRhs(initPath, keyPath) ?? null;
     }
     return initPath;
@@ -1601,10 +1607,10 @@ function createResolveNodeType(babelNodeType, t, {
     findAmbientFunctionPath,
     resolveFromMemberExpression: (...args) => resolveFromMemberExpression(...args),
     resolveKnownStaticReturnType,
+    resolveStaticReturnFromHint,
     resolveKnownInstanceMember,
     KNOWN_INSTANCE_METHOD_RETURN_TYPES,
     staticPairFromPolyfillEntry,
-    typeFromHint,
     lookupNested,
     KNOWN_STATIC_METHOD_RETURN_TYPES,
     findDestructuredKeyPath,
