@@ -38,6 +38,7 @@ import {
   applyNestedParamSynthPlan,
   renderSynthTree,
   buildNestedParamSynthPlan,
+  outerDestructureReceiver,
   canTransformDestructuring as sharedCanTransformDestructuring,
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
@@ -180,13 +181,12 @@ function liftDeclaratorInitSE(t, declaratorNode, hostPath) {
 // DEFAULT (the semantics - tree mirror, validation, leaf resolution - live in the shared
 // `buildNestedParamSynthPlan`; this is a dumb renderer, unplugin renders the same plan as text)
 function renderNestedParamSynth({ prop, meta, deps }) {
-  const { t, resolvePure, injectPureImport, skippedNodes } = deps;
-  const plan = buildNestedParamSynthPlan({ leafPatternPath: prop.parentPath, meta, resolvePure });
+  const { t, resolvePure, injectPureImport, skippedNodes, adapter } = deps;
+  const plan = buildNestedParamSynthPlan({ leafPatternPath: prop.parentPath, meta, resolvePure, adapter });
   return applyNestedParamSynthPlan({
     plan,
     renderTree: tree => renderSynthTree(tree, {
       polyfill: injectPureImport,
-      array: element => t.arrayExpression([element]),
       object: entries => t.objectExpression(entries.map(
         ({ key, value }) => t.objectProperty(t.identifier(key), value))),
     }),
@@ -397,7 +397,7 @@ export default function createDestructureEmitter({
     if (!targetPath) {
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
       // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
-      if (renderNestedParamSynth({ prop, meta, deps: { t, resolvePure, injectPureImport, skippedNodes } })) return;
+      if (renderNestedParamSynth({ prop, meta, deps: { t, resolvePure, injectPureImport, skippedNodes, adapter } })) return;
       // synth-swap bailed (computed key / non-Identifier shape sibling) - try body-extract
       // first: insert `const from = _polyfill;` at function body top + remove the prop
       // from the destructure. preserves "polyfill always wins" even at the cost of caller-
@@ -568,7 +568,7 @@ export default function createDestructureEmitter({
   // `({Array: {from}, ...} = receiver);` (AssignmentExpression in ExpressionStatement) -
   // plan-driven batch rewrite on the first dispatched leaf, mirroring
   // `renderDeclaratorFlattenPlan`: the plan host is a synthetic `{ id, init }` over the
-  // assignment's slots, `keepsTail` because the statement keeps its receiver tail verbatim.
+  // assignment's slots, and the statement keeps its receiver tail verbatim.
   // pattern pruned in place (`_unused` sentinels under rest preserve exclusion; a shared
   // `var _unused, _unused2;` is hoisted before the host - LHS slots must be pre-declared,
   // strict mode otherwise throws); each extraction lands as `name = _polyfill;` after the
@@ -584,7 +584,7 @@ export default function createDestructureEmitter({
     // loc rides along so the plan's anchor disable-gate sees the real statement line
     const fake = { id: assignPath.node.left, init: assignPath.node.right, loc: assignPath.node.loc };
     const plan = buildFlattenPlan({
-      declaratorNode: fake, scope: assignPath.scope, path: assignPath, keepsTail: true,
+      declaratorNode: fake, scope: assignPath.scope, path: assignPath,
     });
     if (!plan) return false;
     // the kept receiver tail carries its own setup (a chain assignment / SE-bearing call) -
@@ -744,13 +744,12 @@ export default function createDestructureEmitter({
   // renders as text. babel's resolvePure already carries the mutated-static and disable
   // gates, so plan resolution matches the per-leaf detection pipeline. `declaratorNode` is
   // a real VariableDeclarator or the cascade's synthetic `{ id, init }` assignment host
-  function buildFlattenPlan({ declaratorNode, scope, path, keepsTail = false }) {
+  function buildFlattenPlan({ declaratorNode, scope, path }) {
     return buildNestedDestructurePlan({
       declarator: declaratorNode,
       scope,
       adapter,
       path,
-      keepsTail,
       resolvePure: meta => resolvePure(meta),
       resolveGlobalPolyfill: resolveGlobalPure,
       isDisabledProp: isDisabled,
@@ -1005,6 +1004,12 @@ export default function createDestructureEmitter({
   function tryExtractArrayWrappedStatic(prop, entry, hintName, kind) {
     // static keys only: an instance method needs a concrete receiver the residual array can't supply
     if (kind === 'instance') return false;
+    // a CONDITIONAL / LOGICAL array element (`[, { Array: { from } }] = [0, c ? globalThis : u]`) must
+    // NOT extract `const from = _polyfill` unconditionally - on the diverging branch native reads the
+    // user's own value, so the unconditional bind corrupts it. cede to the receiver-aware mirror (it
+    // descends the array wrapper and swaps only the proxy branch inside the element); a bare element extracts
+    const recv = outerDestructureReceiver(prop.parentPath, prop.scope, adapter);
+    if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return false;
     const valueNode = propBindingIdentifier(prop.node.value);
     if (!valueNode) return false;
     const host = findArrayWrappedDestructureHost(prop.parentPath);
@@ -1174,6 +1179,16 @@ export default function createDestructureEmitter({
     // the declarator hosting this leaf + whether it is the declaration's only binding and its init is pure -
     // lets the planner drop a dead residual / memoize a duplicated constant-literal receiver
     const declarator = declaration.node.declarations.find(d => d.start <= prop.node.start && prop.node.end <= d.end);
+    // a CONDITIONAL / LOGICAL receiver (`c ? globalThis : userObj`, `m && globalThis`, `g || self`)
+    // must NOT extract `const f = _polyfill` unconditionally: on a diverging ternary that binds the
+    // polyfill on the user branch too, corrupting its legitimate `undefined`. decline (no emission) so
+    // it falls through to the receiver-aware nested mirror, which swaps only the proxy operand(s) and
+    // keeps the SE key in the residual LHS (runs once). a bare unconditional receiver keeps the sound
+    // SE-extraction (the effect is preserved by the residual and the polyfill always wins). keyed on
+    // receiver SHAPE, not proxy-name: the receiver may already be rewritten to an injected `_global`.
+    // `outerDestructureReceiver` descends array wrappers (`[{ Array: { [se]: f } }] = [c ? gt : u]`)
+    const recv = kind === 'instance' ? null : outerDestructureReceiver(prop.parentPath, prop.scope, adapter);
+    if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return false;
     const bindingCount = originalBindingCount(prop);
     const plan = planSideEffectKeyStrategy({
       polyfillKind: kind,
@@ -1243,7 +1258,10 @@ export default function createDestructureEmitter({
     // VariableDeclarator with `const from = _Array$from` so the polyfill ALWAYS wins
     if (patternParent?.isObjectProperty() && kind !== 'instance') {
       if (tryFlattenNestedProxyDestructure(prop)) return;
-      // fallback: non-single shape (outer has siblings) - inline default as last resort
+      // conditional receiver: mirror each proxy operand per branch. when the pattern can't be
+      // mirrored (rest / computed / duplicate key) the shared plan bails to native if any reachable
+      // value branch is a non-proxy (a `= _polyfill` default would corrupt its legitimate undefined);
+      // a proxy-only receiver keeps the sound inline default
       handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return;
     }
