@@ -203,8 +203,13 @@ export default function createSynthSwapEmitter({
   function tryRegisterPerBranchSynth(rhsPath, prop) {
     const objectPattern = prop.parentPath;
     // per-branch has no body-extract fallback, so it accepts static-literal computed keys (`['from']`)
-    // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value)
-    if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node, { allowLiteralComputedKeys: true })) return false;
+    // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value).
+    // a SIDE-EFFECTING computed key (`[(eff(), 'from')]`) is accepted too: synthSwapPropKey folds it to
+    // its static `["from"]` slot (no effect in the synth literal) while the effect stays in the residual
+    // LHS pattern and runs exactly once - so the proxy branch polyfills instead of bailing to native
+    if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node, {
+      allowLiteralComputedKeys: true, allowSideEffectComputedKeys: true,
+    })) return false;
     // bail when any computed-key sibling is a generated import (polyfill-rewritten symbol) rather
     // than a user const-key, so per-branch synth stays aligned with unplugin (which bails on the
     // original `Symbol.iterator` MemberExpression)
