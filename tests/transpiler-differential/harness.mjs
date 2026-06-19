@@ -151,14 +151,18 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   const babelRun = runtimeKey(babelEval.result);
   const unpluginRun = runtimeKey(unpluginEval.result);
 
-  // stripped-realm oracle: only meaningful once an injection happened (non-empty import set) - the
-  // polyfilled output must reproduce the full-env native reference with the native builtins gone.
-  // skipped for no-injection snippets (nothing replaced -> a leftover native call would throw for a
-  // benign reason). a divergence here is a missed injection or a polyfill that leaned on the native
+  // stripped-realm oracle: gated on the snippet's `strip` flag - the generator's assertion that this
+  // shape MUST inject (strip:false shapes that may legitimately not inject - param-default / assignment
+  // hosts - never reach here). the polyfilled output must reproduce the full-env native reference with
+  // the native builtins gone. deliberately NOT gated on a non-empty import-set: a MISSED injection emits
+  // no import, so gating on imports would skip this run for exactly the bug it exists to catch (both
+  // plugins miss -> full-env three-way all agree on the present native -> only the stripped realm, where
+  // the leftover native call now throws / diverges, can see it). a divergence here is a missed injection
+  // or a polyfill that leaned on the native
   let strippedMismatch = false;
   let babelStripped = null;
   let unpluginStripped = null;
-  if (stripCheck && babelImports.size > 0) {
+  if (stripCheck) {
     babelStripped = await evalStripped(babelEval.file);
     unpluginStripped = await evalStripped(unpluginEval.file);
     strippedMismatch = babelStripped !== native || unpluginStripped !== native;
