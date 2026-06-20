@@ -9,6 +9,7 @@ import { collectMutationPrePass, createEstreeAdapter, withoutPhantomDeclarationV
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import TransformQueue, {
+  createRewriteHint,
   deoptionalizeNeedle,
   deoptionalizeNeedleAtPositions,
   hasIdentifierBoundary,
@@ -2052,6 +2053,13 @@ function checkSnapshotKeyNormalization() {
   cache.store('/foo.js?Y=2', { tag: 'hmr-tail' });
   check('SnapshotCache/HMR strip first-token + & tail',
     cache.take('/foo.js?t=1&Y=2')?.tag, 'hmr-tail');
+  // a path-portion `&t=N` with NO preceding `?` is literal text, not an HMR marker: it must NOT
+  // strip down to the bare path key (else a real `/proj/weird` snapshot is served for it)
+  cache.store('/proj/weird&t=123', { tag: 'amp-path-no-query' });
+  check('SnapshotCache/HMR path &t= without query != bare path key',
+    cache.take('/proj/weird')?.tag, undefined);
+  check('SnapshotCache/HMR keeps path &t= without query',
+    cache.take('/proj/weird&t=123')?.tag, 'amp-path-no-query');
   // SFC sub-block query-parameter order normalization: `?vue&type=script&lang=ts` and
   // `?vue&lang=ts&type=script` describe the same block; cache key must match regardless of
   // bundler-emitted parameter order
@@ -4031,6 +4039,45 @@ function checkPrePostBundlerDowngrade() {
   check('phase pre+post downgrade warns once per unsafe bundler', warned.filter(w => /pre\+post/.test(w)).length, 2);
 }
 checkPrePostBundlerDowngrade();
+
+// single-stage enforce values: the default phase runs at 'pre'; an explicit standalone `phase: 'post'`
+// runs at 'post'; `phase: 'pre'` stays 'pre'. only the pre+post downgrade case (above) had coverage
+function checkSingleStageEnforce() {
+  for (const fw of ['vite', 'webpack']) {
+    const def = unplugin.raw({ method: 'usage-global', version: '4.0' }, { framework: fw });
+    check(`default phase is a single stage on ${ fw }`, def.length, 1);
+    check(`default phase enforce is 'pre' on ${ fw }`, def[0].enforce, 'pre');
+    const post = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'post' }, { framework: fw });
+    check(`phase post is a single stage on ${ fw }`, post.length, 1);
+    check(`phase post enforce is 'post' on ${ fw }`, post[0].enforce, 'post');
+    const pre = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'pre' }, { framework: fw });
+    check(`phase pre enforce is 'pre' on ${ fw }`, pre[0].enforce, 'pre');
+  }
+}
+checkSingleStageEnforce();
+
+// createRewriteHint's four branches: (1) no guard + no deopt -> null; (2) no guard + deopt
+// positions -> inert deopt-only hint with absorbsRoot coerced false; (3) guardRef without rootRaw
+// -> throws (compose needs rootRaw); (4) guardRef + rootRaw -> full hint, absorbsRoot coerced boolean
+function checkCreateRewriteHint() {
+  check('createRewriteHint/no guard no deopt -> null',
+    createRewriteHint({ rootRaw: null, guardRef: null, deoptPositions: [] }), null);
+  const deoptOnly = createRewriteHint({ guardRef: null, deoptPositions: [3], objectStart: 5, absorbsRoot: true });
+  check('createRewriteHint/deopt-only keeps positions', deoptOnly?.deoptPositions?.[0], 3);
+  check('createRewriteHint/deopt-only nulls rootRaw', deoptOnly?.rootRaw, null);
+  check('createRewriteHint/deopt-only forces absorbsRoot false', deoptOnly?.absorbsRoot, false);
+  let threw = false;
+  try {
+    createRewriteHint({ guardRef: '_ref', rootRaw: null });
+  } catch (error) {
+    threw = /requires rootRaw/.test(error.message);
+  }
+  check('createRewriteHint/guardRef without rootRaw throws', threw, true);
+  const full = createRewriteHint({ rootRaw: 'a.b', guardRef: '_ref', deoptPositions: [1], objectStart: 0, absorbsRoot: 1 });
+  check('createRewriteHint/full keeps guardRef', full?.guardRef, '_ref');
+  check('createRewriteHint/full coerces absorbsRoot to boolean', full?.absorbsRoot, true);
+}
+checkCreateRewriteHint();
 
 // --- withoutPhantomDeclarationViolations ---
 // estree-toolkit FALSELY records a DECLARATION (over-hoisted `namespace N {}` twin, for-init self)

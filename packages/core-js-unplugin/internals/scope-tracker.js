@@ -194,14 +194,18 @@ export default class ScopeTracker {
     return `\n${ this.#detectIndentAt(insertPos) }var ${ names.join(', ') };`;
   }
 
-  // text replacing a body node with a BlockStatement. arrow expression body adds `return`
-  // (host is Expression); bodyless control-statement body keeps the slice verbatim (host
-  // is already a Statement with its own terminator)
-  #bodyWrapText(body, entry) {
-    const slice = this.#code.slice(body.start, body.end);
+  // wrap a body slice in a BlockStatement that hoists the ref-binding `var`s. arrow expression
+  // body adds `return` (host is an Expression); bodyless control-statement body keeps the slice
+  // verbatim (host is already a Statement with its own terminator). shared by the flat and the
+  // nested-compose paths so the wrap shape has a single source
+  #wrapBodyWithVars(entry, slice) {
     return entry.kind === WRAP_KIND_ARROW
       ? `{ var ${ entry.names.join(', ') }; return ${ slice }; }`
       : `{ var ${ entry.names.join(', ') }; ${ slice } }`;
+  }
+
+  #bodyWrapText(body, entry) {
+    return this.#wrapBodyWithVars(entry, this.#code.slice(body.start, body.end));
   }
 
   // claim ref-binding emissions whose anchor lies within [start, end] - both `#scopedVars`
@@ -307,9 +311,7 @@ export default class ScopeTracker {
         const localEnd = sp.end - body.start;
         slice = slice.slice(0, localStart) + sp.content + slice.slice(localEnd);
       }
-      textOf.set(body, entry.kind === WRAP_KIND_ARROW
-        ? `{ var ${ entry.names.join(', ') }; return ${ slice }; }`
-        : `{ var ${ entry.names.join(', ') }; ${ slice } }`);
+      textOf.set(body, this.#wrapBodyWithVars(entry, slice));
     }
     return textOf.get(rootBody);
   }
