@@ -451,7 +451,10 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     seenBindings.add(binding);
     const init = binding.path?.node?.init ?? binding.node?.init;
     visitAliasValues(init, depth);
-    for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: identNode.name }) ?? []) visitAliasValues(rhs, depth);
+    const reCtx = { scope, adapter, path, resolveKey };
+    for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: identNode.name, ctx: reCtx }) ?? []) {
+      visitAliasValues(rhs, depth);
+    }
   };
   // a member-chain target whose root is a BOUND identifier may reach a proxy global through
   // any of the root's values (`let h; h = c ? other : globalThis; h.Array.of = patch`): fan
@@ -465,7 +468,9 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     const binding = adapter.getBinding(scope, parts.rootNode.name, path);
     if (!binding) return;
     const init = binding.path?.node?.init ?? binding.node?.init;
-    const rootValues = [init, ...reassignmentValueNodes({ binding, usagePath: path, name: parts.rootNode.name }) ?? []];
+    const rootValues = [init, ...reassignmentValueNodes({
+      binding, usagePath: path, name: parts.rootNode.name, ctx: { scope, adapter, path, resolveKey },
+    }) ?? []];
     for (const valueNode of rootValues) {
       if (!valueNode) continue;
       for (const valueLeaf of valueFanLeaves(valueNode, [])) {
