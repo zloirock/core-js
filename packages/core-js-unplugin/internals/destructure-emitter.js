@@ -1746,7 +1746,7 @@ export function createDestructureEmitter({
     // viability lookup but registers under its synth SLOT key (`[k]`), so the synth literal emits
     // `[k]: _polyfill` instead of dropping the polyfill; the resolved value also polyfills a sibling-
     // aliasing computed key (`{ from, [k]: x }` with k='from'). a dynamic key (lookupKey null) bails
-    const { lookupKey, slotKey } = resolveSynthKeys({ node: propNode, scope, adapter: estreeAdapter });
+    const { lookupKey, slotKey } = resolveSynthKeys({ node: propNode, scope, adapter: estreeAdapter, path });
     if (!lookupKey) return false;
     // `registerBranchTreeForKey` peels paren / TS / chain / SE wrappers internally - do NOT
     // peel chain-assignment here (`foo = cond ? Array : Set` is intentional escape hatch;
@@ -2097,7 +2097,7 @@ export function createDestructureEmitter({
       // gets array narrowing on each branch independently
       const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
       const registered = desc && tryRegisterPerBranchSynth({
-        rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope,
+        rhs: desc.rhsNode, propNode, objectPattern: metaPath.parent, scope: metaPath.scope, path: metaPath,
       });
       if (!registered) warnConditionalFallbackUntouched(meta, metaPath);
       return;
