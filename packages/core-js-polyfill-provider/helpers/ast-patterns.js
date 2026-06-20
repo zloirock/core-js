@@ -45,6 +45,15 @@ export function isTopLevelImportLike(stmt) {
   return false;
 }
 
+// an initless `var` declaration (`var x;` - every declarator without an init). runtime-hoisted
+// regardless of textual position, so the `var _ref;`-anchor scan steps PAST them to keep collecting
+// later imports - a sibling-plugin's `var x;` interspersed between two imports must not truncate the
+// import region. `kind === 'var'` only: an initless `let` / `const` is TDZ-bound to its position
+export function isInitlessVarDecl(stmt) {
+  return stmt?.type === 'VariableDeclaration' && stmt.kind === 'var'
+    && stmt.declarations.every(d => !d.init);
+}
+
 // any ExpressionStatement whose expression peels to a StringLiteral - includes already-promoted
 // directives AND raw string-literal expressions that would BECOME directives if their position
 // in the body reached the prologue
