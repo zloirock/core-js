@@ -15,11 +15,10 @@ import {
   memberKeyName,
   propertyKeyName,
   reassignmentValueNodes,
-  staticStringKey,
   TS_EXPR_WRAPPERS,
   walkAstChildren,
 } from '../helpers/ast-patterns.js';
-import { resolveObjectName } from './resolve.js';
+import { resolveKey, resolveObjectName } from './resolve.js';
 import { walkStaticReceiverChain } from './destructure.js';
 
 // --- Stage 1: cheap shape gate ---
@@ -74,13 +73,21 @@ function gateRootOf(node) {
   return root.type === 'Identifier' ? { name: root.name, chained: hops > 0, firstKey } : null;
 }
 
-// peel paren / chain / TS wrappers off a mutation-target slot (oxc preserves parens, estree
-// wraps optional chains) so `delete Iterator?.from` / `(Map.groupBy)++` reach the member
-function peelTargetWrappers(node) {
-  let cur = node;
-  while (cur && (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
-    || TS_EXPR_WRAPPERS.has(cur.type))) cur = cur.expression;
-  return cur;
+// peel runtime wrappers + comma-sequence tail off a namespace callee so `(0, Object).assign`
+// and `(eff(), Reflect).defineProperty` resolve to the bare `Object` / `Reflect` identifier
+function peeledNamespaceIdentifier(node) {
+  let cur = unwrapRuntimeExpr(node);
+  while (cur?.type === 'SequenceExpression' && cur.expressions.length) {
+    cur = unwrapRuntimeExpr(cur.expressions.at(-1));
+  }
+  return cur?.type === 'Identifier' ? cur : null;
+}
+
+// resolve a mutation-target key through the SAME binding-aware canon the read side uses, so a
+// const-aliased (`const k = 'from'`) or comma-sequence (`[(eff(), 'from')]`) key tracks the
+// same `name.key` the resolver would otherwise substitute - the gate stays symmetric per method
+function mutationKeyName(keyNode, computed, ctx) {
+  return resolveKey({ node: keyNode, computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path });
 }
 
 function gatherPatternMemberTargets(pattern, out) {
@@ -128,7 +135,7 @@ export function hasMutationCandidateShapes(programNode) {
     if (!node || typeof node !== 'object') continue;
     switch (node.type) {
       case 'AssignmentExpression': {
-        const left = peelTargetWrappers(node.left);
+        const left = unwrapRuntimeExpr(node.left);
         if (left?.type === 'MemberExpression' || left?.type === 'OptionalMemberExpression') {
           targets.push(left.object);
         } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
@@ -138,12 +145,12 @@ export function hasMutationCandidateShapes(programNode) {
         break;
       }
       case 'UpdateExpression': {
-        const arg = peelTargetWrappers(node.argument);
+        const arg = unwrapRuntimeExpr(node.argument);
         if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(arg.object);
         break;
       }
       case 'UnaryExpression': {
-        const arg = node.operator === 'delete' ? peelTargetWrappers(node.argument) : null;
+        const arg = node.operator === 'delete' ? unwrapRuntimeExpr(node.argument) : null;
         if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(arg.object);
         break;
       }
@@ -167,13 +174,14 @@ export function hasMutationCandidateShapes(programNode) {
         // babel models `Object?.assign(Array, ...)` as OptionalCallExpression with an
         // OptionalMemberExpression callee; without these both an optional `Object.assign` /
         // `Reflect.defineProperty` mutation escapes the gate and usage-pure silently substitutes
-        // over the user monkey-patch (oxc folds the optional into ChainExpression, so it is unaffected)
+        // over the user monkey-patch (oxc folds the optional into ChainExpression, so it is unaffected).
+        // a wrapper-fronted namespace (`(0, Object).assign`) peels to the bare identifier here too
         const { callee } = node;
-        const method = (callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression') && !callee.computed
-          && callee.object?.type === 'Identifier' && callee.property?.type === 'Identifier'
-          ? callee.property.name : null;
-        if (((callee?.object?.name === 'Object' && OBJECT_MUTATORS.has(method))
-          || (callee?.object?.name === 'Reflect' && REFLECT_MUTATORS.has(method))) && node.arguments?.[0]) targets.push(node.arguments[0]);
+        const isMember = callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression';
+        const nsId = isMember && !callee.computed ? peeledNamespaceIdentifier(callee.object) : null;
+        const method = nsId && callee.property?.type === 'Identifier' ? callee.property.name : null;
+        if (((nsId?.name === 'Object' && OBJECT_MUTATORS.has(method))
+          || (nsId?.name === 'Reflect' && REFLECT_MUTATORS.has(method))) && node.arguments?.[0]) targets.push(node.arguments[0]);
         break;
       }
       default:
@@ -221,12 +229,12 @@ const REFLECT_MUTATORS = new Set([
   'set',
 ]);
 
-function objectLiteralKeys(node) {
+function objectLiteralKeys(node, ctx) {
   if (node?.type !== 'ObjectExpression') return [];
   const keys = [];
   for (const prop of node.properties ?? []) {
     if (prop.type === 'ObjectProperty' || prop.type === 'Property' || prop.type === 'ObjectMethod') {
-      const key = propertyKeyName(prop);
+      const key = mutationKeyName(prop.key, prop.computed, ctx);
       if (key !== null) keys.push(key);
     }
   }
@@ -238,49 +246,51 @@ function objectLiteralKeys(node) {
 // the global namespace). delete / update / assignment classify from the HOST side with a
 // DOWNWARD wrapper peel - parent-side hops can't see through stacked wrappers
 // (`delete ((Map.groupBy))`, `delete (Map.groupBy as any)`), the peel depth is unbounded
-function memberMutationEntry(slot) {
-  const member = peelTargetWrappers(slot);
+function memberMutationEntry(slot, ctx) {
+  const member = unwrapRuntimeExpr(slot);
   if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return [];
-  const key = memberKeyName(member);
+  const key = mutationKeyName(member.property, member.computed, ctx);
   return key !== null ? [{ targetNode: member.object, keys: [key], namespace: null }] : [];
 }
 
-function classifyMutationSite(node, parent, grandparent) {
+function classifyMutationSite(node, parent, grandparent, ctx) {
   if (node.type === 'UnaryExpression') {
-    return node.operator === 'delete' ? memberMutationEntry(node.argument) : [];
+    return node.operator === 'delete' ? memberMutationEntry(node.argument, ctx) : [];
   }
-  if (node.type === 'UpdateExpression') return memberMutationEntry(node.argument);
-  if (node.type === 'AssignmentExpression') return memberMutationEntry(node.left);
+  if (node.type === 'UpdateExpression') return memberMutationEntry(node.argument, ctx);
+  if (node.type === 'AssignmentExpression') return memberMutationEntry(node.left, ctx);
   if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && isMemberMutationContext(node, parent, grandparent)) {
-    const key = memberKeyName(node);
+    const key = mutationKeyName(node.property, node.computed, ctx);
     return key !== null ? [{ targetNode: node.object, keys: [key], namespace: null }] : [];
   }
   if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return [];
   const { callee } = node;
   if ((callee?.type !== 'MemberExpression' && callee?.type !== 'OptionalMemberExpression')
-    || callee.computed || callee.object?.type !== 'Identifier') return [];
-  const namespace = callee.object.name;
+    || callee.computed) return [];
+  const nsId = peeledNamespaceIdentifier(callee.object);
+  if (!nsId) return [];
+  const namespace = nsId.name;
   const method = callee.property?.type === 'Identifier' ? callee.property.name : null;
   const args = node.arguments ?? [];
   if (!args[0]) return [];
   if (namespace === 'Object') {
     if (method === 'defineProperty') {
-      const key = staticStringKey(args[1]);
+      const key = mutationKeyName(args[1], true, ctx);
       return key !== null ? [{ targetNode: args[0], keys: [key], namespace }] : [];
     }
     if (method === 'defineProperties') {
-      const keys = objectLiteralKeys(args[1]);
+      const keys = objectLiteralKeys(args[1], ctx);
       return keys.length ? [{ targetNode: args[0], keys, namespace }] : [];
     }
     if (method === 'assign') {
-      const keys = args.slice(1).flatMap(objectLiteralKeys);
+      const keys = args.slice(1).flatMap(arg => objectLiteralKeys(arg, ctx));
       return keys.length ? [{ targetNode: args[0], keys, namespace }] : [];
     }
     return [];
   }
   if (namespace === 'Reflect' && REFLECT_MUTATORS.has(method)) {
-    const key = staticStringKey(args[1]);
+    const key = mutationKeyName(args[1], true, ctx);
     return key !== null ? [{ targetNode: args[0], keys: [key], namespace }] : [];
   }
   return [];
@@ -291,7 +301,8 @@ function classifyMutationSite(node, parent, grandparent) {
 // the receiver through the read-side canons and record every `name.key` pair
 export function createMutationSiteHandler({ adapter, mutated }) {
   return function handleSite(path) {
-    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent)) {
+    const ctx = { scope: path.scope, adapter, path };
+    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
       if (namespaceIsShadowed(namespace, { scope: path.scope, adapter, path })) continue;
       const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
       for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
@@ -372,12 +383,13 @@ function valueFanLeaves(node, leaves, depth = 0) {
   return leaves;
 }
 
-// member chain -> { rootNode, keys } when every hop key is static; null otherwise
-function memberChainParts(node) {
+// member chain -> { rootNode, keys } when every hop key resolves to a static name (const-aliased
+// hops follow the read-side canon); null otherwise
+function memberChainParts(node, ctx) {
   const keys = [];
   let root = node;
   while (root && (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) {
-    const key = memberKeyName(root);
+    const key = mutationKeyName(root.property, root.computed, ctx);
     if (typeof key !== 'string') return null;
     keys.unshift(key);
     root = unwrapRuntimeExpr(root.object);
@@ -388,11 +400,12 @@ function memberChainParts(node) {
   return root?.type === 'Identifier' ? { rootNode: root, keys } : null;
 }
 
-function resolveLeafName(leaf, { scope, adapter, path }) {
+function resolveLeafName(leaf, ctx) {
+  const { scope, adapter, path } = ctx;
   const direct = resolveObjectName({ objectNode: leaf, scope, adapter, path });
   if (direct) return direct;
   if (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression') {
-    const parts = memberChainParts(leaf);
+    const parts = memberChainParts(leaf, ctx);
     if (!parts) return null;
     // `Ctor.prototype.key = patch` is an INSTANCE mutation, recorded as `Ctor.prototype.key`:
     // the enrichment imports the key's instance entry UP FRONT, so core-js initializes from
@@ -445,7 +458,7 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
   // the root's value union and key the mutation under the chain's constructor leaf when a
   // reachable value is a proxy global (over-record - the safe direction)
   const visitChainRootAlias = leaf => {
-    const parts = memberChainParts(leaf);
+    const parts = memberChainParts(leaf, { scope, adapter, path });
     if (!parts || parts.rootNode.type !== 'Identifier') return;
     if (!adapter.hasBinding(scope, parts.rootNode.name, path)) return;
     if (!parts.keys.slice(0, -1).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
