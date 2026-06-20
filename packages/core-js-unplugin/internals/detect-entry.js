@@ -52,6 +52,9 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
     ms.overwrite(node.start, node.end, sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n'));
     return true;
   }
+  // pre-seed the plain removals (SE-prefix entries are rewritten in place, not removed) so the ASI
+  // boundary scan treats the whole batch as gone and does not read a not-yet-removed leftward entry
+  removeStatement.seed(toRemove.filter(node => !extractIndirectRequireSEPrefix(node).length));
   for (const node of toRemove) {
     if (!writeSEPrefixIfAny(node)) removeStatement(node);
   }
@@ -169,14 +172,31 @@ export function createTopLevelStatementRemover(ms) {
     injectedSemiAt.add(end);
   }
 
-  return function remove(node) {
+  // [start, consumed-end] a removal covers: the node plus trailing horizontal space and one
+  // line ending. shared by `seed` (pre-population) and `remove` so both agree on the range
+  function removalRange(node) {
     let { end } = node;
     while (end < src.length && (src[end] === ' ' || src[end] === '\t')) end++;
-    end = consumeOneLineEnding(src, end);
-    ms.remove(node.start, end);
-    guardAsiAtBoundary(node.start, end);
-    removedRanges.push([node.start, end]);
-  };
+    return [node.start, consumeOneLineEnding(src, end)];
+  }
+
+  // pre-populate removedRanges for the whole removal batch so the prev / next significant-char
+  // walkers skip a sibling that is ALSO being removed but has not been processed yet (the caller
+  // walks rightmost-first, so leftward siblings are not in removedRanges when their right neighbour
+  // injects). without seeding, the backward scan reads a leftward to-be-removed entry's text and
+  // injects a spurious `;`. duplicate ranges (remove re-pushes) are harmless for containment checks
+  function seed(nodes) {
+    for (const node of nodes) removedRanges.push(removalRange(node));
+  }
+
+  function remove(node) {
+    const [start, end] = removalRange(node);
+    ms.remove(start, end);
+    guardAsiAtBoundary(start, end);
+    removedRanges.push([start, end]);
+  }
+  remove.seed = seed;
+  return remove;
 }
 
 function findRangeContaining(removedRanges, pos) {
