@@ -296,7 +296,12 @@ export function isPolyfillableOptional({ node, scope, adapter, resolve, path, re
     ? (adapter.hasBinding(scope, obj.name, path) ? null : obj.name)
     : globalProxyMemberName({ node: obj, scope, adapter, path });
   if (!objName) return false;
-  if (resolve({ kind: 'global', name: objName })) return true;
+  // the global early-return applies ONLY to the member shape (`Global?.member`), where the `?.`
+  // guards the always-defined global itself. for the call shape (`Global.member?.()`) the `?.`
+  // guards the MEMBER, so the deopt is sound only when that member is a real static (the property
+  // check below) - otherwise a non-static member (`Promise.noSuchStatic?.()`) loses its guard and
+  // throws where the native chain short-circuits to undefined
+  if (member === node && resolve({ kind: 'global', name: objName })) return true;
   const resolved = memberKey && resolve({ kind: 'property', object: objName, key: memberKey, placement: 'static' });
   return resolved?.kind === 'static' || resolved?.kind === 'global';
 }

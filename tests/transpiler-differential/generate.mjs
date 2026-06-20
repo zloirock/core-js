@@ -721,6 +721,28 @@ const EXPR_FAMILIES = {
     '(() => { const r = (() => (() => { log.push("r"); return Promise; })())().noSuchStatic; return [typeof r, log.length]; })()',
     '(() => { const r = (() => { log.push("r"); return Promise; })()[(log.push("k"), "noSuchStatic")]; return [typeof r, log.join("|")]; })()',
   ],
+  // optional CALL on a non-static member of a polyfilled global, with a trailing polyfilled method.
+  // the `?.` guards the (undefined) member, so the whole chain short-circuits to undefined. deopting
+  // the guard (as if the member were a real static) calls a missing static and throws - a three-way
+  // divergence (native returns undefined, the deopt throws). a BARE receiver is required: a
+  // side-effecting receiver bails objName resolution, so it never reaches the buggy global deopt.
+  // the proxy-global roots (`globalThis.Map`) additionally lock the import-set: the single-trailing
+  // form must drop the dead `_globalThis` from the method-call guard, and the MULTI-trailing form
+  // (combined-chain path) must collapse `globalThis.Map` to the pure ctor `_Map` rather than keep
+  // `_globalThis.Map` - both keep babel and unplugin's import sets aligned (else a parity divergence)
+  'optional-call-nonstatic-global-trailing-poly': [
+    '(() => Promise.noSuchStatic?.().includes(0))()',
+    '(() => Promise.noSuchStatic?.().flat().at(0))()',
+    '(() => Symbol.noSuchStatic?.().includes(0))()',
+    '(() => globalThis.Map.notAMethod?.().at(0))()',
+    '(() => globalThis.Map.notAMethod?.().flat().at(0))()',
+    // a proxy-global reached through an ALIAS binding still collapses `g.Map` to `_Map` (the binding
+    // follows to globalThis); native `g.Map` is the real Map so this stays a clean native==polyfill case
+    '(() => { const g = globalThis; return g.Map.notAMethod?.().flat().at(0); })()',
+    // nested-forwarder chains (`globalThis.self.Map` -> `_Map`) are locked by a transpiler fixture, not
+    // here: `globalThis.self` is undefined in Node so the NATIVE expression throws (realm-specific), which
+    // is not a babel/unplugin divergence - the native-vs-polyfill oracle would false-positive on it
+  ],
   'computed-symbol': [
     'arr[Symbol.iterator]?.().next().value',
     'arr[Symbol["iterator"]]().next().value',
