@@ -32,15 +32,22 @@ const WORKER_PARAM_RE = /^worker(?:[-_][a-z]+)?$/;
 // URLSearchParams treats `#` as a literal, so a `lang=ts#L10` tail would otherwise leak into the value.
 export function parseModuleId(id) {
   const path = stripQueryHash(id);
+  // `rest` begins at the first `#` or `?` (the path boundary). only a LEADING `?` opens a query; a
+  // leading `#` means the remainder is a fragment, so a `?` inside it (`path#frag?key`) is fragment
+  // text, not a query - scanning for `?` anywhere would mis-read it as `?key` and skip a real JS file
+  // (`?url` asset query) or mis-admit an SFC whose marker lives in the fragment. the hash is returned
+  // verbatim for the one caller that keys on it (the snapshot cache); detection ignores it
   const rest = id.slice(path.length);
-  const queryStart = rest.indexOf('?');
   let query = '';
-  if (queryStart !== -1) {
-    const afterQuery = rest.slice(queryStart + 1);
-    const hashStart = afterQuery.indexOf('#');
-    query = (hashStart === -1 ? afterQuery : afterQuery.slice(0, hashStart)).toLowerCase();
+  let hash = '';
+  if (rest[0] === '?') {
+    const hashStart = rest.indexOf('#');
+    query = (hashStart === -1 ? rest.slice(1) : rest.slice(1, hashStart)).toLowerCase();
+    if (hashStart !== -1) hash = rest.slice(hashStart);
+  } else if (rest[0] === '#') {
+    hash = rest;
   }
-  return { path, params: new URLSearchParams(query) };
+  return { path, params: new URLSearchParams(query), hash };
 }
 
 // --- atomic SFC predicates (composed differently by each consumer) ---
