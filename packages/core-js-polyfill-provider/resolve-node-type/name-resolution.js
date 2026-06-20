@@ -541,13 +541,10 @@ export function createNameResolution({ t }) {
         }
         continue;
       }
-      // mirrors `walkStatementsForDecl`: bare-name segments only resolve via top-level
-      // decls in this iteration. without the guard nested namespaces would re-enter their
-      // own body on every bare segment query, doubling work on deep TSModuleDeclaration trees
-      if (rest.length === 0) continue;
       if (decl.type !== 'TSModuleDeclaration') continue;
-      // NodePath-walking mirror of `walkStatementsForDecl`'s global-augmentation branch -
-      // without this the path variant misses globally-augmented decls that the node variant finds
+      // `declare global { ... }` body bindings are visible at every depth - descend regardless of
+      // segment count (matching the node variant, which runs its global-augmentation branch ahead
+      // of the bare-name guard) so both bare and qualified names resolve through it
       if (isGlobalAugmentation(decl)) {
         const bodyPath = declPath.get('body');
         const innerPaths = bodyPath?.node?.type === 'TSModuleDeclaration'
@@ -558,6 +555,10 @@ export function createNameResolution({ t }) {
         if (found) return found;
         continue;
       }
+      // bare-name segments only resolve via top-level decls in this iteration. without the guard
+      // nested namespaces would re-enter their own body on every bare segment query, doubling
+      // work on deep TSModuleDeclaration trees
+      if (rest.length === 0) continue;
       const moduleSegs = moduleNameSegments(decl.id);
       if (!moduleSegs || !startsWithSegments(segments, moduleSegs)) continue;
       // babel nested form (`namespace A.B {}` -> A.body is TSModuleDeclaration B):

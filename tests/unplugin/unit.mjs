@@ -170,7 +170,7 @@ const shouldTransformCases = [
   // SFC sub-block with `.js` extension on the base path AND `lang=` token: extension
   // takes precedence (JS_RE matches the post-strip base), still transforms
   ['/src/foo.js?lang=tsx', true, '.js base with lang= override'],
-  // SFC sub-block + Vite asset query mixing: VITE_ASSET_QUERY_RE wins, the body is
+  // SFC sub-block + Vite asset query mixing: the asset-query gate wins, the body is
   // bundler-synthetic output regardless of lang= hint
   ['/src/App.vue?vue&type=script&lang=ts&inline', false, 'SFC lang=ts trumped by ?inline'],
   ['/src/App.vue?vue&type=script&lang=ts&worker', false, 'SFC lang=ts trumped by ?worker'],
@@ -192,8 +192,8 @@ const shouldTransformCases = [
   // edge: whitespace around lang= bails (no real separator before, no valid ext)
   ['/src/App.vue?vue&type=script&lang= ts', false, 'SFC whitespace around lang value'],
   ['/src/App.vue? lang=ts', false, 'SFC whitespace before lang'],
-  // edge: empty lang= - SFC_LANG_RE rejects (alphabet needs a `[jt]` char), default-JS
-  // fallback blocked by the explicit `!id.includes('lang=')` gate, so the id bails entirely.
+  // edge: empty lang= - the lang-path rejects (the lang value needs a `[jt]` char), and the
+  // default-JS fallback is blocked because a lang= param is present, so the id bails entirely.
   // user authoring `lang=""` is a tool-error shape; pinning the deterministic resolution here
   ['/src/App.vue?vue&type=script&lang=', false, 'SFC empty lang= bails (lang-path rejects, default-JS gate blocks)'],
   // pseudo-extensions: `lang=mjsx` / `cjsx` / `mtsx` / `ctsx` are NOT real file extensions, so the
@@ -239,8 +239,8 @@ const liftSfcLangCases = [
   ['/src/App.vue?lang=ts', '/src/App.vue.ts'],
   ['/src/App.vue?lang=ts&type=script', '/src/App.vue.ts'],
   ['/src/App.vue?foo=bar&lang=ts&baz=qux', '/src/App.vue.ts'],
-  // lang= sandwiched in the middle of the query (between marker and trailing param) - the
-  // `[&?]lang=` prefix accepts either `&` or `?` so middle-position matches identically
+  // lang= sandwiched in the middle of the query (between marker and trailing param) - the query
+  // is parsed into params, so a lang token matches the same regardless of its position
   ['/src/App.vue?vue&lang=ts&type=script', '/src/App.vue.ts'],
   // multiple lang= tokens - regex stops at the first match (RegExp.exec returns leftmost-
   // first per spec), so `lang=ts&lang=tsx` lifts to `.ts`. authoring this shape is a user
@@ -266,10 +266,10 @@ const liftSfcLangCases = [
   // substring guard: `xlang=` must not match - the `[&?]` prefix class demands a real
   // separator before `lang=`, so `?xlang=ts` is rejected (no leading `&`/`?` to consume)
   ['/src/App.vue?xlang=ts', '/src/App.vue'],
-  // author-cased `lang=TS` etc. - SFC_LANG_RE carries `/i` so admission accepts mixed-case
-  // suffixes; lifter matches the same shapes and emits the extension lowercased so oxc-parser's
-  // extension-based language inference resolves canonical `.ts` / `.tsx` parsers. without the
-  // `/i` flag the lifter returned the bare `.vue` baseId and oxc silently rejected TS-only
+  // author-cased `lang=TS` etc. - admission is case-insensitive (the query is lowercased before
+  // it is parsed) so mixed-case suffixes are accepted; the lifter emits the extension lowercased
+  // so oxc-parser's extension-based language inference resolves canonical `.ts` / `.tsx` parsers.
+  // case-sensitive matching would leave the bare `.vue` baseId and oxc would silently reject TS-only
   // syntax in the SFC script body
   ['/src/App.vue?vue&type=script&lang=TS', '/src/App.vue.ts'],
   ['/src/App.vue?vue&type=script&lang=Tsx', '/src/App.vue.tsx'],
