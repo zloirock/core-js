@@ -1,7 +1,4 @@
-import {
-  stripQueryHash,
-  WINDOWS_UNC_PREFIX_RE,
-} from '@core-js/polyfill-provider/helpers/path-normalize';
+import { WINDOWS_UNC_PREFIX_RE } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { isSfcSubBlock, parseModuleId } from './sfc-shapes.js';
 
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
@@ -27,7 +24,6 @@ import { isSfcSubBlock, parseModuleId } from './sfc-shapes.js';
 // follow with `/` after the empty optional group either, so the regex passes through
 const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/(?:localhost)?(?=\/)|\/@fs(?=\/|$)|\/@id\/)/i;
 const REPEATED_SLASHES_RE = /\/{2,}/g;
-const QUERY_OR_HASH_RE = /[#?]/;
 // `WINDOWS_UNC_PREFIX_RE` (shared) matches `//?/` long-path AND `//./` device-path forms.
 // strip to canonical `C:/...` so SnapshotCache lookups align across path-mangling stages
 // (`\\?\C:\src\App.vue` vs `C:/src/App.vue` - same logical file produces same key).
@@ -86,47 +82,21 @@ function stripHMRTimestamp(id) {
     .replace(/[&?]$/, '');
 }
 
-// SFC sub-block tail (`?vue&type=script&lang=ts`) identifies the block but parameter order
-// is bundler-dependent (vite vs farm vs custom). canonicalise by sorting `&`-separated tokens
-// so `?vue&type=script&lang=ts` and `?vue&lang=ts&type=script` hash to the same cache entry.
-// hash suffix `#x` is preserved at the end (always lex-last; doesn't participate in the
-// sort). empty token segments (`&&` collapse) are filtered out
-function normalizeSFCQueryTail(tail) {
-  if (!tail) return tail;
-  const hashIdx = tail.indexOf('#');
-  const querySrc = hashIdx === -1 ? tail.slice(1) : tail.slice(1, hashIdx);
-  const hash = hashIdx === -1 ? '' : tail.slice(hashIdx);
-  const tokens = querySrc.split('&').filter(Boolean).sort();
-  return `?${ tokens.join('&') }${ hash }`;
-}
-
-// an id earns the query-preserving (sub-block) key when it is an SFC sub-block: framework-marked
-// (`?vue&type=script&lang=ts`, incl. style / template blocks, which still need a distinct key) OR a
-// markerless `lang=`-admitted JS block (`?type=script&lang=ts`). a distinct sub-block needs a distinct
-// snapshot key, else two sub-blocks of one file collapse to the stripped path key and cross-contaminate
-// imports in `phase: 'pre+post'`. delegates to the shared structured predicate so the cache-key SFC
-// detection and `shouldTransform`'s admission can never drift apart on the same query shapes
-function isTransformableSfcSubBlock(id) {
-  return isSfcSubBlock(parseModuleId(id).params);
-}
-
+// build the cache key from the SAME structured parse the SFC DETECTION uses (`parseModuleId`), so the
+// key can never drift from detection. an SFC sub-block (framework-marked, or a markerless `lang=`-admitted
+// JS block - incl. style / template, which still need a distinct key so sibling blocks of one file don't
+// collide) keeps its query, canonicalised by the parse: lowercased + percent/`+`-decoded. param order is
+// bundler-dependent (vite vs farm vs custom), so sort the decoded tokens; the hash is appended VERBATIM
+// (never sorted - an in-hash `?b=1&a=2` is opaque fragment text). parsing ONCE (not a second hand-split)
+// is what keeps the path-boundary rule (`#`-before-`?`), the case, and the encoding consistent between the
+// sub-block GATE and the key. a non-sub-block id keys on bare path (its query + hash are identity-irrelevant)
 function normalizeKey(id) {
-  const cleanId = stripHMRTimestamp(id);
-  if (isTransformableSfcSubBlock(cleanId)) {
-    // strip Windows UNC verbatim prefix (`\\?\C:\...` / `//?/C:/...`) BEFORE the SFC split,
-    // otherwise `cleanId.search(/[#?]/)` matches the embedded `?` of the UNC prefix at index
-    // 2 instead of the SFC `?vue&type=...` boundary. without this, pre-on-Windows-UNC and
-    // post-on-canonical-form keys diverge, snapshot miss for the same logical SFC sub-block
-    const uncStripped = cleanId.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
-    // preserve + canonicalise the query since it identifies the sub-block; still normalize
-    // the path prefix. sort query params so `?vue&type=script&lang=ts` and `?vue&lang=ts&
-    // type=script` resolve to the same cache key
-    const queryStart = uncStripped.search(QUERY_OR_HASH_RE);
-    const pathPart = queryStart === -1 ? uncStripped : uncStripped.slice(0, queryStart);
-    const tail = queryStart === -1 ? '' : normalizeSFCQueryTail(uncStripped.slice(queryStart));
-    return normalizePath(pathPart) + tail;
+  const { path, params, hash } = parseModuleId(stripHMRTimestamp(id));
+  if (isSfcSubBlock(params)) {
+    const tokens = [...params].map(([key, value]) => value === '' ? key : `${ key }=${ value }`).sort();
+    return `${ normalizePath(path) }?${ tokens.join('&') }${ hash }`;
   }
-  return normalizePath(stripQueryHash(cleanId));
+  return normalizePath(path);
 }
 
 export default class SnapshotCache {
