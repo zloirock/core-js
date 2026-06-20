@@ -25,6 +25,17 @@ import {
 } from './ast-shapes.js';
 import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
+// canonical array/tuple index: a non-negative integer number, or a string that round-trips
+// through Number (`"0"`/`"1"` yes; `""`/`" 1"`/`"1.0"`/`"01"`/`"0x1"`/`"1e0"` no - Number coerces
+// those to integers that do NOT index the element). null when the key is not an index. a bare
+// `Number(key)` would mis-read `t[""]` as `t[0]`
+function canonicalArrayIndex(key) {
+  if (typeof key === 'number') return Number.isInteger(key) && key >= 0 ? key : null;
+  if (typeof key !== 'string') return null;
+  const n = Number(key);
+  return Number.isInteger(n) && n >= 0 && String(n) === key ? n : null;
+}
+
 export function createTypeMembers({
   memoize,
   unwrapTypeAnnotation,
@@ -85,8 +96,8 @@ export function createTypeMembers({
     // the tuple shape (Parameters is not in STRUCTURE_PRESERVING_WRAPPERS and getTypeMembers
     // returns null for the special built-in), but findTupleElement resolves it via
     // resolveParametersParams. parity with `resolveIndexedAccessType`'s numeric branch
-    const numIndex = typeof key === 'number' ? key : Number(key);
-    if (!Number.isInteger(numIndex) || numIndex < 0) return null;
+    const numIndex = canonicalArrayIndex(key);
+    if (numIndex === null) return null;
     const element = findTupleElement(node.objectType, numIndex, scope);
     return element ? getTypeMembers({ objectType: unwrapTypeAnnotation(element), scope, depth: depth + 1 }) : null;
   }
@@ -507,16 +518,14 @@ export function createTypeMembers({
   function tryIndexedElementMember({ aliased, key, scope, subst }) {
     if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
       if (key === 'length') return { type: 'TSNumberKeyword' };
-      const index = typeof key === 'number' ? key : Number(key);
-      if (!Number.isInteger(index) || index < 0) return null;
+      const index = canonicalArrayIndex(key);
+      if (index === null) return null;
       const element = findTupleElement(aliased, index, scope);
       return element ? applySubst(element, subst) : null;
     }
-    if (aliased?.type === 'TSArrayType' || aliased?.type === 'ArrayTypeAnnotation') {
-      const index = typeof key === 'number' ? key : Number(key);
-      if (Number.isInteger(index) && index >= 0 && aliased.elementType) {
-        return applySubst(aliased.elementType, subst);
-      }
+    if ((aliased?.type === 'TSArrayType' || aliased?.type === 'ArrayTypeAnnotation')
+      && canonicalArrayIndex(key) !== null && aliased.elementType) {
+      return applySubst(aliased.elementType, subst);
     }
     return null;
   }
