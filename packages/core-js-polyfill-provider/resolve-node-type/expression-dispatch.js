@@ -229,8 +229,9 @@ export function createExpressionDispatch({
       case 'ConditionalExpression':
         // transpilers desugar destructuring defaults to a self-ternary - positive
         // (`_ref === void 0 ? D : _ref`), inverse (`_ref !== void 0 ? _ref : D`),
-        // and loose-eq (`_ref == null ? D : _ref`). resolve to the DEFAULT branch
-        // when one branch is the same identifier as the nullish-check argument
+        // and loose-eq (`_ref == null ? D : _ref`). when one branch is the same identifier as
+        // the nullish-check argument, fold the default and self-ref via their common type,
+        // collapsing to the default only when the ref is statically nullish
         return resolveDesugarDefaultTernary(path)
           || resolveUnionType(path.get('consequent'), path.get('alternate'), '?:');
       case 'LogicalExpression':
