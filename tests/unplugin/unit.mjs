@@ -1164,6 +1164,42 @@ function checkGenerateDeclaredRefHoists() {
 }
 checkGenerateDeclaredRefHoists();
 
+// a leading `'use strict'` directive must survive the import-injector's appendRight-failure fallback:
+// a sibling plugin overwriting the prologue range leaves no chunk boundary for appendRight, and a
+// naive prepend at 0 lands the ref/import block ABOVE the directive, silently demoting strict mode
+function checkDirectiveSafeFallback() {
+  const src = '"use strict";\nfoo();';
+  const directiveEnd = directivePrologueEnd(programOf(src));
+  const ms = new MagicString(src);
+  // overwrite [directiveEnd, end] (same content) so the prologue-end appendRight target sits inside an
+  // overwritten chunk with no boundary - exactly the sibling-plugin conflict the fallback handles
+  ms.overwrite(directiveEnd, src.length, src.slice(directiveEnd));
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, directiveEnd });
+  inj.generateDeclaredRef();
+  inj.flush();
+  const out = ms.toString();
+  check('directive survives appendRight fallback (stays first)', out.startsWith('"use strict";'), true);
+  check('ref block lands after the directive, not above', out.indexOf('var _ref') > out.indexOf('use strict'), true);
+}
+checkDirectiveSafeFallback();
+
+// the same fallback must keep a leading `#!` hashbang at offset 0: a block prepended above it is a
+// SyntaxError (hashbangs are only legal as the first characters), worse than the directive's sloppy-
+// mode demotion. the fallback anchors after the shebang's last char with a leading newline
+function checkShebangSafeFallback() {
+  const src = '#!/usr/bin/env node\nfoo();';
+  const shebangContentEnd = src.indexOf('\n'); // offset the fallback anchors at (before the terminator)
+  const ms = new MagicString(src);
+  ms.overwrite(shebangContentEnd, src.length, src.slice(shebangContentEnd));
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, directiveEnd: 0 });
+  inj.generateDeclaredRef();
+  inj.flush();
+  const out = ms.toString();
+  check('hashbang survives appendRight fallback (stays at offset 0)', out.startsWith('#!/usr/bin/env node'), true);
+  check('ref block lands below the hashbang line', out.indexOf('var _ref') > out.indexOf('#!'), true);
+}
+checkShebangSafeFallback();
+
 // post-pass map must carry the `file` field so devtools and combineSourceMaps consumers
 // see the output filename hint. omitting it (spec-optional) makes the chained map
 // ambiguous when bundlers merge multiple plugin maps. MagicString basenames the hint
