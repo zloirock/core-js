@@ -541,6 +541,27 @@ runBoth('reassignmentDominatesUsage/conditional reassign -> false',
     check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
   });
 
+// a for-loop UPDATE-clause reassignment is textually before the body use but runs AFTER it each
+// iteration (and on the back-edge), so iteration 1's body read sees the init - it does NOT dominate.
+// pins the loop-back-edge guard directly (a fixture's union recovery could mask a regressed predicate)
+runBoth('reassignmentDominatesUsage/for-update clause, use in body -> false',
+  'function f(c){ var M = Map; for (var i = 0; c; M = Set) { M.foo(); } }', (adapter, prog, lbl) => {
+    const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
+    check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
+  });
+
+// a logical-assignment writes M only on the short-circuit path, so the init stays live on the other
+// (every-path-here) branch - the conditional write does NOT dominate. enumerate the WHOLE operator set
+// element-by-element: a regression dropping one of the trio from the recognized set would silently
+// re-dominate that operator while the others still pass
+for (const op of ['||=', '&&=', '??=']) {
+  runBoth(`reassignmentDominatesUsage/logical-assign ${ op } reassign -> false`,
+    `function f(){ var M = Map; M ${ op } Set; M.foo(); }`, (adapter, prog, lbl) => {
+      const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
+      check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
+    });
+}
+
 // SHALLOW: a reassignment in an OUTER scope (the use sits in a nested closure) does NOT dominate via
 // this gate, even though it unconditionally precedes the closure definition. bailing the usage-global
 // init-FOLLOW on it would drop the primary key and under-inject; the dead init across a closure is
