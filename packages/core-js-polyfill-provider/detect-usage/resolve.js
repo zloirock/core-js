@@ -803,10 +803,13 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
 // `[k]` with `const k = 'from'` resolves to 'from'); `slotKey` is the stable map / emit slot that
 // distinguishes `[k]` from a plain `k` (`{ k: v, [k]: w }`). a non-computed key uses its name for both;
 // a dynamic computed key (`resolveKey` -> null) yields `lookupKey: null` so the caller bails the synth
-export function resolveSynthKeys({ node, scope, adapter }) {
+export function resolveSynthKeys({ node, scope, adapter, path }) {
   const slotKey = synthSwapPropKey(node);
+  // pass `path` so `resolveKey`'s flow-sensitive gate (`varInitDominatesUsage`) sees the real usage
+  // position: a flow-dependent computed key (`if (c) var K = 'from'; { [K]: m }`) must NOT fold to its
+  // conditional init for usage-pure - a null path defaults the dominance check to true and folds wrongly
   const lookupKey = node.computed
-    ? resolveKey({ node: node.key, computed: true, scope, adapter })
+    ? resolveKey({ node: node.key, computed: true, scope, adapter, path })
     : node.key.name;
   return { lookupKey, slotKey };
 }
