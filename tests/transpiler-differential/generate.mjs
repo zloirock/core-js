@@ -85,6 +85,13 @@ const G_CONTEXTS = [
   { id: 'class-field', tpl: e => `(() => { class C { p = ${ e }; } return new C().p; })()`, ts: false },
   { id: 'ternary', tpl: e => `(true ? ${ e } : null)`, ts: false },
   { id: 'loop-body', tpl: e => `(() => { let p; for (const _ of [0]) p = ${ e }; return p; })()`, ts: false },
+  // the polyfilled call as a logical-assignment RHS: `p ??= <hole>` evaluates the hole (p is undefined)
+  // and surfaces its value, so the runtime three-way still compares the call result in this position
+  { id: 'logical-assign-rhs', tpl: e => `(() => { let p; p ??= ${ e }; return p; })()`, ts: false },
+  // the polyfilled call as a switch DISCRIMINANT: the observable is constant ("d"), so this leg covers
+  // import parity + no-throw + the stripped realm (a missed injection throws when the discriminant runs),
+  // not the value - the discriminant position can't return its own value the way the others do
+  { id: 'switch-discriminant', tpl: e => `(() => { let out = "x"; switch (${ e }) { default: out = "d"; } return out; })()`, ts: false },
   { id: 'ts-param-prop', tpl: e => `(() => { class C { constructor(public p = ${ e }) {} } return new C().p; })()`, ts: true },
 ];
 
@@ -193,6 +200,66 @@ function * generateProxyGlobalSEReceiver() {
     for (const pat of PGS_PATTERNS) {
       const name = `proxy-global-se-receiver/${ host.id }/${ pat.id }`;
       yield { ...snippet(name, host.build(pat)), strip: host.strip };
+    }
+  }
+}
+
+// --- Receiver-copy global substitution across receiver NODE shapes ---
+// a sole nested-instance binding (`const { y: { at: m } } = { y: [<recv>] }`) INLINES the receiver text
+// into the instance polyfill's argument (`_at([<recv>])`); every global nested in that copy must be
+// substituted to its pure import, exactly as babel re-traverses its own clone. the copy descends per
+// receiver NODE shape, and a global buried in a COMPUTED property VALUE is the sibling the combinatorial
+// grammar never built - its nested-instance receivers are only bare array literals / idents. a missed
+// substitution leaves a raw `globalThis`, which (deleted in the stripped worker) becomes a hard throw, so
+// `strip: true`; the `ctor-value` shape keeps a still-present constructor so its leg is import-parity.
+// observe `typeof m`: the binding init evaluates the copied receiver, so a raw global surfaces there
+const RC_SHAPES = [
+  { id: 'computed-key-value', recv: '[{ ["k"]: globalThis }]' },
+  { id: 'noncomputed-key-value', recv: '[{ k: globalThis }]' },
+  { id: 'member-chain-root', recv: '[globalThis.Array.prototype]' },
+  { id: 'conditional-branch', recv: '[cond ? globalThis : globalThis]' },
+  { id: 'binary-operand', recv: '[globalThis.Array.length + 1]' },
+  { id: 'computed-member-key', recv: '[({})[globalThis.Array ? "x" : "y"]]' },
+  { id: 'ctor-value', recv: '[{ ["k"]: Set }]' },
+];
+const RC_METHODS = ['at', 'flat', 'includes'];
+function * generateReceiverCopyShape() {
+  for (const shape of RC_SHAPES) {
+    for (const method of RC_METHODS) {
+      const body = `(() => { const { y: { ${ method }: m } } = { y: ${ shape.recv } }; return typeof m; })()`;
+      yield { ...snippet(`receiver-copy-shape/${ shape.id }/${ method }`, body), strip: true };
+    }
+  }
+}
+
+// --- Full-consume destructure whose collapsed init carries a discardable side effect ---
+// a full-consume proxy-global destructure collapses to synth bindings and DROPS the init value, but a
+// side effect in the dropped position must still be rescued: the SE prefix of a collapsed `||` / `??` LEFT
+// operand (RHS dead) and the effectful argument of a peeled identity IIFE - the positions the harvest is
+// narrower than the collapse. `log.push` pins the effect: a collapse that dropped it shows in BOTH the
+// 3-way `effects` and the observed `log.length`. these are exactly the shapes a manual probe flagged
+// (full-consume `||` LEFT-SE, cascade identity-IIFE-SE-arg) and the PGS family - a bare SequenceExpression
+// receiver - does not reach. full-env: the value is `typeof`, the binding resolves to a present global
+const FCSE_INITS = [
+  { id: 'or-left-se', init: '(log.push("r"), globalThis) || Object' },
+  { id: 'nullish-left-se', init: '(log.push("r"), globalThis) ?? Object' },
+  { id: 'iife-se-arg', init: '((g) => g)((log.push("r"), globalThis))' },
+];
+const FCSE_PATTERNS = [
+  { id: 'single', lhs: '{ Array: { from } }', obs: '[typeof from, log.length]', names: 'from' },
+  { id: 'multi', lhs: '{ Array: A, Object: O }', obs: '[typeof A, typeof O, log.length]', names: 'A, O' },
+];
+const FCSE_HOSTS = [
+  { id: 'decl', build: (lhs, init, obs) => `(() => { const ${ lhs } = ${ init }; return ${ obs }; })()` },
+  { id: 'assign', build: (lhs, init, obs, names) => `(() => { let ${ names }; (${ lhs } = ${ init }); return ${ obs }; })()` },
+];
+function * generateFullConsumeSeRescue() {
+  for (const init of FCSE_INITS) {
+    for (const host of FCSE_HOSTS) {
+      for (const pat of FCSE_PATTERNS) {
+        const body = host.build(pat.lhs, init.init, pat.obs, pat.names);
+        yield { ...snippet(`full-consume-se/${ init.id }/${ host.id }/${ pat.id }`, body), strip: false };
+      }
     }
   }
 }
@@ -422,6 +489,51 @@ function * generateMutatedWrapperAssign() {
   }
 }
 
+// the patched static is reached through a COMPUTED key that is a folded LITERAL - a string concat
+// (`recv["fr" + "om"]`) or a single-quasi template (`recv[`from`]`) - which the bail pre-walk must
+// normalize to the static name before it can mark the slot. patch AND restore go through the SAME key
+// expression, so the slot is touched only when that key shape resolves; a dotted restore would mark it
+// on its own and mask whether the folded-key detection is what bailed. the defineProperty variant passes
+// the single-quasi template as the property-name argument (restore through the same defineProperty shape)
+const M_LITERAL_KEYS = [
+  { id: 'concat', key: s => `["${ s.key[0] }" + "${ s.key.slice(1) }"]` },
+  { id: 'template', key: s => `[\`${ s.key }\`]` },
+];
+function * generateMutatedLiteralKey() {
+  for (const s of M_STATICS) {
+    for (const k of M_LITERAL_KEYS) {
+      const key = k.key(s);
+      const body = `(() => { const _o = ${ s.recv }${ key }; try { ${ s.recv }${ key } = () => "P"; return ${ s.use }; } finally { ${ s.recv }${ key } = _o; } })()`;
+      yield { ...snippet(`mutated-literal-key/${ k.id }/${ s.recv }.${ s.key }`, body), strip: false };
+    }
+    // the template property-name argument under BOTH define-property namespaces (the key resolves the
+    // same way, but each namespace is a distinct mutation-detection callee - both must bail)
+    for (const ns of ['Object', 'Reflect']) {
+      const dp = a => `${ ns }.defineProperty(${ s.recv }, \`${ s.key }\`, { value: ${ a }, configurable: true, writable: true })`;
+      const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ dp('() => "P"') }; return ${ s.use }; } finally { ${ dp('_o') }; } })()`;
+      yield { ...snippet(`mutated-literal-key/defineprop-template-${ ns.toLowerCase() }/${ s.recv }.${ s.key }`, body), strip: false };
+    }
+  }
+}
+
+// the static's receiver is SHADOWED by a function-scoped `var` (hoisted file-wide), so the call resolves
+// to the LOCAL object, not the global - usage-pure must bail and keep it. unlike the mutated-static family
+// this needs no restore: the IIFE scopes the `var`, so nothing leaks across the shard's sequential imports.
+// the local object returns a sentinel ("P") a real pure static never produces; a wrongly-injected pure
+// static reads a real value != "P" (and carries an import the bailed side lacks). the `hoist` form puts the
+// use in a nested function that closes over the function-scoped binding, called after assignment - so the
+// shadow is the var-hoist scope, not a block-local. reuses the canonical M_STATICS set (the local object is
+// derived from its key). full-env (the shadow is a binding decision, not a strip target)
+function * generateVarShadowedStatic() {
+  for (const s of M_STATICS) {
+    const local = `{ ${ s.key }: () => "P" }`;
+    yield { ...snippet(`var-shadowed-static/direct/${ s.recv }.${ s.key }`,
+      `(() => { var ${ s.recv } = ${ local }; return ${ s.use }; })()`), strip: false };
+    yield { ...snippet(`var-shadowed-static/hoist/${ s.recv }.${ s.key }`,
+      `(() => { function g() { return ${ s.use }; } var ${ s.recv } = ${ local }; return g(); })()`), strip: false };
+  }
+}
+
 // --- Side-effect ORDER through nested-instance body-extract ---
 // distinct side-effecting siblings (`log.push("x")` / `"z"`) flank the body-extracted binding; the
 // receiver is constant (memoize), an identifier (re-reference), or itself side-effecting (bail). every
@@ -467,6 +579,71 @@ function * generateOptionalArgSe() {
     for (const chain of ARG_SE_CHAINS) {
       yield { ...snippet(`optional-arg-se/${ chain.id }/${ recv.id }`, `${ recv.src }${ chain.tail }`), strip: false };
     }
+  }
+}
+
+// --- Async static (`Array.fromAsync`) strip-armed via top-level await ---
+// `Array.fromAsync` sits in the strip set yet no snippet exercised it (a DEAD strip entry): a dropped
+// es.array.from-async injection passes the full-env three-way (native present) but throws in the stripped
+// worker. observed through top-level await (the harness imports the module, so the await resolves), so the
+// strip oracle arms. the return-narrow variants feed the awaited Array into a trailing strip-target
+// instance method, exercising the awaited-Promise -> Array narrow plus a chained poly in one snippet
+const ASYNC_STATICS = [
+  { id: 'plain', expr: 'await Array.fromAsync([1, 2])' },
+  { id: 'return-narrow-flat', expr: '(await Array.fromAsync([[1], [2]])).flat()' },
+  { id: 'return-narrow-at', expr: '(await Array.fromAsync([1, 2])).at(-1)' },
+  { id: 'from-iterable', expr: 'await Array.fromAsync(new Set([1, 2]))' },
+  { id: 'promise-elements', expr: 'await Array.fromAsync([Promise.resolve(1), Promise.resolve(2)])' },
+];
+function * generateAsyncStatic() {
+  for (const s of ASYNC_STATICS) {
+    yield { ...snippet(`async-static/${ s.id }`, s.expr), strip: true };
+  }
+}
+
+// --- Set-ops + Iterator-helper receivers crossed with the context axis ---
+// the most behaviorally-distinct pure families (new-Set ops, Iterator helpers via `.values()`) existed
+// only as flat full-env one-offs, never dropped into the syntactic-position axis (stmt / param-default /
+// class-field / ternary / loop-body / ts-param-prop). each expression folds to a serializable value. Set
+// ops are strip-armed: each op is reimplemented on the pure Set, so a missed `new Set` -> pure rewrite
+// throws once the native op is deleted in the worker. Iterator helpers stay full-env - the pure iterator
+// inherits the native %IteratorPrototype% helpers (not a strippable leaf, see strip-builtins.mjs)
+const COLLECTION_RECVS = [
+  { id: 'set-union', expr: '[...new Set([1, 2]).union(new Set([2, 3]))].sort()', strip: true },
+  { id: 'set-intersection', expr: '[...new Set([1, 2, 3]).intersection(new Set([2, 3]))].sort()', strip: true },
+  { id: 'set-difference', expr: '[...new Set([1, 2, 3]).difference(new Set([2]))].sort()', strip: true },
+  { id: 'set-symmetric', expr: '[...new Set([1, 2]).symmetricDifference(new Set([2, 3]))].sort()', strip: true },
+  { id: 'set-isSubsetOf', expr: 'new Set([1, 2]).isSubsetOf(new Set([1, 2, 3]))', strip: true },
+  { id: 'set-isSupersetOf', expr: 'new Set([1, 2, 3]).isSupersetOf(new Set([1, 2]))', strip: true },
+  { id: 'set-isDisjointFrom', expr: 'new Set([1]).isDisjointFrom(new Set([2]))', strip: true },
+  { id: 'iter-filter', expr: '[1, 2, 3, 4].values().filter(x => x % 2 === 0).toArray()', strip: false },
+  { id: 'iter-map-take', expr: '[1, 2, 3].values().map(x => x * 2).take(2).toArray()', strip: false },
+  { id: 'iter-drop', expr: '[1, 2, 3, 4].values().drop(2).toArray()', strip: false },
+  { id: 'iter-opt', expr: '[1, 2, 3].values()?.map(x => x * 2)?.toArray()', strip: false },
+];
+function * generateCollectionReceivers() {
+  for (const ctx of G_CONTEXTS) {
+    for (const recv of COLLECTION_RECVS) {
+      yield { ...snippet(`collection-receiver/${ ctx.id }/${ recv.id }`, ctx.tpl(recv.expr)), ts: ctx.ts, strip: recv.strip };
+    }
+  }
+}
+
+// --- for-of ITERABLE position: a polyfilled array-/string-returning call as the for-of iterable ---
+// the polyfilled call sits in the for-of iterable slot (distinct from loop-body, which holds the hole in
+// the BODY) - a position the universal context axis can't carry, since only an iterable result is valid
+// there (a boolean / number hole would throw). restricted to array-/string-returning receivers; observe
+// the last yielded element. strip-armed (the array / string methods are strip targets)
+const FOROF_RECVS = [
+  { id: 'array-flat', expr: '[3, [1, 2]].flat()' },
+  { id: 'array-toSorted', expr: '[3, 1, 2].toSorted()' },
+  { id: 'static-from', expr: 'Array.from([1, 2])' },
+  { id: 'proxy-from', expr: 'globalThis.Array.from([1, 2])' },
+  { id: 'string-padStart', expr: '"5".padStart(3, "0")' },
+];
+function * generateForOfIterable() {
+  for (const r of FOROF_RECVS) {
+    yield { ...snippet(`for-of-iterable/${ r.id }`, `(() => { let p; for (const x of ${ r.expr }) p = x; return p; })()`), strip: true };
   }
 }
 
@@ -629,8 +806,8 @@ const EXPR_FAMILIES = {
     '(() => { let from; ({ from } = (() => { log.push("r"); return Array; })()); return [typeof from, log.length]; })()',
     '(() => { const { from } = (log.push("s"), (() => Array)()); return [typeof from, log.join("|")]; })()',
     // conditional init with an inline-call branch: the taken branch synths to the polyfill and an
-    // SE-bearing call is rescued (runs once, on its own branch only); the untaken branch must NOT run
-    '(() => { const { from } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof from, log.length]; })()',
+    // SE-bearing call is rescued (runs once, on its own branch only); the untaken branch must NOT run.
+    // the first-operand (taken-IIFE) form is the branchy-group case above; here the IIFE is the SECOND operand
     '(() => { const { from } = cond ? Array : (() => { log.push("r"); return Array; })(); return [typeof from, log.length]; })()',
     '(() => { const { from } = cond ? (() => { log.push("a"); return Array; })() : (() => { log.push("b"); return Array; })(); return [typeof from, log.join("|")]; })()',
     '(() => { const { from } = (() => (cond ? Array : Iterator))(); return [typeof from, log.length]; })()',
@@ -1524,11 +1701,24 @@ const TS_FAMILIES = {
   ],
 };
 
+// EXPR families whose every snippet is a PROVABLE-injection case (a strip-target builtin that MUST be
+// replaced) get the stripped-realm oracle, re-arming the only leg that catches a SHARED (both-plugins-
+// agree) missed injection - import parity and the full-env three-way both pass when both sides miss
+// identically. left full-env: families with a deliberate bail / null-receiver / dynamic-key where a
+// native call legitimately survives, and families whose target is not in the strip set (their strip run
+// would be vacuous anyway). within a marked family, a non-strip-target snippet (e.g. structuredClone)
+// simply runs vacuously - its native is still present - which is harmless
+const STRIP_FAMILIES = new Set([
+  'string-receiver', 'static-more', 'array-new-methods', 'collection-methods',
+]);
+
 export function * generate() {
   yield * generateGrammar();
   yield * generateDestructure();
   yield * generateDestructureAlias();
   yield * generateProxyGlobalSEReceiver();
+  yield * generateReceiverCopyShape();
+  yield * generateFullConsumeSeRescue();
   yield * generateConditionalMirror();
   yield * generateChains();
   yield * generateIn();
@@ -1538,10 +1728,15 @@ export function * generate() {
   yield * generateMutatedNarrowChain();
   yield * generateMutatedComputedKey();
   yield * generateMutatedWrapperAssign();
+  yield * generateMutatedLiteralKey();
+  yield * generateVarShadowedStatic();
   yield * generateSeOrder();
   yield * generateOptionalArgSe();
+  yield * generateAsyncStatic();
+  yield * generateCollectionReceivers();
+  yield * generateForOfIterable();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
-    for (const expr of exprs) yield snippet(`${ family }: ${ expr }`, expr);
+    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), strip: STRIP_FAMILIES.has(family) };
   }
   for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
     for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true };
