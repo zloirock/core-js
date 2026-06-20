@@ -926,6 +926,13 @@ export default class TransformQueue {
     for (const t of composed) {
       const tEnd = entryLogicalEnd(t);
       if (tEnd > maxEnd) {
+        // KNOWN LIMITATION (sourcemap precision, output is correct): a split that reaches the compose
+        // path (i.e. it is NESTED - either holding inners or folded into a wider outer) emits ONE
+        // overwrite over its full logical range, so its prefix/suffix halves no longer map to distinct
+        // source columns the way `addSplit`'s fast-path two-overwrite emission does. restoring per-half
+        // precision needs `#composeOne` / `#substituteInners` to track the substitution-adjusted half
+        // boundary inside the composed string - a high-risk change to the needle-substitution engine
+        // for a precision-only gain on a rare path; deliberately left as a known limitation
         splices.push({ start: t.start, end: tEnd, content: composedContent.get(t) ?? t.content });
         maxEnd = tEnd;
       }
