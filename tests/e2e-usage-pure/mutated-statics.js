@@ -19,6 +19,60 @@ QUnit.test('mutated-statics: alias mutation wins over substitution', assert => {
   else delete A.of;
 });
 
+// a patch through a COMPUTED const-aliased key (`const k = 'from'; Array[k] = ...`) names the
+// same slot as a dotted patch; the resolver follows the const binding, so the later read keeps
+// the user patch instead of routing to the polyfill. patch AND restore go through the const-key
+// so `Array.from` is only ever touched via the path under test - a dotted restore would mark the
+// slot mutated on its own and mask whether the const-key shape is the thing detected
+QUnit.test('mutated-statics: computed const-key mutation wins over substitution', assert => {
+  const key = 'from';
+  const had = 'from' in Array;
+  const original = Array[key];
+  Array[key] = function patched() {
+    return 'cck-patched';
+  };
+  try {
+    assert.same(Array.from([1]), 'cck-patched');
+  } finally {
+    if (had) Array[key] = original;
+    else delete Array[key];
+  }
+});
+
+// the same const-key resolution applies when the patch arrives through Object.defineProperty
+// with a const-aliased key argument (restored through the same key)
+QUnit.test('mutated-statics: defineProperty const-key mutation wins over substitution', assert => {
+  const key = 'fromEntries';
+  const original = Object[key];
+  Object.defineProperty(Object, key, {
+    value: function patched() { return 'dp-patched'; },
+    configurable: true,
+    writable: true,
+  });
+  try {
+    assert.same(Object.fromEntries([['a', 1]]), 'dp-patched');
+  } finally {
+    Object[key] = original;
+  }
+});
+
+// a wrapper-fronted namespace (`(0, Object).assign(...)`, a common minified shape) still
+// resolves to the global Object, so the assign-installed patch wins over the substitution.
+// restore through a computed key so the slot is only ever touched via untracked-by-the-old-code
+// shapes - a dotted restore would mark it mutated and mask the wrapper-peel under test
+QUnit.test('mutated-statics: wrapper-fronted assign mutation wins over substitution', assert => {
+  const key = 'fromAsync';
+  const had = 'fromAsync' in Array;
+  const original = Array[key];
+  (0, Object).assign(Array, { fromAsync: function patched() { return 'wf-patched'; } });
+  try {
+    assert.same(Array.fromAsync([1]), 'wf-patched');
+  } finally {
+    if (had) Array[key] = original;
+    else delete Array[key];
+  }
+});
+
 // a monkey-patched static routes every surface through one constructor object: the patch,
 // the member read, the destructure extraction and the in-check all observe the same value
 QUnit.test('mutated-statics: mutated static routes all surfaces through one object', assert => {
