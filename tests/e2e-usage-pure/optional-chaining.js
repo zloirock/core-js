@@ -301,3 +301,52 @@ QUnit.test('optional poly tail + surviving optional in plain assignment: undefin
   const liveRoot = [2, 3]?.findLast(Boolean).x?.y;
   assert.same(liveRoot, undefined);
 });
+
+// optional CALL on a NON-static member of a polyfilled global (`Promise` / `Map` are in `globals`
+// under the ie:11 leg). the `?.` guards the undefined member, NOT the always-defined global, so the
+// whole chain short-circuits to undefined. deopting the guard as if the member were a real static
+// calls a non-existent static and throws - this asserts the guard survives the rewrite.
+QUnit.test('optional call on non-static member of polyfilled global short-circuits', assert => {
+  // eslint-disable-next-line es/no-nonstandard-promise-properties -- the missing static IS the case
+  assert.same(Promise.noSuchStatic?.().includes(0), undefined);
+  // eslint-disable-next-line es/no-nonstandard-map-properties -- the missing static IS the case
+  assert.same(globalThis.Map.notAMethod?.().at(0), undefined);
+  // two trailing polys (multi-poly compose path) - the guard must still short-circuit the chain
+  // eslint-disable-next-line es/no-nonstandard-promise-properties -- the missing static IS the case
+  assert.same(Promise.noSuchStatic?.().flat().at(0), undefined);
+  // proxy-global static receiver, multi-trailing (combined-chain path): the emitted receiver must
+  // collapse to the pure ctor and the chain still short-circuit to undefined
+  // eslint-disable-next-line es/no-nonstandard-map-properties -- the missing static IS the case
+  assert.same(globalThis.Map.notAMethod?.().flat().at(0), undefined);
+  // positive control: a REAL static call IS deopted (the guard is genuinely redundant) and the
+  // trailing polyfill still runs on its result
+  assert.same(Array.of?.(3, 1, 2).at(-1), 2);
+});
+
+// a side-effecting receiver before the non-static-member optional call: the preserved guard must
+// evaluate the receiver exactly once (not drop or double-run the side effect) and still short-circuit
+QUnit.test('optional call on non-static global member: side-effect receiver runs once', assert => {
+  let calls = 0;
+  const recv = () => {
+    calls += 1;
+    return Promise;
+  };
+  assert.same((recv(), Promise).noSuchStatic?.().includes(0), undefined);
+  assert.same(calls, 1);
+  // SE-tail proxy-global static receiver, multi-trailing: the static collapses while the leading
+  // effect stays ahead in eval order and runs exactly once, then the chain short-circuits
+  let seq = 0;
+  const bump = () => {
+    seq += 1;
+    return 0;
+  };
+  // eslint-disable-next-line es/no-nonstandard-map-properties -- the missing static IS the case
+  assert.same((bump(), globalThis).Map.notAMethod?.().flat().at(0), undefined);
+  assert.same(seq, 1);
+  // chain-assign receiver of a proxy-global static: the assignment side effect must survive (the
+  // collapse must not consume and drop it), so `a` is still bound after the chain short-circuits
+  let a;
+  // eslint-disable-next-line es/no-nonstandard-map-properties -- the missing static IS the case
+  assert.same((a = globalThis).Map.notAMethod?.().flat().at(0), undefined);
+  assert.same(a, globalThis);
+});

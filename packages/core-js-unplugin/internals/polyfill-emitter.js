@@ -17,9 +17,11 @@ import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   resolveKey,
+  resolveObjectName,
   classifyReceiverSE,
   findProxyGlobal,
   keySideEffectsOnly,
+  peelChainAssignment,
   peelReceiverSequenceTail,
   prependChainAssignmentEffect,
   receiverSideEffectsOnly,
@@ -54,6 +56,28 @@ function isPlainMemberHopChain(outerObject, innerCall) {
 function inheritedStaticFallback(superCalleePath, methodName, resolveStaticInherited, resolveFallback) {
   const meta = resolveStaticInherited(superCalleePath, methodName);
   return meta ? resolveFallback(meta, superCalleePath).result : null;
+}
+
+// rebuild a substituted SE-tail receiver: the verbatim leading effects, then an already-injected pure
+// binding, parenthesized so the sequence still evaluates left-to-right. the caller injects (and so may
+// rebind the tail to a deeper static), keeping a discarded alternative from registering a dead import
+function buildSeTailSrc(prefixSrcs, pureBinding) {
+  return `(${ [...prefixSrcs, pureBinding].join(', ') })`;
+}
+
+// find the hop of a proxy-global member chain that names a real polyfillable global static, so the
+// whole `<forwarder-chain>.Static` prefix collapses to the static's pure ctor in one step
+// (`globalThis.self.Map` -> `_Map`, not the inner `_self.Map`). `resolveObjectName` is the canonical
+// name resolver - it bottoms a hop's receiver out on a proxy-global root and follows aliases/computed
+// keys, so the OUTERMOST hop it resolves to a polyfillable global is that prefix. returns
+// `{ staticHop, staticPure, staticIdx }` or null. module-level so the emitter factory stays in budget
+function findProxyGlobalStaticHop(hops, ctx, resolveGlobalPolyfill) {
+  for (let i = 0; i < hops.length; i++) {
+    const name = resolveObjectName({ objectNode: hops[i], ...ctx });
+    const staticPure = name && resolveGlobalPolyfill(name);
+    if (staticPure) return { staticHop: hops[i], staticPure, staticIdx: i };
+  }
+  return null;
 }
 
 export function createPolyfillEmitter({
@@ -204,7 +228,7 @@ export function createPolyfillEmitter({
   // route through `_ref.call(recv)`. recv is bound to `this` for `super`, re-read for a safe
   // receiver, and memoized first when side-effecting (its ref precedes the method ref, matching
   // babel). `methodTail` keeps any inner `?.` for short-circuit
-  function resolveMethodCall({ optionalRoot, optionalNode, rootNode, outerObject, deoptPositions }) {
+  function resolveMethodCall({ optionalRoot, optionalNode, rootNode, outerObject, deoptPositions, metaPath }) {
     if (!optionalRoot || !optionalNode
       || (optionalNode.type !== 'CallExpression' && optionalNode.type !== 'OptionalCallExpression')) return null;
     // peel transparent wrappers (parens, chain, TS as/!/satisfies) off the callee so a wrapped
@@ -235,11 +259,19 @@ export function createPolyfillEmitter({
       && !transforms.hasTransformWithin(optionalNode.end, outerObject.end)
       ? stripOptionalDots(code.slice(optionalNode.end, outerObject.end), optionalNode.end, deoptPositions)
       : '';
+    // a polyfillable-global receiver (`Promise.m?.()`) must substitute to its pure binding in the
+    // `this`-arg too, matching the natural visitor's substitution of the guarded receiver - else
+    // `.call(Promise)` references the raw global and ReferenceErrors on engines without it. a
+    // user-bound or non-global receiver keeps its verbatim source (resolveReceiverPolyfill returns
+    // null for a shadowed name). only the reuse path needs this; the recvRef memo path is not safe
+    const directPolyfill = receiverSafe && !isSuper ? resolveReceiverPolyfill(receiverNode, metaPath) : null;
     return {
       isSuper,
       receiverSafe,
       recvRef: !isSuper && !receiverSafe ? scopeTracker.genRef() : null,
-      receiverText: nodeSrc(receiverNode),
+      receiverText: directPolyfill
+        ? injectPureImport(directPolyfill.entry, directPolyfill.hintName)
+        : nodeSrc(receiverNode),
       methodSrc: nodeSrc(callee),
       methodTail: code.slice(receiverNode.end, callee.end),
       argsText: sliceBetweenParens(optionalNode),
@@ -605,14 +637,20 @@ export function createPolyfillEmitter({
     // access on `void 0`, so it keeps its root and deopt
     const bareParenLookup = parenLookupOnly && !replacementIsCall;
     let optionalRoot = bareParenLookup ? null : resolvedRoot;
+    // resolved before the guard-root block so it can skip itself when the method-call branch owns the
+    // guard (the block's collapse would be unused AND its `walkAstNodes` skip would strip the receiver
+    // identifiers the method-call guard's natural-visitor substitution needs, e.g. a chain-assign root)
+    const methodCall = resolveMethodCall({ optionalRoot, optionalNode, rootNode, outerObject: node.object, deoptPositions, metaPath });
     // proxy-global guard root: when the receiver path did NOT already substitute the leaf
     // (`recv.substituted` false - e.g. a CALL receiver `globalThis.list?.flat().m()` hides the
     // proxy-global below a call), the optionalRoot is raw source AND `skipProxyGlobal(node)` below
     // suppresses the Identifier visitor that would otherwise rewrite it - so the guard emits raw
     // `globalThis` and IE11 ReferenceErrors on the lookup. resolve the guard text through the
     // proxy-global resolver here (the body already binds the memoized `_ref`, and rootRaw stays raw
-    // so the body-tail slice math against the raw receiver source still holds)
-    if (optionalRoot && !recv.substituted && rootNode) {
+    // so the body-tail slice math against the raw receiver source still holds). SKIP for a method call
+    // with a non-bare-Identifier root: the method-call branch rebuilds the guard from the receiver via
+    // the natural visitor, so this value is unused and its skip would strip the receiver's identifiers
+    if (optionalRoot && !recv.substituted && rootNode && !(methodCall && !isBareIdentifier(optionalRoot))) {
       const rootLeaf = unwrapNode(rootNode);
       const directRoot = rootLeaf?.type === 'Identifier' ? resolveReceiverPolyfill(rootLeaf, metaPath) : null;
       const chainRoot = directRoot ? null : resolveProxyGlobalChainSrc(rootNode, metaPath);
@@ -663,9 +701,8 @@ export function createPolyfillEmitter({
     const start = isCall ? parent.start : node.start;
     let end = isCall ? parent.end : node.end;
     const isNew = parent?.type === 'NewExpression';
-    // optional method call (`recv.m?.()`): keep `this` by routing the body through `_ref.call(recv)`.
-    // computed before the guard ref so a memoized receiver ref precedes it (matches babel order)
-    const methodCall = resolveMethodCall({ optionalRoot, optionalNode, rootNode, outerObject: node.object, deoptPositions });
+    // `methodCall` (optional method call `recv.m?.()` - keep `this` via `_ref.call(recv)`) is resolved
+    // earlier, above the proxy-global guard-root block, so the memoized receiver ref precedes the guard ref
     const preAllocatedGuardRef = optionalRootCapturesIntoRef ? scopeTracker.genRef() : null;
 
     const built = buildReplacement(binding, objectSrc, {
@@ -774,17 +811,17 @@ export function createPolyfillEmitter({
 
   // single-level SE-tail proxy-global substitution, shared by the direct-SE receiver
   // (`(eff(), globalThis).flat()`) and the SE-rooted member chain (`(eff(), globalThis).list.at()`):
-  // substitute the tail proxy-global to its pure binding, keep the prefix verbatim ahead of it in
-  // eval order. returns `{ leaf, src }` (leaf = the tail Identifier to skip) or null. a non-Identifier
-  // tail (nested SE `(a, (b, X))`) returns null - reconstruction would drop the inner prefix's effects
+  // resolve the tail proxy-global to its pure meta, keeping the prefix verbatim ahead of it in eval
+  // order. returns `{ leaf, prefixSrcs, pure }` (leaf = the tail Identifier to skip; pure = the tail's
+  // polyfill meta, NOT yet injected - the caller may rebind to a deeper static and inject that instead)
+  // or null. a non-Identifier tail (nested SE `(a, (b, X))`) returns null - it drops the inner effects
   function seTailProxyGlobalSubst(node, metaPath) {
     if (node?.type !== 'SequenceExpression' || !(node.expressions?.length >= 2)) return null;
     const leaf = unwrapNode(node.expressions.at(-1));
     if (leaf?.type !== 'Identifier' || metaPath?.scope?.hasBinding?.(leaf.name)) return null;
     const pure = resolveGlobalPolyfill(leaf.name);
     if (!pure) return null;
-    const prefixSrcs = node.expressions.slice(0, -1).map(expr => nodeSrc(expr));
-    return { leaf, src: `(${ [...prefixSrcs, injectPureImport(pure.entry, pure.hintName)].join(', ') })` };
+    return { leaf, pure, prefixSrcs: node.expressions.slice(0, -1).map(expr => nodeSrc(expr)) };
   }
 
   // member-chain receiver rooted at a polyfillable global Identifier (`globalThis?.X.Y`,
@@ -819,10 +856,46 @@ export function createPolyfillEmitter({
     // and bails, leaving the raw proxy-global while `skipProxyGlobal` (SE-aware) suppresses the
     // fallback -> ReferenceError ie:11. shares the single-level subst with the direct-SE branch
     const seTail = seTailProxyGlobalSubst(unwrappedLeaf, metaPath);
-    let leaf, polyfillBinding;
+    // collapse a proxy-global static receiver to its pure ctor (`globalThis.Map` -> `_Map`, and a
+    // nested-forwarder chain `globalThis.self.Map` -> `_Map` in one step), matching the provider/babel.
+    // resolution is side-effect free until `injectPureImport`, so computing it before a later bail is fine
+    const ctx = { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath };
+    const { staticHop, staticPure, staticIdx } = findProxyGlobalStaticHop(hops, ctx, resolveGlobalPolyfill)
+      ?? { staticHop: null, staticPure: null, staticIdx: -1 };
+    let leafBoundary = wrappedLeaf;
+    let leaf, polyfillBinding, skipNode;
     if (seTail) {
       leaf = seTail.leaf;
-      polyfillBinding = seTail.src;
+      skipNode = leaf;
+      if (staticPure) {
+        // rebind the SE tail to the static, keeping the prefix effects ahead of it in eval order:
+        // `(eff(), globalThis).Map` -> `(eff(), _Map)`. the SE-object member never reaches the static
+        // visitor, so skipping the tail identifier alone avoids a dead `_globalThis` import
+        polyfillBinding = buildSeTailSrc(seTail.prefixSrcs, injectPureImport(staticPure.entry, staticPure.hintName));
+        leafBoundary = staticHop;
+        hops.length = staticIdx;
+      } else polyfillBinding = buildSeTailSrc(seTail.prefixSrcs, injectPureImport(seTail.pure.entry, seTail.pure.hintName));
+    } else if (staticPure) {
+      // a proxy-global static collapses even when the leaf is an ALIAS binding (`const g = globalThis;
+      // g.Map`): resolveObjectName followed the binding to confirm the static, so a bound leaf is fine
+      // here (unlike the verbatim leaf-swap below, which needs an unbound proxy-global)
+      const { value: caRhs, outer: chainAssign } = peelChainAssignment(staticHop.object);
+      // a chain-assign receiver carries an observable assignment the collapse must not drop. a DIRECT
+      // one (`(a = globalThis).Map`) is preserved as a sequence ahead of the static value; one buried
+      // under another SE wrapper (`(eff(), a = globalThis).Map`) can't be rebuilt here, so defer the
+      // whole receiver to the natural visitor (which composes its chain-assign effects)
+      if (!chainAssign && prependChainAssignmentEffect(staticHop, []).length) return null;
+      const staticBinding = injectPureImport(staticPure.entry, staticPure.hintName);
+      // `(a = globalThis).Map` -> `(a = _globalThis, _Map)`: the assignment root renders like any
+      // receiver (`_globalThis` unbound / verbatim alias), the static is the sequence value
+      polyfillBinding = chainAssign
+        ? `(${ code.slice(chainAssign.start, caRhs.start) }${ resolveReceiverSource(caRhs, metaPath).src }, ${ staticBinding })`
+        : staticBinding;
+      // skip the whole consumed `proxy-chain.Static` subtree so the visitors don't re-collapse it
+      leafBoundary = staticHop;
+      skipNode = staticHop;
+      walkAstNodes({ root: staticHop, visit: n => skippedNodes.add(n) });
+      hops.length = staticIdx;
     } else {
       leaf = unwrappedLeaf;
       if (leaf?.type !== 'Identifier') return null;
@@ -830,10 +903,11 @@ export function createPolyfillEmitter({
       const pure = resolveGlobalPolyfill(leaf.name);
       if (!pure) return null;
       polyfillBinding = injectPureImport(pure.entry, pure.hintName);
+      skipNode = leaf;
     }
     if (!hasMidChainWrappers) {
-      const tailStart = afterOptional(wrappedLeaf.end, !hops.at(-1).computed);
-      return { src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: leaf };
+      const tailStart = afterOptional(leafBoundary.end, !(hops.at(-1)?.computed ?? false));
+      return { src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: skipNode };
     }
     // wrapped case: rebuild chain inner-to-outer. each hop emits its own property accessor;
     // wrapper tokens (parens, ChainExpression) between hops are dropped. leaf-adjacent hop
@@ -847,7 +921,7 @@ export function createPolyfillEmitter({
       if (hop.computed) src += useOptional ? `?.[${ propText }]` : `[${ propText }]`;
       else src += useOptional ? `?.${ propText }` : `.${ propText }`;
     }
-    return { src, leafNode: leaf };
+    return { src, leafNode: skipNode };
   }
 
   // unified receiver-source resolution for instance-call emission. tries (a) direct
@@ -890,7 +964,7 @@ export function createPolyfillEmitter({
     // SE-rooted member chain; nested-SE `(a, (b, X))` stays out of scope (helper bails)
     const seTail = seTailProxyGlobalSubst(unwrapped, metaPath);
     if (seTail) return {
-      src: seTail.src,
+      src: buildSeTailSrc(seTail.prefixSrcs, injectPureImport(seTail.pure.entry, seTail.pure.hintName)),
       isNonIdent: true,
       skipNode: seTail.leaf,
       substituted: true,
