@@ -18,6 +18,7 @@ import {
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
   isTransparentDestructureWrapper,
+  objectPatternPropNeedsReceiverRewrite,
   synthSwapPropKey,
   mayHaveSideEffects,
   dropDeadSequenceTail,
@@ -1371,8 +1372,10 @@ export default function createDestructureEmitter({
     // rest-only patterns destructure in place
     if (!param.properties.some(p => p.computed)) {
       if (!resolvableProps.length) return;
-      const needsPatternRewrite = param.properties.some(isRestProperty)
-        || resolvableProps.some(p => p.value?.type === 'AssignmentPattern');
+      // the per-prop "needs a `_ref`-bound rewrite" rule is the shared predicate (rest / computed /
+      // default-valued prop) - the same one unplugin's catch gate uses. computed is already routed out
+      // above (its block-skip is a distinct consequence), so here it reduces to rest-or-default
+      const needsPatternRewrite = param.properties.some(objectPatternPropNeedsReceiverRewrite);
       if (!needsPatternRewrite) {
         const destructuredNames = new Set();
         for (const p of resolvableProps) {
