@@ -382,6 +382,27 @@ function * generateMutatedNarrowChain() {
   }
 }
 
+// the patched static is reached through a const-aliased COMPUTED key (`const _k = "from";
+// recv[_k] = ...`); the resolver must follow the const binding to the same slot. patch AND restore
+// go through the SAME computed key, so the slot is only ever touched via the shape under test - a
+// dotted restore would mark it on its own and mask whether the computed-key detection is what bailed
+function * generateMutatedComputedKey() {
+  for (const s of M_STATICS) {
+    const body = `(() => { const _k = "${ s.key }"; const _o = ${ s.recv }[_k]; try { ${ s.recv }[_k] = () => "P"; return ${ s.use }; } finally { ${ s.recv }[_k] = _o; } })()`;
+    yield { ...snippet(`mutated-computed-key/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// the patch arrives through a wrapper-fronted namespace (`(0, Object).assign(recv, { key: ... })`,
+// a common minified shape) that still resolves to the global Object; restore via a computed key so
+// neither touch is a plain dotted write the binding-blind path could detect on its own
+function * generateMutatedWrapperAssign() {
+  for (const s of M_STATICS) {
+    const body = `(() => { const _k = "${ s.key }"; const _o = ${ s.recv }[_k]; try { (0, Object).assign(${ s.recv }, { ${ s.key }: () => "P" }); return ${ s.use }; } finally { ${ s.recv }[_k] = _o; } })()`;
+    yield { ...snippet(`mutated-wrapper-assign/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
 // --- Side-effect ORDER through nested-instance body-extract ---
 // distinct side-effecting siblings (`log.push("x")` / `"z"`) flank the body-extracted binding; the
 // receiver is constant (memoize), an identifier (re-reference), or itself side-effecting (bail). every
@@ -1495,6 +1516,8 @@ export function * generate() {
   yield * generateMutatedSibling();
   yield * generateMutatedDestructure();
   yield * generateMutatedNarrowChain();
+  yield * generateMutatedComputedKey();
+  yield * generateMutatedWrapperAssign();
   yield * generateSeOrder();
   yield * generateOptionalArgSe();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
