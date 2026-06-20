@@ -2274,8 +2274,10 @@ export function peelFallbackReceiver(node) {
 }
 
 // SE-bearing prefix of a multi-operand SequenceExpression (all but the consumed last operand),
-// or null when the node is not such a sequence or its prefix is side-effect-free. shared by
-// `visitSymbolInLhsSe` (the symbol-in walk) and the `key in obj` fold plan
+// or null when the node is not such a sequence or its prefix is side-effect-free. used by
+// `sequenceKeyPrefix` (destructure computed-key) and resolve.js's `bailOnSideEffectKey` gate -
+// callers that only need to KNOW a prefix has effects, not harvest the surviving tail's nested SE
+// (that recursive harvest is `collectFoldedReceiverSideEffects`, which the `in`-expression paths use)
 export function sequencePrefixWithSideEffects(expr) {
   if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
   const prefix = expr.expressions.slice(0, -1);
@@ -2341,30 +2343,6 @@ export function collectFoldedReceiverSideEffects(node, out = [], rescue = null) 
 // identically - the peel and the SE check can't drift between the two
 export function sequenceKeyPrefix(keyNode) {
   return sequencePrefixWithSideEffects(unwrapRuntimeExpr(keyNode));
-}
-
-// walk a symbol-sourced `X in Y` LHS subtree, invoking `visit(seExprNode)` for each
-// SE-bearing leading expression discovered in any nested SequenceExpression. handles
-// wrapped receivers (`(fn(), Symbol).iterator`), computed-key SE (`Symbol[(fn(), 'k')]`),
-// and TS/Paren/Chain wrappers around either. shared between babel-plugin and unplugin
-// `handleInExpression`: babel passes `e => arr.push(t.cloneNode(e))`, unplugin passes
-// `e => arr.push(nodeSrc(e))` - the walk + SE detection lives here so both emit paths
-// preserve the same shapes byte-for-byte without diverging implementations
-export function visitSymbolInLhsSe(node, visit) {
-  function walk(n) {
-    while (n && (TRANSPARENT_EXPR_WRAPPER_TYPES.has(n.type) || n.type === 'ChainExpression')) {
-      n = n.expression;
-    }
-    if (!n) return;
-    if (isMemberAccessNode(n)) {
-      walk(n.object);
-      if (n.computed) walk(n.property);
-      return;
-    }
-    const prefix = sequencePrefixWithSideEffects(n);
-    if (prefix) for (const e of prefix) visit(e);
-  }
-  walk(node);
 }
 
 // nodes that introduce their own scope and may shadow outer bindings - subtree walkers

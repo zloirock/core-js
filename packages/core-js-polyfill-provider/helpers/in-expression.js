@@ -6,7 +6,6 @@
 import {
   collectFoldedReceiverSideEffects,
   unwrapRuntimeExpr,
-  visitSymbolInLhsSe,
 } from './ast-patterns.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
 
@@ -17,12 +16,17 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   // wrapped receiver) the rewrite would otherwise drop, so harvest it to re-prepend
   const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
   if (symbolIn && isEntryNeeded(symbolIn.entry)) {
-    const leadingSe = [];
-    // a sequence-prefix SE on the LHS lexically PRECEDES the receiver, so it runs BEFORE the chain-root
-    // receiver call harvested at detection (`meta.sideEffects`): `(p(), IIFE()).Symbol.iterator` runs the
-    // prefix `p()` first, THEN the IIFE - source order [p, IIFE], not [IIFE, p]
-    visitSymbolInLhsSe(left, e => leadingSe.push(e));
-    if (meta.sideEffects?.length) leadingSe.push(...meta.sideEffects);
+    // the rewrite REPLACES the LHS value with the symbol import, so EVERY side effect around the symbol
+    // must be harvested to re-prepend - not just a top sequence prefix but its nested tails, computed
+    // keys, `+`/template key concats and assignment receivers. that is exactly the structural harvest the
+    // fold path uses (`collectFoldedReceiverSideEffects`); a non-recursive prefix-only walk dropped a
+    // nested-sequence tail (`(g(), (h(), Symbol)).iterator` lost `h()`). the chain-root receiver CALL
+    // (`meta.sideEffects`, harvested scope-aware at detection so a provably-pure inline call is dropped)
+    // threads in as `rescue` so it INTERLEAVES at its true source position - a lexical prefix runs before
+    // it (`(p(), IIFE()).Symbol.iterator` -> source order [p, IIFE]) - with any unplaced rescue appended
+    const rescue = new Set(meta.sideEffects);
+    const leadingSe = collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), [], rescue);
+    for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
     return { kind: 'symbol', call: meta.key === 'Symbol.iterator', entry: symbolIn.entry, hint: symbolIn.hint, leadingSe, right };
   }
   // bare-name LHS with a statically-known polyfilled key (`'from' in Array`) folds to `true` (the
