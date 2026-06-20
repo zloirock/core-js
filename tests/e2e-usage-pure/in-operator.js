@@ -183,4 +183,54 @@ if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.true(r);
     assert.deepEqual(log, ['p', 'r']);
   });
+
+  // a NESTED SequenceExpression in the symbol receiver tail: the rewrite replaces the LHS, so the
+  // inner tail's effect must be harvested too, not just the outer prefix - a prefix-only walk dropped
+  // the inner `h()`, losing it at runtime. is-iterable path (Symbol.iterator -> a call)
+  QUnit.test('(g(), (h(), Symbol)).iterator in [] -> nested-tail SE runs in source order', assert => {
+    const log = [];
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the inner parens ARE the nested SequenceExpression under test
+    const r = (log.push('g'), (log.push('h'), Symbol)).iterator in [];
+    assert.true(r);
+    assert.deepEqual(log, ['g', 'h']);
+  });
+
+  // same nesting on the symbol/X path (Symbol.asyncIterator -> binding swap, not a call)
+  QUnit.test('(g(), (h(), Symbol)).asyncIterator in {} -> nested-tail SE runs in source order', assert => {
+    const log = [];
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the inner parens ARE the nested SequenceExpression under test
+    const r = (log.push('g'), (log.push('h'), Symbol)).asyncIterator in {};
+    assert.false(r);
+    assert.deepEqual(log, ['g', 'h']);
+  });
+
+  // arbitrarily deep nesting: every level's effect must surface, in source order
+  QUnit.test('deep-nested sequence in symbol receiver -> all effects run in order', assert => {
+    const log = [];
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the nested parens ARE the deep SequenceExpression under test
+    const r = (log.push('a'), (log.push('b'), (log.push('c'), Symbol))).asyncIterator in {};
+    assert.false(r);
+    assert.deepEqual(log, ['a', 'b', 'c']);
+  });
+
+  // an assignment receiver: the rewrite discards the receiver value but the assignment must still run
+  QUnit.test('(m = Symbol).asyncIterator in {} -> assignment receiver preserved', assert => {
+    let m;
+    const r = (m = Symbol).asyncIterator in {};
+    assert.false(r);
+    assert.same(typeof m, 'function');
+  });
+
+  // a NESTED sequence prefix AND a chain-root receiver call together: the nested prefixes harvest
+  // structurally while the call threads in at its true source position, so all three run in order
+  QUnit.test('nested prefix + chain-root call in symbol receiver -> source order', assert => {
+    const log = [];
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the inner parens ARE the nested SequenceExpression under test
+    const r = (log.push('p'), (log.push('q'), (() => {
+      log.push('r');
+      return globalThis;
+    })())).Symbol.asyncIterator in {};
+    assert.false(r);
+    assert.deepEqual(log, ['p', 'q', 'r']);
+  });
 }
