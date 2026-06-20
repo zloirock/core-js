@@ -2035,11 +2035,15 @@ const tsRuntimeBindingsCache = new WeakMap();
 
 // extract the direct statement-body array from a scope-anchor node. Program/BlockStatement/
 // TSModuleBlock/StaticBlock host statements at `.body` directly; functions and class methods
-// wrap in `.body.body` (BlockStatement). returns null when the node has no host-able body
+// wrap in `.body.body` (BlockStatement). a SwitchStatement's body is ONE block scope spanning
+// every case, so its host statements are all cases' consequents flattened - a braceless
+// `enum X {}` in any case shadows the global for a use in that or a fall-through case.
+// returns null when the node has no host-able body
 function getDirectStatementBody(node) {
   if (!node) return null;
   if (Array.isArray(node.body)) return node.body;
   if (Array.isArray(node.body?.body)) return node.body.body;
+  if (Array.isArray(node.cases)) return node.cases.flatMap(switchCase => switchCase.consequent ?? []);
   return null;
 }
 
