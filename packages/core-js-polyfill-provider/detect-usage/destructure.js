@@ -617,6 +617,12 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
   if (depth > STATIC_WALK_DEPTH) return null;
   let current = unwrapParens(node);
   let currentScope = scope;
+  // where the CURRENT hop is read: the host use for the first alias, then each prior hop's declarator
+  // (`const a = b` reads `b` there). the reassignment-dominance check must use this read site - a write
+  // to an intermediate hop AFTER its read can't change the captured value (`const a = b; b = 0; { from }
+  // = a` keeps Array). the adapter surfaces the declarator at `binding.node` (no path), so thread the
+  // NODE; `path` (binding lookup / terminal / scope owner) stays the host so only the textual position moves
+  let readNode = path?.node ?? null;
   let hops = 0;
   // per-walk cycle guard: `const a = b; const b = a` (mutually-aliased identifiers) would
   // bounce between names until STATIC_WALK_DEPTH burns out. Set short-circuits at the
@@ -672,7 +678,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     // both adapters surface; empty / missing means no reassignment - shape holds at use site.
     // method-aware: usage-global keeps resolving the static receiver when the reassignment
     // does not dominate the use; usage-pure / narrowing keep the flat bail
-    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
+    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) return null;
     // adapter divergence: babel exposes the VariableDeclarator at `binding.path.node`,
     // estree-toolkit at `binding.node` directly. fall through both shapes
     let initNode = binding.path?.node?.init ?? binding.node?.init;
@@ -697,6 +703,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     }
     current = unwrapParens(initNode);
     currentScope = binding.scope ?? currentScope;
+    readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
   return walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited });
 }
@@ -900,16 +907,22 @@ export function outerDestructureReceiver(leafPattern, scope = null, adapter = nu
 // updates `scope` to follow the binding's own scope (closure-captured outer bindings)
 function followConstIdentifierInit(cur, scope, adapter, path) {
   const visited = new Set();
+  // read site of the current hop - the host use for the first alias, then each prior hop's declarator
+  // (`const a = b` reads `b` there). a reassignment of an intermediate hop AFTER its read can't change
+  // the captured value, so the dominance check uses the read NODE (the adapter surfaces the declarator
+  // at `binding.node`), not the host use - else `const a = b; b = 0; { from } = a` wrongly bails `b`
+  let readNode = path?.node ?? null;
   while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
     visited.add(cur.name);
     const binding = adapter.getBinding(scope, cur.name, path);
     // method-aware reassignment bail: usage-global keeps following the const-init chain
     // when the reassignment does not dominate the use; usage-pure / narrowing keep the flat bail
-    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) break;
+    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) break;
     const initNode = binding.path?.node?.init ?? binding.node?.init;
     if (!initNode) break;
     cur = unwrapExpressionChain(peelChainAssignmentDeep(initNode));
     scope = binding.scope ?? scope;
+    readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
   return cur;
 }
