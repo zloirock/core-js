@@ -314,8 +314,9 @@ function * generateConditionalMirror() {
 // followed by 2-3 HOPS, under an OPTIONALITY pattern. this is the most entangled area (babel
 // chain-combined AST emit vs unplugin threaded-receiver text), so the cross-product of receiver x
 // hop-shape x optionality is high-signal for the runtime three-way (native == babel == unplugin),
-// including short-circuit (null receiver) and side-effect-once (`se` receiver). full-env only - a
-// chain mixes optional / native / poly hops, so a stripped-realm native call can survive benignly.
+// including short-circuit (null receiver) and side-effect-once (`se` receiver). strip-armed: the
+// only non-poly hops here are foundational primitives (`slice` / `map`) the stripper never removes,
+// so no native hop survives benignly and a missed poly-hop injection still throws under strip.
 // each receiver carries a `type` (mirrors the main grammar) so only type-valid chains are emitted.
 // `null` is type-agnostic: it short-circuits before any hop, so it pairs with chains of any type
 const C_RECEIVERS = [

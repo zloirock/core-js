@@ -865,10 +865,11 @@ export function createDestructureEmitter({
     const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
     const remaining = allProps.filter(p => !polyfillKeys.has(p));
     const hasInstance = entries.some(e => e.kind === 'instance');
-    // a full consume lifts the SE init as a standalone statement (see `liftSE` below); its
-    // value is then unread, so an effect-free TAIL is dead either way
+    // a full consume lifts the SE init as a standalone statement (lifted below); its value is
+    // then unread, so an effect-free TAIL is dead either way. `mayHaveSideEffects` is false for a
+    // falsy node, so it subsumes the `info.initNode` presence check
     const willLiftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
-        && info.initNode && mayHaveSideEffects(info.initNode);
+        && mayHaveSideEffects(info.initNode);
     // an effect-free droppable SE tail (a dead proxy-member chain or consumed bare
     // constructor marked by the collection pre-pass, or ANY effect-free tail of a
     // full-consume lift): process only the SE PREFIX, so the kept text receives the same
@@ -945,9 +946,7 @@ export function createDestructureEmitter({
     // comma-list member; a statement host emits a standalone (paren-guarded) expression.
     // the lifted text can START a statement (the tail-dropped prefix loses the sequence parens):
     // a `{` / `class` / `function` head needs the hazard parens the minifier split applies
-    const liftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
-        && mayHaveSideEffects(info.initNode);
-    if (liftSE) {
+    if (willLiftSE) {
       if (isForInit) parts.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
       else parts.push(parenthesizeExprStmtHazard(initTransformed));
     }
@@ -2569,12 +2568,6 @@ export function createDestructureEmitter({
         case 'ParenthesizedExpression':
         case 'ChainExpression':
           cur = cur.expression;
-          break;
-        case 'CallExpression':
-        case 'OptionalCallExpression':
-        case 'NewExpression':
-        case 'TaggedTemplateExpression':
-          cur = cur.callee || cur.tag;
           break;
         case 'MemberExpression':
         case 'OptionalMemberExpression':
