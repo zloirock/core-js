@@ -214,7 +214,8 @@ export function isNonReferencePosition(parent, identifierNode) {
   if (!parent) return false;
   const { type } = parent;
   if (NON_REF_KEY_BEARING_TYPES.has(type) && parent.key === identifierNode && !parent.computed) return true;
-  if (type === 'MemberExpression' && parent.property === identifierNode && !parent.computed) return true;
+  if ((type === 'MemberExpression' || type === 'OptionalMemberExpression')
+    && parent.property === identifierNode && !parent.computed) return true;
   if (type === 'LabeledStatement' && parent.label === identifierNode) return true;
   if ((type === 'BreakStatement' || type === 'ContinueStatement') && parent.label === identifierNode) return true;
   if (type === 'ImportSpecifier' && parent.imported === identifierNode) return true;
@@ -1181,7 +1182,7 @@ const reassignmentRhs = memoizeByNodePair((node, ownerNode) => {
 // pattern-aware single-value variant of `reassignmentRhs` for the reaching-definition
 // recovery: a pattern write (`[A] = [Iterator]`) pairs to exactly ONE unambiguous value;
 // a slot default (`[A = X] = [..]`) may or may not apply at runtime -> ambiguous -> null
-function reassignmentRhsForBinding(node, ownerNode, bindingName) {
+function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
   // pattern LHS first: the plain helper returns the WHOLE RHS for any `=` without inspecting
   // the target shape, so `[K] = ['of']` would flow the array literal instead of the slot value
   let assignment = null;
@@ -1193,7 +1194,7 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName) {
   const left = assignment?.left;
   if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
     if (!bindingName) return null;
-    const values = patternSlotValues(left, assignment.right, bindingName);
+    const values = patternSlotValues(left, assignment.right, bindingName, ctx);
     return values.length === 1 && !patternSlotHasDefault(left, bindingName) ? values[0] : null;
   }
   return reassignmentRhs(node, ownerNode);
@@ -1206,7 +1207,7 @@ function patternSlotHasDefault(pattern, name) {
   return slots.some(slot => slot?.type === 'AssignmentPattern' && slot.left?.type === 'Identifier' && slot.left.name === name);
 }
 
-export function reachingReassignmentValueNode({ binding, usagePath }) {
+export function reachingReassignmentValueNode({ binding, usagePath, ctx = null }) {
   if (!usagePath) return null;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return null;
@@ -1217,11 +1218,11 @@ export function reachingReassignmentValueNode({ binding, usagePath }) {
   // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
   // textually-last one overwrites every earlier write - it is the reaching definition only if it ALWAYS
   // runs (unconditional: no guards); a conditional last write leaves the value ambiguous
-  if (before.every(node => reassignmentRhsForBinding(node, owner.node, bindingName) !== null
+  if (before.every(node => reassignmentRhsForBinding(node, owner.node, bindingName, ctx) !== null
       && collectVarGuardsToDeclarator(owner.node, node) !== null)) {
     const last = before.reduce((a, b) => b.start > a.start ? b : a);
     if (collectVarGuardsToDeclarator(owner.node, last).length) return null;
-    return reassignmentRhsForBinding(last, owner.node, bindingName);
+    return reassignmentRhsForBinding(last, owner.node, bindingName, ctx);
   }
   // CLOSURE: the use sits in a nested closure, so the before-writes live in an enclosing scope. the
   // declarator-init (and earlier writes) are dead once an UNCONDITIONAL write completes before the
@@ -1233,7 +1234,7 @@ export function reachingReassignmentValueNode({ binding, usagePath }) {
   const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true }) === true);
   if (!dominating.length) return null;
   const last = dominating.reduce((a, b) => b.start > a.start ? b : a);
-  return reassignmentRhsForBinding(last, owner.node, bindingName);
+  return reassignmentRhsForBinding(last, owner.node, bindingName, ctx);
 }
 
 // every plain-`=` reassignment RHS value node of a `var` / `let` alias that can REACH `usagePath` -
@@ -1245,7 +1246,7 @@ export function reachingReassignmentValueNode({ binding, usagePath }) {
 // the write. skips non-plain writes (`x++`, `x += y`, for-x head) whose value isn't a simple
 // replacement, and the loop-reinit declarator-self. the use's own var-scope owner locates each
 // `name = <expr>` for adapters that record the LHS Identifier
-export function reassignmentValueNodes({ binding, usagePath, name = null }) {
+export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = null }) {
   if (!usagePath || !binding?.constantViolations?.length) return [];
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return [];
@@ -1256,7 +1257,7 @@ export function reassignmentValueNodes({ binding, usagePath, name = null }) {
   const out = [];
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
     if (!useInLoop && usagePrecedesNode(usagePath, node)) continue;
-    out.push(...reassignmentValueNodesAt(node, owner.node, bindingName));
+    out.push(...reassignmentValueNodesAt(node, owner.node, bindingName, ctx));
   }
   return out;
 }
@@ -1295,29 +1296,59 @@ export function findObjectKeyBeforeSpread(properties, matches) {
   return null;
 }
 
-function patternSlotValues(pattern, rhs, name) {
+// `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
+// follows a const-identifier rhs to its literal init and resolves computed keys through the read-
+// side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
+export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
   const slotFor = target => target?.type === 'AssignmentPattern' ? target.left : target;
+  // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
+  // pairing sees the underlying array / object, like the direct-literal form. only an unreassigned
+  // binding's init is a reliable value
+  if (ctx && rhs?.type === 'Identifier' && ctx.adapter.hasBinding(ctx.scope, rhs.name, ctx.path)) {
+    const aliasBinding = ctx.adapter.getBinding(ctx.scope, rhs.name, ctx.path);
+    const aliasInit = aliasBinding?.path?.node?.init ?? aliasBinding?.node?.init;
+    if (!aliasBinding?.constantViolations?.length
+      && (aliasInit?.type === 'ArrayExpression' || aliasInit?.type === 'ObjectExpression')) rhs = aliasInit;
+  }
+  // a computed property key (`{ [k]: A }`) resolves through the read-side key canon when a ctx is
+  // supplied; the binding-blind static-name fallback covers literal keys for ctx-less callers
+  const propKey = prop => ctx?.resolveKey
+    ? ctx.resolveKey({ node: prop.key, computed: prop.computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path })
+    : propertyKeyName(prop);
+  // a nested pattern slot (`[[M]]` / `{ x: [M] }`) pairs against the slot's RHS positionally /
+  // by key - recurse so a binding bound through arbitrary nesting still surfaces its value union;
+  // the slot's own default is an alternative RHS the nested bindings may pair against instead
+  const descend = (slot, element, pairedRhs) => {
+    if (slot?.type !== 'ArrayPattern' && slot?.type !== 'ObjectPattern') return false;
+    if (pairedRhs) out.push(...patternSlotValues(slot, pairedRhs, name, ctx));
+    if (element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
+    return true;
+  };
   if (pattern?.type === 'ArrayPattern') {
     for (let i = 0; i < pattern.elements.length; i++) {
       const element = pattern.elements[i];
-      if (slotFor(element)?.type !== 'Identifier' || slotFor(element).name !== name) continue;
-      if (element.type === 'AssignmentPattern') out.push(element.right);
+      const slot = slotFor(element);
       // a spread at or before slot i shifts every later position, so `rhs.elements[i]` is no longer
       // the value that lands in slot i - not a reliable narrow source, skip it
       const paired = rhs?.type === 'ArrayExpression' && !spreadAtOrBefore(rhs.elements, i) ? rhs.elements[i] : null;
+      if (descend(slot, element, paired)) continue;
+      if (slot?.type !== 'Identifier' || slot.name !== name) continue;
+      if (element.type === 'AssignmentPattern') out.push(element.right);
       if (paired) out.push(paired);
     }
   } else if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-      if (slotFor(prop.value)?.type !== 'Identifier' || slotFor(prop.value).name !== name) continue;
-      if (prop.value.type === 'AssignmentPattern') out.push(prop.value.right);
-      const key = propertyKeyName(prop);
-      if (key === null || rhs?.type !== 'ObjectExpression') continue;
+      const slot = slotFor(prop.value);
+      const key = propKey(prop);
       // last matching key wins, but a trailing spread could override it -> bail (canonical helper)
-      const match = findObjectKeyBeforeSpread(rhs.properties, rp => propertyKeyName(rp) === key);
-      if (match?.value) out.push(match.value);
+      const paired = key !== null && rhs?.type === 'ObjectExpression'
+        ? findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key)?.value ?? null : null;
+      if (descend(slot, prop.value, paired)) continue;
+      if (slot?.type !== 'Identifier' || slot.name !== name) continue;
+      if (prop.value.type === 'AssignmentPattern') out.push(prop.value.right);
+      if (paired) out.push(paired);
     }
   }
   return out;
@@ -1325,17 +1356,17 @@ function patternSlotValues(pattern, rhs, name) {
 
 // every POSSIBLE value a reassignment site flows into the binding: a value-flow assignment's
 // RHS for a plain Identifier LHS, the paired slot values (incl. defaults) for a pattern LHS
-function reassignmentValueNodesAt(node, ownerNode, bindingName) {
+function reassignmentValueNodesAt(node, ownerNode, bindingName, ctx) {
   if (node.type === 'AssignmentExpression') {
     if (!VALUE_FLOW_ASSIGN_OPS.has(node.operator)) return [];
     if (node.left?.type === 'Identifier') return [node.right];
-    return bindingName ? patternSlotValues(node.left, node.right, bindingName) : [];
+    return bindingName ? patternSlotValues(node.left, node.right, bindingName, ctx) : [];
   }
   if (node.type !== 'Identifier') return [];
   const assignment = enclosingValueFlowAssignment(node, ownerNode);
   if (!assignment) return [];
   if (assignment.left === node) return [assignment.right];
-  return patternSlotValues(assignment.left, assignment.right, node.name);
+  return patternSlotValues(assignment.left, assignment.right, node.name, ctx);
 }
 
 // estree-toolkit records the target Identifier - locate the enclosing value-flow assignment
@@ -2466,17 +2497,15 @@ function bodyHasParamReference(node, paramNames) {
 // reads count) - unlike `bodyHasParamReference`, which conservatively bails on any closure.
 // shadowing inside a closure is not modelled, so a rebinding closure can over-report - safe,
 // the sole caller only widens a bail. `isNonReferencePosition` skips source-text name slots
-// (member tail, property / method key); babel's optional-member tail is the lone shape it
-// misses (estree folds it into a plain MemberExpression), so skip that one explicitly
+// (member tail, property / method key) across both parser member shapes
 function expressionReadsName(node, name) {
   if (!node || typeof node !== 'object') return false;
   if (Array.isArray(node)) return node.some(child => expressionReadsName(child, name));
   if (typeof node.type !== 'string') return false;
   if (node.type === 'Identifier') return node.name === name;
-  const optionalTail = !node.computed && node.type === 'OptionalMemberExpression' ? node.property : null;
   for (const key of Object.keys(node)) {
     const child = node[key];
-    if (child === optionalTail || isNonReferencePosition(node, child)) continue;
+    if (isNonReferencePosition(node, child)) continue;
     if (expressionReadsName(child, name)) return true;
   }
   return false;
