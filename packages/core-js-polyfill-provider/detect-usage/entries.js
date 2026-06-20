@@ -57,8 +57,10 @@ function requireCallSource(node, adapter, scope) {
 // returns source string or null if not an entry pattern. when `scope` is provided, calls to a
 // shadowed `require` (locally bound) are ignored
 export function getEntrySource(node, adapter, scope) {
-  // import 'core-js/...'
-  if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0) {
+  // import 'core-js/...' - but `import type {} from 'core-js/...'` (and Flow's `import typeof`)
+  // erases before runtime, so it is NOT a runtime side-effect entry and must not expand
+  if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0
+    && !isTypeOnlyImportKind(node.importKind)) {
     return extractStaticString(node.source, adapter);
   }
   // TS `import X = require('core-js/...')` - tsc/esbuild emit this as CJS-style entry.
