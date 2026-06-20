@@ -511,7 +511,6 @@ const LOCALS_CACHE = new WeakMap();
 // passed through directly, ignoring intermediate block boundaries)
 const BLOCK_SCOPING_NODE_TYPES = new Set([
   'BlockStatement',
-  'StaticBlock',
   'ForStatement',
   'ForInStatement',
   'ForOfStatement',
