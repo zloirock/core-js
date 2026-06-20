@@ -104,14 +104,6 @@ export function createClassContext({
     return anchor?.kind === 'object' ? anchor.objectPath : null;
   }
 
-  // resolve a class's superClass to a declaration path. handles:
-  //   - runtime binding (`class C extends Parent` where Parent is in scope)
-  //   - ambient (`declare class Parent`) - babel/Flow don't bind as values
-  //   - qualified (`class C extends NS.Base` / `Outer.Inner.Base`) - descends through
-  //     `TSModuleDeclaration` bodies via segment walk
-  // returns null for unresolvable shapes (parametric mixins, conditionals, etc.);
-  // `findClassMember` treats null parent as "no further inheritance" and falls through to
-  // the resolver's generic dispatch
   // resolve an expression that should denote a class to its declaration path. an ambient
   // `declare class X` carries no runtime value binding on Babel (estree-toolkit binds it
   // regardless), so a bare Identifier is re-resolved through the ambient-declaration index;
@@ -133,6 +125,14 @@ export function createClassContext({
     return findDeclPathBySegments(segments, resolved.scope, isClassLikeDeclaration);
   }
 
+  // resolve a class's superClass to a declaration path. handles:
+  //   - runtime binding (`class C extends Parent` where Parent is in scope)
+  //   - ambient (`declare class Parent`) - babel/Flow don't bind as values
+  //   - qualified (`class C extends NS.Base` / `Outer.Inner.Base`) - descends through
+  //     `TSModuleDeclaration` bodies via segment walk
+  // returns null for unresolvable shapes (parametric mixins, conditionals, etc.);
+  // `findClassMember` treats null parent as "no further inheritance" and falls through to
+  // the resolver's generic dispatch
   function resolveSuperClassPath(classPath) {
     const superClass = classPath.get('superClass');
     return superClass.node ? resolveExpressionToClassPath(superClass) : null;
