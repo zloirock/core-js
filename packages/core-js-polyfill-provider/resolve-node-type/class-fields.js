@@ -294,9 +294,9 @@ export function createClassFields({
   function declaresPossibleShadow(node, fieldName) {
     if (node.computed) {
       const staticKey = literalKeyValue(node.key) ?? singleQuasiString(node.key);
-      // a fixed-slot key is a string / number literal; anything else is a dynamic `[expr]` that
-      // could be `fieldName` at runtime, so it counts as a possible shadow
-      if (typeof staticKey !== 'string' && typeof staticKey !== 'number') return true;
+      // a fixed-slot key is a string-normalised literal (numeric keys arrive stringified); anything
+      // else is a dynamic `[expr]` that could be `fieldName` at runtime, so it counts as a shadow
+      if (typeof staticKey !== 'string') return true;
       return staticKey === fieldName;
     }
     return getKeyName(node.key) === fieldName;
