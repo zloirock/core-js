@@ -17,13 +17,15 @@ export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.ty
 export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
   && (typeof node.directive === 'string' || typeof node.expression?.directive === 'string');
 
-// indirect-require call: `require('m')`, `require('m').default` (MemberExpression tail),
-// `(0, require)('m')` / `((0, require))('m')` (SequenceExpression callee through paren / TS /
-// chain wrappers oxc keeps but babel strips). shared by both plugins to classify a statement
-// as part of the leading import region so `var _ref;` lands AFTER the user's import block
+// indirect-require call: `require('m')`, `require?.('m')` (optional), `require('m').default`
+// (MemberExpression tail), `(0, require)('m')` / `((0, require))('m')` (SequenceExpression callee).
+// peel the outer wrappers oxc keeps but babel strips FIRST - a top-level optional require `require?.('m')`
+// is a `ChainExpression` in oxc, and the member-tail's object may itself be one - else the statement is
+// not classified as part of the leading import region and `var _ref;` lands AHEAD of it (import/first).
+// shared by both plugins (and entry detection)
 export function isRequireCall(expr) {
-  let cur = expr;
-  if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
+  let cur = peelSkippableWrappers(expr);
+  if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = peelSkippableWrappers(cur.object);
   if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
   let callee = peelSkippableWrappers(cur.callee);
   if (callee?.type === 'SequenceExpression') callee = peelSkippableWrappers(callee.expressions?.at(-1));
