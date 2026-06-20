@@ -592,12 +592,6 @@ function findNearestVarScopeOwner(path) {
   return null;
 }
 
-// a real AST node (string `.type`), not a primitive / null / position number that the generic
-// child-walk in the collectors below would otherwise recurse into
-function isAstNode(value) {
-  return !!value && typeof value === 'object' && typeof value.type === 'string';
-}
-
 // shared var-scope body walk: descend `scopeNode`'s body through arbitrary non-boundary node
 // shapes (block / if / loop / switch / try-catch / etc), invoking `onNode(node)` for each. `onNode`
 // returns truthy to stop descending that subtree (it hit a var-scope boundary or fully handled the
@@ -605,7 +599,7 @@ function isAstNode(value) {
 // StaticBlock host statements directly at `.body`
 function walkVarScope(scopeNode, onNode) {
   function visit(node) {
-    if (!isAstNode(node) || onNode(node)) return;
+    if (!isASTNode(node) || onNode(node)) return;
     for (const key of Object.keys(node)) {
       const value = node[key];
       if (Array.isArray(value)) for (const v of value) visit(v);
@@ -831,7 +825,7 @@ function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
     return bindsName(left);
   }
   function visit(node, atOwnerRoot) {
-    if (!isAstNode(node)) return;
+    if (!isASTNode(node)) return;
     if (!atOwnerRoot && ((isVarScopeBoundary(node.type) && shadowsName(node)) || blockShadowsName(node))) return;
     if ((node.type === 'AssignmentExpression' && node.left?.type === 'Identifier' && node.left.name === name)
       || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)
@@ -929,7 +923,7 @@ function memoizeByNodePair(compute) {
 const nodeSitsInLoopBodyWithin = memoizeByNodePair((ownerNode, target) => {
   let result = false;
   function visit(node, inLoopBody) {
-    if (result || !isAstNode(node)) return;
+    if (result || !isASTNode(node)) return;
     if (node === target) {
       result = inLoopBody;
       return;
@@ -941,7 +935,7 @@ const nodeSitsInLoopBodyWithin = memoizeByNodePair((ownerNode, target) => {
       const value = node[key];
       const childInLoopBody = inLoopBody || key === loopField;
       if (Array.isArray(value)) for (const v of value) visit(v, childInLoopBody);
-      else if (isAstNode(value)) visit(value, childInLoopBody);
+      else if (isASTNode(value)) visit(value, childInLoopBody);
     }
   }
   visit(ownerNode, false);
@@ -1001,7 +995,7 @@ function isLogicalAssignReassignment(node, ownerNode) {
 const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
   let result = null;
   function visit(node, guards) {
-    if (result !== null || !isAstNode(node)) return;
+    if (result !== null || !isASTNode(node)) return;
     if (node === target) {
       // a for-of / for-in HEAD write assigns the loop variable only when the iterable yields at
       // least once; both adapters record the LOOP node itself as the reassignment site (not its
@@ -1024,7 +1018,7 @@ const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
       if (Array.isArray(value)) {
         const childGuards = isBranch ? [...guards, node] : guards;
         for (const v of value) visit(v, childGuards);
-      } else if (isAstNode(value)) {
+      } else if (isASTNode(value)) {
         visit(value, isBranch ? [...guards, value] : guards);
       }
     }
@@ -1166,7 +1160,7 @@ const reassignmentRhs = memoizeByNodePair((node, ownerNode) => {
   if (node.type !== 'Identifier') return null;
   let found = null;
   function visit(n) {
-    if (found || !isAstNode(n)) return;
+    if (found || !isASTNode(n)) return;
     if (n.type === 'AssignmentExpression' && n.operator === '=' && n.left === node) {
       found = n.right;
       return;
@@ -1387,7 +1381,7 @@ function reassignmentValueNodesAt(node, ownerNode, bindingName, ctx) {
 const enclosingValueFlowAssignment = memoizeByNodePair((node, ownerNode) => {
   let found = null;
   function visit(n) {
-    if (found || !isAstNode(n)) return;
+    if (found || !isASTNode(n)) return;
     if (n.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(n.operator)
       && (n.left === node || ((n.left?.type === 'ArrayPattern' || n.left?.type === 'ObjectPattern')
         && patternBindsIdentifier(n.left, id => id === node)))) {
@@ -1933,8 +1927,8 @@ export function walkAstChildren(node, visit) {
   for (const key of Object.keys(node)) {
     const value = node[key];
     if (Array.isArray(value)) {
-      for (const el of value) if (el && typeof el === 'object' && typeof el.type === 'string') visit(el);
-    } else if (value && typeof value === 'object' && typeof value.type === 'string') visit(value);
+      for (const el of value) if (isASTNode(el)) visit(el);
+    } else if (isASTNode(value)) visit(value);
   }
 }
 
