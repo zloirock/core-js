@@ -1,5 +1,5 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { isDirectiveStatement, isTopLevelImportLike } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { isDirectiveStatement, isInitlessVarDecl, isTopLevelImportLike } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import ImportInjectorState from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 
@@ -502,16 +502,6 @@ export default class ImportInjector extends ImportInjectorState {
     // `lastUserImportEnd` scan
     function isImportRegion(stmt) {
       return isTopLevelImportLike(stmt) || isDirectiveStatement(stmt);
-    }
-
-    // sibling-plugin vars with no init (`var x;` injected by transform-* plugins) are hoisted
-    // at runtime regardless of source position - safe to scan past them so OUR refs that
-    // land AFTER such a sibling-split still get collected into the merged declaration. only
-    // var declarations WITHOUT init qualify (init-bearing decls run in source order and
-    // mustn't be reordered past). non-decl statements halt the scan as before
-    function isInitlessVarDecl(stmt) {
-      return stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
-        && stmt.declarations.every(d => !d.init);
     }
 
     // collect EVERY movable ref `var` in the body, not just a leading run. scope.push tags each

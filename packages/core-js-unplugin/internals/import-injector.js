@@ -1,6 +1,6 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
-import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
+import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
 function blockify(lines) {
@@ -309,10 +309,11 @@ export default class ImportInjector extends ImportInjectorState {
     // inherited `pureImports` entries
     const activePure = [...this.pureImports].filter(([source, name]) => !this.existingPureImports.has(source)
       && (!this.referencedInSource || this.referencedInSource.has(name)));
-    // canonical-sort pure imports by source path (lex). insertion order alone produces
-    // batch-dependent layout that diverges across plugins / files with different timing
-    // of registrations; babel-plugin canonicalises the union of all flushed imports too
-    activePure.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    // canonical-sort pure imports by source path through the SHARED comparator (pure sources are
+    // not compat-data keys, so they fall to its lexicographic unknown-key tail) - the same single
+    // ordering rule babel runs the whole flushed-import union through; insertion order alone produces
+    // batch-dependent layout that diverges across plugins / files with different registration timing
+    activePure.sort(([a], [b]) => polyfillOrderComparator(a, b));
     const isRequire = this.importStyle === 'require';
     for (const mod of newGlobals) {
       const path = this.#resolvePath(`modules/${ mod }`);
