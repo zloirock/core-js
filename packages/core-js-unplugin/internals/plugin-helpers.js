@@ -2,6 +2,7 @@ import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-
 import {
   isASTNode,
   isDirectiveStatement,
+  isInitlessVarDecl,
   isTopLevelImportLike,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   tsRuntimeBindingName,
@@ -68,16 +69,21 @@ export { isTopLevelImportLike };
 
 // end position of the trailing user import / require statement in the leading import
 // region; null if no imports. used to position `var _ref;` after the user's import block
-// instead of between injected and user imports (lint `import/first` would warn). the
-// scan stops at the first non-import-or-directive statement - imports interspersed with
-// code are NOT picked up (consistent with babel-plugin's reorderRefsAfterImports)
+// instead of between injected and user imports (lint `import/first` would warn). the scan
+// steps past leading directives AND initless `var`s (sibling-plugin `var x;` declarations are
+// runtime-hoisted, so an interspersed one must NOT truncate the region) - the same boundary
+// babel-plugin's `reorderRefsAfterImports` walks; a genuine init-bearing / non-import statement
+// halts it. `import "x"; var s; import "y";` therefore anchors `var _ref;` after `import "y"`
 export function lastUserImportEnd(ast) {
   if (!ast?.body?.length) return null;
   let end = null;
   for (const stmt of ast.body) {
-    if (isDirectiveStatement(stmt)) continue;
-    if (!isTopLevelImportLike(stmt)) break;
-    end = stmt.end;
+    if (isTopLevelImportLike(stmt)) {
+      end = stmt.end;
+      continue;
+    }
+    if (isDirectiveStatement(stmt) || isInitlessVarDecl(stmt)) continue;
+    break;
   }
   return end;
 }
