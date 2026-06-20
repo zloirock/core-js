@@ -968,10 +968,13 @@ export function createUsageVisitors({
           walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
         }
       },
-      // call / new type arguments (covers the optional-call form too)
+      // call / new / tagged-template type arguments (covers the optional-call form too). babel reaches
+      // a `tag<Set<number>>` instantiation via ReferencedIdentifier; oxc hangs it off the tag node, so
+      // sweep it here too or the type-only globals drop in unplugin only
       CallExpression: checkCallTypeArguments,
       NewExpression: checkCallTypeArguments,
       OptionalCallExpression: checkCallTypeArguments,
+      TaggedTemplateExpression: checkCallTypeArguments,
     } : null,
     Identifier: identifierVisitor,
     // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
