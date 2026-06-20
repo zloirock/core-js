@@ -13,6 +13,7 @@ import {
   isVarDeclaratorInLoopBody,
   kebabToCamel,
   mayHaveSideEffects,
+  patternSlotValues,
   peelZeroArgIifeReturn,
   reachingReassignmentValueNode,
   reassignBailApplies,
@@ -308,9 +309,9 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
 // Array; () => M.assign()`). returns the reaching value NODE to resolve instead of the dead init, or
 // null to keep following the init (no reassignment / init still live / value indeterminable - over-
 // inject-safe). shared by the key (resolveKey) and receiver (resolveVariableBindingToGlobal) follows
-function reachingValueOverDeadInit({ binding, adapter, path }) {
+function reachingValueOverDeadInit({ binding, adapter, path, scope }) {
   if (adapter.method !== 'usage-global' || !isReassignedBeyondDeclarator(binding)) return null;
-  return reachingReassignmentValueNode({ binding, usagePath: path });
+  return reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey } });
 }
 
 function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path }) {
@@ -329,7 +330,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     && !varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path, kind: binding.kind })) return null;
   // dead-init across a closure: resolve the reaching value as the receiver instead of the dead init
   // (`let M = Object; M = Array; () => M.assign()` resolves to Array, not the unreachable Object)
-  const reaching = reachingValueOverDeadInit({ binding, adapter, path });
+  const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope });
   if (reaching) return resolveObjectName({ objectNode: reaching, scope, adapter, seen: new Set(seen).add(name), path });
   const { init } = binding.node;
   const pattern = binding.node.id;
@@ -341,6 +342,20 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   if (pattern?.type === 'ObjectPattern' && init) {
     const alias = resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path });
     if (alias) return alias;
+  }
+  // a destructure that binds `name` to an element / value which is ITSELF a global
+  // (`const [A] = [Map]`, `const { x: A } = { x: Map }`) aliases that global - resolve through the
+  // paired literal slot, the same value-union walk the reassignment path uses. member-extraction
+  // (`const { from } = Array`) pairs to a property, not a literal slot value, so it surfaces nothing
+  // here and falls through to null (resolved by the destructure detection instead). diverging slot
+  // values (a default that disagrees with the paired value) stay unresolved - bail-safe both modes
+  if ((pattern?.type === 'ArrayPattern' || pattern?.type === 'ObjectPattern') && init) {
+    const globals = new Set();
+    for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
+      const global = resolveObjectName({ objectNode: value, scope, adapter, seen: new Set(seen).add(name), path });
+      if (global) globals.add(global);
+    }
+    return globals.size === 1 ? [...globals][0] : null;
   }
   if (pattern && pattern.type !== 'Identifier') return null;
   if (!init) return null;
@@ -498,7 +513,9 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
     if (binding && isReassignedBeyondDeclarator(binding)) {
       // the alias name activates pattern-LHS pairing (`[A] = [Iterator]`) in the enumerator -
       // adapter binding wrappers do not all surface the bound identifier
-      for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: aliasNode.name })) {
+      for (const rhs of reassignmentValueNodes({
+        binding, usagePath: path, name: aliasNode.name, ctx: { scope, adapter, path, resolveKey },
+      })) {
         const value = resolve(rhs);
         if (value) values.push(value);
       }
@@ -525,7 +542,9 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
     if (binding && isReassignedBeyondDeclarator(binding)) {
       // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
       // patternSlotValues - the Identifier-receiver branch above passes it for the same reason
-      for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: callee.name })) {
+      for (const rhs of reassignmentValueNodes({
+        binding, usagePath: path, name: callee.name, ctx: { scope, adapter, path, resolveKey },
+      })) {
         const fn = unwrapParens(rhs);
         if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
           && !fn.params?.length && !fn.async && !fn.generator) {
@@ -745,7 +764,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
         // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
         // become the primary key; fall through to the init when no such value is determinable
-        const reaching = reachingValueOverDeadInit({ binding: entry.binding, adapter, path });
+        const reaching = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope });
         if (reaching) return resolveKey({
           node: reaching, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
         });
@@ -761,7 +780,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
       const binding = adapter.getBinding(scope, node.name, path);
       const reaching = binding && isReassignedBeyondDeclarator(binding)
-        ? reachingReassignmentValueNode({ binding, usagePath: path }) : null;
+        ? reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey } }) : null;
       if (reaching) return resolveKey({
         node: reaching, computed: true, scope, adapter, seen: new Set(seen).add(node.name), path, depth: depth + 1,
       });
