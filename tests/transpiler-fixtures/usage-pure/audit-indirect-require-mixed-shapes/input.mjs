@@ -1,10 +1,9 @@
-// mix of indirect-require shapes used by webpack / esbuild output: SequenceExpression
-// callee `(0, require)(...)`, OptionalCallExpression `require?.(...)`, MemberExpression
-// tail `require(...).default` (assigned to var) - all three must be treated as part of
-// the leading import region so injected `var _ref;` (if any) lands AFTER them, not
-// between user imports and indirect requires (which would trip `import/first`)
+// mix of indirect-require shapes used by webpack / esbuild output: SequenceExpression callee
+// `(0, require)(...)`, optional `require?.(...)` (oxc wraps it in a ChainExpression), MemberExpression
+// tail `require(...).default` (assigned to var) - all three are the leading import region. the
+// array-literal receiver forces a memoize `var _ref;`, which must land AFTER the three requires, not
+// between them and the injected import (which would trip `import/first`)
 const a = (0, require)('a');
 const b = require?.('b');
 const c = require('c').default;
-const arr = [a, b, c];
-arr.includes('x');
+[a, b, c].includes('x');
