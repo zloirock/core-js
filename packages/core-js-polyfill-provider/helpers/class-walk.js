@@ -4,7 +4,6 @@ import {
   memberKeyName,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
-  singleQuasiString,
   unwrapRuntimeExpr,
 } from './ast-patterns.js';
 
@@ -234,21 +233,6 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
   }
 
-  // statically determinable key: Identifier (non-computed) / StringLiteral / single-quasi
-  // TemplateLiteral. PrivateIdentifier explicit-reject - the no-shadow invariant is too
-  // subtle to leave implicit
-  function staticKeyName(key, computed) {
-    if (!key) return null;
-    if (key.type === 'PrivateIdentifier' || key.type === 'PrivateName') return null;
-    if (!computed && t.isIdentifier(key)) return key.name;
-    if (t.isStringLiteral(key)) return key.value;
-    return singleQuasiString(key);
-  }
-
-  function classMemberKeyName(m) {
-    return staticKeyName(m.key, m.computed);
-  }
-
   // arrows are transparent (lexical super/this); non-arrow fns short-circuit except for the
   // ESTree `MethodDefinition.value = FunctionExpression` wrapper. back-fills visited ancestors
   // so sibling walks in the same subtree are amortized O(1)
@@ -304,11 +288,12 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   }
 
   // find `{ key: binding }` / shorthand `{ key }` in ObjectPattern where value binds to
-  // targetName. returns the property key; accepts Identifier and StringLiteral keys
-  function findDestructureKeyForBinding(objectPattern, targetName) {
+  // targetName. returns the property key via canonical resolveKey, so a computed `{ [CONST]: x }`
+  // resolves too (not just Identifier / StringLiteral)
+  function findDestructureKeyForBinding(objectPattern, targetName, scope) {
     for (const p of objectPattern.properties ?? []) {
       if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
-      const keyName = staticKeyName(p.key, p.computed);
+      const keyName = resolveKey({ node: p.key, computed: p.computed, scope, adapter });
       if (!keyName) continue;
       const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
       if (value?.type !== 'Identifier' || value.name !== targetName) continue;
@@ -362,7 +347,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       // ObjectPattern: `const { Promise: MyP } = R` -> `const MyP = R.Promise`. unplugin
       // keeps raw destructure; babel-plugin already rewrites it
       if (decl.id?.type === 'ObjectPattern') {
-        const keyName = findDestructureKeyForBinding(decl.id, name);
+        const keyName = findDestructureKeyForBinding(decl.id, name, scope);
         if (!keyName) return null;
         if (isProxyGlobalIdentifierNode({ node: init, scope, adapter, path: captureAnchor })
             || globalProxyMemberName({ node: init, scope, adapter, path: captureAnchor }) !== null) return keyName;
@@ -394,12 +379,27 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // carrying `method` or a non-`init` kind), else a data+getter duplicate key resolved the earlier
   // data value on babel [ObjectMethod skipped] but bailed on oxc [Property matched] -> wrong sub +
   // cross-parser divergence. a forward scan returned the shadowed first value -> wrong global
-  function findNamespaceMemberValue(container, propName) {
+  // resolve a container member's key with the SAME canonical `resolveKey` the access uses, so a
+  // computed `[CONST]` / `["Promise"]` / `[Symbol.x]` resolves. verdict in this reverse scan:
+  // 'match' - this member wins the key; 'bail' - a computed key we can NOT name statically may BE
+  // propName at this (later) source position and would shadow an earlier literal (mirrors the
+  // SpreadElement bail); 'skip' - a different named key, or a non-computed unresolvable key
+  // (PrivateName) that can never collide with a public propName
+  function memberKeyVerdict(key, computed, scope, propName) {
+    const name = resolveKey({ node: key, computed, scope, adapter });
+    if (name === propName) return 'match';
+    return name === null && computed ? 'bail' : 'skip';
+  }
+
+  function findNamespaceMemberValue(container, propName, scope) {
     if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
       const members = container.body?.body ?? [];
       for (let i = members.length - 1; i >= 0; i--) {
         const m = members[i];
-        if (!m.static || staticKeyName(m.key, m.computed) !== propName) continue;
+        if (!m.static) continue;
+        const verdict = memberKeyVerdict(m.key, m.computed, scope, propName);
+        if (verdict === 'bail') return null;
+        if (verdict === 'skip') continue;
         // a static method / accessor winning the key is dynamic - bail; a static field returns its init
         if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') return null;
         return m.value ?? null;
@@ -413,7 +413,9 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         // BEFORE the key is reached only after the key already returned, so it stays irrelevant
         if (p.type === 'SpreadElement') return null;
         if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;
-        if (staticKeyName(p.key, p.computed) !== propName) continue;
+        const verdict = memberKeyVerdict(p.key, p.computed, scope, propName);
+        if (verdict === 'bail') return null;
+        if (verdict === 'skip') continue;
         // a method shorthand / getter / setter winning the key is dynamic - bail; data returns its value
         if (p.type === 'ObjectMethod' || (p.type === 'Property' && (p.method || p.kind !== 'init'))) return null;
         return p.value;
@@ -434,9 +436,22 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     // point - `classAnchor` (the class node) for the `class C extends NS.Base` path - else bails
     if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor })) return null;
     const declNode = binding.path?.node;
-    return declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression'
-      ? declNode
-      : unwrapInitForResolution(declNode?.init);
+    if (declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression') return declNode;
+    // destructured container: `const { sub: NS } = lib` -> NS is `lib.sub`. resolve that member
+    // access to its container so a later `NS.X` indexes the inner object. mirrors
+    // resolveSuperClassName's ObjectPattern branch, which maps to a global name instead of a container
+    if (declNode?.type === 'VariableDeclarator' && declNode.id?.type === 'ObjectPattern') {
+      const keyName = findDestructureKeyForBinding(declNode.id, name, scope);
+      const init = unwrapInitForResolution(declNode.init);
+      if (!keyName || !init) return null;
+      return resolveToContainer({
+        type: 'MemberExpression',
+        object: init,
+        property: { type: 'Identifier', name: keyName },
+        computed: false,
+      }, scope, seen, classAnchor);
+    }
+    return unwrapInitForResolution(declNode?.init);
   }
 
   // member-access value lookup: outer -> container, look up leaf property. shared by
@@ -446,7 +461,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     if (!propName) return null;
     const outer = resolveToContainer(memberNode.object, scope, seen, classAnchor);
     if (!outer) return null;
-    return findNamespaceMemberValue(outer, propName);
+    return findNamespaceMemberValue(outer, propName, scope);
   }
 
   // any expression -> namespace container that `findNamespaceMemberValue` can index by name.
@@ -514,7 +529,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   }
 
   let ownNamesCache = new WeakMap();
-  function getOwnNames(classBodyNode, kind) {
+  function getOwnNames(classBodyNode, kind, scope) {
     let cached = ownNamesCache.get(classBodyNode);
     if (!cached) ownNamesCache.set(classBodyNode, cached = { instance: null, static: null });
     if (cached[kind]) return cached[kind];
@@ -522,8 +537,13 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     const wantStatic = kind === 'static';
     for (const m of classBodyNode.body) {
       if (isClassMember(m) && !!m.static === wantStatic) {
-        const name = classMemberKeyName(m);
-        if (name) names.add(name);
+        // canonical resolveKey (not staticKeyName) so a computed own member `static [CONST]`
+        // resolves to its name and correctly shadows `this.<name>`. a well-known-symbol member
+        // (key "Symbol.x") is EXCLUDED: its polyfill is self-referential (getIterator dispatches to
+        // this[Symbol.iterator]) so an own symbol member is reached, not shadowed - only plain
+        // string property names gate the this.X polyfill bail
+        const name = resolveKey({ node: m.key, computed: m.computed, scope, adapter });
+        if (name && !name.startsWith('Symbol.')) names.add(name);
       }
     }
     cached[kind] = names;
@@ -536,7 +556,10 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     if (typeof key !== 'string') return false;
     const info = findEnclosingClassMember(path);
     if (!info || !t.isClassBody(info.classBodyNode)) return false;
-    return getOwnNames(info.classBodyNode, info.isStatic ? 'static' : 'instance').has(key);
+    // resolve computed keys in the CLASS-definition scope (where `[CONST]` is evaluated), not a
+    // method-local shadow - mirrors the extends-clause scope choice in resolveStaticInheritedMember
+    const classScope = ancestorPathOf(path, info.classNode)?.scope ?? path.scope;
+    return getOwnNames(info.classBodyNode, info.isStatic ? 'static' : 'instance', classScope).has(key);
   }
 
   function reset() {
