@@ -259,7 +259,39 @@ export default class ImportInjector extends ImportInjectorState {
         this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ safeErrorMessage(error) }); prepending instead`);
       }
     }
+    // a leading `#!` hashbang or `'use strict'` directive must stay FIRST: a block prepended above a
+    // hashbang is a SyntaxError (hashbangs are only legal at offset 0), and one above a directive
+    // silently demotes the module to sloppy mode. anchor the fallback at the END of the last protected
+    // statement (the directive `;`, or the shebang's last char) - that boundary sits before the
+    // conflicting overwrite that defeated appendRight - with a leading newline so the block opens its
+    // own line below the prologue (the shebang has no `;` to separate it). prepend at 0 only when even
+    // that boundary is swallowed by the overwrite
+    // try the prologue boundaries outermost-in (directive end, then shebang end): the first that still
+    // has a chunk boundary ahead of the overwrite lands the block after the longest intact prologue.
+    // when even the shebang boundary is swallowed (a sibling overwrote the whole body) prepend at 0 -
+    // the file is largely that sibling's output by then
+    for (const anchor of this.#prologueFallbackAnchors()) {
+      try {
+        this.#ms.appendLeft(anchor, `\n${ block }`);
+        return;
+      } catch (error) {
+        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendLeft at prologue end ${ anchor } failed (${ safeErrorMessage(error) }); trying next anchor`);
+      }
+    }
     this.#ms.prepend(block);
+  }
+
+  // protected-prologue boundary offsets, innermost first: the directive `;` end (already past any
+  // shebang), then the shebang's last char (just before its terminator, backed up over CRLF / LF / CR /
+  // LS / PS). each is a chunk boundary the fallback can attach AFTER so the block never lands above the
+  // hashbang (a SyntaxError) or the directive (sloppy-mode demotion)
+  #prologueFallbackAnchors() {
+    const src = this.#ms.original;
+    const anchors = [];
+    if (this.#directiveEnd > 0) anchors.push(this.#directiveEnd);
+    const afterShebang = skipShebang(src, 0);
+    if (afterShebang > 0) anchors.push(afterShebang - (src.startsWith('\r\n', afterShebang - 2) ? 2 : 1));
+    return anchors;
   }
 
   // `import "..."` / `var X = require("...")` - dispatched by `importStyle`. side-effect-only

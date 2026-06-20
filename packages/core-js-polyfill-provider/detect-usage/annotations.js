@@ -207,14 +207,16 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     const refSlot = TYPE_REFERENCE_SLOTS[node.type];
     const ref = refSlot ? node[refSlot] : null;
     if (ref?.type === 'Identifier') onGlobal(ref.name);
-    // `typeof NS.X` (qualified TSTypeQuery): `exprName` is a TSQualifiedName whose leftmost
-    // `left` is the runtime root `NS`. pull it in so qualified type queries match babel's
-    // ReferencedIdentifier-on-root behaviour - unplugin's estree-toolkit scope tracker does
-    // not visit the TSTypeQuery chain root, so without this the root global is missed and the
-    // two pipelines diverge (`typeof Map.prototype` -> babel emits es.map.*, unplugin nothing).
-    // gated to TSTypeQuery: a qualified TSTypeReference (`x: NS.Foo`) roots at a type-only
-    // namespace, not a runtime value, so it must NOT be treated as a global reference
-    else if (node.type === 'TSTypeQuery' && ref?.type === 'TSQualifiedName') {
+    // a qualified type name (`globalThis.Map.prototype`): `exprName` / `typeName` is a TSQualifiedName
+    // whose leftmost `left` is the chain root. unplugin's estree-toolkit scope tracker does not visit
+    // the chain, so surface the runtime globals here or the two pipelines diverge (babel reaches them
+    // via ReferencedIdentifier). the chain is a runtime reference when it roots at a runtime value:
+    //   - TSTypeQuery (`typeof NS.X`) reads NS as a runtime binding, so its root always counts;
+    //   - a qualified TSTypeReference (`x: globalThis.Set`) is type-only, so its root counts ONLY when
+    //     it is a proxy-global - then the qualified member names a real global TYPE (`globalThis.Set`
+    //     is the global `Set`), matching babel's es.set.* + es.global-this. a plain `NS.Foo` over a
+    //     type-only namespace stays silent
+    else if (ref?.type === 'TSQualifiedName') {
       // collect the qualified chain root-first: `globalThis.Map.prototype` -> [globalThis, Map, ...]
       const segments = [];
       for (let cur = ref; cur; cur = cur.left) {
@@ -222,22 +224,24 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
         else { segments.unshift(cur); break; }
       }
       const [root] = segments;
-      if (root?.type === 'Identifier') onGlobal(root.name);
-      // when the root is a proxy-global, EACH subsequent segment is itself a real global reference for
-      // as long as the chain so far is all proxy-globals (`globalThis` / `self` / `window`): a proxy
-      // member resolves back to a global (`globalThis.self.Map` references globalThis AND self AND Map),
-      // so surface every proxy-chain link. the chain stops at the first NON-proxy segment - its further
-      // members are properties of an ordinary value, not globals (`globalThis.Array.Map` reads Array's
-      // `Map` property, NOT the global Map). this is INTENTIONALLY more precise than babel-plugin, whose
-      // ReferencedIdentifier surfaces every qualified-name segment (over-injecting es.map.* here); the
-      // divergence is safe under the usage-global over-inject bias and pinned by a fixture. a non-proxy
-      // root surfaces only the root
-      let prevIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
-      for (let i = 1; i < segments.length && prevIsProxy; i++) {
-        const seg = segments[i];
-        if (seg?.type !== 'Identifier') break;
-        onGlobal(seg.name);
-        prevIsProxy = POSSIBLE_GLOBAL_OBJECTS.has(seg.name);
+      const rootIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
+      if (node.type === 'TSTypeQuery' || rootIsProxy) {
+        if (root?.type === 'Identifier') onGlobal(root.name);
+        // when the root is a proxy-global, EACH subsequent segment is itself a real global reference for
+        // as long as the chain so far is all proxy-globals (`globalThis` / `self` / `window`): a proxy
+        // member resolves back to a global (`globalThis.self.Map` references globalThis AND self AND Map),
+        // so surface every proxy-chain link. the chain stops at the first NON-proxy segment - its further
+        // members are properties of an ordinary value, not globals (`globalThis.Array.Map` reads Array's
+        // `Map` property, NOT the global Map). this is INTENTIONALLY more precise than babel-plugin, whose
+        // ReferencedIdentifier surfaces every qualified-name segment (over-injecting es.map.* here); the
+        // divergence is safe under the usage-global over-inject bias and pinned by a fixture
+        let prevIsProxy = rootIsProxy;
+        for (let i = 1; i < segments.length && prevIsProxy; i++) {
+          const seg = segments[i];
+          if (seg?.type !== 'Identifier') break;
+          onGlobal(seg.name);
+          prevIsProxy = POSSIBLE_GLOBAL_OBJECTS.has(seg.name);
+        }
       }
     }
     for (const key of TYPE_CHILD_KEYS) {
