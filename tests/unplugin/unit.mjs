@@ -110,6 +110,11 @@ const shouldTransformCases = [
   ['/src/App.vue?vue&type=script&lang=ts#L10', true, 'SFC lang=ts followed by #hash'],
   ['/src/App.vue?vue&type=template&lang=ts#x', false, 'SFC template lang=ts with #hash (template still excluded)'],
   ['/src/App.vue?vue&type=script#L10', true, 'SFC default-JS script with #hash'],
+  // a `?` that lives INSIDE a URL fragment (`path#frag?key`) is fragment text, not a query: a real JS
+  // file with such a tail must still transform (the fragment `?url` is not an asset query that skips it),
+  // and an SFC whose marker lives in the fragment is NOT an admitted sub-block (its query is empty)
+  ['/src/foo.js#frag?url', true, 'fragment-embedded asset key does not skip real JS'],
+  ['/src/App.vue#x?vue&type=script', false, 'fragment-embedded SFC marker is not a query, not admitted'],
   ['/src/foo.png?x.js', false, '.png base with .js token in query'],
   // plain extensions
   ['/src/foo.js', true, 'plain .js'],
@@ -270,6 +275,8 @@ const liftSfcLangCases = [
   ['/src/App.vue?vue&type=script&lang=MTS', '/src/App.vue.mts'],
   ['/src/App.vue?vue&type=script&lang=JSX', '/src/App.vue.jsx'],
   ['/src/App.vue?vue&type=script&lang=TS#L10', '/src/App.vue.ts'],
+  // a `lang=` that lives in the FRAGMENT (`#x?lang=ts`) is fragment text, not a query token - no lift
+  ['/src/App.vue#x?lang=ts', '/src/App.vue'],
   // hash-only id (no query) - stripQueryHash drops `#L10`, no lang= match returns baseId
   ['/src/App.vue#L10', '/src/App.vue'],
   // repeated framework marker tokens - regex anchors on `lang=` so duplicate `vue&vue` doesn't
@@ -2004,6 +2011,22 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/App.vue?type=template&vue#L2', { tag: 'tail-marker-template' });
   check('SnapshotCache/tail marker + hash script distinct', cache.take('/src/App.vue?type=script&vue#L1')?.tag, 'tail-marker-script');
   check('SnapshotCache/tail marker + hash template distinct', cache.take('/src/App.vue?type=template&vue#L2')?.tag, 'tail-marker-template');
+  // detection and key construction share ONE parse, so a sub-block whose query differs only in CASE or
+  // PERCENT-ENCODING between the pre and post passes still round-trips - the key inherits the lowercase +
+  // decode the detection predicate applies, instead of keeping raw bytes (`type=SCRIPT` <-> `type=script`,
+  // `%76%75%65` <-> `vue`). drive-letter case was already folded; the query is the dimension this closes
+  cache.store('/src/Case.vue?vue&type=SCRIPT&lang=TS', { tag: 'sfc-xcase' });
+  check('SnapshotCache/sfc query case canonical across passes',
+    cache.take('/src/Case.vue?vue&type=script&lang=ts')?.tag, 'sfc-xcase');
+  cache.store('/src/Enc.vue?%76%75%65&type=script', { tag: 'sfc-xenc' });
+  check('SnapshotCache/sfc query percent-encoding canonical across passes',
+    cache.take('/src/Enc.vue?vue&type=script')?.tag, 'sfc-xenc');
+  // a `?marker` that sits in a URL FRAGMENT (`#frag?vue&type=script`) is fragment text, not a query, so
+  // the id is NOT an SFC sub-block: it keys on its bare path like any non-sub-block id (detection and the
+  // key agree via the one parse, so no malformed `?#frag?...` sub-block key as the two-parser split emitted)
+  cache.store('/src/Frag.vue#frag?vue&type=script', { tag: 'frag-bare' });
+  check('SnapshotCache/fragment marker keys on bare path',
+    cache.take('/src/Frag.vue')?.tag, 'frag-bare');
   // Vite virtual module: `/@id/virtual:foo` must normalize to `virtual:foo` so pre/post
   // pair round-trips when the resolver strips the prefix between passes
   cache.store('/@id/virtual:mod', { tag: 'virt' });
