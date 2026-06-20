@@ -57,6 +57,19 @@ QUnit.test('class: super.from in extends Array', assert => {
   assert.deepEqual(MyArray.create([1, 2, 3]), [1, 2, 3]);
 });
 
+QUnit.test('class: computed own static member shadows this.<name>', assert => {
+  const k = 'from';
+  class C extends Array {
+    static [k] = () => 'own';
+    static run() {
+      return this.from([1, 2, 3]);
+    }
+  }
+  // `static [k]` (k === 'from') overrides the inherited Array.from, so this.from is the OWN member.
+  // a polyfill that rewrote this.from to Array.from would return [1, 2, 3] instead of 'own'
+  assert.same(C.run(), 'own');
+});
+
 QUnit.test('class: super.resolve in extends Promise', assert => {
   class MyPromise extends Promise {
     static resolveDouble(v) {
