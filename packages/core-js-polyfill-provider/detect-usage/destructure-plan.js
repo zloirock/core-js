@@ -67,13 +67,17 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
     // value provably `[Array]`), instead of bailing on every constantViolation
     if (scope && adapter) {
+      // read site of the current hop (host use first, then each prior hop's declarator) so a write
+      // AFTER the read does not dominate - threaded as the NODE since the adapter has no per-binding path
+      let readNode = path?.node ?? null;
       while (effectiveInit?.type === 'Identifier' && !visited.has(effectiveInit.name)) {
         visited.add(effectiveInit.name);
         const binding = adapter.getBinding(scope, effectiveInit.name, path);
-        if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) break;
+        if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) break;
         const bindingInit = binding.path?.node?.init ?? binding.node?.init;
         if (!bindingInit) break;
         effectiveInit = bindingInit;
+        readNode = (binding.path?.node ?? binding.node) ?? readNode;
       }
     }
     if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init };
