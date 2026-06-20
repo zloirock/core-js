@@ -17,7 +17,7 @@ import {
   BRACE_STATEMENT_HOST_TYPES,
   TS_EXPR_WRAPPERS,
   staticFallbackSwapRedundant,
-  wouldPromoteDirectiveAfterRemoval,
+  resolveBatchDirectivePromotionPolicy,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
@@ -234,6 +234,10 @@ export default function plugin(api, options) {
       // per-file count of modules injected by entry expansion - a non-zero count means the
       // emitted import block breaks the directive prologue, making `0;` placeholders moot
       let entryModulesInjected = 0;
+      // entry import paths collected in entry-global pass 1, decided as a BATCH in pass 2 (after the
+      // TOTAL module count is known) via the shared `resolveBatchDirectivePromotionPolicy` - so a
+      // zero-module entry near the prologue can't see an incremental `0` and emit a spurious `0;`
+      let entryDirectiveCandidates = [];
       // synth-swap pipeline: receivers accumulated as the visitor walks, drained at
       // programExit. factory in `internals/synth-swap-emitter.js`. instantiated per-file
       // in `initFile` so closure-captured `skippedNodes` ref stays in sync with the
@@ -690,37 +694,51 @@ export default function plugin(api, options) {
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
         entryModulesInjected += injectModulesForEntry(entry);
-        // indirect-require SE prefix preservation: `(spy(), require)('core-js/...')` passes
-        // `getEntrySource` via the SequenceExpression tail peel, but removing the whole
-        // statement would silently drop `spy()`. extract observable side effects from the
-        // prefix slots so they still run at runtime. side-effect-free prefix (e.g. `0` in
-        // `(0, require)(...)`) drops as expected. only the require shape carries this risk:
-        // `import 'core-js/...'` / `await import('core-js/...')` / TSImportEqualsDeclaration
-        // have no caller-side prefix slot to lose
-        const sePrefix = extractIndirectRequireSEPrefix(path.node);
-        // directive-promotion guard: when an EXISTING directive prologue terminates at this
-        // entry and the next sibling is a string-literal expression, removal would silently
-        // promote that literal to a directive (e.g. `"use asm"` enabling asm.js). swap in
-        // `0;` to keep the prologue terminated. compat-data may produce an empty module set
-        // for modern targets - removal alone is the corruption to guard. babel lifts module-
-        // level directives into `program.directives[]` (outside `body[]`), so a non-empty
-        // directives array is the prologue signal here
-        const programNode = path.parentPath?.node;
-        const body = programNode?.body;
-        const idx = typeof path.key === 'number' ? path.key : body?.indexOf(path.node);
-        const hasPriorDirective = (programNode?.directives?.length ?? 0) > 0;
-        if (sePrefix.length) {
-          path.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
-          return;
+        // DEFER the remove / `0;`-promotion decision to the pass-2 batch (below): the directive-
+        // promotion view must be the file's TOTAL injected count, not the incremental subset visible
+        // when THIS entry is processed left-to-right. module injection only REGISTERS (the body is
+        // unchanged until `flush()`), so this path stays valid for pass 2
+        entryDirectiveCandidates.push(path);
+      }
+
+      // entry-global pass 2: partition every collected entry into remove / `0;`-promotion through the
+      // shared batch resolver, fed the TOTAL injected-module count. mirrors unplugin's `detectEntries`
+      // so the directive-promotion decision is single-sourced in the provider (no incremental fork).
+      // babel lifts module-level directives into `program.directives[]`, so a non-empty array is the
+      // prologue signal. `body.indexOf` reads the live (pre-flush) order; module imports flush after
+      function applyEntryDirectivePromotions(programPath) {
+        if (!entryDirectiveCandidates.length) return;
+        const { body, directives } = programPath.node;
+        const hasPriorDirective = (directives?.length ?? 0) > 0;
+        const nodeToPath = new Map();
+        const candidateIndices = [];
+        for (const path of entryDirectiveCandidates) {
+          const idx = body.indexOf(path.node);
+          if (idx === -1) continue;
+          nodeToPath.set(path.node, path);
+          candidateIndices.push(idx);
         }
-        if (body && idx >= 0
-          && wouldPromoteDirectiveAfterRemoval({
-            body, entryIndex: idx, hasPriorDirective, injectedImportsBreakPrologue: entryModulesInjected > 0,
-          })) {
-          path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
-          return;
+        candidateIndices.sort((a, b) => a - b);
+        const { toRemove, toReplaceWithNoop } = resolveBatchDirectivePromotionPolicy({
+          body, candidateIndices, hasPriorDirective, injectedImportsBreakPrologue: entryModulesInjected > 0,
+        });
+        const replaceSet = new Set(toReplaceWithNoop);
+        for (const node of [...toRemove, ...toReplaceWithNoop]) {
+          const path = nodeToPath.get(node);
+          if (!path) continue;
+          // indirect-require SE prefix preservation takes precedence: `(spy(), require)('core-js/...')`
+          // passes detection via the SequenceExpression tail peel, but raw removal drops `spy()`. the
+          // emitted prefix statements already break the prologue, so no `0;` placeholder is needed; a
+          // side-effect-free prefix (`(0, require)(...)`) yields none and drops as expected
+          const sePrefix = extractIndirectRequireSEPrefix(node);
+          if (sePrefix.length) {
+            path.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
+          } else if (replaceSet.has(node)) {
+            path.replaceWith(t.expressionStatement(t.numericLiteral(0)));
+          } else {
+            path.remove();
+          }
         }
-        path.remove();
       }
 
       const isPure = method === 'usage-pure';
@@ -1110,6 +1128,7 @@ export default function plugin(api, options) {
         skipFile = false;
         disabledLines = null;
         entryModulesInjected = 0;
+        entryDirectiveCandidates = [];
         importStyle = null;
         originalBodyNodes = null;
         skippedNodes = new WeakSet();
@@ -1168,6 +1187,7 @@ export default function plugin(api, options) {
               // scan + ImportDeclaration traversal) so the caller doesn't thread a visitor
               // object through manual pre-call + filtered traverse
               runEntryDetection(this.file.path, entryGlobalCallback);
+              applyEntryDirectivePromotions(this.file.path);
             }
             injector?.flush();
           }),
