@@ -149,6 +149,25 @@ function * generateDestructure() {
   }
 }
 
+// --- Destructure ALIAS grammar (binding aliases the CONSTRUCTOR via element / value) ---
+// distinct from the member-extraction family above: `const [A] = [Array]` binds A to the Array
+// constructor itself (the array element), so the LATER static call resolves through A. covers the
+// const-array-init (rhs is a const-identifier bound to the literal), computed-key and object-value
+// alias shapes. the observable IS the folded static call's result, so the stripped-realm oracle
+// stays valid (the static is replaced by its polyfill on every realm). declaration host => strippable
+const D_ALIAS = [
+  { id: 'element', setup: 'const [A] = [Array];', use: 'A.from([1, 2])' },
+  { id: 'const-array-init', setup: 'const arr = [Array]; const [A] = arr;', use: 'A.from([1, 2])' },
+  { id: 'computed-key', setup: 'const k = "x"; const { [k]: A } = { x: Array };', use: 'A.from([1, 2])' },
+  { id: 'object-value', setup: 'const { y: A } = { y: Object };', use: 'A.fromEntries([["a", 1]])' },
+];
+function * generateDestructureAlias() {
+  for (const s of D_ALIAS) {
+    const body = `(() => { ${ s.setup } return JSON.stringify(${ s.use }); })()`;
+    yield { ...snippet(`destructure-alias/${ s.id }`, body), strip: true };
+  }
+}
+
 // --- Proxy-global full-consume from a side-effecting receiver ---
 // a full-consume proxy-global destructure (every binding resolves to a proxy-global static /
 // constructor) off a receiver wrapped in a side-effecting SequenceExpression. the emitter drops the
@@ -1508,6 +1527,7 @@ const TS_FAMILIES = {
 export function * generate() {
   yield * generateGrammar();
   yield * generateDestructure();
+  yield * generateDestructureAlias();
   yield * generateProxyGlobalSEReceiver();
   yield * generateConditionalMirror();
   yield * generateChains();
