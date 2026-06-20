@@ -389,6 +389,44 @@ runBoth('walkTypeAnnotationGlobals/typeof non-proxy mid-chain stops at non-proxy
       `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
   });
 
+// a plain qualified TSTypeReference rooted at a proxy-global names the real global TYPE: `globalThis.Set`
+// is the global Set, so surface globalThis (the proxy root) AND Set (the member it qualifies), matching
+// babel's es.set.* + es.global-this. same proxy-chain precision as the typeof cases, on a type annotation
+runBoth('walkTypeAnnotationGlobals/qualified proxy-global root surfaces member',
+  'let x: globalThis.Set<number>;', (adapter, prog, lbl) => {
+    const ref = adapter.pickPath(prog, 'TSTypeReference');
+    if (!ref) return;
+    const found = [];
+    walkTypeAnnotationGlobals(ref.node, name => found.push(name));
+    checkTruthy(lbl, found.includes('globalThis') && found.includes('Set'),
+      `expected globalThis+Set, got [${ found.join(',') }]`);
+  });
+
+// a qualified TSTypeReference over a NON-proxy root is type-only: `NS.Foo` names a type inside the
+// namespace NS, so neither NS nor Foo is a runtime global - stays silent (unlike a typeof query, whose
+// root IS a runtime binding). guards the proxy-root gate against over-surfacing type-only namespaces
+runBoth('walkTypeAnnotationGlobals/qualified type-only namespace stays silent',
+  'let x: NS.Foo;', (adapter, prog, lbl) => {
+    const ref = adapter.pickPath(prog, 'TSTypeReference');
+    if (!ref) return;
+    const found = [];
+    walkTypeAnnotationGlobals(ref.node, name => found.push(name));
+    checkDeep(lbl, found, []);
+  });
+
+// the proxy-chain precision applies to a plain qualified TSTypeReference too: in `globalThis.Array.Map`
+// the chain breaks at the non-proxy `Array`, so `Map` is its property type - surface globalThis + Array
+// but never the global Map (same precision as the typeof variant, on a type annotation)
+runBoth('walkTypeAnnotationGlobals/qualified non-proxy mid-chain stops at non-proxy',
+  'let x: globalThis.Array.Map<string, number>;', (adapter, prog, lbl) => {
+    const ref = adapter.pickPath(prog, 'TSTypeReference');
+    if (!ref) return;
+    const found = [];
+    walkTypeAnnotationGlobals(ref.node, name => found.push(name));
+    checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
+      `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
+  });
+
 // fn-type signature param: `(items: Set<number>) => void` keeps its params under babel's
 // `parameters` key (oxc uses `params`). a global referenced ONLY in a fn-type param must
 // surface on both parsers - babel-side regression guard for the `parameters` child key
