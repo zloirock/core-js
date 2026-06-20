@@ -1065,9 +1065,13 @@ function usagePrecedesNode(usagePath, node) {
 // the closure cannot observe any pre-`node` value (an init captured from an outer scope, or a
 // reassignment that ran before the capturing closure was created). climbing returns null when `node`
 // is not found in any enclosing scope, so the caller applies its own default
-function nodeDominatesUsage({ node, usagePath, owner, climb }) {
+function nodeDominatesUsage({ node, usagePath, owner, climb, usageNode = null }) {
   const guards = collectVarGuardsToDeclarator(owner.node, node);
-  if (guards !== null) return usageSitsUnderAllBranches(usagePath, owner.node, guards) && nodePrecedesUsage(node, usagePath);
+  // `usageNode` overrides the textual read position for a multi-hop alias chain: an intermediate hop is
+  // read at the prior declarator, not the host use, so a write AFTER that read can't change the captured
+  // value. the guard / scope owner stay the host's (the chain lives in one scope)
+  const readNode = usageNode ?? usagePath.node;
+  if (guards !== null) return usageSitsUnderAllBranches(usagePath, owner.node, guards) && endsBeforeStart(node, readNode, true);
   if (!climb) return false;
   for (let o = findNearestVarScopeOwner(owner.parentPath); o; o = findNearestVarScopeOwner(o.parentPath)) {
     const outer = collectVarGuardsToDeclarator(o.node, node);
@@ -1104,7 +1108,7 @@ export function varInitDominatesUsage({ declaratorNode, usagePath, kind = null }
 // reaching value - the cross-closure dead-init case is instead handled where the init is followed, by
 // preferring `reachingReassignmentValueNode`'s value. returns false when no write dominates, letting
 // usage-global keep resolving a still-live init (inject-if-maybe-needed). usage-pure bails on any reassignment
-export function reassignmentDominatesUsage({ reassignmentNodes, usagePath }) {
+export function reassignmentDominatesUsage({ reassignmentNodes, usagePath, usageNode = null }) {
   if (!usagePath || !reassignmentNodes?.length) return false;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
@@ -1113,8 +1117,8 @@ export function reassignmentDominatesUsage({ reassignmentNodes, usagePath }) {
   // reassignment provably dominates such a use - keep resolving the init (over-inject-safe). the
   // textual-precedence check below can't see this, so guard it the same way the pure / reaching
   // siblings (`noReassignmentReachesUsage`, `reassignmentValueNodes`) do
-  if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return false;
-  return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, climb: false }));
+  if (nodeSitsInLoopBodyWithin(owner.node, usageNode ?? usagePath.node)) return false;
+  return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, climb: false, usageNode }));
 }
 
 // per-node counterpart to nodeDominatesUsage for the SUBSTITUTE direction: does reassignment `node`
@@ -1414,11 +1418,14 @@ function reassignmentNodesBeyondDeclarator(binding) {
 // the type-resolver (narrowing, whose binding adapter carries no `.method`) and entry keep the
 // conservative flat bail. both branches exclude the loop-reinit declarator-self via
 // reassignmentNodesBeyondDeclarator
-export function reassignBailApplies({ binding, adapter, path }) {
+export function reassignBailApplies({ binding, adapter, path, usageNode = null }) {
   const method = adapter?.method;
   if (method !== 'usage-global' && method !== 'usage-pure') return true;
   const reassignmentNodes = reassignmentNodesBeyondDeclarator(binding);
-  if (method === 'usage-global') return reassignmentDominatesUsage({ reassignmentNodes, usagePath: path });
+  // usage-global threads `usageNode` (a multi-hop alias hop's read site) so a write after that read
+  // does not dominate; usage-pure keeps the flat reach check (bail-safe - a possibly-reaching write
+  // already declines resolution, so the read-site refinement is unnecessary there)
+  if (method === 'usage-global') return reassignmentDominatesUsage({ reassignmentNodes, usagePath: path, usageNode });
   return !noReassignmentReachesUsage({ reassignmentNodes, usagePath: path });
 }
 
@@ -1428,8 +1435,8 @@ export function reassignBailApplies({ binding, adapter, path }) {
 // otherwise delegates to the method-aware `reassignBailApplies`. (resolveVariableBindingToGlobal
 // uses isReassignedBeyondDeclarator + reassignBailApplies instead - it excludes the loop-reinit
 // declarator-self for BOTH methods, where these sites keep the conservative flat bail off-global)
-export function reassignmentBlocksGlobalResolve({ binding, adapter, path }) {
-  return !!binding.constantViolations?.length && reassignBailApplies({ binding, adapter, path });
+export function reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode = null }) {
+  return !!binding.constantViolations?.length && reassignBailApplies({ binding, adapter, path, usageNode });
 }
 
 // if this native scope binding is declared DIRECTLY inside a namespace / declare-global block
