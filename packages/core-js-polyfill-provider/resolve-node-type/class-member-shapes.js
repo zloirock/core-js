@@ -21,7 +21,7 @@ export function memberWriteTargetPath(writePath) {
   // `memberWriteFieldName` off the result, which a TSNonNull/paren wrapper would strand (the
   // write then drops from the field's flow union, leaving a stale narrow that throws on ie:11)
   if (type === 'UpdateExpression') return peelSkippableWrapperPath(writePath.get('argument'));
-  if (type === 'MemberExpression' || type === 'OptionalMemberExpression') return writePath;
+  if (type === 'MemberExpression') return writePath;
   return peelSkippableWrapperPath(writePath.get('left'));
 }
 
