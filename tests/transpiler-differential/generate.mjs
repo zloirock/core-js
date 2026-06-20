@@ -1383,7 +1383,10 @@ const TS_FAMILIES = {
     '([1, 2] as number[]).at!(-1)',
   ],
   // TS runtime constructs - enum / namespace have real runtime emit; `enum Map` shadows the global
-  // and must NOT be polyfilled as the constructor
+  // and must NOT be polyfilled as the constructor. (a braceless TS declaration in a switch CASE
+  // shadows the whole switch block scope too, but `@babel/plugin-transform-typescript` cannot lower
+  // that shape - "Unexpected enum parent SwitchCase" - so it has no runnable native baseline here and
+  // is locked by `audit-switch-case-ts-runtime-binding-shadow` as a text/parity fixture instead)
   'ts-runtime-construct': [
     '(() => { enum E { A = 1, B = 2 } return [E.A, [E.B]].flat(); })()',
     '(() => { enum Map { A } return typeof Map.A; })()',
