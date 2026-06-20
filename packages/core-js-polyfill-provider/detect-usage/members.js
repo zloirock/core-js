@@ -370,8 +370,9 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
   const left = unwrapParens(node.left);
   // peel SequenceExpression-tail on the receiver: `(fn(), Symbol).iterator in obj`
   // should resolve to the symbol-in polyfill path same as bare `Symbol.iterator in obj`.
-  // SE preceding-elements are preserved at emit time via `visitSymbolInLhsSe` walking
-  // the original LHS subtree, so peeling here doesn't drop side-effects
+  // SE preceding-elements are preserved at emit time by the structural harvest
+  // (`collectFoldedReceiverSideEffects`) walking the original LHS subtree, so peeling here
+  // doesn't drop side-effects
   const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
     ? asSymbolRef({ node: peelReceiverSequenceTail(left.object), scope, adapter, path }) : null;
   if (ref) {
@@ -382,7 +383,9 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     if (name && !name.includes('.')) {
       const key = `Symbol.${ name }`;
       const inEntry = resolveSymbolInEntry(key);
-      // harvest here rather than at emit (`visitSymbolInLhsSe`) - scope/adapter are live at detection
+      // harvest the chain-root receiver call here rather than at emit - scope/adapter are live at
+      // detection (a provably-pure inline receiver call is dropped); the emit-time structural harvest
+      // threads it back in via `rescue` so it interleaves at its true source position
       const sideEffects = [];
       collectChainRootCallEffect({ node: left, sideEffects, scope, adapter, path });
       // gate seeding on actual rewrite viability. `resolveSymbolInEntry` only checks
