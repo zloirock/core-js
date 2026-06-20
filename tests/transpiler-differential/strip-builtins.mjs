@@ -31,6 +31,13 @@ dropProto(String, ['at', 'padStart', 'padEnd', 'replaceAll', 'trimStart', 'trimE
 dropStatic(Array, ['from', 'of', 'fromAsync']);
 dropStatic(Object, ['fromEntries', 'groupBy', 'hasOwn']);
 dropStatic(Map, ['groupBy']);
+// the new-Set-methods leaf ops: core-js implements each on its own pure Set and never consumes them
+// internally, so removing them from the native prototype (the constructor stays) only forces a missed
+// `new Set` -> pure-Set rewrite to surface (the native op is now gone) instead of silently using native
+dropProto(Set, [
+  'union', 'intersection', 'difference', 'symmetricDifference',
+  'isSubsetOf', 'isSupersetOf', 'isDisjointFrom',
+]);
 
 // usage-pure also rewrites the `Iterator` constructor and every `globalThis` reference to pure
 // imports, so they belong in the strip set too. `GLOBAL` is the realm global via
@@ -39,5 +46,11 @@ dropStatic(Map, ['groupBy']);
 // the binding is gone (verified). a MISSED globalThis / Iterator injection then throws (binding /
 // constructor gone) instead of silently resolving to the native.
 const GLOBAL = Function('return this')();
+// NOTE: the Iterator-helper LEAF methods (map / filter / take / drop / toArray ...) on %IteratorPrototype%
+// are deliberately NOT stripped. core-js's pure `array/instance/values` helper returns an iterator that
+// INHERITS %IteratorPrototype% and relies on those helpers being present (it does not reimplement them on
+// its own prototype) - deleting them throws in the polyfilled output too, so they fail the "never consumed
+// internally" strip criterion. Iterator-helper receivers stay full-env (a missed injection is import-parity
+// caught), while Set's leaf ops ARE reimplemented per-pure-Set and remain strippable above.
 delete GLOBAL.Iterator;
 delete GLOBAL.globalThis;
