@@ -211,7 +211,7 @@ export default function createSynthSwapEmitter({
     // `[k]: _polyfill` instead of dropping the polyfill. the resolved value also polyfills a sibling-
     // aliasing computed key (`{ from, [k]: x }` with k='from' -> both get `_Array$from`), avoiding the
     // overwrite that dropped the shorthand polyfill. a dynamic key (lookupKey null) bails
-    const { lookupKey, slotKey } = resolveSynthKeys({ node: prop.node, scope: objectPattern.scope, adapter });
+    const { lookupKey, slotKey } = resolveSynthKeys({ node: prop.node, scope: objectPattern.scope, adapter, path: prop });
     if (!lookupKey) return false;
     // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
     // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
