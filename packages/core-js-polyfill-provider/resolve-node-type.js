@@ -1076,17 +1076,18 @@ function createResolveNodeType(babelNodeType, t, {
     if (!initPath?.node) return null;
     if (id?.typeAnnotation && isNullishInit(initPath.node)) return null;
     // zero-arg IIFE on init (`const x = (() => RHS)()`) evaluates to the function body's
-    // sole expression at runtime. peel one IIFE layer when the body is an expression-only
-    // arrow / FE with no params - downstream alias-walker then reaches RHS just like
-    // `const x = RHS`. multi-statement bodies / param'd IIFEs stay opaque (side effects /
-    // arg binding can't be statically inlined)
+    // sole expression at runtime. peel one IIFE layer when the callee is an expression-body
+    // arrow with no params - downstream alias-walker then reaches RHS just like `const x = RHS`.
+    // FunctionExpression IIFEs stay opaque (their body is always a BlockStatement, never an
+    // expression), as do multi-statement bodies / param'd IIFEs (side effects / arg binding
+    // can't be statically inlined)
     const iifeBody = zeroArgIifeBodyPath(initPath);
     if (iifeBody) initPath = iifeBody;
     return initPath;
   }
 
-  // returns the inner expression Path when `initPath` wraps a zero-arg arrow / FunctionExpression
-  // call with an expression-only body, otherwise null
+  // returns the inner expression Path when `initPath` wraps a zero-arg arrow call with an
+  // expression-only body, otherwise null
   function zeroArgIifeBodyPath(initPath) {
     const { node } = initPath;
     if (node?.type !== 'CallExpression' || node.arguments?.length) return null;
