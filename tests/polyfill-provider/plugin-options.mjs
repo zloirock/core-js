@@ -322,6 +322,10 @@ doesNotThrow('validateOptions/targets object',
   () => validateOptions({ ...validBase, targets: { ie: 11 } }));
 doesNotThrow('validateOptions/targets array',
   () => validateOptions({ ...validBase, targets: ['last 2 versions'] }));
+// an empty targets OBJECT is a no-constraint object and is accepted, unlike an empty ARRAY /
+// empty STRING (both rejected below as a suspicious env-var-passthrough mistake) - asymmetry by design
+doesNotThrow('validateOptions/targets empty object OK',
+  () => validateOptions({ ...validBase, targets: {} }));
 throwsWith('validateOptions/targets function',
   () => validateOptions({ ...validBase, targets: () => ({}) }),
   '`targets`');

@@ -69,7 +69,9 @@ export function createClassObjectMember({
 
   // does the class body own a getter / setter for `name` matching `isStatic`? used to
   // gate `resolveMergedNamespaceStatic` fallback - setter-only members own the slot even
-  // though `findClassMember` skips them
+  // though `findClassMember` skips them. own-scope only (no super-chain walk): an INHERITED
+  // setter-only slot reads `undefined`, so the merged-namespace fn that would resolve there
+  // throws at runtime regardless of which type-specific helper is emitted - bias-safe to ignore
   function hasOwnAccessor({ classPath, name, isStatic }) {
     for (const member of classPath.get('body').get('body')) {
       const { node } = member;

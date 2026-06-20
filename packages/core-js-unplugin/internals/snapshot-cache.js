@@ -67,17 +67,20 @@ const HMR_TIMESTAMP_RE = /[&?]t=\d+(?:\.\d+)?(?=[#&]|$)/g;
 // paths containing literal `&` (e.g. `/dir&with/file.js?t=1` -> `/dir&with/file.js`) get
 // their first `&` mistakenly rewritten to `?`, producing wrong-key snapshot lookups
 function stripHMRTimestamp(id) {
-  if (!HMR_TIMESTAMP_RE.test(id)) return id;
+  // HMR markers are query tokens: Vite uses `?t=<ms>` (first query) or `&t=<ms>` (appended to an
+  // existing query). a `t=` BEFORE the first `?` is literal path text - restricting the strip to
+  // the query portion stops a path `&t=N` from colliding with the bare path key
+  const queryStart = id.indexOf('?');
+  if (queryStart === -1) return id;
+  const path = id.slice(0, queryStart);
+  const query = id.slice(queryStart);
   HMR_TIMESTAMP_RE.lastIndex = 0;
-  let stripped = id.replaceAll(HMR_TIMESTAMP_RE, '');
-  // restore `?` only when HMR token was the FIRST query separator and another `&`-prefixed
-  // token follows. positional check via `id.indexOf('?t=')` matches the `?t=` form
-  // exclusively (not `&t=` mid-query) - the latter strip leaves earlier `?` intact, no swap needed
-  const firstQuery = id.search(/[#?]/);
-  if (firstQuery !== -1 && id.startsWith('?t=', firstQuery) && stripped[firstQuery] === '&') {
-    stripped = `${ stripped.slice(0, firstQuery) }?${ stripped.slice(firstQuery + 1) }`;
-  }
-  return stripped
+  if (!HMR_TIMESTAMP_RE.test(query)) return id;
+  let stripped = query.replaceAll(HMR_TIMESTAMP_RE, '');
+  // query begins with `?`; if `?t=` was the first token it is now gone and a `&`-prefixed token
+  // may sit at offset 0 - restore the `?`
+  if (query.startsWith('?t=') && stripped.startsWith('&')) stripped = `?${ stripped.slice(1) }`;
+  return path + stripped
     .replace(/\?&/, '?')
     .replace(/[&?]$/, '');
 }
