@@ -1,7 +1,6 @@
 // static-block sibling early-exit guard: `Array.isArray` negation throws before usage.
-// `getStatementSiblings` (typeof-guards.js) walks the static-block body as a statement
-// container; without StaticBlock support the guard never registers and `arr.at` falls back
-// to a generic polyfill including `es.string.at` (extra unused import)
+// the StaticBlock body must be walked as a statement container so the guard registers;
+// without it `arr.at` falls back to a generic polyfill including a spurious `es.string.at`.
 class C {
   static {
     const arr: number[] | string = Math.random() < 0.5 ? [1, 2, 3] : "oops";

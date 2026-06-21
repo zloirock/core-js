@@ -1,12 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// method-local `<W>` typeParameters must shadow outer class subst when names collide.
-// `wrap<V>(x: V): V[]` - inner V is the method-local generic, NOT the class's V. without
-// dropTypeParamSubst alpha-rename guard in substFunctionType (now reachable from the new
-// ClassMethod / MethodDefinition SUBST_DISPATCH handlers), the outer subst `{V: number}`
-// would replace the inner V in the return type, producing `number[]` regardless of how
-// `wrap` is called. with the guard, inner V stays a free type-param and the call result
-// resolves through call-site inference to `string[]` for `wrap("hi")`
+// `wrap<V>(x: V): V[]` on `class C<V>` - the method-local `<V>` must shadow the outer class
+// subst when names collide. without an alpha-rename guard during ClassMethod / MethodDefinition
+// substitution, the outer subst `{V: number}` replaces the inner V, forcing `number[]`. with
+// the guard inner V stays a free type-param and `wrap("hi")` infers `string[]` from the call site
 class C<V> {
   wrap<V>(x: V): V[] {
     return [x];

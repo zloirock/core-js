@@ -1,8 +1,6 @@
-// Class-body instance method through TSMethodSignature-shaped declaration (`declare
-// class`) must expose its return slot to `ReturnType<typeof x.method>`. `findTypeMember`
-// used to fold the member to a synthetic empty function type, so the return type was lost.
-// Using `includes` distinguishes this fixture's array-narrowing from the TSMethodSignature
-// property fixture which uses `.at(0)`.
+// a `declare class` instance method (TSMethodSignature shape) must expose its return slot
+// to `ReturnType<typeof x.method>`; folding the member to an empty function type lost it.
+// `includes` distinguishes this array-narrowing from the property-signature twin's `.at(0)`.
 declare class X { method(): number[] }
 declare const x: X;
 type R = ReturnType<typeof x.method>;

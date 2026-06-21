@@ -1,8 +1,7 @@
-// `Date`/`Function`/`TypedArray` have no `pure` global ctor in built-in
-// definitions, only static methods. `entryToGlobalHint` must NOT generate
-// hints for them via `deriveHintFromKebab` - downstream `hasOwn(desc, 'pure')`
-// gate is the safety net but the hint itself should resolve to a name
-// whose statics carry no pure variant
+// `Date`/`Function`/`TypedArray` have only static methods in built-in
+// definitions, no `pure` global ctor. extending such a global must NOT
+// derive a global-ctor hint - any hint should resolve to a name whose
+// statics carry no pure variant, so no ctor import is emitted
 import Date from "@core-js/pure/actual/date";
 class MyDate extends Date {
   describe() {

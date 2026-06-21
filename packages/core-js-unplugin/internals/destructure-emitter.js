@@ -587,7 +587,7 @@ export function createDestructureEmitter({
   // lift extracted-declarator SE prefixes (`(logCall(), globalThis)` -> standalone
   // `logCall();` statements next to the flattened decl). non-extracted siblings keep
   // their SE prefixes verbatim through `nodeSrc` (lifting both would double-execute).
-  // returns a per-declarator-index array so `renderFlattened` can place each slot's SE
+  // returns a per-declarator-index array so the block / for-init render steps can place each slot's SE
   // prefixes IMMEDIATELY before its extracted lines instead of collapsing all SE prefixes
   // ahead of everything (pre-siblings between declarators would otherwise execute AFTER
   // an SE from a later slot - observable when both halves emit log() calls).
@@ -1368,7 +1368,7 @@ export function createDestructureEmitter({
     //     etc.): swap to polyfill binding when the receiver resolves to a known global,
     //     else fall back to the raw tail source (static-object receivers)
     // SE prefix is peeled off the init tail upfront - prefix lifts standalone via
-    // `liftExtractedSEPrefixes` (VariableDeclaration), `cascadeAssignmentExpression`
+    // `liftExtractedSEPrefixesByIdx` (VariableDeclaration), `cascadeAssignmentExpression`
     // (AssignmentExpression), or `injectForInitSESinks` re-embed (for-init). embedding the
     // original `(se(), wrapper)` slice here would re-execute every prefix expression
     // harvested discard-SE source, consumed by exactly ONE emission slot: the rebuilt residual
