@@ -1,7 +1,7 @@
 // member-expression resolution + `key in obj` BinaryExpression handler. produces meta for
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
-import { collectFoldedReceiverSideEffects } from '../helpers/ast-patterns.js';
+import { collectFoldedReceiverSideEffects, TRANSPARENT_EXPR_WRAPPER_TYPES } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
@@ -112,6 +112,28 @@ export function collectFallbackCollapseLeftSe({ leftNode, scope, adapter, path }
   const rootCall = seBearingChainRootCall({ node: leftNode, scope, adapter, path });
   if (rootCall && !out.includes(rootCall)) out.push(rootCall);
   return out;
+}
+
+// a rescued synth-swap receiver whose VALUE is discarded but whose re-emit would read an undefined
+// INTERMEDIATE proxy hop off-browser (`globalThis[(eff(), 'self')].Array` -> `_globalThis.self...` /
+// the AST emitter's `_self`, undefined on ie:11 / Node) must be DROPPED - re-emit ONLY the harvested
+// side effects, the value is unused. true for a MULTI-hop member receiver (its `.object` is itself a
+// member) carrying a buried folded effect; single-hop (`globalThis[(eff(), 'Array')]`) and call /
+// chain-assignment roots keep the verbatim re-emit (no undefined intermediate). shared so the AST and
+// text emitters make the SAME drop decision (else they desync: babel keeps `_self`, unplugin drops)
+export function shouldDropRescueReceiver(inner) {
+  if (!inner || !collectFoldedReceiverSideEffects(inner).length) return false;
+  // unwrap the object through transparent wrappers / a SE-sequence tail before the type check - parsers
+  // differ on keeping paren nodes (babel strips `((e(), gt).self)`, oxc keeps it as a wrapper)
+  let obj = inner.object;
+  for (let guard = 0; obj && guard < 32; guard++) {
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(obj.type) || obj.type === 'ChainExpression') {
+      obj = obj.expression;
+    } else if (obj.type === 'SequenceExpression') {
+      obj = obj.expressions.at(-1);
+    } else break;
+  }
+  return obj?.type === 'MemberExpression' || obj?.type === 'OptionalMemberExpression';
 }
 
 // a static dispatch on a member-chain receiver collapses the WHOLE receiver into a single
