@@ -40,6 +40,7 @@ import {
 import {
   globalProxyMemberName,
   isAliasProxyRoot,
+  markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
   memberKeyName,
   symbolKeyToEntry,
@@ -54,7 +55,7 @@ import {
   proxyGlobalWrappedRoot,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { collectFallbackCollapseLeftSe } from '@core-js/polyfill-provider/detect-usage/members';
+import { collectFallbackCollapseLeftSe, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   applyNestedParamSynthPlan,
   renderSynthTree,
@@ -877,14 +878,22 @@ export function createDestructureEmitter({
     // output (babel's lift trims the same class). a for-init SE sink keeps its tail - the
     // sink declarator needs a value
     let liftParts = null;
+    let liftTailDead = false;
     if (initStart !== undefined && info.initNode) {
       const { prefix: liftPrefix, tail: liftTail } = peelNestedSequenceExpressions(info.initNode);
       const peeledLiftTail = liftTail !== info.initNode ? unwrapParens(liftTail) : null;
-      const tailDead = peeledLiftTail && (skippedNodes.has(peeledLiftTail)
+      liftTailDead = !!peeledLiftTail && (skippedNodes.has(peeledLiftTail)
         || (willLiftSE && !isForInit && !mayHaveSideEffects(peeledLiftTail)));
       // trailing PURE prefix elements are as dead as the tail - the shared dead-tail policy
-      if (liftPrefix.length && tailDead) liftParts = dropDeadSequenceTail(liftPrefix);
+      if (liftPrefix.length && liftTailDead) liftParts = dropDeadSequenceTail(liftPrefix);
     }
+    // a lifted SE init keeps the bare receiver live as a statement even though its value is unread -
+    // collapse its proxy hop too (mirrors the babel `collapseRetainedProxyReceiver` SE-retained branch
+    // and the param-default collapse here), else `_globalThis.self.Array` reads an undefined hop
+    // off-browser. ONLY when the receiver SURVIVES the lift - a dead tail is dropped to a bare prefix
+    // (`(eff++, globalThis.self.Array)` -> `eff++`), so editing its hop would race the drop and crash
+    // the compose; a kept logical (`(eff++, globalThis.self.Array) || Set`) collapses per operand
+    if (willLiftSE && !liftTailDead) collapseRetainedProxyDefault(info.initNode, aliasCtxFor(info));
     const procSrc = initSrc;
     // ONE extract-or-bake algorithm for both shapes: the no-drop init is a single part
     // spanning the whole range; a tail-dropped prefix is one part per kept expression
@@ -1780,6 +1789,12 @@ export function createDestructureEmitter({
     // call-branch policy (single fully-polyfilled key + SE rescue) lives in the shared
     // `classifyCallBranchForSynth`
     const { callBranch, rescueSe } = classifyCallBranchForSynth({ inner, scope, adapter: estreeAdapter, path });
+    // a multi-hop proxy rescue receiver is DROPPED (re-emit only the harvested SE): keeping it rebuilds
+    // `((e(), _globalThis).self).Array`, whose `_globalThis.self` is undefined off-browser. mirrors the
+    // param-default path + the babel emitter via the shared `shouldDropRescueReceiver`
+    const dropBranchReceiver = rescueSe && shouldDropRescueReceiver(inner);
+    const branchLeftSe = dropBranchReceiver
+      ? collectFallbackCollapseLeftSe({ leftNode: inner, scope, adapter: estreeAdapter, path }) : null;
     const binding = injectPureImport(pure.entry, pure.hintName);
     // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
     // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
@@ -1791,14 +1806,30 @@ export function createDestructureEmitter({
     // `globalThis -> _globalThis` INSIDE that soon-to-be-overwritten span. the SE prefix
     // (`log()`) stays unmarked so its inner identifiers still polyfill and run at runtime
     markAndPeelSkippableWrappers(branch, skippedNodes);
-    markSynthReceiverSkipped(inner, skippedNodes);
+    // a DROPPED receiver value never reaches output (only the harvested SE re-emits); a REPLACED one
+    // (no rescue SE) is fully skipped too - the synth literal supplants it; a KEPT receiver (rescue SE
+    // re-emitted verbatim) skips only the spine so its SE prefix still polyfills + runs in place
+    if (dropBranchReceiver) skipReplacedReceiver(inner, branchLeftSe);
+    else if (!rescueSe) skipReplacedReceiver(inner);
+    else markSynthReceiverSkipped(inner, skippedNodes);
     let pending = pendingSynthSwaps.get(branch);
     if (!pending) {
-      pending = { receiver: branch, objectPattern, polyfills: new Map(), callBranch, rescueSe };
+      pending = { receiver: branch, objectPattern, polyfills: new Map(), callBranch,
+        rescueSe: dropBranchReceiver ? null : rescueSe, leftSe: branchLeftSe };
       pendingSynthSwaps.set(branch, pending);
     }
     pending.polyfills.set(slotKey, binding);
     return true;
+  }
+
+  // thin binding of the shared `markReplacedReceiverSkipped` to this emitter's full-subtree walker.
+  // a synth-swap receiver the literal REPLACES (or DROPS, re-emitting only its harvested SE) is skipped
+  // whole - a spine-only skip leaves a sequence prefix's globals to rewrite into the now-dead span and
+  // orphan the transform; the harvested SE (`keepSe`) is re-exposed so its own globals still polyfill
+  function skipReplacedReceiver(node, keepSe = []) {
+    markReplacedReceiverSkipped({
+      receiver: node, keepSe, skippedNodes, walkNode: (root, visit) => walkAstNodes({ root, visit }),
+    });
   }
 
   // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
@@ -2160,22 +2191,34 @@ export function createDestructureEmitter({
     // a RESCUED receiver re-emits its own source ahead of the literal, so its inner rewrites
     // must keep firing (they compose into the re-emitted text by needle) - no skip marking.
     let leftSe = null;
+    let rescueSeEmit = rescueSe;
     if (receiver.type === 'LogicalExpression') {
-      // a fallback-logical default collapses to the literal; narrow the skip to the parts the literal
-      // consumes - the dead RIGHT operand and the resolved-left TAIL. the live left PREFIX / a
-      // call-rooted left's internals (`IIFE().Array` -> the IIFE body) stay visible so their inner
-      // rewrites fire and compose into the rescued leftSe text (babel-twin contract). the rescue plan
-      // (structural prefixes + chain-root call, in source order) is computed once here in the shared
+      // a fallback-logical default collapses to the literal; skip the parts the literal supplants - the
+      // dead RIGHT operand and the resolved-left TAIL. the tail is skipped WHOLE (a spine-only skip stops
+      // at a tail sequence and leaves its prefix's dropped globals - `(eff(), globalThis).Array` - to
+      // orphan a rewrite into the dead span); its harvested SE is re-exposed so the live left PREFIX / a
+      // call-rooted left's internals (`IIFE().Array` -> the IIFE body) still rewrite in place and compose
+      // into the rescued leftSe text (babel-twin contract). the rescue plan is computed once in the shared
       // provider, rendered as text at apply time
       walkAstNodes({ root: receiver.right, visit: n => skippedNodes.add(n) });
-      markSynthReceiverSkipped(peelNestedSequenceExpressions(receiver.left).tail, skippedNodes);
       leftSe = collectFallbackCollapseLeftSe({
         leftNode: receiver.left, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
       });
-    } else if (!rescueSe) markSynthReceiverSkipped(receiver, skippedNodes);
+      skipReplacedReceiver(receiver.left, leftSe);
+    } else if (rescueSe && shouldDropRescueReceiver(receiver)) {
+      // a MULTI-hop proxy receiver with a buried side effect (`globalThis[(eff(), 'self')].Array`) cannot
+      // be re-emitted verbatim: the kept `_globalThis.self` reads an undefined intermediate hop
+      // off-browser. the receiver value is discarded, so drop it and re-emit ONLY its harvested side
+      // effects ahead of the literal (matching the babel emitter via the shared `shouldDropRescueReceiver`)
+      leftSe = collectFallbackCollapseLeftSe({
+        leftNode: receiver, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
+      });
+      skipReplacedReceiver(receiver, leftSe);
+      rescueSeEmit = null;
+    } else if (!rescueSe) skipReplacedReceiver(receiver);
     let pending = pendingSynthSwaps.get(receiver);
     if (!pending) {
-      pending = { receiver, objectPattern, polyfills: new Map(), callBranch, rescueSe, leftSe };
+      pending = { receiver, objectPattern, polyfills: new Map(), callBranch, rescueSe: rescueSeEmit, leftSe };
       pendingSynthSwaps.set(receiver, pending);
     }
     pending.polyfills.set(synthSwapPropKey(propNode), binding);
