@@ -18,6 +18,7 @@ import {
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
   isTransparentDestructureWrapper,
+  nestedMirrorOwnsMixedPattern,
   objectPatternPropNeedsReceiverRewrite,
   synthSwapPropKey,
   mayHaveSideEffects,
@@ -186,10 +187,18 @@ function renderNestedParamSynth({ prop, meta, deps }) {
   const plan = buildNestedParamSynthPlan({ leafPatternPath: prop.parentPath, meta, resolvePure, adapter });
   return applyNestedParamSynthPlan({
     plan,
-    renderTree: tree => renderSynthTree(tree, {
+    renderTree: (tree, recv) => renderSynthTree(tree, {
       polyfill: injectPureImport,
       object: entries => t.objectExpression(entries.map(
         ({ key, value }) => t.objectProperty(t.identifier(key), value))),
+      // a passed-through key reads off the receiver at its NATIVE position. emit the BARE member chain
+      // (`globalThis.Set.union`, or `Set.union` off a ctor receiver) and leave it for the natural visitor
+      // to re-resolve EXACTLY as usage-pure resolves any source access (`-> _Set.union`, `-> _globalThis
+      // .Array.isArray`). delegating to the normal injection means there is no resolution to keep in sync:
+      // parity with the unplugin's explicit text-resolver is enforced structurally (the fixture compares
+      // both emitters, so a unplugin-side divergence from the visitor fails)
+      passthrough: keyPath => keyPath.reduce(
+        (obj, key) => t.memberExpression(obj, t.identifier(key)), t.identifier(recv.receiverName)),
     }),
     // the target may sit in EITHER subtree (`(m && globalThis) || self` unfolds BOTH sides) -
     // descend from the host slot by span containment to recover the live path
@@ -398,7 +407,13 @@ export default function createDestructureEmitter({
     if (!targetPath) {
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
       // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
-      if (renderNestedParamSynth({ prop, meta, deps: { t, resolvePure, injectPureImport, skippedNodes, adapter } })) return;
+      if (renderNestedParamSynth({ prop, meta, deps: {
+        t, resolvePure, injectPureImport, skippedNodes, adapter,
+      } })) return;
+      // a MIXED pattern is owned WHOLLY by the nested mirror. a flat key visited BEFORE the nested leaf
+      // resolves makes renderNestedParamSynth return false mid-pass; do NOT body-extract / inline-default
+      // it (caller-lossy + diverges from the text emitter) - the mirror provides it in its synth default
+      if (nestedMirrorOwnsMixedPattern(objectPattern.node)) return;
       // synth-swap bailed (computed key / non-Identifier shape sibling) - try body-extract
       // first: insert `const from = _polyfill;` at function body top + remove the prop
       // from the destructure. preserves "polyfill always wins" even at the cost of caller-
@@ -608,6 +623,14 @@ export default function createDestructureEmitter({
         }
         assigns.push(buildPolyfillAssignmentStatement(t.identifier(e.localName), value));
       }
+      // anchored residual on an assignment host: `({ union } = _Set)` (the printer parenthesizes the
+      // pattern-LHS assignment)
+      if (outer.kind === 'anchored') {
+        const { pattern, binding } = anchoredResidualNodes(outer);
+        const assign = t.expressionStatement(t.assignmentExpression('=', pattern, binding));
+        t.traverseFast(assign, node => { skippedNodes.add(node); });
+        assigns.push(assign);
+      }
     }
     // a render reducing to exactly ONE statement on an unbraced control slot keeps the
     // slot bodyless - block-wrapping a single statement would churn the guard shape for
@@ -770,12 +793,15 @@ export default function createDestructureEmitter({
     // `var _unused;` declarations (a VariableDeclarator host declares them via the pattern)
     const unusedNames = [];
     for (const planNode of planNodes) {
-      if (planNode.kind === 'consumed') {
+      // a consumed prop's leaves are extracted; an anchored prop's residual is its own `{ ... } = _Ctor`
+      // declarator - both drop from the native residual (skip-seeded so visitor re-entries short-circuit).
+      // only a CONSUMED key under an outer rest keeps a sentinel; anchoring bails on rest, so an anchored
+      // prop never co-occurs with one
+      if (planNode.kind === 'consumed' || planNode.kind === 'anchored') {
         t.traverseFast(planNode.prop, node => { skippedNodes.add(node); });
-        if (hasRest) {
-          // a synth Symbol.iterator sentinel re-keys through the polyfilled binding so
-          // engines without native `Symbol` can still evaluate the computed key (the
-          // original key was skip-seeded above, so the natural visitor won't polyfill it)
+        if (hasRest && planNode.kind === 'consumed') {
+          // a synth Symbol.iterator sentinel re-keys through the polyfilled binding so engines without
+          // native `Symbol` can still evaluate the computed key (the original key was skip-seeded above)
           if (planNode.extractions?.[0]?.synth === 'symbol-iterator') {
             planNode.prop.key = t.cloneNode(injectPureImport('symbol/iterator', 'Symbol$iterator'));
           }
@@ -841,6 +867,17 @@ export default function createDestructureEmitter({
     if (peeled) cascadeAssignmentExpressionDestructure({ assignPath: path, prop: null, peeled });
   }
 
+  // build the `{ ...leaves } = _Ctor` parts for an anchored-residual prop. the caller wraps them in a
+  // VariableDeclarator (declaration host) or an AssignmentExpression statement (assignment host), then
+  // skip-seeds the result (the leaves carry no default - the planner bails those - so re-visiting would
+  // only risk re-collapsing the binding; matches the unplugin text render's no-re-visit)
+  function anchoredResidualNodes(outer) {
+    return {
+      pattern: t.objectPattern(outer.residualProps.map(p => t.cloneNode(p, true))),
+      binding: t.cloneNode(injectPureImport(outer.anchorPure.entry, outer.anchorPure.hintName)),
+    };
+  }
+
   // extraction declarators in plan order. a GLOBAL extraction registers a global alias
   // (member reads through the local keep resolving: `Symbol.iterator` off the extracted
   // `Symbol` -> `_Symbol$iterator`); a static-method extraction registers the body-extract
@@ -859,6 +896,12 @@ export default function createDestructureEmitter({
           init = t.cloneNode(injectPureImport(e.entry, e.hint));
         }
         extracted.push(t.variableDeclarator(t.identifier(e.localName), init));
+      }
+      if (outer.kind === 'anchored') {
+        const { pattern, binding } = anchoredResidualNodes(outer);
+        const declr = t.variableDeclarator(pattern, binding);
+        t.traverseFast(declr, node => { skippedNodes.add(node); });
+        extracted.push(declr);
       }
     }
     return extracted;
