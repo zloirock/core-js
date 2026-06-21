@@ -97,7 +97,7 @@ function detectIifeArgReceiver(wrapperPath, objectPattern) {
 // receiver node to swap; null means inline-default fallback. handles
 // `function({p} = R)` (AssignmentPattern.right) and arrow IIFE `(({p}) => body)(R)`
 // (call-arg node, expanding inline-array spreads).
-// mirrors babel-plugin's `findSynthSwapTargetPath` and the resolution-layer narrowing:
+// mirrors babel-plugin's `findTargetPath` and the resolution-layer narrowing:
 // caller-arg replaces wrapper-default ONLY when statically classifiable (Identifier).
 // for non-Identifier caller-arg, wrapper-default remains the synth target so the
 // runtime fallback path carries the polyfill

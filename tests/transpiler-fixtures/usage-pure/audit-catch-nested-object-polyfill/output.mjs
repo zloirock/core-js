@@ -1,9 +1,7 @@
-// `catch ({ Array: { from } })`  -  outer prop value is itself an ObjectPattern, no
-// shallow rest / default / computed key. extraction is intentionally skipped: the leaf
-// `from` is a local catch binding (catch error's `Array.from`, not the global), so no
-// polyfill dispatch reaches it through the catch param. destructure stays inline,
-// matching pre-existing semantics where extraction fires only when shallow props need
-// receiver rewrite or a shallow-level binding is a polyfill candidate
+// `catch ({ Array: { from } })` - the outer prop value is itself an ObjectPattern, no shallow
+// rest / default / computed key. extraction is intentionally skipped: the leaf `from` is a local
+// catch binding (the caught error's `Array.from`, not the global), so no polyfill dispatch reaches
+// it; extraction fires only when a shallow prop needs receiver rewrite or is itself a candidate
 try {
   // body intentionally empty
 } catch ({

@@ -1,10 +1,7 @@
-// loose-equality inverse default-ternary: `_ref != null ? _ref : D` collapses
-// both null and undefined test slots into one branch. Some minifiers (terser
-// in non-strict-equality mode) emit this; narrow resolver must accept the
-// `!=` operator alongside `!==` for the inverse-shape detection. `_ref` is
-// intentionally untyped: a caller can pass any value, so the result of the
-// ternary is `default | _ref` and Maybe-array narrow on the receiver would be
-// unsound - the resolver MUST fall through to the generic instance dispatch
+// loose-equality inverse default-ternary `_ref != null ? _ref : D` collapses both null and
+// undefined test slots into one branch (terser in non-strict mode emits this); narrow detection
+// must accept `!=` alongside `!==`. `_ref` is untyped, so the result is `default | _ref` and a
+// Maybe-array narrow would be unsound; dispatch must reach the generic instance helper.
 function fn(_ref) {
   var arr = _ref != null ? _ref : [1, 2, 3];
   return arr.at(0);

@@ -12,12 +12,10 @@ function makeScopeBag(probeScope, setKey, mapKey) {
   if (probeScope[setKey]) return {
     has: (scope, name) => scope[setKey].has(name),
     add: (scope, name) => scope[setKey].add(name),
-    list: scope => scope[setKey],
   };
   return {
     has: (scope, name) => !!scope[mapKey]?.[name],
     add(scope, name) { (scope[mapKey] ??= {})[name] = true; },
-    list: scope => Object.keys(scope[mapKey] ?? {}),
   };
 }
 
@@ -242,8 +240,10 @@ export default class ImportInjector extends ImportInjectorState {
   // `byName`: dedupe by binding identity (re-crawl after replaceWith can produce duplicate
   // entries reachable through multiple traversal paths); user's `let _refN` shadow excluded
   // upstream by the plugin-shape filter.
-  // `taken`: includes program.globals + .references/.uids (mirrors `isNameTaken` allocation
-  // policy) - without them the renumber would collapse `_ref2` back onto `_ref`
+  // `taken`: surviving `var _refN;` bindings (scope-binding walk above) + program.globals
+  // (rebuilt by the programExit crawl). the crawl resets .references/.uids to empty Sets, so
+  // those carry none of the plugin's published UIDs at renumber time - the binding walk is
+  // what keeps the renumber from collapsing `_ref2` back onto `_ref`
   #indexBindingsAndTakenNames() {
     const byName = new Map();
     const taken = new Set();
@@ -256,8 +256,6 @@ export default class ImportInjector extends ImportInjectorState {
     });
     const program = this.#programPath.scope.getProgramParent();
     for (const n of Object.keys(program.globals ?? {})) taken.add(n);
-    for (const n of this.#scopeReferences.list(program)) taken.add(n);
-    for (const n of this.#scopeUids.list(program)) taken.add(n);
     return { byName, taken };
   }
 

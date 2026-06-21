@@ -1,10 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// nested class static block declares `var Array` - lives in static block's own scope,
-// not in `outer`'s function-locals. plugin must still polyfill `Array.from` and
-// `Array.of` in outer (they reference the global). if `collectFunctionLocals`
-// descended into class body, the inner `var Array` would be added to outer's locals
-// and falsely shadow the global, suppressing both polyfill imports
+// a nested class static block declares `var Array` - it lives in the static block's own
+// scope, not `outer`'s function-locals, so `Array.from` / `Array.of` in outer still reference
+// the global and must polyfill. local collection must NOT descend into the class body, else
+// the inner `var Array` joins outer's locals and falsely shadows the global, suppressing both
 function outer() {
   class Inner {
     static {

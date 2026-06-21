@@ -232,9 +232,9 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
         // member resolves back to a global (`globalThis.self.Map` references globalThis AND self AND Map),
         // so surface every proxy-chain link. the chain stops at the first NON-proxy segment - its further
         // members are properties of an ordinary value, not globals (`globalThis.Array.Map` reads Array's
-        // `Map` property, NOT the global Map). this is INTENTIONALLY more precise than babel-plugin, whose
-        // ReferencedIdentifier surfaces every qualified-name segment (over-injecting es.map.* here); the
-        // divergence is safe under the usage-global over-inject bias and pinned by a fixture
+        // `Map` property, NOT the global Map). both emitters route qualified type-name surfacing through
+        // this shared walker (babel's ReferencedIdentifier does not fire on a TSQualifiedName's `right`
+        // member positions), so they agree here - no cross-emitter over-injection divergence
         let prevIsProxy = rootIsProxy;
         for (let i = 1; i < segments.length && prevIsProxy; i++) {
           const seg = segments[i];

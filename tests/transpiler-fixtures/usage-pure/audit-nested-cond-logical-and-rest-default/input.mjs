@@ -1,10 +1,7 @@
-// `guard && globalThis`: the `&&` short-circuits to its RIGHT operand as the only value branch - a
-// falsy guard makes native destructure off the falsy primitive and THROW (the intermediate `.Array`
-// hop reads `undefined`, then destructuring `undefined` throws), so it never yields a user object
-// carrying a legitimate `undefined`. every reachable value branch is therefore the global proxy, and
-// the inner rest - though un-mirrorable - can safely take a per-branch default: it fires only on the
-// truthy proxy selection, never on a corruptible user `undefined`. contrast the ternary+rest sibling,
-// whose user-object alternate forces a native bail
+// `guard && globalThis`: the `&&` yields its RIGHT operand as the only value branch - a falsy
+// guard destructures off the falsy primitive and THROWS, never yielding a user object with a
+// legitimate `undefined`. so every reachable value branch is the global proxy, and the inner
+// rest can safely take a per-branch default. contrast ternary+rest, whose user alternate bails
 const guard = 1;
 const { Array: { from, ...rest } } = guard && globalThis;
 typeof from;

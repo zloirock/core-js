@@ -1,8 +1,6 @@
-// `s` is imported from a monorepo / vendor-fork alias listed in `additionalPackages`.
-// Without the user-package prefix check in `bindingSymbolKey`, the regex-only filter
-// `CORE_JS_SOURCE_PREFIX` rejects `my-fork/...` paths and `s in arr` falls through
-// to the bare string-key branch (no `_isIterable` fold). With the fix, `s` is
-// recognised as Symbol.iterator, the binary-in expression folds to a polyfill call.
-// Discriminating revert: drop adapter.packages -> fold disappears
+// `s` is imported from a monorepo / vendor-fork alias listed in `additionalPackages`. Without
+// honouring that prefix, the core-js source-path filter rejects `my-fork/...` and `s in arr`
+// falls through to the bare string-key branch (no `_isIterable` fold). When recognised, `s`
+// resolves to Symbol.iterator and folds. Discriminating revert: drop the package -> fold gone
 import s from 'my-fork/actual/symbol/iterator';
 export const iterable = s in [1, 2, 3];
