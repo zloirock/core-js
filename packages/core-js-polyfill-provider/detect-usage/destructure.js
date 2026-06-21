@@ -1206,16 +1206,24 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
       seenKeys.add(key);
       if (ctx.kind === 'proxy') {
         const inner = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-        if (inner?.type !== 'ObjectPattern') return null;
-        const child = mirrorPattern(inner, POSSIBLE_GLOBAL_OBJECTS.has(key) ? ctx : { kind: 'ctor', name: key });
-        if (!child) return null;
-        entries.push({ key, child });
+        // a non-pattern value (`{ Array }` shorthand / `{ Array: x }` rename) or a child that cannot be
+        // mirrored (a wholly non-polyfillable subtree) is PASSED THROUGH - the synth literal reads that
+        // key's live value off the receiver, so a polyfillable SIBLING still mirrors. an all-or-nothing
+        // bail stranded the polyfill: the receiver fell back to raw `_globalThis` and the native read of
+        // the polyfill-needing key threw / mis-valued on ie:11
+        const child = inner?.type === 'ObjectPattern'
+          ? mirrorPattern(inner, POSSIBLE_GLOBAL_OBJECTS.has(key) ? ctx : { kind: 'ctor', name: key })
+          : null;
+        entries.push({ key, child: child ?? { kind: 'passthrough' } });
       } else {
         const pure = resolvePure({
           kind: 'property', object: ctx.name, key, placement: 'static', receiverHint: meta.receiverHint,
         });
-        if (!pure || pure.kind === 'instance') return null;
-        entries.push({ key, child: { kind: 'polyfill', entry: pure.entry, hintName: pure.hintName } });
+        // a non-polyfillable static (`Math.floor`, an always-present ES method) or an instance-method
+        // match (not a static) passes through to the receiver's real value rather than bailing the mirror
+        entries.push(!pure || pure.kind === 'instance'
+          ? { key, child: { kind: 'passthrough' } }
+          : { key, child: { kind: 'polyfill', entry: pure.entry, hintName: pure.hintName } });
       }
     }
     return entries.length ? { kind: 'object', entries } : null;
@@ -1236,7 +1244,11 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     let ctxNode = leaf;
     while (ctxNode?.type === 'LogicalExpression') ctxNode = peelNestedSequenceExpressions(ctxNode.left).tail;
     const tree = mirrorPattern(patternNode, rootContext(ctxNode));
-    if (tree) targets.push({ node: leaf, tree, needsParens: expressionBodyLeaves.has(leaf) });
+    // an ALL-passthrough tree (no polyfillable leaf) has nothing to inject - leave it native
+    if (tree && treeHasPolyfill(tree)) targets.push({
+      node: leaf, tree, needsParens: expressionBodyLeaves.has(leaf),
+      ...mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter),
+    });
   }
   if (!targets.length) {
     // un-mirrorable pattern (rest / side-effecting or unresolvable computed key / duplicate key):
@@ -1289,10 +1301,48 @@ export function fallbackInitWhollyDiscardable(initNode) {
 // render a synth-plan tree through emitter-supplied constructors: the recursion structure and
 // the leaf dispatch live here ONCE; an emitter provides only `polyfill` (inject + return a
 // binding) and `object` value constructors (babel builds AST nodes, unplugin source text)
-export function renderSynthTree(tree, constructors) {
+export function renderSynthTree(tree, constructors, keyPath = []) {
   if (tree.kind === 'polyfill') return constructors.polyfill(tree.entry, tree.hintName);
+  // a non-polyfillable key reads its live value off the receiver at the accumulated key path
+  // (`_globalThis.Math.floor` / `Array.isArray`) - the emitter supplies the receiver base
+  if (tree.kind === 'passthrough') return constructors.passthrough(keyPath);
   return constructors.object(tree.entries.map(
-    ({ key, child }) => ({ key, value: renderSynthTree(child, constructors) })));
+    ({ key, child }) => ({ key, value: renderSynthTree(child, constructors, [...keyPath, key]) })));
+}
+
+// a synth tree worth emitting carries at least one polyfill leaf; an all-passthrough tree would just
+// re-read the receiver verbatim, so the caller leaves the destructure native instead of mirroring it
+export function treeHasPolyfill(tree) {
+  if (tree.kind === 'polyfill') return true;
+  if (tree.kind === 'object') return tree.entries.some(({ child }) => treeHasPolyfill(child));
+  return false;
+}
+
+// the receiver name + proxy flag back the passthrough rendering: a proxy reads through the injected
+// `_globalThis`, a bare constructor through its own name (`Array.isArray`)
+function mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter) {
+  const receiverName = resolveObjectName({ objectNode: ctxNode, scope: leafPatternPath.scope, adapter, path: leafPatternPath });
+  return { receiverName, receiverIsProxy: POSSIBLE_GLOBAL_OBJECTS.has(receiverName) };
+}
+
+// resolve a passthrough leaf's base reference for the UNPLUGIN text-emitter (the babel emitter re-emits the
+// bare member access and lets its natural visitor resolve it - no replica). this mirrors that visitor and
+// the unplugin's own natural injection: a MISSING-ABLE constructor (`Set`/`Map` - it has a pure constructor
+// entry) IS the pure import: read the whole binding (`{ Set }` -> `_Set`) or a property off it
+// (`{ Set: { union } }` -> `_Set.union`). the property lives on the pure constructor even when not declared
+// in the built-in definitions (`_Set.union` is a static), so this INJECTS the polyfill - matching usage-
+// pure's own `globalThis.Set.union` -> `_Set.union` resolution. NEVER a native read / optional chain: that
+// throws off-engine, mis-values, and emits ES2020 syntax into an (often ES5) target. an ALWAYS-PRESENT ctor
+// (`Array`/`Math` - no constructor polyfill) reads natively: a proxy receiver anchors on its pure proxy
+// import WHEN it has one (`globalThis`/`self` -> `_globalThis`/`_self`), else stays bare (`window`/`global`
+// are not polyfilled in pure -> `window.Array.isArray`); a bare ctor receiver reads through its own name
+// (`Array.isArray`). `resolveGlobalPolyfill` is emitter-supplied (`{ entry, hintName }` or null)
+export function resolvePassthroughRef({ keyPath, receiverName, receiverIsProxy, resolveGlobalPolyfill }) {
+  const path = receiverIsProxy ? keyPath : [receiverName, ...keyPath];
+  const ctorPure = resolveGlobalPolyfill(path[0]);
+  if (ctorPure) return { pure: ctorPure, path: path.slice(1) };
+  const proxyPure = receiverIsProxy && resolveGlobalPolyfill(receiverName);
+  return proxyPure ? { pure: proxyPure, path } : { name: receiverName, path: keyPath };
 }
 
 // drive a synth plan: iterate the targets, render each tree, and let the emitter swap the
@@ -1305,8 +1355,8 @@ export function applyNestedParamSynthPlan({ plan, renderTree, replaceTarget, ski
   // (no inline default that would corrupt the branch's legitimate undefined). nothing to render
   if (plan.bail) return true;
   let replaced = false;
-  for (const { node, tree, needsParens } of plan.targets) {
-    if (!replaceTarget(node, renderTree(tree), needsParens === true)) continue;
+  for (const { node, tree, needsParens, receiverName, receiverIsProxy } of plan.targets) {
+    if (!replaceTarget(node, renderTree(tree, { receiverName, receiverIsProxy }), needsParens === true)) continue;
     skipSubtree(node);
     replaced = true;
   }
