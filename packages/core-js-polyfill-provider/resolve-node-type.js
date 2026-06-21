@@ -269,11 +269,10 @@ function createResolveNodeType(babelNodeType, t, {
       const inner = resolveInnerType(typeParamMap.get(rootName));
       if (inner) return inner;
     }
-    // T[keyof T] under subst: substitute objectType with the AST stored in typeParamMap,
-    // then fold via standard resolveIndexedAccessType. without this, keyof T's segments
-    // never resolve because T's structural members aren't reachable through the bare ref.
-    // gate on single-step and keyof referencing the SAME root - chained / cross-typeparam
-    // forms fall through to the alias-chain / constraint branches below
+    // literal-key indexed access (`T['k']` / `T['k']['j']`): descend the type-param's mapped
+    // arg object-literal hop-by-hop to the final key's property type. keyof / number / constraint
+    // forms are NOT resolved here - they fall through to the constraint branch below or, for
+    // `T[keyof T]`, downstream via resolveTypeAnnotation -> resolveKeyofSelfValueUnion
     const literalKeys = indexNodes.map(indexedAccessKey);
     if (literalKeys.every(k => k !== null)) {
       let argPath = returnTypeCluster.getTypeParamArgPath(typeParamMap, rootName);

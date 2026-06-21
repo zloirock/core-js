@@ -1,8 +1,7 @@
-// alias of structure-preserving wrapper around tuple: `Readonly<[T, U]>` aliased to `Pair`.
-// indexing `Pair[0]` resolves through the alias to the wrapper, NOT directly to the tuple.
-// `findTupleElement` must peel the wrapper AFTER following the alias chain - peel-before
-// alone fails because the alias node hides the wrapper one level deeper. without the
-// post-follow peel, the index falls through to generic `_at`
+// `Readonly<[T, U]>` aliased to `Pair`; indexing `Pair[0]` resolves through the alias
+// to the wrapper, not directly to the tuple. the wrapper must be peeled AFTER following
+// the alias chain (the alias node hides it one level deeper); peel-before alone leaves
+// the index falling through to generic `_at`.
 type Pair = Readonly<[string[], number]>;
 declare const xs: Pair[0];
 xs.at(0);

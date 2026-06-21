@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// discriminated union behind a NAMED alias, wrapped in `| null`: `type Inner = A | B;
-// type Outer = Inner | null`. exercises `flattenUnionBranches`'s alias-walk -- the
-// outer union has [Inner-ref, null] as branches; Inner-ref must be followed through its
-// alias to expose the inner [A, B] members before the discriminant filter can match each
-// individually. without flatten, `findTypeMember(Inner, 'kind')` returns a union of all
-// `kind` literals, no single value to compare, branch passes permissively.
+// discriminated union behind a NAMED alias, wrapped in `| null`: `type Inner = A | B; type
+// Outer = Inner | null`. the outer union has [Inner-ref, null] as branches; Inner-ref must be
+// followed through its alias to expose the inner [A, B] members before the discriminant filter
+// can match each. without the flatten, the `kind` member is a union of all literals and passes permissively.
 type Inner = {
   kind: 'a';
   data: string[];

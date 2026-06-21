@@ -1,11 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// `never` branch in a discriminant union: property-access guard (`x.kind === 'a'`) is
-// unreachable on bottom-typed values, so the branch is pruned during narrow. without
-// `TSNeverKeyword` in the nullish-branch set the filter would let `never` survive, the
-// post-narrow type would carry an extra branch with no `data` member, and downstream
-// narrowing through `x.data` would degrade to the union's least-common surface.
-// braced if-body so the emitted `var _ref;` lands in the same slot across babel and
-// unplugin runners
+// `never` branch in a discriminant union: the `x.kind === 'a'` guard is unreachable on a
+// bottom-typed value, so the branch must be pruned during narrow. without TSNeverKeyword in the
+// nullish-branch set the filter lets `never` survive, leaving an extra `data`-less branch that
+// degrades `x.data` to the union's least-common surface. braced if-body keeps `var _ref;` aligned.
 type Inner = {
   kind: 'a';
   data: string[];

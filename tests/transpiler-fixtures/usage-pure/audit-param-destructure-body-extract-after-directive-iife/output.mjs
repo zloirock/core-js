@@ -1,12 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// param-destructure body-extract must skip the directive prologue when picking the insert
-// anchor. inserting `let from = _Array$from;` at `body.start + 1` would push the directive
-// past position 0 and demote it from prologue. fix uses `directive-prologue skip` to land
-// the insert AFTER the trailing directive. rest sibling forces `findSynthSwapReceiver` to
-// bail (rest excludes synth-swap) so the body-extract path actually fires. custom directive
-// avoids the spec restriction on `"use strict"` in functions with non-simple parameters
-// (immediately invoked: caller-lossy param emissions stay sound only when every call site is
-// visible - a declared function's params now stay verbatim instead)
+// param-destructure body-extract must land the inserted `let from = _Array$from;` AFTER the
+// directive prologue, else the directive is pushed past position 0 and demoted. rest sibling
+// excludes synth-swap so the body-extract path fires; custom directive dodges the spec ban on
+// `"use strict"` with non-simple params. immediately-invoked, so every call site is visible
+// and caller-lossy param emissions stay sound (the declared-fn twin keeps its params verbatim)
 (function run({
   from: _unused,
   ...rest

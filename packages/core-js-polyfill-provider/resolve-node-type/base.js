@@ -317,8 +317,8 @@ export const PLACEHOLDER_VALIDATORS = {
 export const STRUCTURAL_WALK_SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range', 'extra']);
 
 // annotation slots a class / interface / type-literal member may carry. ordered so the
-// most-common slot (`typeAnnotation`) checks first. shared by `findMemberAnnotation` and
-// the substitution member-walker
+// most-common slot (`typeAnnotation`) checks first. iterated by the substitution
+// member-walker (`substMemberAnnotations`)
 export const MEMBER_ANNOTATION_SLOTS = ['typeAnnotation', 'returnType', 'value'];
 
 // truly transparent wrappers: member set identical to first arg. modifiers like

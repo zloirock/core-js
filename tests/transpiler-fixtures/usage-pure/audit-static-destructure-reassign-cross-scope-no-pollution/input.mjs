@@ -1,9 +1,7 @@
 // two `from` bindings in distinct function scopes; only the first is reassigned. the
-// reassignedBindings Map keys by `${name}@${start}`, where start is the declaration
-// identifier's source offset. the second function's `from` lookup uses its own
-// declaration position, misses the first's entry, and narrows the return type to
-// Array -- without the scope-aware key both bindings would share a bare `from`
-// entry and the resolver would conservatively bail to generic dispatch
+// reassignment record is keyed by name plus declaration source offset, so the second
+// scope's `from` misses the first's entry and stays Array-narrowed (`_atMaybeArray`).
+// without the scope-aware key both would share one entry and bail to generic `_at`.
 function withReassign() {
   let { from } = Array;
   function mutate() { from = (x) => x[0]; }

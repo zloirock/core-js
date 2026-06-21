@@ -1,8 +1,8 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// TS non-null assertion around the extends clause: `extends Base!` parses superClass as
-// TSNonNullExpression. `resolveRuntimeExpression` peels TSNonNullExpression alongside
-// TSAsExpression; using the peeled `resolved.node` in the Identifier branch makes the
-// ambient-class fallback work for `!`-suffixed extends too
+// TS non-null assertion around the extends clause: `extends Base!` parses the super
+// expression as TSNonNullExpression. peeling TSNonNullExpression (alongside TSAsExpression)
+// and dispatching on the peeled Identifier lets the ambient-class fallback resolve `Base`
+// for `!`-suffixed extends too, narrowing super.m() to its string return
 declare class Base {
   m(): string;
 }

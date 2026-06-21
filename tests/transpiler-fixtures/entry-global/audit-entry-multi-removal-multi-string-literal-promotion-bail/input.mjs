@@ -1,10 +1,7 @@
-// Two consecutive entries followed by two string-literal expressions. Modern targets emit
-// an empty module set for both entries. Right-to-left simulation decides the last entry's
-// fate first: with the earlier entry still pending-removal, the next surviving sibling is
-// the first string-literal expression, so it promotes to `0;`. The earlier entry then sees
-// the later entry's ImportDeclaration as its surviving next sibling and gets removed.
-// Result: one `0;` placeholder between the prologue and the first string-literal blocks
-// promotion for both bogus directives.
+// Two consecutive entries followed by two string-literal expressions; modern targets emit
+// an empty module set for both, so both go to removal. removing them would let the first
+// string-literal land after `"use strict"` and re-parse as a directive. one `0;` placeholder
+// between the prologue and the first string-literal blocks promotion for both bogus directives.
 "use strict";
 import "core-js/actual/array/from";
 import "core-js/actual/array/copy-within";

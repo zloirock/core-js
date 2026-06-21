@@ -3,10 +3,10 @@
 // function takes the source string + a position. Single home for the ECMAScript char-class,
 // line-terminator, comment, and astral-surrogate rules so the two scanners can't drift.
 
-// ECMAScript identifier char classes. `$` is a valid identifier char per spec but is NOT in
-// `ID_Start` / `ID_Continue`, so it is listed explicitly; `_` is `ID_Start` already but kept
-// explicit for symmetry. the `u` flag makes `\p{...}` match by code point, so astral letters
-// (tested via `codePointEndingAt`) classify correctly instead of as lone surrogates
+// ECMAScript identifier char classes. neither `$` nor `_` is in Unicode `ID_Start`, so both are
+// added explicitly to the start class; `_` IS in `ID_Continue` (hence `IDENT_PART_RE` omits it),
+// `$` is in neither (so `IDENT_PART_RE` adds it). the `u` flag makes `\p{...}` match by code point,
+// so astral letters (tested via `codePointEndingAt`) classify correctly instead of as lone surrogates
 export const IDENT_START_RE = /[\p{ID_Start}$_]/u;
 export const IDENT_PART_RE = /[\p{ID_Continue}$]/u;
 

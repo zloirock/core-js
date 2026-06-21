@@ -1,12 +1,10 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-// Three-hop generic alias chain wrapping `Promise<X[] | string[]>` - both union branches
-// are Array (different inner types) so foldUnionTypes drops the inner but keeps Array
-// constructor. resolveAwaitedAnnotation must distribute through followTypeAliasChain's
-// accumulated subst across THREE hops then peel the Promise + distribute the union and
-// fold to $Object('Array'). Probes that 3-hop subst merging doesn't break foldable-union
-// narrowing (companion to disjoint-union case in audit-awaited-deep-alias-chain-promise)
+// Three-hop generic alias chain wrapping `Promise<X[] | string[]>` - both union branches are
+// Array (different inners) so the union folds to Array. the awaited resolve must merge type-arg
+// substitution across THREE alias hops, then peel the Promise and distribute the union. companion
+// to the disjoint-union audit-awaited-deep-alias-chain-promise: 3-hop merge must not break the fold
 type Inner<X> = Promise<X[] | string[]>;
 type Mid<X> = Inner<X>;
 type Outer<X> = Mid<X>;

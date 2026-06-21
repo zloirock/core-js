@@ -1,7 +1,7 @@
-// Multi-segment qualified type-query (`typeof X.inner.fn`) - exercises the segment walk
-// in `findTypeQueryFunctionType` past the first hop, ensuring the TSMethodSignature handling
-// composes with annotation-segment traversal. String element type cross-checks that the
-// returned signature carries the precise return-type narrowing (`Array<string>` not generic).
+// multi-segment qualified type-query (`typeof X.inner.fn`) - the segment walk must descend
+// past the first hop and compose TSMethodSignature handling with annotation traversal. the
+// string element type cross-checks the resolved signature carries the precise return-type
+// narrowing (`Array<string>` not generic).
 declare const X: { inner: { fn(): string[] } };
 type R = ReturnType<typeof X.inner.fn>;
 declare const r: R;

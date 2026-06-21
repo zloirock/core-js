@@ -1,12 +1,8 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// three function params each with a polyfilled prop + rest sibling: all three bail to
-// body-extract. emitted `let from` / `let keys` / `let resolve` must follow source order,
-// not the REVERSE order produced by reusing the directive-anchor `insertAfter`. uses
-// three distinct constructors / methods (Array.from, Object.keys, Promise.resolve) so the
-// imports identify which param emitted which extract
-// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
-// cannot prove the default always applies and the params stay VERBATIM; the body-extract
-// behavior is covered by the immediately-invoked twin fixture
+// three function params each with a polyfilled prop + rest sibling, three distinct
+// constructors (Array.from, Object.keys, Promise.resolve) so imports identify each.
+// EXPORTED, so external callers are invisible: the call-site scan can't prove the default
+// always applies, params stay VERBATIM (body-extract is locked by the immediately-invoked twin)
 function f({
   from,
   ...r1

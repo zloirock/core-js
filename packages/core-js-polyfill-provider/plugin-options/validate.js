@@ -67,8 +67,8 @@ function expectEnum(name, set, value, { required = true } = {}) {
   }
 }
 
-// pure-slash names (`/`, `///`) strip to `''` in `stripTrailingSlashes` and would let any
-// `/`-prefixed user import match a core-js entry
+// pure-slash names (`/`, `///`) are collapsed to `''` by the package canonicaliser in
+// createPolyfillContext and would let any `/`-prefixed user import match a core-js entry
 const PURE_SLASH_RE = /^\/+$/;
 
 function expectPackageName(label, value) {

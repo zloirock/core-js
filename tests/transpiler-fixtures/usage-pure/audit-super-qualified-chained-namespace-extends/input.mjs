@@ -1,8 +1,7 @@
 // chained inheritance through qualified parents: `Child extends NS.Mid extends NS.Base`.
-// `findClassMember` recurses through `resolveSuperClassPath` at each hop -- both hops
-// must resolve the qualified shape for the return-type hint to propagate down to the
-// leaf subclass. without the fix the first qualified hop returns null and inheritance
-// chain breaks at Mid.
+// the member lookup must resolve the qualified super shape at EACH hop for the return-type
+// hint to propagate down to the leaf subclass; if the first qualified hop fails, the
+// inheritance chain breaks at Mid and `.at(0)` loses the array narrow.
 namespace NS {
   export class Base {
     static gather(x: string): string[] { return [x]; }
