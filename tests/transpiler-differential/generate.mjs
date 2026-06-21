@@ -231,6 +231,39 @@ function * generateSynthSwapSeqReceiver() {
   }
 }
 
+// --- Nested-proxy mirror with a MIXED polyfillable / non-polyfillable key set (W19-H2) ---
+// a nested-proxy destructure off a proxy / diverging / logical receiver where one inner key is
+// polyfillable (`Array.of`/`Array.from`) and a sibling is NOT (`Array.isArray` is an ES5 static the
+// pure ctor omits; `Math.floor` is never polyfilled). the mirror must PARTIAL-mirror: the polyfillable
+// leaf becomes its pure import, the non-polyfillable leaf is PASSED THROUGH to the receiver's live native
+// value. an all-or-nothing bail would strand the polyfill; re-polyfilling the intermediate ctor in the
+// passthrough (`_globalThis.Array.isArray` -> `_Array.isArray`) returns undefined where native is a
+// function - so the passthrough must read natively. `cond` selects the proxy branch in Node; full-env
+const NMM_RECVS = [
+  { id: 'plain', src: 'globalThis' },
+  { id: 'diverging', src: 'cond ? globalThis : nul' },
+  { id: 'logical', src: 'globalThis || nul' },
+  // a proxy alias with NO pure import (`global`/`window`) stays BARE in the passthrough (`global.Array
+  // .isArray`, not `_globalThis...`): the missing pure entry must fall back to the receiver's own name, not
+  // an empty base. `global` is defined in Node so the value-oracle runs it (a broken base is a syntax error)
+  { id: 'proxy-global', src: 'global' },
+];
+const NMM_PATS = [
+  { id: 'inner-mixed', lhs: '{ Array: { of, isArray } }', observe: '[typeof of, typeof isArray]' },
+  { id: 'sibling-mixed', lhs: '{ Array: { from }, Math: { floor } }', observe: '[typeof from, typeof floor]' },
+  { id: 'ctor-shorthand', lhs: '{ Array: { from }, Set }', observe: '[typeof from, typeof Set]' },
+];
+
+function * generateNestedMirrorMixed() {
+  for (const recv of NMM_RECVS) {
+    for (const pat of NMM_PATS) {
+      const name = `nested-mirror-mixed/${ recv.id }/${ pat.id }`;
+      const body = `(() => { function g(${ pat.lhs } = ${ recv.src }) { return ${ pat.observe }; } return g(); })()`;
+      yield { ...snippet(name, body), strip: false };
+    }
+  }
+}
+
 // --- Receiver-copy global substitution across receiver NODE shapes ---
 // a sole nested-instance binding (`const { y: { at: m } } = { y: [<recv>] }`) INLINES the receiver text
 // into the instance polyfill's argument (`_at([<recv>])`); every global nested in that copy must be
@@ -813,12 +846,19 @@ const EXPR_FAMILIES = {
     'globalThis.Array.from(globalThis.Array.of(1, 2))',
   ],
   'destructure-edge': [
-    // single-ctor-key hop ANCHOR: an unresolvable leaf re-anchors the residual to the ctor
-    // binding (zero-extraction included - the re-anchored read IS the output), a resolvable
-    // sibling still extracts; a multi-key outer keeps the proxy-root residual
+    // a missing-able ctor's unresolvable leaf re-anchors the residual to the ctor binding (`{ noSuchStatic }
+    // = _Map`) instead of reading native off the proxy root. for a SINGLE ctor this fires even with zero
+    // extraction (the re-anchored read IS the output). for a MULTI-ctor declarator it generalizes per-prop
+    // PROVIDED at least one sibling consumes (a poly leaf / global alias - babel's usage-driven flatten
+    // dispatch needs it); an all-anchored multi-ctor pattern with no consuming sibling stays native-residual
     '(() => { const { Map: { noSuchStatic } } = globalThis; return typeof noSuchStatic; })()',
     '(() => { const { Map: { groupBy, noSuchStatic } } = globalThis; return [typeof groupBy, typeof noSuchStatic]; })()',
     '(() => { const { Map: { noSuchStatic }, Promise: p } = globalThis; return [typeof noSuchStatic, typeof p]; })()',
+    '(() => { const { Array: { from }, Map: { customZ } } = globalThis; return [typeof from, typeof customZ]; })()',
+    '(() => { const { Set: { union }, Map: { customZ } } = globalThis; return [typeof union, typeof customZ]; })()',
+    // the anchor survives an ArrayPattern wrapper and a logical receiver (distinct flatten code paths)
+    '(() => { const [{ Array: { from }, Map: { customZ } }] = [globalThis]; return [typeof from, typeof customZ]; })()',
+    '(() => { const { Array: { from }, Map: { customZ } } = globalThis ?? {}; return [typeof from, typeof customZ]; })()',
     '(() => { let n; ({ Map: { noSuchStatic: n } } = globalThis); return typeof n; })()',
     '(() => { const { from = null } = Array; return typeof from; })()',
     '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
@@ -899,10 +939,11 @@ const EXPR_FAMILIES = {
     // blocks the synth default): caller-supplied values pass through natively
     '(() => { function g({ from, ...rest } = Array) { return [from, Object.keys(rest).length]; } return g({ from: "custom", x: 1 }); })()',
     '(() => { function g({ from: alias, dup = alias } = Array) { return [typeof alias, typeof dup]; } return g(); })()',
-    // synth-default soundness limits: sibling BRANCHES and rest cannot be mirrored into the
-    // literal - the shapes stay verbatim (a one-branch literal TypeErrors the other branch;
-    // rest must keep collecting the real receiver's extra enumerable keys)
-    '(() => { function g({ Array: { from }, Set: { union } } = globalThis) { return [typeof from, typeof union]; } return g(); })()',
+    // synth-default soundness limit: a top-level REST cannot be mirrored into the literal (it must keep
+    // collecting the real receiver's extra enumerable keys), so a rest pattern stays verbatim. (a non-poly
+    // nested sibling like `Set.union` IS mirrored to the pure polyfill `_Set.union` per W19-H2, matching
+    // usage-pure's own `globalThis.Set.union` resolution - it diverges from native's `undefined` static, so
+    // it is fixture-locked rather than tested here as a native-match)
     '(() => { Array.tmpDiffX = 1; function g({ Array: { from, ...rest } } = globalThis) { return rest.tmpDiffX; } const r = g(); delete Array.tmpDiffX; return r; })()',
     // full-mirror limits: an effectful default and a pattern-valued leaf stay verbatim - the
     // effect must run on the no-arg call; the leaf reads the native function's own props
@@ -1768,6 +1809,7 @@ export function * generate() {
   yield * generateDestructureAlias();
   yield * generateProxyGlobalSEReceiver();
   yield * generateSynthSwapSeqReceiver();
+  yield * generateNestedMirrorMixed();
   yield * generateReceiverCopyShape();
   yield * generateFullConsumeSeRescue();
   yield * generateConditionalMirror();
