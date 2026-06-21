@@ -1,9 +1,7 @@
-// paren-wrapped LHS `(Array.from) = X` parses as
-// AssignmentExpression{left: ParenthesizedExpression{expression: MemberExpression}}
-// under oxc (createParenthesizedExpressions). babel strips parens, so the AST is the
-// same as the unwrapped form. mutation detection must peel the paren wrapper in both
-// parsers so the post-assignment call to Array.from stays verbatim. Array.of on the
-// same constructor is unmutated and must still be polyfilled.
+// paren-wrapped LHS `(Array.from) = X`: oxc keeps a ParenthesizedExpression around the
+// MemberExpression while babel strips it. mutation detection must peel the paren wrapper
+// in both parsers so the post-assignment `Array.from` call stays verbatim. `Array.of` on
+// the same constructor is unmutated and must still be polyfilled.
 (Array.from) = function () { return []; };
 Array.from([1, 2, 3]);
 Array.of(4, 5);

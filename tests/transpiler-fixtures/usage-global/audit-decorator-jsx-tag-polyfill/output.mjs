@@ -17,12 +17,10 @@ import "core-js/modules/es.string.iterator";
 import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
-// JSX elements used inside a decorator position (`@(<Map />)` and `@(<Set.X />)`)
-// must still trigger global polyfill detection on the JSX tag root. The first
-// decorator references the global `Map` directly, the second references `Set` as
-// the root of a member-expression JSX tag. Each class should emit its respective
-// global polyfill (`es.map` / `es.set`), proving JSX inside decorators is scanned
-// identically to JSX at expression position.
+// JSX elements at decorator position (`@(<Map />)` and `@(<Set.X />)`) must still trigger
+// global polyfill detection on the JSX tag root. first decorator references `Map` directly,
+// the second references `Set` as the root of a member-expression tag. each class emits its
+// own global (`es.map` / `es.set`), proving decorator JSX is scanned like expression JSX.
 @(<Map />)
 class WithMap {}
 @(<Set.X />)

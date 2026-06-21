@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // `const D = (C as any)` - the alias init is a TS expression wrapper around an Identifier.
-// closure-walker must peel TS expression wrappers between the ref and its semantic parent so
-// the VariableDeclarator-init shape is recognised and D enrolls as an alias of C. without
-// the peel, the ref's immediate parent stays as TSAsExpression (not VariableDeclarator),
-// classifier falls through to 'leak', closure bails to null, and narrow disables - emitting
-// generic `_at` even though no writes ever escape the closure
+// the closure walk must peel TS wrappers between the ref and its semantic parent so the
+// VariableDeclarator-init shape is recognised and D enrolls as an alias of C. without the peel,
+// the immediate parent stays TSAsExpression, the ref reads as a leak, and narrow disables unsoundly
 class C {
   static items = [1, 2, 3];
   static getFirst() {

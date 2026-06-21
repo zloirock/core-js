@@ -1,10 +1,8 @@
 import _at from "@core-js/pure/actual/instance/at";
-// `f = () => this.items = "string"` - arrow class-field with EXPRESSION body (not a block).
-// the arrow's `body` slot IS the AssignmentExpression directly. `path.traverse(visitors)`
-// walks descendants only, so the root AssignmentExpression isn't visited by the
-// `this.<field> = Y` recorder. buildThisWritesIndex must explicitly handle the root after
-// the traversal completes - otherwise the write is silently dropped and field narrow stays
-// on the init type (Array), emitting type-specific polyfill unsoundly
+// `f = () => this.items = "string"` - arrow class-field with EXPRESSION body (not a block):
+// the arrow's `body` slot IS the AssignmentExpression directly. a descendants-only traversal
+// never visits that root node, so the `this.<field> =` write must be handled explicitly;
+// otherwise it drops, narrow stays on the init type (Array), and a type-specific polyfill ships unsoundly
 class C {
   items = [1, 2, 3];
   f = () => this.items = "string";

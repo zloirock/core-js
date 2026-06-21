@@ -1,10 +1,7 @@
 // User class declares `then` as a property-form field with a function-type annotation
 // (`then!: (cb: (v: T) => any) => ...`) instead of method-form (`then(cb) { ... }`).
-// The class is structurally Thenable, so `await x` should narrow to the resolved
-// generic. Awaited `(await x).at(-1)` on `ArrayThenable<number[]>` must polyfill
-// `es.array.at`; awaited `(await y).repeat(2)` on `StringThenable<string>` must
-// polyfill `es.string.repeat`. Distinct receivers per branch pin which declaration
-// form drove each emission.
+// the class is still structurally Thenable, so `await x` narrows to the resolved generic:
+// `(await x).at(-1)` polyfills es.array.at, `(await y).repeat(2)` polyfills es.string.repeat.
 class ArrayThenable<T> {
   then!: (cb: (v: T) => any) => ArrayThenable<T>;
 }

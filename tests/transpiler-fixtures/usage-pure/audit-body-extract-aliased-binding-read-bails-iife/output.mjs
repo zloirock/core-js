@@ -1,10 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 // renamed-local binding (`from: alias`) read by a sibling in-pattern default (`dup = alias`).
-// the read-detection keys on the LOCAL binding name, not the property key, so relocating
-// `alias` via body-extract is correctly avoided and the emitter keeps `alias` bound through
-// inline-default. distinct static (`from`) from the shorthand `of` cases
-// (immediately invoked: caller-lossy param emissions stay sound only when every call site is
-// visible - a declared function's params now stay verbatim instead)
+// read-detection keys on the LOCAL binding name, not the property key, so `alias` is not
+// relocated via body-extract and stays bound through inline-default. immediately-invoked twin:
+// the lossy param emission is sound here because the single call site is visible.
 (function make({
   from: alias = _Array$from,
   dup = alias,

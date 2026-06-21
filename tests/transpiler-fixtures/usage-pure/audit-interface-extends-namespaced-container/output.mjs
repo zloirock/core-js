@@ -1,9 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
 // type-position namespaced interface extends: `interface I extends NS.Container<T>`.
-// `resolveInterfaceExtendsParent` walks qualified segments via `collectQualifiedSegments`
-// + `findTypeDeclaration` so MyBox.items resolves to `NS.Container<string>.items` -> T[]
-// -> string[]. without namespaced support the parent walk bails and `.at` falls to generic
+// resolving the parent must walk the qualified segments so MyBox.items resolves through
+// `NS.Container<string>.items` -> T[] -> string[]. without namespaced support the parent
+// walk bails and `.at` falls to the generic dispatch instead of the array polyfill
 declare namespace NS {
   interface Container<T> {
     items: T[];

@@ -1,7 +1,7 @@
 // function param default with a doubly-nested SequenceExpression tail:
 //   `function f({from} = (a(), (b(), Array)))`.
-// `unwrapSequenceTail` recurses through both layers so synth-swap targets the innermost
-// `Array` Identifier; both prefix expressions stay in the AST and run at call time
+// the tail unwrap must recurse through both layers so synth-swap targets the innermost
+// `Array` Identifier; both prefix expressions stay in the AST and run at call time.
 function f({ from } = (a(), (b(), Array))) {
   return from([1]);
 }

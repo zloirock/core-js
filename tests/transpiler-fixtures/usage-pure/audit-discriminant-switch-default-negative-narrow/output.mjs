@@ -1,11 +1,9 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref;
-// default-case discriminant narrow emits NEGATIVE guards for each explicit case
-// value (`{field:'kind', value:'a', positive:false}` etc.). filtered to the
-// branches not matched by any explicit case - here 'a' / 'b' are excluded, only
-// 'c' survives. without negative-guard emission the default body would see the
-// unrefined union; with it, `.at()` dispatches against the surviving branch's
-// resolved member type
+// default-case discriminant narrow emits a NEGATIVE guard on `kind` for each explicit case
+// value, so the default body only sees branches no explicit case matched - here 'a' / 'b'
+// are excluded and only 'c' survives. without the negative guards the default would see the
+// unrefined union; with them `.at()` dispatches against the surviving branch's member type.
 type Shape = {
   kind: 'a';
   data: number[];

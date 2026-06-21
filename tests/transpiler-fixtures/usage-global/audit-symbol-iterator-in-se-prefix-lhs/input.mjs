@@ -1,7 +1,6 @@
-// SE prefix on LHS of `in` operator with symbol-sourced key: `(count++, Symbol.iterator) in obj`.
-// the `in`-handler in detect-usage/members must walk past the SE through `unwrapParens` +
-// `peelReceiverSequenceTail` so Symbol.iterator surfaces as the polyfill anchor; SE prefix
-// stays in the AST so `count++` runs at runtime
+// SE prefix on LHS of `in` with a symbol key: `(count++, Symbol.iterator) in obj`. the `in`
+// handler must peel the parens and the SequenceExpression prefix so Symbol.iterator surfaces
+// as the polyfill anchor; the prefix stays in the AST so `count++` still runs at runtime.
 let count = 0;
 const obj = {};
 const has = (count++, Symbol.iterator) in obj;
