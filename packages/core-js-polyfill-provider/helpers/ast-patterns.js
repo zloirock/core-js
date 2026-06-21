@@ -1204,11 +1204,24 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
   return reassignmentRhs(node, ownerNode);
 }
 
-// does the pattern slot binding `name` carry a default (`[A = X]` / `{ A = X }`)?
+// does the binding `name` reach through a slot default (`[A = X]` / `{ A = X }`), at the top level
+// OR nested (`{ k: { A } = X }`, `{ k: { A = X } }`)? a default makes the value ambiguous
+// (default-or-runtime), so the reaching-definition recovery must bail rather than fold the default's
+// value - folding it silently mis-narrows `name` when the runtime slot is present (a WRONG result)
 function patternSlotHasDefault(pattern, name) {
-  const slots = pattern.type === 'ArrayPattern' ? pattern.elements
-    : pattern.properties.map(prop => prop.type !== 'SpreadElement' && prop.type !== 'RestElement' ? prop.value : null);
-  return slots.some(slot => slot?.type === 'AssignmentPattern' && slot.left?.type === 'Identifier' && slot.left.name === name);
+  return patternBindsNameUnderDefault(pattern, name, false);
+}
+function patternBindsNameUnderDefault(node, name, underDefault) {
+  switch (node?.type) {
+    case 'Identifier': return underDefault && node.name === name;
+    case 'AssignmentPattern': return patternBindsNameUnderDefault(node.left, name, true);
+    case 'RestElement':
+    case 'SpreadElement': return patternBindsNameUnderDefault(node.argument, name, underDefault);
+    case 'ArrayPattern': return node.elements.some(el => patternBindsNameUnderDefault(el, name, underDefault));
+    case 'ObjectPattern': return node.properties.some(prop => patternBindsNameUnderDefault(
+      prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value, name, underDefault));
+    default: return false;
+  }
 }
 
 export function reachingReassignmentValueNode({ binding, usagePath, ctx = null }) {
