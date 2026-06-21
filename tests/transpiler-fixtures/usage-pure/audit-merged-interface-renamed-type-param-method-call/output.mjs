@@ -1,9 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// class+interface merging with renamed type-param, METHOD CALL form. routes through
-// `resolveClassMember` -> `resolveMergedInterfaceMember` (different path from property
-// access in audit-merged-interface-renamed-type-param). interface method's return uses
-// renamed `U`; without per-iface subst remap, `obj.fetch()` falls to generic dispatch
+// class+interface merging with renamed type-param, METHOD CALL form - a different resolution
+// path from the property-access variant in audit-merged-interface-renamed-type-param. the
+// interface method's return uses the renamed `U`; without a per-interface subst remap,
+// `box.fetch()` falls to generic dispatch instead of the array polyfill
 class Box<T> {
   base(): T {
     return null!;

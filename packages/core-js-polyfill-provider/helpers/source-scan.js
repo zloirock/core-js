@@ -55,9 +55,9 @@ export function mergeVisitors(base, extra) {
   }
 
   function chain(f, g) {
-    return function (path) {
-      f.call(this, path);
-      g.call(this, path);
+    return function (path, ...rest) {
+      f.call(this, path, ...rest);
+      g.call(this, path, ...rest);
     };
   }
 
@@ -82,8 +82,8 @@ export function mergeVisitors(base, extra) {
         if (a[phase] && b[phase]) combined[phase] = chain(a[phase], b[phase]);
         else if (a[phase] || b[phase]) combined[phase] = a[phase] || b[phase];
       }
-      // both sides have no enter/exit (`{}` objects) - drop the key instead of leaving an
-      // empty handler that would crash the visitor on dispatch
+      // an all-empty combined handler (`{}` from two no-enter/exit sides) is inert on dispatch
+      // (absent enter/exit = no-op); drop it for tidiness rather than keep a dead entry
       if (combined.enter || combined.exit) merged[key] = combined;
       else delete merged[key];
     }

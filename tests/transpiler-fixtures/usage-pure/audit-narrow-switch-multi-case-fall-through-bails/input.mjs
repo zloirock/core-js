@@ -1,6 +1,6 @@
 // multi-step fall-through chain: mutation lives two cases back, separated by an empty
-// intermediate case. `fallThroughCaseViolates` must walk back through every fall-through
-// predecessor, not just the immediate one
+// intermediate case. the fall-through violation check must walk back through every
+// fall-through predecessor, not just the immediate one
 function probe(arg: string | number[]) {
   let x: string | number[] = arg;
   switch (typeof x) {

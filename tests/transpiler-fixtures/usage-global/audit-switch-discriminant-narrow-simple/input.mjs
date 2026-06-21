@@ -1,9 +1,8 @@
 // `switch (box.kind) { case 'a': ...; case 'b': ... }` - canonical TS discriminated-union
-// pattern. `findDiscriminantGuards` walks parent.parentPath and when SwitchCase is the
-// parent, collects a positive guard `{field, value, positive: true}` for the explicit
-// case test. without this leg the switch body operates on the unrefined union receiver
-// and over-polyfills (e.g. `case 'a'` -> v: string narrow MUST emit only `es.string.repeat`,
-// not also `es.array.at`; the canonical if/else equivalent is already narrowed correctly).
+// pattern. a SwitchCase test must contribute a positive guard on the discriminant field so
+// the case body sees the narrowed member; without it the body operates on the unrefined
+// union and over-polyfills (`case 'a'` -> v: string MUST emit only `es.string.repeat`, not
+// also `es.array.at`; the if/else equivalent is already narrowed correctly).
 type Box = { kind: 'a'; v: string } | { kind: 'b'; v: number[] };
 function probe(box: Box) {
   switch (box.kind) {

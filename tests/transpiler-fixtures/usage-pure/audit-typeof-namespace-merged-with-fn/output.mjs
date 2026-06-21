@@ -1,10 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// declaration merging: `function fn` + `namespace fn { function inner }`. The
+// declaration merging: `function fn` + `namespace fn { function inner }`. the
 // outer `fn` is a runtime binding; `fn.inner` is a namespace member. typeof
-// resolution needs to walk INTO the namespace through walkScopesForDecl with
-// isFunctionOrClassDeclaration leaf-match. constantBindingPath returns the fn,
-// but member-value lookup falls through; namespace branch should fire and
-// resolve fn.inner to its declared return type.
+// resolution must walk INTO the merged namespace to reach `inner` - resolving the
+// outer binding alone leaves the member lookup falling through, so the namespace
+// branch must fire and resolve `fn.inner` to its declared return type.
 declare function fn(): string;
 declare namespace fn {
   function inner(): number[];

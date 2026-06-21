@@ -4,13 +4,10 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Set from "@core-js/pure/actual/set/constructor";
-// a MULTI-ctor declarator: a missing-able ctor's residual leaves (`Set.union`, `Map.customZ`) read off the
-// pure CONSTRUCTOR binding (`{ union } = _Set`), generalizing the single-ctor anchor per prop. reading them
-// off the native proxy (`_globalThis.Set.union`) throws off-engine and reads native undefined. poly leaves
-// still extract via their dedicated imports. re-anchoring fires only in the CLEAN case (every prop consumed-
-// or-anchored, SE-free init, AND a CONSUMED sibling - babel's flatten dispatch is usage-driven, so an all-
-// anchored pattern with no poly/alias leaf would not trigger it). a verbatim sibling / SE / disabled / rest /
-// all-anchored form stays on the native residual
+// a MULTI-ctor declarator whose residual leaves (`Set.union`, `Map.customZ`) must read off the
+// pure CONSTRUCTOR binding (`{ union } = _Set`), not the native proxy (which throws off-engine and
+// reads undefined); poly leaves still extract via their own imports. re-anchoring fires only in
+// the CLEAN case (every prop consumed-or-anchored, SE-free init, a CONSUMED sibling); else native
 const from = _Array$from;
 const {
   union

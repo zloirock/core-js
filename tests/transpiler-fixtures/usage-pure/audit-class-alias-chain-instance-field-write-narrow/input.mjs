@@ -1,9 +1,7 @@
-// const D = C; const E = D; new E().items = "X" - multi-hop alias chain.
-// `getClassBindingClosure` walks `const X = Source` chains through the relaxed
-// classifier; instance writes via the leaf alias `E` must widen C's field fold same as
-// direct `const D = C; new D().items = "X"` does. without the chain walk, the leaf alias's
-// new-expression instance bound to `e` falls outside descendant.names and the external
-// write is silently dropped from the field-flow union - unsound narrow
+// const D = C; const E = D; new E().items = "X" - multi-hop alias chain. instance writes
+// via the leaf alias `E` must widen C's field fold the same as a direct `const D = C` alias
+// does. without walking the alias chain, the leaf alias's `new E()` instance is not recognized
+// as a C instance and the external write drops from the field-flow union - unsound narrow
 class C {
   items = [1, 2, 3];
   getFirst() { return this.items.at(0); }

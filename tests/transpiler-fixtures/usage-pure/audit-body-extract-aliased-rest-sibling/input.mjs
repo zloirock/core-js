@@ -1,10 +1,7 @@
-// body-extract for the renamed-alias shape `{from: alias}` (no default) with a rest
-// sibling. prop binding-identifier resolver surfaces the AssignmentPattern.left or the renamed
-// identifier directly. body emits `let alias = _polyfill;` preserving the user's chosen
-// local name. distinct keys (`from` / `of`) on separate functions verify per-key dispatch
-// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
-// cannot prove the default always applies and the params stay VERBATIM; the body-extract
-// behavior is covered by the immediately-invoked twin fixture
+// body-extract for the renamed-alias shape `{from: alias}` (no default) with a rest sibling.
+// the body emits `let alias = _polyfill;`, preserving the user's chosen local name; distinct
+// keys (`from` / `of`) on separate functions verify per-key dispatch. these functions are
+// EXPORTED so external callers are invisible: params stay VERBATIM, body-extract proven by the iife twin.
 function run({ from: arr, ...rest } = Array) {
   return [arr([1]), rest];
 }

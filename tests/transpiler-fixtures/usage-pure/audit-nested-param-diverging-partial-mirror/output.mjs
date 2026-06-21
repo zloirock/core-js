@@ -1,12 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-// W19-H2: a DIVERGING conditional / `||` receiver mirror must NOT bail all-or-nothing when a sibling key
-// is non-polyfillable. an all-or-nothing bail stranded the polyfillable key (`Array.from`), collapsing
-// the receiver to a raw `_globalThis` whose native read threw / mis-valued on ie:11 on BOTH branches.
-// each polyfillable leaf is mirrored to its pure import in the proxy branch; a non-polyfillable static
-// (`Math.floor`) or inner method (`Array.isArray`) is PASSED THROUGH to the receiver's live value
-// (`_globalThis.Math.floor`); the non-proxy USER branch stays native, its legitimate undefined preserved
+// a DIVERGING conditional / `||` receiver mirror must NOT bail all-or-nothing when a sibling key
+// is non-polyfillable; that bail strands the polyfillable `Array.from` and collapses the receiver
+// to a raw `_globalThis` that threw on ie:11. each polyfillable leaf mirrors to its pure import,
+// a non-polyfillable static/inner method passes through, the USER branch stays native
 let cond = 1;
 const user = {};
 function divergingProxy({

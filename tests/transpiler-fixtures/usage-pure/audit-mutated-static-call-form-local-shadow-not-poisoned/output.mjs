@@ -5,14 +5,11 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// the CALL-form mutated-static collectors (`Object.assign(Array, {...})`, `Reflect.set(Map, ...)`,
+// the CALL-form mutated-static collectors (`Object.assign(Array, ...)`, `Reflect.set(Map, ...)`,
 // `Object.defineProperty(...)`) must shadow-check the NAMESPACE callee, not just the target arg. here
-// `Object` / `Reflect` are local params, so the call patches nothing global -> the file-wide `Array.from`
-// / `Map.groupBy` reads must still get the polyfill. for contrast, a GENUINE global `Object.assign(Promise,
-// ...)` records `Promise.any` as mutated and suppresses its read. distinct builtins show per-namespace-scope
-// discrimination (the existing -local-shadow-not-poisoned fixture covers only the direct-assignment form).
-// the shadow may bind at ANY depth: `block` shadows `Object` with a block-level `let`, not a param, so
-// `Array.of` must still polyfill - the shadow check reads the whole enclosing scope chain
+// `Object` / `Reflect` are local (param, or a block-level `let` at ANY depth), so the call patches
+// nothing global and the file-wide `Array.from` / `Array.of` / `Map.groupBy` reads still get the polyfill.
+// contrast: a GENUINE global `Object.assign(Promise, ...)` records `Promise.any` mutated and suppresses its read.
 function patchObj(Object) {
   Object.assign(Array, {
     from() {

@@ -1,12 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// User declares a class inside a TS namespace and types a parameter as `NS.Box`.
-// The class method has NO explicit return-type annotation - its return type is
-// inferred from the body. Path-based `findClassPathForTypeReference` for qualified
-// type references unlocks body-inference via `resolveClassMember` so `.method()`
-// resolves to `number[]`, downstream `.at(0)` picks the Array-narrow polyfill entry.
-// Without qualified-name handling, classPath lookup returns null, member access
-// falls back to annotation-only resolution (no annotation present), and `.at()`
-// lands on the generic entry. Discriminating revert: bare-Identifier branch only
+// a class lives inside a TS namespace and a parameter is typed `NS.Box`. its method has NO
+// return-type annotation, so resolving the qualified type reference to that class unlocks
+// body-inference: `.method()` is `number[]` and `.at(0)` picks the Array-narrow entry.
+// without qualified-name handling the lookup is null and `.at()` hits the generic entry.
 namespace NS {
   export class Box {
     method() {
