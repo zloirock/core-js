@@ -1864,3 +1864,15 @@ QUnit.test('destructuring: nested param inner-default replaces receiver without 
   // caller passes an Array WITHOUT `.of` - the caller's (undefined) value wins, polyfill not forced in
   assert.same(ofGlobal([{ Array: {} }]), undefined);
 });
+
+QUnit.test('destructuring: multi-ctor declarator anchors a missing-able ctor residual', assert => {
+  // a multi-ctor proxy declarator: the poly leaf polyfills, and a missing-able ctor method must read off
+  // the pure constructor (`{ union } = _Set`) rather than collapse to a native residual (`_globalThis.Set
+  // .union`, undefined and a throw off-engine). reverting the anchor makes `union` native undefined here
+  const { Array: { from }, Set: { union } } = globalThis;
+  const { Object: { fromEntries }, Map: { groupBy } } = globalThis;
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+  assert.strictEqual(typeof union, 'function');
+  assert.deepEqual(fromEntries([['a', 1]]), { a: 1 });
+  assert.strictEqual(typeof groupBy, 'function');
+});

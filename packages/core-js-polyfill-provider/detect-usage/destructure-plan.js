@@ -262,6 +262,37 @@ export function buildNestedDestructurePlan({
     return { kind: 'verbatim', prop: outerProp };
   }
 
+  // a DIRECT missing-able ctor whose residual leaves would otherwise read off the native proxy
+  // (`{ Set: { union } } = _globalThis` - throws off-engine and reads native undefined) re-anchors them on
+  // the pure CONSTRUCTOR binding (`{ union } = _Set` - the single-ctor anchor generalized per prop). poly
+  // leaves still extract through their dedicated imports. bails to the native residual for an outer / inner
+  // REST (rest gathers the ctor's OTHER keys, which differ on the pure ctor), a proxy-global nest (owned by
+  // the recursive fold), and ALWAYS-PRESENT ctors (the native residual is safe - the ctor always exists)
+  function anchorMissingAbleResidual(planned, outerPattern, receiver) {
+    if (planned.kind !== 'verbatim' && planned.kind !== 'rebuilt') return planned;
+    // a `core-js-disable`d prop opts out of polyfilling: keep it on the native residual
+    if (leafDisabled(planned.prop)) return planned;
+    if (outerPattern.properties.some(p => p.type === 'RestElement')) return planned;
+    const name = isPropertyNode(planned.prop) ? flattenKeyName(planned.prop) : null;
+    if (name === null || POSSIBLE_GLOBAL_OBJECTS.has(name)) return planned;
+    // a MUTATED ctor (`globalThis.Map = Shim` in-file) must read off the PATCHED native binding, not the
+    // pure import - the user's replacement wins. mirror the single-ctor anchor's `anchorSlotMutated` bail
+    if (adapter.isMutatedStatic?.(receiver, name)) return planned;
+    const anchorPure = resolveGlobalPolyfill(name);
+    if (!anchorPure) return planned;
+    const inner = peelInnerDefault(planned.prop.value);
+    if (inner?.type !== 'ObjectPattern' || inner.properties.some(p => p.type === 'RestElement')) return planned;
+    const residualProps = planned.kind === 'verbatim'
+      ? inner.properties
+      : planned.children.filter(c => c.kind !== 'consumed').map(c => c.prop);
+    // a residual leaf with a DEFAULT bails: babel re-visits the cloned anchored declarator and would
+    // polyfill a polyfillable default, while the unplugin text render leaves it native (a dead-code
+    // import-set divergence). a DISABLED leaf likewise stays native. the native residual (current
+    // behavior) keeps both emitters consistent
+    if (residualProps.some(p => p.value?.type === 'AssignmentPattern' || leafDisabled(p))) return planned;
+    return { kind: 'anchored', prop: planned.prop, anchorPure, residualProps, extractions: planned.extractions ?? [] };
+  }
+
   // static-object descent. given an outer prop `key: ObjectPattern` at depth N (walkPath =
   // [k1, k2, ...] from declarator-root to here), walk hostInit through `walkPath + key`:
   //   - leaf Identifier (constructor name): plan inner ObjectPattern via `planInnerProp`
@@ -388,8 +419,23 @@ export function buildNestedDestructurePlan({
           outerProps, pattern: hopInner, discardSe, initElement: null,
         };
       } else {
-        const outerProps = pattern.properties.map(planOuterProp);
-        if (outerProps.some(hasExtractions)) plan = { receiver, outerProps, pattern, discardSe, initElement };
+        const planned = pattern.properties.map(planOuterProp);
+        // re-anchor missing-able ctor residuals only in the CLEAN case: an SE-free init where EVERY prop is
+        // already consumed or anchorable. a verbatim sibling (always-present ctor / global alias / disabled
+        // leaf) or an SE init routes through native-residual / proxy-hop handling that does not split per-
+        // ctor, so those stay on the native residual (current behavior - bounded, no regression)
+        const reanchored = mayHaveSideEffects(declarator.init)
+          ? planned : planned.map(p => anchorMissingAbleResidual(p, pattern, receiver));
+        // require at least one CONSUMED (extracting) prop alongside the anchored one: babel's flatten
+        // dispatch is usage-driven (it fires on a polyfillable leaf), so an ALL-anchored multi-ctor
+        // declarator with no poly leaf never triggers babel while the shape-driven unplugin would - those
+        // stay on the native residual (current behavior). a verbatim/rebuilt sibling also bails
+        const outerProps = reanchored.every(p => p.kind === 'consumed' || p.kind === 'anchored')
+          && reanchored.some(p => p.kind === 'anchored') && reanchored.some(p => p.kind === 'consumed')
+          ? reanchored : planned;
+        if (outerProps.some(p => hasExtractions(p) || p.kind === 'anchored')) {
+          plan = { receiver, outerProps, pattern, discardSe, initElement };
+        }
       }
     } else if (receiver && isStaticPlacement(receiver)) {
       // receiver is a known constructor (`Array` / `Map` / ...): pattern's properties
