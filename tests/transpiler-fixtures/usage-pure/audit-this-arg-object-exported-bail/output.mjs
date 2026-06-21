@@ -1,7 +1,7 @@
 import _at from "@core-js/pure/actual/instance/at";
-// `export const o = {...}` makes the binding reachable from any importer; external
-// writers leave the module surface, so the candidate set is unknown and we bail to
-// the generic polyfill. mirrors the class-exported branch in `collectClassFieldCandidates`
+// `export const o = {...}` makes the binding reachable from any importer; external writers
+// leave the module surface, so the candidate set is unknown and we bail to the generic
+// polyfill (same as the exported-class case).
 export const o = {
   arr: [1, 2, 3],
   test() {

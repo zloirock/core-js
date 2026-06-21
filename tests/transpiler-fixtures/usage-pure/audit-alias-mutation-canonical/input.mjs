@@ -1,9 +1,7 @@
-// the monkey-patch pre-pass canonicalizes const-alias receivers across every value-flow
-// shape the read side resolves (direct, alias-of-alias, static-object member, class static
-// field). a mutated static never binds to the frozen receiver-less import: the constructor
-// substitutes instead, so the patch and every read share the injected ponyfill object - on
-// targets where the native global exists the emission stays native end-to-end (same effect),
-// and where it is missing the code still runs. a clean alias substitutes receiver-less
+// const-alias receivers are canonicalized across every value-flow shape (direct,
+// alias-of-alias, static-object member, class static field). a mutated static routes
+// through the injected constructor so the patch and every read share one ponyfill object;
+// a clean alias instead substitutes the receiver-less import
 const A = Array;
 A.from = custom;
 const r = A.from([1]);
