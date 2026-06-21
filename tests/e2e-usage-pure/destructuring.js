@@ -1876,3 +1876,14 @@ QUnit.test('destructuring: multi-ctor declarator anchors a missing-able ctor res
   assert.deepEqual(fromEntries([['a', 1]]), { a: 1 });
   assert.strictEqual(typeof groupBy, 'function');
 });
+
+// array-wrapper inner default resolves the receiver by the paired slot's definedness: a statically
+// `undefined` slot fires the default (the right IS the receiver), a defined slot keeps the element's
+// own member. mis-resolving the defined case would polyfill `of` as Array.of and break `carried:5`
+QUnit.test('destructuring: array-wrapper inner default resolves by slot definedness', assert => {
+  const [{ from } = Array] = [undefined];
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+  const carrier = { of: x => `carried:${ x }` };
+  const [{ of } = Array] = [carrier];
+  assert.same(of(5), 'carried:5');
+});
