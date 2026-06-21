@@ -22,6 +22,7 @@ import {
   isIdentifierPropValue,
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
+  nestedMirrorOwnsMixedPattern,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   synthSwapPropKey,
@@ -59,6 +60,7 @@ import { collectFallbackCollapseLeftSe, shouldDropRescueReceiver } from '@core-j
 import {
   applyNestedParamSynthPlan,
   renderSynthTree,
+  resolvePassthroughRef,
   classifyCallBranchForSynth,
   buildNestedParamSynthPlan,
   destructureValueBranchesAllProxy,
@@ -406,7 +408,7 @@ export function createDestructureEmitter({
       // full-consume receiver with a non-liftable nested side effect: evaluate it for effect
       segments.push(`${ bakeRefSplicesInRange(receiverTail, drainedRefs) };`);
     }
-    for (const e of result.extractions) segments.push(`${ e.decl };`);
+    for (const e of result.extractions) segments.push(`${ e.patternLhs ? `(${ e.decl })` : e.decl };`);
     return segments;
   }
 
@@ -1228,6 +1230,15 @@ export function createDestructureEmitter({
   //   - 'rebuilt': partially-consumed nested pattern, reassembled by `renderRebuiltNestedProp`
   function renderOuterPlan(outer) {
     if (outer.kind === 'consumed') return { extractions: outer.extractions, preservedSrc: null };
+    // a missing-able ctor's residual leaves read off the pure constructor binding (`{ union } = _Set`),
+    // emitted as a destructure extraction so it leaves the native generic residual entirely
+    if (outer.kind === 'anchored') {
+      return {
+        extractions: [...outer.extractions ?? [],
+          { anchoredResidual: { residualProps: outer.residualProps, anchorPure: outer.anchorPure } }],
+        preservedSrc: null,
+      };
+    }
     if (outer.kind === 'symbol-iterator-key') {
       const symBinding = injectPureImport('symbol/iterator', 'Symbol$iterator');
       return { preservedSrc: `[${ symBinding }]: ${ nodeSrc(outer.prop.value) }` };
@@ -1298,6 +1309,13 @@ export function createDestructureEmitter({
   // by the caller's thunk so it's only evaluated when needed (avoids spurious imports on
   // declarators with only entry-based extractions)
   function emitOuterExtraction(e, scope, getReceiverSrc) {
+    if (e.anchoredResidual) {
+      const binding = injectPureImport(e.anchoredResidual.anchorPure.entry, e.anchoredResidual.anchorPure.hintName);
+      const innerSrc = `{ ${ e.anchoredResidual.residualProps.map(p => nodeSrc(p)).join(', ') } }`;
+      // patternLhs: a bare pattern-LHS assignment statement (`{ x } = _Set;`) parses as a block - the
+      // assignment-cascade host must parenthesize it (a VariableDeclarator host prefixes `const` instead)
+      return { decl: `${ innerSrc } = ${ binding }`, patternLhs: true };
+    }
     if (e.synth === 'symbol-iterator') {
       const binding = injectPureImport('get-iterator-method', 'getIteratorMethod');
       return { decl: `${ e.localName } = ${ binding }(${ getReceiverSrc() })` };
@@ -1689,6 +1707,16 @@ export function createDestructureEmitter({
         // invariant (inner flatten's rebuilt text drops the receiver entirely)
         if (key === 'init' && node.type === 'VariableDeclarator'
           && node.id?.type === 'ObjectPattern') continue;
+        // SAME reason for the RIGHT of a destructure whose receiver a sibling synth-swap will own: a
+        // destructure-ASSIGNMENT (`z = ({ Array: { from } } = globalThis)`) OR a destructure param DEFAULT
+        // in a nested function (`z = function ({ Array: { from } } = globalThis) {}` - an AssignmentPATTERN).
+        // its synth-swap fires LATER in the traversal (this sibling-walk runs on the enclosing declaration
+        // first), so a receiver substitution queued here lands a SECOND transform on the synth-swap's mirror
+        // range - compose's mergeEqualRange (both sides already replaced) HARD-CRASHES the file. the synth-
+        // swap (or the natural visitor, if it does not fire) owns the one rewrite. covers a wrapped receiver
+        // (`[globalThis]`) too since the whole right subtree is skipped
+        if (key === 'right' && (node.type === 'AssignmentExpression' || node.type === 'AssignmentPattern')
+          && (node.left?.type === 'ObjectPattern' || node.left?.type === 'ArrayPattern')) continue;
         const value = node[key];
         if (Array.isArray(value)) for (const item of value) walk(item, node);
         else walk(value, node);
@@ -2143,6 +2171,10 @@ export function createDestructureEmitter({
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
       // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
       if (renderNestedParamSynth({ metaPath, meta })) return;
+      // a MIXED pattern is owned WHOLLY by the nested mirror; a transient unresolved leaf can make
+      // `renderNestedParamSynth` return false mid-rewrite. do NOT fall through to body-extract / inline-
+      // default (which would race the mirror's eventual synth on the same receiver and diverge from babel)
+      if (nestedMirrorOwnsMixedPattern(objectPattern)) return;
       // synth-swap bailed (computed-key sibling / non-Identifier shape) - try body-extract
       // first: insert `let from = _polyfill;` at function body top + remove the prop from
       // destructure. preserves "polyfill always wins" even at the cost of caller-
@@ -2263,9 +2295,17 @@ export function createDestructureEmitter({
     });
     return applyNestedParamSynthPlan({
       plan,
-      renderTree: tree => renderSynthTree(tree, {
+      renderTree: (tree, recv) => renderSynthTree(tree, {
         polyfill: (entry, hintName) => injectPureImport(entry, hintName),
         object: entries => `{ ${ entries.map(({ key, value }) => `${ key }: ${ value }`).join(', ') } }`,
+        // a passed-through key reads off the resolved base (`resolvePassthroughRef`): a missing-able ctor /
+        // proxy receiver IS a pure import (`_Set.union` / `_globalThis.Array.isArray`), a bare ctor receiver
+        // reads through its own name (`Array.isArray`). this renders the babel visitor's resolution as text
+        passthrough: keyPath => {
+          const ref = resolvePassthroughRef({ keyPath, ...recv, resolveGlobalPolyfill });
+          const base = ref.pure ? injectPureImport(ref.pure.entry, ref.pure.hintName) : ref.name;
+          return [base, ...ref.path].join('.');
+        },
       }),
       replaceTarget(targetNode, rendered, needsParens) {
         // an arrow's whole expression body replaced by an object literal needs parens in TEXT
