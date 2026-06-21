@@ -2801,11 +2801,33 @@ export const isIdentifierPropValue = value => propBindingIdentifier(value) !== n
 // it must synth the polyfill; param-default leaves it off and bails to the safe body-extract instead.
 // callers bail to inline-default when this check fails. shared between babel-plugin and unplugin
 // accepts both Babel `ObjectProperty` and ESTree `Property` node types
+// a prop whose VALUE is a nested ObjectPattern (`{ Array: { from } }`, peeling an `= {}` default). such a
+// pattern is owned by the nested mirror (`buildNestedParamSynthPlan`), which replaces the WHOLE receiver
+// default - flat synth-swap / body-extract / inline-default fallbacks must DEFER to it, never race it
+export function objectPatternHasNestedValue(objectPattern) {
+  return objectPattern.properties.some(p => {
+    const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
+    return value?.type === 'ObjectPattern';
+  });
+}
+
+// a MIXED pattern the nested mirror owns WHOLLY: it has a nested-value key AND no top-level rest (a rest
+// makes the mirror BAIL structurally - the rest collects unsynthesizable receiver keys). both emitters'
+// flat-key fallbacks (body-extract / inline-default) DEFER to the mirror here rather than body-extract
+// (caller-lossy) a key the mirror's synth default provides, or race it when a leaf resolves transiently
+export function nestedMirrorOwnsMixedPattern(objectPattern) {
+  return objectPatternHasNestedValue(objectPattern)
+    && !objectPattern.properties.some(p => p.type === 'RestElement');
+}
+
 export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
   let bound = null;
   // duplicate static keys bail the synth (the literal would need duplicate properties or a
   // merge policy) - the established fallbacks handle the exotic shape soundly
   const seenNames = new Set();
+  // a NESTED-value prop (`{ Array: { from } }`) belongs to the nested mirror (it replaces the WHOLE
+  // receiver); a flat synth-swap here would race it on the same receiver and lose the nested polyfill
+  if (objectPatternHasNestedValue(objectPattern)) return false;
   for (const p of objectPattern.properties) {
     if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
     if (!p.computed) {
