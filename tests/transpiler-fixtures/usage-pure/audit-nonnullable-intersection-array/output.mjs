@@ -1,11 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
-// NonNullable<T & {tag}>: TS spec strips null/undefined from each intersection
-// member. resolveNonNullableAnnotation -> resolveAnnotationInContext ->
-// resolveTypeAnnotation case TSIntersectionType -> foldIntersectionTypes.
-// Plain object literal `{tag: 'a'}` resolves to $Object('Object') (skipped),
-// number[] resolves to Array. Result should narrow to Array - probe whether
-// intersection passes through correctly with NonNullable wrapper applied.
+// NonNullable<T & {tag}>: TS spec strips null/undefined from each intersection member.
+// the plain object literal `{tag: 'a'}` resolves to Object (skipped) while `number[]`
+// resolves to Array, so the folded intersection narrows to Array - probe that the
+// intersection passes through correctly under the NonNullable wrapper.
 type Tagged = (number[] & {
   tag: 'arr';
 }) | null;

@@ -1,11 +1,10 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// findAmbientClassPath cross-scope: `declare class Holder` lives at module scope, then
-// inside an enclosing function we reference `Holder.make()` whose static return is
-// `string[]`. `findAmbientClassPath` must walk up enclosing scope chains via
-// `walkAmbientDeclarationPath`. Methods are distinct so each line traces to the
-// declared overload's return shape
+// cross-scope ambient class: `declare class Holder` lives at module scope, then inside an
+// enclosing function `Holder.make()` is called whose static return is `string[]`. resolving
+// the static must walk up enclosing scopes to reach the module-level declaration. distinct
+// methods make each line trace to its declared overload's return shape
 declare class Holder {
   static make(): string[];
   static peek(): string;

@@ -1,9 +1,8 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// TS cast around the extends clause: `extends (Base as typeof Base)` parses superClass
-// as TSAsExpression around the Identifier. `resolveSuperClassPath` peels via
-// `resolveRuntimeExpression` but then dispatched on the RAW `superClass.node` for the
-// Identifier/ambient branch - bug missed `Base` and over-bailed. fix dispatches on the
-// peeled `resolved.node`, restoring the super.m() string-return narrow
+// TS cast around the extends clause: `extends (Base as typeof Base)` parses the super
+// expression as a TSAsExpression around the Identifier. peeling the wrapper but then
+// dispatching on the RAW super node missed `Base` and over-bailed; dispatching on the
+// peeled Identifier restores the super.m() string-return narrow
 declare class Base {
   m(): string;
 }

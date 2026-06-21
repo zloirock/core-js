@@ -1,10 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// WRAP_BODYLESS_SE on a multi-decl host: extracted destructure goes into a synthesized
-// block (the bodyless `if` accepts only a single statement), but sibling declarators of
-// the same `var` (`y = 1`) must come along. before the fix the whole VariableDeclaration
-// was replaced with the block carrying only the extracted name - `var` still hoisted `y`
-// globally but its initializer was dropped, leaving `export { ..., y }` consumers with
-// `undefined`. block-bodied `if` cases (already correct) are not exercised here.
+// bodyless `if` with a side effect on a multi-decl host: the extracted destructure goes into a
+// synthesized block (a bodyless `if` accepts one statement), but sibling declarators of the same
+// `var` (`y = 1`) must ride along. before the fix the whole VariableDeclaration was replaced with
+// a block carrying only the extracted name, so `y`'s initializer dropped and `export { y }` saw undefined
 if (cond) {
   sideEffect();
   var from = _Array$from;

@@ -1,10 +1,7 @@
-// Union branch that's an alias to a nullish keyword: `type N = null;` makes `Inner | N`
-// have N as a TypeReference at the flatten step. without resolving the ref through to
-// its `null` body, the downstream nullish-branch filter doesn't recognise N and the
-// discriminant narrow degrades. pushing the alias-resolved node (TSNullKeyword) lets the
-// filter exclude N and narrow `Inner | N` cleanly when `x.kind === 'a'` holds.
-// braced if-body so the emitted `var _ref;` lands in the same slot across babel and
-// unplugin runners (bodyless slot would force babel to hoist while unplugin block-wraps)
+// a union branch that aliases a nullish keyword (`type N = null;`) makes `Inner | N` carry N as
+// a TypeReference at the flatten step. the ref must be resolved to its `null` body (TSNullKeyword)
+// so the nullish-branch filter can exclude N and narrow cleanly when `x.kind === 'a'` holds.
+// braced if-body so the emitted `var _ref;` lands in the same slot across both runners.
 type N = null;
 type Inner = {
   kind: 'a';

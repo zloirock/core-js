@@ -10,13 +10,10 @@ import "core-js/modules/es.array.to-sorted";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.number.constructor";
 import "core-js/modules/es.string.iterator";
-// three mechanics, three intermediates - each receiver's type comes from exactly
-// one source. names `.filter` / `.map` / `.flatMap` overlap with Iterator.prototype
-// (esnext.iterator.*) and AsyncIterator.prototype in global-mode definitions;
-// without the correct receiver type, plugin would pull all three module families.
-//   (1) TS annotation `typed: number[]`   -> .filter receiver is Array
-//   (2) guard `Array.isArray(maybe)`      -> .map    receiver is Array
-//   (3) built-in return of `Array.from`   -> .flatMap receiver is Array
+// three receivers, each typed as Array from a distinct source: (1) TS annotation
+// `typed: number[]` -> .filter, (2) `Array.isArray(maybe)` guard -> .map, (3) built-in
+// return of `Array.from` -> .flatMap. `.filter`/`.map`/`.flatMap` also live on
+// Iterator.prototype, so a missed receiver type would pull all three module families.
 function aggregate(typed: number[], maybe: unknown, raw: Iterable<number>): number[] {
   if (!Array.isArray(maybe)) return [];
   const fromTyped = typed.filter(x => x > 0);

@@ -1,7 +1,7 @@
-// for-in companion to `audit-destructure-for-of-left-bails`. for-in's left slot also
-// accepts a single VariableDeclaration with no init expression - `planDeclarator` gates
-// on declarator.init being non-null, so the flatten path bails before reaching the
-// `isForInit` check. confirms both for-of AND for-in left destructures stay verbatim
+// for-in companion to `audit-destructure-for-of-left-bails`. for-in's left slot also holds a
+// single VariableDeclaration with no init expression, and the flatten path requires a non-null
+// declarator init, so it bails before the for-init check. confirms both for-of AND for-in left
+// destructures stay verbatim.
 const obj = {
   Array
 };

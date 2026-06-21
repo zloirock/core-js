@@ -1,10 +1,8 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// nested aliased unions: `type A = X | Y; type B = Z | W; type Outer = A | B`.
-// `aliased.types.length === 2` (outer holds [A, B]); flatten expands to four
-// branches [X, Y, Z, W]. discriminant filter that survives 2 of 4 inner branches
-// would FALSE-positive an all-pass drop if the baseline were the unflattened
-// outer count - 2 === 2 would short-circuit narrow to identity. baselining on
-// FLATTENED count keeps the survivor pair and narrows accurately
+// nested aliased unions: `type A = X | Y; type B = Z | W; type Outer = A | B`. the outer holds
+// [A, B] but flatten expands to four branches [X, Y, Z, W]. a filter that survives 2 of 4 would
+// FALSE-positive an all-pass drop if the baseline were the unflattened outer count (2 === 2).
+// baselining on the FLATTENED count keeps the survivor pair and narrows accurately.
 type X = {
   kind: 'a';
   data: string;

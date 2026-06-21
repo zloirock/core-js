@@ -828,7 +828,7 @@ export function createPatternBindings({
   }
 
   // cluster-private (consumed only by other cluster functions, not by factory or other
-  // clusters): `resolveDestructuringDefault` / `resolveDestructuredType` /
+  // clusters): `resolveDestructuredType` /
   // `resolveArrayPatternBinding` / `findPatternIndex` / `resolveRuntimeIterableElement` /
   // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
   // `findBindingPattern`

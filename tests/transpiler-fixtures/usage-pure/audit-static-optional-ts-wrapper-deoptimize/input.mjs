@@ -1,10 +1,5 @@
-// post-replace deoptimize walk peels through transparent wrappers
-// (TS expression wrappers / ParenthesizedExpression / ChainExpression) when stripping
-// the dangling-optional-on-now-non-optional parent. previously only the immediate
-// parent was checked; a TS wrapper between the replaced static and the surviving
-// `?.` would hide the dangling optional from the de-optimization pass. here:
-// `(Array.from as any)?.([1])` - `?.([1])` is the optional call directly on a
-// TSAsExpression-wrapped static. after `Array.from` -> `_Array$from` rewrite the
-// `?.` becomes pointless (polyfill id never null); the walk now peels the
-// TSAsExpression and de-optimizes the parent CallExpression
+// `(Array.from as any)?.([1])` - the optional call sits on a TSAsExpression-wrapped static.
+// the post-replace deoptimize walk must peel transparent wrappers (TSAsExpression /
+// ParenthesizedExpression / ChainExpression), not just the immediate parent: after
+// `Array.from` -> `_Array$from` the `?.` is pointless and the CallExpression de-optimizes.
 (Array.from as any)?.([1]);

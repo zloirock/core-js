@@ -1,9 +1,7 @@
 // TC39 stage-4 auto-accessor (`accessor field: T = ...`) parses as `AccessorProperty`
-// in ESTree/oxc and `ClassAccessorProperty` in babel. findTypeMember's switch must list
-// both - the oxc shape was missing, so `declare const f: Foo` with typed accessors fell
-// through to the generic member fallback and emitted both array and string variants.
-// Distinct narrow targets (.at on number[] vs .toFixed on number) make the per-accessor
-// type-resolution observable: array.at + number.toFixed only, no overlapping string.at.
+// in ESTree/oxc and `ClassAccessorProperty` in babel; type-member lookup must handle both.
+// the oxc shape was missing, so typed accessors fell to a generic fallback emitting both
+// variants. distinct targets (.at on number[] vs .toFixed on number) pin es.array.at + number.toFixed only.
 class Foo {
   accessor items: number[] = [];
   accessor value: number = 0;
