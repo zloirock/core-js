@@ -1,10 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// `Array.isArray(x as unknown)` - KNOWN_STATIC_TYPE_GUARDS arg lookup previously peeled
-// only ParenthesizedExpression. TSAsExpression / `<T>cast` / `!` survived the peel and
-// `arg0.type === 'Identifier'` failed, so the known-static-guard never activated and the
-// narrow dropped. switched to the runtime-transparent peel - symmetric with the
-// user-predicate arg matcher. `Array.isArray(x as unknown)` now narrows the
-// element-access through the array branch
+// `Array.isArray(x as unknown)` - the known-static-guard arg lookup once peeled only
+// ParenthesizedExpression, so a TSAsExpression / `<T>cast` / `!` survived and the arg
+// failed the Identifier check, dropping the narrow. peeling the full runtime-transparent
+// wrapper set (symmetric with the user-predicate matcher) narrows the element access
+// through the array branch
 declare const x: string | string[];
 if (Array.isArray(x as unknown)) {
   _atMaybeArray(x).call(x, 0);

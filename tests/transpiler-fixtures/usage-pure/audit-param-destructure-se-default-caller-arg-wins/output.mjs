@@ -1,10 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// caller-arg passes through SE-prefix default. multiple call sites verify the contract:
-//   `probe()` / `probe(undefined)` - default fires, polyfill wins
-//   `probe({from: customFn})` - caller arg wins, customFn used
-// synth-swap replaces the SE tail with `{from: _polyfill}` while leaving the SE prefix
-// expressions in place; default destructures the synth literal only when caller-arg is
-// undefined, never when caller passed an object
+// caller-arg passes through SE-prefix default. `probe()` / `probe(undefined)` fire the default
+// (polyfill wins); `probe({from: customFn})` makes the caller arg win. synth-swap replaces the
+// SE tail with `{from: _polyfill}` but keeps the SE prefix in place; the default destructures
+// the synth literal only when caller-arg is undefined, never when the caller passed an object.
 declare function logCall(): void;
 declare function customFn(items: number[]): number[];
 function probe({

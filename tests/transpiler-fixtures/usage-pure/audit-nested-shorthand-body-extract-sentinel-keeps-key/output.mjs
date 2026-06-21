@@ -1,13 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// A consumed SHORTHAND binding inside a nested destructure is body-extracted to a const, so its
-// destructure slot must be neutralized to a sentinel that KEEPS the original key (`{ at: _unused }`),
-// NOT a shorthand `{ _unused }` - the shorthand reads the wrong property (`m._unused`) and skips the
-// original `m.at` read (getter side effects / rest exclusion). a side-effecting computed-key sibling
-// keeps its own key intact (only its value is renamed to a throwaway).
-// the residual SURVIVES (the `[key()]` sibling binds `picked`), so the constant-literal receiver
-// (`m`'s value) is memoized into a single `_ref` shared by the `_atMaybeArray(_ref)` extract and the
-// residual - re-emitting it would duplicate the literal. a side-effecting (`m: f()`) or member/getter
-// receiver makes the body-extract bail entirely. both emitters memoize identically, so it stays parity
+// A consumed shorthand binding in a nested destructure is body-extracted to a const, so its slot
+// must be neutralized to a sentinel that KEEPS the original key (`{ at: _unused }`), not a shorthand
+// `{ _unused }` (which reads `m._unused` and skips the real `m.at`). the surviving computed-key
+// sibling memoizes the constant-literal receiver into one `_ref` so the extract does not re-emit it.
 function key() {
   return 'k';
 }

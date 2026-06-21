@@ -1,11 +1,8 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-// rest sibling forces synth-swap to bail into body-extract, but a sibling in-pattern default
-// reads the polyfilled binding (`dflt = of`). relocating `of` into a body `let` would strand
-// the param-scope read of `of` (ReferenceError at call time). the emitter detects the read and
-// bails to inline-default instead, keeping `of` in the destructure so the sibling default resolves
-// NOTE: this DECLARED function is non-exported and every local call leaves the default in
-// place, so the resolver's call-site scan proves the lossy emission loses nothing and it
-// stays enabled; exported / escaping / overridden functions stay verbatim instead
+// rest sibling forces synth-swap into body-extract, but a sibling in-pattern default reads the
+// polyfilled binding (`dflt = of`). relocating `of` into a body `let` would strand the param-scope
+// read (ReferenceError at call time), so the emitter detects the read and bails to inline-default,
+// keeping `of` in the destructure. non-exported, all call sites visible, so the emission is enabled.
 function g({
   of = _Array$of,
   dflt = of,

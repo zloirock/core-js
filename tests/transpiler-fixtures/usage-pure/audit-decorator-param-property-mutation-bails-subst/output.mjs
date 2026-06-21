@@ -1,11 +1,9 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Object$assign from "@core-js/pure/actual/object/assign";
-// a monkey-patch of a static hidden inside a constructor parameter-property decorator must be
-// detected so usage-pure does NOT receiver-less-substitute the patched static read over the user
-// patch - the patched static stays raw and shares the patched constructor. the parser drops
-// `decorators` from TSParameterProperty's visitor keys, so the scoped mutation pre-pass never
-// descends into a param-property decorator unless it requeues them. a sibling NON-mutated static
-// still substitutes, proving the bail is per-key, not whole-file
+// a monkey-patch of a static hidden inside a constructor param-property decorator must be detected
+// so usage-pure does NOT receiver-less-substitute that patched static read; it stays raw and shares
+// the patched constructor. `decorators` is absent from TSParameterProperty's visitor keys, so the
+// mutation pre-pass must requeue them; a sibling NON-mutated static still substitutes (bail per-key)
 class C {
   constructor(@register(_Object$assign(Array, {
     from: () => []

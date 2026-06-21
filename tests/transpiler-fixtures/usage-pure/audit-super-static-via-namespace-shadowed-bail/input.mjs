@@ -1,9 +1,8 @@
-// negative test: namespace-destructure binding where the leaf value is NOT the global.
+// negative test: a namespace-destructure binding whose leaf is NOT the real global.
 // `const NS = { Promise: FakePromise }` shadows the key with an unrelated class, so
-// `extends NS.Promise` is FakePromise, not the real Promise. resolveSuperClassName
-// must follow the namespace's actual leaf binding (FakePromise) - which doesn't resolve
-// to a known global - so `super.try()` stays as native (safe miss preferred over wrong
-// polyfill dispatch that would break runtime semantics)
+// `extends NS.Promise` is FakePromise. the super-class resolution must follow the actual
+// leaf binding (no known global), leaving `super.try()` native - a safe miss is preferred
+// over a wrong polyfill dispatch that would break runtime semantics.
 class FakePromise {}
 const NS = { Promise: FakePromise };
 const { Promise: MyP } = NS;

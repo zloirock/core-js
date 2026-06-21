@@ -1,12 +1,10 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 var _ref, _ref2;
-// Multiple colliding defaults in one inner alias, each resolving INDEPENDENTLY to its own lexical type.
-// Inner's defaults P = A and Q = B reference the outer `type A = number[]` and `type B = string` (Inner
-// has neither A nor B as a param); the outer alias Outer<A, B> reuses both names as its params, but those
-// instantiation bindings (A=string, B=number[]) must not leak into the inner defaults' scope. So a is
-// number[] (array at variant) and b is string (string includes variant) - distinct methods on distinct
-// members prove the two co-located defaults do not cross-contaminate.
+// two colliding defaults in one inner alias, each resolving INDEPENDENTLY to its own lexical type.
+// Inner's `P = A` / `Q = B` reference the outer `type A = number[]` / `type B = string`, while
+// Outer<A, B> reuses both names as params; those instantiation bindings must NOT leak into the inner
+// defaults' scope. so `a` is number[] (array .at) and `b` is string (string .includes) - no cross-contamination
 type A = number[];
 type B = string;
 type Outer<A, B> = Inner<A, B>;

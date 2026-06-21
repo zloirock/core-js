@@ -1,7 +1,7 @@
 // namespaced overload heads + impl + INIT (not `declare const`). companion to the existing
-// `declare const` namespace-overload fixture - here the binding has an init walk through
-// `NS.fn(0)`, so init-derived `$Primitive('null')` from body inference races against the
-// annotation. `preferAnnotationOverExpression` ensures the annotation wins
+// `declare const` namespace-overload fixture - here the binding has an init `NS.fn(0)`, so
+// the null type that body inference derives from the init races against the annotation.
+// the annotation must win over the init-derived type
 namespace NS {
   export function fn(x: string): string;
   export function fn(x: number): number[];

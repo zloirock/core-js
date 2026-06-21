@@ -1,6 +1,6 @@
 // inline-array spread at IIFE call site: `(arr => arr)(...[Array])` lifts the spread's
-// statically-known element. used to bail wholesale on SpreadElement args (asymmetric with
-// `call-argument resolver` / `findIifeArgForParam` which already expand `...[lit]`), so the
-// IIFE result wasn't recognised as the polyfillable receiver
+// statically-known element. an earlier wholesale bail on SpreadElement args left the IIFE
+// result unrecognised as the polyfillable receiver, even though the param-to-arg matcher
+// already expands `...[lit]` spreads elsewhere
 const factory = (arr => arr)(...[Array]);
 factory.from([1, 2, 3]);

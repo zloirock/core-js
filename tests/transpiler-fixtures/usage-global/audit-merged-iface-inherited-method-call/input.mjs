@@ -1,6 +1,6 @@
-// Same chain as the property fixture, but through a method-typed iface slot - exercises
-// the call-site `resolveClassMember` walk-up branch independently of `findTypeMember`.
-// Using `includes` instead of `at` ensures the test isolates a distinct polyfill entry.
+// a method-typed slot added via interface declaration-merge, inherited through `extends`,
+// must resolve its return type so `.includes(0)` on the result emits es.array.includes.
+// `includes` (not `at`) isolates a distinct polyfill entry from the property-slot twin.
 class Parent {}
 interface Parent { method(): number[] }
 class Child extends Parent {}

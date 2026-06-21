@@ -1,9 +1,6 @@
-// param destructure-default with two removed body-extracted props (`from`, `of`) separated by a
-// RETAINED string-key sibling (`"z": z`, which bails synth-swap). the retained prop breaks the run,
-// so neither removal is preceded-by-removed: each takes its own clean trailing-comma range and the
-// two never overlap (distinct from the contiguous-run cases, which share a comma). regression lock
-// NOTE: this DECLARED function is non-exported and every local call leaves the default in
-// place, so the resolver's call-site scan proves the lossy emission loses nothing and it
-// stays enabled; exported / escaping / overridden functions stay verbatim instead
+// param destructure-default with two removed props (`from`, `of`) separated by a RETAINED
+// string-key sibling (`"z": z`). the retained prop breaks the run, so each removal takes its own
+// clean trailing-comma range and the two never overlap (unlike the contiguous-run cases that
+// share a comma). this DECLARED non-exported fn is safe to emit lossily; others stay verbatim
 function f({ from, "z": z, of } = Array) { return [from, of, z]; }
 f();

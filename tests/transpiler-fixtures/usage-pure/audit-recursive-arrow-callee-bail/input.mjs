@@ -1,7 +1,6 @@
-// recursive arrow `const f = () => f();` - inline-call resolution must bail because the
-// `seen` Set rejects re-entering the same binding name. without the cycle guard,
-// `inlineCallReturnExpression` would loop indefinitely walking f -> f -> f.
-// secondary case: mutual recursion `g <-> h` exercises the same `seen.has` gate
+// recursive arrow `const f = () => f();` - inline-call resolution must bail when the
+// same binding name is re-entered, else it loops indefinitely walking f -> f -> f.
+// secondary case: mutual recursion `g <-> h` exercises the same cycle guard.
 const f = () => f();
 const result1 = f().includes(1);
 const g = () => h();
