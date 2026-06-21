@@ -26,11 +26,12 @@ import {
   isAliasProxyRoot,
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
+  markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
   memberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyCallBranchForSynth, isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { collectFallbackCollapseLeftSe } from '@core-js/polyfill-provider/detect-usage/members';
+import { collectFallbackCollapseLeftSe, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
@@ -161,14 +162,27 @@ export default function createSynthSwapEmitter({
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
     // `_globalThis` etc. into the range that synth-swap will replace.
     if (receiver.type === 'LogicalExpression') {
-      // a fallback-logical default collapses to the literal; narrow the skip to the parts the literal
-      // consumes - the dead RIGHT operand (short-circuited away, its global would leak a dead import)
-      // and the resolved-left TAIL receiver chain. the live left PREFIX (`([1].at(0), Array)` ->
-      // `[1].at(0)`) and a call-rooted left's internals (`IIFE().Array` -> the IIFE body's globals)
-      // stay visible so the identifier / instance-method visitors polyfill + substitute them in place;
-      // apply() then harvests them from the live tree into the rescued leftSe sequence
+      // a fallback-logical default collapses to the literal; skip the parts the literal supplants - the
+      // dead RIGHT operand (short-circuited away, its global would leak a dead import) and the resolved-
+      // left TAIL receiver chain. the tail is skipped WHOLE (a spine-only skip stops at a tail sequence
+      // and leaves its prefix's dropped globals - `(eff(), globalThis).Array` - to leak a dead import);
+      // its harvested SE is re-exposed so the live left PREFIX (`([1].at(0), Array)`, an IIFE body's
+      // globals) still polyfills in place, for apply() to harvest into the rescued leftSe sequence
       t.traverseFast(receiver.right, node => { skippedNodes.add(node); });
-      markSynthReceiverSkipped(peelNestedSequenceExpressions(receiver.left).tail, skippedNodes);
+      const keepSe = collectFallbackCollapseLeftSe({
+        leftNode: receiver.left, scope: targetPath.scope, adapter, path: targetPath,
+      });
+      markReplacedReceiverSkipped({ receiver: receiver.left, keepSe, skippedNodes, walkNode: t.traverseFast });
+    } else if (!rescueSe || shouldDropRescueReceiver(receiver)) {
+      // case 3 (plain replace) + case 1 (rescue-drop): the synth literal supplants the receiver value
+      // (a drop re-emits only its harvested SE ahead). skip the WHOLE receiver - a spine-only skip stops
+      // at a sequence and leaves the prefix's dropped globals visible, injecting a dead `_globalThis`
+      // import. the harvested SE is re-exposed so its globals still polyfill in the live tree before
+      // apply clones them into the re-emitted prefix. keeps the import set identical to the text emitter
+      const keepSe = rescueSe ? collectFallbackCollapseLeftSe({
+        leftNode: receiver, scope: targetPath.scope, adapter, path: targetPath,
+      }) : [];
+      markReplacedReceiverSkipped({ receiver, keepSe, skippedNodes, walkNode: t.traverseFast });
     } else markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
@@ -377,13 +391,24 @@ export default function createSynthSwapEmitter({
         // re-traversal, leaking a dead `_Set` import and diverging from the text emitter). matches the
         // all-resolved leftSe path, which likewise collapses to the left
         const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
+        // a multi-hop proxy rescue receiver is DROPPED (re-emit only the harvested SE): keeping it would
+        // collapse `globalThis[(eff(), 'self')].Array` to `_self.Array`, importing a `self` proxy that is
+        // undefined off-browser, and diverging from the text emitter which can't AST-restructure the
+        // computed hop. shared `shouldDropRescueReceiver` keeps the drop decision identical across emitters
+        const dropRescueReceiver = pending.rescueSe && shouldDropRescueReceiver(path.node);
         let replacement = needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
             [t.cloneNode(memoReceiver, true)])
-          : pending.rescueSe
-            ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
-            : literal;
+          : dropRescueReceiver
+            ? t.sequenceExpression([
+              ...collectFallbackCollapseLeftSe({ leftNode: path.node, scope: path.scope, adapter, path })
+                .map(n => t.cloneNode(n, true)),
+              literal,
+            ])
+            : pending.rescueSe
+              ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
+              : literal;
         // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||` / `??`
         // default collapses to the synth literal (its left is the always-resolved receiver, its right
         // short-circuits), but the left's side effects must still run when the default fires. preserve
