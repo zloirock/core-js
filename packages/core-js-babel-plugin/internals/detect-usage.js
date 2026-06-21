@@ -1,5 +1,6 @@
 import {
   buildDestructuringInitMeta,
+  isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -349,7 +350,8 @@ export function createUsageVisitors({
       }
     } else if (parent.isAssignmentExpression()) {
       initPath = parent.get('right');
-    } else if (parent.isAssignmentPattern() && isFunctionParamDestructureParent(objectPattern)) {
+    } else if (parent.isAssignmentPattern() && isFunctionParamDestructureParent(objectPattern)
+      && !isInnerDestructureDefault(parent)) {
       // `function({ from } = Array)` - AssignmentPattern wraps the param; the default
       // expression is the receiver that our destructure targets when the arg is omitted.
       // for IIFE with statically-classifiable caller-arg (`(({from} = Array) => ...)(Set)`),

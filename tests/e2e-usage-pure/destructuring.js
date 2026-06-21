@@ -1824,3 +1824,43 @@ QUnit.test('destructuring: let-bound global-ctor alias re-polyfills member read'
     async();
   });
 });
+
+// a side effect buried in a COMPUTED member key on a function-param-default destructure receiver must
+// survive the synth swap that discards the receiver and replaces it with `{ from: _Array$from }`. the
+// spine-only harvester walked only `.object` and missed the receiver's own computed key, dropping the
+// effect entirely - calling with no argument must still run it exactly once
+QUnit.test('destructuring: param-default synth preserves a computed-key side effect', assert => {
+  let keyReads = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- SE-prefix in computed key under test
+  function pick({ from } = globalThis[(keyReads++, 'Array')]) {
+    return from;
+  }
+  const from = pick();
+  assert.same(keyReads, 1, 'computed-key side effect runs exactly once when the default is taken');
+  assert.deepEqual(from([4, 5, 6]), [4, 5, 6], 'from resolves to the polyfilled Array.from');
+});
+
+// a lone-prop destructure whose init is retained only for its side effect (the value is consumed by the
+// polyfilled binding, no surviving sibling or rest reads it) must still collapse the proxy hop in that
+// retained init. uncollapsed `_globalThis.self.Array` reads an undefined `.self` hop off-browser (Node
+// has no `self`), throwing in the lifted statement before the already-consumed value is ever read
+QUnit.test('destructuring: SE-lifted init collapses its proxy hop so it stays runtime-safe', assert => {
+  let reads = 0;
+  const { from: arrayFrom } = (reads += 1, globalThis.self.Array) || Set;
+  assert.same(reads, 1, 'the retained init side effect runs exactly once');
+  assert.deepEqual(arrayFrom([7, 8]), [7, 8], 'from resolves to the polyfilled Array.from');
+});
+
+// a nested param inner-default (`[{ Array: { of } } = {}] = [globalThis]`) must REPLACE the whole proxy
+// receiver with the mirrored synth object `[{ Array: { of: _Array$of } }]`, so the polyfill supplies the
+// default-call value WITHOUT over-applying. a leaf inline default (`{ of = _Array$of }`) instead hands
+// back the polyfill even when the caller passed an Array that genuinely lacks the static
+QUnit.test('destructuring: nested param inner-default replaces receiver without over-applying', assert => {
+  function ofGlobal([{ Array: { of } } = {}] = [globalThis]) {
+    return of;
+  }
+  // no argument: the param default supplies the polyfilled Array.of, and it works
+  assert.deepEqual(ofGlobal()(7, 8), [7, 8]);
+  // caller passes an Array WITHOUT `.of` - the caller's (undefined) value wins, polyfill not forced in
+  assert.same(ofGlobal([{ Array: {} }]), undefined);
+});
