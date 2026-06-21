@@ -30,7 +30,9 @@ import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { discardRescueNode } from './members.js';
 import { isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName } from './resolve.js';
-import { fallbackInitWhollyDiscardable, resolveBranchProxyName, walkStaticReceiverChain } from './destructure.js';
+import {
+  destructureRightIsReceiver, fallbackInitWhollyDiscardable, isUndefinedNode, resolveBranchProxyName, walkStaticReceiverChain,
+} from './destructure.js';
 
 // object-prop node across parsers: estree `Property`, babel `ObjectProperty`
 function isPropertyNode(node) {
@@ -50,8 +52,14 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   const visited = new Set();
   for (;;) {
     // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
-    // equivalent (defaults sit on the LHS slot), so we only peel pattern here
+    // equivalent (defaults sit on the LHS slot), so we only peel pattern here. EXCEPTION: a
+    // receiver-shaped inner default whose paired slot is literally `undefined` fires the default, so
+    // ITS right is the receiver (`[{ from } = Array] = [undefined]` -> from off Array) - surface it
+    // (the identification's resolveArrayInnerDefaultReceiver agrees, so both emitters stay consistent)
     if (pattern?.type === 'AssignmentPattern') {
+      if (isUndefinedNode(init) && destructureRightIsReceiver(pattern.right)) {
+        return { pattern: pattern.left, init: pattern.right };
+      }
       pattern = pattern.left;
       continue;
     }
@@ -95,6 +103,21 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
 // shapes unchanged
 function peelInnerDefault(value) {
   return value?.type === 'AssignmentPattern' ? value.left : value;
+}
+
+// does the pattern subtree carry ANY slot default (`X = d`) at ANY depth? a residual leaf default
+// must defer anchoring at every nesting level, not just the top - a nested default (`nested: { x = d }`)
+// re-anchored to the pure ctor renders verbatim, so a polyfillable `d` is never injected
+function patternHasAnyDefault(node) {
+  switch (node?.type) {
+    case 'AssignmentPattern': return true;
+    case 'RestElement':
+    case 'SpreadElement': return patternHasAnyDefault(node.argument);
+    case 'ArrayPattern': return node.elements.some(patternHasAnyDefault);
+    case 'ObjectPattern': return node.properties.some(prop => patternHasAnyDefault(
+      prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value));
+    default: return false;
+  }
 }
 
 // structural check: outerProp is a Property with computed `[Symbol.iterator]` key. Symbol
@@ -285,11 +308,12 @@ export function buildNestedDestructurePlan({
     const residualProps = planned.kind === 'verbatim'
       ? inner.properties
       : planned.children.filter(c => c.kind !== 'consumed').map(c => c.prop);
-    // a residual leaf with a DEFAULT bails: babel re-visits the cloned anchored declarator and would
-    // polyfill a polyfillable default, while the unplugin text render leaves it native (a dead-code
-    // import-set divergence). a DISABLED leaf likewise stays native. the native residual (current
-    // behavior) keeps both emitters consistent
-    if (residualProps.some(p => p.value?.type === 'AssignmentPattern' || leafDisabled(p))) return planned;
+    // a residual leaf with a DEFAULT (top-level OR nested) bails: anchoring renders the residual
+    // verbatim/skip-seeded, so a polyfillable default (`{ x = [1].at(0) }`) is dropped by both emitters,
+    // and a top-level default also splits babel (re-visits + polyfills) from unplugin (leaves native).
+    // a DISABLED leaf likewise stays native. the native residual (current behavior) keeps the default's
+    // polyfill reachable by the natural visitor and both emitters consistent
+    if (residualProps.some(p => patternHasAnyDefault(p.value) || leafDisabled(p))) return planned;
     return { kind: 'anchored', prop: planned.prop, anchorPure, residualProps, extractions: planned.extractions ?? [] };
   }
 

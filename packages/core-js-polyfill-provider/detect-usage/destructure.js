@@ -9,6 +9,7 @@ import {
   staticStringKey,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
+  objectPatternHasNestedValue,
   peelNestedSequenceExpressions,
   FUNCTION_LIKE_NODE_TYPES,
   FN_NODE_TYPES,
@@ -861,15 +862,15 @@ function peelDestructureWrappers(pattern) {
 
 // an AssignmentPattern wrapping a destructure target is a TRANSPARENT inner default when nested in
 // another pattern AND its right side is an empty fallback (`{x} = {}`, `[{x}={}] = R`) - the real
-// receiver lives further up. but a receiver-shaped right (`[{x} = Array]`, `{a: {x} = globalThis.X}`)
-// makes THIS the value-bearing host, even nested: nothing else supplies `x`'s receiver when the
-// outer slot is undefined. a param/declarator default (`function f({x} = R)`, grandparent is a
-// function/declarator, not a pattern) is likewise the host. shared so the wrapper-peel and the host
-// walk treat inner defaults identically
+// receiver lives further up. but a receiver-bearing right (`[{x} = Array]`, `{a: {x} = globalThis.X}`,
+// `[{x} = (Array)]`, `[{x} = Array || Set]`) makes THIS the value-bearing host, even nested: nothing
+// else supplies `x`'s receiver when the outer slot is undefined. a param/declarator default
+// (`function f({x} = R)`, grandparent is a function/declarator, not a pattern) is likewise the host.
+// shared so the wrapper-peel and the host walk treat inner defaults identically
 export function isInnerDestructureDefault(assignmentPatternPath) {
   const grandType = assignmentPatternPath?.parentPath?.node?.type;
   if (grandType !== 'ArrayPattern' && grandType !== 'Property' && grandType !== 'ObjectProperty') return false;
-  return !isReceiverShapedNode(assignmentPatternPath.node.right);
+  return !destructureRightIsReceiver(assignmentPatternPath.node.right);
 }
 
 // ascend a nested destructure leaf to its OUTERMOST object-pattern + the value-bearing host, peeling
@@ -970,6 +971,35 @@ function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = 
   return receiverNode;
 }
 
+// a statically-`undefined` value node - the array slot value that fires a paired inner default (a
+// defined slot wins, keeping the default transparent). covers the bare `undefined` literal and a pure
+// `void <expr>` (`void 0`); a side-effecting `void f()` keeps its effect, so it stays a real value (the
+// receiver swap must not drop it). a shadowed local `undefined` is not tracked (detection-layer trust).
+// SHARED by the identification (here) and the flatten-plan emit gate, so both fire on the same slots
+export function isUndefinedNode(node) {
+  if (node?.type === 'Identifier') return node.name === 'undefined';
+  return node?.type === 'UnaryExpression' && node.operator === 'void' && !mayHaveSideEffects(node.argument);
+}
+
+// a RECEIVER-SHAPED inner default in an array wrapper (`[{ from } = Array] = [undefined]`): peeling
+// stops at the default because it IS a host, so the outer walk yields no array index. its right is the
+// receiver ONLY when the paired array slot is statically `undefined` (then the default provably fires);
+// a defined / dynamic / unresolvable slot keeps the native element receiver. resume the wrapper walk
+// from the inner default itself to reach the host slot and verify it
+function resolveArrayInnerDefaultReceiver(innerDefaultHost, adapter) {
+  if (innerDefaultHost?.node?.type !== 'AssignmentPattern') return null;
+  const { parent: host, indices } = peelDestructureWrappers(innerDefaultHost);
+  if (indices.length === 0) return null;
+  const slot = destructureReceiverSlot(host?.node);
+  if (!slot || !host.node[slot]) return null;
+  const slotNode = descendArrayWrapperInit(host.node[slot], indices, host.scope, adapter, host);
+  if (!isUndefinedNode(slotNode)) return null;
+  const resolved = resolveObjectName({
+    objectNode: unwrapExpressionChain(innerDefaultHost.node.right), scope: host.scope, adapter, path: host,
+  });
+  return resolved && isStaticPlacement(resolved) ? resolved : null;
+}
+
 // resolve receiver for ArrayPattern-rooted nested destructure: `const [...{from}] = wrapper`
 // or chained `[[{from}]] = wrapper`. walks up ArrayPattern wrappers from the inner ObjectPattern
 // counting depth; descends the host's init slot through Identifier aliases and ArrayExpression
@@ -979,7 +1009,9 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
   // wrappers) up to the host, collecting each wrapper's element index outermost-first so the init
   // descent picks the matching slot, not a blind `[0]` - `const [, { from }] = [Set, Array]`
   const { parent: host, indices } = peelDestructureWrappers(innerObjectPattern);
-  if (indices.length === 0) return null;
+  // peeling stopped at a receiver-shaped inner default (its right is the receiver iff the paired slot
+  // is `undefined`) rather than walking through a transparent one - resolve it through the slot check
+  if (indices.length === 0) return resolveArrayInnerDefaultReceiver(host, adapter);
   // IDENTIFICATION uses the broad host predicate: an assignment-destructure in for-init / call-arg
   // / arrow-body position and a parameter DEFAULT (AssignmentPattern) all carry a real receiver
   // that usage-global must inject for. the pure flatten re-checks its own narrow host shape at
@@ -1066,6 +1098,16 @@ export function flattenDiscardRescue(innerObjectPattern, adapter) {
 //   - rest bails anywhere: it collects the receiver's REMAINING enumerable keys (an
 //     app-extended `Array.myHelper = x` legitimately feeds it) - unknown keys cannot be mirrored
 const nestedParamSynthPlanned = new WeakSet();
+
+// may the host walk stop at `cur`'s direct parent (a param default / declarator / cascade)? always when
+// `cur` is ABOVE the trigger leaf's own pattern; at the leaf pattern itself ONLY when it is MIXED (a
+// nested value the mirror owns) - so a flat ctor sibling stranded native by the deferral gate is mirrored,
+// while a pure-flat pattern keeps its own body-extract / synth-swap fallback (mirror does not fire there)
+function selfHostAllowed(cur, leafPatternPath) {
+  return cur !== leafPatternPath
+    || (cur.node?.type === 'ObjectPattern' && objectPatternHasNestedValue(cur.node));
+}
+
 export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, adapter }) {
   if (!resolvePure || !meta?.object || meta.placement !== 'static') return null;
   if (leafPatternPath?.node?.type !== 'ObjectPattern') return null;
@@ -1085,20 +1127,23 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     // a transparent inner default (`[{ Array: { of } } = {}] = [globalThis]`) is see-through - fall
     // through (keep walking) to the value-bearing host above it (the param default), so the WHOLE
     // receiver is replaced by the mirror (`[{ Array: { of: _Array$of } }]`) instead of leaving the proxy
-    // receiver with a leaf inline default (which over-applies the polyfill and TypeErrors an empty arg)
-    if (parentType === 'AssignmentPattern' && parent.node.left === cur.node && cur !== leafPatternPath
+    // receiver with a leaf inline default (which over-applies the polyfill and TypeErrors an empty arg).
+    // a FLAT key trigger whose pattern IS the host's direct child (`{ Math:{floor}, Set } = R` visited
+    // through `Set`) reaches the host on the first hop - `selfHostAllowed` permits it ONLY for a MIXED
+    // pattern (see the helper); a pure-flat pattern keeps its own body-extract / synth-swap fallback
+    if (parentType === 'AssignmentPattern' && parent.node.left === cur.node && selfHostAllowed(cur, leafPatternPath)
       && !isInnerDestructureDefault(parent)) {
       if (!FUNCTION_LIKE_NODE_TYPES.has(parent.parentPath?.node?.type)) return null;
       host = parent;
       slot = 'right';
       break;
     }
-    if (parentType === 'VariableDeclarator' && parent.node.id === cur.node && cur !== leafPatternPath) {
+    if (parentType === 'VariableDeclarator' && parent.node.id === cur.node && selfHostAllowed(cur, leafPatternPath)) {
       host = parent;
       slot = 'init';
       break;
     }
-    if (parentType === 'AssignmentExpression' && parent.node.left === cur.node && cur !== leafPatternPath) {
+    if (parentType === 'AssignmentExpression' && parent.node.left === cur.node && selfHostAllowed(cur, leafPatternPath)) {
       host = parent;
       slot = 'right';
       break;
@@ -1179,6 +1224,20 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     while ((n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') && !n.computed
       && n.property?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.property.name)) n = n.object;
     if (n?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.name)) return { kind: 'proxy' };
+    // a const-aliased proxy (`const NS = globalThis; ... = NS`) is invisible to the raw-AST name check
+    // above - dereference it through the SAME resolveObjectName walk mirrorReceiverDescriptor uses for
+    // the emitted receiver, so the mirror CONTEXT and the receiver agree instead of stranding the alias
+    const resolved = resolveObjectName({ objectNode: n, scope: leafPatternPath.scope, adapter, path: leafPatternPath });
+    if (resolved && POSSIBLE_GLOBAL_OBJECTS.has(resolved)) return { kind: 'proxy' };
+    // a const-bound static-object wrapper (`const w = { a: Array }; ... = w`): each pattern key resolves
+    // through the object literal to its constructor (`w.a` -> Array) via the SAME walkStaticReceiverChain
+    // the declarator static path uses. distinct from a bare ctor by its ObjectExpression init - carry the
+    // receiver + walk path so mirrorPattern descends per key instead of stranding the whole tree native
+    if (n?.type === 'Identifier' && adapter.hasBinding(leafPatternPath.scope, n.name, leafPatternPath)) {
+      const binding = adapter.getBinding(leafPatternPath.scope, n.name, leafPatternPath);
+      const init = binding?.path?.node?.init ?? binding?.node?.init;
+      if (init?.type === 'ObjectExpression') return { kind: 'static', receiverNode: n, walkPath: [] };
+    }
     // a bare-constructor root is only trusted because the visited leaf's identification
     // already resolved through this very default (meta gate above)
     if (n === node && node.type === 'Identifier') return { kind: 'ctor', name: node.name };
@@ -1211,9 +1270,30 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         // key's live value off the receiver, so a polyfillable SIBLING still mirrors. an all-or-nothing
         // bail stranded the polyfill: the receiver fell back to raw `_globalThis` and the native read of
         // the polyfill-needing key threw / mis-valued on ie:11
-        const child = inner?.type === 'ObjectPattern'
-          ? mirrorPattern(inner, POSSIBLE_GLOBAL_OBJECTS.has(key) ? ctx : { kind: 'ctor', name: key })
-          : null;
+        if (inner?.type === 'ObjectPattern') {
+          const child = mirrorPattern(inner, POSSIBLE_GLOBAL_OBJECTS.has(key) ? ctx : { kind: 'ctor', name: key });
+          // a nested subtree the mirror cannot synthesize (rest / unresolvable / duplicate key) is a
+          // BAILED passthrough: its polyfillable leaves go to the leaf fallback, which needs the mirror
+          // NOT to fire - so an injecting-ctor-passthrough sibling must not keep the mirror alive here
+          entries.push({ key, child: child ?? { kind: 'passthrough', bailed: true } });
+        } else {
+          // a shorthand / renamed ctor key (`{ Set }`, `{ Set: S }`) renders as a passthrough, but a
+          // MISSING-ABLE ctor passthrough INJECTS the pure constructor (`Set` -> `_Set`) - mark it so the
+          // mirror owns the flat ctor rather than bailing to raw `_globalThis` and stranding it native
+          entries.push({ key, child: { kind: 'passthrough', injects: !!resolvePure({ kind: 'global', name: key }) } });
+        }
+      } else if (ctx.kind === 'static') {
+        // resolve this key through the static-object literal (`w.a` -> Array) via the shared static
+        // receiver walk: a proxy-global hop descends as proxy, a leaf constructor descends its statics,
+        // a deeper object hop keeps walking, anything unresolvable passes through to the native read
+        const resolved = walkStaticReceiverChain({
+          receiverNode: ctx.receiverNode, walkPath: [...ctx.walkPath, key], scope: leafPatternPath.scope, adapter, path: leafPatternPath,
+        });
+        const inner = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+        const childCtx = resolved
+          ? POSSIBLE_GLOBAL_OBJECTS.has(resolved) ? { kind: 'proxy' } : { kind: 'ctor', name: resolved }
+          : { kind: 'static', receiverNode: ctx.receiverNode, walkPath: [...ctx.walkPath, key] };
+        const child = inner?.type === 'ObjectPattern' ? mirrorPattern(inner, childCtx) : null;
         entries.push({ key, child: child ?? { kind: 'passthrough' } });
       } else {
         const pure = resolvePure({
@@ -1229,27 +1309,33 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     return entries.length ? { kind: 'object', entries } : null;
   }
 
-  const patternNode = walked.pattern;
-  // mirror EVERY reachable leaf that resolves (each leaf gets its own root context - a leaf
-  // that does not resolve stays verbatim, native semantics preserved on that path); replaced
-  // leaves must be effect-free themselves, everything kept stays UN-skipped in the emitters
-  // so its inner rewrites still compose (discard-rescue contract)
-  // patternNode is always the element's ObjectPattern (the array-wrapper descent above resolved it),
-  // so the receiver leaf is mirrored directly - a single-element array no longer needs a `kind:'array'`
-  // wrapper tree: the leaf is the element receiver itself, replaced in place inside the array
-  const targets = [];
-  for (const leaf of targetLeaves) {
-    if (!leaf || mayHaveSideEffects(leaf)) continue;
-    // a whole-collapse target is the full logical - its context is the LEFTMOST value leaf
-    let ctxNode = leaf;
-    while (ctxNode?.type === 'LogicalExpression') ctxNode = peelNestedSequenceExpressions(ctxNode.left).tail;
-    const tree = mirrorPattern(patternNode, rootContext(ctxNode));
-    // an ALL-passthrough tree (no polyfillable leaf) has nothing to inject - leave it native
-    if (tree && treeHasPolyfill(tree)) targets.push({
-      node: leaf, tree, needsParens: expressionBodyLeaves.has(leaf),
-      ...mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter),
-    });
+  // mirror EVERY reachable leaf that resolves (each leaf gets its own root context - a leaf that does
+  // not resolve stays verbatim, native semantics preserved on that path); replaced leaves must be
+  // effect-free themselves, everything kept stays UN-skipped in the emitters so its inner rewrites still
+  // compose (discard-rescue contract). patternNode is always the element's ObjectPattern (the array-
+  // wrapper descent above resolved it), so the receiver leaf is mirrored directly in place in the array
+  function buildMirrorTargets() {
+    const patternNode = walked.pattern;
+    const out = [];
+    for (const leaf of targetLeaves) {
+      if (!leaf || mayHaveSideEffects(leaf)) continue;
+      // a whole-collapse target is the full logical - its context is the LEFTMOST value leaf
+      let ctxNode = leaf;
+      while (ctxNode?.type === 'LogicalExpression') ctxNode = peelNestedSequenceExpressions(ctxNode.left).tail;
+      const tree = mirrorPattern(patternNode, rootContext(ctxNode));
+      // an ALL-passthrough tree (no polyfillable leaf) has nothing to inject - leave it native
+      if (!tree || !treeHasPolyfill(tree)) continue;
+      const descriptor = mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter);
+      // a passthrough leaf reads its key's live value off the receiver, so the render needs a NAMEABLE
+      // receiver (`receiverName.key`). a static-object receiver (`{ g: globalThis }`) has no single name,
+      // so a tree mixing a passthrough with polyfills there is un-renderable - bail to native instead of
+      // emitting `t.identifier(null)`. an all-polyfill static-object tree needs no receiver and still fires
+      if (!descriptor.receiverName && treeHasPassthrough(tree)) continue;
+      out.push({ node: leaf, tree, needsParens: expressionBodyLeaves.has(leaf), ...descriptor });
+    }
+    return out;
   }
+  const targets = buildMirrorTargets();
   if (!targets.length) {
     // un-mirrorable pattern (rest / side-effecting or unresolvable computed key / duplicate key):
     // BAIL to native when a reachable value
@@ -1312,10 +1398,34 @@ export function renderSynthTree(tree, constructors, keyPath = []) {
 
 // a synth tree worth emitting carries at least one polyfill leaf; an all-passthrough tree would just
 // re-read the receiver verbatim, so the caller leaves the destructure native instead of mirroring it
-export function treeHasPolyfill(tree) {
-  if (tree.kind === 'polyfill') return true;
-  if (tree.kind === 'object') return tree.entries.some(({ child }) => treeHasPolyfill(child));
+function treeInjectionMetrics(tree, m) {
+  switch (tree.kind) {
+    case 'polyfill': m.real = true; break;
+    case 'passthrough':
+      if (tree.injects) m.injecting = true;
+      if (tree.bailed) m.bailed = true;
+      break;
+    case 'object': for (const { child } of tree.entries) treeInjectionMetrics(child, m); break;
+    // no default
+  }
+  return m;
+}
+
+// a passthrough leaf (`Set` -> `_Set`, `Math.floor` native) reads its key off the receiver, so it can
+// only render against a NAMEABLE receiver - a static-object receiver can't supply one
+function treeHasPassthrough(tree) {
+  if (tree.kind === 'passthrough') return true;
+  if (tree.kind === 'object') return tree.entries.some(({ child }) => treeHasPassthrough(child));
   return false;
+}
+
+export function treeHasPolyfill(tree) {
+  const m = treeInjectionMetrics(tree, { real: false, injecting: false, bailed: false });
+  // a BAILED nested subtree (rest / unresolvable key) leaves its polyfillable leaves to the leaf
+  // fallback, which needs the mirror NOT to fire - so only a REAL nested polyfill keeps the mirror there
+  // (an injecting ctor passthrough alone would strand those leaves). otherwise the injecting ctor
+  // passthrough (`Set` -> `_Set`) is itself enough to keep the mirror and own the flat ctor
+  return m.bailed ? m.real : m.real || m.injecting;
 }
 
 // the receiver name + proxy flag back the passthrough rendering: a proxy reads through the injected
@@ -1397,31 +1507,51 @@ export function resolveBranchProxyName({ branchNode, scope, adapter, path }) {
   return name && POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null;
 }
 
-// do ALL reachable VALUE branches of a destructure receiver resolve to a global proxy? a non-proxy
-// value branch (a user-object ternary alternate / `||` operand) means a `= _polyfill` default could
-// fire on its legitimate `undefined`, so an un-mirrorable pattern must bail there instead. `&&`
-// yields its RIGHT (the left is a guard), `||` / `??` either operand, a chain assignment its RHS
-// value, a transparent IIFE its return; a leaf is a proxy when it is a bare global-object name or a
-// proxy-hop member chain ending in one (name-based, mirroring the flatten plan's rootContext)
-export function destructureValueBranchesAllProxy(node) {
-  const { tail } = peelNestedSequenceExpressions(node);
+// shared branch-walk: do ALL reachable VALUE branches of a destructure receiver satisfy `isLeaf`? a
+// single failing branch (a user-object ternary alternate / `||` operand) means a `= _polyfill` default
+// could fire on its legitimate `undefined`, so the caller must bail there. `&&` yields its RIGHT (left
+// is a guard), `||` / `??` either operand, a conditional both arms, a chain assignment its RHS value,
+// a transparent IIFE its return; parens / sequences are peeled (babel uses `extra.parenthesized` so
+// unwrapParens is a no-op there - it only makes the oxc ParenthesizedExpression node match babel)
+function allDestructureValueBranches(node, isLeaf) {
+  const { tail } = peelNestedSequenceExpressions(unwrapParens(node));
   if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
     const inlined = peelZeroArgIifeReturn(tail);
-    if (inlined) return destructureValueBranchesAllProxy(inlined);
+    if (inlined) return allDestructureValueBranches(inlined, isLeaf);
   }
-  if (isChainAssignment(tail)) return destructureValueBranchesAllProxy(tail.right);
+  if (isChainAssignment(tail)) return allDestructureValueBranches(tail.right, isLeaf);
   if (tail?.type === 'ConditionalExpression') {
-    return destructureValueBranchesAllProxy(tail.consequent) && destructureValueBranchesAllProxy(tail.alternate);
+    return allDestructureValueBranches(tail.consequent, isLeaf) && allDestructureValueBranches(tail.alternate, isLeaf);
   }
   if (tail?.type === 'LogicalExpression') {
     return tail.operator === '&&'
-      ? destructureValueBranchesAllProxy(tail.right)
-      : destructureValueBranchesAllProxy(tail.left) && destructureValueBranchesAllProxy(tail.right);
+      ? allDestructureValueBranches(tail.right, isLeaf)
+      : allDestructureValueBranches(tail.left, isLeaf) && allDestructureValueBranches(tail.right, isLeaf);
   }
+  return isLeaf(tail);
+}
+
+// a leaf is a PROXY when it is a bare global-object name or a proxy-hop member chain ending in one
+// (name-based, mirroring the flatten plan's rootContext)
+function isProxyGlobalLeaf(tail) {
   let n = tail;
   while ((n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') && !n.computed
     && n.property?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.property.name)) n = n.object;
   return n?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.name);
+}
+
+// do ALL reachable value branches resolve to a global proxy? a non-proxy branch means a `= _polyfill`
+// default could fire on its legitimate `undefined`, so an un-mirrorable pattern must bail there
+export function destructureValueBranchesAllProxy(node) {
+  return allDestructureValueBranches(node, isProxyGlobalLeaf);
+}
+
+// is an inner default's right a value-bearing RECEIVER (every branch a bare Identifier / member chain,
+// incl. logical / conditional fallbacks `= Array || Set`, `= c ? Array : Set`)? then THIS default is
+// the host (`{ from } = Array || Set` reads `from` off whichever arm fires when the slot is undefined),
+// not a transparent empty fallback (`{ from } = {}` - the real receiver lives further up the pattern)
+export function destructureRightIsReceiver(node) {
+  return allDestructureValueBranches(node, isReceiverShapedNode);
 }
 
 function computeNestedDestructureReceiver(outerProp, adapter) {
