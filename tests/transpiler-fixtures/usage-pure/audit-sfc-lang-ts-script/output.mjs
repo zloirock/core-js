@@ -1,9 +1,7 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-// SFC frameworks (Vue / Svelte / Astro) emit virtual module ids like
-// `Component.vue?vue&type=script&lang=ts` for the script block. Detection lifts
-// `lang=ts/tsx/jsx` from the original query and synthesizes a matching extension hint
-// so the parser enables the right mode. The post-strip id `Component.vue` would default
-// to plain JS, so the lang-suffix lift is what keeps TS syntax (`as` / type annotations)
-// parsing and the polyfill emit reaching usage detection
+// SFC frameworks (Vue / Svelte / Astro) emit virtual ids like
+// `Component.vue?vue&type=script&lang=ts`. the `lang=ts/tsx/jsx` query must be lifted into
+// an extension hint so the parser picks the right mode; the post-strip id `Component.vue`
+// would default to plain JS and break TS syntax (`as` / annotations), starving usage detection.
 const x = 1 as number;
 _flatMaybeArray(arr)?.call(arr);

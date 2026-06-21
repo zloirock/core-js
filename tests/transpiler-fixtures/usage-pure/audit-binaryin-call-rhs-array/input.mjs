@@ -1,9 +1,7 @@
-// receiver inlining for `key in CALL()` shapes. Recursive resolution covers:
-// (1) direct IIFE arrow / function-expression with single-return body
-// (2) identifier-bound arrow / function-expression called as `f()`
-// (3) const-binding whose init is itself a call expression of the above shapes
-// opaque callees (free Identifier `someFn`, params on the callee, multi-return blocks)
-// stay raw - inline result would be ambiguous
+// receiver inlining for `key in CALL()` covers: (1) direct IIFE arrow / function-expression
+// with a single-return body, (2) identifier-bound arrow / function-expression called as `f()`,
+// (3) const-binding whose init is itself one of those call shapes. opaque callees (free
+// Identifier, callee params, multi-return blocks) stay raw - inline result would be ambiguous
 
 'from' in someFn();
 const xs = Array.from(src);

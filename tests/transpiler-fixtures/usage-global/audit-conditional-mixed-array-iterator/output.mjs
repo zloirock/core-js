@@ -30,13 +30,11 @@ import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
-// usage-global: enumerateFallbackDestructureBranches walks both consequent and
-// alternate, calling buildDestructuringInitMeta per branch. shorthand `{from}`
-// dispatches Array.from polyfill from the Array branch AND Iterator.from polyfill
-// from the Iterator branch - both deps land at file level. distinct destructure
-// receivers per declaration line make per-branch import linkage explicit:
-// first declaration brings Array+Iterator from-deps, second declaration brings
-// Array.from + Set polyfills (Set has no static `from` but the constructor lands)
+// shorthand `{ from }` destructured from a conditional `cond ? Array : Iterator` must
+// resolve BOTH branches: Array.from from the Array branch AND Iterator.from from the
+// Iterator branch, both deps landing at file level. distinct receivers per line make
+// the per-branch linkage observable: first line brings Array + Iterator from-deps, second
+// brings Array.from + Set (Set has no static `from`, so its constructor lands instead).
 const {
   from
 } = cond ? Array : Iterator;

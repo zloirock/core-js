@@ -23,10 +23,8 @@ import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // usage-global per-branch fallback dispatch: ternary / logical-or in destructure-receiver
-// position. each branch's deps emit independently regardless of which branch the resolver
-// picked as primary. body stays unchanged - only file-level imports differ from the
-// no-fallback case
-//
+// position. each branch's deps emit independently regardless of which branch is primary;
+// body stays unchanged, only file-level imports differ from the no-fallback case.
 // declaration init: ternary, both viable
 const {
   from: a1
