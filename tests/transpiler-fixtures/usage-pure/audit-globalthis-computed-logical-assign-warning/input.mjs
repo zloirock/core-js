@@ -1,5 +1,5 @@
 // computed string-key LHS of logical-assign on proxy-global - same read-only binding
-// problem as dotted `globalThis.Map ||= ...`. `memberKeyName` resolves the key so the
-// gate fires and the warning surfaces with bracket notation matching the source form
+// problem as dotted `globalThis.Map ||= ...`. the bracket key resolves so the gate fires
+// and the warning surfaces with bracket notation matching the source form
 globalThis['Map'] ||= {};
 globalThis[`WeakMap`] ||= {};

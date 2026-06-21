@@ -1,10 +1,7 @@
-// Multi-hop and wrapper variations on optional-member predicate callees. complements the
-// single-hop fixture: tests walk through nested OptionalMemberExpression / MemberExpression
-// nodes plus entry peel of ChainExpression / TS expression wrappers. distinct methods per
-// branch (.repeat / .at / .padStart) pin emission to the narrow:
-//   isStr branch  -> string  -> es.string.repeat
-//   isArr branch  -> number[] -> es.array.at
-//   isStr-ts-cast -> string  -> es.string.pad-start
+// multi-hop and wrapper variations on optional-member predicate callees. resolution must walk
+// nested OptionalMemberExpression / MemberExpression and peel ChainExpression / TS wrappers.
+// distinct methods pin each narrow: isStr branch -> .repeat -> es.string.repeat; isArr branch
+// -> .at -> es.array.at; isStr-ts-cast -> .padStart -> es.string.pad-start.
 interface Predicates {
   isStr(x: unknown): x is string;
   isArr(x: unknown): x is number[];

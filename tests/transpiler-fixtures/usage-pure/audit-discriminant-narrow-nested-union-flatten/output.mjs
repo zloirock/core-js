@@ -1,9 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// nested-alias union: `type A = X | Y; type B = Z; type Outer = A | B | null`. tests
-// the recursive `flattenUnionBranches` walk: outer types = [A, B, null]; A flattens to
-// [X, Y], B stays Z, null excluded. final flat list [X, Y, Z] hits the discriminant
-// filter element-wise. without the recursive flatten only one level would expand, leaving
-// A-as-ref opaque to the filter.
+// nested-alias union: `type A = X | Y; type B = Z; type Outer = A | B | null`. the recursive
+// flatten walk turns outer [A, B, null] into [X, Y, Z] (A expands, B stays Z, null excluded), so
+// the discriminant filter sees each branch element-wise. without the recursion only one level
+// expands, leaving A-as-ref opaque to the filter.
 type X = {
   kind: 'a';
   data: string[];

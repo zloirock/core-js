@@ -1,7 +1,7 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // unlabeled `continue` inside a for loop is iteration-local, not a function-level exit
-// (analogous to the switch-break case). `subtreeContainsExit` sets `inLoopOrSwitch=true`
-// when descending into the for, then suppresses the unlabeled continue. the straight-line
+// (analogous to the switch-break case). the exit scan must treat descent into the for as
+// a loop boundary and suppress the unlabeled continue, so the straight-line
 // `x = "hello"` after the loop is still reachable
 let x = [1, 2, 3];
 let n = 3;

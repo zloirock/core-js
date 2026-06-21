@@ -1,10 +1,7 @@
-// `makeBox(...args)` with a generic `<T>(t: T)` signature: SpreadElement expands into
-// an unknown count of positional args at runtime, so positional param-to-arg mapping
-// is unsafe. `call-site subst inference` must bail on ANY SpreadElement in the call's args,
-// otherwise the T slot picks up the spread element's annotation (whatever it happens
-// to be) and substitutes onto the return shape, mis-narrowing downstream chains.
-// with the bail, T stays unsubstituted, return type sees the generic shape, and the
-// final `.at()` lookup routes through the generic instance polyfill
+// `makeBox(...args)` with a generic `<T>(t: T)` signature: a SpreadElement expands into
+// an unknown count of positional args, so param-to-arg subst must bail on ANY spread in
+// the call's args. otherwise the T slot picks up the spread's annotation and mis-narrows
+// the return shape. with the bail, `.at()` routes through the generic instance polyfill
 function makeBox<T>(t: T): { v: T } {
   return { v: t };
 }

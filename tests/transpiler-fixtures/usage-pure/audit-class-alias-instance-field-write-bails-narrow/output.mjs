@@ -1,10 +1,8 @@
 import _at from "@core-js/pure/actual/instance/at";
-// const D = C alias-instance: writes via `new D()` bound to `d` MUST count toward the
-// base class C's instance field-flow fold. without the alias-aware closure, `new D()`
-// did not match descendant.names = ['C'], the external `d.items = "string"` write was
-// dropped, and `this.items.at(0)` inside getFirst() narrowed to array-only - blowing up
-// at runtime on String. collectInstanceConstructorNames now unions class-binding-closure
-// names with descendant.names so alias-instance writes widen the fold to generic _at
+// const D = C alias-instance: writes via `new D()` bound to `d` MUST count toward base class
+// C's instance field-flow fold. without alias awareness, `new D()` was not recognized as a C
+// instance, the external `d.items = "string"` write dropped, and `this.items.at(0)` narrowed
+// to array-only - unsound on String. alias instances now widen the fold to the generic `_at`
 class C {
   items = [1, 2, 3];
   getFirst() {

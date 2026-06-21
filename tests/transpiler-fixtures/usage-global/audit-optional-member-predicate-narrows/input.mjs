@@ -1,10 +1,7 @@
-// User-defined type predicates invoked through an optional-call chain
-// (`obj?.isStr(input)`, `obj?.isArr(input)`) must still narrow the argument
-// inside the guarded branch. With `input: string | number[]`, the string branch
-// uses `.repeat(2)` and should emit only `es.string.repeat`; the array branch
-// uses `.at(-1)` and should emit only `es.array.at`. Distinct methods per branch
-// pin which guard succeeded. Same narrowing must hold whether the predicate is
-// invoked through `obj.isX(...)` or `obj?.isX(...)`.
+// user-defined type predicates invoked through an optional-call chain (`obj?.isStr(input)`,
+// `obj?.isArr(input)`) must still narrow the argument inside the guarded branch. with
+// `input: string | number[]`, the string branch's `.repeat(2)` emits only es.string.repeat
+// and the array branch's `.at(-1)` only es.array.at - same narrowing as the non-optional call.
 interface Predicates {
   isStr(x: unknown): x is string;
   isArr(x: unknown): x is number[];

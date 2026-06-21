@@ -1,11 +1,7 @@
-// `const fromMethod = (() => Array.from)()` - zero-arg arrow IIFE evaluates to its
-// expression body at runtime. the followable var-init returned the CallExpression as-is,
-// leaving `fromMethod`'s alias-walked identity opaque to alias-walked static-return
-// resolution and dropping the chain narrow. peel IIFE when the body is expression-only
-// and the callee is a zero-param arrow. parser-divergence: oxc preserves outer parens
-// around the IIFE callee (`CallExpression { callee: ParenthesizedExpression { ArrowFunction }}`)
-// while babel strips them - the peel uses runtime-transparent peel on the callee node
-// and walks the matching `.get('expression')` chain on the path side so both shapes
-// resolve identically and the chain narrow lands `_includesMaybeArray` on both parsers
+// `const fromMethod = (() => Array.from)()` - a zero-arg arrow IIFE evaluates to its
+// expression body, so the var-init must be peeled to that body or the alias-walked
+// static-return identity stays opaque and the chain narrow drops. parser-divergence: oxc
+// keeps the outer parens around the IIFE callee (CallExpression -> ParenthesizedExpression
+// -> ArrowFunction) while babel strips them; peeling both shapes lands `_includesMaybeArray`
 const fromMethod = (() => Array.from)();
 fromMethod([1, 2, 3]).includes(1);

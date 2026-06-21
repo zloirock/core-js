@@ -1,9 +1,7 @@
 // User-defined Thenable with property-form `then` member (`then: (cb) => ...`) rather
-// than method-form (`then(cb)`). both shapes are interchangeable in TS Thenable contract;
-// peelUserThenable used to accept only TSMethodSignature, missing TSPropertySignature
-// with a TSFunctionType value. interface and type-alias forms both produce
-// TSPropertySignature in their members. distinct methods (.at vs .repeat) per slot pin
-// emission to the awaited narrow: Array<number> -> es.array.at, string -> es.string.repeat
+// than method-form (`then(cb)`); both are interchangeable in the TS Thenable contract.
+// detection used to accept only TSMethodSignature, missing the TSPropertySignature with a
+// TSFunctionType value. distinct methods pin the narrow: Array -> es.array.at, string -> es.string.repeat
 interface IfaceThenable<T> {
   then: (cb: (v: T) => any) => IfaceThenable<T>;
 }

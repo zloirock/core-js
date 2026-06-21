@@ -1,9 +1,7 @@
-// 3-way cyclic alias: A -> B -> C -> A. exercises that the cycle protection in the
-// flattener works with longer cycles, not just direct 2-step (A=B; B=A) self-reference.
-// each alias resolves to the same UnionType identity through the chain; the visited set
-// catches the repeat at any level. C provides the only non-cyclic branch via D.
-// braced if-body so the emitted `var _ref;` lands in the same slot across babel and
-// unplugin runners (bodyless slot would force babel to hoist while unplugin block-wraps)
+// 3-way cyclic alias: A -> B -> C -> A. cycle protection in the flattener must hold for longer
+// cycles, not just a direct 2-step self-reference; each alias resolves to the same UnionType
+// identity through the chain, and the repeat is caught at any level. C provides the only
+// non-cyclic branch via D. braced if-body so `var _ref;` lands in the same slot across runners.
 type D = {
   kind: 'd';
   data: string[];

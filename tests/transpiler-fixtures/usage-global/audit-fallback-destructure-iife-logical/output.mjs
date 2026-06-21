@@ -22,11 +22,10 @@ import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // IIFE wrapping a LogicalExpression `&&` fallback shape: `(() => Array && Iterator)()`.
-// distinct branch shape from ConditionalExpression -- exercises
-// `resolveAndDestructureMeta` recursion after IIFE peel. `&&` is always conditional
-// (right taken only when left is truthy, else falsy left), so `fromFallback` always
-// fires when left/right resolve to different objects. both Array.from and Iterator.from
-// polyfills emitted via per-branch enumeration.
+// distinct branch shape from ConditionalExpression, resolved recursively after the IIFE
+// peels. `&&` is always conditional (right taken only when left is truthy, else falsy
+// left), so when the two sides resolve to different objects both must contribute: Array.from
+// and Iterator.from emitted via per-branch enumeration.
 const {
   from
 } = (() => Array && Iterator)();

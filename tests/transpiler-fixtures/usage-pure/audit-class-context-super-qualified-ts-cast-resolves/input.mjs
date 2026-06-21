@@ -1,7 +1,7 @@
-// qualified-segments branch of `extends (NS.Base as typeof NS.Base)` peels to
-// MemberExpression `NS.Base`. without using the peeled `resolved.node` in the
-// qualified-segments fallback, `collectQualifiedSegments(superClass.node)` walks into a
-// TSAsExpression that has no segment shape and returns null - parent resolution lost
+// `extends (NS.Base as typeof NS.Base)` must peel the TSAsExpression to the inner
+// MemberExpression `NS.Base` before collecting its qualified segments. dispatching on the
+// raw super node instead walks into a TSAsExpression that has no segment shape and yields
+// null, losing parent resolution and the super.m() string-return narrow
 declare namespace NS {
   class Base {
     m(): string;

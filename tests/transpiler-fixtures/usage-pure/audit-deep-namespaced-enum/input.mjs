@@ -1,6 +1,6 @@
-// Multi-level namespace: `namespace N { namespace M { enum E { A, B } } }`. Receiver
-// chain `N.M.E` walks 3 segments via `collectMemberSegments` then `findEnumDeclaration`
-// passes through nested TSModuleDeclaration anchors. Both shapes covered:
+// Multi-level namespace: `namespace N { namespace M { enum E { A, B } } }`. the receiver
+// chain `N.M.E` must walk its 3 segments through nested TSModuleDeclaration anchors to the
+// enum. Both shapes covered:
 //   - non-computed `N.M.E.A` -> number primitive (enum value-kind)
 //   - computed `N.M.E[N.M.E.A]` -> string (numeric reverse mapping)
 namespace N {
