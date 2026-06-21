@@ -1,11 +1,7 @@
-// two function params each carrying a polyfilled prop + rest sibling - both bail to
-// body-extract. before the fix, each visit anchored at the directive-anchor's `insertAfter`,
-// stacking subsequent extracts in REVERSE source order (`let keys` before `let from`).
-// fix chains each new insert off the previous one so emitted `let from` / `let keys` follow
-// source order, matching unplugin output byte-for-byte and the user's mental model
-// NOTE: these functions are EXPORTED - external callers are invisible, so the call-site scan
-// cannot prove the default always applies and the params stay VERBATIM; the body-extract
-// behavior is covered by the immediately-invoked twin fixture
+// two function params each carrying a polyfilled prop + rest sibling - both bail to body-extract.
+// the emitted `let from` / `let keys` must follow SOURCE order, not the reverse order a fixed
+// body-top anchor would stack them in, matching unplugin byte-for-byte. these functions are
+// EXPORTED so callers are invisible: params stay VERBATIM, body-extract proven by the iife twin.
 function run({
   from,
   ...rest1

@@ -1836,7 +1836,7 @@ export default function createDestructureEmitter({
   // an intact multi-decl; otherwise emit one statement per declarator. shared by
   // `spliceAndLiftSideEffect` (pre/post
   // halves around a lifted SE in DEFER_SE_AND_SPLICE) and
-  // `splitDeclarationAroundLiftedSE` (nested-proxy SE-prefix lift through a multi-decl)
+  // `splitDeclarationAtSlot` (nested-proxy SE-prefix lift through a multi-decl)
   // re-wrap a VariableDeclaration in ExportNamedDeclaration when the original host was
   // exported. used by `tryFlattenNestedProxyDestructure` to keep each cascaded extraction
   // re-exporting its binding (`export const from = _Array$from;` instead of dropping the
@@ -1857,7 +1857,7 @@ export default function createDestructureEmitter({
   }
 
   // move leading comments from `from` AST node onto `to` (clears them on the source).
-  // shared by cascade insert paths and `splitDeclarationAroundLiftedSE` so the relocated
+  // shared by cascade insert paths and `splitDeclarationAtSlot` so the relocated
   // first statement inherits the host's leading docblock
   function liftLeadingComments(from, to) {
     const lead = from.leadingComments;

@@ -1,9 +1,7 @@
-// Nested object-pattern with inner RestElement: `rest` is bound inside the outer
-// destructure (`{ x: {...rest} }`) and used as the argument to `Object.keys`. the
-// recursive nested-rest narrow resolves `rest` to a provably non-primitive object,
-// so the `arg-is-object` filter on `Object.keys` subsumes the polyfill (no
-// `_Object$keys` import). the chain hop into `Object.keys`'s string[] return type
-// still drives the `.at(0)` call to the Array-specific helper
+// Nested object-pattern with inner RestElement: `rest` is bound inside `{ x: {...rest} }`
+// and passed to `Object.keys`. the nested-rest narrow proves `rest` non-primitive, so the
+// arg-is-object filter subsumes the `Object.keys` polyfill (no `_Object$keys` import). the
+// chain hop into its string[] return still drives `.at(0)` to the Array-specific helper
 function pick({ x: { ...rest } }) {
   return Object.keys(rest).at(0);
 }
