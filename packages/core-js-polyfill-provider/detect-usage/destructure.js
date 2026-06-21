@@ -5,7 +5,7 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
-  collectBuriedChainSePrefixes,
+  collectFoldedReceiverSideEffects,
   staticStringKey,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
@@ -186,11 +186,15 @@ export function classifyCallBranchForSynth({ inner, scope, adapter, path }) {
   if (isCallShape(inner)) {
     return { callBranch: true, rescueSe: seBearingChainRootCall({ node: inner, scope, adapter, path }) };
   }
-  // a member receiver whose discarded chain hides observable setup: a SE prefix buried along the spine
-  // (`(eff(), globalThis).Array`), OR a SE-bearing call / chain-assignment at the chain ROOT
-  // (`mk().Array`, `IIFE().Array`, `(a = mk()).Array`) - `discardRescueNode` walks `.object` to find it
+  // a member receiver whose discarded chain hides observable setup: a buried SE anywhere along the
+  // spine OR in a computed key at ANY hop, including the receiver's OWN key (`(eff(), globalThis).Array`,
+  // `globalThis[(eff(), 'self')].Array`, `globalThis[(eff(), 'Array')]`), OR a SE-bearing call /
+  // chain-assignment at the chain ROOT (`mk().Array`, `IIFE().Array`, `(a = mk()).Array`). the whole
+  // receiver VALUE is replaced by the synth literal here, so every computed key's effect is discarded -
+  // `collectFoldedReceiverSideEffects` descends the entire receiver (the spine-only prefix walk on
+  // `.object` missed computed keys, dropping the effect from the param-default synth)
   if ((inner?.type === 'MemberExpression' || inner?.type === 'OptionalMemberExpression')
-    && (collectBuriedChainSePrefixes(inner.object).length
+    && (collectFoldedReceiverSideEffects(inner).length
       || discardRescueNode({ node: inner, scope, adapter, path }))) {
     return { callBranch: true, rescueSe: inner };
   }
@@ -847,8 +851,7 @@ function peelDestructureWrappers(pattern) {
       // carries a receiver, its right side IS one - stop here so `destructureReceiverSlot`
       // picks the 'right' slot (peeling through it landed on the param slot and dropped
       // the usage-global injection)
-      const grandType = parent.parentPath?.node?.type;
-      if (grandType !== 'ArrayPattern' && grandType !== 'Property' && grandType !== 'ObjectProperty') break;
+      if (!isInnerDestructureDefault(parent)) break;
     } else if (!isTransparentDestructureWrapper(parent.node, prev)) break;
     prev = parent.node;
     parent = parent.parentPath;
@@ -856,10 +859,23 @@ function peelDestructureWrappers(pattern) {
   return { parent, indices };
 }
 
+// an AssignmentPattern wrapping a destructure target is a TRANSPARENT inner default when nested in
+// another pattern AND its right side is an empty fallback (`{x} = {}`, `[{x}={}] = R`) - the real
+// receiver lives further up. but a receiver-shaped right (`[{x} = Array]`, `{a: {x} = globalThis.X}`)
+// makes THIS the value-bearing host, even nested: nothing else supplies `x`'s receiver when the
+// outer slot is undefined. a param/declarator default (`function f({x} = R)`, grandparent is a
+// function/declarator, not a pattern) is likewise the host. shared so the wrapper-peel and the host
+// walk treat inner defaults identically
+export function isInnerDestructureDefault(assignmentPatternPath) {
+  const grandType = assignmentPatternPath?.parentPath?.node?.type;
+  if (grandType !== 'ArrayPattern' && grandType !== 'Property' && grandType !== 'ObjectProperty') return false;
+  return !isReceiverShapedNode(assignmentPatternPath.node.right);
+}
+
 // ascend a nested destructure leaf to its OUTERMOST object-pattern + the value-bearing host, peeling
-// object-property nesting AND ArrayPattern wrappers (collecting array indices outermost-first so an
-// init descent picks the matching slot). returns { pattern, indices, host } or null. one source for
-// the SE-key gate's receiver check and the mirror's array-wrapper descent
+// object-property nesting, ArrayPattern wrappers (collecting array indices outermost-first so an init
+// descent picks the matching slot) AND transparent inner defaults. returns { pattern, indices, host }
+// or null. one source for the SE-key gate's receiver check and the mirror's array-wrapper descent
 function destructureHostThroughWrappers(leafPattern) {
   let cursor = leafPattern;
   let objectPattern = leafPattern;
@@ -876,6 +892,11 @@ function destructureHostThroughWrappers(leafPattern) {
       const idx = owner.node.elements.indexOf(cursor.node);
       if (idx === -1) return null;
       indices.unshift(idx);
+      cursor = owner;
+      continue;
+    }
+    // a transparent inner default is see-through; a param/declarator default stops here as the host
+    if (ownerType === 'AssignmentPattern' && owner.node.left === cursor.node && isInnerDestructureDefault(owner)) {
       cursor = owner;
       continue;
     }
@@ -1061,7 +1082,12 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     const parent = cur.parentPath;
     if (!parent?.node) return null;
     const parentType = parent.node.type;
-    if (parentType === 'AssignmentPattern' && parent.node.left === cur.node && cur !== leafPatternPath) {
+    // a transparent inner default (`[{ Array: { of } } = {}] = [globalThis]`) is see-through - fall
+    // through (keep walking) to the value-bearing host above it (the param default), so the WHOLE
+    // receiver is replaced by the mirror (`[{ Array: { of: _Array$of } }]`) instead of leaving the proxy
+    // receiver with a leaf inline default (which over-applies the polyfill and TypeErrors an empty arg)
+    if (parentType === 'AssignmentPattern' && parent.node.left === cur.node && cur !== leafPatternPath
+      && !isInnerDestructureDefault(parent)) {
       if (!FUNCTION_LIKE_NODE_TYPES.has(parent.parentPath?.node?.type)) return null;
       host = parent;
       slot = 'right';
