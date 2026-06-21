@@ -1,12 +1,7 @@
-// `extends` against a computed proxy-global key (`globalThis['Array']`) and a TS-cast
-// expression (`(globalThis as any).Array`) both converge on the same global constructor.
-// resolveGlobalName by itself bails on `node.computed`; `resolveSuperGlobalName` peels TS
-// expression wrappers and accepts computed string-literal keys, then delegates to
-// `globalProxyMemberName` which consults the injector's polyfill-hint side-channel to map
-// the post-rewrite alias `_globalThis` back to `'globalThis'`. without this, `c.at(0)` /
-// `d.includes('x')` fell through to the generic helper even though both receivers are
-// statically Array subclass instances (parity with `class C extends Array {}` which
-// already narrows to the array-specific variant)
+// `extends globalThis['Array']` (computed key) and `extends (globalThis as any).Array`
+// (TS-cast) both resolve to the global Array: super-global resolution must peel TS wrappers,
+// accept computed string-literal keys, and map the alias `_globalThis` back to `'globalThis'`,
+// else `c.at(0)` / `d.includes('x')` lose the Array-subclass narrow (parity with `extends Array`)
 class Computed extends globalThis['Array']<string[]> {}
 class Cast extends (globalThis as any).Array<string[]> {}
 const c = new Computed();

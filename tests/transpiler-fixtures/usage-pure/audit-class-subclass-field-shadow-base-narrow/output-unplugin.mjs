@@ -1,12 +1,10 @@
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 var _ref, _ref2;
-// subclass declares same-named field as base, shadowing base's annotation. polyfill
-// dispatch on subclass instance must read SUBCLASS's annotation, not base's. base has
-// `bag: number[]` (Array), subclass has `bag: { length: number }` (no array shape).
-// `s.bag.at(0)` and `s.bag.includes(1)` should bail to GENERIC `_at` / `_includes`,
-// not narrow `_atMaybeArray` / `_includesMaybeArray` - subclass's plain-Object annotation
-// has no array hint
+// a subclass redeclares a same-named field, shadowing base's annotation. dispatch on a
+// subclass instance must read the SUBCLASS annotation, not base's: base is `bag: number[]`
+// but subclass is `bag: { length: number }` (no array shape). so `s.bag.at(0)` /
+// `s.bag.includes(1)` bail to GENERIC `_at` / `_includes`, not the `MaybeArray` variants
 class Base {
   bag: number[] = [];
 }
