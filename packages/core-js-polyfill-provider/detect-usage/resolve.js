@@ -430,7 +430,7 @@ export function patternBindingName(node) {
 // returns true when the root is a proxy global and every intermediate link is also one.
 // IIFE-at-root (`(() => globalThis).Array.from(x)`) is inlined via `inlineCallReturnExpression`
 // so the chain bottoms out on the proxy-global identifier inside the IIFE body. caller is
-// responsible for marking the inner proxy-global identifier (`markReceiverChainHandled`) so
+// responsible for marking the inner proxy-global identifier (`markSubsumedProxyChain`) so
 // unplugin's text-emit doesn't queue a parallel `globalThis -> _globalThis` rewrite that
 // would overlap the outer polyfill replacement
 function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {

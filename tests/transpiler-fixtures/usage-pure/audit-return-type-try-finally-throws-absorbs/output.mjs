@@ -1,14 +1,10 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 var _ref;
-// finalizer that unconditionally throws absorbs try/catch returns: the try's
-// `return [1,2,3]` is shadowed by the throw - caller never observes the array.
-// `nodeAlwaysExits(finalizer)` covers throw/break/continue too, not just return,
-// so this counts as an unconditional override even though `finalizerReturns` is
-// empty. fn body fold therefore yields zero returns - falls back to the implicit
-// `$Primitive('undefined')`. with the second-branch `return 'fallback'` as the
-// other path's source, the merged type is string; without the override gate, the
-// resolver would have merged Array from try + string from the second return,
-// produced a disagreement, and bailed entirely
+// a finalizer that unconditionally throws absorbs try/catch returns: the try's
+// `return [1,2,3]` is shadowed by the throw and never observed. always-exits covers
+// throw/break/continue too, so this is an unconditional override despite no finalizer
+// return; the try branch contributes nothing and `return 'fallback'` types the fn as
+// string. without the gate the resolver merges Array + string, disagrees, and bails.
 declare const cond: boolean;
 function probe() {
   if (cond) {

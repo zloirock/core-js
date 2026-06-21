@@ -1,9 +1,8 @@
 // prototype (instance-property) mutations: the mutated key's INSTANCE entry is imported up
-// front, so core-js initializes from the pristine prototype and caches its own
-// implementation BEFORE the patch statement runs - dispatch helpers keep serving the
-// core-js polyfill in this and every other file of the bundle. the receiver routes through
-// the ordinary identifier machinery (`_Map.prototype.x` - runtime-safe on missing globals);
-// keys without a pure instance entry (iterator helpers, custom keys) just route
+// front, so core-js caches its own implementation from the pristine prototype BEFORE the
+// patch statement runs and keeps serving the polyfill across the bundle. the receiver routes
+// through the ordinary identifier machinery (runtime-safe on missing globals); keys with no
+// pure instance entry (iterator helpers, custom keys) just route through unchanged
 Iterator.prototype.customDrop = patch1;
 Map.prototype.getOrUpsert ||= patch2;
 export const m = new Map();

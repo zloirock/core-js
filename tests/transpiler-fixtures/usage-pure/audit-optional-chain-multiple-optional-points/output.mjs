@@ -1,9 +1,9 @@
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 var _ref, _ref2;
-// chain with TWO optional links: `arr?.b?.c.d.includes(2)`. `extractCheck`'s descent
-// stops at the FIRST optional link from the outer side (chainStart = `arr?.b`); the
-// inner `?.c` is the chain's continuation point. native short-circuits when EITHER
-// arr or arr.b is null - both null-check guards must be preserved through deoptionalization
+// chain with TWO optional links: `arr?.b?.c.d.includes(2)`. the chain-start descent stops at
+// the FIRST optional link from the outer side (`arr?.b`); the inner `?.c` is the continuation
+// point. native short-circuits when EITHER arr or arr.b is null - both null-check guards
+// must be preserved through deoptionalization.
 declare const arr: {
   b?: {
     c?: {

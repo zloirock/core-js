@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// The body-extracted polyfill binding (`at`) sits in the MIDDLE property, flanked by sibling receiver values
-// that carry side effects (`a: [x()]` before, `c: [z()]` after). the middle value is a CONSTANT array literal,
-// so the body-extract fires and memoizes it into a single `_ref` (re-emitting it would duplicate the whole
-// literal beside the surviving residual). the residual keeps the real sibling bindings `a` / `c`, so it is
-// NOT eliminated. order is preserved: `_ref` holds a side-effect-free constant (hoisting it can't reorder),
-// and the residual still runs `x()` then `z()` in source order
+// The body-extracted polyfill binding (`at`) sits in the MIDDLE property, flanked by sibling
+// receiver values carrying side effects (`a: [x()]` before, `c: [z()]` after). its value is a
+// CONSTANT array literal, so it memoizes into a single `_ref` and the residual keeps the real
+// `a` / `c` bindings. order holds: the hoisted constant can't reorder, residual runs `x()` then `z()`
 function x() {
   return 1;
 }

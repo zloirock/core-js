@@ -1,9 +1,7 @@
-// Object-literal property key shares a name with a closure binding. estree-toolkit's
-// Identifier visitor walks property keys; without `isNonReferencePosition` filtering, the
-// key `c` would register as a reference to the closure binding `c`, classify as 'extraction'
-// in classifyClosureRef, and trigger `'leak'` in defaultAliasRefClassifier. The closure
-// then bails to null and the narrow disables. with the filter, property-key occurrences
-// stay invisible to the binding-ref index and the closure scan completes cleanly
+// an object-literal property key shares a name with a closure binding `c`. the Identifier
+// visitor walks property keys, so without filtering non-reference positions the key `c`
+// registers as a reference to the binding, reads as a leak, and the closure bails to null,
+// disabling the narrow. filtering keeps property keys invisible to the binding-ref index
 class C {
   items = [1, 2, 3];
   getFirst() { return this.items.at(0); }

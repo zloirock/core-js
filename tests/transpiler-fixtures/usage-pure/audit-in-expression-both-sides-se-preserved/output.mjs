@@ -1,7 +1,5 @@
-// `(bar(), 'from') in (x = Array)` exercises BOTH sides of the SE rescue:
-// LHS - SequenceExpression prefix `bar()` must execute
-// RHS - AssignmentExpression `x = Array` must execute (both the assignment side-effect
-// AND the binding update). resolveObjectName peels chain-assignment to bottom out on
-// Array, so meta.object resolves; then handleInExpression wraps both rescues into a
-// single sequence prefix before the constant `true`.
+// `(bar(), 'from') in (x = Array)` exercises BOTH sides of the SE rescue. the LHS
+// SequenceExpression prefix `bar()` and the RHS `x = Array` (assignment side-effect AND
+// binding update) must both execute. the receiver peels through the chain-assignment to
+// bottom out on Array, and both rescues fold into one sequence prefix before constant `true`.
 bar(), x = Array, true;

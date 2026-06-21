@@ -1,9 +1,8 @@
-// 4-hop chain with side-effect at the deepest level. outer3() -> outer2() -> outer1() ->
-// inner() where ONLY inner has the prefix statement. recursive descent in
-// `inlineCallHasObservableEffects` propagates effect detection up through ALL hops to the
-// outermost call site, so SE-wrap on outer3() preserves the deepest inc++ at runtime.
-// Promise.reject is a dedicated static polyfill (`promise/reject`), so emit goes through
-// `_Promise$reject` static dispatch where SE-wrap is observable in the output
+// 4-hop chain with the side effect at the deepest level: outer3() -> outer2() -> outer1() ->
+// inner(), where ONLY inner has the prefix statement. effect detection must propagate up
+// through ALL hops to the outermost call site so SE-wrap on outer3() preserves the deepest
+// inc++ at runtime. Promise.reject is a dedicated static polyfill, so emit goes through
+// `_Promise$reject` static dispatch where the SE-wrap is observable in the output
 let inc = 0;
 const inner = () => { inc++; return Promise; };
 const outer1 = () => inner();

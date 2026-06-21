@@ -1,9 +1,8 @@
-// outer scope has a pure-import `MyPromise` registered with the injector under hint='Promise'.
-// inner function declaration shadows it - `MyPromise` inside `inner` is the user's function,
-// NOT the polyfilled Promise. `super.try` on `class C extends MyPromise` must NOT route
-// through the global Promise polyfill: the adapter's `getBinding` would otherwise carry
-// `polyfillHint='Promise'` on the shadowing binding, and `binding-to-global lookup` would
-// dispatch the polyfill against the user's local function (silently miswiring user code)
+// outer scope imports `MyPromise` registered with the injector under the Promise hint.
+// an inner function declaration shadows it, so `MyPromise` inside `inner` is the user's
+// function, NOT the polyfilled Promise. `super.try` on `class C extends MyPromise` must
+// NOT route through the global Promise polyfill - the shadowing binding must not inherit
+// the Promise hint, else the polyfill dispatches against the user's local fn.
 import MyPromise from '@core-js/pure/actual/promise';
 function inner() {
   function MyPromise() {

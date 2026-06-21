@@ -1,9 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// `import IE = NS` - TSImportEqualsDeclaration namespace alias. walkStatementsForDecl
-// previously didn't recognise the form, so `IE.Foo` lookup failed and the type was
-// unresolvable. added a branch that collects the moduleReference's segments and re-walks
-// with [...refSegments, ...rest] - external `import X = require('m')` form bails via
-// `collectQualifiedSegments` rejecting TSExternalModuleReference (non-Identifier slot)
+// `import IE = NS` - TSImportEqualsDeclaration namespace alias. type resolution must
+// recognise the form, collect the moduleReference's segments, and re-walk through the
+// aliased namespace so `IE.Items` resolves. The external `import X = require('m')` form
+// bails: its TSExternalModuleReference is not an Identifier-qualified-name chain.
 namespace NS {
   export type Items = string[];
 }

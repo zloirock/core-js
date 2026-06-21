@@ -50,7 +50,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // resolve the expression's Type object - no-op when the factory was constructed without
   // typeResolvers (tooling that uses this module for raw AST rewrite only). `null` on
   // unresolvable types, cheaper on repeat calls thanks to resolveCache. Type cached in
-  // the typeResolvers' WeakMap (via `cacheResolvedType`) - canonical constructor form is
+  // the typeResolvers' WeakMap (via `resolvedType.set`) - canonical constructor form is
   // preserved for downstream `KNOWN_*_RETURN_TYPES` lookups, no AST-property pollution
   function pathType(p) {
     return resolveNodeType ? resolveNodeType(p) : null;

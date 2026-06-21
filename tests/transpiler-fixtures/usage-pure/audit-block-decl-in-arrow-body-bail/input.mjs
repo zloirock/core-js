@@ -1,7 +1,7 @@
-// arrow IIFE with VariableDeclaration / FunctionDeclaration / ClassDeclaration in body:
-// `singleReturnBodyExpression` bails because LOCAL_BINDING_DECL_TYPES would shadow free
-// identifiers in the return at body scope. caller resolves the return at CALLER's scope,
-// so a body `const Map = WeakMap; return Map` would mis-resolve as global Map.
+// arrow IIFE with a VariableDeclaration / FunctionDeclaration / ClassDeclaration in the body:
+// return-expression inlining bails because such a local binding would shadow free identifiers
+// in the return at body scope. the caller resolves the return at CALLER scope, so a body
+// `const Map = WeakMap; return Map` must not mis-resolve as the global Map.
 const a = (() => {
   const Map = WeakMap;
   return Map;

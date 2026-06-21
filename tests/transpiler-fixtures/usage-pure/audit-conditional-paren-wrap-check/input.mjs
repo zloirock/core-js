@@ -1,9 +1,7 @@
-// `(K) extends ('a') ? Method : Property` in `as`-rename mapped clause - oxc preserves
-// outer TSParenthesizedType on both checkType and extendsType slots. without peel, the
-// conditional walker bails through the leading typeReference check (K wrapped in
-// TSParenthesizedType is not a bare TSTypeReference), dropping every key from the
-// mapped expansion. parallel coverage to direct `K extends 'a' ? ...` so future drift
-// in oxc's createParenthesizedTypes default doesn't silently regress the rename pipeline
+// `(K) extends ('a') ? Method : Property` in an `as`-rename mapped clause - oxc keeps the
+// outer TSParenthesizedType on both the checkType and extendsType slots. without peeling, the
+// leading TSTypeReference check fails (wrapped K is not bare) and the conditional bails,
+// dropping every key. parallel to direct `K extends 'a' ? ...` so paren-preservation can't regress.
 type Pick<T, U extends T> = U;
 type Wrapped<T> = { [K in keyof T as (K) extends ('a') ? K : never]: T[K] };
 declare const w: Wrapped<{ a: string; b: number }>;
