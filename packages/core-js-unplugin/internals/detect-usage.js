@@ -1,6 +1,7 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
 import {
   buildDestructuringInitMeta,
+  isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -723,7 +724,10 @@ export function createUsageVisitors({
         // synth-swap emit path, which already peels via the same helper. genuinely non-Identifier
         // shapes (`(...)(globalThis.X)`, `(...)(call())`) stay un-classifiable, so wrapper-default
         // keeps the static context and the runtime fallback (`= Array` on undefined arg) carries it
-        if (isFunctionParamDestructureParent(objectPattern)) {
+        // only when THIS AssignmentPattern is the direct param default (`function f({from} = R)`); an
+        // inner default (`f([{from}={}] = [R])`) carries `{}` in `.right`, not the receiver - it falls
+        // through to the array/property inner-default cases below, which peel it to the real host
+        if (isFunctionParamDestructureParent(objectPattern) && !isInnerDestructureDefault(parent)) {
           const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
           initNode = isClassifiableReceiverArg(argNode, scope, adapter) ? argNode : parent.node.right;
           break;

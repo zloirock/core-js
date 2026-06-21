@@ -1665,9 +1665,14 @@ export default function createDestructureEmitter({
       }
     }
 
-    // residual destructure keeps the receiver (a surviving sibling or ...rest reads off it) -
-    // collapse a proxy-global member chain so the retained init / right is runtime-safe
-    if (hasRest || !isEmpty) {
+    // a retained receiver keeps a proxy-global member chain live - collapse the intermediate hop so it
+    // is runtime-safe (`_globalThis.self.Array` reads an undefined hop off-browser). retained when a
+    // surviving sibling / ...rest reads the value OR when an emptied pattern still lifts the init as a
+    // statement for its side effect - the bare receiver evaluates there too, so it must not be gated on
+    // value-consumption alone
+    const retainedInit = parent.isVariableDeclarator() ? parent.node.init
+      : parent.isAssignmentExpression() ? parent.node.right : null;
+    if (hasRest || !isEmpty || (retainedInit && mayHaveSideEffects(retainedInit))) {
       if (parent.isVariableDeclarator()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'init', aliasCtxFromPath(parent));
       else if (parent.isAssignmentExpression()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'right', aliasCtxFromPath(parent));
     }

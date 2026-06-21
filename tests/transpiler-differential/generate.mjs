@@ -204,6 +204,33 @@ function * generateProxyGlobalSEReceiver() {
   }
 }
 
+// --- Single-key synth-swap param-default with a sequence-prefixed / fallback-logical MEMBER receiver ---
+// a single-key synth-swap param-default whose receiver is a proxy-global member behind a sequence prefix
+// (`(pre, globalThis.Array)`) or a fallback-logical (`(pre, globalThis.Array) || Set`). the synth literal
+// SUPPLANTS the receiver value, so the WHOLE left operand must be skip-marked: a spine/tail-only skip
+// leaves the prefix's DROPPED globals visible, orphaning a `globalThis -> _globalThis` rewrite into the
+// dead span (an unplugin text-composition crash that aborts the file) or leaking a dead import. only a
+// REAL harvested SE prefix (`log.push`) survives ahead of the literal; a pure prefix is dropped whole.
+// runs in Node (no `.self`); full-env (the param-default synth-swap is not stripped). `of` -> Array.of
+const SSR_PREFIXES = [
+  { id: 'pure', pre: 'globalThis.notThere' },
+  { id: 'se', pre: 'log.push("r")' },
+];
+const SSR_RECVS = [
+  { id: 'member', wrap: s => s },
+  { id: 'logical', wrap: s => `${ s } || Set` },
+];
+
+function * generateSynthSwapSeqReceiver() {
+  for (const pre of SSR_PREFIXES) {
+    for (const recv of SSR_RECVS) {
+      const name = `synth-swap-seq-receiver/${ pre.id }/${ recv.id }`;
+      const body = `(() => { function g({ of } = ${ recv.wrap(`(${ pre.pre }, globalThis.Array)`) }) { return typeof of; } return g(); })()`;
+      yield { ...snippet(name, body), strip: false };
+    }
+  }
+}
+
 // --- Receiver-copy global substitution across receiver NODE shapes ---
 // a sole nested-instance binding (`const { y: { at: m } } = { y: [<recv>] }`) INLINES the receiver text
 // into the instance polyfill's argument (`_at([<recv>])`); every global nested in that copy must be
@@ -1740,6 +1767,7 @@ export function * generate() {
   yield * generateDestructure();
   yield * generateDestructureAlias();
   yield * generateProxyGlobalSEReceiver();
+  yield * generateSynthSwapSeqReceiver();
   yield * generateReceiverCopyShape();
   yield * generateFullConsumeSeRescue();
   yield * generateConditionalMirror();
