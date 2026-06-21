@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// declaration-merged Thenable: `class Foo {}` + `interface Foo { then(...) }`.
-// findClassPathForTypeReference returns the class, but findClassMember walks only the
-// class body + superClass chain - merged interface members invisible. peelUserThenable
-// previously bail'ed at `if (!found) return null;` without falling through to the
-// interface-path. with the fall-through fix the structural Thenable peel proceeds via
-// getTypeMembers which DOES include merged-iface members; narrow lands on string[]
+// declaration-merged Thenable: `class Foo {}` + `interface Foo { then(...) }`. resolving the
+// reference finds the class, but a class-body + superClass walk cannot see the merged interface
+// members, so the `then` lookup misses. the structural Thenable peel must fall through to the
+// interface path (which includes merged-iface members) instead of bailing, landing on string[]
 class Foo<T> {}
 interface Foo<T> {
   then(_cb: (v: T) => any, _e?: any): Foo<T>;

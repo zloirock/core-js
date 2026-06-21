@@ -690,7 +690,7 @@ export default function plugin(api, options) {
         // orphan guard mirrors `shouldSkipPath`'s `isOrphaned` check used by the
         // usage-* visitors, applied here so entry-global has equivalent staleness handling
         if (isOrphaned(path)) return;
-        // `createEntryVisitors` hands us every specifier-less import; mark only actual
+        // the entry-global pass hands us every specifier-less import; mark only actual
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
         entryModulesInjected += injectModulesForEntry(entry);

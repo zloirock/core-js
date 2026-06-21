@@ -1,9 +1,7 @@
-// catch destructure body-usage check: a property name in member access matches the binding
-// name lexically but is not a runtime reference (`Math.includes` reads the property `includes`
-// off `Math`, doesn't bind to the catch's `includes`). The non-reference-position filter rejects
-// member-tail identifiers, so the catch transform doesn't fire on a phantom binding ref. the
-// `Math.includes` access itself injects nothing: includes is an `Array`/`String.prototype` method,
-// absent on the `Math` namespace, so the receiver-type gate bails it
+// catch destructure body-usage check: `Math.includes` reads the property `includes` off `Math`,
+// matching the catch binding name lexically but not binding to it, so the member-tail identifier
+// is not a real reference and the catch transform stays inert. the access injects nothing either:
+// includes is an `Array`/`String.prototype` method absent on `Math`, so the receiver-type gate bails
 try {
   risky();
 } catch ({

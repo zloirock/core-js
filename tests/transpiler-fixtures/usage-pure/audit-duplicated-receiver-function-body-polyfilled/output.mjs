@@ -5,10 +5,9 @@ import _Map from "@core-js/pure/actual/map/constructor";
 const a = _atMaybeArray([() => _Map]);
 // DUPLICATED receiver path (the residual SURVIVES): a multi-binding destructure extracts a nested
 // instance method while a sibling binding keeps the residual alive, so the receiver is BOTH copied into
-// the extraction AND kept in place. the receiver carries a FUNCTION value whose body references a
-// polyfillable global / makes an instance call - those must substitute in the copy AND the residual
-// (visitor-driven, scope-aware), like babel's clone+re-traverse, not left raw as a global-only walk would.
-// distinct multi-type instance methods per line so each copy is attributable.
+// the extraction AND kept in place. the receiver's FUNCTION value references a polyfillable global /
+// instance call that must be rewritten in the copy AND the residual (scope-aware, like clone+re-traverse,
+// not a raw global-only walk). distinct multi-type instance methods per line so each copy is attributable.
 const {
   y: {
     at: _unused

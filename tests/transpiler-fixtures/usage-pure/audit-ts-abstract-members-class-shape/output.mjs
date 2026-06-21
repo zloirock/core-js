@@ -1,12 +1,11 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// abstract method / abstract property / abstract accessor are oxc-only node types
+// abstract method / property / accessor are oxc-only node types
 // (`TSAbstractMethodDefinition`, `TSAbstractPropertyDefinition`, `TSAbstractAccessorProperty`)
-// that translate to babel's `ClassMethod` / `ClassProperty` / `ClassAccessorProperty` via
-// `nodeType`. without the translation, class-member shape walks would treat abstract slots
-// as unknown nodes - subclass concrete bodies referencing globals (`Array.from`, `Array.of`,
-// `Array.isArray`) still emit polyfill imports, but member-shape indexing of the abstract
-// names breaks. fixture exercises all three abstract member kinds inside one class
+// that must map to babel's `ClassMethod` / `ClassProperty` / `ClassAccessorProperty` so
+// class-member shape walks index them - otherwise the abstract slots read as unknown nodes.
+// subclass bodies referencing globals (`Array.from`, `Array.of`, `Array.isArray`) still emit
+// polyfill imports; fixture exercises all three abstract member kinds inside one class
 abstract class Container<T> {
   abstract from(x: T[]): Container<T>;
   abstract size: number;

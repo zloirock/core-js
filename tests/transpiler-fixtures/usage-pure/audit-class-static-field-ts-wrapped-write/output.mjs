@@ -1,11 +1,8 @@
 import _at from "@core-js/pure/actual/instance/at";
-// `(C as any).items = "stringified"` - TS-wrapped receiver on a static-field external write.
-// the closure-build walker peels TS expression wrappers around each ref so `(C as any).items`
-// sees its OUTER context (MemberExpression{object: TSAsExpression}) as the semantic parent
-// and `isMemberRefReceiver` returns trivial instead of leak. pushIfWriteMatches +
-// isReceiverInClosure mirror the peel on the write side. without both peels, the closure
-// either bails entirely (build-time leak misclassify) or fails to match the receiver
-// (write-time identity check), leaving narrow on Array and emitting `_atMaybeArray` unsoundly
+// `(C as any).items = "stringified"` - a TS-wrapped receiver on a static-field external
+// write. both the closure build AND the write-match must peel the TS wrappers so the ref's
+// real parent is the outer MemberExpression{object: TSAsExpression}, not a leak. without both
+// peels the closure bails or the receiver match fails, emitting `_atMaybeArray` unsoundly
 class C {
   static items = [1, 2, 3];
   static getFirst() {

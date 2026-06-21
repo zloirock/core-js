@@ -6,12 +6,11 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-// shim classes with their own routing rules:
-// - a PROTOTYPE shim is invisible to the static mutation model - instance dispatch keeps the
-//   runtime-guarded polyfill helper (long-standing pure instance semantics)
-// - a WHOLE-CONSTRUCTOR replacement through the global object patches the real global slot,
-//   while constructor and static reads keep the ponyfill - the shim becomes dead code and
-//   core-js serves the calls
+// third-party shim writes with distinct routing:
+// - a PROTOTYPE shim is invisible to the static mutation model; instance dispatch keeps the
+//   runtime-guarded polyfill helper
+// - a WHOLE-CONSTRUCTOR replacement via the global object patches the real slot, yet ctor and
+//   static reads keep the ponyfill - the shim is dead code, core-js serves the calls
 // - a CUSTOM-key shim routes like any mutation: write, read and cleanup share one object
 String.prototype.padStart = shimPadStart;
 export const r1 = _padStartMaybeString(s).call(s, 3, '0');

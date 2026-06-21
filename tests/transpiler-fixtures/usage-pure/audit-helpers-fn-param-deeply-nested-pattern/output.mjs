@@ -1,11 +1,9 @@
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
-// isFunctionParamDestructureParent walks AssignmentPattern / ArrayPattern / RestElement /
-// ObjectProperty wrappers to a function-like owner. test deeply-nested combinations:
+// the destructure-param walk must reach a function-like owner through deeply-nested
+// AssignmentPattern / ArrayPattern / RestElement / ObjectProperty wrappers:
 // (1) ArrayPattern > ObjectProperty > ObjectPattern > AssignmentPattern > ObjectPattern
-// (2) RestElement > ObjectPattern > AssignmentPattern with default
-// (3) doubly-wrapped ObjectProperty.value chain through default+nested
-// distinct methods per param (.from / .of / .fromAsync) drive distinct polyfills
+// (2) RestElement > ObjectPattern > AssignmentPattern default. distinct methods per param drive distinct polyfills
 function f([{
   outer: {
     inner = Array

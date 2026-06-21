@@ -1,7 +1,7 @@
 // destructure emission planning for babel-plugin's per-prop AST-mutation pipeline.
 // given a structural classification of the destructure site (parent shape / for-init /
 // multi-decl / bodyless / SE / static-vs-instance polyfill / pattern-emptied-after-extraction)
-// returns the named mutation strategy. the caller (`babel-compat.js`) owns AST mutation;
+// returns the named mutation strategy. the caller (`destructure-emitter.js`) owns AST mutation;
 // this module owns the decision tree.
 // strategies are babel-specific by design: each names a per-prop AST mutation primitive
 // (`replaceWith`, `insertBefore`, `splice`, ...). unplugin uses a batched text-rewrite
@@ -10,9 +10,10 @@
 // there would force-fit the wrong abstraction. the planner has no babel imports - it
 // just sits in `babel-plugin/internals/` because that's the actual consumer.
 
-// strategy enum. callers (`babel-compat.js`) reference via `STRATEGIES.WRAP_BODYLESS_SE`
-// rather than the raw string so a typo trips ReferenceError at module load instead of
-// silently defaulting to the dispatcher's "unhandled strategy" throw at runtime
+// strategy enum. callers (`destructure-emitter.js`) reference via `STRATEGIES.WRAP_BODYLESS_SE`
+// rather than the raw string to centralize the literal in one place; a mistyped key reads
+// `undefined` (frozen-object miss, no load-time throw) and surfaces as the dispatcher's runtime
+// "unhandled strategy" throw
 export const STRATEGIES = Object.freeze({
   // bodyless host (`if (...) { /* declaration */ }` form needed) with SE-bearing static
   // init - replace declaration with a block carrying the SE expr + extracted declaration

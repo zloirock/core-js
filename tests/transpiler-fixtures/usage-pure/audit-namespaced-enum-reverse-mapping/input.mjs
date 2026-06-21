@@ -1,9 +1,7 @@
 // Enum nested inside a namespace: `namespace N { enum E { A, B } }`. Member access
-// `N.E[N.E.A]` is a numeric reverse mapping at runtime -> string.
-// `resolveEnumMemberAccess` walks the receiver via `collectMemberSegments` (collects
-// `[N, E]` from MemberExpression chain) and passes the segments to `findEnumDeclaration`
-// which traverses TSModuleDeclaration anchors via `walkStatementsForDecl`. with namespaced
-// support, `head` resolves to string -> emits `_includesMaybeString` instead of generic
+// `N.E[N.E.A]` is a numeric reverse mapping at runtime -> string. Enum resolution must
+// collect the `[N, E]` MemberExpression segments and walk into the TSModuleDeclaration
+// to find E, so `head` resolves to string and emits the string-specific includes import.
 namespace N {
   export enum E { A, B }
 }

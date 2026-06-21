@@ -1,12 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// TS-wrapped method call on a class instance: `(c as any).run()`. classifyClosureRef must
-// recognize the wrapped call as 'call' rather than 'extraction' so the closure's temporal
-// bound is set to the call's source position, and external writes AFTER the call drop out
-// of the field-flow union. without TS-wrap peel between identifier and member context,
-// the call wraps as TSAsExpression -> MemberExpression -> CallExpression, the immediate
-// parent is TSAsExpression (not MemberExpression), classification falls through to
-// 'extraction' with infinite temporal bound, and the late `c.items = "string"` write is
-// folded in - widening narrow to generic _at
+// TS-wrapped method call on a class instance: `(c as any).getFirst()`. the closure walk must
+// classify the wrapped call as a CALL, not an extraction, so its temporal bound is the call's
+// position and writes AFTER it drop from the field-flow union. without peeling the TS wrap, the
+// immediate parent is TSAsExpression not MemberExpression, the late `c.items =` folds in - unsound narrow
 class C {
   items = [1, 2, 3];
   getFirst() {

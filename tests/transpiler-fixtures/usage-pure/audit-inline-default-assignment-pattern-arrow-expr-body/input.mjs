@@ -1,8 +1,6 @@
 // arrow expr-body + destructure-default + rest sibling on a DECLARED (non-invoked) arrow:
-// synth-swap can't rebuild the rest shape, and the old user-default swap silently polyfilled an
-// ABSENT caller leaf that native leaves at the user default.
-// caller-soundness: lossy emissions are allowed here because the function is non-exported and
-// every local call leaves the default in place (the resolver's call-site scan proves nothing
-// exists to lose); exported / escaping / overridden functions stay verbatim instead.
+// the rest shape blocks a synth-swap, so the leaf default is rewritten in place. that lossy
+// emission is sound here ONLY because the function is non-exported and every local call site
+// leaves the default in place; exported / escaping / overridden functions stay verbatim.
 const f = ({ from = [], ...rest } = Array) => [from, rest];
 f();

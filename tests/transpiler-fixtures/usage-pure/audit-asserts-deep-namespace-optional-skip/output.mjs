@@ -1,11 +1,10 @@
 import _at from "@core-js/pure/actual/instance/at";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
-// deep-namespace optional segment in middle of callee chain: `obj.api.deep?.assert(x)`.
-// optional sits BEFORE the leaf method, so the whole call may be skipped when `obj.api.deep`
-// is nullish. hasOptionalChainInCall walks `.callee` for CallExpression and `.object` for
-// MemberExpression; the inner OptionalMemberExpression (babel) / ChainExpression (oxc) must
-// be detected even when wrapped under N-1 non-optional MemberExpression links above it.
-// post-statement `.at(0)` / `.findLast(p => p)` must fall back to generic instance polyfills
+// deep-namespace optional segment mid callee chain: `obj.api.deep?.assert(x)`. the optional
+// sits BEFORE the leaf method, so the whole call may be skipped when `obj.api.deep` is
+// nullish. the inner OptionalMemberExpression (babel) / ChainExpression (oxc) must be detected
+// even under N-1 non-optional MemberExpression links, so `.at(0)` / `.padStart(2)` fall back
+// to generic instance polyfills
 declare const obj: {
   api: {
     deep?: {

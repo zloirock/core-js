@@ -1,9 +1,8 @@
 // @flow
-// Flow ObjectTypeProperty in METHOD shape: `method(): T` parses as ObjectTypeProperty whose
-// `.value` is a FunctionTypeAnnotation (Flow doesn't distinguish method-vs-property at the
-// AST level - the discriminator is value.type). without `m.value` in the fallback chain,
-// resolveMemberInTypeMembers can't extract the FunctionTypeAnnotation for chained-property
-// hops, and the at-call on the method's return type falls back to generic
+// Flow ObjectTypeProperty in METHOD shape: `method(): T` parses as ObjectTypeProperty
+// whose `.value` is a FunctionTypeAnnotation (Flow uses value.type, not a separate node,
+// to distinguish method vs property). without the `m.value` fallback, chained-property
+// hops can't extract the return type and the at-call falls back to generic
 type API = {
   list: { getItems(): Array<number> },
 };

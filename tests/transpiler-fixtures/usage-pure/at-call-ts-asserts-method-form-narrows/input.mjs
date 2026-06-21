@@ -1,7 +1,6 @@
-// method-form user predicate: `obj.method(x)` where the method's return type is
-// `x is T`. previously `resolvePredicateGuard` only handled bare-identifier callees
-// and bailed on MemberExpression. the fix resolves obj's annotation, finds the method
-// member, inspects its return type for TSTypePredicate
+// method-form user predicate: `obj.method(x)` where the method's return type is `x is T`.
+// a MemberExpression callee (not just a bare identifier) must be resolved to obj's
+// annotation, the method member found, and its return type inspected for TSTypePredicate.
 interface Util {
   isStr(x: unknown): x is string;
 }
