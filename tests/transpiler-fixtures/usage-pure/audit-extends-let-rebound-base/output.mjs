@@ -1,10 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // `let A = Base; A = Other; class Sub extends A` - `A`'s runtime value at the extends-eval
-// point is unknown (could be Base or Other). extendsClauseName must check binding.constantViolations
-// and bail to null rather than treating `A` as a canonical alias of Base. without the bail,
-// Sub registers under Base, Sub's instance write through `s.items` erroneously widens Base's
-// field-flow tracker, and Base.items.at narrows to generic. with the bail, Sub doesn't link
-// to Base and the Sub-side write stays isolated - Base's narrow remains array-specific
+// point is unknown (could be Base or Other). The extends-name resolution must check the
+// binding's constantViolations and bail to null rather than treating `A` as an alias of Base.
+// without the bail, Sub registers under Base, its write through `s.items` widens Base's
+// field-flow tracker, and Base.items.at narrows to generic instead of staying array-specific.
 class Base {
   items = [1, 2, 3];
 }

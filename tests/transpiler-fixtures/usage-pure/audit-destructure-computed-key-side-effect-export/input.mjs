@@ -1,7 +1,5 @@
-// an EXPORTED side-effecting computed key. the extracted polyfill is emitted as its own `export const f`
-// BEFORE the `export` keyword, and the residual destructure keeps its own export - so `f` is exported and
-// the destructure (which still runs the effect) stays exported too. regressions: the old in-place lift
-// left a dangling `export eff();` (syntax error in unplugin); and unplugin once inserted the binding
-// between `export` and `const`, stealing the keyword and dropping the destructure out of the export
-// (which silently dropped any real sibling binding - see the `-export-sibling` fixture). both agree now
+// an EXPORTED side-effecting computed key. the extracted polyfill emits as its own
+// `export const f`, and the residual destructure keeps its own export, so both `f` and the
+// effect-running destructure stay exported. guards two past regressions: a dangling
+// `export eff();` syntax error, and a binding inserted between `export` and `const`.
 export const { [(effectful(), 'from')]: f } = Array;

@@ -1,9 +1,7 @@
-// `Awaited<Promise<X> & Promise<Y>>` distributes both Promise branches.
-// foldIntersectionTypes returns first non-Object match - X (number[]) survives,
-// Y (string[]) also survives but intersection of disjoint Array<number> and
-// Array<string> can't fold cleanly. lock conservative behavior: when both branches
-// resolve to Array, intersection returns the first one (or null if disjoint inners
-// can't be reconciled). distinct methods per line for observable dispatch
+// `Awaited<Promise<X> & Promise<Y>>` distributes both Promise branches; both resolve to
+// Array with disjoint inners (number[] vs string[]) that can't fold cleanly. lock the
+// conservative outcome: intersection keeps the first Array branch (X). distinct methods
+// per line so the import set shows observable dispatch
 async function twoProm() {
   type T = Promise<number[]> & Promise<string[]>;
   declare const r: Awaited<T>;

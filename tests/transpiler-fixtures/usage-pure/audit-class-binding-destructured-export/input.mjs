@@ -1,12 +1,7 @@
-// `export const { C: ExportedC } = wrapper` exposes the class VALUE via the `ExportedC`
-// import name, even though local binding `C` isn't itself in the export specifier list.
-// importers do `import { ExportedC } from 'mod'; ExportedC.prototype.items = "evil"` or
-// install a setter on the prototype - both routes affect instance reads downstream.
-// the class-binding escape gate must detect this via the closure walker (the wrapper
-// object-property-value position fires 'leak' in classBindingRefClassifier). without
-// the gate, narrow keeps the initial Array type from the field initializer and emits
-// the type-specific polyfill unsoundly. with the gate, narrow disables and the generic
-// polyfill ships
+// `export const { C: ExportedC } = wrapper` exposes the class VALUE via the `ExportedC` import
+// name even though local binding `C` is not in the export specifier list; an importer can then
+// mutate `ExportedC.prototype`, affecting instance reads. the closure walker must treat C's
+// wrapper-property-value position as a leak, disabling narrow so the generic polyfill ships
 class C {
   items = [1, 2, 3];
   getFirst() { return this.items.at(0); }

@@ -1,14 +1,10 @@
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _at from "@core-js/pure/actual/instance/at";
-// Same shape as the operator-context fixture (a polyfilled optional call, a NON-optional member
-// tail, then a SURVIVING optional continuation `?.y`) but in a PLAIN ASSIGNMENT - no operator,
-// unary, logical or ternary context around it. babel groups the deoptionalized prefix as
-// `(guard).x` and leaves `?.y` outside the parens; unplugin renders the guard ternary without
-// those parens. the two shapes are RUNTIME-EQUIVALENT (the surviving `?.y` short-circuits on the
-// same nullish value either way - there is no operator to mis-bind), so this is a benign
-// AST-vs-text render divergence. locked with a sidecar plus an e2e asserting identical values, so
-// a future change that turns this into a semantic divergence is caught. distinct methods per line.
+// polyfilled optional call, NON-optional member tail, then a SURVIVING optional continuation
+// `?.y`, in a PLAIN ASSIGNMENT (no operator context). babel parenthesizes the deoptionalized
+// prefix as `(guard).x` with `?.y` outside; unplugin omits those parens. with no operator to
+// mis-bind the two are RUNTIME-EQUIVALENT - a benign render divergence locked by sidecar + e2e.
 export function f(a, b, c) {
   const at = a == null ? void 0 : _at(a).call(a, -1).x?.y;
   const fl = b == null ? void 0 : _flatMaybeArray(b).call(b).x?.y;

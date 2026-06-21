@@ -1,12 +1,8 @@
-// `T extends [] ? trueBranch : falseBranch` - empty tuple as extendsType. tupleAsArrayType
-// collapses `[]` to $Object('Array', null) inner-less; same constructor as check side
-// (`[number, number]` collapses to $Object('Array', number)). typesEqual matches, but
-// innersEqual(number, null) fails. pickConditionalBranch's refined inner-less branch:
-// when extendIsUnconstrained=false (concrete empty AST, not bare TSTypeReference shorthand),
-// any non-null check inner makes the conditional structurally disjoint -> return false.
-// without refinement: returns null -> heterogeneous fold over Promise vs Array branches
-// collapses to commonType (Object), narrow Array hint lost. with refinement: deterministic
-// falseBranch pick -> T = number[] (tuple-like) -> narrow Array dispatch
+// `T extends [] ? Promise : T` - empty tuple as extendsType. both `[]` and the check side
+// `[number, number]` collapse to an Array type sharing the same constructor, so they look
+// equal until inner element types compare. a concrete empty tuple (not bare shorthand) with a
+// non-empty check inner is structurally disjoint, so the conditional must deterministically pick
+// the false branch -> T = number[] -> narrow Array dispatch, not a heterogeneous fold to Object
 type Wrap<T> = T extends [] ? Promise<number> : T;
 declare const r: Wrap<[number, number]>;
 r.at(0);

@@ -1,11 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// param destructure-default with two removed body-extracted props (`from`, `of`) separated by a
-// RETAINED string-key sibling (`"z": z`, which bails synth-swap). the retained prop breaks the run,
-// so neither removal is preceded-by-removed: each takes its own clean trailing-comma range and the
-// two never overlap (distinct from the contiguous-run cases, which share a comma). regression lock
-// (immediately invoked: caller-lossy param emissions stay sound only when every call site is
-// visible - a declared function's params now stay verbatim instead)
+// param destructure-default with two removed props (`from`, `of`) separated by a RETAINED
+// string-key sibling (`"z": z`). the retained prop breaks the run, so each removal takes its own
+// clean trailing-comma range and the two never overlap (unlike the contiguous-run cases). IIFE
+// form: caller-lossy emission is sound only with every call site visible (declared fn stays verbatim)
 (function f({
   "z": z
 } = Array) {

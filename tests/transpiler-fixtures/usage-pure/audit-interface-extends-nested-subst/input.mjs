@@ -1,11 +1,8 @@
 // `interface A<T> extends B<T[]>; interface B<T> { b: T }` - the inner B<T[]> binds B's
-// type-param T to A's `T[]` slot. recursive `getTypeMembers(B<T[]>)` already substitutes
-// B's body using its own subst, returning `[{b: T[]}]` in A's coordinate space. previous
-// code RE-applied B's subst on top of the recursive result, and since A and B share the
-// type-param NAME 'T', the inner T inside `T[]` was substituted AGAIN, yielding `T[][]`.
-// the final receiver subst then mapped `T[][]` to `string[][]` instead of `string[]`.
-// observable downstream: `a.b[0]` resolves to `string` after the fix (was `string[]`),
-// so `.at()` ships the string-specific polyfill rather than the array-specific one
+// type-param T to A's `T[]` slot. the recursive member walk already substitutes B's body in
+// A's coordinate space (`[{b: T[]}]`); RE-applying B's subst on top, with A and B sharing the
+// name 'T', double-substitutes the inner T to `T[][]` -> `string[][]` instead of `string[]`.
+// observable: after the fix `a.b[0]` is `string`, so `.at()` ships the string polyfill not the array one
 interface A<T> extends B<T[]> {}
 interface B<T> {
   b: T;

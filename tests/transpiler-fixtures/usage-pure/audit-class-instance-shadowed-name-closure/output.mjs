@@ -1,10 +1,8 @@
 import _at from "@core-js/pure/actual/instance/at";
-// Two sibling scopes both binding `const c = new C()` create distinct bindings under the
-// same name. collectClassInstanceClosure must key the closure by binding identity (not by
-// name) so the FIRST declarator's binding isn't overwritten by the SECOND. without
-// binding-keyed closure, `closure.get('c')` returns scope-B's binding only; writes through
-// scope-A's `c` fail the `getBinding('c') === storedBinding` identity check and the field
-// flow scan misses them, leaving narrow on stale Array type when it should have widened
+// Two sibling scopes each bind `const c = new C()` - distinct bindings under the same name.
+// the instance closure must be keyed by binding identity, not by name, so scope-A's binding
+// isn't overwritten by scope-B's. a name-keyed closure keeps only scope-B's; writes through
+// scope-A's `c` then fail the identity check, leaving the narrow on stale Array type
 class C {
   items = [1];
   getFirst() {

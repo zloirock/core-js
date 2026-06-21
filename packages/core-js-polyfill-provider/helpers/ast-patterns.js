@@ -469,8 +469,7 @@ export function isTopLevelThisContext(path) {
     const type = current.node?.type;
     if (type === 'ClassBody') return false;
     if (type === 'Program') return true;
-    if (type !== 'ArrowFunctionExpression'
-      && (FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'FunctionDeclaration' || type === 'ObjectMethod')) return false;
+    if (type !== 'ArrowFunctionExpression' && FUNCTION_LIKE_NODE_TYPES.has(type)) return false;
   }
   return false;
 }
@@ -2017,7 +2016,7 @@ export function propertyKeyName(prop) {
 // for this fast pre-walk - the cases worth catching here are direct `Builtin.method = X`
 // monkey-patches and `Object.defineProperty(Builtin, 'method', d)` shapes which always have
 // an Identifier root
-// shape gate for the per-callback consultation against a `collectMutatedStaticMembers` set.
+// shape gate for the per-callback consultation against the mutated-static set the pre-pass built.
 // shared between babel-plugin and unplugin so the (object, key) string formation stays in
 // lockstep with the pre-pass that built the set - any divergence (different separator, case,
 // proto-vs-static handling) would cause silent misses on one adapter and not the other
@@ -2283,13 +2282,14 @@ export function peelTransparentExprAncestorPath(path) {
 }
 
 // deep peel for fallback receivers: chain-assignment (`foo = bar = (cond ? A : B)`) +
-// ParenthesizedExpression + TS expression wrappers + side-effect-free SequenceExpression
-// tails (`(0, cond ? A : B)`) + zero-arg IIFE returning the fallback (`(() => cond ? A
+// ParenthesizedExpression + TS expression wrappers + SequenceExpression tails
+// (`(0, cond ? A : B)`) + zero-arg IIFE returning the fallback (`(() => cond ? A
 // : B)()`), alternating until stable. shape: `r = (cond ? A : B)` -> ConditionalExpression.
 // used by per-branch synth-swap and fallback enumeration to reach the underlying
-// conditional/logical regardless of chain-assign / paren / TS / safe-SE / factory-IIFE
-// layering order. SE prefix that carries observable side effects stops further SE-layer
-// peeling - dropping it would silently elide effects the rewrite can't preserve.
+// conditional/logical regardless of chain-assign / paren / TS / SE / factory-IIFE
+// layering order. the SE-tail peel is UNCONDITIONAL (like peelFallbackBranchInner): effects
+// are not dropped here - the apply phase keeps the SE prefix in the AST around the
+// substituted branch leaf / kept residual statement, so observable order is preserved.
 // visited Set guards against synthetic cyclic ASTs (`a = (a = ...)`-shaped self-loops):
 // every step adds the current node, re-visiting any prior bails the walk
 export function peelFallbackReceiver(node) {
@@ -2624,7 +2624,7 @@ function patternBindsIdentifier(pattern, predicate) {
 
 // recursive peel of nested SequenceExpressions through paren wrappers: `(se1(), (se2(), G))`
 // yields preceding-effect list `[se1(), se2()]` and tail `G`. used by destructure-flatten
-// emitters (babel `liftSEPrefix`, unplugin `tryFlattenAssignmentExpressionDestructure`,
+// emitters (babel `liftSEPrefixSwap`, unplugin `tryFlattenAssignmentExpression`,
 // unplugin main flatten) so every SE layer's preceding expressions lift instead of only
 // the outermost. without recursion, inner se2() silently elides under the rewrite. peel
 // parens + TS expression wrappers (`as` / `satisfies` / `!` / chain) so SE through casts

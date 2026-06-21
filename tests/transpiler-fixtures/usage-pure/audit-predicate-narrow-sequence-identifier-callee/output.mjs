@@ -1,10 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // `(0, isArr)(v)` - SequenceExpression callee with Identifier as last element. predicate
-// candidate resolution peels through SE-tail (last expression is the runtime callee, the
-// prefix runs for its side effects but doesn't change which function gets invoked) to
-// recover the trailing Identifier predicate. without the SE peel, the Identifier-branch
-// bails on the non-Identifier raw shape and `x is unknown[]` never narrows v, degrading
-// the array-specific `_atMaybeArray` to the generic `_at` dispatch
+// resolution must peel the SE tail (the last expression is the runtime callee; the prefix
+// runs for side effects only) to recover the trailing Identifier predicate. without that peel,
+// `x is unknown[]` never narrows v and the array-specific `_atMaybeArray` degrades to `_at`.
 function isArr(x: unknown): x is unknown[] {
   return Array.isArray(x);
 }

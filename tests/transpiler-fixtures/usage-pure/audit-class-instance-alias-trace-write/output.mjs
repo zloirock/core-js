@@ -1,10 +1,8 @@
 import _at from "@core-js/pure/actual/instance/at";
-// `const alias = inst` aliases a class instance. the write `alias.arr = ...` previously
-// went undetected: `receiverIsClassInstance` only matched Identifier whose direct binding
-// init was `new C()`, missing the `alias`-binding-init = `inst` (Identifier) case. the
-// resulting unsound narrow emitted `_atMaybeArray`, which crashes at runtime on engines
-// without `Array.prototype.at` when the field has been reassigned to String. the alias
-// chain walker now follows binding-init Identifier links transitively to detect this
+// `const alias = inst` aliases a class instance, then `alias.arr = ...` writes the field.
+// matching only Identifiers whose binding-init is `new C()` misses the alias whose init is
+// another Identifier (`inst`), emitting an unsound `_atMaybeArray` that crashes on engines
+// without `Array.prototype.at`. the alias chain must follow binding-init links transitively
 class C {
   arr = [1, 2, 3];
   test() {

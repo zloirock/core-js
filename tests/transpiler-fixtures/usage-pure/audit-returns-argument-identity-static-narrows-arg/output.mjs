@@ -3,12 +3,11 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 var _ref, _ref2, _ref3;
-// `Object.freeze` / `Object.seal` are identity statics (returnsArgument: 0): the result keeps the
-// argument's concrete container type. A chained multi-type instance method (includes / at, present
-// on Array AND String) therefore narrows to the ARRAY and injects es.array.*, not the registry's
-// generic 'Object' result (which would drop the polyfill on ie:11). The string arg is the contrast:
-// the same inference narrows it to String and injects es.string.* - the result is type-faithful, not
-// a blanket array assumption. preventExtensions / setPrototypeOf share this returnsArgument:0 path.
+// `Object.freeze` / `Object.seal` are identity statics (returnsArgument: 0): the result
+// keeps the argument's concrete container type. a chained multi-type method (includes / at,
+// on Array AND String) narrows the array arg to Array (injects es.array.*, not generic
+// 'Object' which would drop the polyfill on ie:11) and the string arg to String
+// (es.string.*). preventExtensions / setPrototypeOf share the returnsArgument:0 path.
 const a: number[] = [1, 2, 3];
 const s: string = 'xyz';
 _includesMaybeArray(_ref = Object.freeze(a)).call(_ref, 2);

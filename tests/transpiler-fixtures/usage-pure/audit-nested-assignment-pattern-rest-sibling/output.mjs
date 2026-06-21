@@ -1,11 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// nested destructure with AssignmentPattern default + rest sibling. outer pattern
-// `{x = {...}, ...outer}` carries a rest, and the inner default `{from = []}` itself
-// has a default value. body-extract must traverse the nested AssignmentPattern.left
-// and detect the polyfilled key on the inner ObjectPattern, emitting body-extract
-// for the inner `from` while preserving the outer rest exclusion via `_unused`.
-// distinct keys (`from` / `of`) verify per-key dispatch through nested patterns
+// nested destructure with AssignmentPattern default + rest sibling. the inner default
+// `{from = []}` itself has a default, so body-extract must traverse the nested
+// AssignmentPattern.left, detect the polyfilled key on the inner ObjectPattern, and
+// preserve the outer rest exclusion. distinct keys (`from` / `of`) verify per-key dispatch
 function run({
   x: {
     from = []

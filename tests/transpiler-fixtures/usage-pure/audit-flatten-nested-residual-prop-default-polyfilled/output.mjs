@@ -10,11 +10,10 @@ var _ref, _ref2, _ref3;
 // a NESTED proxy flatten that is PARTIALLY consumed: `Array.from` is extracted to a binding, but the
 // sibling `other` survives inside the rebuilt `Array: { ... }` text. its default carries polyfillable
 // content (an instance `.at` call, a static `Promise.any` call) that the natural visitor must still
-// rewrite - foldNestedPattern must register residual targets for the surviving inner children so the
-// usage-pure polyfill-always-wins contract holds and no native API leaks to IE11. distinct methods
-// (.at instance, Promise.any static) show each survivor's content is independently re-anchored. the
-// `Object` line carries TWO survivors in one nested prop, exercising the running dst-offset across
-// multiple rebuilt entries (the second survivor's residual target must clear the first's text length)
+// rewrite - surviving inner children must register as residual targets so the usage-pure
+// polyfill-always-wins contract holds and no native API leaks to IE11. the `Object` line carries TWO
+// survivors in one nested prop, exercising the running dst-offset across multiple rebuilt entries
+// (the second survivor's residual target must clear the first's text length).
 const from = _Array$from;
 const {
   withAt = _atMaybeArray(_ref = [1]).call(_ref, 0)
