@@ -190,6 +190,18 @@ export function markSynthReceiverSkipped(receiver, skippedNodes) {
   }
 }
 
+// skip a synth-swap receiver subtree the literal REPLACES (or DROPS, re-emitting only its harvested
+// SE ahead). `markSynthReceiverSkipped` walks the `.object` spine only and stops at a SequenceExpression,
+// leaving a prefix's dropped globals (`(gt.x, gt.self).Array`) to inject a dead import (babel) or orphan
+// a rewrite into the dead span (text emitter). this skip-marks the WHOLE receiver, then UN-skips the
+// harvested-SE subtrees so their own globals still polyfill (empty list = plain replace, nothing kept).
+// `walkNode(root, visit)` is the emitter's full-subtree walker (babel `traverseFast`, estree `walkAstNodes`)
+export function markReplacedReceiverSkipped({ receiver, keepSe = [], skippedNodes, walkNode }) {
+  if (!receiver) return;
+  walkNode(receiver, node => { skippedNodes.add(node); });
+  for (const se of keepSe) walkNode(se, node => { skippedNodes.delete(node); });
+}
+
 // rewire `superMeta.object` from binding name (`MyPromise`) to registered global hint
 // (`Promise`) so resolver tables key by the global. pure - caller cache reuse stays safe
 export function resolveSuperImportName(injector, superMeta) {
