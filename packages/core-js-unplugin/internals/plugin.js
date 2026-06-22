@@ -71,6 +71,7 @@ import {
   liftSfcLangSuffix,
   NEEDS_GUARD_PARENS,
   parenthesizeExprStmtHazard,
+  statementOverwriteFusesLeft,
   stripLeadingBOMs,
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
@@ -185,6 +186,11 @@ function applyMinifierSequenceSplitPass(code, ast) {
       // `core-js-disable-next-line` above the collapsed statement covers ALL of them (the
       // babel split carries origin loc onto its products - this is the text-engine twin)
     }).join(' ');
+    // left-boundary ASI guard: the statement was detected separate against its ORIGINAL leading `(`
+    // (which ASI-splits a postfix `++` / `--` prev), but the split's FIRST product re-roots the line on a
+    // hazard char (`+eff()` / `/re/...`) that the prev no longer separates from - inject the `;` to keep
+    // them two statements (and so the re-parse below doesn't choke on the fused form and abandon the split)
+    if (statementOverwriteFusesLeft(code, match.start, splitText[0])) mutated.prependLeft(match.start, ';');
     mutated.overwrite(match.start, match.end, splitText);
     lastKeptEnd = match.end;
   }
@@ -829,6 +835,7 @@ export default function createPlugin(options) {
           resolvePure,
           scopeTracker,
           skippedNodes,
+          source: code,
           transforms,
         });
         const {

@@ -90,7 +90,12 @@ import {
   walkUpNestedDestructureToAssignment,
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
-import { parenthesizeExprStmtHazard, skipDirectivePrologue, walkAstNodes } from './plugin-helpers.js';
+import {
+  parenthesizeExprStmtHazard,
+  skipDirectivePrologue,
+  statementOverwriteFusesLeft,
+  walkAstNodes,
+} from './plugin-helpers.js';
 
 // scope-walker constants for `polyfillSiblingReceiverRefs`. hoisted module-level so each
 // call doesn't re-allocate the Sets. SwitchStatement creates one shared block scope per
@@ -172,6 +177,7 @@ export function createDestructureEmitter({
   resolvePure,
   scopeTracker,
   skippedNodes,
+  source,
   transforms,
 }) {
   // ---------- shared emission helpers ----------
@@ -3085,10 +3091,15 @@ export function createDestructureEmitter({
       if (trailing?.length) parts[parts.length - 1] += `, ${ trailing.join(', ') }`;
 
       if (isForInit) {
+        // for-init lives inside the for-head parens (one comma-list), never at a statement boundary, and
+        // its lifted SE is a `_ref = SE` comma member, not a standalone - so no left-boundary fusion here
         transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
       } else {
-        transforms.add(replaceNode.start, replaceNode.end,
-          wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath));
+        // a lifted-SE first product (`+eff()` / `/re/...`) re-roots the line on a hazard char the original
+        // node's leading `(` / `let` did not expose - guard the left boundary like the minifier split does
+        const text = wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath);
+        const guard = statementOverwriteFusesLeft(source, replaceNode.start, text[0]) ? ';' : '';
+        transforms.add(replaceNode.start, replaceNode.end, guard + text);
       }
     }
 
