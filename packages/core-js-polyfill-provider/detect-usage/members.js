@@ -68,6 +68,30 @@ export function seBearingChainRootCall({ node, scope, adapter, path }) {
     ? rootCall : null;
 }
 
+// collapse plan for a CALL/IIFE-rooted multi-hop proxy-global receiver (`(() => globalThis)().self.Array`):
+// the proxy hop (`.self`) reads an undefined intermediate off the global object on hosts without it
+// (ie:11 / Node throw). `maximalProxyGlobalPrefix` / `findProxyGlobal` validate only bare-Identifier
+// roots, so a call root never collapses and the hop survives verbatim. returns the root global NAME the
+// emitter substitutes for the dropped hop (resolved by inlining the call) and an SE-bearing chain-root
+// call to preserve as a sequence prefix, so the rewrite is `(callSe, _root).leaf`. null unless the
+// receiver is `<call-root>.<proxy-hop>.<leaf>` - a single-hop call (`(() => globalThis)().Array`) has
+// no undefined intermediate and an Identifier-rooted chain is owned by the standard collapse
+export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
+  if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
+  const hop = receiver.object;
+  if (hop?.type !== 'MemberExpression' && hop?.type !== 'OptionalMemberExpression') return null;
+  // the whole `.object` must be a proxy navigation (`<call>.self` / `.window`): a non-proxy hop -> null
+  if (!resolveObjectName({ objectNode: hop, scope, adapter, path })) return null;
+  // resolve the CHAIN ROOT global, matching the Identifier collapse which substitutes the ROOT (not the
+  // leaf hop): walk past the proxy hops to the call and resolve it by inlining. `.window` / `.self` chains
+  // alike then read off the always-pure `_globalThis`, where the leaf-hop `window` may carry no pure entry
+  let root = hop;
+  while (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') root = root.object;
+  const rootName = resolveObjectName({ objectNode: root, scope, adapter, path });
+  if (!rootName || !POSSIBLE_GLOBAL_OBJECTS.has(rootName)) return null;
+  return { rootName, callSe: seBearingChainRootCall({ node: receiver, scope, adapter, path }) };
+}
+
 // an inline-resolvable call at the root of a FOLDED chain (receiver collapsed into a static
 // import, folded computed symbol key, folded `in` operand) carries observable setup the fold would
 // silently drop - the parens/sequence walks only collect wrapper prefixes, not a folded call.
@@ -114,15 +138,19 @@ export function collectFallbackCollapseLeftSe({ leftNode, scope, adapter, path }
   return out;
 }
 
-// a rescued synth-swap receiver whose VALUE is discarded but whose re-emit would read an undefined
-// INTERMEDIATE proxy hop off-browser (`globalThis[(eff(), 'self')].Array` -> `_globalThis.self...` /
-// the AST emitter's `_self`, undefined on ie:11 / Node) must be DROPPED - re-emit ONLY the harvested
-// side effects, the value is unused. true for a MULTI-hop member receiver (its `.object` is itself a
-// member) carrying a buried folded effect; single-hop (`globalThis[(eff(), 'Array')]`) and call /
-// chain-assignment roots keep the verbatim re-emit (no undefined intermediate). shared so the AST and
-// text emitters make the SAME drop decision (else they desync: babel keeps `_self`, unplugin drops)
+// a rescued synth-swap receiver whose VALUE is discarded but whose verbatim re-emit would read an
+// undefined INTERMEDIATE proxy hop off-browser (`globalThis[(eff(), 'self')].Array` ->
+// `_globalThis.self...` / the AST emitter's `_self`, undefined on ie:11 / Node) must be DROPPED - re-emit
+// ONLY the harvested side effects, the value is unused. true for a MULTI-hop member receiver (its
+// `.object` is itself a member). the CALLER has already confirmed a rescue node exists (`rescueSe`: a
+// folded-key effect OR an SE-bearing chain-root CALL / chain-assignment), so the drop keys on the SHAPE
+// alone - the prior `collectFoldedReceiverSideEffects(inner).length` gate re-derived the rescue rescue-less
+// and so re-EXCLUDED a chain-root-CALL receiver the caller's `rescueSe` already covered, leaving the
+// `.self` hop verbatim (babel kept raw `.self`->throw, unplugin re-rooted `_self` + extra import).
+// single-hop (`globalThis[(eff(), 'Array')]`) has no undefined intermediate -> keep the verbatim re-emit.
+// shared so the AST and text emitters make the SAME drop decision (else they desync)
 export function shouldDropRescueReceiver(inner) {
-  if (!inner || !collectFoldedReceiverSideEffects(inner).length) return false;
+  if (!inner) return false;
   // unwrap the object through transparent wrappers / a SE-sequence tail before the type check - parsers
   // differ on keeping paren nodes (babel strips `((e(), gt).self)`, oxc keeps it as a wrapper)
   let obj = inner.object;
