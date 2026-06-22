@@ -30,6 +30,7 @@ import {
   consumeOneLineEnding,
   directivePrologueEnd,
   hasCoreJSImport,
+  injectionFusesLeft,
   isBodylessStatementBody,
   isChunkLoaderBundler,
   isLineTerminator,
@@ -39,6 +40,7 @@ import {
   skipBlockComment,
   skipDirectivePrologue,
   skipGap,
+  statementOverwriteFusesLeft,
   stripLeadingBOMs,
   varScopeAnchor,
   walkAstNodes,
@@ -4070,6 +4072,87 @@ function checkRemoveBatchEofNoSurvivorBails() {
     ms.toString(), 'var x = 1\n');
 }
 checkRemoveBatchEofNoSurvivorBails();
+
+// --- injectionFusesLeft (shared left-boundary fusion predicate) ---
+// hazard-start firstChar fuses leftward into a value / postfix-update / `}` prev, but NOT into a `;`
+// terminator or a statement-list opener (`{` block, `:` switch-case / label - the injection is the first
+// statement of the list, so no prev value exists to fuse with)
+check('injectionFusesLeft/+ after a value (call close) fuses', injectionFusesLeft('+', ')'), true);
+check('injectionFusesLeft// after a value fuses', injectionFusesLeft('/', ']'), true);
+check('injectionFusesLeft/( after postfix-update tail fuses', injectionFusesLeft('(', '+'), true);
+check('injectionFusesLeft/` after a fn-or-class-expr } fuses', injectionFusesLeft('`', '}'), true);
+check('injectionFusesLeft/+ after ; terminator is safe', injectionFusesLeft('+', ';'), false);
+check('injectionFusesLeft/+ after { block-open is safe', injectionFusesLeft('+', '{'), false);
+check('injectionFusesLeft/( after : case-label is safe', injectionFusesLeft('(', ':'), false);
+// identifier / numeric / unary-bang starts ASI-split on their own - never in the hazard set
+check('injectionFusesLeft/identifier start never fuses', injectionFusesLeft('x', ')'), false);
+check('injectionFusesLeft/bang start never fuses', injectionFusesLeft('!', ')'), false);
+
+// statementOverwriteFusesLeft pairs the comment/whitespace-aware prev-char scan with the predicate -
+// used where an in-place statement overwrite re-roots a line (minifier split, destructure lifted-SE)
+check('overwriteFuses/postfix ++ prev + hazard fuses', statementOverwriteFusesLeft('i++\n+x', 4, '+'), true);
+check('overwriteFuses/; prev is safe', statementOverwriteFusesLeft('i++;\n+x', 5, '+'), false);
+// start-of-file: no prev statement to fuse with
+check('overwriteFuses/start-of-file bails', statementOverwriteFusesLeft('+x', 0, '+'), false);
+// the scan skips an intervening block comment to reach the real prev significant char
+check('overwriteFuses/comment-aware prev', statementOverwriteFusesLeft('a\n/*c*/\n+x', 7, '+'), true);
+// block-open `{` / case-label `:` are list openers - the overwrite is the FIRST statement, no fusion
+check('overwriteFuses/block-open prev safe', statementOverwriteFusesLeft('{\n+x', 2, '+'), false);
+check('overwriteFuses/case-label prev safe', statementOverwriteFusesLeft('case 1:\n+x', 8, '+'), false);
+
+// --- guardInjectionLeftBoundary (indirect-require SE-prefix rewrite) ---
+// the SE-prefix rewrite OVERWRITES a detected `(prefix, require)('core-js/...')` node in place. unlike a
+// removal (where the NEXT surviving char fuses with the prev), here the INJECTED text's FIRST char meets
+// the prev surviving char - and the node-was-detected-separate guarantee does NOT carry over: a postfix
+// `++` / `--` prev ASI-splits from the node's ORIGINAL leading `(` (spec bans `UpdateExpression
+// Arguments`) yet a rewritten `+spy()` / `[spy()]` / `/re/...` prefix re-roots the line and fuses in.
+// `NODE` stands for the node region the rewrite replaces with `injected`
+function applySePrefixRewrite(prevSrc, injected) {
+  const source = `${ prevSrc }\nNODE`;
+  const start = prevSrc.length + 1;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  remove.guardInjectionLeftBoundary(start, injected);
+  ms.overwrite(start, source.length, injected);
+  return ms.toString();
+}
+
+// `+spy()` re-roots the line on `+`: `i++ + spy()` fuses silently (a valid but wrong single statement)
+check('inject/plus-rooted prefix after postfix ++ injects ;',
+  applySePrefixRewrite('i++', '+spy();'), 'i++\n;+spy();');
+// `[spy()]` -> `i++[spy()]` member-access fusion
+check('inject/bracket-rooted prefix after postfix ++ injects ;',
+  applySePrefixRewrite('i++', '[spy()];'), 'i++\n;[spy()];');
+// `/re/.test(spy())` -> `i++ / re / .test(...)` is a hard parse error
+check('inject/regex-rooted prefix after postfix ++ injects ;',
+  applySePrefixRewrite('i++', '/re/.test(spy());'), 'i++\n;/re/.test(spy());');
+// `-spy()` -> `i-- - spy()` fusion
+check('inject/minus-rooted prefix after postfix -- injects ;',
+  applySePrefixRewrite('i--', '-spy();'), 'i--\n;-spy();');
+// a `;`-terminated prev is provably safe - no spurious injection
+check('inject/semicolon-terminated prev needs no guard',
+  applySePrefixRewrite('i++;', '+spy();'), 'i++;\n+spy();');
+// an identifier-rooted prefix ASI-splits from `i++` on its own (`++ spy` is illegal); ID-start chars are
+// not in the hazard set, so no spurious `;`
+check('inject/identifier-rooted prefix needs no guard',
+  applySePrefixRewrite('i++', 'spy();'), 'i++\nspy();');
+
+// a removed sibling sits between the postfix-++ prev and the SE-prefix node. the removal's OWN guard
+// already injects a `;` (it sees the node's original leading `(` hazard), so the rewrite must DEFER to it
+// via the shared injected-`;` ledger instead of stacking a second `;` at the same boundary
+function checkInjectGuardDefersToRemovalSemi() {
+  const imp = "import 'a';";
+  const source = `i++\n${ imp }\n(N)`;
+  const nodeStart = `i++\n${ imp }\n`.length;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  remove({ start: 4, end: 4 + imp.length });
+  remove.guardInjectionLeftBoundary(nodeStart, '+spy();');
+  ms.overwrite(nodeStart, source.length, '+spy();');
+  check('inject/defers to a removal-injected ; in the gap (no double ;)',
+    ms.toString(), 'i++\n;+spy();');
+}
+checkInjectGuardDefersToRemovalSemi();
 
 // --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
 // bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's
