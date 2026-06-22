@@ -331,9 +331,18 @@ export function isMemberAccessNode(node) {
 // appearing as a bare assignment LHS. one source for isDynamicComputedKeyWrite (computed-key alias
 // bail) and memberPathWriteViolations (discriminant-narrow invalidation) so the two stay in lockstep
 export function isMemberWriteHost(memberPath) {
-  const member = memberPath?.node;
-  const host = memberPath?.parentPath?.node;
-  if (!member || !host) return false;
+  if (!memberPath?.node) return false;
+  // climb transparent wrappers (TS `as`/`!`/`satisfies`, parens) so a wrapped write target -
+  // `(m as any) = v`, `(m) = v` - is recognized: the host's `.left`/`.argument` points at the
+  // wrapper node, not the bare member. inverse of `memberWriteTargetPath`'s downward peel; without
+  // it a cast on the LHS strands the write and a stale narrow survives (throws on ie:11)
+  let target = memberPath;
+  while (SKIPPABLE_WRAPPER_TYPES.has(target.parentPath?.node?.type) && target.parentPath.node.expression === target.node) {
+    target = target.parentPath;
+  }
+  const member = target.node;
+  const host = target.parentPath?.node;
+  if (!host) return false;
   switch (host.type) {
     case 'AssignmentExpression': return host.left === member;
     case 'UpdateExpression': return host.argument === member;
@@ -345,7 +354,7 @@ export function isMemberWriteHost(memberPath) {
     // inside an ObjectExpression value (`{ x: m }`) the member is a READ
     case 'ObjectProperty':
     case 'Property':
-      return host.value === member && memberPath.parentPath?.parent?.type === 'ObjectPattern';
+      return host.value === member && target.parentPath?.parent?.type === 'ObjectPattern';
     case 'ForOfStatement':
     case 'ForInStatement': return host.left === member;
     default: return false;

@@ -272,6 +272,9 @@ export default function createPlugin(options) {
     getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
     getPolyfillBindingHint: (scope, name) => currentInjector?.getBindingInfo?.(name)?.hint ?? null,
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
+    // a monkey-patched static no longer returns its known type - drop the static-call return narrow
+    // to generic so a patched `Array.from(x).at(0)` isn't type-locked to `_atMaybeArray`
+    isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
     // estree-toolkit OVER-HOISTS `namespace N { export var x }` bindings to the enclosing
     // program / function scope - a raw lookup surfaced the namespace twin for a use OUTSIDE
     // the block and narrowed the outer binding to the WRONG flavor. position-aware (the
