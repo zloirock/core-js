@@ -311,6 +311,17 @@ export const PLACEHOLDER_VALIDATORS = {
   TSNumberKeyword: segment => NUMBER_LITERAL_RE.test(segment) && Number.isFinite(Number(segment)),
 };
 
+// the canonical array-index for a key, or null. a string index counts ONLY in its canonical form
+// (`String(n) === key`), so non-canonical strings that `Number()` would coerce to a valid index
+// (`""` -> 0, `"1.0"` -> 1, `"01"` -> 1) are rejected - they address an object key, not an array slot,
+// and reading the coerced element mis-types the access (a wrong type-specific Maybe downstream)
+export function canonicalArrayIndex(key) {
+  if (typeof key === 'number') return Number.isInteger(key) && key >= 0 ? key : null;
+  if (typeof key !== 'string') return null;
+  const n = Number(key);
+  return Number.isInteger(n) && n >= 0 && String(n) === key ? n : null;
+}
+
 // identity / position metadata keys that AST nodes carry but never hold type-shape slots.
 // skipping them avoids spurious recursion into source-position literals while keeping the
 // structural walker tolerant of parser-specific extra fields
