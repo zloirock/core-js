@@ -2,7 +2,7 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import { declaresRequireBinding, peelSkippableWrappers, singleQuasiString } from '../helpers/ast-patterns.js';
+import { declaresRequireBinding, mayHaveSideEffects, peelSkippableWrappers, singleQuasiString } from '../helpers/ast-patterns.js';
 import { normalizeImportSource } from '../helpers/path-normalize.js';
 import { bindsModuleDefault, unwrapParens } from './resolve.js';
 
@@ -142,6 +142,20 @@ const REQUIRE_SHADOWED_SCOPE = {
   hasBinding() { return true; },
   getBindingIdentifier() { return true; },
 };
+
+// removing an existing core-js import that is an INDIRECT require (`(spy(), require)('core-js/modules/
+// X')`) drops the require invocation - the module is re-injected by the plugin - but must KEEP the
+// callee's side-effect prefix. the matched import argument is always a literal module path (that is how
+// the scan recognizes it), so the callee carries every harvestable effect. returns the callee node to
+// emit in place of the call (`(spy(), require)` -> `(spy(), require);`), or null for a plain removal.
+// `peelSkippableWrappers` unwraps the estree `ChainExpression` an optional require (`...?.('core-js/X')`)
+// nests under, so both parsers see the inner call (babel keeps it a bare OptionalCallExpression)
+export function coreJSImportRemovalKeptCallee(node) {
+  if (node?.type !== 'ExpressionStatement') return null;
+  const call = peelSkippableWrappers(node.expression);
+  if (call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression') return null;
+  return mayHaveSideEffects(call.callee) ? call.callee : null;
+}
 
 // callback receives the AST node so callers can remove+re-emit in canonical order -
 // the only load-order-correct option when user polyfill A and plugin-injected B depend

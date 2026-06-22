@@ -1658,9 +1658,14 @@ export default function createDestructureEmitter({
   function handleDestructuredProperty(prop, value) {
     // flat STATIC shapes render through the shared-plan renderer (see `tryRouteFlatStaticToPlan`)
     if (tryRouteFlatStaticToPlan(prop)) return;
-    const propValue = prop.node.value,
-          // captured before default-value processing turns Identifier into ConditionalExpression
-          isStaticValue = t.isIdentifier(value);
+    const propValue = prop.node.value;
+    // captured before default-value processing turns Identifier into ConditionalExpression
+    let isStaticValue = t.isIdentifier(value);
+    // a computed key with side effects (`{ [(eff(), 'from')]: x }`) evaluates at destructure time;
+    // the property is about to be removed (prop.remove), so harvest the key SE now and fold it into
+    // the final emitted value so it still fires once (native evaluates the key after the source).
+    // unplugin preserves the key verbatim in its retained pattern, so this aligns babel with it
+    const keySideEffect = prop.node.computed && mayHaveSideEffects(prop.node.key) ? t.cloneNode(prop.node.key) : null;
     const objectPattern = prop.parentPath;
     // a catch-born host folds the default-guard test ref into its own `let` (block-scoped,
     // minted without the `var` hoist) - the catch-canon shape both emitters emit
@@ -1720,6 +1725,10 @@ export default function createDestructureEmitter({
       else if (parent.isAssignmentExpression()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'right', aliasCtxFromPath(parent));
     }
 
+    if (keySideEffect) {
+      value = t.sequenceExpression([keySideEffect, value]);
+      isStaticValue = false;
+    }
     if (parent.isVariableDeclarator()) {
       emitVariableDeclaratorDestructure({ prop, parent, localBinding, value, isStaticValue, isEmpty, catchFoldedRef });
     } else {
