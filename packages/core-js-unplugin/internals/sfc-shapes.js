@@ -25,11 +25,11 @@ const ASSET_QUERY_PARAMS = new Set(['css', 'direct', 'html-proxy', 'import', 'in
   'used', 'worklet']);
 const WORKER_PARAM_RE = /^worker(?:[-_][a-z]+)?$/;
 
-// Split a bundler module id into its path and query params. The query is lowercased so every structured
-// lookup stays case-insensitive (markers / types / langs were matched case-insensitively by the prior
-// `/i` regexes - some pipelines preserve author casing like `lang=TS`); the path keeps its original
-// case (extension matching is independently case-insensitive). The hash is cut before parsing because
-// URLSearchParams treats `#` as a literal, so a `lang=ts#L10` tail would otherwise leak into the value.
+// Split a bundler module id into its path and query params. Each decoded param key + value is lowercased
+// so every structured lookup stays case-insensitive (markers / types / langs were matched case-
+// insensitively by the prior `/i` regexes - some pipelines preserve author casing like `lang=TS`); the
+// path keeps its original case (extension matching is independently case-insensitive). The hash is cut
+// before parsing because URLSearchParams treats `#` as a literal, so a `lang=ts#L10` tail would leak in.
 export function parseModuleId(id) {
   const path = stripQueryHash(id);
   // `rest` begins at the first `#` or `?` (the path boundary). only a LEADING `?` opens a query; a
@@ -42,12 +42,18 @@ export function parseModuleId(id) {
   let hash = '';
   if (rest[0] === '?') {
     const hashStart = rest.indexOf('#');
-    query = (hashStart === -1 ? rest.slice(1) : rest.slice(1, hashStart)).toLowerCase();
+    query = hashStart === -1 ? rest.slice(1) : rest.slice(1, hashStart);
     if (hashStart !== -1) hash = rest.slice(hashStart);
   } else if (rest[0] === '#') {
     hash = rest;
   }
-  return { path, params: new URLSearchParams(query), hash };
+  // lowercase each key + value AFTER URLSearchParams percent-decodes them, not the raw query string: a
+  // percent-encoded letter decodes to its literal AFTER a raw lowercase (`lang=t%53` -> `tS`), surviving
+  // it - so structured lang / type lookups missed it. lowercasing post-decode keeps them case-insensitive;
+  // the path keeps its original case (extension matching is independently case-insensitive)
+  const params = new URLSearchParams();
+  for (const [key, value] of new URLSearchParams(query)) params.append(key.toLowerCase(), value.toLowerCase());
+  return { path, params, hash };
 }
 
 // --- atomic SFC predicates (composed differently by each consumer) ---
@@ -56,10 +62,25 @@ export function sfcFrameworkMarked(params) {
   return SFC_FRAMEWORK_MARKERS.some(marker => params.has(marker));
 }
 
-// the JS/TS lang ext of an explicit `lang=` param (already lowercased by parseModuleId), or null when
-// the param is absent / empty / a non-JS lang
+// the SFC block lang ext from EITHER the `lang=<ext>` key=value form OR the dotted `lang.<ext>` form
+// (Vite's vue plugin appends `&lang.ts` so its pipeline routes the block through the right extension
+// transform - URLSearchParams reads it as a value-less key `lang.ts`). null IFF no lang param is present;
+// an empty `lang=` / `lang.` yields '' (present-but-empty) so consumers can tell absent from degenerate.
+// NOT filtered to JS langs - callers gate on SFC_JS_LANG_RE. already lowercased by parseModuleId
+function sfcLangParam(params) {
+  const valueForm = params.get('lang');
+  if (valueForm !== null) return valueForm;
+  for (const key of params.keys()) {
+    if (key.startsWith('lang.')) return key.slice(5);
+  }
+  return null;
+}
+
+// the JS/TS lang ext of the SFC lang hint (either form), or null when the param is absent / empty / a
+// non-JS lang. without the dotted-form arm a `lang.ts` block was admitted as JS-by-default yet its TS
+// suffix was never lifted, so oxc parsed the TS / TSX / JSX body as plain JS and rejected it
 export function sfcJsLang(params) {
-  const lang = params.get('lang');
+  const lang = sfcLangParam(params);
   return lang && SFC_JS_LANG_RE.test(lang) ? lang : null;
 }
 
@@ -69,14 +90,16 @@ export function sfcIsNonJsTypeBlock(params) {
 
 // --- composed predicates ---
 
-// shouldTransform's SFC admission: a runnable JS/TS sub-block. An explicit JS `lang=` admits unless the
-// block is a style / template body; otherwise a framework-marked script / module block with no `lang`
-// is JS by default. A non-JS `lang=` (scss / d.ts) is left for the caller's default-JS fallback to skip.
+// shouldTransform's SFC admission: a runnable JS/TS sub-block. An explicit JS lang (either form) admits
+// unless the block is a style / template body; otherwise a framework-marked script / module block with NO
+// lang param AT ALL is JS by default. the default arm fires only when `sfcLangParam` is null (truly
+// absent) - any lang hint (`lang=ts` / `lang.ts` / non-JS `lang.coffee` / even an empty `lang=` / `lang.`)
+// is NOT markerless and must not default to JS, else a non-JS lang would parse-as-JS like the JS langs did
 export function isSfcScriptBlock(params) {
   if (sfcIsNonJsTypeBlock(params)) return false;
   if (sfcJsLang(params)) return true;
   const type = params.get('type');
-  return !params.has('lang') && sfcFrameworkMarked(params) && (type === 'module' || type === 'script');
+  return sfcLangParam(params) === null && sfcFrameworkMarked(params) && (type === 'module' || type === 'script');
 }
 
 // snapshot-cache's sub-block predicate: ANY framework-marked block (incl. style / template, which still
