@@ -169,3 +169,15 @@ QUnit.test('static: chain-root call under SE prefix runs before dispatch', asser
   assert.deepEqual(r, [1, 2]);
   assert.deepEqual(log, ['pre', 'mk']);
 });
+
+// a side-effect prefix buried below a forwarder member (`(eff(), globalThis.self).Array.from`) runs
+// exactly once and the receiver collapses to the pure static: the marking descent suppressed the inner
+// proxy leaf so the static rewrite is the single source of the receiver replacement. an unmarked leaf
+// left the unplugin member visitor queuing a parallel rewrite the compose could not locate -> crash
+QUnit.test('static: SE prefix below a forwarder member runs once, receiver collapses', assert => {
+  const log = [];
+  const eff = () => log.push('e');
+  const r = (eff(), globalThis.self).Array.from([1, 2, 3]);
+  assert.deepEqual(r, [1, 2, 3]);
+  assert.deepEqual(log, ['e']);
+});
