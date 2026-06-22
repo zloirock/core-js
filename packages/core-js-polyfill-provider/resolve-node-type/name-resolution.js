@@ -453,6 +453,18 @@ export function createNameResolution({ t }) {
     return decl?.type === 'TSEnumDeclaration' ? decl : null;
   }
 
+  // the enum is the NEAREST value declaration for `name` - i.e. its members can be read off `name`
+  // at runtime - only when a lexically-nearer const/let/var/param of the same name does not shadow
+  // it. an enum exists for the name AND either there is no value binding, or the enum is no longer
+  // reachable walking up from that binding's scope (the binding sits below the enum). `bindingPath`
+  // MUST be the CONST-AGNOSTIC value binding (`bindingDeclaratorPath`): a reassigned `let Enum`
+  // shadows just as a `const` does, and `constantBindingPath` would return null for it -> false
+  // negative (reads the enum value under the shadow). only the binding SCOPE is read here
+  function enumIsNearestValue(name, scope, bindingPath) {
+    if (!findEnumDeclaration(name, scope)) return false;
+    return !bindingPath || !findEnumDeclaration(name, bindingPath.scope);
+  }
+
   // all `interface X {}` siblings at the first scope level that contains one. cached per-
   // (scope, name): without the cache a class with N inherited interfaces re-walks the scope
   // chain per ancestor; the cache amortises them to O(unique-names-per-scope). WeakMap
@@ -592,6 +604,7 @@ export function createNameResolution({ t }) {
     findDeclPathBySegments,
     findTypeDeclaration,
     findEnumDeclaration,
+    enumIsNearestValue,
     findAllTypeDeclarations,
     typeParamName,
     findTypeParameter,

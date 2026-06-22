@@ -22,6 +22,7 @@ import {
   SINGLE_ELEMENT_COLLECTIONS,
   STRUCTURE_PRESERVING_WRAPPERS,
   TYPEOF_HINT_GROUPS,
+  canonicalArrayIndex,
   intersectHintSets,
   primitiveTypeOf,
   toHint,
@@ -130,6 +131,11 @@ function createResolveNodeType(babelNodeType, t, {
   getPolyfillBindingEntry = () => null,
   getPolyfillBindingHint = () => null,
   isReassignedBinding = () => false,
+  // a user-monkey-patched static (`Array.from = ...`) no longer returns its KNOWN type, so the
+  // static-call return narrow must bail to generic - else `Array.from(x).at(0)` type-locks to
+  // `_atMaybeArray` over a patched return that may be a non-array (ie:11 wrong-Maybe). emitters wire
+  // their per-file mutated-static accessor; default no-op keeps standalone resolver tests unchanged
+  isMutatedStatic = () => false,
   // scope-binding lookup hook: the estree caller filters bindings its tracker OVER-HOISTS out
   // of `namespace N { ... }` bodies (a raw `scope.getBinding` surfaced the namespace twin for
   // a use OUTSIDE the block and narrowed to the WRONG flavor); babel scopes namespaces
@@ -337,8 +343,8 @@ function createResolveNodeType(babelNodeType, t, {
   function walkObjectLiteralPropertyPath(argPath, key) {
     if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
     if (argPath?.node?.type === 'ArrayExpression') {
-      const index = typeof key === 'number' ? key : Number(key);
-      if (!Number.isInteger(index) || index < 0) return null;
+      const index = canonicalArrayIndex(key);
+      if (index === null) return null;
       const elements = argPath.get('elements');
       if (spreadAtOrBefore(elements, index)) return null;
       const elementPath = elements[index];
@@ -364,8 +370,8 @@ function createResolveNodeType(babelNodeType, t, {
     // the generic substitution path falls back to T's constraint (`[unknown, unknown]`)
     // and element 0 resolves to `unknown`
     if (argPath?.node?.type === 'ArrayExpression') {
-      const index = typeof key === 'number' ? key : Number(key);
-      if (!Number.isInteger(index) || index < 0) return null;
+      const index = canonicalArrayIndex(key);
+      if (index === null) return null;
       const elements = argPath.get('elements');
       if (spreadAtOrBefore(elements, index)) return null;
       const elementPath = elements[index];
@@ -411,9 +417,14 @@ function createResolveNodeType(babelNodeType, t, {
     // same way babel does; type-declaration walker works uniformly for both
     const memberName = getMemberProperty(key);
     if (memberName !== null && key.object?.type === 'Identifier') {
-      const enumDecl = findEnumDeclaration(key.object.name, scope);
-      if (enumDecl) {
-        const member = findEnumMember(enumDecl, memberName);
+      const objectName = key.object.name;
+      // a lexically-nearer value binding of the same name (const / let / var / param, reassigned or
+      // not) shadows the enum - read enum member values only when the enum is the nearest value
+      // declaration. the shadow test needs the binding SCOPE only, so use the const-agnostic lookup
+      // (`constantBindingPath` would miss a reassigned `let Enum` and read the enum value under it)
+      if (enumIsNearestValue(objectName, scope, bindingDeclaratorPath(objectName, scope))) {
+        const enumDecl = findEnumDeclaration(objectName, scope);
+        const member = enumDecl && findEnumMember(enumDecl, memberName);
         const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
         if (initValue !== null) return initValue;
       }
@@ -450,6 +461,7 @@ function createResolveNodeType(babelNodeType, t, {
     findDeclPathBySegments,
     findTypeDeclaration,
     findEnumDeclaration,
+    enumIsNearestValue,
     findAllTypeDeclarations,
     typeParamName,
     findTypeParameter,
@@ -544,6 +556,7 @@ function createResolveNodeType(babelNodeType, t, {
   } = createKnownGlobals({
     babelNodeType,
     isMemberLike,
+    isMutatedStatic,
     isNullableOrNever: (...args) => isNullableOrNever(...args),
     resolveMemberPropertyName: (...args) => resolveMemberPropertyName(...args),
     resolveGlobalName: (...args) => resolveGlobalName(...args),
@@ -1552,6 +1565,7 @@ function createResolveNodeType(babelNodeType, t, {
     constantBindingPath,
     bindingDeclaratorPath,
     findEnumDeclaration,
+    enumIsNearestValue,
     findDeclPathBySegments,
     withLookupPath,
     resolveEnumMemberType,
@@ -1599,6 +1613,7 @@ function createResolveNodeType(babelNodeType, t, {
     getScopeBinding,
     babelBindingAdapter,
     isMemberLike,
+    isMutatedStatic,
     isFunctionLike,
     isNullableOrNever,
     resolveNodeType,
