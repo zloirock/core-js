@@ -39,7 +39,6 @@ import {
   PRIMITIVES,
   PRIMITIVE_WRAPPERS,
   PROMISE_SYNONYMS,
-  REBIND_ASSIGNMENT_OPERATORS,
   STRUCTURAL_WALK_SKIP_KEYS,
   STRUCTURE_PRESERVING_WRAPPERS,
   TRANSPARENT_WRAPPERS,
@@ -2620,15 +2619,6 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     KEY_FILTERING_WRAPPERS.has('Omit'));
   check('base sets: KEY_FILTERING_WRAPPERS no Partial',
     KEY_FILTERING_WRAPPERS.has('Partial'), false);
-
-  // REBIND_ASSIGNMENT_OPERATORS: full-rebind ops
-  checkTruthy('base sets: REBIND_ASSIGNMENT_OPERATORS has =',
-    REBIND_ASSIGNMENT_OPERATORS.has('='));
-  checkTruthy('base sets: REBIND_ASSIGNMENT_OPERATORS has ||=',
-    REBIND_ASSIGNMENT_OPERATORS.has('||='));
-  // arithmetic assign reads + mutates; NOT a rebind
-  check('base sets: REBIND_ASSIGNMENT_OPERATORS rejects +=',
-    REBIND_ASSIGNMENT_OPERATORS.has('+='), false);
 
   // ASSIGN_LEFT_TYPES: LHS shapes that bind runtime values
   checkTruthy('base sets: ASSIGN_LEFT_TYPES has Identifier',
