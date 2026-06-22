@@ -39,7 +39,7 @@ import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-opt
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
@@ -572,11 +572,25 @@ export default function createPlugin(options) {
           pkg,
         });
         if (removed.size) {
-        // splice from AST too - `await import(...)` would otherwise drag Promise polyfills
-        // via the syntax visitor after its statement is gone from output
-          ast.body = ast.body.filter(n => !removed.has(n));
+        // a plain import / require splices from the AST too - `await import(...)` would otherwise drag
+        // Promise polyfills via the syntax visitor after its statement is gone from output. an indirect-
+        // require (`(spy(), require)('core-js/X')`) keeps its callee as a bare statement (`spy(), require;`):
+        // the node STAYS in the AST re-pointed at the callee, so the syntax visitor still polyfills any
+        // usage inside the kept prefix (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
+          const keptCallees = new Map();
+          for (const node of removed) {
+            const callee = coreJSImportRemovalKeptCallee(node);
+            if (callee) keptCallees.set(node, callee);
+          }
+          ast.body = ast.body.filter(n => !removed.has(n) || keptCallees.has(n));
           const removeStatement = createTopLevelStatementRemover(ms);
-          for (const node of removed) removeStatement(node);
+          for (const node of removed) {
+            const callee = keptCallees.get(node);
+            if (callee) {
+              ms.overwrite(node.start, node.end, `${ ms.slice(callee.start, callee.end) };`);
+              node.expression = callee;
+            } else removeStatement(node);
+          }
         }
       }
       // post drops pure imports whose binding isn't referenced - sibling may have deleted
