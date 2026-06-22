@@ -333,7 +333,7 @@ export function createPolyfillEmitter({
     bareMember: ({ binding, bodyObj }) => ({
       body: `${ binding }(${ bodyObj })`,
     }),
-    parenLookup: ({ binding, bodyObj, isNonIdent, guardRef, guard, args }) => {
+    parenLookup: ({ binding, bodyObj, isNonIdent, guardRef, guard, args, sideEffects }) => {
       // `(arr?.method)(args)`: parens preserve Reference Type so native binds `this=arr` on
       // success; on nullish the outer non-optional call throws (chain ends at `?.`). emit
       // `(arr == null ? void 0 : binding(_ref = arr.b)).call(_ref, args)`:
@@ -341,10 +341,15 @@ export function createPolyfillEmitter({
       //   - success path preserves `this` via memoized ref
       //   - bodyObj evaluated ONCE (deep-chain `arr.b` would re-eval in outer .call otherwise)
       // bare receiver `arr` and pre-allocated guardRef cases skip memoize - already trivially safe
+      // when a guard is present, the receiver-derived SE (a computed key) must fire only on the
+      // non-null branch (native short-circuits `?.` first), so fold it INTO the guard alternate
+      // here and signal the outer concat (`clearSE`) not to prepend it onto the whole result
       const { obj, firstArg, argsPart } = buildCallParts({ bodyObj, isNonIdent, guardRef, args });
+      const callee = guard ? wrapSideEffects(`${ binding }(${ firstArg })`, sideEffects) : `${ binding }(${ firstArg })`;
       return {
-        body: `(${ guard }${ binding }(${ firstArg })).call(${ obj }${ argsPart })`,
+        body: `(${ guard }${ callee }).call(${ obj }${ argsPart })`,
         clearGuard: true,
+        clearSE: !!guard,
       };
     },
     call: ({ binding, bodyObj, isNonIdent, guardRef, optionalCall, args, guard, sideEffects }) => {
@@ -427,11 +432,12 @@ export function createPolyfillEmitter({
     }
 
     const ctx = { ...opts, isNonIdent: bodyIsNonIdent, binding, bodyObj, guard, guardRef };
-    const { body, clearGuard = false, split = null } = BODY_STRATEGIES[classifyEmitStrategy(opts)](ctx);
+    const { body, clearGuard = false, clearSE = false, split = null } = BODY_STRATEGIES[classifyEmitStrategy(opts)](ctx);
     if (clearGuard) guard = '';
 
     return {
-      replacement: `${ guard }${ wrapSideEffects(body, sideEffects, leadingMemo) }`,
+      // `clearSE`: the strategy already folded the SE into its body (parenLookup guard alternate)
+      replacement: `${ guard }${ wrapSideEffects(body, clearSE ? null : sideEffects, leadingMemo) }`,
       split,
     };
   }
