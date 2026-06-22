@@ -264,6 +264,15 @@ export default function plugin(api, options) {
         // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
         if (t.isSuper(path.node.object)) return;
+        // peel `arr[Symbol.iterator]!()` etc. so the call parent is recognised. resolve the entry +
+        // viability BEFORE skipping the computed key below: if the get-iterator(-method) entry is
+        // excluded we bail, leaving the `Symbol.iterator` KEY for the regular static-symbol rewrite
+        // (`globalThis.Symbol.iterator` -> `_Symbol$iterator`), which subsumes the proxy-global root.
+        // skipping it first then bailing stranded a raw `globalThis` (ie:11 ReferenceError) / left the
+        // broken `_globalThis.Symbol.iterator` (`_globalThis.Symbol` is undefined in the pure variant)
+        const callerPath = unwrapTSExpressionParent(path);
+        const entry = resolveSymbolIteratorEntry(callerPath.node, callerPath.parent);
+        if (!isEntryNeeded(entry)) return;
         if (path.node.computed) {
           // meta.sideEffects carries the key prefix; a side-effecting receiver is hoisted ahead of
           // it by the emit (hoistReceiverSE) so order holds. skip the SequenceExpression TAIL (the
@@ -275,10 +284,6 @@ export default function plugin(api, options) {
             else break;
           }
         }
-        // peel `arr[Symbol.iterator]!()` etc. so the call parent is recognised
-        const callerPath = unwrapTSExpressionParent(path);
-        const entry = resolveSymbolIteratorEntry(callerPath.node, callerPath.parent);
-        if (!isEntryNeeded(entry)) return;
         const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
         const id = injectPureImport(entry, hint);
         // thread `meta.sideEffects` through to the replacement helpers. detect-usage

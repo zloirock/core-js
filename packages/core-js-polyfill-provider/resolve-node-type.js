@@ -1605,6 +1605,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveReturnType,
     findAmbientFunctionPath,
+    findAmbientFunctionPaths,
     resolveFromMemberExpression: (...args) => resolveFromMemberExpression(...args),
     resolveKnownStaticReturnType,
     resolveStaticReturnFromHint,

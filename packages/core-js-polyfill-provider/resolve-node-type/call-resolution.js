@@ -34,7 +34,7 @@
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH } from './base.js';
-import { isUnionType, typeRefName } from './ast-shapes.js';
+import { isUnionType, primitiveTypeKind, selectOverloadByArgKinds, typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -51,6 +51,7 @@ export function createCallResolution({
   resolveRuntimeExpression,
   resolveReturnType,
   findAmbientFunctionPath,
+  findAmbientFunctionPaths,
   resolveFromMemberExpression,
   resolveKnownStaticReturnType,
   resolveStaticReturnFromHint,
@@ -114,16 +115,28 @@ export function createCallResolution({
     // ambient `declare function` (not in scope.bindings) keyed by Identifier name. cast-on-
     // callee shapes (`(fn as () => T)()`, `fn!()`) hit `findExpressionAnnotation` below
     if (t.isIdentifier(callee.node)) {
-      const ambient = findAmbientFunctionPath(callee.node.name, callee.scope);
+      const ambient = selectAmbientFunctionOverload(callee.node.name, callee.scope, callee.parentPath);
       if (ambient) return resolveReturnType(ambient, callee.parentPath);
     }
     // chained alias `const f = getArr; f()`: ambient probe by callee name 'f' missed; retry
     // against walked Identifier so the ambient return type reaches downstream member chains
     if (resolved.node?.type === 'Identifier' && resolved.node !== callee.node) {
-      const ambient = findAmbientFunctionPath(resolved.node.name, resolved.scope);
+      const ambient = selectAmbientFunctionOverload(resolved.node.name, resolved.scope, callee.parentPath);
       if (ambient) return resolveReturnType(ambient, callee.parentPath);
     }
     return resolveCallReturnTypeFromAnnotation(callee);
+  }
+
+  // ambient `declare function` overloads are arg-discriminated like interface method overloads: pick the
+  // overload whose params match the call args (shared `selectOverloadByArgKinds`), else the first declared.
+  // a single declaration returns itself; the call return then comes from the SELECTED overload, not always
+  // the first (`declare function parse(x: string): string[]; parse(x: number): string` on `parse(123)`)
+  function selectAmbientFunctionOverload(name, scope, callPath) {
+    const paths = findAmbientFunctionPaths(name, scope);
+    if (!paths.length) return null;
+    const argPaths = callPath?.get('arguments') ?? [];
+    const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
+    return selectOverloadByArgKinds(paths, p => p.node.params, argKinds) ?? paths[0];
   }
 
   // resolve aliased static-method call return type. tries each alias shape's extractor
