@@ -65,8 +65,8 @@ function check(label, actual, expected) {
 
 // --- shouldTransform ---
 const shouldTransformCases = [
-  // Vue / Astro / Svelte SFC sub-blocks: the real language lives in the `lang=` query token
-  // SFC sub-block without `lang=`: Svelte 5 / Vue / Astro default-JS scripts (no lang token)
+  // Vue / Astro / Svelte SFC sub-blocks: the real language lives in the `lang=` value or dotted `lang.`
+  // key. SFC sub-block with NO lang param: Svelte 5 / Vue / Astro default-JS scripts (no lang token)
   ['/src/App.svelte?svelte&type=script', true, 'Svelte SFC default JS script'],
   ['/src/App.svelte?svelte&type=module', true, 'Svelte SFC default JS module'],
   ['/src/App.vue?vue&type=script', true, 'Vue SFC default JS script'],
@@ -90,6 +90,29 @@ const shouldTransformCases = [
   ['/src/App.vue?foo=bar&lang=ts&baz=qux', true, 'lang= sandwiched between query params'],
   ['/src/App.svelte?lang=jsx', true, 'Svelte SFC lang=jsx'],
   ['/src/Page.astro?astro&type=script&lang=tsx', true, 'Astro SFC lang=tsx'],
+  // dotted virtual-ext lang form: Vite's vue plugin appends the block lang as a trailing DOTTED suffix
+  // (`&lang.ts` -> URLSearchParams value-less key `lang.ts`), not a `lang=` value - admitted + lifted alike
+  ['/src/App.vue?vue&type=script&setup=true&lang.ts', true, 'Vue SFC dotted lang.ts'],
+  ['/src/App.vue?vue&type=script&lang.tsx', true, 'Vue SFC dotted lang.tsx'],
+  ['/src/Page.astro?astro&lang.jsx', true, 'Astro SFC dotted lang.jsx'],
+  // a dotted NON-JS lang is a hint (not markerless), so the default-JS arm must NOT admit it - else oxc
+  // would parse-as-JS like the dotted JS langs did; a dotted style block is excluded by type as well
+  ['/src/App.vue?vue&type=script&lang.coffee', false, 'Vue SFC dotted non-JS lang.coffee blocks default-JS'],
+  ['/src/App.vue?vue&type=style&lang.scss', false, 'Vue SFC dotted lang.scss style block'],
+  ['/src/App.vue?vue&type=script&lang.d.ts', false, 'Vue SFC dotted declaration lang.d.ts (not runnable JS)'],
+  ['/src/App.vue?vue&type=template&lang.ts', false, 'Vue SFC dotted lang.ts in template block excluded by type'],
+  // any `lang.<x>` key is a hint (only an ABSENT lang param is markerless), so an empty `lang.` and a
+  // non-ext `lang.bar` both block the default-JS arm - symmetric with the empty `lang=` negative below
+  ['/src/App.vue?vue&type=script&lang.', false, 'Vue SFC empty dotted lang. blocks default-JS'],
+  ['/src/App.vue?vue&type=script&lang.bar', false, 'Vue SFC non-ext dotted lang.bar blocks default-JS'],
+  // `xlang.ts` does NOT start with `lang.`, so it is not a dotted hint - the block stays markerless JS
+  ['/src/App.vue?vue&type=script&xlang.ts', true, 'xlang.ts is not a dotted lang hint'],
+  // mixed / repeated lang forms - value form wins over a dotted sibling; first dotted wins among dotted
+  ['/src/App.vue?vue&type=script&lang=ts&lang.tsx', true, 'lang=ts value form admitted alongside dotted'],
+  ['/src/App.vue?vue&lang.ts&lang.tsx', true, 'first dotted lang wins'],
+  // percent-encoded uppercase lang value: URLSearchParams decodes `%53` to `S` AFTER the case-fold, so
+  // the lowercase must happen post-decode (`lang=t%53` -> `ts`) or the JS lang is missed
+  ['/src/App.vue?vue&type=script&lang=t%53', true, 'Vue SFC percent-encoded lang=t%53'],
   // SFC non-JS sub-blocks / declaration / substring false-match / empty value
   ['/src/App.vue?vue&type=style&lang=scss', false, 'Vue SFC lang=scss'],
   ['/src/App.vue?vue&type=script&lang=d.ts', false, 'SFC declaration block (lang=d.ts)'],
@@ -214,9 +237,10 @@ const shouldTransformCases = [
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
 
 // --- liftSfcLangSuffix ---
-// regex is now shared with shouldTransform via internals/sfc-shapes.js, so every shape that
-// shouldTransform admits via the lang= path produces a matching extension here by construction;
-// drift between admit and lift can't happen now that both consumers import the same regex
+// shouldTransform's lang arm and the lifter BOTH resolve the lang through the same `sfcJsLang` predicate
+// in internals/sfc-shapes.js (which reads either the `lang=` value or the dotted `lang.<ext>` key), so
+// every shape admitted via the lang path produces a matching extension here by construction; drift
+// between admit and lift can't happen now that both consumers share one predicate, not just one regex
 const liftSfcLangCases = [
   // basic JS/TS extensions
   ['/src/App.vue?vue&type=script&lang=ts', '/src/App.vue.ts'],
@@ -246,6 +270,27 @@ const liftSfcLangCases = [
   // first per spec), so `lang=ts&lang=tsx` lifts to `.ts`. authoring this shape is a user
   // bug; the test pins the deterministic resolution
   ['/src/App.vue?vue&lang=ts&lang=tsx', '/src/App.vue.ts'],
+  // dotted virtual-ext form (`&lang.ts`): Vite's vue plugin appends the block lang as a trailing DOTTED
+  // suffix (URLSearchParams reads it as a value-less key `lang.ts`), not a `lang=` value. without
+  // recognising it the suffix was dropped and oxc parsed the TS / TSX / JSX body as plain JS
+  ['/src/App.vue?vue&type=script&setup=true&lang.ts', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang.tsx', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang.cts', '/src/App.vue.cts'],
+  ['/src/Page.astro?astro&lang.jsx', '/src/Page.astro.jsx'],
+  // dotted lang + `#hash` terminator (sourcemap line marker) - hash is cut before parsing, lift still fires
+  ['/src/App.vue?vue&type=script&lang.ts#L10', '/src/App.vue.ts'],
+  // value form wins over a dotted sibling; among dotted siblings the first key wins (deterministic)
+  ['/src/App.vue?vue&type=script&lang=ts&lang.tsx', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&lang.ts&lang.tsx', '/src/App.vue.ts'],
+  // a dotted NON-JS lang (scss) is a lang hint but not a JS ext, so no lift (baseId unchanged)
+  ['/src/App.vue?vue&type=style&lang.scss', '/src/App.vue'],
+  // empty dotted `lang.`, non-ext `lang.bar`, dotted declaration `lang.d.ts` are hints but not JS exts - no lift
+  ['/src/App.vue?vue&type=script&lang.', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang.bar', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang.d.ts', '/src/App.vue'],
+  // percent-encoded uppercase lang value: URLSearchParams decodes `%53` to `S` AFTER the case-fold, so
+  // the lowercase must run post-decode (`lang=t%53` -> `ts`) or the JS lang is missed
+  ['/src/App.vue?vue&type=script&lang=t%53', '/src/App.vue.ts'],
   // non-JS lang= or no lang= - return baseId unchanged (no synthesized extension)
   ['/src/App.vue?vue&type=script&lang=scss', '/src/App.vue'],
   ['/src/App.vue?vue&type=script&lang=d.ts', '/src/App.vue'],
@@ -266,8 +311,8 @@ const liftSfcLangCases = [
   // substring guard: `xlang=` must not match - the `[&?]` prefix class demands a real
   // separator before `lang=`, so `?xlang=ts` is rejected (no leading `&`/`?` to consume)
   ['/src/App.vue?xlang=ts', '/src/App.vue'],
-  // author-cased `lang=TS` etc. - admission is case-insensitive (the query is lowercased before
-  // it is parsed) so mixed-case suffixes are accepted; the lifter emits the extension lowercased
+  // author-cased `lang=TS` etc. - admission is case-insensitive (each query key + value is lowercased
+  // AFTER percent-decode) so mixed-case suffixes are accepted; the lifter emits the extension lowercased
   // so oxc-parser's extension-based language inference resolves canonical `.ts` / `.tsx` parsers.
   // case-sensitive matching would leave the bare `.vue` baseId and oxc would silently reject TS-only
   // syntax in the SFC script body
@@ -2022,6 +2067,19 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/Enc.vue?%76%75%65&type=script', { tag: 'sfc-xenc' });
   check('SnapshotCache/sfc query percent-encoding canonical across passes',
     cache.take('/src/Enc.vue?vue&type=script')?.tag, 'sfc-xenc');
+  // percent-encoded UPPERCASE marker (`%56ue` -> `Vue`): the case-fold runs AFTER percent-decode, so the
+  // decoded `V` folds to `v` and the marker still registers - a pre-decode fold would leave `Vue`, miss
+  // the marker, and key on the bare path, breaking the round-trip with the plain `?vue` post-pass id
+  cache.store('/src/Up.vue?%56ue&type=script', { tag: 'sfc-upenc' });
+  check('SnapshotCache/sfc percent-encoded uppercase marker canonical',
+    cache.take('/src/Up.vue?vue&type=script')?.tag, 'sfc-upenc');
+  // dotted virtual-ext lang sub-blocks of one file (`&lang.ts` vs `&lang.tsx`) carry distinct queries, so
+  // their keys must differ - else the second snapshot clobbers the first as the framework marker alone
+  // would collapse both to the same key
+  cache.store('/src/Dot.vue?vue&type=script&lang.ts', { tag: 'dot-ts' });
+  cache.store('/src/Dot.vue?vue&type=script&lang.tsx', { tag: 'dot-tsx' });
+  check('SnapshotCache/dotted lang sub-block ts distinct', cache.take('/src/Dot.vue?vue&type=script&lang.ts')?.tag, 'dot-ts');
+  check('SnapshotCache/dotted lang sub-block tsx distinct', cache.take('/src/Dot.vue?vue&type=script&lang.tsx')?.tag, 'dot-tsx');
   // a `?marker` that sits in a URL FRAGMENT (`#frag?vue&type=script`) is fragment text, not a query, so
   // the id is NOT an SFC sub-block: it keys on its bare path like any non-sub-block id (detection and the
   // key agree via the one parse, so no malformed `?#frag?...` sub-block key as the two-parser split emitted)
