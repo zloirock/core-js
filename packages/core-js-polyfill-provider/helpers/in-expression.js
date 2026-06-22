@@ -27,7 +27,14 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     const rescue = new Set(meta.sideEffects);
     const leadingSe = collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), [], rescue);
     for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
-    return { kind: 'symbol', call: meta.key === 'Symbol.iterator', entry: symbolIn.entry, hint: symbolIn.hint, leadingSe, right };
+    // the rewrite REPLACES the LHS value (`Symbol.iterator in x` -> `_isIterable(x)`), so the LHS is
+    // discarded whole - a text emitter must mark it (and any polyfillable subtree it buries, e.g. a
+    // sequence-prefix proxy-global `(globalThis, Symbol.iterator) in x`) skipped or that rewrite has no
+    // target in the replacement. the RHS survives, re-emitted verbatim, so it is NOT in `skip`
+    return {
+      kind: 'symbol', call: meta.key === 'Symbol.iterator',
+      entry: symbolIn.entry, hint: symbolIn.hint, leadingSe, right, skip: [left],
+    };
   }
   // bare-name LHS with a statically-known polyfilled key (`'from' in Array`) folds to `true` (the
   // polyfill is always defined). BOTH operands still evaluate their side effects even though the
@@ -52,7 +59,11 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     // defensive: a chain-root call the structural walk could not position (shape mismatch) keeps the
     // old append slot rather than being dropped
     for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
-    return { kind: 'fold', leadingSe, skip: right };
+    // the fold replaces the WHOLE node with `true`, so BOTH operands are discarded - a text emitter must
+    // mark each skipped or a polyfillable subtree left in the LHS key (`(globalThis, 'from') in Array`)
+    // stays visitable and its rewrite overlaps the spliced-out region (an AST emitter drops both by
+    // replacing the node). rescued leadingSe subtrees are excluded from the skip - they are re-emitted
+    return { kind: 'fold', leadingSe, skip: [left, right] };
   }
   return { kind: 'noop' };
 }
