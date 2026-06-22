@@ -27,8 +27,9 @@
 // Service object passes factory helpers (`memoize`, `findProgramPath`, `getDeclaratorBindingName`,
 // `staticPairFromPolyfillEntry`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the
 // Babel/ESTree type adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
-import { REBIND_ASSIGNMENT_OPERATORS } from './base.js';
+import { PATTERN_WRAPPERS } from './base.js';
 import {
+  FUNCTION_LIKE_NODE_TYPES,
   isBindingPosition,
   isForXStatement,
   isMemberAccessNode,
@@ -41,6 +42,42 @@ import {
   walkPatternIdentifiers,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+
+// walk up from an Identifier through destructuring pattern wrappers to the enclosing binding / assign
+// host. returns { host, node } where node is the outermost pattern reached (or the identifier itself
+// when not in a pattern); null when the identifier is a property KEY (esp. computed `{ [ref]: x }`, a
+// real reference) or has no parent. lets callers mirror what babel's `referencePaths` excludes -
+// declaration slots AND destructuring-write targets - which the estree-toolkit walk would otherwise
+// over-collect since patterns nest arbitrarily
+function patternSlotHost(refNode, refPath) {
+  if (!refPath) return null;
+  let node = refNode;
+  let cur = refPath.parentPath;
+  while (cur && PATTERN_WRAPPERS.has(cur.node.type)) {
+    const { node: w } = cur;
+    // only a property VALUE is a slot; a key (esp. computed `{ [ref]: x }`) is a reference
+    if ((w.type === 'Property' || w.type === 'ObjectProperty') && w.value !== node) return null;
+    node = w;
+    cur = cur.parentPath;
+  }
+  return cur ? { host: cur.node, node } : null;
+}
+
+// is this Identifier a binding DECLARATION rather than a reference? `isBindingPosition` covers the
+// simple slots (declarator / function-class id / catch param); destructuring-pattern slots and
+// function params nest arbitrarily, so walk to the binding host - a slot rooted at a declarator id,
+// catch param, or function param is a declaration. mirrors babel's `referencePaths` exclusion so a
+// param / destructure binding's own declaration is not mis-collected as a leak-classified reference
+function isBindingDeclarationPath(p) {
+  if (isBindingPosition(p.parent, p.node)) return true;
+  const slot = patternSlotHost(p.node, p);
+  if (!slot) return false;
+  const { host, node } = slot;
+  if (host.type === 'VariableDeclarator') return host.id === node;
+  if (host.type === 'CatchClause') return host.param === node;
+  if (FUNCTION_LIKE_NODE_TYPES.has(host.type)) return Array.isArray(host.params) && host.params.includes(node);
+  return false;
+}
 
 export function createBindingAnalysis({
   t,
@@ -326,7 +363,7 @@ export function createBindingAnalysis({
           // `isNonReferencePosition`, those would slip through as false references against a
           // closure-binding of the same name and force `defaultAliasRefClassifier` to fall
           // through to `'leak'`, disabling the narrow
-          if (isBindingPosition(p.parent, p.node)) return;
+          if (isBindingDeclarationPath(p)) return;
           if (isNonReferencePosition(p.parent, p.node)) return;
           const binding = p.scope?.getBinding(p.node.name);
           if (!binding) return;
@@ -410,11 +447,20 @@ export function createBindingAnalysis({
     // `o[Symbol.iterator]()`; `for (const k in o) {}` reads enumerable keys. neither
     // mutates `o` through any standard channel
     if (isForXStatement(parent) && parent.right === refNode) return 'trivial';
-    // direct (`o = v`) and logical (`o ||= v` / `o ??= v` / `o &&= v`) rebindings
-    // change which value the binding points at, not the captured anchor's identity.
-    // see `REBIND_ASSIGNMENT_OPERATORS` for the full operator set + soundness rationale
-    if (parent?.type === 'AssignmentExpression' && parent.left === refNode
-      && REBIND_ASSIGNMENT_OPERATORS.has(parent.operator)) return 'trivial';
+    // obj is the target of a WRITE that rebinds the binding, not a leaking read - a constantViolation
+    // babel drops from `referencePaths` (the estree-toolkit program-index collects writes, so neutralize
+    // to match). covers any AssignmentExpression LHS: direct (`o = v`, `o += v`, `o ||= v`) or
+    // destructuring (`({ o } = v)`, `([o] = v)`), operator irrelevant - a compound write still coerces +
+    // rebinds. a for-of / for-in head counts ONLY when it destructures (`for ({ o } of v)`); babel keeps
+    // a simple head (`for (o of v)`) as a reference, so that path stays a leak
+    const writeSlot = patternSlotHost(refNode, refPath);
+    if (writeSlot && writeSlot.host.left === writeSlot.node) {
+      const hostType = writeSlot.host.type;
+      if (hostType === 'AssignmentExpression'
+        || (writeSlot.node !== refNode && (hostType === 'ForOfStatement' || hostType === 'ForInStatement'))) {
+        return 'trivial';
+      }
+    }
     // pass-through to a known-built-in static at a non-mutating arg slot doesn't escape:
     // `JSON.stringify(obj)`, `Object.keys(obj)`, `Object.assign(target, obj)`, `f(...obj)`,
     // `[...obj]`, `{...obj}` - all routed through the helper which unwraps SpreadElement
