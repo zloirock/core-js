@@ -12,7 +12,7 @@
 // `resolveIndexedAccessMembers`, `pickIndexSignature` - the last three power factory branches
 // outside the dispatch (the class-extends walker, indexed-access dispatcher, index-signature
 // pick from `resolveIndexSignatureMember`).
-import { KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
+import { canonicalArrayIndex, KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
 import {
   interfaceBodyMembers,
   isInterfaceDeclaration,
@@ -24,17 +24,6 @@ import {
   typeRefSegments,
 } from './ast-shapes.js';
 import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
-
-// canonical array/tuple index: a non-negative integer number, or a string that round-trips
-// through Number (`"0"`/`"1"` yes; `""`/`" 1"`/`"1.0"`/`"01"`/`"0x1"`/`"1e0"` no - Number coerces
-// those to integers that do NOT index the element). null when the key is not an index. a bare
-// `Number(key)` would mis-read `t[""]` as `t[0]`
-function canonicalArrayIndex(key) {
-  if (typeof key === 'number') return Number.isInteger(key) && key >= 0 ? key : null;
-  if (typeof key !== 'string') return null;
-  const n = Number(key);
-  return Number.isInteger(n) && n >= 0 && String(n) === key ? n : null;
-}
 
 export function createTypeMembers({
   memoize,
