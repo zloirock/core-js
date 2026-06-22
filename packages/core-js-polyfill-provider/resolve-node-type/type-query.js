@@ -25,6 +25,7 @@ export function createTypeQuery({
   constantBindingPath,
   bindingDeclaratorPath,
   findEnumDeclaration,
+  enumIsNearestValue,
   findDeclPathBySegments,
   withLookupPath,
   resolveEnumMemberType,
@@ -50,22 +51,15 @@ export function createTypeQuery({
   buildCallSiteSubst,
   functionTypeReturnAnnotation,
 }) {
-  // `typeof name` resolves `name` in the VALUE namespace. an enum contributes a value, but a
-  // lexically-nearer const/let/var of the same name shadows an outer enum. the enum is the
-  // nearest value declaration only when there's no value binding, OR the enum sits BELOW the
-  // binding's scope - searching up from the binding's scope then no longer reaches it
-  function enumIsNearestValue(name, scope, bindingPath) {
-    if (!findEnumDeclaration(name, scope)) return false;
-    return !bindingPath || !findEnumDeclaration(name, bindingPath.scope);
-  }
-
   // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
   function resolveTypeofBinding(name, scope) {
     const bindingPath = constantBindingPath(name, scope);
     // `typeof Enum` (alone in annotation) - enum's runtime value is the enum object itself.
     // TSEnumDeclaration has no typeAnnotation slot, so treat it as $Object('Object') for
-    // downstream member inference - but only when a nearer value binding doesn't shadow it
-    if (enumIsNearestValue(name, scope, bindingPath)) return new $Object('Object');
+    // downstream member inference - but only when a nearer value binding doesn't shadow it. the
+    // shadow test needs the binding SCOPE only, so use the const-agnostic lookup (a reassigned
+    // `let Enum` shadows too); `bindingPath` below stays const-only for the DECLARED-type reads
+    if (enumIsNearestValue(name, scope, bindingDeclaratorPath(name, scope))) return new $Object('Object');
     if (!bindingPath) {
       // a reassigned (non-const) annotated declarator still has a stable DECLARED type for `typeof`
       // (TS reads the annotation, not the narrowed value) - constantBindingPath bails on the
@@ -94,9 +88,10 @@ export function createTypeQuery({
   // declarations dispatch to `resolveClassMember` for the (single-step) static member case;
   // other shapes fall through to the binding's type annotation
   function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
-    const bindingPath = constantBindingPath(objectName, scope);
     // `typeof Enum.Member` - map the member to the enum's value kind ($Primitive('string'|
-    // 'number')), but only when a nearer value binding doesn't shadow the enum head
+    // 'number')), but only when a nearer value binding doesn't shadow the enum head. const-agnostic
+    // lookup: the shadow needs only the binding scope, and a reassigned `let Enum` shadows too
+    const bindingPath = bindingDeclaratorPath(objectName, scope);
     if (memberPath.length === 1 && enumIsNearestValue(objectName, scope, bindingPath)) {
       const type = resolveEnumMemberType(findEnumDeclaration(objectName, scope), memberPath[0]);
       if (type) return type;

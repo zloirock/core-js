@@ -45,19 +45,107 @@ export function createClosureAnalysis({
   buildProgramIndex,
   resolveNodeType,
 }) {
-  // anonymous objects (no stable binding name) get an empty closure rather than null bail:
-  // there's no name through which external writes can target them, so the empty closure's
-  // write filter matches zero writes - safe partial scan from init + this-writes only.
-  // named bindings delegate to the generic closure builder (which may itself return null
-  // on leak / reassignment). cached per ObjectExpression node: a single literal can have
-  // many distinct field reads (`this.a`, `this.b`, ...) but the closure is field-agnostic
+  // an anonymous object (no binding name) normally gets an EMPTY closure - a sound zero-external-write
+  // scan (init + this-writes only), since there is no name through which external writes can target it.
+  // but two positions hand a REFERENCE to external code directly, so `<ref>.field = ...` writes become
+  // UNKNOWN (not empty) and the field type would type-lock unsoundly: `export default {...}` (importers
+  // get the object) and a call / new ARGUMENT (the callee may store + mutate it). bail to null there,
+  // like an escaping named binding. other positions (a declarator init, an assignment, an object-literal
+  // property value) keep the object module-local and stay on the empty-closure scan. named bindings
+  // delegate to the generic closure builder (which may itself return null on leak / reassignment).
+  // cached per ObjectExpression node: a single literal can have many distinct field reads but the
+  // closure is field-agnostic
   let objectAliasClosureCache = new WeakMap();
+  // the object's value reaches `parent` unchanged through a value-preserving position - the object
+  // escapes iff the node now CARRYING its value does, so return that carrier's path to re-test one
+  // level up. covers structural carriers (array element, object-property value, spread) and pure
+  // forwarders (conditional branch, logical operand, sequence tail); paren / TS wrappers are already
+  // peeled by `peelParenAndTSParentPath`. null when this position is not value-preserving
+  function valueFlowCarrier(parent, parentPath, valueNode) {
+    switch (parent.type) {
+      case 'ArrayExpression':
+      case 'SpreadElement':
+        return parentPath;
+      case 'ObjectProperty':
+      case 'Property':
+        return unwrapRuntimeExpr(parent.value) === valueNode && parentPath.parentPath?.node?.type === 'ObjectExpression'
+          ? parentPath.parentPath : null;
+      case 'ConditionalExpression':
+        return unwrapRuntimeExpr(parent.consequent) === valueNode || unwrapRuntimeExpr(parent.alternate) === valueNode
+          ? parentPath : null;
+      case 'LogicalExpression':
+        return unwrapRuntimeExpr(parent.left) === valueNode || unwrapRuntimeExpr(parent.right) === valueNode
+          ? parentPath : null;
+      case 'SequenceExpression':
+        return unwrapRuntimeExpr(parent.expressions.at(-1)) === valueNode ? parentPath : null;
+      default:
+        return null;
+    }
+  }
+  // the carrier (with the object inside) is bound to a NAME - via a declarator (`const x = [...]`) or a
+  // `=` assignment (`x = [...]`). the object escapes iff that binding LEAKS: reuse the bound-path leak
+  // analysis, where a member-read (`x[0]` / `x.f`) is trivial/local but `return x` / `f(x)` / `export
+  // { x }` leaks (-> null closure). only the leak verdict is used - the closure tracks `x.field` writes,
+  // not the bound element's, which stay a known field-flow limit
+  function carrierBindingLeaks(scope, name, anchorPath) {
+    return computeAliasClosureFromBinding({ rootBinding: scope?.getBinding(name), rootName: name, anchorPath }) === null;
+  }
+  function anonymousObjectEscapes(objectPath) {
+    let valuePath = objectPath;
+    for (;;) {
+      const parentPath = peelParenAndTSParentPath(valuePath);
+      const parent = parentPath?.node;
+      if (!parent) return false;
+      // value flows into a container / forwarder (`return [{...}]`, `f({ k: {...} })`) - escape is
+      // decided at the OUTERMOST carrier, not the immediate parent, so climb and re-test
+      const carrier = valueFlowCarrier(parent, parentPath, valuePath.node);
+      if (carrier) {
+        valuePath = carrier;
+        continue;
+      }
+      switch (parent.type) {
+        // the object's value is handed straight to external code - the module default export, a return /
+        // yield / await argument / an arrow's expression body (the call/arrow's caller receives it), or a
+        // throw (the value propagates to a catch handler) - so an outside holder can write its fields
+        case 'ExportDefaultDeclaration':
+        case 'ReturnStatement':
+        case 'YieldExpression':
+        case 'AwaitExpression':
+        case 'ArrowFunctionExpression':
+        case 'ThrowStatement':
+          return true;
+        // a call / new ARGUMENT (not the callee) - the callee receives a reference and may store + mutate it
+        case 'CallExpression':
+        case 'NewExpression':
+        case 'OptionalCallExpression':
+          return !!parent.arguments?.some(arg => unwrapRuntimeExpr(arg) === valuePath.node);
+        // the carrier is bound to a name (`const x = [...]`) - escape iff the binding leaks
+        case 'VariableDeclarator':
+          return parent.id?.type === 'Identifier' && unwrapRuntimeExpr(parent.init) === valuePath.node
+            && carrierBindingLeaks(parentPath.scope, parent.id.name, objectPath);
+        // `x = <carrier>` binds x AND evaluates to the assigned value: escape if x leaks OR the
+        // assignment's own value-position escapes (`return (x = [...])` / `f(x = [...])`)
+        case 'AssignmentExpression': {
+          const bound = parent.operator === '=' && parent.left?.type === 'Identifier'
+            && unwrapRuntimeExpr(parent.right) === valuePath.node;
+          if (!bound) return false;
+          if (carrierBindingLeaks(parentPath.scope, parent.left.name, objectPath)) return true;
+          valuePath = parentPath;
+          continue;
+        }
+        // member-store / member receiver / param default etc. keep the object module-local -> empty closure
+        default:
+          return false;
+      }
+    }
+  }
   function computeObjectAliasClosure(objectPath) {
     return memoize(objectAliasClosureCache, objectPath.node, () => {
       const rootName = objectBindingName(objectPath);
-      return rootName
-        ? computeAliasClosureFromBinding({ rootBinding: objectPath.scope?.getBinding(rootName), rootName, anchorPath: objectPath })
-        : EMPTY_CLOSURE;
+      if (rootName) {
+        return computeAliasClosureFromBinding({ rootBinding: objectPath.scope?.getBinding(rootName), rootName, anchorPath: objectPath });
+      }
+      return anonymousObjectEscapes(objectPath) ? null : EMPTY_CLOSURE;
     });
   }
 
