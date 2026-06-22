@@ -38,7 +38,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { resolveSymbolIteratorEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
@@ -864,7 +864,11 @@ export default function plugin(api, options) {
           });
           if (removed.size) {
             for (const stmt of path.get('body')) {
-              if (removed.has(stmt.node)) stmt.remove();
+              if (!removed.has(stmt.node)) continue;
+              // an indirect-require removal keeps the callee (its SE prefix); a plain import drops whole
+              const keptCallee = coreJSImportRemovalKeptCallee(stmt.node);
+              if (keptCallee) stmt.get('expression').replaceWith(t.cloneNode(keptCallee));
+              else stmt.remove();
             }
           }
         }
