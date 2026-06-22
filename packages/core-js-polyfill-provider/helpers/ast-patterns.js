@@ -3569,6 +3569,11 @@ const ALWAYS_EFFECTFUL_TYPES = new Set([
   'AssignmentExpression',
   'AwaitExpression',
   'CallExpression',
+  // a decorator is APPLIED at class-eval - the decorator expression is evaluated and the result is
+  // invoked with the target (`@deco` -> `deco(C)`, `@deco(eff())` -> `deco(eff())(C)`), always a call.
+  // `classHasSideEffects` recurses into `node.decorators`, so without this a decorator factory's SE
+  // (`@deco(eff())`) elides as pure and the enclosing class drops from a destructure / fold source
+  'Decorator',
   'ImportExpression',
   'NewExpression',
   'OptionalCallExpression',

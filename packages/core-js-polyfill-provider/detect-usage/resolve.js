@@ -657,6 +657,9 @@ export function inlineCallHasObservableEffects({ callNode, scope, adapter, path 
 }
 
 function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
+  // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
+  // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation
+  if (callNode.arguments?.some(mayHaveSideEffects)) return true;
   const body = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen })?.body;
   if (!body) return false;
   const isBlock = body.type === 'BlockStatement';
