@@ -35,6 +35,7 @@ const MAX_PEEL = 16;
 export function createKnownGlobals({
   babelNodeType,
   isMemberLike,
+  isMutatedStatic = () => false,
   isNullableOrNever,
   resolveMemberPropertyName,
   resolveGlobalName,
@@ -207,6 +208,8 @@ export function createKnownGlobals({
     if (!isMemberLike(callee)) return null;
     const info = resolveGlobalMember(callee);
     if (!info) return null;
+    // a monkey-patched static returns whatever the patch returns - drop the known narrow to generic
+    if (isMutatedStatic(info.objectName, info.memberName)) return null;
     const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
     if (!hint) return null;
     return resolveStaticReturnFromHint({ objectName: info.objectName, memberName: info.memberName, hint, callPath });

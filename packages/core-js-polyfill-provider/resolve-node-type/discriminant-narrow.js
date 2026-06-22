@@ -162,10 +162,20 @@ export function createDiscriminantNarrow({
       // `isMemberWriteHost` enumeration; the bare hostType check missed those, so a `[obj.a] = v`
       // or `for (obj.a of it)` write left the narrow unsoundly retained)
       if (!isMemberWriteHost(p)) continue;
-      // exact narrowed path, or a strict segment-prefix of it (`obj.a` vs target `obj.a.b`); a
-      // deeper write (`obj.a.b.c`) only mutates a property OF the narrowed object, so it is excluded
       const writeKey = pathKey(p.node);
-      if (writeKey !== null && (writeKey === targetKey || targetKey.startsWith(`${ writeKey }.`))) out.push({ node: p.parentPath.node });
+      if (writeKey === null) continue;
+      // an IDENTITY write - the exact narrowed path or a shallower prefix of it (`obj.a` vs target
+      // `obj.a.b`) - reassigns the narrowed value, so it drops the narrow unconditionally. push the
+      // write-host PATH so `violationInCapturedFunction` can walk `.parentPath`
+      if (writeKey === targetKey || targetKey.startsWith(`${ writeKey }.`)) {
+        out.push(p.parentPath);
+      } else if (writeKey.startsWith(`${ targetKey }.`) && !writeKey.slice(targetKey.length + 1).includes('.')) {
+        // a DIRECT field write (`s.kind` for target `s`) flips the variant ONLY when the field is a
+        // guard's discriminant; an unrelated field write (`s.data = ...`) leaves it intact. carry the
+        // key so `discriminantGuardApplies` can match it per-guard. a yet-deeper write (`s.a.b`) is a
+        // property mutation - excluded. the wrapper mirrors a path for the violation consumers
+        out.push({ node: p.parentPath.node, parentPath: p.parentPath.parentPath, writeKey });
+      }
     }
     return out;
   }
@@ -178,11 +188,41 @@ export function createDiscriminantNarrow({
   function buildDiscriminantContext(varPath, targetKey) {
     const [rootName] = targetKey.split('.', 1);
     const objectBinding = rootName === 'this' ? null : varPath.scope?.getBinding(rootName);
+    // `violations` = reassignments of the narrowed value's IDENTITY (binding reassignments + writes to
+    // the exact narrowed path / a shallower prefix); they invalidate the narrow unconditionally and feed
+    // the loop / function-boundary checks. `fieldWrites` = writes to a DIRECT field, kept apart because
+    // each one counts against a guard only when it targets THAT guard's discriminant field
     const violations = [...objectBinding?.constantViolations ?? []];
-    if (targetKey.includes('.') && objectBinding) {
-      violations.push(...memberPathWriteViolations({ objectBinding, rootName, anchorPath: varPath, targetKey }));
+    const fieldWrites = [];
+    if (objectBinding) {
+      for (const write of memberPathWriteViolations({ objectBinding, rootName, anchorPath: varPath, targetKey })) {
+        (write.writeKey === undefined ? violations : fieldWrites).push(write);
+      }
     }
-    return { rootName, objectBinding, violations, objectStart: varPath.node?.start };
+    return { rootName, objectBinding, violations, fieldWrites, targetKey, objectStart: varPath.node?.start };
+  }
+
+  // the `<targetKey>.<field>` write-keys a guard's discriminant clauses test, so a field write only
+  // counts against THIS guard when it targets one of them (`s.kind` flips `if (s.kind === ...)` / a
+  // `switch (s.kind)`, an unrelated `s.data = ...` does not). a comparison guard parses through
+  // `parseDiscriminantCheck`; a switch discriminant is the BARE member `s.kind`, so fall back to
+  // `matchTargetFieldPath`. `fieldPath` is a segment array - join with `.` so a nested field addresses
+  function guardDiscriminantWriteKeys(testNode, targetKey, scope) {
+    const keys = new Set();
+    for (const part of flattenCondition(testNode, '&&').concat(flattenCondition(testNode, '||'))) {
+      const fieldPath = parseDiscriminantCheck({ rawTest: part, targetKey, conditionTrue: true, scope })?.fieldPath
+        ?? matchTargetFieldPath(unwrapRuntimeExpr(part), targetKey, scope);
+      if (fieldPath?.length) keys.add(`${ targetKey }.${ fieldPath.join('.') }`);
+    }
+    return keys;
+  }
+
+  // identity violations plus only the field writes whose key is a discriminant of THIS guard - an
+  // unrelated field write must not invalidate the variant narrow
+  function relevantGuardViolations({ violations, fieldWrites }, testNode, targetKey, scope) {
+    if (!fieldWrites.length) return violations;
+    const discriminantKeys = guardDiscriminantWriteKeys(testNode, targetKey, scope);
+    return violations.concat(fieldWrites.filter(w => discriminantKeys.has(w.writeKey)));
   }
 
   // ANY constantViolation whose `.node.start` falls inside one of `intervals`. each entry is
@@ -213,13 +253,15 @@ export function createDiscriminantNarrow({
   // routed through `violationsHitAnyInterval` so synthetic violations conservatively drop
   // the guard - mirrors `hasMutationAfterGuards`' `isBefore` polarity
   function discriminantGuardApplies(scope, testNode, ctx) {
-    const { rootName, objectBinding, violations, objectStart } = ctx;
+    const { rootName, objectBinding, targetKey, objectStart } = ctx;
     if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
-    if (objectBinding && violationInCapturedFunction(t, violations, objectBinding.scope?.path)) return false;
+    // a direct field write only flips THIS guard when the field is one of its discriminants
+    const relevant = relevantGuardViolations(ctx, testNode, targetKey, scope);
+    if (objectBinding && violationInCapturedFunction(t, relevant, objectBinding.scope?.path)) return false;
     const testStart = testNode?.start;
     const testEnd = testNode?.end;
     if (testEnd === undefined || objectStart === undefined) return false;
-    return !violationsHitAnyInterval(violations, [
+    return !violationsHitAnyInterval(relevant, [
       { from: testEnd, to: objectStart, inclusive: false },
       { from: testStart, to: testEnd, inclusive: true },
     ]);

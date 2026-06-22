@@ -138,6 +138,9 @@ export default function plugin(api, options) {
     getPolyfillBindingEntry(scope, name) { return injector?.getBindingInfo?.(name)?.entry ?? null; },
     getPolyfillBindingHint(scope, name) { return injector?.getBindingInfo?.(name)?.hint ?? null; },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
+    // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
+    // traversal, after init, so the deferred reference is safe
+    isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
   });
   const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
 
