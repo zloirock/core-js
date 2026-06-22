@@ -506,11 +506,19 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
 // outer's eliminated-needle replacement
 // peel and record transparent wrappers (TS casts, parens) along the way. polyfill visitor
 // lookups land on either form depending on the enclosing visitor, so marking both the wrapper
-// and its unwrapped inner matches any of them
+// and its unwrapped inner matches any of them. a buried SequenceExpression is ALSO peeled to its
+// TAIL (the chain value resolves through the last element) but NOT marked: its prefix effects
+// survive and are re-emitted, so marking the whole sequence would skip them. without the SE peel a
+// chain buried in a sequence tail (`(0, (() => globalThis)().self).Array`) left its inner proxy /
+// IIFE root unmarked -> unplugin queued a parallel rewrite overlapping the outer subsumption -> crash
 function peelMarkedWrappers(node, handledObjects) {
-  while (node && isTransparentWrapper(node)) {
-    handledObjects.add(node);
-    node = node.expression;
+  while (node) {
+    if (isTransparentWrapper(node)) {
+      handledObjects.add(node);
+      node = node.expression;
+    } else if (node.type === 'SequenceExpression') {
+      node = node.expressions.at(-1);
+    } else break;
   }
   return node;
 }
@@ -602,15 +610,16 @@ function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObj
 // chain root's binding so an aliased proxy-global root is recognised like a literal one
 function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
   if (!scope || !adapter) return false;
-  // peel chain-assignments at every hop (matching resolveProxyGlobalRoot): a chain-assignment
-  // root (`(a = globalThis).Promise.resolve`) hides the proxy-global identifier behind an
-  // AssignmentExpression that plain unwrapParens can't see through, so without the peel the
-  // mid-chain constructor member stays unmarked and unplugin queues an overlapping rewrite
-  let obj = peelChainAssignmentDeep(unwrapParens(node));
+  // peel chain-assignments AND sequence-prefix tails at every hop (matching resolveProxyGlobalRoot): a
+  // chain-assignment root (`(a = globalThis).Promise.resolve`) or an SE-prefix root (`(n++, g).Map` with
+  // `const g = globalThis`) hides the proxy-global identifier behind an AssignmentExpression /
+  // SequenceExpression that plain unwrapParens can't see through, so without the peel the mid-chain
+  // constructor member stays unmarked and unplugin queues an overlapping rewrite
+  let obj = peelChainAssignmentDeep(peelReceiverSequenceTail(node));
   let depth = 0;
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
     if (++depth > MAX_KEY_DEPTH) return false;
-    obj = peelChainAssignmentDeep(unwrapParens(obj.object));
+    obj = peelChainAssignmentDeep(peelReceiverSequenceTail(obj.object));
   }
   if (obj.type !== 'Identifier') return false;
   const resolved = resolveObjectName({ objectNode: obj, scope, adapter, path });
@@ -639,18 +648,28 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
   // `globalThis.self.Object.keys` rely on the `self` member visit to register `web.self`, which
   // is a real runtime dependency (bare `self` is undefined in workers / strict envs otherwise)
   let current = obj;
+  let buriedSequence = false;
   while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
     && (findProxyGlobal(current) || chainRootResolvesToProxyGlobal({ node: current, scope, adapter, path }))) {
     handledObjects.add(current);
-    current = unwrapParens(current.object);
+    // descend into a sequence BURIED below a static hop (`(eff(), globalThis.self).Array`, where the
+    // top-level receiver is NOT itself a sequence): SE-blind unwrapParens stopped at the sequence,
+    // leaving its inner proxy leaf unmarked -> the member visitor queued a parallel rewrite the outer
+    // collapse couldn't compose -> crash. a TOP-LEVEL sequence (wasSequence) is already peeled to its
+    // tail, and its OWN nested sequence stays SE-blind here: peeling it would over-suppress a forwarder's
+    // inner global (`(p(), (p(), globalThis).globalThis).Array`) into a dead `_globalThis` import
+    if (!wasSequence && unwrapParens(current.object).type === 'SequenceExpression') buriedSequence = true;
+    current = wasSequence ? unwrapParens(current.object) : peelReceiverSequenceTail(current.object);
   }
   // a sequence-tail proxy-global leaf is independently visited (the tail sits inside a separately
   // walked SequenceExpression), unlike a direct receiver whose nested leaf the member visitor's
-  // subtree-skip suppresses. mark it ONLY when the chain walk above descended through proxy-global
-  // member(s) (`current !== obj`): then the leaf is subsumed by the outer static rewrite
-  // (`(eff(), globalThis.Array).from` -> `_Array$from`). a BARE tail global (`(eff(), globalThis).flat`,
-  // `.flat` gated off the global) is the receiver itself and keeps its own `_globalThis` polyfill
-  if (wasSequence && current !== obj) markProxyGlobalLeaf(current, handledObjects, scope, adapter, path);
+  // subtree-skip suppresses. mark it when the chain descended through proxy-global member(s)
+  // (`current !== obj`) and the tail sat inside a sequence - a top-level one (`(eff(), globalThis.Array)
+  // .from` -> `_Array$from`) or one buried below a static hop. a BARE tail global (`(eff(), globalThis)
+  // .flat`, `.flat` gated off the global) is the receiver itself and keeps its own `_globalThis` polyfill
+  if ((wasSequence || buriedSequence) && current !== obj) {
+    markProxyGlobalLeaf(current, handledObjects, scope, adapter, path);
+  }
   // IIFE-rooted chain (`(() => globalThis)().self.Map.prototype.has`): the chain bottoms
   // out on a CallExpression that `resolveProxyGlobalRoot` inlines to a proxy-global identifier.
   // `findProxyGlobal` returns null for IIFE roots (it only validates bare-Identifier roots),
