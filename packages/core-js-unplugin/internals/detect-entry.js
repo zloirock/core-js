@@ -4,7 +4,14 @@ import {
   extractIndirectRequireSEPrefix,
   resolveBatchDirectivePromotionPolicy,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { consumeOneLineEnding, parenthesizeExprStmtHazard, prevSignificantPos, skipGap } from './plugin-helpers.js';
+import {
+  ASI_HAZARD_STARTS,
+  consumeOneLineEnding,
+  injectionFusesLeft,
+  parenthesizeExprStmtHazard,
+  prevSignificantPos,
+  skipGap,
+} from './plugin-helpers.js';
 
 // entry-global mode: rewrite top-level `import 'core-js/...'` / `require('core-js/...')`
 // statements into the resolved per-feature module set. partitioned in two passes so the
@@ -49,7 +56,13 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   function writeSEPrefixIfAny(node) {
     const sePrefix = extractIndirectRequireSEPrefix(node);
     if (!sePrefix.length) return false;
-    ms.overwrite(node.start, node.end, sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n'));
+    const text = sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n');
+    // the rewritten prefix can START with a fusion char (`+spy()` / `[spy()]` / a parenthesised
+    // `({ ... })`) that fuses into the prev `;`-less statement. the node parsed AS-DETECTED separate
+    // because its original leading `(` ASI-split a postfix `++` / `--` prev (`UpdateExpression Arguments`
+    // is a SyntaxError), but the rewritten first char carries no such guarantee - guard it like a removal
+    removeStatement.guardInjectionLeftBoundary(node.start, text);
+    ms.overwrite(node.start, node.end, text);
     return true;
   }
   // pre-seed the plain removals (SE-prefix entries are rewritten in place, not removed) so the ASI
@@ -63,16 +76,6 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   }
   return toRemove.length + toReplaceWithNoop.length > 0;
 }
-
-// next-statement starting chars that fuse with any fusion-capable prev (call / index /
-// regex-or-div / template-tag / TS TypeAssertion-or-JSX). complementary to
-// `FUSES_WITH_OPEN_PAREN` (plugin-helpers.js) which lists ENDING chars that fuse only
-// with `(`. over-injecting `;` on a benign prev (e.g. already `;`) is filtered downstream
-// by `guardAsiAtBoundary`'s prev-char check. `<` over-fires on real less-than comparisons,
-// but a statement can only START with `<` as a TS type-assertion (`<T>x`) or a JSX element -
-// never a less-than continuation (the parser already split the boundary; `a; <b` is a
-// SyntaxError, NOT equivalent to `a<b`) - so the spurious `;` only precedes those and is harmless
-const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
 
 // factory: `remove(node)` closure that drops a top-level statement plus its trailing
 // newline AND injects `;` when the resulting boundary would fuse the next statement into
@@ -172,6 +175,22 @@ export function createTopLevelStatementRemover(ms) {
     injectedSemiAt.add(end);
   }
 
+  // guard the LEFT boundary of an in-place text injection (the SE-prefix rewrite overwrites a detected
+  // `(prefix, require)('core-js/...')` node with its prefix statements). where a removal fuses the NEXT
+  // surviving char with the prev, here the INJECTED text's FIRST char meets the prev surviving char, and
+  // the node-detected-as-separate guarantee does NOT carry over: a postfix `++` / `--` prev ASI-splits
+  // from the node's original leading `(` (spec bans `UpdateExpression Arguments`) yet a rewritten
+  // `+spy()` / `[spy()]` prefix fuses into `prev + ...` / `prev[...]`. range-aware so a removed sibling
+  // between the prev statement and this node is skipped to the real surviving prev char
+  function guardInjectionLeftBoundary(start, text) {
+    const prevIdx = findPrevSignificantChar(start - 1);
+    if (prevIdx < 0 || !injectionFusesLeft(text[0], src[prevIdx])) return;
+    // a left-neighbour removal in this batch may already have injected a `;` into the gap
+    if (hasInjectedSemiBetween(prevIdx, start)) return;
+    ms.prependLeft(start, ';');
+    injectedSemiAt.add(start);
+  }
+
   // [start, consumed-end] a removal covers: the node plus trailing horizontal space and one
   // line ending. shared by `seed` (pre-population) and `remove` so both agree on the range
   function removalRange(node) {
@@ -196,6 +215,7 @@ export function createTopLevelStatementRemover(ms) {
     removedRanges.push([start, end]);
   }
   remove.seed = seed;
+  remove.guardInjectionLeftBoundary = guardInjectionLeftBoundary;
   return remove;
 }
 
