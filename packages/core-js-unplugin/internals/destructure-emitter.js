@@ -56,7 +56,11 @@ import {
   proxyGlobalWrappedRoot,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { collectFallbackCollapseLeftSe, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  collectFallbackCollapseLeftSe,
+  resolveCallRootedProxyCollapse,
+  shouldDropRescueReceiver,
+} from '@core-js/polyfill-provider/detect-usage/members';
 import {
   applyNestedParamSynthPlan,
   renderSynthTree,
@@ -1843,7 +1847,7 @@ export function createDestructureEmitter({
     let pending = pendingSynthSwaps.get(branch);
     if (!pending) {
       pending = { receiver: branch, objectPattern, polyfills: new Map(), callBranch,
-        rescueSe: dropBranchReceiver ? null : rescueSe, leftSe: branchLeftSe };
+        rescueSe: dropBranchReceiver ? null : rescueSe, leftSe: branchLeftSe, scope, path };
       pendingSynthSwaps.set(branch, pending);
     }
     pending.polyfills.set(slotKey, binding);
@@ -2250,7 +2254,8 @@ export function createDestructureEmitter({
     } else if (!rescueSe) skipReplacedReceiver(receiver);
     let pending = pendingSynthSwaps.get(receiver);
     if (!pending) {
-      pending = { receiver, objectPattern, polyfills: new Map(), callBranch, rescueSe: rescueSeEmit, leftSe };
+      pending = { receiver, objectPattern, polyfills: new Map(), callBranch, rescueSe: rescueSeEmit, leftSe,
+        scope: metaPath.scope, path: metaPath };
       pendingSynthSwaps.set(receiver, pending);
     }
     pending.polyfills.set(synthSwapPropKey(propNode), binding);
@@ -2764,13 +2769,42 @@ export function createDestructureEmitter({
   // `baseStart`. returns null when there's no proxy root or its root has no global polyfill -
   // each caller picks its own fallback. whole-chain-polyfillable chains (`globalThis.Map`)
   // never reach here: they're rewritten to `_Map` upstream and stay bare Identifiers
-  function substituteProxyGlobalRoot({ node, src, baseStart, aliasCtx = null }) {
+  // a leaf's now-redundant optional connector after a collapsed always-defined root: `?.x` -> `.x`,
+  // `?.[k]` -> `[k]`. babel rebuilds the member non-optional off `_globalThis`, so dropping it keeps text
+  // parity; the collapsed root never short-circuits, so the forms are runtime-equivalent
+  function dropLeafOptionalConnector(tail) {
+    if (!tail.startsWith('?.')) return tail;
+    return /^\?\.\s*\[/.test(tail) ? tail.slice(2) : tail.slice(1);
+  }
+
+  // a call/IIFE-rooted proxy navigation (`(() => globalThis)().self.Array`): findProxyGlobal validates
+  // only bare-Identifier roots, so substituteProxyGlobalRoot bails. resolve the root global (inlining the
+  // call) and replace the proxy-hop prefix `<call>.self` with `(callSrc, _root)` - or `_root` for a pure
+  // call - so the undefined `.self` hop is dropped. the call source keeps its own inner rewrites
+  // (`return globalThis` -> `return _globalThis`) which compose into the re-emitted text by needle
+  function substituteCallRootedProxyHop({ target, src, baseStart, ctx }) {
+    const plan = ctx && resolveCallRootedProxyCollapse({ receiver: target, ...ctx });
+    if (!plan) return null;
+    // a pure-ctor leaf (`(() => globalThis)().self.Map`) is whole-swapped to the pure ctor elsewhere
+    const leafName = memberKeyName(target);
+    if (leafName && resolveGlobalPolyfill(leafName)) return null;
+    const rootPure = resolveGlobalPolyfill(plan.rootName);
+    if (!rootPure) return null;
+    const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
+    const rootText = plan.callSe
+      ? `(${ src.slice(plan.callSe.start - baseStart, plan.callSe.end - baseStart) }, ${ rootBinding })`
+      : rootBinding;
+    const tail = dropLeafOptionalConnector(src.slice(target.object.end - baseStart));
+    return src.slice(0, target.object.start - baseStart) + rootText + tail;
+  }
+
+  function substituteProxyGlobalRoot({ node, src, baseStart, aliasCtx = null, ctx = null }) {
     // an SE init (`(track(), globalThis.self.Array)`) keeps its side-effecting prefix verbatim -
     // the proxy-global receiver to collapse is the tail. non-SE nodes peel to themselves, so the
     // member / identifier callers (`synthMemberReceiverSrc`, logical operands) are unaffected
     const target = peelNestedSequenceExpressions(node).tail ?? node;
     const proxyRoot = findProxyGlobal(target, aliasCtx);
-    if (!proxyRoot) return null;
+    if (!proxyRoot) return substituteCallRootedProxyHop({ target, src, baseStart, ctx });
     const rootPure = resolveGlobalPolyfill(proxyRoot.name);
     // an ALIAS root (`const g = globalThis; g.self.X`) keeps its (already-rewritten) name and only
     // drops the redundant proxy hops (`g.self.X` -> `g.X`); a direct root with no pure entry (`self.X`
@@ -2819,10 +2853,8 @@ export function createDestructureEmitter({
     // does not normalize user-alias optional chains (`g?.Array` stays `g?.Array`). dotted `?.x` ->
     // `.x` (drop `?`); computed `?.[k]` -> `[k]` (drop `?.`, computed takes no dot). only the
     // connector DIRECTLY on the always-defined root; deeper `?.` on unknown leaves stay
-    let tailSrc = src.slice(prefixEnd - baseStart);
-    if ((rootPure || prefixEnd > wrappedRoot.end) && tailSrc.startsWith('?.')) {
-      tailSrc = /^\?\.\s*\[/.test(tailSrc) ? tailSrc.slice(2) : tailSrc.slice(1);
-    }
+    const tailSrc = rootPure || prefixEnd > wrappedRoot.end
+      ? dropLeafOptionalConnector(src.slice(prefixEnd - baseStart)) : src.slice(prefixEnd - baseStart);
     return src.slice(0, start) + rootText + tailSrc;
   }
 
@@ -2830,9 +2862,9 @@ export function createDestructureEmitter({
   // used by unpolyfilled-key fallbacks (`other: <receiver>.other`). the synth swap marks the
   // receiver chain skipped, so the natural visitor never substitutes its proxy-global root and
   // we must do it here. falls back to the verbatim source for non-proxy receivers
-  function synthMemberReceiverSrc(member) {
+  function synthMemberReceiverSrc(member, ctx = null) {
     const src = nodeSrc(member);
-    return substituteProxyGlobalRoot({ node: member, src, baseStart: member.start }) ?? src;
+    return substituteProxyGlobalRoot({ node: member, src, baseStart: member.start, ctx }) ?? src;
   }
 
   // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
@@ -2843,7 +2875,8 @@ export function createDestructureEmitter({
   // (some transforms queued, others lost). recovery semantics intentional: catch-and-continue
   // would silently produce inconsistent output, hard fail surfaces the bug to the user
   function applySynthSwaps() {
-    for (const [, { receiver, objectPattern, polyfills, callBranch, rescueSe, leftSe: leftSePlan }] of pendingSynthSwaps) {
+    for (const [, { receiver, objectPattern, polyfills, callBranch, rescueSe, leftSe: leftSePlan, scope, path }] of pendingSynthSwaps) {
+      const ctx = scope ? { scope, adapter: estreeAdapter, path } : null;
       if (objectPattern?.type !== 'ObjectPattern') continue;
       // safe-SE peel too: `cond ? (0, Array) : Iterator` registers the branch with the SE as
       // outer receiver. apply step substitutes at the SE TAIL (inner Identifier) so SE prefix
@@ -2874,7 +2907,7 @@ export function createDestructureEmitter({
       let receiverSrc = null;
       const getReceiverSrc = () => receiverSrc ??= memoName ?? (receiverPure
         ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-        : synthMemberReceiverSrc(readReceiver));
+        : synthMemberReceiverSrc(readReceiver, ctx));
       // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
       // only renders the entries as source text
       const entries = [];
@@ -2900,7 +2933,7 @@ export function createDestructureEmitter({
       // emitter, which drops it). matches the all-resolved leftSe path, which collapses to the left
       const memoNode = inner.type === 'LogicalExpression' ? inner.left : inner;
       const body = needMemo
-        ? `(function (${ memoName }) { return ${ literal }; })(${ nodeSrc(memoNode) })`
+        ? `(function (${ memoName }) { return ${ literal }; })(${ synthMemberReceiverSrc(memoNode, ctx) })`
         : rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal;
       // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||`/`??`
       // collapses to the literal (its left is the always-resolved receiver, its right short-circuits),
