@@ -16,7 +16,7 @@ export const PRIMITIVE_WRAPPERS = assign(create(null), {
   symbol: 'Symbol',
 });
 
-const PRIMITIVE_HINTS = new Set(keys(PRIMITIVE_WRAPPERS));
+export const PRIMITIVE_HINTS = new Set(keys(PRIMITIVE_WRAPPERS));
 
 export const UNBOXED_PRIMITIVES = create(null);
 for (const [primitive, constructor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[constructor] = primitive;

@@ -28,7 +28,8 @@
 // `functionTypeReturnAnnotation` thunk through forward-decl `let` bindings
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
 import {
-  collectQualifiedSegments, isMethodShapeMember, isQualifiedNameNode, isUnionType, peelTSParenthesized, typeRefName,
+  collectQualifiedSegments, isMethodShapeMember, isQualifiedNameNode, isUnionType, peelTSParenthesized,
+  primitiveTypeKind, selectOverloadByArgKinds, typeRefName,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
@@ -187,20 +188,20 @@ export function createMemberResolve({
     return null;
   }
 
-  // resolve a method call's return type from a single (non-union) annotation by walking
-  // its members and folding the return types of all matching overloads
-  //   1. Skip overloads with unresolvable return types (don't bail the entire merge)
-  //   2. Try lenient `foldUnionTypes` over the resolved set
-  //   3. If that fails (divergent primitives etc.), fall back to the FIRST resolved overload.
-  //      Interface signatures are tried in declaration order; TS picks the first matching one,
-  //      so falling back to "first" is a reasonable approximation when we can't run full
-  //      argument-type-based overload selection
-  function resolveMemberCallReturnFromAnnotation({ annotation, name, scope, resolve, depth, subst }) {
+  // resolve a method call's return type from a single (non-union) annotation by walking its members
+  //   1. ARGUMENT-MATCH first: TS picks the FIRST overload whose params accept the call args, so
+  //      `p.parse(123)` (number) selects `parse(x: number): string`, NOT the declaration-first
+  //      `parse(x: string): string[]`. matching by args keeps the precise type-specific helper
+  //      (`_atMaybeString`) on a string value instead of the wrong `_atMaybeArray` (ie:11 throw)
+  //   2. no arg-match (unresolvable args / no param accepts them) -> fold the resolved returns of all
+  //      matching overloads; convergent -> one type, divergent -> prefer the FIRST as a best-effort floor
+  function resolveMemberCallReturnFromAnnotation({ annotation, name, scope, resolve, depth, subst, callPath }) {
     const members = getTypeMembers({ objectType: annotation, scope, depth });
     if (!members) return null;
+    const matchingMembers = members.filter(m => keyMatchesName(m.key, name) && memberCallReturnAnnotation(m));
+    const argMatched = selectOverloadByArgs(matchingMembers, callPath);
     const resolvedReturns = [];
-    for (const member of members) {
-      if (!keyMatchesName(member.key, name)) continue;
+    for (const member of argMatched ? [argMatched] : matchingMembers) {
       const returnAnnotation = memberCallReturnAnnotation(member);
       if (!returnAnnotation) continue;
       // apply subst so generic alias method returns (`type Box<T> = { get(): T[] }`) bind T
@@ -217,14 +218,30 @@ export function createMemberResolve({
     }
     if (!resolvedReturns.length) return null;
     if (resolvedReturns.length === 1) return resolvedReturns[0];
+    // arg-match already collapsed to one member when it could; a multi-element set here means the args
+    // were unresolvable / accepted by several overloads - fold convergent returns, else best-effort first
     return foldUnionTypes(resolvedReturns, r => r) ?? resolvedReturns[0];
+  }
+
+  // TS overload selection: the FIRST signature whose params accept the call args wins. returns that member
+  // (so its return type is used), or null when there is nothing to choose between (<=1 candidate), the
+  // args aren't all simple primitives, or no overload's primitive-keyword params line up - the caller then
+  // folds / best-effort-firsts. deliberately conservative: only `string` / `number` / `boolean` keyword
+  // params are matched (a literal / complex / generic param is indeterminate, so that overload is skipped).
+  // this is enough to disambiguate the common `f(x: string): A; f(x: number): B` arg-discriminated shape
+  // without a full assignability engine; richer shapes safely fall through to the fold
+  function selectOverloadByArgs(matchingMembers, callPath) {
+    const argPaths = callPath?.get('arguments');
+    if (!Array.isArray(argPaths)) return null;
+    const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
+    return selectOverloadByArgKinds(matchingMembers, m => m.parameters ?? m.params, argKinds);
   }
 
   // union/intersection method calls - for `x: A | B` or `x: A & B` calling `x.foo()`,
   // resolve in each branch. union folds per-branch return types; intersection picks the
   // first branch that resolves (intersection members are additive, so any match is valid).
   // mirrors findTypeMember's handling for properties
-  function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0 }) {
+  function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0, callPath }) {
     if (depth > MAX_DEPTH) return null;
     // peel a leading TSParenthesizedType (`(A | B).m()`) so followTypeAliasChain sees the raw
     // union / intersection instead of bailing on the wrapper (branch-level peel is peelBranch)
@@ -233,7 +250,7 @@ export function createMemberResolve({
     // peel TSParenthesizedType so a method call on a parenthesized union / intersection branch
     // (`(A | B).m()`, `A & (B)`) resolves through the branch instead of bailing on the wrapper
     const peelBranch = branch => applySubst(peelTSParenthesized(unwrapTypeAnnotation(branch)), subst);
-    const recurse = peeled => resolveMemberCallReturn({ annotation: peeled, name, scope, resolve, depth: depth + 1 });
+    const recurse = peeled => resolveMemberCallReturn({ annotation: peeled, name, scope, resolve, depth: depth + 1, callPath });
     if (isUnionType(aliased)) {
       let result = null;
       for (const branch of aliased.types) {
@@ -262,7 +279,7 @@ export function createMemberResolve({
     // a synthetic TSUnionType of their value annotations, then recurse self so union dispatch
     // fires per branch. covers `Pick<T> = T[keyof T]` style aliases
     return resolveMemberCallReturnFromAnnotation({
-      annotation: aliased ?? annotation, name, scope, resolve, depth, subst,
+      annotation: aliased ?? annotation, name, scope, resolve, depth, subst, callPath,
     });
   }
 
@@ -370,7 +387,7 @@ export function createMemberResolve({
       return memberType ? resolve(memberType) : null;
     }
     // method call: merge return types across overloads, recursing into union branches
-    return resolveMemberCallReturn({ annotation, name, scope, resolve });
+    return resolveMemberCallReturn({ annotation, name, scope, resolve, callPath });
   }
 
   // recover a class NodePath from a type-declaration scan: locates the decl by name (bare) or
