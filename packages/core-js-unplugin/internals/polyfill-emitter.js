@@ -859,9 +859,15 @@ export function createPolyfillEmitter({
     // collapse a proxy-global static receiver to its pure ctor (`globalThis.Map` -> `_Map`, and a
     // nested-forwarder chain `globalThis.self.Map` -> `_Map` in one step), matching the provider/babel.
     // resolution is side-effect free until `injectPureImport`, so computing it before a later bail is fine
-    const ctx = { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath };
-    const { staticHop, staticPure, staticIdx } = findProxyGlobalStaticHop(hops, ctx, resolveGlobalPolyfill)
-      ?? { staticHop: null, staticPure: null, staticIdx: -1 };
+    const { staticHop, staticPure, staticIdx } = findProxyGlobalStaticHop(
+      hops, { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath }, resolveGlobalPolyfill,
+    ) ?? { staticHop: null, staticPure: null, staticIdx: -1 };
+    // a proxy-global ctor-static consumed by an OUTER hop (`globalThis.Map.list.at(0)` - the `.list` reads
+    // off the collapsed `_Map`, staticIdx > 0) must NOT be collapsed into this instance receiver: the
+    // `globalThis.Map -> _Map` static member is rewritten independently and composes INSIDE this receiver
+    // text. collapsing it here too leaves the outer content as `_Map.list`, so that inner needle can no
+    // longer be located -> compose crash. defer to the natural visitor, which nests the two rewrites
+    if (staticPure && staticIdx > 0) return null;
     let leafBoundary = wrappedLeaf;
     let leaf, polyfillBinding, skipNode;
     if (seTail) {
@@ -1514,22 +1520,22 @@ export function createPolyfillEmitter({
     if (plan.kind === 'symbol') {
       const binding = injectPureImport(plan.entry, plan.hint);
       emitReplacement(plan.call ? `${ binding }(${ nodeSrc(plan.right) })` : `${ binding } in ${ nodeSrc(plan.right) }`);
-      // the LHS is consumed by the rewrite; skip it so child visitors do not re-emit for it
-      skipWrappedNode(node.left);
-      return;
+    } else {
+      // fold: the polyfill is always defined, so the membership test is constantly true
+      emitReplacement('true');
     }
-    // fold: the polyfill is always defined, so the membership test is constantly true. a subtree
-    // kept verbatim stays visitable so its inner polyfills still emit; only the discarded operand
-    // (if any - a kept-whole assignment RHS has none) is skipped. subtrees rescued into leadingSe
-    // are EXCLUDED from the skip even when they sit inside the discarded operand: their source is
-    // re-emitted by the replacement, so their inner rewrites (`globalThis -> _globalThis`) must
-    // stay queued for the compose splice - and their imports must survive
-    emitReplacement('true');
+    // mark each discarded operand (provider-named per kind: symbol drops the LHS, fold drops both) so a
+    // child visitor does not re-emit for a subtree the splice dropped - a polyfillable LHS key
+    // (`(globalThis, Symbol.iterator) in x`) otherwise queued a rewrite with no target -> compose crash.
+    // subtrees rescued into leadingSe are EXCLUDED even when buried in a discarded operand: their source
+    // is re-emitted by the replacement, so their inner rewrites must stay queued for the compose splice
     if (plan.skip) {
       const rescued = new Set();
       for (const effect of plan.leadingSe) walkAstNodes({ root: effect, visit: n => rescued.add(n) });
-      walkAstNodes({ root: plan.skip, visit: n => { if (!rescued.has(n)) skippedNodes.add(n); } });
-      skipProxyGlobal(plan.skip);
+      for (const operand of plan.skip) {
+        walkAstNodes({ root: operand, visit: n => { if (!rescued.has(n)) skippedNodes.add(n); } });
+        skipProxyGlobal(operand);
+      }
     }
   }
 
