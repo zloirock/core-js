@@ -4817,6 +4817,126 @@ runBoth('discriminant narrow holds when a deeper path is written',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
+// a write to a NON-discriminant field is not a binding reassignment, so it must not trip the
+// function-boundary / loop bail that drops guards above a nested-function use. only a write to the
+// discriminant field (or the binding itself) invalidates - the variant narrow survives here
+runBoth('discriminant narrow holds across a function boundary when a non-discriminant field is written',
+  'type Inner = { kind: "x"; data: string } | { kind: "y"; data: number[] };\n'
+  + 'declare const obj: { a: { b: Inner } };\n'
+  + 'if (obj.a.b.kind === "y") {\n  obj.a.b.data = [9];\n  const f = () => obj.a.b.data.at(0);\n  f();\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// an anonymous object literal whose VALUE is handed to external code (a return / call argument / default
+// export) can have its fields written from outside, so its `this.<field>` flow must NOT narrow - the
+// escape bails to the empty-closure exclusion. a module-local object (declarator / member-call) narrows
+runBoth('anonymous object this-field flow bails when the object escapes via return',
+  'function f() {\n  return { data: ["x"], read() { return this.data.at(0); } };\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } returned anon-object field not narrowed to Array`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+
+// a SWITCH discriminant (`switch (b.tag)`) is also invalidated by a write to its discriminant field
+// between the case head and the use - the switch path shares the same write-collection gate as the
+// `if`-guard path, matching the bare `b.tag` discriminant (not just a `=== ` comparison)
+runBoth('switch discriminant narrow drops when the discriminant field is written',
+  'type Box = { tag: "arr"; val: string[] } | { tag: "str"; val: string };\n'
+  + 'function f(b: Box) {\n  switch (b.tag) {\n    case "arr": {\n      b.tag = "str";\n      return b.val.at(0);\n    }\n  }\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } switch discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+
+// the discriminant write-host detection peels transparent LHS wrappers (TS `as` / `!` / parens), so a
+// `(b.tag as any) = "str"` reassignment of the discriminant invalidates the narrow just like a bare
+// write - `isMemberWriteHost` mirrors `memberWriteTargetPath`'s peel (the class-field write case above)
+runBoth('discriminant narrow drops when the discriminant field is written through a TS-cast LHS',
+  'type Box = { tag: "arr"; val: string[] } | { tag: "str"; val: string };\n'
+  + 'declare const b: Box;\n'
+  + 'if (b.tag === "arr") {\n  (b.tag as any) = "str";\n  b.val.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } cast-LHS discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+
+// an anonymous object also escapes when its value is carried OUT through a container/forwarder whose
+// own value escapes - here the object-property value of a returned object, and a returned conditional
+// branch. the escape check climbs value-preserving carriers to the outermost one before deciding
+runBoth('anonymous object this-field flow bails when it escapes as a returned object-property value',
+  'function f() {\n  return { box: { data: ["x"], read() { return this.data.at(0); } } };\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } object-property-value escape not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+runBoth('anonymous object this-field flow bails when it escapes through a returned conditional branch',
+  'declare const c: boolean;\n'
+  + 'function f() {\n  return c ? { data: ["x"], read() { return this.data.at(0); } } : null;\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } conditional-branch escape not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+
+// a container bound to a name escapes when that BINDING leaks (exported / returned / passed) - the carrier
+// climb routes into the bound-path leak analysis, where a member-read of the binding (`local[0]`) is local
+runBoth('anonymous object in a container bound to an EXPORTED name bails (binding leaks)',
+  'const leaked = [{ data: ["x"], read() { return this.data.at(0); } }];\nexport { leaked };',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } exported-binding container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+runBoth('anonymous object in a container bound to a LOCAL name keeps the per-element narrow',
+  'const local = [{ data: ["x"], read() { return this.data.at(0); } }];\nlocal[0].read();',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// the binding can be reached via a `=` assignment, not only a declarator - same leak routing
+runBoth('anonymous object in a container ASSIGNED to a name that leaks bails',
+  'let x: unknown[];\nx = [{ data: ["y"], read() { return this.data.at(0); } }];\nexport { x };',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } assigned-binding leak container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+// value-out channels also include `throw` (value reaches a catch handler) and an assignment used as an
+// expression (`return (x = [...])`) - the assignment binds x AND forwards the assigned value upward
+runBoth('anonymous object thrown via a container bails',
+  'function f() {\n  throw [{ data: ["x"], read() { return this.data.at(0); } }];\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } thrown container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+runBoth('anonymous object in an assignment that is itself returned bails',
+  'function f() {\n  let x: unknown[];\n  return (x = [{ data: ["x"], read() { return this.data.at(0); } }]);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } returned-assignment container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+
+// the enum-as-computed-key shadow check uses the CONST-AGNOSTIC binding lookup, so a reassigned `let`
+// of the enum's name shadows it just like a `const` would - the key is the let's value, not the enum's
+runBoth('enum-as-computed-key is shadowed by a reassigned let of the same name',
+  'enum K { Field = "data" }\n'
+  + 'interface Obj { data: string[]; other: string }\n'
+  + 'declare const obj: Obj;\n'
+  + 'function f() {\n  let K = { Field: "other" };\n  K = { Field: "other" };\n  return obj[K.Field].at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } reassigned-let shadow not resolved as enum value`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+  });
+
 // control: a callable field with a SINGLE-family declared return (`() => number[]`) resolves the
 // call to that family - the union-bail fires only for differing families, not for every annotation
 runBoth('callable-field call with single-family annotation keeps the family',
