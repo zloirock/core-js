@@ -381,13 +381,6 @@ export const NULLABLE_NEVER_ANNOTATIONS = new Set([
   'EmptyTypeAnnotation',
 ]);
 
-// rebind operators that fully replace the binding's value. distinct from compound
-// arithmetic (`+=`, `**=`) and bitwise (`|=`, `&=`, `^=`, `<<=`, `>>=`, `>>>=`) which
-// READ the LHS value, mutate, and re-assign - external observers see the mutated value
-// through the same binding. shape predicate kept as a Set so the classifier stays a
-// single membership check
-export const REBIND_ASSIGNMENT_OPERATORS = new Set(['=', '||=', '??=', '&&=']);
-
 // shared sentinel for "no closure found" returns - cheaper than allocating a fresh empty
 // Map per object literal when the rootName resolution bails. SAFE ONLY because every
 // consumer treats the Map as READ-ONLY (`.get()` only). adding a caller that mutates this
