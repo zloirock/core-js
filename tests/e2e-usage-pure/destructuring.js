@@ -1887,3 +1887,38 @@ QUnit.test('destructuring: array-wrapper inner default resolves by slot definedn
   const [{ of } = Array] = [carrier];
   assert.same(of(5), 'carried:5');
 });
+
+// an SE-bearing chain-root call on a MULTI-hop proxy receiver in a discarded destructure default
+// (`{ from } = (() => { c++; return globalThis; })().self.Array`): the receiver value is unused (the
+// resolved key is synth-swapped to the polyfill) but the call's effect must run. the drop re-emits ONLY
+// the harvested call, NOT the `.self.Array` value - re-emitting the verbatim receiver reads the undefined
+// `.self` intermediate hop and throws off-browser (ie:11 / Node), where globalThis.self is undefined
+QUnit.test('destructuring: SE chain-root call on a discarded multi-hop proxy default runs once, no hop throw', assert => {
+  let c = 0;
+  function f({ from } = (() => {
+    c++;
+    return globalThis;
+  })().self.Array) {
+    return from([1, 2, 3]);
+  }
+  assert.deepEqual(f(), [1, 2, 3]);
+  assert.same(c, 1);
+});
+
+// a call/IIFE-rooted proxy chain with an UNRESOLVED sibling key in a discarded default: the unresolved
+// `length` re-reads the receiver, so the proxy hop `.self` must collapse (`_globalThis.Array`) - a verbatim
+// hop reads an undefined intermediate off-browser (ie:11 / Node) and throws. the effectful call is
+// memoized and runs EXACTLY once (as the memo argument), the resolved `from` is the polyfill
+QUnit.test('destructuring: call-rooted proxy + unresolved sibling collapses hop, SE runs once', assert => {
+  let c = 0;
+  function f({ from, length } = (() => {
+    c++;
+    return globalThis;
+  })().self.Array) {
+    return [from([1, 2, 3]), length];
+  }
+  const [arr, len] = f();
+  assert.deepEqual(arr, [1, 2, 3]);
+  assert.same(len, 1);
+  assert.same(c, 1);
+});
