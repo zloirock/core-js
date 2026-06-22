@@ -31,7 +31,11 @@ import {
   memberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyCallBranchForSynth, isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { collectFallbackCollapseLeftSe, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  collectFallbackCollapseLeftSe,
+  resolveCallRootedProxyCollapse,
+  shouldDropRescueReceiver,
+} from '@core-js/polyfill-provider/detect-usage/members';
 import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
@@ -283,11 +287,30 @@ export default function createSynthSwapEmitter({
   // off the global object on hosts without it (ie:11 pure, non-browser). the constructor sits
   // directly on the pure-proxy prefix here (a non-proxy hop breaks resolution before synth-swap),
   // so the collapsed form is `<polyfilled root>.<constructor>`. null when not a collapsible chain
+  // a call/IIFE-rooted proxy navigation (`(() => globalThis)().self.Array`): `findProxyGlobal` validates
+  // only bare-Identifier roots, so the Identifier collapse below bails. resolve the root global (inlining
+  // the call) and drop the proxy hop, preserving an SE-bearing chain-root call as a sequence prefix:
+  // `(callSe, _root).leaf`. without this the verbatim `.self` hop is undefined off-browser (ie:11 / Node)
+  function collapseCallRootedProxyReceiver(receiver, aliasCtx) {
+    if (!aliasCtx) return null;
+    const plan = resolveCallRootedProxyCollapse({ receiver, ...aliasCtx });
+    if (!plan) return null;
+    // a pure-ctor leaf (`(() => globalThis)().self.Map`) is whole-swapped to the pure ctor elsewhere
+    const leafName = memberKeyName(receiver);
+    if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
+    const rootPure = resolvePure({ kind: 'global', name: plan.rootName });
+    if (!rootPure || rootPure.kind === 'instance') return null;
+    const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
+    const rootNode = plan.callSe
+      ? t.sequenceExpression([t.cloneNode(plan.callSe), rootBinding]) : rootBinding;
+    return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
+  }
+
   function collapseProxyGlobalReceiver(receiver, aliasCtx = null) {
     if (!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) return null;
     // collapsible only when the whole `.object` is the pure-proxy navigation (its full span is the
     // prefix) and `.property` is the constructor leaf
-    if (maximalProxyGlobalPrefix(receiver, aliasCtx) !== receiver.object) return null;
+    if (maximalProxyGlobalPrefix(receiver, aliasCtx) !== receiver.object) return collapseCallRootedProxyReceiver(receiver, aliasCtx);
     // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to the pure ctor by the synth-swap /
     // leaf path; a root-collapse here would emit the NATIVE `_globalThis.Map` and inject a dead
     // `_globalThis`. skip it - only a NON-pure leaf (`.Array`, a user member) root-collapses its hops
@@ -383,8 +406,8 @@ export default function createSynthSwapEmitter({
         const needMemo = pending.callBranch
           && buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills).some(entry => !entry.polyfill);
         const memoParam = needMemo ? path.scope.generateUidIdentifier('ref') : null;
-        const literal = buildSynthLiteral(path.node, pending, memoParam,
-          path.scope ? { scope: path.scope, adapter, path } : null);
+        const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
+        const literal = buildSynthLiteral(path.node, pending, memoParam, aliasCtx);
         // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
         // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
         // into the memo argument (cloning the whole logical would re-substitute the right global on
@@ -399,7 +422,10 @@ export default function createSynthSwapEmitter({
         let replacement = needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
-            [t.cloneNode(memoReceiver, true)])
+            // collapse a proxy hop in the memoized receiver too (`(() => globalThis)().self.Array` ->
+            // `(call, _self).Array`): the memo argument reads the receiver value once, so a verbatim
+            // `.self` hop would throw off-browser before the memo body runs
+            [collapseProxyGlobalReceiver(memoReceiver, aliasCtx) ?? t.cloneNode(memoReceiver, true)])
           : dropRescueReceiver
             ? t.sequenceExpression([
               ...collectFallbackCollapseLeftSe({ leftNode: path.node, scope: path.scope, adapter, path })
