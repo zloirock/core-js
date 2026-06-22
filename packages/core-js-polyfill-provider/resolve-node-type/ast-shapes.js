@@ -9,6 +9,7 @@
 // empirically per parser - change them only with care
 import { getTypeArgs, isDeferredContextStep } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
+import { PRIMITIVE_HINTS } from './base.js';
 
 // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
 // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
@@ -224,4 +225,43 @@ export function violationInCapturedFunction(t, violations, stopPath) {
     }
     return false;
   });
+}
+
+// primitive kind of a param's type keyword (`x: bigint` -> 'bigint'); covers the 5 typeof-primitive
+// keywords (string / number / boolean / bigint / symbol - PRIMITIVE_HINTS), null for a literal / complex /
+// generic / null / undefined param (indeterminate for arg-match). shared by the member-overload and
+// ambient-function-overload arg-match below
+export function paramPrimitiveKind(param) {
+  switch (param?.typeAnnotation?.typeAnnotation?.type) {
+    case 'TSStringKeyword': return 'string';
+    case 'TSNumberKeyword': return 'number';
+    case 'TSBooleanKeyword': return 'boolean';
+    case 'TSBigIntKeyword': return 'bigint';
+    case 'TSSymbolKeyword': return 'symbol';
+    default: return null;
+  }
+}
+
+// arg-side counterpart of paramPrimitiveKind: the primitive kind of an already-resolved node type, gated on
+// the canonical PRIMITIVE_HINTS set (the same 5 typeof-primitives), else null. an arg whose resolved type
+// isn't one of these (object / null / undefined / unresolvable) yields null, so selectOverloadByArgKinds
+// bails to the fold instead of guessing
+export function primitiveTypeKind(type) {
+  return PRIMITIVE_HINTS.has(type) ? type : null;
+}
+
+// TS overload selection by argument primitive kinds: the FIRST overload whose primitive-keyword params line
+// up with `argKinds` wins (`getParams(overload)` -> its param list). null when there is nothing to
+// disambiguate (<=1 overload), an arg is non-primitive / unknown, or no overload provably matches - the
+// caller then folds / best-effort-firsts. conservative (keywords only, no full assignability engine), but
+// enough to fix the common `f(x: string): A; f(x: number): B` arg-discriminated shape across resolvers
+export function selectOverloadByArgKinds(overloads, getParams, argKinds) {
+  if (overloads.length < 2 || !argKinds.length || argKinds.includes(null)) return null;
+  for (const ov of overloads) {
+    const params = getParams(ov);
+    if (params && params.length === argKinds.length && params.every((p, i) => paramPrimitiveKind(p) === argKinds[i])) {
+      return ov;
+    }
+  }
+  return null;
 }
