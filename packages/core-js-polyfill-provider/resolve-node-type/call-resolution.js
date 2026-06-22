@@ -45,6 +45,7 @@ export function createCallResolution({
   getScopeBinding,
   babelBindingAdapter,
   isMemberLike,
+  isMutatedStatic = () => false,
   isFunctionLike,
   isNullableOrNever,
   resolveNodeType,
@@ -147,6 +148,8 @@ export function createCallResolution({
     const pair = staticPairFromPolyfillEntry(callee.scope, callee.node.name)
       ?? staticPairFromDestructure(callee.scope, callee.node.name, callee);
     if (!pair) return null;
+    // aliased patched static (`const af = Array.from` after `Array.from = ...`) - same drop to generic
+    if (isMutatedStatic(pair.constructor, pair.method)) return null;
     const retHint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method);
     // delegate to the shared hint resolver so an aliased `freeze(a)` honors `returnsArgument` /
     // Promise.resolve arg-inference exactly like the direct `Object.freeze(a)` - not just the
