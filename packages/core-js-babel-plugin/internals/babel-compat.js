@@ -413,11 +413,15 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       // check=null path: extractCheck saw a polyfillable optional and skipped the null-guard
       // memo (replacement consumes `?.`). drop the ternary wrap to avoid synthesising an
       // invalid `null == null ? ...` BinaryExpression - mirrors the same `wrapConditional(
-      // null, ...)` defense in `replaceAndWrap`
-      const wrappedCallee = check ? wrapConditional(check, lookup) : lookup;
+      // null, ...)` defense in `replaceAndWrap`.
+      // when a nullish guard IS present, the receiver-derived SE (e.g. a computed key) must fire
+      // only on the non-null branch - native short-circuits `?.` before evaluating the key. fold
+      // the SE INTO the conditional alternate (`check==null ? void 0 : (SE, lookup)`); prepending
+      // it to the whole result would fire it even on the short-circuit. no guard -> SE stays outside
+      const wrappedCallee = check ? wrapConditional(check, withSideEffects(lookup, effectiveSE)) : lookup;
       const callArgs = [t.cloneNode(objRef), ...parent.arguments.map(a => t.cloneNode(a))];
       const result = t.callExpression(t.memberExpression(wrappedCallee, t.identifier('call')), callArgs);
-      callerPath.parentPath.replaceWith(withSideEffects(result, effectiveSE));
+      callerPath.parentPath.replaceWith(check ? result : withSideEffects(result, effectiveSE));
       return;
     }
     const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount);
@@ -449,8 +453,19 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // method paren-lookup. receiver is the sole arg (evaluated once), inner `?.` stays intact,
     // so no memoization / null-guard is needed
     if (isParenLookupOnly) {
+      if (!effectiveSE?.length) {
+        callerPath.parentPath.replaceWith(t.callExpression(id, [t.cloneNode(path.node.object)]));
+        return;
+      }
+      // the receiver is optional (parens terminate the `?.`), so the receiver-derived SE (a computed
+      // key) must fire only when the receiver is non-null - native short-circuits before evaluating
+      // it. guard the SE behind the receiver's nullishness (the polyfill still throws on null);
+      // prepending it to the whole call would fire it on the short-circuit too
+      const [memoAssign, memoRef] = memoize(path.node.object, path.scope);
+      const guardedSE = wrapConditional(memoAssign,
+        withSideEffects(t.unaryExpression('void', t.numericLiteral(0)), effectiveSE));
       callerPath.parentPath.replaceWith(
-        withSideEffects(t.callExpression(id, [t.cloneNode(path.node.object)]), effectiveSE),
+        t.sequenceExpression([guardedSE, t.callExpression(id, [t.cloneNode(memoRef)])]),
       );
       return;
     }
