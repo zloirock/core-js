@@ -90,6 +90,25 @@ export function createClosureAnalysis({
   function carrierBindingLeaks(scope, name, anchorPath) {
     return computeAliasClosureFromBinding({ rootBinding: scope?.getBinding(name), rootName: name, anchorPath }) === null;
   }
+  // leftmost Identifier of a member chain (`obj.a.b` / `obj[k].f` -> `obj`); null for a non-binding
+  // root (`this.f`, `getObj().f`) whose escape is a separate (class-instance / value) analysis
+  function memberRootName(node) {
+    let cur = node;
+    while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = unwrapRuntimeExpr(cur.object);
+    return cur?.type === 'Identifier' ? cur.name : null;
+  }
+  // `obj.f = [{...}]` stores the object into a member slot - it escapes iff the chain ROOT binding is
+  // externally reachable. a LOCAL var (const / let / var) is reachable only when it leaks (export /
+  // return / arg), so route to the bound-path leak analysis. a PARAM / undeclared GLOBAL is held by the
+  // caller / outer realm so it escapes unconditionally - and that bound-path analysis is not parser-
+  // reliable for a param binding anyway, so the kind gate also keeps babel / unplugin in agreement
+  const LOCAL_VAR_KINDS = new Set(['const', 'let', 'var']);
+  function memberStoreEscapes(rootName, scope, anchorPath) {
+    if (!rootName) return false;
+    const binding = scope?.getBinding(rootName);
+    if (!binding || !LOCAL_VAR_KINDS.has(binding.kind)) return true;
+    return carrierBindingLeaks(scope, rootName, anchorPath);
+  }
   function anonymousObjectEscapes(objectPath) {
     let valuePath = objectPath;
     for (;;) {
@@ -114,6 +133,10 @@ export function createClosureAnalysis({
         case 'ArrowFunctionExpression':
         case 'ThrowStatement':
           return true;
+        // a TAGGED template substitution is handed raw to the tag function (`tag`${obj}`` -> tag(s, obj));
+        // an untagged template string-coerces the value, keeping it local
+        case 'TemplateLiteral':
+          return parentPath.parentPath?.node?.type === 'TaggedTemplateExpression';
         // a call / new ARGUMENT (not the callee) - the callee receives a reference and may store + mutate it
         case 'CallExpression':
         case 'NewExpression':
@@ -123,17 +146,20 @@ export function createClosureAnalysis({
         case 'VariableDeclarator':
           return parent.id?.type === 'Identifier' && unwrapRuntimeExpr(parent.init) === valuePath.node
             && carrierBindingLeaks(parentPath.scope, parent.id.name, objectPath);
-        // `x = <carrier>` binds x AND evaluates to the assigned value: escape if x leaks OR the
-        // assignment's own value-position escapes (`return (x = [...])` / `f(x = [...])`)
+        // `x = <carrier>` (locally rebinds x) / `obj.f = <carrier>` (member store) AND forwards the value.
+        // escape if the target leaks - x via the bound-path leak analysis, `obj.f` via its root binding -
+        // OR the assignment's own value-position escapes (`return (x = [...])` / `f(obj.f = [...])`)
         case 'AssignmentExpression': {
-          const bound = parent.operator === '=' && parent.left?.type === 'Identifier'
-            && unwrapRuntimeExpr(parent.right) === valuePath.node;
-          if (!bound) return false;
-          if (carrierBindingLeaks(parentPath.scope, parent.left.name, objectPath)) return true;
+          if (parent.operator !== '=' || unwrapRuntimeExpr(parent.right) !== valuePath.node) return false;
+          const left = unwrapRuntimeExpr(parent.left);
+          const leaks = left.type === 'Identifier'
+            ? carrierBindingLeaks(parentPath.scope, left.name, objectPath)
+            : memberStoreEscapes(memberRootName(left), parentPath.scope, objectPath);
+          if (leaks) return true;
           valuePath = parentPath;
           continue;
         }
-        // member-store / member receiver / param default etc. keep the object module-local -> empty closure
+        // member receiver / param default etc. keep the object module-local -> empty closure
         default:
           return false;
       }
