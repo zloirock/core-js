@@ -170,6 +170,17 @@ QUnit.test('receiver call before a computed key on the RHS object -> source orde
   assert.deepEqual(log, ['r', 'k']);
 });
 
+// the in-fold discards the LHS whole, folding to the constant `true`: a side-effect-free proxy-global
+// buried in the discarded LHS prefix is dropped (its orphaned rewrite crashed the unplugin compose),
+// while a real side-effect prefix still runs in source order before the object
+QUnit.test("(globalThis, 'from') in Array -> proxy-global prefix drops, folds true", assert => {
+  const log = [];
+  const eff = () => log.push('e');
+  assert.true((globalThis, 'from') in Array);
+  assert.true((eff(), 'from') in Array);
+  assert.deepEqual(log, ['e']);
+});
+
 // a Symbol.iterator membership rewrites to a get-iterator call; a sequence prefix on its receiver
 // lexically PRECEDES the chain-root receiver call, so it must run first - source order [p, r], not
 // the reverse. gated off sham Symbol (the get-iterator path is unreliable there)
@@ -232,5 +243,18 @@ if (typeof Symbol == 'function' && !Symbol.sham) {
     })())).Symbol.asyncIterator in {};
     assert.false(r);
     assert.deepEqual(log, ['p', 'q', 'r']);
+  });
+
+  // the symbol-in rewrite discards the LHS whole; a side-effect-free proxy-global buried in the LHS
+  // sequence prefix is dropped (its orphaned rewrite crashed the unplugin compose), while a real SE
+  // prefix still runs once. the RHS object survives and its membership result is preserved
+  QUnit.test('(globalThis, Symbol.iterator) in obj -> proxy-global prefix drops, SE runs', assert => {
+    const arr = [1, 2];
+    assert.true((globalThis, Symbol.iterator) in arr);
+    const log = [];
+    const eff = () => log.push('e');
+    const has = (eff(), Symbol.iterator) in arr;
+    assert.true(has);
+    assert.deepEqual(log, ['e']);
   });
 }
