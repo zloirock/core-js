@@ -167,3 +167,32 @@ QUnit.test('IIFE-proxy with optional hop: side effect runs once', assert => {
     async();
   });
 });
+
+// a proxy-global constructor-static consumed by an outer hop before an instance method
+// (`(eff(), globalThis).Set.length.toFixed(2)`): the receiver collapses `globalThis.Set -> _Set` and the
+// instance dispatch nests AROUND it. the SE prefix runs once and the chain yields a value - a flat .length
+// hop keeps this engine-independent (ctor arity is ES1). guards the unplugin compose crash on the buried
+// `globalThis.Set` needle when the mid-chain ctor-static was wrongly collapsed into the instance receiver
+QUnit.test('global-proxy: mid-chain ctor-static under SE prefix composes with instance method', assert => {
+  const log = [];
+  const eff = () => log.push('e');
+  const r = (eff(), globalThis).Set.length.toFixed(2);
+  assert.same(typeof r, 'string');
+  assert.true(/\.00$/.test(r));
+  assert.deepEqual(log, ['e']);
+});
+
+// an effectful IIFE buried in a sequence below a forwarder member and a static
+// (`(0, (() => { c++; return globalThis; })().self).Array.from(...)`): the subsumption walk must peel the
+// buried sequence to reach + mark the IIFE root, else unplugin queues a parallel rewrite the static
+// collapse cannot compose. the IIFE carries an effect so it is PRESERVED and runs; the dead `0` prefix
+// drops and the receiver collapses to the pure static
+QUnit.test('global-proxy: effectful IIFE buried below a forwarder runs, receiver collapses', assert => {
+  let c = 0;
+  const r = (0, (() => {
+    c++;
+    return globalThis;
+  })().self).Array.from([1, 2, 3]);
+  assert.deepEqual(r, [1, 2, 3]);
+  assert.same(c, 1);
+});
