@@ -124,6 +124,41 @@ export function parenthesizeExprStmtHazard(text) {
   return EXPR_STMT_HAZARD_START.test(text) ? `(${ text })` : text;
 }
 
+// statement-START chars that fuse LEFTWARD into a fusion-capable prev statement: `(` (call), `[` (index),
+// `/` (regex or division), `+` / `-` (binary), `` ` `` (tagged template), `<` (TS TypeAssertion / JSX).
+// complementary to FUSES_WITH_OPEN_PAREN (ENDING chars that fuse only with a following `(`). `<` over-
+// fires on a real `a < b`, but a statement can START with `<` only as a TS type-assertion (`<T>x`) or JSX
+// element - never a less-than continuation (`a; <b` is a SyntaxError, not `a<b`) - so a spurious `;` only
+// ever precedes those, harmless. a postfix `++` / `--` prev never reaches `[` here (`x++[k]` is itself a
+// SyntaxError that ASI already split), so the `[` guard there is a harmless over-inject
+export const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
+
+// prev SURVIVING chars at a statement boundary that CANNOT fuse with a following hazard-start: `;`
+// (terminator) and the statement-list openers `{` (block / static block) and `:` (switch-case / label) -
+// after them the injection is the FIRST statement of a list, so there is no prev value to fuse into.
+// every other boundary char (value end / `}` of a fn-or-class EXPRESSION / postfix `++`) may fuse, so we
+// guard conservatively. NOT object-literal `{` / ternary-or-type `:` - those are mid-expression, never a
+// statement-boundary prev char (the only contexts the two callers below inject at)
+const NON_FUSING_PREV = new Set([';', '{', ':']);
+
+// would emitting `firstChar` at statement position fuse LEFTWARD into the prev surviving char `prevChar`?
+// used where the unplugin OVERWRITES a statement in place (entry SE-prefix rewrite, minifier-sequence
+// split) with text whose FIRST char may differ from the original node's: the node was proven statement-
+// separate against its ORIGINAL leading token, but a rewritten hazard-start char carries no such
+// guarantee. callers pass the prev SURVIVING char (they bail on start-of-file themselves)
+export function injectionFusesLeft(firstChar, prevChar) {
+  return !NON_FUSING_PREV.has(prevChar) && ASI_HAZARD_STARTS.has(firstChar);
+}
+
+// does overwriting a statement at `start` in `src` with text beginning `firstChar` fuse LEFTWARD into the
+// prev surviving statement? pairs the prev-significant-char scan with `injectionFusesLeft`. shared by the
+// in-place statement overwrites that re-root a line on a possibly-hazardous first char: the minifier-
+// sequence split and the destructure lifted-SE emit. start-of-file (no prev) is safe
+export function statementOverwriteFusesLeft(src, start, firstChar) {
+  const prevIdx = prevSignificantPos(src, start);
+  return prevIdx >= 0 && injectionFusesLeft(firstChar, src[prevIdx]);
+}
+
 // consume ONE logical line ending starting at `pos`: a CRLF or LFCR pair (2 chars), or
 // a single LF / CR / LS (U+2028) / PS (U+2029) (1 char). returns the position AFTER the
 // terminator, or `pos` unchanged if `src[pos]` is not a LineTerminator. callers use this
