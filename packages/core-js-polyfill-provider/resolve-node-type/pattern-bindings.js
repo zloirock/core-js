@@ -12,7 +12,9 @@
 // Public surface mirrors the previous factory functions - external callers are heavy
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
-import { $Object, $Primitive, PATTERN_WRAPPERS, dropLeadingThisParam, peelAssignmentPattern } from './base.js';
+import {
+  $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, dropLeadingThisParam, peelAssignmentPattern,
+} from './base.js';
 import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { spreadAtOrBefore, varInitStaleByRedecl } from '../helpers/ast-patterns.js';
@@ -622,7 +624,8 @@ export function createPatternBindings({
   function inferCallbackParamType(bindingPath) {
     const fnPath = bindingPath.parentPath;
     if (!fnPath?.node || !t.isFunction(fnPath.node)) return null;
-    const paramIndex = fnPath.node.params?.indexOf(bindingPath.node) ?? -1;
+    // index in the this-dropped cb params, to align with the this-dropped cb-type param slots below
+    const paramIndex = dropLeadingThisParam(fnPath.node.params)?.indexOf(bindingPath.node) ?? -1;
     if (paramIndex < 0) return null;
     const callPath = fnPath.parentPath;
     if (!callPath?.node) return null;
@@ -692,6 +695,9 @@ export function createPatternBindings({
     if (!fnPath?.node || !t.isFunction(fnPath.node)) return false;
     const paramIndex = fnPath.node.params.indexOf(bindingPath.node);
     if (paramIndex === -1) return false;
+    // the call args are this-dropped at runtime, so a leading `this` pseudo-param shifts the override
+    // check's arg position down by one (raw `paramIndex` indexes the AST params)
+    const argIndex = argIndexForParam(fnPath.node.params, paramIndex);
     // the function is callable by EVERY name that binds it: a named function expression's internal
     // name (recursion only) AND, for `const f = function g(){}`, the outer VariableDeclarator name
     // (the external callers). resolving only the NFE internal name sees its ~0 recursion sites and
@@ -716,8 +722,8 @@ export function createPatternBindings({
         // default may be overridden even when arguments[paramIndex] is absent - treat as overridden
         // (the binding then resolves generic, not narrowed to the default's type). matches the
         // arg->param spread guard in resolveDirectParam / paramHasOverridingArg
-        if (spreadAtOrBefore(callNode.arguments, paramIndex)) return false;
-        const arg = callNode.arguments?.[paramIndex];
+        if (spreadAtOrBefore(callNode.arguments, argIndex)) return false;
+        const arg = callNode.arguments?.[argIndex];
         if (!arg) continue;
         if (arg.type === 'UnaryExpression' && arg.operator === 'void') continue;
         if (isBareUndefinedIdentifier(arg) && !ref.scope?.getBinding?.('undefined')) continue;
