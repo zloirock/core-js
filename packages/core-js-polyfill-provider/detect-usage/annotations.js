@@ -7,7 +7,7 @@
 //   - `isPolyfillableOptional({ node, scope, adapter, resolve })` - the polyfill replacement
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
-import { getSuperTypeArgs, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { unwrapParens } from './resolve.js';
 
@@ -265,7 +265,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 // raw scope index misses. extractCheck/replaceInstanceLike pass it through their
 // `skipOptional` callback hop; legacy callers without a path-aware adapter still work
 // because the third argument is optional on `hasBinding`
-export function isPolyfillableOptional({ node, scope, adapter, resolve, path, resolveSuperStatic }) {
+export function isPolyfillableOptional({ node, scope, adapter, resolve, path, resolveSuperStatic, mutatedSet }) {
   // an optional CALL (`Array.from?.(...)`) carries the polyfillable target on its `callee`, not
   // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
   // a non-member callee (`foo?.()`) leaves `.object` undefined and falls through to false
@@ -283,6 +283,8 @@ export function isPolyfillableOptional({ node, scope, adapter, resolve, path, re
   // the deopt off the generic optional-chain path, which would crash composing the static call-split
   if ((obj?.type === 'Super' || obj?.type === 'ThisExpression') && resolveSuperStatic && path) {
     const meta = memberKey ? resolveSuperStatic(path, memberKey) : null;
+    // a monkey-patched inherited static keeps its `?.` for the same reason as the bare form below
+    if (meta && isMutatedStaticMeta(meta, mutatedSet)) return false;
     const resolvedSuper = meta && resolve(meta);
     return resolvedSuper?.kind === 'static' || resolvedSuper?.kind === 'global';
   }
@@ -303,7 +305,12 @@ export function isPolyfillableOptional({ node, scope, adapter, resolve, path, re
   // throws where the native chain short-circuits to undefined
   if (member === node && resolve({ kind: 'global', name: objName })) return true;
   const resolved = memberKey && resolve({ kind: 'property', object: objName, key: memberKey, placement: 'static' });
-  return resolved?.kind === 'static' || resolved?.kind === 'global';
+  if (resolved?.kind !== 'static' && resolved?.kind !== 'global') return false;
+  // a monkey-patched / deleted static (`delete Array.from; Array.from?.()`) is no longer always-
+  // defined: usage-pure bailed the substitution and kept the native member, so dropping the `?.`
+  // would call a deleted slot unconditionally (throws) where the native chain short-circuits to
+  // undefined. `mutatedSet` is null outside usage-pure, so this never changes global-mode deopts
+  return !isMutatedStaticMeta({ kind: 'property', object: objName, key: memberKey }, mutatedSet);
 }
 
 export function checkTypeAnnotations(node, onGlobal) {
