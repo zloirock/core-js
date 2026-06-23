@@ -1219,6 +1219,45 @@ function checkGenerateDeclaredRefHoists() {
 }
 checkGenerateDeclaredRefHoists();
 
+// registerBodyExtractAlias treats the aliasing destructure's OWN write as the aliasing event, not a
+// disqualifying reassignment: the assignment form `let x; ({ x } = Source)` is the binding's single
+// constantViolation with no declarator init. the gate counts writes + checks init, so it is parser-
+// agnostic (babel's violation node is the assignment, estree's the bound identifier - both count as one).
+// a real later reassignment, or a write alongside a declarator init, still poisons.
+function checkBodyExtractAliasCleanGate() {
+  const newInj = () => new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  const queryBinding = { identifier: { start: 0 } };
+
+  // assignment form: exactly one write, no declarator init -> the aliasing event, not a reassignment
+  const assign = newInj();
+  assign.registerBodyExtractAlias('from', 'array/from',
+    { kind: 'let', identifier: { start: 0 }, path: { node: { init: null } }, constantViolations: [{}] });
+  check('single destructure write with no init does not poison the alias',
+    assign.isReassignedBinding('from', queryBinding), false);
+
+  // declarator form: the destructure IS the init, so there is no separate write -> clean
+  const decl = newInj();
+  decl.registerBodyExtractAlias('keys', 'object/keys',
+    { kind: 'let', identifier: { start: 0 }, path: { node: { init: {} } }, constantViolations: [] });
+  check('declarator-form alias with no writes does not poison',
+    decl.isReassignedBinding('keys', queryBinding), false);
+
+  // a real later reassignment is a second write -> poison
+  const reassigned = newInj();
+  reassigned.registerBodyExtractAlias('of', 'array/of',
+    { kind: 'let', identifier: { start: 0 }, path: { node: { init: null } }, constantViolations: [{}, {}] });
+  check('a second write poisons the alias',
+    reassigned.isReassignedBinding('of', queryBinding), true);
+
+  // a single write ALONGSIDE a declarator init is a reassignment of the init, not the aliasing event
+  const withInit = newInj();
+  withInit.registerBodyExtractAlias('entries', 'object/entries',
+    { kind: 'let', identifier: { start: 0 }, path: { node: { init: {} } }, constantViolations: [{}] });
+  check('a write alongside a declarator init poisons the alias',
+    withInit.isReassignedBinding('entries', queryBinding), true);
+}
+checkBodyExtractAliasCleanGate();
+
 // a leading `'use strict'` directive must survive the import-injector's appendRight-failure fallback:
 // a sibling plugin overwriting the prologue range leaves no chunk boundary for appendRight, and a
 // naive prepend at 0 lands the ref/import block ABOVE the directive, silently demoting strict mode
