@@ -196,3 +196,37 @@ QUnit.test('global-proxy: effectful IIFE buried below a forwarder runs, receiver
   assert.deepEqual(r, [1, 2, 3]);
   assert.same(c, 1);
 });
+
+// proxy-hop collapse for a NON-pure leaf (the `Array` constructor / `Array.isArray`, neither pure-
+// substituted): the redundant `.self` / `.window` hop must be DROPPED at compile time
+// (`globalThis.self.Array` -> `_globalThis.Array`). `self` / `window` do not exist in Node, so this
+// runs ONLY because the hop was collapsed - a surviving `_globalThis.self` would read undefined and
+// throw here. the runtime oracle for the direct-root collapse across dotted / multi-hop / static shapes
+QUnit.test('global-proxy: non-pure leaf collapses its .self / .window hop (runs without it in Node)', assert => {
+  assert.same(new globalThis.self.Array(3).length, 3);
+  assert.same(new globalThis.self.window.Array(2).length, 2);
+  assert.true(globalThis.self.Array.isArray([1]));
+  // oxc preserves a paren that babel folds; the hop must still collapse (a residual `.self` throws here).
+  // the parens are the point of the test - the proxy navigation is parenthesized on purpose
+  /* eslint-disable @stylistic/no-extra-parens -- the parens are the test subject (paren-wrapped proxy navigation) */
+  assert.same(new (globalThis.self).Array(4).length, 4);
+  assert.same(new (globalThis).self.Array(5).length, 5);
+  /* eslint-enable @stylistic/no-extra-parens -- restore after the deliberately parenthesized cases */
+});
+
+// the same collapse for an ALIAS root (`const g = globalThis; g.self.Array` -> `g.Array`): the chain has
+// no `kind:'global'` trigger on the local `g`, so the hop must be dropped through the alias root, keeping
+// `g`. `self` / `window` do not exist in Node, so a surviving `g.self.Array` would read an undefined hop
+// and throw - this runs ONLY because the alias hop collapsed. covers ctor / static / multi-hop / `self` alias
+QUnit.test('global-proxy: alias-rooted .self / .window hop collapses (runs without it in Node)', assert => {
+  const g = globalThis;
+  assert.same(new g.self.Array(3).length, 3);
+  assert.same(new g.self.window.Array(2).length, 2);
+  assert.true(g.self.Array.isArray([1]));
+  // a COMPUTED const-binding hop (`g[k]`, k = 'self') resolves binding-aware and collapses too
+  const k = 'self';
+  assert.same(new g[k].Array(6).length, 6);
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- a `self` alias is the test subject
+  const s = self;
+  assert.same(new s.window.Array(4).length, 4);
+});

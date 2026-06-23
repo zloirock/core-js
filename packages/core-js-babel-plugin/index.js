@@ -32,6 +32,7 @@ import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-opt
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
+  isAliasProxyHopChain,
   prependChainAssignmentEffect,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
@@ -574,6 +575,11 @@ export default function plugin(api, options) {
           // own rewritten return leaf - leave the member untouched, the inner visits do the job
           if (staticFallbackSwapRedundant(path.node.object, meta.sideEffects)) return;
           const id = injectPureImport(fallback.entry, fallback.hintName);
+          // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
+          // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
+          // `_Map.prototype.has`; swapping the whole receiver (`globalThis.Map.prototype`) would drop
+          // `.prototype` -> the undefined `_Map.has`. a static placement swaps the whole receiver
+          const receiverPath = meta.placement === 'prototype' ? path.get('object').get('object') : path.get('object');
           // mirror the main static-rewrite branch (`replacePath.replaceWith(withSideEffects(
           // id, allEffects))` below): preserve `meta.sideEffects` (computed-key SE in the
           // original member access) AND `prependChainAssignmentEffect` over the receiver
@@ -582,9 +588,9 @@ export default function plugin(api, options) {
           // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`.
           // receiver-only: the computed `[key]` property SURVIVES this swap and re-runs its own SE,
           // so prepend only the receiver-SE (dropping the trailing key-SE) to avoid double-eval
-          const allEffects = prependChainAssignmentEffect(path.node.object,
+          const allEffects = prependChainAssignmentEffect(receiverPath.node,
             receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects));
-          path.get('object').replaceWith(withSideEffects(id, allEffects));
+          receiverPath.replaceWith(withSideEffects(id, allEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
           // is a GENUINE guard for the possibly-undefined member and must survive. stripFirstOptional
@@ -601,10 +607,28 @@ export default function plugin(api, options) {
               prop: path, meta, kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod',
             });
           }
+          // an ALIAS-rooted proxy-hop chain whose leaf is NON-polyfilled (`const g = globalThis; new
+          // g.self.Array(3)` / `g['self'].Array.isArray(...)`) has no leaf usage and no `kind:'global'`
+          // trigger on the alias root, so the redundant `.self` / `.window` hop survives, reading an
+          // undefined hop off the alias off-engine (ie:11 / Node). `isAliasProxyHopChain` is the shared
+          // provider detection; peel to the root path and collapse (which self-gates on the hop again)
+          const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
+          if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx)) {
+            let rootPath = path;
+            while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
+            synthSwap.collapseProxyHopRoot(rootPath, aliasCtx);
+          }
           return;
         }
 
         const { entry, kind, hintName } = result;
+
+        // a proxy-global root (`globalThis`) navigating a NON-pure leaf through redundant proxy hops
+        // (`globalThis.self.Array`) must collapse the hops, else the bare identifier swap leaves
+        // `_globalThis.self.Array` reading an undefined `.self` off the global off-engine (ie:11 / Node).
+        // a pure-ctor leaf is whole-swapped by the synth-swap path; a bare root collapses to nothing
+        if (kind === 'global' && !path.isObjectProperty()
+          && synthSwap?.collapseProxyHopRoot(path, path.scope ? { scope: path.scope, adapter, path } : null)) return;
 
         if (path.isObjectProperty()) {
           destructureEmit.handleObjectPropertyResult({ prop: path, meta, kind, entry, hintName });
