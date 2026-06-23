@@ -155,6 +155,26 @@ function hasExtractions(planNode) {
   return !!planNode.extractions?.length;
 }
 
+// resolve a destructure property to its polyfillable STATIC entry off `receiverName`, or null when it
+// is NOT a consumable static: a computed / non-Identifier-value / rest / default-only key, an
+// instance-kind member, an unresolved key, or a disabled leaf. shared by the flatten plan (which builds
+// extractions from the entry) and the babel collapse gate (which needs only the yes/no to know whether a
+// surviving sibling will be EXTRACTED - emptying the pattern and dropping a SE init's receiver tail).
+// the bare `resolveBuiltIn` instance pre-filter is required: a pathless `resolvePure` crashes on
+// `enhanceMeta`'s member-like check for instance resolutions
+export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure, isDisabled = null }) {
+  if (isDisabled?.(prop)) return null;
+  const name = isPropertyNode(prop) ? flattenKeyName(prop) : null;
+  if (name === null) return null;
+  const valueNode = propBindingIdentifier(prop.value);
+  if (!valueNode) return null;
+  const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
+  if (resolveBuiltIn(meta)?.kind === 'instance') return null;
+  const pure = resolvePure(meta);
+  if (!pure || pure.kind === 'instance') return null;
+  return { pure, localName: valueNode.name };
+}
+
 // plan cache keyed by declarator node identity (unique per parse, so a module-level
 // WeakMap is per-file safe; entries GC with the program). the FIRST build wins: the
 // AssignmentExpression cascade plans a synthetic `{ id, init }` host and the render-time
@@ -194,29 +214,16 @@ export function buildNestedDestructurePlan({
     return !!isDisabledProp?.(prop);
   }
 
-  // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on
-  // `Array`. only simple Identifier values; rest / default / non-Identifier / unknown
-  // keys fall back to verbatim. uses the bare `resolveBuiltIn` meta resolver first
-  // to filter instance kind - `resolvePure` with no path would crash on `enhanceMeta`'s
-  // `isMemberLike(path)` for instance resolutions
+  // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on `Array`. accepts
+  // `{ from }`, `{ from: alias }`, `{ from = default }`, `{ from: alias = default }`; rest / default-only /
+  // computed / instance / unresolved / disabled fall back to verbatim. user's default is dropped: the
+  // polyfill is always defined, so the user's default fires only on undefined property (dead code)
   function planInnerProp(prop, receiverName) {
-    if (leafDisabled(prop)) return { kind: 'verbatim', prop };
-    // side-effecting computed keys never reach the flatten (they route to the residual
-    // path), so only a static-string / Identifier key resolves here
-    const name = isPropertyNode(prop) ? flattenKeyName(prop) : null;
-    if (name === null) return { kind: 'verbatim', prop };
-    // accept `{ from }`, `{ from: alias }`, `{ from = default }`, `{ from: alias = default }`.
-    // user's default is dropped: polyfill is always defined, the user's default would be
-    // dead code (fires only on undefined property, which polyfill rules out)
-    const valueNode = propBindingIdentifier(prop.value);
-    if (!valueNode) return { kind: 'verbatim', prop };
-    const meta = { kind: 'property', object: receiverName, key: name, placement: 'static' };
-    if (resolveBuiltIn(meta)?.kind === 'instance') return { kind: 'verbatim', prop };
-    const pure = resolvePure(meta);
-    if (!pure || pure.kind === 'instance') return { kind: 'verbatim', prop };
+    const resolved = resolvePolyfillableStaticProp({ prop, receiverName, resolvePure, isDisabled: leafDisabled });
+    if (!resolved) return { kind: 'verbatim', prop };
     return {
       kind: 'consumed', prop,
-      extractions: [{ entry: pure.entry, hint: pure.hintName, localName: valueNode.name }],
+      extractions: [{ entry: resolved.pure.entry, hint: resolved.pure.hintName, localName: resolved.localName }],
     };
   }
 
