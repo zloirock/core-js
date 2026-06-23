@@ -327,6 +327,10 @@ export function createCallResolution({
     if (!members) return null;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
+      // honor accessor kind like findTypeMember: a setter is write-only - skip to a paired getter
+      // (else its signature is mis-read as the readable member type); a getter falls through to its
+      // RETURN type; a plain method yields the full signature
+      if (m.type === 'TSMethodSignature' && m.kind === 'set') continue;
       const isMethodProper = m.type === 'TSMethodSignature' && m.kind !== 'get';
       const raw = isMethodProper ? m : (m.typeAnnotation ?? m.returnType ?? m.value);
       if (!raw) continue;
