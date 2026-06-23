@@ -20,7 +20,10 @@
 // `innerTypeParamName`, `bindTypeParam`, `buildTypeParamMap`, `resolveCallArgType`,
 // `resolveDirectParam`, `resolvePatternParam`, `resolveParamType`, `resolveBodyExpr`,
 // `wrapAsyncPromise`, `applyCallSiteSubst`.
-import { MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive, peelAssignmentPattern } from './base.js';
+import {
+  MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive,
+  argIndexForParam, dropLeadingThisParam, peelAssignmentPattern,
+} from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { getTypeArgs, spreadAtOrBefore } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
@@ -75,8 +78,11 @@ export function createReturnType({
   // arg at this position (spread-aware via canonical spreadAtOrBefore), the default's
   // type when no arg was passed, or null when neither source applies
   function resolveDirectParam(param, i, args, fnPath) {
-    if (spreadAtOrBefore(args, i)) return null;
-    if (i < args.length) return resolveCallArgType(args[i]);
+    // dual index: align `args` on the this-dropped `argIndex`, keep the raw `i` for the AST params
+    // path (the AssignmentPattern default lookup below)
+    const argIndex = argIndexForParam(fnPath.node.params, i);
+    if (spreadAtOrBefore(args, argIndex)) return null;
+    if (argIndex < args.length) return resolveCallArgType(args[argIndex]);
     if (param.type === 'AssignmentPattern') return resolveNodeType(fnPath.get('params')[i].get('right'));
     return null;
   }
@@ -88,11 +94,14 @@ export function createReturnType({
   // AssignmentPattern default (`function f({a} = {a: [1,2,3]})` called as `f()`)
   // is the fallback
   function resolvePatternParam(param, keyPath, i, args, fnPath) {
-    if (i < args.length) {
+    // dual index, like resolveDirectParam: `argIndex` aligns the call args past a leading `this`, raw
+    // `i` keeps the AST `params` path on the real slot
+    const argIndex = argIndexForParam(fnPath.node.params, i);
+    if (argIndex < args.length) {
       // a spread at OR before this slot shifts the arg->param mapping (sibling resolveDirectParam
-      // uses the same guard); `args[i]` is then not the value that reaches this pattern param
-      if (spreadAtOrBefore(args, i)) return null;
-      return resolveDestructuredMember(args[i], keyPath);
+      // uses the same guard); `args[argIndex]` is then not the value that reaches this pattern param
+      if (spreadAtOrBefore(args, argIndex)) return null;
+      return resolveDestructuredMember(args[argIndex], keyPath);
     }
     if (param.type === 'AssignmentPattern') {
       return resolveObjectMemberPath(fnPath.get('params')[i].get('right'), keyPath);
@@ -151,10 +160,12 @@ export function createReturnType({
     const found = findBindingParam(binding, fnPath);
     if (!found || found.param.type !== 'AssignmentPattern') return false;
     const args = callPath.node.arguments;
+    // align the call arg past a leading `this` pseudo-param (raw `found.index` indexes the AST params)
+    const argIndex = argIndexForParam(fnPath.node.params, found.index);
     // a spread arg at/before this slot makes the default possibly overridden: treat as overridden
     // (return true) so the caller bails rather than narrowing the param to its default type
-    if (spreadAtOrBefore(args, found.index)) return true;
-    const arg = args?.[found.index];
+    if (spreadAtOrBefore(args, argIndex)) return true;
+    const arg = args?.[argIndex];
     if (!arg) return false;
     // an explicit `undefined` / `void <x>` arg TRIGGERS the param default rather than overriding
     // it (JS coerces `undefined` at a defaulted param to the default), so the default's declared
@@ -411,7 +422,9 @@ export function createReturnType({
       }
     }
     const args = callPath.get('arguments');
-    const { params } = fnPath.node;
+    // drop the leading `this` pseudo-param so param annotations align with the call args (this side
+    // reads annotations only, no AST params path - the dropped list is enough)
+    const params = dropLeadingThisParam(fnPath.node.params);
     // phase 1: match param annotations against type parameter names
     for (let i = 0; i < params.length && i < args.length; i++) {
       const { param, isRest } = effectiveParam(params[i]);
