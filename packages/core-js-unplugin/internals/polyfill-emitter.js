@@ -21,6 +21,7 @@ import {
   classifyReceiverSE,
   findProxyGlobal,
   keySideEffectsOnly,
+  maximalProxyGlobalPrefix,
   peelChainAssignment,
   peelReceiverSequenceTail,
   prependChainAssignmentEffect,
@@ -65,6 +66,19 @@ function buildSeTailSrc(prefixSrcs, pureBinding) {
   return `(${ [...prefixSrcs, pureBinding].join(', ') })`;
 }
 
+// drop the innermost member hops that are ENTIRELY proxy navigation (`.self` / `.window`, an alias of
+// the global) so a chain receiver collapses past them (`globalThis.self.Array.prototype` ->
+// `_globalThis.Array.prototype`); mutates `hops` and returns the outermost dropped hop as the new
+// leaf boundary (null when nothing dropped). a residual hop reads undefined off the global off-engine
+function dropLeadingProxyHops(hops, aliasCtx) {
+  let boundary = null;
+  while (hops.length && maximalProxyGlobalPrefix(hops.at(-1), aliasCtx) === hops.at(-1)) {
+    boundary = hops.at(-1);
+    hops.length -= 1;
+  }
+  return boundary;
+}
+
 // find the hop of a proxy-global member chain that names a real polyfillable global static, so the
 // whole `<forwarder-chain>.Static` prefix collapses to the static's pure ctor in one step
 // (`globalThis.self.Map` -> `_Map`, not the inner `_self.Map`). `resolveObjectName` is the canonical
@@ -74,6 +88,10 @@ function buildSeTailSrc(prefixSrcs, pureBinding) {
 function findProxyGlobalStaticHop(hops, ctx, resolveGlobalPolyfill) {
   for (let i = 0; i < hops.length; i++) {
     const name = resolveObjectName({ objectNode: hops[i], ...ctx });
+    // a proxy-global hop (`globalThis.self` - `self` resolves to a pure global) is a collapsible alias,
+    // NOT a constructor static to substitute; treating it as one bails this receiver (staticIdx > 0) into
+    // the raw-source fallback, stranding the proxy-global root unrewritten (ie:11 ReferenceError)
+    if (name && POSSIBLE_GLOBAL_OBJECTS.has(name)) continue;
     const staticPure = name && resolveGlobalPolyfill(name);
     if (staticPure) return { staticHop: hops[i], staticPure, staticIdx: i };
   }
@@ -877,8 +895,7 @@ export function createPolyfillEmitter({
     let leafBoundary = wrappedLeaf;
     let leaf, polyfillBinding, skipNode;
     if (seTail) {
-      leaf = seTail.leaf;
-      skipNode = leaf;
+      skipNode = seTail.leaf;
       if (staticPure) {
         // rebind the SE tail to the static, keeping the prefix effects ahead of it in eval order:
         // `(eff(), globalThis).Map` -> `(eff(), _Map)`. the SE-object member never reaches the static
@@ -916,6 +933,9 @@ export function createPolyfillEmitter({
       if (!pure) return null;
       polyfillBinding = injectPureImport(pure.entry, pure.hintName);
       skipNode = leaf;
+      // collapse intermediate proxy-global hops so the receiver reads off the pure global directly
+      // (`globalThis.self.Array.prototype` -> `_globalThis.Array.prototype`), matching babel
+      leafBoundary = dropLeadingProxyHops(hops, { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath }) ?? leafBoundary;
     }
     if (!hasMidChainWrappers) {
       const tailStart = afterOptional(leafBoundary.end, !(hops.at(-1)?.computed ?? false));
@@ -1493,11 +1513,13 @@ export function createPolyfillEmitter({
   // `replaceWith(withSideEffects(id, allEffects))` shape: receiver chain-assignment +
   // `meta.sideEffects` (computed-key SE captured by detect-usage) compose into the
   // replacement so `called++` in `(called++, Promise).noSuchStatic` doesn't drop
-  function replaceStaticFallback({ binding, node, metaPath, sideEffects, receiverEffectCount }) {
+  function replaceStaticFallback({ binding, node, metaPath, sideEffects, receiverEffectCount, receiverNode = node.object }) {
     // receiver-only swap: the computed `[key]` property survives and re-runs its own SE, so prepend
-    // only the receiver-SE (drop the trailing computed-key SE) to avoid double-evaluating it
-    transforms.add(node.object.start, node.object.end, composeBindingReplacement({
-      binding, receiverObj: node.object, metaPath, start: node.object.start,
+    // only the receiver-SE (drop the trailing computed-key SE) to avoid double-evaluating it.
+    // `receiverNode` is the CTOR sub-receiver for a `prototype` placement (`globalThis.Map` within
+    // `globalThis.Map.prototype`) so `.prototype` is kept; the whole `.object` for a static placement
+    transforms.add(receiverNode.start, receiverNode.end, composeBindingReplacement({
+      binding, receiverObj: receiverNode, metaPath, start: receiverNode.start,
       sideEffects: receiverSideEffectsOnly(receiverEffectCount, sideEffects),
     }));
   }
