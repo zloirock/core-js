@@ -433,7 +433,11 @@ function compareLoose(directory, actual, babelOutput) {
   compareNormalized(directory, extractImports(actual), extractImports(babelOutput));
 }
 
-async function comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile) {
+// full-text compare under `stripBoilerplate` (collapses whitespace, drops the `'use strict'` prologue).
+// the sidecar opt-in is the divergence itself: OVERWRITE writes `output-unplugin.mjs` whenever unplugin's
+// text differs from babel's and removes it when they agree, so EVERY needed sidecar regenerates from
+// scratch on the OVERWRITE flag (no hand-maintained list of which fixtures to pin)
+async function compareFullText(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile) {
   if (OVERWRITE) {
     if (stripBoilerplate(actual) === stripBoilerplate(babelOutput)) await rm(unpluginOutputFile, { force: true });
     else await writeFile(unpluginOutputFile, actual, UTF8);
@@ -443,17 +447,16 @@ async function comparePureMode(directory, actual, babelOutput, hasUnpluginOutput
   compareNormalized(directory, stripBoilerplate(actual), stripBoilerplate(babelOutput));
 }
 
-// pick the comparator that matches the fixture's plugin method + opt-in `output-unplugin.mjs`.
-// usage-pure goes through full-text compare with stripBoilerplate (and OVERWRITE auto-drop);
-// global modes default to imports-only (`compareLoose`) but opt into strict tail check by
-// dropping an `output-unplugin.mjs` next to the babel-generated `output.mjs`
+// pick the comparator by plugin method. usage-pure AND entry-global go through the full-text compare:
+// entry removal can mutate the body (ASI guard `;`, `0;` directive-promotion placeholder, spurious-semi
+// suppression) - a token-level transform an imports-only check and `checkOutputParses` (rejects only
+// UNPARSABLE output) are both blind to. the full-text path pins the body and regenerates the sidecar on
+// OVERWRITE; usage-global is import-injection-only (body is reprint-only) so it stays imports-only loose,
+// recording a sidecar only when the import set diverges (babel@8 no-targets skips a polyfill unplugin injects)
 async function compareMainOutput({ directory, actual, babelOutput, method, hasUnpluginOutput, unpluginOutputFile }) {
-  if (method === 'usage-pure') return comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile);
-  // global modes (entry-global / usage-global): loose imports-only by default. under OVERWRITE
-  // record an `output-unplugin.mjs` sidecar (which flips the check to strict) when unplugin's
-  // import set diverges from babel's - e.g. babel@8 no-targets => ["defaults"] skips a polyfill
-  // unplugin still injects, or babel's `transform-typescript` strips a type-only import oxc keeps.
-  // an existing sidecar is refreshed (opt-in strictness preserved); matching imports stay loose
+  if (method === 'usage-pure' || method === 'entry-global') {
+    return compareFullText(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile);
+  }
   if (OVERWRITE) {
     const importsDiverge = extractImports(actual) !== extractImports(babelOutput);
     if (hasUnpluginOutput || importsDiverge) await writeFile(unpluginOutputFile, actual, UTF8);
