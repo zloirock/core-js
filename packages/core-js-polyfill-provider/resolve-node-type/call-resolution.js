@@ -33,7 +33,7 @@
 // binding-analysis cluster instantiated upstream (factory function declaration is hoisted;
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
-import { MAX_DEPTH } from './base.js';
+import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
 import { isUnionType, primitiveTypeKind, selectOverloadByArgKinds, typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -491,7 +491,8 @@ export function createCallResolution({
     const paramNames = new Set(fnTypeParams.map(typeParamName).filter(Boolean));
     const args = callPath.get('arguments');
     if (args.some(a => a.node?.type === 'SpreadElement')) return null;
-    const { params } = fnNode;
+    // drop the leading `this` pseudo-param so param annotations align with the call args
+    const params = dropLeadingThisParam(fnNode.params);
     const subst = new Map();
     const limit = Math.min(params.length, args.length);
     for (let i = 0; i < limit; i++) {
