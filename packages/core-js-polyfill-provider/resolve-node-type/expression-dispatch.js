@@ -77,7 +77,7 @@ export function createExpressionDispatch({
     // walks through binding init -> call return -> TSConstructorType; `new Ctor(...)` yields
     // the constructor's return type. without this fallback, `new` on a binding with no
     // direct class shape produces unknown ($Object(null)) and downstream narrows degrade
-    const ctorReturn = resolveCallReturnType(callee);
+    const ctorReturn = resolveCallReturnType(callee, 'construct');
     if (ctorReturn) {
       // a plain function VALUE discards a primitive return at `new` time (yields a fresh object);
       // only an object return survives (`function f(){ return [1]; }`). a construct signature
