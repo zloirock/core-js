@@ -220,6 +220,7 @@ export default function plugin(api, options) {
   function skipPolyfillableOptional(node, scope, path) {
     return isPolyfillableOptional({
       node, scope, path, adapter, resolve: resolveBuiltIn, resolveSuperStatic: resolveSuperStaticFn,
+      mutatedSet: mutatedStatics,
     });
   }
 
