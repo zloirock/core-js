@@ -284,7 +284,11 @@ export function createTypeQuery({
     return overloads.length >= minHeadsForRetarget ? overloads.at(-1) : resolved;
   }
 
-  function resolveReturnTypeFromTypeQuery(param, scope) {
+  // `depth` accumulates across the re-entries below so a self-referential return type
+  // (`declare function f(): ReturnType<typeof f>`, or a mutual `a`/`b` pair) hits MAX_DEPTH
+  // and bails to generic instead of recursing forever - the return-type resolution chain
+  // would otherwise reset depth to 0 on every hop
+  function resolveReturnTypeFromTypeQuery(param, scope, depth = 0) {
     const resolved = pickLastAmbientOverload(resolveTypeQueryBinding(param, scope), param, scope);
     if (isFunctionLike(resolved?.node)) {
       // TS 4.7+ instantiation expression `typeof fn<Args>` carries explicit type-args on
@@ -298,15 +302,18 @@ export function createTypeQuery({
       // `typeof NS.fn` whose declared return references an IN-NAMESPACE type alias (`(): Local`
       // where `Local` is a sibling in NS) needs NS's module body as the lookup anchor - the
       // recovered path's scope chain doesn't reach it on estree, so `Local` would bail to generic
-      if (subst) return withLookupPath(resolved, () => resolveTypeAnnotation(applyAliasSubstDeep(unwrapTypeAnnotation(ret), subst), scope));
-      return withLookupPath(resolved, () => resolveReturnType(resolved));
+      if (subst) {
+        const substituted = applyAliasSubstDeep(unwrapTypeAnnotation(ret), subst);
+        return withLookupPath(resolved, () => resolveTypeAnnotation(substituted, scope, depth + 1));
+      }
+      return withLookupPath(resolved, () => resolveReturnType(resolved, undefined, undefined, depth));
     }
     if (param?.type !== 'TSTypeQuery') return null;
     // `resolveTypeQueryBinding` returns null for no-init `declare const` shapes; fall back to
     // the annotation-only path which also handles qualified names (`typeof NS.fn`)
     const fnType = findTypeQueryFunctionType(param.exprName, scope);
     const ret = fnType && functionTypeReturnAnnotation(fnType.type);
-    return ret ? resolveTypeAnnotation(ret, fnType.scope) : null;
+    return ret ? resolveTypeAnnotation(ret, fnType.scope, depth + 1) : null;
   }
 
   return {
