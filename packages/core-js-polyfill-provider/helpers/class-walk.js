@@ -47,9 +47,18 @@ export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }
   // no entry in babel's scope chain, so the init-follow path never observes them
   const hint = binding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, node.name);
   if (hint) return POSSIBLE_GLOBAL_OBJECTS.has(hint);
-  // cycle guard keyed by binding identity: a const-alias cycle (`const a = b; const b = a`) would
-  // otherwise recurse forever through followLocalBindingToProxyGlobal
-  if (binding) return seen?.has(binding) ? false : followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen);
+  // cycle guard keyed by the binding's DECLARATION node: a const-alias cycle (`const a = b; const
+  // b = a`) or a self-referential init (`var Map = Map`) would otherwise recurse forever through
+  // followLocalBindingToProxyGlobal. keying by `binding` directly fails for the detect-usage adapter,
+  // which returns a FRESH binding wrapper object per `getBinding` call - identity never matches; the
+  // declaration node is stable across calls. virtual (hint) bindings never reach here (handled above).
+  // on a cycle, fall back to the node NAME so a self-referential PROXY name (`var self = self`) stays a
+  // proxy - matching the node-only natural-global rewrite that already turns it into `_self`, so the hop
+  // collapse fires consistently in both emitters (unplugin has no AST re-visit to recover it otherwise);
+  // a non-proxy self-cycle (`var Map = Map`) stays false. avoids recursion either way (returns here)
+  if (binding) return seen?.has(binding.node ?? binding)
+    ? POSSIBLE_GLOBAL_OBJECTS.has(node.name)
+    : followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen);
   if (adapter.hasBinding?.(scope, node.name, path)) return false;
   return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
 }
@@ -70,7 +79,7 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
   if (init?.type !== 'Identifier') return false;
   // the NEXT hop's value is read at THIS declarator - anchor its reassignment proof there
   return isProxyGlobalIdentifierNode({
-    node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path, seen: new Set(seen).add(binding),
+    node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path, seen: new Set(seen).add(binding.node ?? binding),
   });
 }
 
