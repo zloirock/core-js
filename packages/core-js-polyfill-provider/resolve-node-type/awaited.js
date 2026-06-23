@@ -31,7 +31,7 @@
 // `functionTypeParams` is here because `cbFirstArgAnnotation` + `peelUserThenable` consume
 // it; factory has its own `functionTypeParams` declaration that this cluster's caller-side
 // `unwrap` / `resolve` already work past.
-import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
+import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
 import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -363,7 +363,7 @@ export function createAwaited({
   function cbFirstArgAnnotation(cbNode) {
     const cbType = unwrapTypeAnnotation(cbNode?.typeAnnotation);
     if (cbType?.type !== 'TSFunctionType' && cbType?.type !== 'FunctionTypeAnnotation') return null;
-    return unwrapTypeAnnotation(functionTypeParams(cbType)?.[0]?.typeAnnotation);
+    return unwrapTypeAnnotation(dropLeadingThisParam(functionTypeParams(cbType))?.[0]?.typeAnnotation);
   }
 
   // peel a function-type annotation slot into its first parameter node. used for property-
@@ -373,7 +373,7 @@ export function createAwaited({
   function firstParamOfFnTypeAnnotation(typeAnnotation) {
     const fnType = unwrapTypeAnnotation(typeAnnotation);
     if (fnType?.type !== 'TSFunctionType') return null;
-    return functionTypeParams(fnType)?.[0];
+    return dropLeadingThisParam(functionTypeParams(fnType))?.[0];
   }
 
   // extract the `cb` parameter from a `then` member. covers all shapes returned by both
@@ -387,9 +387,9 @@ export function createAwaited({
   // Thenable class - `getTypeMembers` walks the class body and returns native shapes
   function memberThenCbParam(member) {
     if (!member) return null;
-    if (member.type === 'TSMethodSignature') return functionTypeParams(member)?.[0];
+    if (member.type === 'TSMethodSignature') return dropLeadingThisParam(functionTypeParams(member))?.[0];
     if (member.type === 'TSPropertySignature') return firstParamOfFnTypeAnnotation(member.typeAnnotation);
-    if (isMethodMember(member)) return (member.value ?? member).params?.[0];
+    if (isMethodMember(member)) return dropLeadingThisParam((member.value ?? member).params)?.[0];
     if (isPropertyMember(member)) return firstParamOfFnTypeAnnotation(member.typeAnnotation);
     return null;
   }

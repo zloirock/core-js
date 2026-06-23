@@ -24,6 +24,7 @@ import {
   MAX_DEPTH,
   NULLABLE_NEVER_ANNOTATIONS,
   $Object,
+  dropLeadingThisParam,
 } from './base.js';
 import { typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
@@ -96,10 +97,13 @@ export function createTypeFolding({
     let current = pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope);
     let depth = MAX_DEPTH;
     while (depth-- && current?.node) {
-      if (current.node.params) return current.node.params;
+      // `Parameters<typeof fn>` drops the leading `this` pseudo-param (TS-level), so the tuple index
+      // aligns with the runtime params - return the this-dropped list (no-op for ctors, which can't
+      // declare `this`)
+      if (current.node.params) return dropLeadingThisParam(current.node.params);
       const ctor = current.node.body?.body?.find(m => m?.kind === 'constructor');
       // babel: ClassMethod.params; oxc: MethodDefinition.value.params (FunctionExpression)
-      if (ctor) return ctor.params ?? ctor.value?.params ?? null;
+      if (ctor) return dropLeadingThisParam(ctor.params ?? ctor.value?.params ?? null);
       if (!t.isClass(current.node) || !current.node.superClass) return null;
       const superClassPath = current.get('superClass');
       const superNode = superClassPath.node;
