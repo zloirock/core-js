@@ -35,7 +35,7 @@
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
 import { isUnionType, primitiveTypeKind, selectOverloadByArgKinds, typeRefName } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isCleanDestructureAliasBinding } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
@@ -166,7 +166,9 @@ export function createCallResolution({
     const binding = getScopeBinding(scope, name, path);
     if (!binding?.path) return null;
     if (binding.constantViolations?.length) {
-      if (binding.constantViolations.length !== 1 || binding.path.node?.init) return null;
+      // same clean-alias gate the injector's `registerBodyExtractAlias` applies, so the value-flow
+      // route and the alias-entry route agree on which assignment-destructures resolve to a static
+      if (!isCleanDestructureAliasBinding(binding)) return null;
       // normalize the violation up to its enclosing AssignmentExpression: babel reports the AE
       // itself, but estree-toolkit reports the LHS Identifier (walk up Property / ObjectPattern).
       // without this the assignment-destructure aliased-static return resolves on babel but null
