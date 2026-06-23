@@ -53,6 +53,7 @@ import {
   isStaticPlacement,
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
+  PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalWrappedRoot,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -2864,6 +2865,58 @@ export function createDestructureEmitter({
     return src.slice(0, start) + rootText + tailSrc;
   }
 
+  // the natural global-rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
+  // of a member chain carrying redundant proxy hops (`globalThis.self.Array`) ending in a NON-pure leaf.
+  // rewriting only the identifier text leaves `_globalThis.self.Array`, reading an undefined `.self` off
+  // the global off-engine (ie:11 / Node). collapse the hop prefix through `substituteProxyGlobalRoot`
+  // (`_globalThis.Array`). returns true when it queued the collapse (the caller skips the bare rewrite);
+  // false for a bare root (`globalThis.Array`, no hop) so the natural identifier swap handles it
+  function collapseProxyHopRoot(metaPath) {
+    // fire for a proxy-global NAME root (`globalThis` / `self` / ...) OR an alias of one (`const g =
+    // globalThis; g.self.X` -> `g.X`): the alias-aware `findProxyGlobal` follows the binding so an
+    // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
+    // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
+    const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
+    if (!findProxyGlobal(metaPath?.node, aliasCtx)) return false;
+    // oxc preserves `ParenthesizedExpression` / `ChainExpression` wrappers that babel's AST folds away;
+    // peel them while climbing so a paren-wrapped proxy navigation (`(globalThis.self).Array`) reaches
+    // its leaf receiver and collapses like babel (which never sees the wrapper). TS wrappers are NOT
+    // peeled - babel keeps them too, so both leave that residual hop, staying in parity
+    const peelOxc = path => {
+      let p = path;
+      while (p && (p.node?.type === 'ParenthesizedExpression' || p.node?.type === 'ChainExpression')) p = p.parentPath;
+      return p;
+    };
+    // climb to the leaf member that consumes the maximal proxy-hop prefix
+    let recPath = peelOxc(metaPath?.parentPath);
+    while ((recPath?.node?.type === 'MemberExpression' || recPath?.node?.type === 'OptionalMemberExpression')
+      && maximalProxyGlobalPrefix(recPath.node, aliasCtx) === recPath.node) {
+      recPath = peelOxc(recPath.parentPath);
+    }
+    const recv = recPath?.node;
+    if (recv?.type !== 'MemberExpression' && recv?.type !== 'OptionalMemberExpression') return false;
+    // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
+    if (!maximalProxyGlobalHop(recv, aliasCtx)) return false;
+    // the destructure path OWNS the chain when it is an OBJECT-pattern destructure SOURCE (named props feed
+    // a synth literal), even when wrapped in value carriers (`{from} = (se, globalThis.self.Array) || Set`).
+    // walk up through those wrappers to the binding context and skip an OBJECT-pattern target. an ARRAY
+    // pattern binds by index / iteration, NEVER a named static the emitter could synth-swap, so the emitter
+    // never owns it - collapse the hop HERE (else a residual `_globalThis.self.Array` reads undefined
+    // off-engine). a plain default VALUE (`{ x = globalThis.self.Array }`, target Identifier) is NOT a source
+    let ctxPath = recPath.parentPath;
+    while (PROXY_HOP_VALUE_CARRIERS.has(ctxPath?.node?.type)) ctxPath = ctxPath.parentPath;
+    const ctx = ctxPath?.node;
+    const target = ctx?.type === 'VariableDeclarator' ? ctx.id
+      : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
+    if (target?.type === 'ObjectPattern') return false;
+    const collapsed = substituteProxyGlobalRoot({ node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx });
+    if (collapsed === null) return false;
+    const root = findProxyGlobal(recv, aliasCtx);
+    if (root) skippedNodes.add(root); // suppress the parallel natural identifier rewrite
+    transforms.add(recv.start, recv.end, collapsed);
+    return true;
+  }
+
   // receiver source for a synth swap's MemberExpression receiver (`globalThis.Array`),
   // used by unpolyfilled-key fallbacks (`other: <receiver>.other`). the synth swap marks the
   // receiver chain skipped, so the natural visitor never substitutes its proxy-global root and
@@ -3118,6 +3171,7 @@ export function createDestructureEmitter({
     applyDestructuringTransforms,
     applySynthSwaps,
     canFullyConsumeProxyDeclarator,
+    collapseProxyHopRoot,
     handleDestructuringPure,
     tryFlattenProxyHopHost,
   };
