@@ -105,6 +105,7 @@ export function createPolyfillEmitter({
   injectPureImport,
   isEntryNeeded,
   isInStaticContext,
+  mutatedStatics,
   NEEDS_GUARD_PARENS,
   enclosingExpressionStatementPath,
   isBodylessStatementBody,
@@ -226,7 +227,7 @@ export function createPolyfillEmitter({
       // read off the callee node, so an explicit-key resolve recognizes `super.from?.()` as deoptable
       return isPolyfillableOptional({
         node: n, scope, adapter: estreeAdapter, resolve: resolveBuiltIn,
-        path: metaPath, resolveSuperStatic: resolveStaticInheritedMember,
+        path: metaPath, resolveSuperStatic: resolveStaticInheritedMember, mutatedSet: mutatedStatics,
       });
     }
 
@@ -1143,7 +1144,9 @@ export function createPolyfillEmitter({
     // crash). exclude always-defined-optional inners so `Array.from?.().flat().at()` keeps its
     // deopt + compose shape rather than emitting a raw guarded `Array.from`
     if (!effectiveResult && (!hops.some(h => h.poly)
-      || isPolyfillableOptional({ node: current, scope: metaPath.scope, adapter: estreeAdapter, resolve: resolveBuiltIn }))) return null;
+      || isPolyfillableOptional({
+        node: current, scope: metaPath.scope, adapter: estreeAdapter, resolve: resolveBuiltIn, mutatedSet: mutatedStatics,
+      }))) return null;
     return { chainStart: current, innerCallee: callee, innerResult: effectiveResult, hops, innerKeySE, innerMethodName };
   }
 
