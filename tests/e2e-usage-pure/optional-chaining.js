@@ -318,6 +318,12 @@ QUnit.test('optional call on non-static member of polyfilled global short-circui
   // collapse to the pure ctor and the chain still short-circuit to undefined
   // eslint-disable-next-line es/no-nonstandard-map-properties -- the missing static IS the case
   assert.same(globalThis.Map.notAMethod?.().flat().at(0), undefined);
+  // ALIASED proxy-global receiver: the alias must resolve to the proxy so the emitted receiver
+  // collapses to the pure ctor and the chain short-circuits; mis-resolving the alias would deopt as a
+  // real-static call and invoke a missing static (TypeError) instead of short-circuiting to undefined
+  const aliasedGlobal = globalThis;
+  // eslint-disable-next-line es/no-nonstandard-map-properties -- the missing static IS the case
+  assert.same(aliasedGlobal.Map.notAMethod?.().flat().at(0), undefined);
   // positive control: a REAL static call IS deopted (the guard is genuinely redundant) and the
   // trailing polyfill still runs on its result
   assert.same(Array.of?.(3, 1, 2).at(-1), 2);
