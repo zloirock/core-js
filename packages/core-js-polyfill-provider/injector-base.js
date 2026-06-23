@@ -1,5 +1,6 @@
 import { entryToGlobalHint } from './index.js';
 import { findUniqueName } from './helpers/pattern-matching.js';
+import { isCleanDestructureAliasBinding } from './helpers/ast-patterns.js';
 
 // post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
@@ -169,15 +170,14 @@ export default class ImportInjectorState {
   // narrowing through the polyfill UID's alias would dispatch Array-specific instance
   // polyfills incorrectly. babel post-AST-mutation scope loses `constantViolations` so
   // the resolver can't re-derive the flag at use site; capture pre-mutation here
-  // `selfWriteNode` - the destructure assignment's own AssignmentExpression when the alias
-  // comes from the `let x; ({ x } = Source)` form: that write IS the aliasing event, not a
-  // disqualifying reassignment (the same declarator-self exclusion the resolver's
-  // reassignment enumerators apply). only violations BEYOND it poison the alias
-  registerBodyExtractAlias(name, entry, sourceBinding = null, selfWriteNode = null) {
-    const violations = selfWriteNode
-      ? sourceBinding?.constantViolations?.filter(v => (v.node ?? v) !== selfWriteNode)
-      : sourceBinding?.constantViolations;
-    if (sourceBinding && sourceBinding.kind !== 'const' && violations?.length) {
+  // the aliasing destructure's own write (assignment form `let x; ({ x } = Source)`) is the aliasing
+  // event, not a disqualifying reassignment - it shows up as the binding's single constantViolation with
+  // no declarator init. `isCleanDestructureAliasBinding` decides this by count + init, the SAME check the
+  // resolver's `staticPairFromDestructure` applies, so babel and unplugin poison identically for identical
+  // source (a per-emitter node-shape marker could not: babel's violation node is the whole assignment,
+  // estree's is the bound identifier). a real later reassignment makes it unclean and still poisons
+  registerBodyExtractAlias(name, entry, sourceBinding = null) {
+    if (sourceBinding && sourceBinding.kind !== 'const' && !isCleanDestructureAliasBinding(sourceBinding)) {
       this.#trackReassignedBinding(name, reassignedStart(sourceBinding));
       return;
     }
