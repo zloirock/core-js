@@ -324,10 +324,18 @@ function createResolveNodeType(babelNodeType, t, {
       if (node.type === 'SpreadElement') return null;
       if (node.computed || getKeyName(node.key) !== key) continue;
       if (babelNodeType(node) === 'ObjectMethod') {
-        // a setter has no readable value - skip to a paired getter later in the literal. a getter
-        // or plain method shorthand goes to the caller's onMethod, which resolves a getter to its
-        // return type and a method to a Function value
-        if (node.kind === 'set') continue;
+        // a setter as the LAST decl for `key` makes it an accessor: a paired getter behind it
+        // supplies the read value (resolved by onMethod); a plain data property behind it is
+        // SHADOWED (reading yields the getter's value or undefined, never the stale data) - so
+        // search for a getter only, else bail. mirrors `findObjectMember`'s setter handling
+        if (node.kind === 'set') {
+          for (let j = i - 1; j >= 0; j--) {
+            const earlier = propsPath[j];
+            if (earlier.node.type === 'SpreadElement') return null;
+            if (earlier.node.kind === 'get' && !earlier.node.computed && getKeyName(earlier.node.key) === key) return onMethod(earlier);
+          }
+          return null;
+        }
         return onMethod(prop);
       }
       return prop.get('value');
