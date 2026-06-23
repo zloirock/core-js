@@ -37,7 +37,7 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { isAliasProxyHopChain, resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
@@ -859,6 +859,7 @@ export default function createPlugin(options) {
           applyDestructuringTransforms,
           applySynthSwaps,
           canFullyConsumeProxyDeclarator,
+          collapseProxyHopRoot,
           handleDestructuringPure,
           tryFlattenProxyHopHost,
         } = destructureEmitter;
@@ -901,6 +902,21 @@ export default function createPlugin(options) {
               work.push(cur.expression);
             }
           }
+        }
+
+        // collapse the proxy hop of an ALIAS-rooted chain whose leaf is NON-polyfilled (`const g =
+        // globalThis; new g.self.Array(3)` / `g['self'].Array.isArray(...)`): no leaf usage and no
+        // `kind:'global'` trigger reaches the alias root, so the redundant `.self` / `.window` hop survives
+        // and reads an undefined hop off the alias off-engine. `isAliasProxyHopChain` is the shared provider
+        // detection; peel to the root path and collapse (which self-gates on the hop again)
+        function tryCollapseAliasProxyHop(node, metaPath) {
+          const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
+          if (!isAliasProxyHopChain(node, aliasCtx)) return;
+          let rootPath = metaPath;
+          while (rootPath.node.type === 'MemberExpression' || rootPath.node.type === 'OptionalMemberExpression') {
+            rootPath = rootPath.get('object');
+          }
+          collapseProxyHopRoot(rootPath);
         }
 
         const usagePureCallback = (meta, metaPath) => {
@@ -979,9 +995,15 @@ export default function createPlugin(options) {
           // import binding). babel bails the same way; gate the fallback to keep parity
           if (fallback && node.type === 'MemberExpression'
           && node.object?.type !== 'Super' && !inheritedStatic) {
+            // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
+            // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
+            // `_Map.prototype.has`; the whole receiver swap would drop `.prototype` -> the undefined `_Map.has`
+            const isProtoReceiver = meta.placement === 'prototype'
+              && (node.object.type === 'MemberExpression' || node.object.type === 'OptionalMemberExpression');
+            const receiverNode = isProtoReceiver ? node.object.object : node.object;
             // a kept SE-bearing inline-call receiver already yields the polyfill binding through
             // its own rewritten return leaf - leave the member untouched, the inner visits do the job
-            if (staticFallbackSwapRedundant(node.object, meta.sideEffects)) return;
+            if (staticFallbackSwapRedundant(receiverNode, meta.sideEffects)) return;
             skipProxyGlobal(node);
             const binding = injectPureImport(fallback.entry, fallback.hintName);
             // fallback fires for non-proxy-global polyfilled idents (`Promise?.foo`, `Map?.x`);
@@ -994,14 +1016,14 @@ export default function createPlugin(options) {
             // shape: preserves receiver `meta.sideEffects` + chain-assignment so
             // `(called++, Promise).noSuchStatic` keeps the `called++` rather than dropping it
             replaceStaticFallback({
-              binding, node, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+              binding, node, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount, receiverNode,
             });
             // outer text-emit absorbs the whole receiver: any inner Identifier whose name
             // matches the polyfill's substitution would compose into the emit (`_Map` substring
             // inside the outer's `_Map` -> `__Map`). peel through wrappers + IIFE shells to find
             // the effective receiver leaf and mark it skipped before the Identifier visitor runs;
             // a leaf preserved by a re-emitted sideEffect subtree keeps its own substitution
-            skipUnpreservedReceiverLeaf(node.object, meta.sideEffects);
+            skipUnpreservedReceiverLeaf(receiverNode, meta.sideEffects);
             return;
           }
           // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
@@ -1023,7 +1045,10 @@ export default function createPlugin(options) {
           // sourced with usage-global's `resolveUsage`), so `pureResult` is already null for that shape
           // and the `if (!pureResult) return;` above caught it - the fallback never fires (gated on
           // `!inheritedStatic`)
-          if (!pureResult) return;
+          if (!pureResult) {
+            tryCollapseAliasProxyHop(node, metaPath);
+            return;
+          }
           const { entry: importEntry, kind, hintName } = pureResult;
           const binding = injectPureImport(importEntry, hintName);
 
@@ -1040,6 +1065,9 @@ export default function createPlugin(options) {
             replaceInstance({
               binding, node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
             });
+          } else if (kind === 'global' && node.type === 'Identifier' && collapseProxyHopRoot(metaPath)) {
+            // a proxy-global root navigating a NON-pure leaf through redundant hops collapsed the prefix
+            // (`globalThis.self.Array` -> `_globalThis.Array`); the bare identifier rewrite is skipped
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
             replaceGlobalOrStatic({
               binding, node, parent, metaPath, inheritedStatic,
