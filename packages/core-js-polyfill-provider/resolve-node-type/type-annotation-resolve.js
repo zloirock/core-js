@@ -250,10 +250,10 @@ export function createTypeAnnotationResolve({
         // direct function type alias (`type Fn = () => T; ReturnType<Fn>`) has no typeof -
         // follow the alias chain, extract return annotation, fold accumulated subst into it
         // (mirrors Awaited / Extract / findTupleElement)
-        if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope);
+        if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope, depth);
         const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
         const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
-        return ret ? resolveTypeAnnotation(applySubst(ret, subst), scope) : null;
+        return ret ? resolveTypeAnnotation(applySubst(ret, subst), scope, depth + 1) : null;
       }
       case 'InstanceType': {
         const arg = firstArg();
