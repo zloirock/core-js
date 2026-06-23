@@ -1469,6 +1469,17 @@ export function isReassignedBeyondDeclarator(binding) {
   return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
 }
 
+// a body-extract alias binding whose ONLY write is the aliasing destructure itself is clean: a
+// declarator-form destructure (`const { x } = Source`) leaves no separate write, the assignment form
+// (`let x; ({ x } = Source)`) leaves exactly one and has no declarator init. more writes, or a write
+// alongside an init, are a real reassignment whose value may no longer be the static. count + init is
+// parser-agnostic - it never inspects whether the write node is the assignment (babel) or the bound
+// identifier (estree), so babel and unplugin make the same poison decision for identical source
+export function isCleanDestructureAliasBinding(binding) {
+  const writes = binding?.constantViolations?.length ?? 0;
+  return writes === 0 || (writes === 1 && !binding.path?.node?.init);
+}
+
 // the real reassignment site nodes (every violation other than the loop-reinit declarator-self).
 // estree-toolkit records a for-x head's per-iteration rebind as a violation of the head's OWN
 // binding via its id node - that is the declaration itself, not a reassignment, and counting it
