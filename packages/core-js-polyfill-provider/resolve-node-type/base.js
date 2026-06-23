@@ -100,13 +100,27 @@ export function peelAssignmentPattern(node) {
   return node?.type === 'AssignmentPattern' ? node.left : node;
 }
 
-// a TS callback / method signature can declare a leading `this` pseudo-parameter
-// (`(this: void, x: T) => ...`) which `functionTypeParams` includes, but a runtime arrow /
-// function carries no `this` in its `params`; drop it so the type-level param slots align with
-// the runtime arg indices (else an off-by-one reads the `this` slot). shared by callback-param
-// inference (`pattern-bindings`) and type-predicate arg matching (`guard-shapes`)
+// a TS callback / method / function signature can declare a leading `this` pseudo-parameter
+// (`function f(this: T, x): ...` / `(this: void, x: T) => ...`) which the AST `params` include, but no
+// runtime arg fills it; `Parameters<>` drops it at the TS level too. so the type-level / arg indices
+// off-by-one against the raw AST `params` when a `this` slot is present
+export function hasLeadingThisParam(params) {
+  return params?.[0]?.type === 'Identifier' && params[0].name === 'this';
+}
+
+// drop the leading `this` pseudo-param so the param slots align with the runtime arg indices (else an
+// off-by-one reads the `this` slot). for code that must keep the RAW AST params path, use
+// `hasLeadingThisParam` to shift only the arg index instead. shared by callback-param inference
+// (`pattern-bindings`), type-predicate arg matching (`guard-shapes`) and `Parameters<>` indexing
 export function dropLeadingThisParam(params) {
-  return params?.[0]?.type === 'Identifier' && params[0].name === 'this' ? params.slice(1) : params;
+  return hasLeadingThisParam(params) ? params.slice(1) : params;
+}
+
+// the runtime call-arg index for the AST param at `rawIndex`: a leading `this` pseudo-param fills AST
+// slot 0 but no runtime arg, so every following param's arg position shifts down by one. callers keep
+// the RAW index for the AST params path (`fnPath.get('params')[rawIndex]`) and use this for the args
+export function argIndexForParam(params, rawIndex) {
+  return rawIndex - (hasLeadingThisParam(params) ? 1 : 0);
 }
 
 export function $Primitive(type, literal) {
