@@ -265,9 +265,15 @@ export function createPolyfillEmitter({
     let keyNode = callee.computed ? callee.property : null;
     while (keyNode?.type === 'ParenthesizedExpression') keyNode = keyNode.expression;
     if (keyNode?.type === 'SequenceExpression') return null;
+    // single-source the receiver-reuse decision through the canonical `isReusableReceiver` (peels the
+    // paren / chain memo wrappers babel strips at parse but oxc keeps) - replaces a hand-rolled inline
+    // predicate that skipped the peel. positions (`methodTail`) read the UN-peeled node so a wrapper's
+    // source range is not double-counted; the reused source / `this`-arg read the peeled node so a
+    // parenthesized reusable receiver matches babel instead of allocating a needless `_ref`
     const receiverNode = callee.object;
     const isSuper = receiverNode.type === 'Super';
-    const receiverSafe = receiverNode.type === 'Identifier' || receiverNode.type === 'ThisExpression';
+    const receiverSafe = isReusableReceiver(receiverNode);
+    const reuseReceiver = peelMemoizeWrappers(receiverNode);
     // intermediate plain-member hops between the optional call and the outer member
     // (`recv.m?.().x.at(0)` - the `.x`): the methodCall body collapses to `_ref.call(recv)`, which
     // would otherwise drop the tail and read the polyfill off the bare call result. splice the
@@ -283,14 +289,14 @@ export function createPolyfillEmitter({
     // `.call(Promise)` references the raw global and ReferenceErrors on engines without it. a
     // user-bound or non-global receiver keeps its verbatim source (resolveReceiverPolyfill returns
     // null for a shadowed name). only the reuse path needs this; the recvRef memo path is not safe
-    const directPolyfill = receiverSafe && !isSuper ? resolveReceiverPolyfill(receiverNode, metaPath) : null;
+    const directPolyfill = receiverSafe && !isSuper ? resolveReceiverPolyfill(reuseReceiver, metaPath) : null;
     return {
       isSuper,
       receiverSafe,
       recvRef: !isSuper && !receiverSafe ? scopeTracker.genRef() : null,
       receiverText: directPolyfill
         ? injectPureImport(directPolyfill.entry, directPolyfill.hintName)
-        : nodeSrc(receiverNode),
+        : nodeSrc(reuseReceiver),
       methodSrc: nodeSrc(callee),
       methodTail: code.slice(receiverNode.end, callee.end),
       argsText: sliceBetweenParens(optionalNode),

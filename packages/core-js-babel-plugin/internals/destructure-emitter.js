@@ -232,17 +232,6 @@ function renderNestedParamSynth({ prop, meta, deps }) {
   });
 }
 
-// the AssignmentExpression hosting this destructure prop (`({ x } = Source)`), walking the
-// pattern/property spine only; null for declarator-hosted destructures
-function enclosingDestructureAssignment(prop) {
-  for (let p = prop.parentPath; p; p = p.parentPath) {
-    if (p.isAssignmentExpression()) return p.node;
-    if (!p.isObjectPattern() && !p.isObjectProperty() && !p.isArrayPattern()
-      && !p.isParenthesizedExpression()) return null;
-  }
-  return null;
-}
-
 // destructure-emit factory: orchestrates the flatten / cascade / param / catch pipelines,
 // each with dedicated closure state (`skippedNodes` / `synthSwap` / bookkeeping WeakMaps).
 // extracting sub-factories would split those shared accumulators across module boundaries,
@@ -615,10 +604,9 @@ export default function createDestructureEmitter({
           value = t.callExpression(t.cloneNode(injectPureImport('get-iterator-method', 'getIteratorMethod')),
             [flattenSynthReceiver(assignPath.node.right, plan)]);
         } else {
-          // see `renderDeclaratorFlattenPlan` for the global-vs-static alias split; the
-          // assignment node marks the destructure's own write as the aliasing event
+          // see `renderDeclaratorFlattenPlan` for the global-vs-static alias split
           if (e.kind === 'global') injector.registerGlobalAlias(e.localName, e.hint);
-          else injector.registerBodyExtractAlias(e.localName, e.entry, assignPath.scope.getBinding(e.localName), assignPath.node);
+          else injector.registerBodyExtractAlias(e.localName, e.entry, assignPath.scope.getBinding(e.localName));
           value = injectPureImport(e.entry, e.hint);
         }
         assigns.push(buildPolyfillAssignmentStatement(t.identifier(e.localName), value));
@@ -1366,13 +1354,8 @@ export default function createDestructureEmitter({
     // canonical entry path, so `arr = from('hi'); arr.at(-1)` narrows correctly post-mutation
     if (kind === 'static') {
       const localName = patternBindingName(prop.node.value);
-      // the `let x; ({ x } = Source)` form: the destructure's own write is the aliasing
-      // event, not a disqualifying reassignment - pass it so the registrar excludes it
-      // from the violation count (otherwise the alias is rejected and receiver narrowing
-      // through `x` falls to the generic instance variant)
       if (localName) {
-        injector.registerBodyExtractAlias(localName, entry, prop.scope.getBinding(localName),
-          enclosingDestructureAssignment(prop));
+        injector.registerBodyExtractAlias(localName, entry, prop.scope.getBinding(localName));
       }
     }
     // mark property as handled - rest-rename triggers re-traversal which must be skipped
