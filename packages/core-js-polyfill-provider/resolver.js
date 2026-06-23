@@ -2,7 +2,7 @@
 // "is the receiver a proxy global?" to avoid recursing on `globalThis.X` -> `globalThis.X.X`.
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
-import { kebabToPascal } from './helpers/ast-patterns.js';
+import { kebabToPascal, mayHaveSideEffects } from './helpers/ast-patterns.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
 import { createPolyfillContext, resolve } from './index.js';
@@ -358,12 +358,28 @@ export function createPolyfillResolver(options, {
 
   // two distinct lookups, not a duplicate: first resolves the property meta against
   // `statics.<X>.<key>`; on miss, retries with the bare global meta against `globals.<X>`.
-  // both calls go through the same `resolve` registry but consult different keys
+  // both calls go through the same `resolve` registry but consult different keys.
+  // a `prototype` placement (`Ctor.prototype.<key>`) takes the SAME fallback when `<key>` is not a
+  // separately-polyfilled instance method (the instance kind resolves via `resolvePure` ABOVE and returns
+  // early): in pure, Map/Set/Promise/WeakMap prototype methods (`has`/`then`/`union`/...) live on the pure
+  // ctor's prototype, so the receiver `globalThis.Map.prototype` must swap to `_Map.prototype` (ie:11-safe),
+  // not the native `_globalThis.Map.prototype` (undefined off-engine). matches the bare `Map.prototype.has`
   function resolvePureOrGlobalFallback(meta, path) {
     const normal = resolvePure(meta, path);
     if (normal) return { result: normal, fallback: null };
-    if (meta.kind === 'property' && meta.placement === 'static' && meta.object
+    if (meta.kind === 'property' && (meta.placement === 'static' || meta.placement === 'prototype') && meta.object
       && !POSSIBLE_GLOBAL_OBJECTS.has(meta.object)) {
+      // engage the `prototype` fallback ONLY for an SE-free `<ctor>.prototype` receiver
+      // (`globalThis.Map.prototype` -> `_Map.prototype`): an IIFE / SE-sequence ctor sub-receiver
+      // (`(() => globalThis)().Map.prototype`) is handled by the receiver-peel mechanism, which PRESERVES
+      // the shell and rewrites its return leaf to the pure ctor - the fallback's whole-sub-receiver swap
+      // would DROP that shell. defer conservatively when the receiver shape is unavailable / not a plain member
+      if (meta.placement === 'prototype') {
+        const protoReceiver = path?.node?.object;
+        const plainMember = protoReceiver
+          && (protoReceiver.type === 'MemberExpression' || protoReceiver.type === 'OptionalMemberExpression');
+        if (!plainMember || mayHaveSideEffects(protoReceiver.object)) return { result: null, fallback: null };
+      }
       const globalMeta = { kind: 'global', name: meta.object };
       const globalResolved = resolve(globalMeta);
       if (globalResolved && hasOwn(globalResolved.desc, 'pure')) {

@@ -51,7 +51,7 @@ import {
   qualifiesForParamBodyExtract,
   resolveNestedReceiverNode,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { buildNestedDestructurePlan } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { globalProxyMemberName, peelProxyGlobalObject } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
@@ -1720,7 +1720,22 @@ export default function createDestructureEmitter({
     // value-consumption alone
     const retainedInit = parent.isVariableDeclarator() ? parent.node.init
       : parent.isAssignmentExpression() ? parent.node.right : null;
-    if (hasRest || !isEmpty || (retainedInit && mayHaveSideEffects(retainedInit))) {
+    // the pattern is EFFECTIVELY empty once every SURVIVING sibling is itself a polyfillable static off the
+    // same receiver (each gets extracted by its own per-prop emit), so the receiver drops just as for a
+    // literally-empty pattern: a SE-sequence init lifts ONLY its prefix (tail dropped), a plain init
+    // vanishes - collapsing the gone receiver injects a DEAD `_globalThis`. a logical / SE-bearing RETAINED
+    // init still re-emits the receiver (`|| Set` operand); `...rest` / a non-polyfilled / computed /
+    // disabled sibling keeps it live - those keep the collapse via the side-effect / non-empty disjuncts
+    let survivingSiblingsAllConsumed = false;
+    if (retainedInit && !hasRest && !isEmpty) {
+      const receiverName = globalProxyMemberName({ node: peelProxyGlobalObject(retainedInit), scope: parent.scope, adapter, path: parent });
+      survivingSiblingsAllConsumed = !!receiverName && objectPattern.node.properties.every(sibling => {
+        return !!resolvePolyfillableStaticProp({ prop: sibling, receiverName, resolvePure, isDisabled });
+      });
+    }
+    const effectivelyEmpty = isEmpty || (!hasRest && survivingSiblingsAllConsumed);
+    const seqTailDropped = effectivelyEmpty && !hasRest && retainedInit?.type === 'SequenceExpression';
+    if (hasRest || !effectivelyEmpty || (retainedInit && mayHaveSideEffects(retainedInit) && !seqTailDropped)) {
       if (parent.isVariableDeclarator()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'init', aliasCtxFromPath(parent));
       else if (parent.isAssignmentExpression()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'right', aliasCtxFromPath(parent));
     }
