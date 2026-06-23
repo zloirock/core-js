@@ -8,8 +8,9 @@
 // SCOPED per-site resolution runs only when it fires - files without monkey-patch shapes
 // (the overwhelming majority) pay nothing beyond the walk. The plugins own the scoped
 // traversal (each dialect collects sites with live paths) and feed `resolveMutationSite`.
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '../helpers/class-walk.js';
 import {
+  followConstLiteralAlias,
   unwrapRuntimeExpr,
   isMemberMutationContext,
   memberKeyName,
@@ -53,34 +54,85 @@ const INERT_VALUE_TYPES = new Set([
   'UpdateExpression',
 ]);
 
-function gateRootOf(node) {
+// collect every Identifier chain-root reachable from a mutation target, FANNING value composites
+// (ternary / logical / sequence-tail / assignment-RHS) at ANY position so a nested value-fan root
+// (`(c ? globalThis : self).Array.of`) is caught - the cheap gate stays a SUPERSET of the scoped
+// value fan stage 3 runs. `firstKey` is the key off the root identifier (for the container-chain
+// check); `chained` flags a member-rooted target. inline chain-assign (`(h = globalThis).Array.of`)
+// follows the RHS the same way the stage-3 value fan does
+function collectGateRoots(node, out, firstKey = null, hops = 0, depth = 0) {
+  if (depth > 16) return out;
   let root = node;
-  let hops = 0;
-  let firstKey = null;
-  for (;;) {
-    if (!root) return null;
-    if (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') {
-      firstKey = memberKeyName(root);
-      root = root.object;
-      hops++;
-    } else if (root.type === 'SequenceExpression' && root.expressions.length) {
-      root = root.expressions.at(-1);
-    } else if (root.type === 'ParenthesizedExpression' || root.type === 'ChainExpression'
-      || TS_EXPR_WRAPPERS.has(root.type)) {
-      root = root.expression;
-    } else break;
+  while (root) {
+    switch (root.type) {
+      case 'MemberExpression':
+      case 'OptionalMemberExpression':
+        firstKey = memberKeyName(root);
+        root = root.object;
+        hops++;
+        continue;
+      case 'SequenceExpression':
+        if (root.expressions.length) {
+          root = root.expressions.at(-1);
+          continue;
+        }
+        break;
+      case 'AssignmentExpression':
+        root = root.right;
+        continue;
+      case 'ConditionalExpression':
+        collectGateRoots(root.consequent, out, firstKey, hops, depth + 1);
+        collectGateRoots(root.alternate, out, firstKey, hops, depth + 1);
+        return out;
+      case 'LogicalExpression':
+        collectGateRoots(root.left, out, firstKey, hops, depth + 1);
+        collectGateRoots(root.right, out, firstKey, hops, depth + 1);
+        return out;
+      case 'ParenthesizedExpression':
+      case 'ChainExpression':
+        root = root.expression;
+        continue;
+      default:
+        if (TS_EXPR_WRAPPERS.has(root.type)) {
+          root = root.expression;
+          continue;
+        }
+    }
+    break;
   }
-  return root.type === 'Identifier' ? { name: root.name, chained: hops > 0, firstKey } : null;
+  if (root?.type === 'Identifier') out.push({ name: root.name, chained: hops > 0, firstKey });
+  return out;
 }
 
-// peel runtime wrappers + comma-sequence tail off a namespace callee so `(0, Object).assign`
-// and `(eff(), Reflect).defineProperty` resolve to the bare `Object` / `Reflect` identifier
-function peeledNamespaceIdentifier(node) {
+// peel runtime wrappers + comma-sequence tail off a node so `(0, Object)` / `(eff(), Reflect)`
+// reach the bare identifier
+function peelToBareExpr(node) {
   let cur = unwrapRuntimeExpr(node);
   while (cur?.type === 'SequenceExpression' && cur.expressions.length) {
     cur = unwrapRuntimeExpr(cur.expressions.at(-1));
   }
-  return cur?.type === 'Identifier' ? cur : null;
+  return cur;
+}
+
+// the namespace NAME of a mutator callee (`Object` / `Reflect`). a bare `(0, Object).assign` peels to
+// `Object`; a proxy-global member chain - direct (`globalThis.Reflect.set`, `self.Object.assign`),
+// aliased (`const g = globalThis; g.Reflect.set`) or hopped (`globalThis.self.Reflect.set`) - names the
+// SAME global namespace, resolved through the canonical proxy-global member resolver (alias + hop aware)
+function peeledNamespaceName(node, ctx) {
+  const cur = peelToBareExpr(node);
+  if (cur?.type === 'Identifier') return cur.name;
+  return globalProxyMemberName({ node: cur, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path });
+}
+
+// liberal namespace NAME for the cheap scope-less gate: a bare callee identifier, or the property of
+// ANY `<x>.Object` / `<x>.Reflect` member (the scoped stage verifies the receiver actually resolves to
+// a proxy global). lets an ALIASED namespace member (`g.Reflect.set`) fire the gate without a scope
+function namespaceNameForGate(node) {
+  const cur = peelToBareExpr(node);
+  if (cur?.type === 'Identifier') return cur.name;
+  if ((cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') && !cur.computed
+    && cur.property?.type === 'Identifier') return cur.property.name;
+  return null;
 }
 
 // resolve a mutation-target key through the SAME binding-aware canon the read side uses, so a
@@ -175,13 +227,19 @@ export function hasMutationCandidateShapes(programNode) {
         // OptionalMemberExpression callee; without these both an optional `Object.assign` /
         // `Reflect.defineProperty` mutation escapes the gate and usage-pure silently substitutes
         // over the user monkey-patch (oxc folds the optional into ChainExpression, so it is unaffected).
-        // a wrapper-fronted namespace (`(0, Object).assign`) peels to the bare identifier here too
+        // a wrapper-fronted (`(0, Object).assign`) or proxy-global-member / aliased (`globalThis.Reflect`,
+        // `g.Reflect`) namespace fires the gate here too; the scoped stage verifies the proxy receiver
         const { callee } = node;
         const isMember = callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression';
-        const nsId = isMember && !callee.computed ? peeledNamespaceIdentifier(callee.object) : null;
-        const method = nsId && callee.property?.type === 'Identifier' ? callee.property.name : null;
-        if (((nsId?.name === 'Object' && OBJECT_MUTATORS.has(method))
-          || (nsId?.name === 'Reflect' && REFLECT_MUTATORS.has(method))) && node.arguments?.[0]) targets.push(node.arguments[0]);
+        const ns = isMember && !callee.computed ? namespaceNameForGate(callee.object) : null;
+        const method = ns && callee.property?.type === 'Identifier' ? callee.property.name : null;
+        const reflectMutator = ns === 'Reflect' && REFLECT_MUTATORS.has(method);
+        if (((ns === 'Object' && OBJECT_MUTATORS.has(method)) || reflectMutator) && node.arguments?.[0]) {
+          targets.push(node.arguments[0]);
+        }
+        // Reflect.set(target, key, value, RECEIVER): a receiver arg redirects the data-property write
+        // to the receiver, making IT the mutation host - the cheap gate flags both candidates
+        if (reflectMutator && method === 'set' && node.arguments[3]) targets.push(node.arguments[3]);
         break;
       }
       default:
@@ -190,12 +248,16 @@ export function hasMutationCandidateShapes(programNode) {
   }
   if (!targets.length) return false;
   for (const target of targets) {
-    const root = gateRootOf(target);
-    if (!root) continue;
-    if (root.name[0] >= 'A' && root.name[0] <= 'Z') return true;
-    if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
-    if (valueBound.has(root.name)) return true;
-    if (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey)) return true;
+    // a value-fan mutation target (`(cond ? Array : Map).from`, `(a || globalThis).Promise`,
+    // `(h = Array).of`, `(c ? globalThis : self).Array.of`) reaches a built-in through any branch -
+    // collectGateRoots fans the same composites the scoped pass resolves, keeping the cheap gate a
+    // SUPERSET; otherwise the monkey-patch escapes the gate and usage-pure substitutes over it
+    for (const root of collectGateRoots(target, [])) {
+      if (root.name[0] >= 'A' && root.name[0] <= 'Z') return true;
+      if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
+      if (valueBound.has(root.name)) return true;
+      if (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey)) return true;
+    }
   }
   return false;
 }
@@ -203,7 +265,11 @@ export function hasMutationCandidateShapes(programNode) {
 // any of the name's containers statically carries the chain's first key (object property or
 // class static member); a dynamic key keeps the container in play
 function containerHasKey(containers, key) {
-  if (!containers || !key) return false;
+  if (!containers) return false;
+  // a chain key the cheap gate cannot read (computed const-alias `registry[k]`, dynamic key) keeps
+  // every bound container in play - the scoped stage resolves it; a silent `false` here lets a
+  // computed-key monkey-patch over a container slot escape before resolution runs
+  if (!key) return true;
   for (const container of containers) {
     const members = container.type === 'ObjectExpression' ? container.properties : container.body?.body;
     for (const member of members ?? []) {
@@ -230,9 +296,12 @@ const REFLECT_MUTATORS = new Set([
 ]);
 
 function objectLiteralKeys(node, ctx) {
-  if (node?.type !== 'ObjectExpression') return [];
+  // a variable source (`const src = { from: f }; Object.assign(Array, src)`) resolves to its const
+  // init, so a copied static key is recorded like an inline `Object.assign(Array, { from: f })`
+  const obj = followConstLiteralAlias(node, ctx);
+  if (obj?.type !== 'ObjectExpression') return [];
   const keys = [];
-  for (const prop of node.properties ?? []) {
+  for (const prop of obj.properties ?? []) {
     if (prop.type === 'ObjectProperty' || prop.type === 'Property' || prop.type === 'ObjectMethod') {
       const key = mutationKeyName(prop.key, prop.computed, ctx);
       if (key !== null) keys.push(key);
@@ -268,9 +337,8 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   const { callee } = node;
   if ((callee?.type !== 'MemberExpression' && callee?.type !== 'OptionalMemberExpression')
     || callee.computed) return [];
-  const nsId = peeledNamespaceIdentifier(callee.object);
-  if (!nsId) return [];
-  const namespace = nsId.name;
+  const namespace = peeledNamespaceName(callee.object, ctx);
+  if (!namespace) return [];
   const method = callee.property?.type === 'Identifier' ? callee.property.name : null;
   const args = node.arguments ?? [];
   if (!args[0]) return [];
@@ -291,7 +359,10 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   }
   if (namespace === 'Reflect' && REFLECT_MUTATORS.has(method)) {
     const key = mutationKeyName(args[1], true, ctx);
-    return key !== null ? [{ targetNode: args[0], keys: [key], namespace }] : [];
+    // Reflect.set(target, key, value, RECEIVER): with a receiver the data property lands on the
+    // receiver, not target, so the receiver is the mutation host; 3-arg / other mutators use target
+    const host = method === 'set' && args[3] ? args[3] : args[0];
+    return key !== null ? [{ targetNode: host, keys: [key], namespace }] : [];
   }
   return [];
 }
@@ -384,7 +455,9 @@ function valueFanLeaves(node, leaves, depth = 0) {
 }
 
 // member chain -> { rootNode, keys } when every hop key resolves to a static name (const-aliased
-// hops follow the read-side canon); null otherwise
+// hops follow the read-side canon); null otherwise. the root node is returned WHATEVER its type -
+// a name-resolving caller filters to Identifier, while a value-fan caller fans a ternary / logical
+// chain root (`(c ? globalThis : self).Array`) the single-Identifier form could not represent
 function memberChainParts(node, ctx) {
   const keys = [];
   let root = node;
@@ -397,7 +470,7 @@ function memberChainParts(node, ctx) {
       root = unwrapRuntimeExpr(root.expressions.at(-1));
     }
   }
-  return root?.type === 'Identifier' ? { rootNode: root, keys } : null;
+  return root ? { rootNode: root, keys } : null;
 }
 
 function resolveLeafName(leaf, ctx) {
@@ -406,7 +479,8 @@ function resolveLeafName(leaf, ctx) {
   if (direct) return direct;
   if (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression') {
     const parts = memberChainParts(leaf, ctx);
-    if (!parts) return null;
+    // name resolution needs an Identifier root; a value-fan root is the chain-root-alias caller's job
+    if (!parts || parts.rootNode.type !== 'Identifier') return null;
     // `Ctor.prototype.key = patch` is an INSTANCE mutation, recorded as `Ctor.prototype.key`:
     // the enrichment imports the key's instance entry UP FRONT, so core-js initializes from
     // the PRISTINE prototype (caching its own implementation) before the third-party patch
@@ -456,21 +530,25 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
       visitAliasValues(rhs, depth);
     }
   };
-  // a member-chain target whose root is a BOUND identifier may reach a proxy global through
-  // any of the root's values (`let h; h = c ? other : globalThis; h.Array.of = patch`): fan
-  // the root's value union and key the mutation under the chain's constructor leaf when a
-  // reachable value is a proxy global (over-record - the safe direction)
+  // a member-chain target whose root reaches a proxy global through a value fan keys the mutation
+  // under the chain's constructor leaf when a reachable root value is a proxy global (over-record -
+  // the safe direction). two root shapes fan: a BOUND identifier (`let h; h = c ? other : globalThis;
+  // h.Array.of = patch`) fans its init + reassignment union; an INLINE value fan
+  // (`(c ? globalThis : self).Array.of = patch`) fans the chain root's own branches
   const visitChainRootAlias = leaf => {
     const parts = memberChainParts(leaf, { scope, adapter, path });
-    if (!parts || parts.rootNode.type !== 'Identifier') return;
-    if (!adapter.hasBinding(scope, parts.rootNode.name, path)) return;
+    if (!parts) return;
     if (!parts.keys.slice(0, -1).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
-    const binding = adapter.getBinding(scope, parts.rootNode.name, path);
-    if (!binding) return;
-    const init = binding.path?.node?.init ?? binding.node?.init;
-    const rootValues = [init, ...reassignmentValueNodes({
-      binding, usagePath: path, name: parts.rootNode.name, ctx: { scope, adapter, path, resolveKey },
-    }) ?? []];
+    let rootValues;
+    if (parts.rootNode.type === 'Identifier') {
+      if (!adapter.hasBinding(scope, parts.rootNode.name, path)) return;
+      const binding = adapter.getBinding(scope, parts.rootNode.name, path);
+      if (!binding) return;
+      const init = binding.path?.node?.init ?? binding.node?.init;
+      rootValues = [init, ...reassignmentValueNodes({
+        binding, usagePath: path, name: parts.rootNode.name, ctx: { scope, adapter, path, resolveKey },
+      }) ?? []];
+    } else rootValues = [parts.rootNode];
     for (const valueNode of rootValues) {
       if (!valueNode) continue;
       for (const valueLeaf of valueFanLeaves(valueNode, [])) {
