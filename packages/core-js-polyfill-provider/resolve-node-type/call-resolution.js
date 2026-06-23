@@ -88,7 +88,7 @@ export function createCallResolution({
       || resolveKnownInstanceMember(memberPath, KNOWN_INSTANCE_METHOD_RETURN_TYPES);
   }
 
-  function resolveCallReturnType(callee) {
+  function resolveCallReturnType(callee, signatureKind = 'call') {
     // method call: obj.method() or obj?.method()
     if (isMemberLike(callee)) {
       // receiver is statically undefined/null/never -> chain is broken at runtime; propagate
@@ -125,7 +125,7 @@ export function createCallResolution({
       const ambient = selectAmbientFunctionOverload(resolved.node.name, resolved.scope, callee.parentPath);
       if (ambient) return resolveReturnType(ambient, callee.parentPath);
     }
-    return resolveCallReturnTypeFromAnnotation(callee);
+    return resolveCallReturnTypeFromAnnotation(callee, signatureKind);
   }
 
   // ambient `declare function` overloads are arg-discriminated like interface method overloads: pick the
@@ -224,6 +224,16 @@ export function createCallResolution({
     return { constructor, method: keyPath.at(-1) };
   }
 
+  // a callable / constructable object type (`{ (): T }` / `{ new (): T }`, or the same shapes in
+  // an interface body) carries its signature as a member rather than as a bare TSFunctionType /
+  // TSConstructorType; pick the LAST matching member (overloads resolve to the last ambient
+  // signature) so the shared return-extraction treats it like `() => T` / `new () => T`
+  function lastSignature(members, signatureType) {
+    let sig = null;
+    for (const member of members || []) if (member.type === signatureType) sig = member;
+    return sig;
+  }
+
   // both babel and oxc store the return type on `.returnType` for TSFunctionType /
   // TSConstructorType / TSMethodSignature / TSDeclareMethod / ClassMethod / ClassPrivateMethod
   // (Flow FunctionTypeAnnotation too); the `node.typeAnnotation ??` arm below is defensive and
@@ -231,7 +241,8 @@ export function createCallResolution({
   // ESTree MethodDefinition and its abstract sibling TSAbstractMethodDefinition wrap the function
   // in `.value` so the return type lives one level deeper (oxc emits `abstract m(): T` as the
   // latter). consumers (e.g. ReturnType<typeof X.method>) call into this when `findTypeMember`
-  // returns the raw signature instead of a synthetic stub
+  // returns the raw signature instead of a synthetic stub. call / construct signatures peeled out
+  // of an object type (`{ (): T }` / `{ new (): T }`) by the caller also land on the sig-node arm
   function functionTypeReturnAnnotation(node) {
     if (!node) return null;
     switch (node.type) {
@@ -241,6 +252,8 @@ export function createCallResolution({
       case 'TSDeclareMethod':
       case 'ClassMethod':
       case 'ClassPrivateMethod':
+      case 'TSCallSignatureDeclaration':
+      case 'TSConstructSignatureDeclaration':
         return node.typeAnnotation ?? node.returnType;
       case 'MethodDefinition':
       case 'TSAbstractMethodDefinition':
@@ -256,7 +269,7 @@ export function createCallResolution({
   //   `declare const f: () => T` / `const f: (x: X) => T = ...` / Flow `(x: X) => T` /
   //   `const f: typeof other` (follow TSTypeQuery to referenced function's return) /
   //   `type M = T['method']; declare const f: M` (peel TSIndexedAccessType to method node)
-  function resolveCallReturnTypeFromAnnotation(callee) {
+  function resolveCallReturnTypeFromAnnotation(callee, signatureKind = 'call') {
     const info = findExpressionAnnotation(callee);
     if (!info) return null;
     let annotation = unwrapTypeAnnotation(info.annotation);
@@ -282,7 +295,18 @@ export function createCallResolution({
       const peeled = resolveIndexedAccessMemberAnnotationAST(target, info.scope, 0);
       if (peeled) target = peeled;
     }
-    const ret = functionTypeReturnAnnotation(target);
+    let ret = functionTypeReturnAnnotation(target);
+    // a callable / constructable object type or interface (`{ (): T }` / `interface C { new (): T }`)
+    // carries its signature as a member, not a bare function-type node. resolve the type's members
+    // (getTypeMembers handles inline literals, interface merge / extends, and generic-arg subst) and
+    // peel the signature matching the context - a CALL narrows through the call signature, a `new`
+    // through the construct signature, so the two never cross-resolve (`new` on a call-only type
+    // stays unresolved instead of narrowing to the call return)
+    if (!ret) {
+      const sigType = signatureKind === 'construct' ? 'TSConstructSignatureDeclaration' : 'TSCallSignatureDeclaration';
+      const sig = lastSignature(getTypeMembers({ objectType: target, scope: info.scope }), sigType);
+      if (sig) ret = functionTypeReturnAnnotation(sig);
+    }
     return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
 

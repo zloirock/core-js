@@ -273,6 +273,13 @@ export function createTypeSubst({
     TSEmptyBodyFunctionExpression: substFunctionType,
     MethodDefinition: substMethodDefinition,
     TSAbstractMethodDefinition: substMethodDefinition,
+    // a method SIGNATURE reached DIRECTLY (indexed-access into a type-ALIAS method, e.g.
+    // `type Box<T> = { take(): T }` -> `Box<string>['take']`) lands here without the
+    // TSTypeLiteral member-iteration that normally folds outer subst into each signature.
+    // route it through the same per-member walk so its return / param type-params get
+    // substituted instead of silently dropped (an interface peels via member-iteration, so
+    // only the type-alias indexed-access path exposes the direct dispatch)
+    TSMethodSignature: (n, s, d, v) => substMemberAnnotations({ member: n, subst: s, depth: d, visited: v }),
     TSIndexedAccessType: substIndexedAccess,
     TSMappedType: substMappedType,
     TSTypeQuery: (n, s, d, v) => withSubstitutedTypeArgs(n, n, s, d, v),
