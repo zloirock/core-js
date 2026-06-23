@@ -1322,6 +1322,26 @@ export function findObjectKeyBeforeSpread(properties, matches) {
   return null;
 }
 
+// follow a const-bound identifier to its literal init (`const arr = [Map]` -> the ArrayExpression,
+// `const src = { from: f }` -> the ObjectExpression) so a variable-sourced literal resolves like an
+// inline one. a const aliased to another const (`const src = base; const base = { from: f }`) follows
+// the whole chain. only an UNREASSIGNED binding's init is authoritative - a reassigned binding or a
+// non-literal init passes the ORIGINAL node through unchanged. ctx: `{ scope, adapter, path }`; the
+// depth bound stops a const cycle (`const a = b; const b = a` is a TDZ error anyway)
+export function followConstLiteralAlias(node, ctx) {
+  let cur = node;
+  for (let depth = 0; depth <= 16; depth++) {
+    if (!ctx || cur?.type !== 'Identifier' || !ctx.adapter.hasBinding(ctx.scope, cur.name, ctx.path)) break;
+    const binding = ctx.adapter.getBinding(ctx.scope, cur.name, ctx.path);
+    if (binding?.constantViolations?.length) break;
+    const init = binding?.path?.node?.init ?? binding?.node?.init;
+    if (init?.type === 'ArrayExpression' || init?.type === 'ObjectExpression') return init;
+    if (init?.type !== 'Identifier') break;
+    cur = init;
+  }
+  return node;
+}
+
 // `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
 // follows a const-identifier rhs to its literal init and resolves computed keys through the read-
 // side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
@@ -1329,14 +1349,8 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
   const slotFor = target => target?.type === 'AssignmentPattern' ? target.left : target;
   // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
-  // pairing sees the underlying array / object, like the direct-literal form. only an unreassigned
-  // binding's init is a reliable value
-  if (ctx && rhs?.type === 'Identifier' && ctx.adapter.hasBinding(ctx.scope, rhs.name, ctx.path)) {
-    const aliasBinding = ctx.adapter.getBinding(ctx.scope, rhs.name, ctx.path);
-    const aliasInit = aliasBinding?.path?.node?.init ?? aliasBinding?.node?.init;
-    if (!aliasBinding?.constantViolations?.length
-      && (aliasInit?.type === 'ArrayExpression' || aliasInit?.type === 'ObjectExpression')) rhs = aliasInit;
-  }
+  // pairing sees the underlying array / object, like the direct-literal form
+  rhs = followConstLiteralAlias(rhs, ctx);
   // a computed property key (`{ [k]: A }`) resolves through the read-side key canon when a ctx is
   // supplied; the binding-blind static-name fallback covers literal keys for ctx-less callers
   const propKey = prop => ctx?.resolveKey
@@ -2007,37 +2021,6 @@ export function propertyKeyName(prop) {
   return staticStringKey(key);
 }
 
-// recognise `Object.defineProperty` / `Object.defineProperties` / `Object.assign` call shapes
-// and add each affected `Identifier.stringLiteralKey` pair to the mutation set. these are
-// semantically equivalent to direct assignment - the descriptor's `value` / accessor or the
-// copied own-enumerable property overrides the built-in slot at runtime - but emit as
-// CallExpression rather than AssignmentExpression so the MemberExpression-LHS walker above
-// misses them. supported argument shapes:
-//   Object.defineProperty(Identifier, stringLiteral, descriptor)
-//      -> mark `Identifier.stringLiteral`
-//   Object.defineProperties(Identifier, ObjectExpression{ stringLiteralKey: descriptor, ... })
-//      -> mark each non-computed Identifier / string-literal key
-//   Object.assign(Identifier, ObjectExpression{ key: value, ... }, ...moreSources)
-//      -> mark each statically-keyed property of every object-literal source
-// dynamic targets (`Object.defineProperty(getCtor(), 'from', d)`), dynamic keys
-// (`Object.defineProperty(Array, name, d)`), and non-object-literal assign sources
-// (`Object.assign(Array, src)`) stay out of scope - same Identifier-rooted, static-key
-// constraint as the MemberExpression-LHS shape: full receiver / key resolution is out of
-// scope for this fast pre-walk
-// scan AST for `Object.key = X` / `[Object.key] = X` / `({foo: Object.key} = X)` /
-// `Object.key++` / `Object.key += X` / `delete Object.key` / `for (Object.key of arr)` /
-// `Object.defineProperty(Object, 'key', d)` / `Reflect.defineProperty(...)` /
-// `Reflect.deleteProperty(...)` and similar mutation positions. returns a Set
-// of `"ObjectName.keyName"` strings. used as a pre-pass before the main usage visitor so
-// substitution of `Array.from(...)` reads can bail when the same file mutates `Array.from`
-// somewhere - the polyfill import binding is `const`, the user's mutation only reaches
-// reads through the original global, so substituting reads with the polyfill import
-// silently diverges from the un-transformed source's behavior.
-// only matches statically-resolvable receivers (top-level Identifier object); proxy globals
-// like `globalThis.Array.from` would require full receiver resolution and stay out of scope
-// for this fast pre-walk - the cases worth catching here are direct `Builtin.method = X`
-// monkey-patches and `Object.defineProperty(Builtin, 'method', d)` shapes which always have
-// an Identifier root
 // shape gate for the per-callback consultation against the mutated-static set the pre-pass built.
 // shared between babel-plugin and unplugin so the (object, key) string formation stays in
 // lockstep with the pre-pass that built the set - any divergence (different separator, case,
