@@ -497,14 +497,14 @@ export function createReturnType({
   }
 
   // resolve return type of a function, inferring generic type parameters from call-site arguments
-  function resolveReturnType(fnPath, callPath, classSubst) {
+  function resolveReturnType(fnPath, callPath, classSubst, depth = 0) {
     // generator functions return iterators, async generators return async iterators
     // yield type is extracted from Generator<TYield>/AsyncGenerator<TYield> annotation if present
     if (fnPath.node.generator) {
       const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
       // class type-arg subst applies upfront so method-level subst below sees substituted shape
       const yieldType = classSubstInner(params?.[0], classSubst);
-      let inner = yieldType ? resolveTypeAnnotation(yieldType, fnPath.scope) : null;
+      let inner = yieldType ? resolveTypeAnnotation(yieldType, fnPath.scope, depth + 1) : null;
       if (!inner && yieldType && callPath) inner = applyCallSiteSubst(yieldType, fnPath, callPath);
       return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', safeInnerType(inner));
     }
@@ -521,7 +521,7 @@ export function createReturnType({
       if (substituted) return wrap(substituted);
     }
     if (returnInner) {
-      const resolved = resolveTypeAnnotation(returnInner, fnPath.scope);
+      const resolved = resolveTypeAnnotation(returnInner, fnPath.scope, depth + 1);
       if (resolved) return wrap(resolved);
       // structural shape - body inference would clobber the declared annotation with a
       // scalar Type. bail so callers route through `findExpressionAnnotation` which
