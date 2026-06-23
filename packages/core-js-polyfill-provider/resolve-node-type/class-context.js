@@ -75,6 +75,11 @@ export function createClassContext({
       const parent = current.parentPath?.node;
       // Babel ObjectMethod: `{ m() {} }` -> ObjectMethod direct child of ObjectExpression
       if (t.isObjectMethod?.(current.node) && t.isObjectExpression(parent)) {
+        // same outer-scope rule as the class-member computed key above: an object method's COMPUTED
+        // KEY (`{ [this.x]() {} }`) evaluates at object-definition time in the OUTER `this`, not the
+        // object - if we ascended through the key, do not anchor to this object (ESTree reaches the
+        // method via Property/value and naturally skips, so this guard keeps babel in step)
+        if (current.node.computed && child.node === current.node.key) return null;
         return { kind: 'object', objectPath: current.parentPath };
       }
       // ESTree Property/ObjectProperty wrapping a FunctionExpression: could be an object
