@@ -36,7 +36,9 @@ import {
   resolveCallRootedProxyCollapse,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { findProxyGlobal, maximalProxyGlobalPrefix, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix, PROXY_HOP_VALUE_CARRIERS, resolveSynthKeys,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
 export default function createSynthSwapEmitter({
@@ -335,6 +337,48 @@ export default function createSynthSwapEmitter({
     return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
   }
 
+  // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
+  // of a member chain carrying redundant proxy hops (`globalThis.self.Array`, where the leaf is NOT a
+  // pure-substituted global). rewriting only the identifier leaves `_globalThis.self.Array`, which
+  // reads an undefined `.self` off the global on hosts without it (ie:11 / Node). climb to the leaf
+  // member that consumes the maximal proxy-hop prefix and collapse it through the shared receiver
+  // collapse - `_globalThis.Array`. returns true when it rewrote (the caller skips the bare swap);
+  // false for a bare root (`globalThis.Array`, no hop) so the natural identifier swap handles it
+  function collapseProxyHopRoot(idPath, aliasCtx) {
+    // fire for a proxy-global NAME root (`globalThis` / `self` / ...) OR an alias of one (`const g =
+    // globalThis; g.self.X` -> `g.X`): the alias-aware `findProxyGlobal` follows the binding so an
+    // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
+    // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
+    if (!findProxyGlobal(idPath.node, aliasCtx)) return false;
+    let recPath = idPath.parentPath;
+    // advance while the member is ENTIRELY proxy navigation (its own maximal prefix spans the whole
+    // node), so we stop at the first member whose leaf is non-proxy - the collapse receiver
+    while ((recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression())
+      && maximalProxyGlobalPrefix(recPath.node, aliasCtx) === recPath.node) {
+      recPath = recPath.parentPath;
+    }
+    if (!recPath?.isMemberExpression() && !recPath?.isOptionalMemberExpression()) return false;
+    // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
+    if (!maximalProxyGlobalHop(recPath.node, aliasCtx)) return false;
+    // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
+    // (named props feed a synth literal `{ from: _Array$from }`); collapsing here too double-injects a dead
+    // `_globalThis`, even when the source sits under value carriers (`{from} = (se, chain) || Set`). climb
+    // the carriers to the binding context and skip an OBJECT-pattern target. an ARRAY pattern binds by
+    // index / iteration, NEVER a named static the emitter could synth-swap, so the emitter never owns it -
+    // collapse the hop HERE (else a residual `_globalThis.self.Array` reads an undefined hop off-engine). a
+    // plain default VALUE (`{ x = chain }`, target Identifier) is not a source. mirrors the unplugin gate
+    let ctxPath = recPath.parentPath;
+    while (PROXY_HOP_VALUE_CARRIERS.has(ctxPath?.node?.type)) ctxPath = ctxPath.parentPath;
+    const ctx = ctxPath?.node;
+    const target = ctx?.type === 'VariableDeclarator' ? ctx.id
+      : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
+    if (target?.type === 'ObjectPattern') return false;
+    const collapsed = collapseProxyGlobalReceiver(recPath.node, aliasCtx);
+    if (!collapsed) return false;
+    recPath.replaceWith(collapsed);
+    return true;
+  }
+
   // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the
   // receiver. polyfilled keys come from `pending.polyfills` (lazy import via
   // `injectPureImport`); unpolyfilled keys fall back to a member access through the
@@ -455,5 +499,5 @@ export default function createSynthSwapEmitter({
     });
   }
 
-  return { apply, collapseProxyGlobalReceiver, findTargetPath, registerPolyfill, tryRegisterPerBranchSynth };
+  return { apply, collapseProxyGlobalReceiver, collapseProxyHopRoot, findTargetPath, registerPolyfill, tryRegisterPerBranchSynth };
 }
