@@ -390,7 +390,12 @@ export function createClassObjectMember({
       const isTsMethod = member.type === 'TSMethodSignature';
       const isFlowMethod = member.type === 'ObjectTypeProperty' && member.value?.type === 'FunctionTypeAnnotation';
       if (isTsMethod || isFlowMethod) {
-        if (!callPath) return new $Object('Function');
+        // honor accessor kind like findTypeMember: a getter access yields its RETURN type (NOT a
+        // Function value - that would drop the polyfill on the real array/string the getter returns);
+        // a setter is write-only, skip to a paired getter; a plain method access is a Function value
+        // while a call resolves the return
+        if (member.kind === 'set') continue;
+        if (member.kind !== 'get' && !callPath) return new $Object('Function');
         const returnType = isTsMethod ? (member.returnType ?? member.typeAnnotation) : member.value.returnType;
         return returnType ? resolveTypeAnnotation(returnType, scope) : null;
       }
