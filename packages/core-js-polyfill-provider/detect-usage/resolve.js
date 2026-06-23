@@ -4,7 +4,9 @@
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName } from '../helpers/class-walk.js';
+import {
+  isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
+} from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
   isTopLevelThisContext,
@@ -961,11 +963,15 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null) {
   let prefix = root;
   for (let i = chain.length - 1; i >= 0; i--) {
     const member = chain[i];
-    // `memberKeyName` matches the resolution side: it reads identifier keys AND static
-    // computed keys (string literal / ESTree Literal / single-quasi template), so a computed
-    // proxy hop (`globalThis['self'].Array`) extends the prefix just like the dotted form.
-    // collapse callers then read `_globalThis.Array` instead of leaving `_globalThis['self']`
-    const key = memberKeyName(member);
+    // resolve the hop key the SAME way the usage resolver does. with an alias context, `resolveKey`
+    // is binding-aware: a const-alias computed hop (`const k='self'; globalThis[k].X`) resolves like
+    // the dotted (`globalThis.self`) and computed-literal (`globalThis['self']`) forms, so the collapse
+    // drops it too - `_globalThis.X`, not `_globalThis[k].X` which reads an undefined key off-engine. a
+    // side-effecting key bails (left uncollapsed) since dropping the hop would drop its effect. node-only
+    // callers (no aliasCtx) keep literal-only `memberKeyName`, byte-identical to the prior behavior
+    const key = aliasCtx
+      ? resolveKey({ node: member.property, computed: member.computed, bailOnSideEffectKey: true, ...aliasCtx })
+      : memberKeyName(member);
     if (key && POSSIBLE_GLOBAL_OBJECTS.has(key)) prefix = member;
     else break;
   }
@@ -982,3 +988,42 @@ export function maximalProxyGlobalHop(node, aliasCtx = null) {
   const prefix = maximalProxyGlobalPrefix(node, aliasCtx);
   return prefix && prefix.type !== 'Identifier' ? prefix : null;
 }
+
+// is `node` a member chain rooted at an ALIAS of a proxy-global (NOT a proxy-global NAME) carrying a REAL
+// proxy hop (`g.self.X` where `const g = globalThis`)? such a chain with a non-polyfilled leaf gets no leaf
+// usage and no `kind:'global'` trigger on the alias root, so both emitters drive the hop collapse off this
+// predicate. the hop key resolves binding-aware - a computed `g[k]` (`const k = 'self'`) or string-literal
+// `g['self']` is caught like the dotted `g.self`; a side-effecting computed key bails (uncollapsible). a
+// proxy-NAME root (`globalThis.self.X`) is EXCLUDED (it collapses via its own `kind:'global'` trigger, so
+// this never double-fires). the cheap dotted check screens before any binding resolve. the caller peels to
+// the root path and runs its per-emitter `collapseProxyHopRoot` (which self-gates on the hop again)
+export function isAliasProxyHopChain(node, aliasCtx) {
+  if (!aliasCtx || (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression')) return false;
+  let cur = node;
+  let hasProxyHopKey = false;
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    const { computed, property: key } = cur;
+    const hopName = computed
+      ? resolveKey({ node: key, computed: true, bailOnSideEffectKey: true, ...aliasCtx })
+      : key?.type === 'Identifier' && key.name;
+    if (hopName && POSSIBLE_GLOBAL_OBJECTS.has(hopName)) hasProxyHopKey = true;
+    cur = cur.object;
+  }
+  return hasProxyHopKey && cur?.type === 'Identifier' && isAliasProxyRoot(cur, aliasCtx);
+}
+
+// transparent value-position wrappers between a proxy-global receiver and its binding context. the
+// emit-side proxy-hop collapse climbs these to distinguish a destructure SOURCE (`{from} = (se, chain)
+// || Set` / `{from,of} = (chain as any)` - owned by the destructure path, which feeds the props into a
+// synth literal) from a plain default VALUE (`{ x = chain }`, target Identifier - collapsed in place).
+// shared by both emitters' collapse gate so the source-vs-value decision is one provider-level
+// definition. includes TS expression wrappers so a cast/non-null source is gated explicitly here rather
+// than relying on the (timing-dependent) skipped-node marking that protects some shapes but not others
+export const PROXY_HOP_VALUE_CARRIERS = new Set([
+  'SequenceExpression',
+  'LogicalExpression',
+  'ConditionalExpression',
+  'ParenthesizedExpression',
+  'ChainExpression',
+  ...TS_EXPR_WRAPPERS,
+]);
