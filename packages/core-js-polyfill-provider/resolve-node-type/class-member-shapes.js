@@ -6,7 +6,7 @@
 // `.get(...)`); the two factories carry adapter (`t`) and key/type resolvers required by
 // shape-aware variants.
 import { $Primitive } from './base.js';
-import { peelSkippableWrapperPath, peelSkippableWrappers } from '../helpers/ast-patterns.js';
+import { peelSkippableWrapperPath, peelSkippableWrappers, singleQuasiString } from '../helpers/ast-patterns.js';
 
 // shape unification of `<expr>.<field> = ...` / `<expr>.<field>++` writes: AssignmentExpression
 // target on `.left`, UpdateExpression target on `.argument`. callers ask "is this a member-
@@ -52,6 +52,15 @@ export function createMemberWriteShape({ t, getKeyName, resolveNodeType }) {
     // keeps a stale narrow that emits a type-specific Maybe helper throwing on the new value (ie:11)
     const target = peelSkippableWrappers(targetNode);
     if (!t.isMemberExpression(target)) return null;
+    // a computed key names a field only by its STATIC value: a string / number literal (`this['f']` /
+    // `this[0]`, via getKeyName) or a single-quasi template (`this[`f`]`, via singleQuasiString). a
+    // dynamic computed key names the field by a RUNTIME value - `this[k]` by the variable's value (not
+    // its name), `this[f()]` by the call result - so it must not be attributed to any name -> null,
+    // honouring this function's contract and matching the computed-key resolution used elsewhere
+    if (target.computed) {
+      if (t.isIdentifier(target.property)) return null;
+      return singleQuasiString(target.property) ?? getKeyName(target.property);
+    }
     return getKeyName(target.property);
   }
   function writePathContributedType(writePath) {
