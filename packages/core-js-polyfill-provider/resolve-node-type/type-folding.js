@@ -24,6 +24,7 @@ import {
   MAX_DEPTH,
   NULLABLE_NEVER_ANNOTATIONS,
   $Object,
+  $Primitive,
   dropLeadingThisParam,
 } from './base.js';
 import { typeRefName } from './ast-shapes.js';
@@ -210,7 +211,21 @@ export function createTypeFolding({
   function commonType(existing, incoming) {
     if (!existing) return incoming;
     if (!typesEqual(existing, incoming)) return null;
-    if (existing.primitive || innersEqual(existing.inner, incoming.inner)) return existing;
+    // two primitives of the same family with distinct literal stamps fold to a literal UNION (`'a' | 'b'`):
+    // still a string for member dispatch, but a conditional check against a literal must stay undecidable
+    // (some members extend it, others do not). keeping `existing.literal` would mis-fire the branch-picker's
+    // both-literal rule (`('a' | 'b') extends 'a'` wrongly TRUE); clearing it to a bare family would mis-fire
+    // its wide-vs-literal rule (wrongly FALSE). mark `literalUnion` so the picker folds both branches instead.
+    // a single shared literal is kept; a bare-keyword member on either side absorbs the literals into the family
+    if (existing.primitive) {
+      if (existing.literal === incoming.literal && !existing.literalUnion && !incoming.literalUnion) return existing;
+      const merged = new $Primitive(existing.type);
+      const existingHasLiteral = existing.literal !== undefined || existing.literalUnion;
+      const incomingHasLiteral = incoming.literal !== undefined || incoming.literalUnion;
+      if (existingHasLiteral && incomingHasLiteral) merged.literalUnion = true;
+      return merged;
+    }
+    if (innersEqual(existing.inner, incoming.inner)) return existing;
     return new $Object(existing.constructor);
   }
 
