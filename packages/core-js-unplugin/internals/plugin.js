@@ -815,6 +815,7 @@ export default function createPlugin(options) {
           isBodylessStatementBody,
           isEntryNeeded,
           isInStaticContext,
+          mutatedStatics,
           NEEDS_GUARD_PARENS,
           resolveGlobalPolyfill,
           resolvePureOrGlobalFallback,
