@@ -491,19 +491,24 @@ export function createTypeExpansion({
     // another primitive and return false (wrong branch). symmetric to `extends never`
     // handled by the "object check vs primitive extend" rule already returning false
     if (check.type === 'never') return true;
-    // literal precision: `2 extends 1` is false even though both widen to `number`.
-    // resolveLiteralType stamps each side's source literal value; two literal-bearing
-    // primitives are disjoint unless their values are strictly equal (cross-family `2`
-    // vs `'2'` also disjoint). only fires when BOTH carry a literal - a bare-keyword side
-    // (`number extends 1`) has no stamp and folds through the family rules below. mirrors
-    // pickConditionalBranchByAST's literal comparison for the direct-binding (Type-object) path
+    // a folded literal union (`'a' | 'b'`, from commonType merging distinct literal branches) is OPAQUE -
+    // its members are not retained. `checkNarrow` / `extendNarrow` flag the narrow (single literal OR such
+    // a union) sides; a bare keyword (`string`) is NOT narrow
+    const checkNarrow = check.literalUnion || check.literal !== undefined;
+    const extendNarrow = extend.literalUnion || extend.literal !== undefined;
+    // both sides narrow with at least one OPAQUE union -> undecidable (some members may extend the other,
+    // others not, and the members are unrecoverable) -> fold both branches via null. guard before the
+    // literal rules so a union is never read as a single literal or, below, as a bare keyword
+    if ((check.literalUnion || extend.literalUnion) && checkNarrow && extendNarrow) return null;
+    // literal precision: `2 extends 1` is false even though both widen to `number`. resolveLiteralType
+    // stamps each side's source literal; two single literals are disjoint unless strictly equal (cross-
+    // family `2` vs `'2'` too). a union side is excluded above; a bare-keyword side has no stamp and folds
+    // through the family rules below. mirrors pickConditionalBranchByAST's literal comparison
     if (check.literal !== undefined && extend.literal !== undefined) return check.literal === extend.literal;
-    // wide-vs-literal: `number extends 1` / `string extends "a"` / `boolean extends true` /
-    // `bigint extends 1n` - a wide primitive (or any non-literal-stamped type) is NOT assignable
-    // to a narrower literal of the same family, so it takes the FALSE branch. only the extend side
-    // carries a literal here (both-literal handled above; the reverse `1 extends number` is true
-    // and folds through the family rules below)
-    if (extend.literal !== undefined && check.literal === undefined) return false;
+    // wide-vs-narrow: a bare-keyword (or otherwise non-narrow) check is NOT assignable to a NARROWER target
+    // - a single literal (`string extends "a"`) OR a literal union (`string extends 'a' | 'b'`) - so it
+    // takes the FALSE branch. the reverse (`"a" extends string`) is true and folds through the family rules
+    if (extendNarrow && !checkNarrow) return false;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
       // extends has no inner constraint. three sub-cases distinguished by caller-supplied flags:
