@@ -201,6 +201,9 @@ export function createUserTypeResolve({
           if (result) return result;
         }
         if (cycleFlipped()) return null;
+        // extends parents that ALL resolved to nothing are unknowable (undeclared / unresolved
+        // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null
+        return null;
       }
       return new $Object('Object');
     }
@@ -224,7 +227,12 @@ export function createUserTypeResolve({
           superName = segments.join('.');
         }
       }
-      if (!superName) return new $Object('Object');
+      // a class with NO heritage is a known plain object -> Object. but a PRESENT super whose name
+      // can't be extracted (mixin `extends mixOf(Base)`, reassigned binding, any non-name heritage
+      // expression) is UNKNOWABLE - it could be Array / a typed-array / any polyfillable base, where
+      // masquerading as `$Object('Object')` would suppress the generic polyfill -> bail to null (same
+      // rule as cyclic extends); keep Object only for the genuinely base-less class
+      if (!superName) return superClass ? null : new $Object('Object');
       // Flow `DeclareClass extends Base<T>` carries typeArgs on the heritage clause
       // (`extends[0].typeParameters`), not on the declaration itself - `getSuperTypeArgs`
       // probes both class-side slots and would otherwise return undefined here, dropping
@@ -247,7 +255,13 @@ export function createUserTypeResolve({
         { name: superName, node: parentRef, scope, depth, typeParamMap, seen: visited }));
       if (result) return result;
       if (cycleFlipped()) return null;
-      return new $Object('Object');
+      // superName was extracted but no parent class with that name resolved to a container type.
+      // distinguish a KNOWN-but-plain base (a local class declaration with no polyfillable shape ->
+      // Object is correct, the receiver is a known object) from an UNKNOWABLE base (no class decl -
+      // opaque import / value-position name) which could be Array / a typed-array, where masquerading
+      // as Object would suppress the polyfill -> bail to null (same as `!superName`)
+      return findDeclPathBySegments(superName.split('.'), scope, isClassLikeDeclaration)
+        ? new $Object('Object') : null;
     }
     return null;
   }
