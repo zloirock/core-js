@@ -257,6 +257,36 @@ function * generateProxyGlobalSEReceiver() {
   }
 }
 
+// --- Proxy-global HOP + pure constructor + no-meta-leaf terminal ---
+// a pure constructor reached through a proxy-global HOP (`.self` / `.window`) and a terminal that carries
+// no member meta (bare `.prototype`, computed / optional / dynamic key) must keep the constructor: a
+// too-weak hop-guard drops it to `_<root>.prototype` (undefined off-engine - a wrong-value + import-set
+// divergence). `self` / `window` don't exist in Node, so the host aliases them to globalThis
+// self-restoringly (try/finally, no leak) and observes `=== Ctor.prototype`: native keeps the constructor
+// while a buggy drop reads undefined, so the full-env three-way catches it. distinct ctor per shape.
+const PHC_LEAVES = [
+  { id: 'bare-proto', leaf: c => `${ c }.prototype` },
+  { id: 'computed-proto', leaf: c => `${ c }["prototype"]` },
+  { id: 'optional-proto', leaf: c => `${ c }?.prototype` },
+  { id: 'dynamic-key', leaf: c => `${ c }[k]`, key: true },
+];
+const PHC_HOPS = ['globalThis.self', 'globalThis.window', 'globalThis.self.window'];
+const PHC_CTORS = ['Map', 'Set', 'Promise', 'WeakMap', 'WeakSet'];
+function * generateProxyHopCtor() {
+  let i = 0;
+  for (const hop of PHC_HOPS) {
+    for (const variant of PHC_LEAVES) {
+      const ctor = PHC_CTORS[i++ % PHC_CTORS.length];
+      const observed = `${ hop }.${ variant.leaf(ctor) } === ${ ctor }.prototype`;
+      const inner = variant.key ? `(k => ${ observed })('prototype')` : observed;
+      const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+        + `try { return ${ inner }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+      const name = `proxy-hop-ctor/${ hop.replaceAll('.', '-') }/${ variant.id }`;
+      yield { ...snippet(name, body), strip: false };
+    }
+  }
+}
+
 // --- Single-key synth-swap param-default with a sequence-prefixed / fallback-logical MEMBER receiver ---
 // a single-key synth-swap param-default whose receiver is a proxy-global member behind a sequence prefix
 // (`(pre, globalThis.Array)`) or a fallback-logical (`(pre, globalThis.Array) || Set`). the synth literal
@@ -1862,6 +1892,7 @@ export function * generate() {
   yield * generateDestructureAlias();
   yield * generateFallbackArg();
   yield * generateProxyGlobalSEReceiver();
+  yield * generateProxyHopCtor();
   yield * generateSynthSwapSeqReceiver();
   yield * generateNestedMirrorMixed();
   yield * generateReceiverCopyShape();
