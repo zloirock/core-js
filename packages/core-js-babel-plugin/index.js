@@ -323,7 +323,7 @@ export default function plugin(api, options) {
         isInheritedStaticLookup,
         isInStaticContext,
         isShadowedByClassOwnMember,
-        enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, adapter),
+        enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, adapter, resolvePure),
       });
 
       // any detached ancestor puts our node outside the live AST - polyfill emission
@@ -784,6 +784,7 @@ export default function plugin(api, options) {
         isEntryAvailable: isEntryNeeded,
         toHint,
         resolvedType,
+        resolvePure,
       };
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
