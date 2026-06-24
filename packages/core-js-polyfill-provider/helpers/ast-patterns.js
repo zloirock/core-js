@@ -1814,6 +1814,19 @@ export function objectPatternLiteralKeyPath(pattern, name) {
 export function resolveFallbackReceiver(wrapperPath, paramNode) {
   const wrapperNode = wrapperPath?.node;
   if (!wrapperNode) return null;
+  // an AssignmentPattern that is a function PARAM (`(({p} = D) => body)(R)`) carries the DEFAULT in
+  // its `right` slot, but the live call-arg R is the real receiver (the default applies only when no
+  // arg is passed). emit-side callers reach this with the AssignmentPattern as the wrapper, so resolve
+  // from the IIFE call site via the enclosing function - caller-args-must-win - falling back to the
+  // default only when there is no call site. detect-usage passes the function itself and skips this arm
+  if (wrapperNode.type === 'AssignmentPattern' && FN_NODE_TYPES.has(wrapperPath.parentPath?.node?.type)) {
+    const site = findIifeCallSite(wrapperPath.parentPath, wrapperNode);
+    if (site) {
+      const rhsNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
+      if (rhsNode) return { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex };
+    }
+    return { rhsNode: wrapperNode.right, slot: 'right', callPath: null, paramIndex: -1 };
+  }
   const slot = destructureReceiverSlot(wrapperNode);
   if (slot) return { rhsNode: wrapperNode[slot], slot, callPath: null, paramIndex: -1 };
   const site = findIifeCallSite(wrapperPath, paramNode);
