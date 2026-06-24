@@ -26,7 +26,9 @@ import {
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
+  directiveValue,
   extractIndirectRequireSEPrefix,
+  findFunctionScopeVarInPath,
   findObjectKeyBeforeSpread,
   isDirectiveStatement,
   isFunctionParamDestructureParent,
@@ -933,6 +935,53 @@ check('isDirectiveStatement/non-directive string',
   isDirectiveStatement({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), false);
 check('isDirectiveStatement/non-expression-statement', isDirectiveStatement({ type: 'ReturnStatement' }), false);
 check('isDirectiveStatement/nullish', isDirectiveStatement(null), false);
+
+// --- directiveValue (shared extractor: both shapes feed the `=== 'use strict'` reads) ---
+// statement marker shape (oxc / babel real directives)
+check('directiveValue/stmt marker', directiveValue({ type: 'ExpressionStatement', directive: 'use strict' }), 'use strict');
+// inner-literal marker shape (sibling-plugin synth re-emit) - the value the statement-only read missed
+check('directiveValue/inner-literal marker',
+  directiveValue({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } }), 'use strict');
+// statement marker wins when both present
+check('directiveValue/stmt marker preferred over inner',
+  directiveValue({ directive: 'use asm', expression: { directive: 'use strict' } }), 'use asm');
+// empty-string directive is a real (prologue-extending) value, NOT null
+check('directiveValue/empty stmt marker', directiveValue({ directive: '' }), '');
+// a non-directive node yields null so `=== 'use strict'` is cleanly false
+check('directiveValue/non-directive', directiveValue({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), null);
+check('directiveValue/nullish', directiveValue(null), null);
+
+// --- nodeHasUseStrict directive-shape coverage (end-to-end via findFunctionScopeVarInPath) ---
+// a sloppy-mode block-nested `function Foo(){}` Annex-B-hoists to the function scope and shadows the
+// outer name, so usage-pure must NOT substitute. a `'use strict'` on the enclosing function block-
+// scopes the declaration -> no shadow -> the global resolves. the strict signal must be read from
+// BOTH the statement marker and the inner-literal marker (sibling-plugin synth shape) - else strict is
+// mis-classified sloppy and the shadow gate falsely fires. synthetic node-only paths (no parser run)
+{
+  function buildSloppyShadowPath(directiveStmt) {
+    const fooFn = { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'Foo' }, params: [], body: { type: 'BlockStatement', body: [] } };
+    const ifBlock = { type: 'IfStatement', test: { type: 'Identifier', name: 'cond' }, consequent: { type: 'BlockStatement', body: [fooFn] }, alternate: null };
+    const usageNode = { type: 'NewExpression', callee: { type: 'Identifier', name: 'Foo' }, arguments: [] };
+    const usageStmt = { type: 'ExpressionStatement', expression: usageNode };
+    const body = directiveStmt ? [directiveStmt, ifBlock, usageStmt] : [ifBlock, usageStmt];
+    const fnDecl = { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'outer' }, params: [], body: { type: 'BlockStatement', body } };
+    const program = { type: 'Program', sourceType: 'script', body: [fnDecl] };
+    const fnPath = { node: fnDecl, parentPath: { node: program, parentPath: null } };
+    return { node: usageNode, parentPath: { node: usageStmt, parentPath: fnPath } };
+  }
+  // statement marker (oxc / babel real directive) vs inner-literal marker (sibling-plugin synth shape)
+  const stmtMarker = { type: 'ExpressionStatement', directive: 'use strict', expression: { type: 'Literal', value: 'use strict' } };
+  const innerMarker = { type: 'ExpressionStatement', expression: { type: 'Literal', value: 'use strict', directive: 'use strict' } };
+  // sloppy (no directive): the Annex-B block-function shadow is detected
+  checkTruthy('findFunctionScopeVarInPath/sloppy block-fn shadow detected',
+    findFunctionScopeVarInPath(buildSloppyShadowPath(null), 'Foo'));
+  // strict via statement marker: shadow block-scoped, gate stays silent
+  check('findFunctionScopeVarInPath/strict stmt-marker suppresses shadow',
+    findFunctionScopeVarInPath(buildSloppyShadowPath(stmtMarker), 'Foo'), false);
+  // strict via inner-literal marker: same suppression
+  check('findFunctionScopeVarInPath/strict inner-literal suppresses shadow',
+    findFunctionScopeVarInPath(buildSloppyShadowPath(innerMarker), 'Foo'), false);
+}
 
 // --- extractIndirectRequireSEPrefix ---
 
