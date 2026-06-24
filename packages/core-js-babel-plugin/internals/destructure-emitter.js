@@ -23,6 +23,7 @@ import {
   synthSwapPropKey,
   mayHaveSideEffects,
   dropDeadSequenceTail,
+  isDirectiveStatement,
   isRestProperty,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
@@ -454,14 +455,14 @@ export default function createDestructureEmitter({
   // `_unused` sentinel so the destructure still consumes the key and rest exclusion
   // survives; otherwise remove the prop entirely. preserves "polyfill always wins"
   // guarantee at the cost of caller-passed `{from: customFrom}` being ignored
-  // count leading ExpressionStatements with a `.directive` flag at the start of a function
-  // body. these mirror the directive prologue (`'use strict'`, `'use asm'`) for inline-
-  // injected forms that the parser didn't lift into `node.directives[]`. inserts that
-  // intend to land at the very top of body must skip past these or they demote directives
-  // into regular statements (silent strict-mode loss)
+  // count leading directive-prologue ExpressionStatements (`'use strict'`, `'use asm'`) at the
+  // start of a function body - inline-injected forms the parser didn't lift into `node.directives[]`.
+  // delegates to the shared classifier so a sibling-plugin synth whose marker sits on the inner
+  // literal is counted too; inserts that intend to land at the very top of body must skip past these
+  // or they demote directives into regular statements (silent strict-mode loss)
   function countLeadingDirectives(body) {
     let count = 0;
-    while (count < body.length && body[count]?.type === 'ExpressionStatement' && body[count]?.directive) count++;
+    while (count < body.length && isDirectiveStatement(body[count])) count++;
     return count;
   }
 
