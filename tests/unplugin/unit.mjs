@@ -1311,6 +1311,63 @@ function checkSourceMapFileField() {
 }
 checkSourceMapFileField();
 
+// per-half sourcemap precision for a NESTED split reaching the compose path: the optional-chain suffix
+// (`?.call`) maps to its OWN source columns (the `.at?.(` site), not the receiver. the compose path used
+// to emit one overwrite over the whole logical range, mapping the suffix to the receiver column (coarse)
+function checkSplitSuffixSourcemapPrecision() {
+  const source = 'const arr = [1, 2, 3];\nexport const r = (arr.flat()).at?.(0);';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, 'split-precision.js');
+  // the output reads `_atMaybeArray(_ref = _flatMaybeArray(arr).call(arr))?.call(_ref, 0)`
+  const lines = result.code.split('\n');
+  let genLine = -1; let genCol = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const col = lines[i].indexOf('?.call');
+    if (col !== -1) {
+      genLine = i + 1;
+      genCol = col;
+      break;
+    }
+  }
+  const tm = new TraceMap(result.map);
+  const orig = originalPositionFor(tm, { line: genLine, column: genCol });
+  const [, srcLine] = source.split('\n', 2);
+  const atCol = srcLine.indexOf('.at?.');
+  const receiverCol = srcLine.indexOf('(arr.flat');
+  check('split-suffix-sourcemap/suffix maps to .at site not receiver',
+    orig.line === 2 && orig.column >= atCol && orig.column > receiverCol, true);
+}
+checkSplitSuffixSourcemapPrecision();
+
+// double-nested optional chain: the FOLDED inner split's suffix (`.at?.`) must map to its own site, not
+// the outer receiver - `#splitSegments` partitions the composed string by every split, not just the outer
+function checkNestedSplitSuffixSourcemapPrecision() {
+  const source = 'const arr = [1, 2, 3];\nexport const r = ((arr.flat()).at?.(0)).flat?.();';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, 'nested-split-precision.js');
+  const lines = result.code.split('\n');
+  let genLine = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('?.call')) {
+      genLine = i + 1;
+      break;
+    }
+  }
+  const line = lines[genLine - 1];
+  const tm = new TraceMap(result.map);
+  // first `?.call` is the inner `.at?.` suffix; last is the outer `.flat?.` suffix
+  const inner = originalPositionFor(tm, { line: genLine, column: line.indexOf('?.call') });
+  const outer = originalPositionFor(tm, { line: genLine, column: line.lastIndexOf('?.call') });
+  const [, srcLine] = source.split('\n', 2);
+  const atCol = srcLine.indexOf('.at?.');
+  const flatCol = srcLine.lastIndexOf('.flat?.');
+  check('split-suffix-sourcemap/folded inner suffix maps to .at site',
+    inner.line === 2 && inner.column >= atCol && inner.column < flatCol, true);
+  check('split-suffix-sourcemap/outer suffix maps to .flat site',
+    outer.line === 2 && outer.column >= flatCol, true);
+}
+checkNestedSplitSuffixSourcemapPrecision();
+
 // a namespace specifier-export (`function make() {}; export { make };`) attaches the
 // runtime static like the declaration form does; the merged-namespace shadow gate must
 // see it (oxc parses this shape; the babel parser rejects it, so this lock is text-side)
