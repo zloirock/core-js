@@ -55,6 +55,21 @@ QUnit.test('globals: globalThis', assert => {
   assert.same(globalThis.Math, Math);
 });
 
+QUnit.test('globals: proxy-global hop to pure constructor keeps the constructor', assert => {
+  // a pure constructor reached through a proxy-global hop (`.self` / `.window`) and a no-method terminal
+  // (bare `.prototype`, dynamic computed key) must keep the constructor, not collapse to the global
+  // object whose `.prototype` is undefined. distinct ctors / hop shapes per assertion.
+  assert.same(globalThis.self.Map.prototype, Map.prototype);
+  assert.same(globalThis?.self.WeakMap.prototype, WeakMap.prototype);
+  const alias = globalThis;
+  assert.same(alias.self.Promise.prototype, Promise.prototype);
+  assert.same(globalThis.self.window.WeakSet.prototype, WeakSet.prototype);
+  function setMember(key) {
+    return globalThis.self.Set[key];
+  }
+  assert.same(setMember('prototype'), Set.prototype);
+});
+
 QUnit.test('globals: structuredClone', assert => {
   const obj = { a: 1, b: [2, 3] };
   const clone = structuredClone(obj);
