@@ -355,17 +355,19 @@ function nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure
     .some(branchMeta => { const pure = resolvePure(branchMeta); return pure && pure.kind !== 'instance'; });
 }
 
-// a safe-access proxy-global IIFE call-arg (`globalThis.Array`) supersedes the wrapper param-default ONLY
-// when the default is a polyfill DEAD-END for every destructured key (`Object.from` resolves to nothing)
-// AND the arg itself carries a polyfill: then the live arg is the only receiver that polyfills. when the
-// default resolves a polyfill for some key it stays the synth target - it is the live fallback for the
-// undefined-arg runtime path (`globalThis.AsyncIterator` absent on the target -> default `Array` ->
-// `Array.from`). restricted to a (Optional)MemberExpression arg: bare Identifiers go through
-// `isClassifiableReceiverArg`, conditional / logical args through the per-branch synth, and an opaque or
-// inline-resolvable CALL arg must stay un-classifiable (synth-swapping it would DROP the call + its side
-// effects). shared by the meta layer and both emitters so detect and emit never disagree (which orphans)
-export function memberExprArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
-  if (!resolvePure || (argNode?.type !== 'MemberExpression' && argNode?.type !== 'OptionalMemberExpression')) return false;
+// a resolvable non-Identifier IIFE call-arg (a proxy-global member `globalThis.Array`, an inline-resolvable
+// call `(() => Array)()`) supersedes the wrapper param-default ONLY when the default is a polyfill DEAD-END
+// for every destructured key (`Object.from` resolves to nothing) AND the arg itself carries a polyfill:
+// then the live arg is the only receiver that polyfills. when the default resolves a polyfill for some key
+// it stays the synth target - it is the live fallback for the undefined-arg runtime path
+// (`globalThis.AsyncIterator` absent on the target -> default `Array` -> `Array.from`). bare Identifiers go
+// through `isClassifiableReceiverArg`; conditional / logical args through the per-branch synth (reached
+// before this). a CALL arg is NOT excluded: when it inline-resolves to a constructor the synth injects the
+// polyfill and the emitter rescues the call's side effect AHEAD of the literal (`(<call>(), { from: _$ })`)
+// - excluding it MISSED the polyfill on a live, statically-known receiver. an opaque (non-resolvable) call
+// yields nothing and keeps the default. shared by the meta layer + both emitters so detect/emit never disagree
+export function resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
+  if (!argNode || !resolvePure || argNode.type === 'Identifier') return false;
   const keys = destructureStaticKeys(objectPattern);
   if (!keys) return false;
   const yieldsAny = node => keys.some(key => nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure }));
@@ -378,7 +380,7 @@ export function memberExprArgSupersedesDeadDefault({ argNode, defaultNode, objec
 // callers that can't supply them - then only the classifiable-arg rule applies (legacy behaviour)
 export function chooseFallbackReceiverNode({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
   if (isUsableFallbackReceiverArg(argNode, scope, adapter)) return argNode;
-  if (memberExprArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure })) return argNode;
+  if (resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure })) return argNode;
   return defaultNode;
 }
 
