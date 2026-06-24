@@ -178,6 +178,16 @@ export function isClassifiableReceiverArg(node, scope, adapter) {
   return !!(scope && adapter) && isProxyGlobalIdentifierNode({ node, scope, adapter });
 }
 
+// a fallback-destructure receiver (IIFE call-arg / wrapper RHS) usable in place of the param default:
+// a classifiable single receiver OR a CONDITIONAL / LOGICAL whose branches are enumerated per-branch
+// downstream (`(({from}=Object) => ...)(c ? Array : Map)`). a non-receiver arg (notably the global
+// `undefined`, where the runtime applies the default) is not usable and keeps the default. shared by
+// every meta / synth receiver-choice so the call-arg-wins rule never drifts between sites
+export function isUsableFallbackReceiverArg(node, scope, adapter) {
+  return isClassifiableReceiverArg(node, scope, adapter)
+    || node?.type === 'ConditionalExpression' || node?.type === 'LogicalExpression';
+}
+
 // permissive: no wrapper-default - accept bare Identifier OR proxy-global MemberExpression
 // so `globalThis.X.key` resolves the same as the bare-Identifier IIFE path
 export function isExpandedClassifiableReceiver({ node, scope, adapter, path }) {
