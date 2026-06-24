@@ -1062,12 +1062,12 @@ function endsBeforeStart(a, b, whenUnknown) {
   return aEnd <= bStart;
 }
 
-// does `node` end at or before `usagePath` begins? a `var` hoists the declaration but not the
-// assignment, so a use before the declarator reads `undefined`; symmetrically a reassignment AFTER
-// the use can't have changed the value read there. unknown positions -> true: don't over-bail the
-// global-dominance check
-function nodePrecedesUsage(node, usagePath) {
-  return endsBeforeStart(node, usagePath.node, true);
+// does `node` end at or before the read at `readNode` begins? a `var` hoists the declaration but not
+// the assignment, so a use before the declarator reads `undefined`; symmetrically a reassignment AFTER
+// the read can't have changed the value read there. `readNode` is the use node, or a multi-hop alias
+// hop's read-site override. unknown positions -> true: don't over-bail the global-dominance check
+function nodePrecedesUsage(node, readNode) {
+  return endsBeforeStart(node, readNode, true);
 }
 
 // inverse direction for the usage-pure reachability gate: the write `node` lies textually STRICTLY
@@ -1239,13 +1239,17 @@ function patternBindsNameUnderDefault(node, name, underDefault) {
   }
 }
 
-export function reachingReassignmentValueNode({ binding, usagePath, ctx = null }) {
+export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, usageNode = null }) {
   if (!usagePath) return null;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return null;
-  if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return null;
+  // `usageNode` overrides the textual read position for a multi-hop alias hop (`const b = a` reads `a`
+  // at the declarator, not at the eventual use of `b`): a write to `a` AFTER that read does not reach
+  // the captured value, so it is excluded below and the live declarator-init resolves
+  const readNode = usageNode ?? usagePath.node;
+  if (nodeSitsInLoopBodyWithin(owner.node, readNode)) return null;
   const bindingName = binding.node?.id?.type === 'Identifier' ? binding.node.id.name : null;
-  const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, usagePath));
+  const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, readNode));
   if (!before.length) return null;
   // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
   // textually-last one overwrites every earlier write - it is the reaching definition only if it ALWAYS
@@ -1263,7 +1267,7 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null }
   // closure-defined-before-write) yields none -> null, keeping the still-live init (over-inject-safe).
   // reassignment nodes are `AssignmentExpression`s here (babel + the estree adapter's let/var recompute),
   // so `reassignmentRhs` reads `.right` directly without the declarator's scope; a non-plain write -> null
-  const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true }) === true);
+  const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true, usageNode }) === true);
   if (!dominating.length) return null;
   const last = dominating.reduce((a, b) => b.start > a.start ? b : a);
   return reassignmentRhsForBinding(last, owner.node, bindingName, ctx);
@@ -1278,17 +1282,20 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null }
 // the write. skips non-plain writes (`x++`, `x += y`, for-x head) whose value isn't a simple
 // replacement, and the loop-reinit declarator-self. the use's own var-scope owner locates each
 // `name = <expr>` for adapters that record the LHS Identifier
-export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = null }) {
+export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = null, usageNode = null }) {
   if (!usagePath || !binding?.constantViolations?.length) return [];
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return [];
   // adapter wrappers do not all surface the bound identifier - callers that know the alias
   // name pass it explicitly (needed only for pattern-LHS pairing)
   const bindingName = name ?? binding.identifier?.name ?? binding.path?.node?.id?.name ?? null;
-  const useInLoop = nodeSitsInLoopBodyWithin(owner.node, usagePath.node);
+  // `usageNode` is a multi-hop alias hop's read site: a transitive source's write AFTER that read
+  // (`const a = src; src = X`) cannot reach the captured value, so it is not a reachable union value
+  const readNode = usageNode ?? usagePath.node;
+  const useInLoop = nodeSitsInLoopBodyWithin(owner.node, readNode);
   const out = [];
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
-    if (!useInLoop && usagePrecedesNode(usagePath, node)) continue;
+    if (!useInLoop && endsBeforeStart(readNode, node, false)) continue;
     out.push(...reassignmentValueNodesAt(node, owner.node, bindingName, ctx));
   }
   return out;
