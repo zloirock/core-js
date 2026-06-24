@@ -54,6 +54,7 @@ import {
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
   PROXY_HOP_VALUE_CARRIERS,
+  proxyGlobalMemberCtorPure,
   proxyGlobalWrappedRoot,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -2955,6 +2956,11 @@ export function createDestructureEmitter({
       const readReceiver = inner.type === 'LogicalExpression'
         ? peelNestedSequenceExpressions(inner.left).tail : inner;
       const receiverPure = readReceiver.type === 'Identifier' ? resolveGlobalPolyfill(readReceiver.name) : null;
+      // a proxy-global member with a pure-CTOR leaf (`globalThis.Map`) whole-swaps to the pure ctor, so an
+      // unpolyfilled sibling reads off it (`_Map.foo`) - the nested partial-mirror canon, shared with the
+      // babel twin. a non-ctor leaf (`globalThis.Math`) stays null -> the proxy-root collapse fallback
+      const ctorPure = receiverPure ? null
+        : proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx: ctx, resolvePure: g => resolveGlobalPolyfill(g.name) });
       // an SE-bearing receiver with a key left unresolved memoizes the receiver through a
       // function-IIFE param: it runs exactly once (as the argument) and unresolved keys read the memo
       // instead of re-running it per read (babel-twin emission). `callBranch` (set by the shared
@@ -2966,6 +2972,7 @@ export function createDestructureEmitter({
       let receiverSrc = null;
       const getReceiverSrc = () => receiverSrc ??= memoName ?? (receiverPure
         ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+        : ctorPure ? injectPureImport(ctorPure.entry, ctorPure.hintName)
         : synthMemberReceiverSrc(readReceiver, ctx));
       // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
       // only renders the entries as source text
