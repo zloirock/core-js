@@ -33,7 +33,7 @@ import {
 import {
   classifyCallBranchForSynth,
   isViableBranchForKey,
-  memberExprArgSupersedesDeadDefault,
+  resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   collectFallbackCollapseLeftSe,
@@ -113,11 +113,12 @@ export default function createSynthSwapEmitter({
   }
 
   // NodePath whose `.node` becomes the synth object; null means inline-default fallback.
-  // mirrors the resolution-layer narrowing in detect-usage.js: caller-arg replaces
-  // wrapper-default ONLY when caller-arg is statically classifiable (Identifier). for
-  // non-Identifier caller-arg (`(...)(globalThis.X)`, `(...)(call())`) wrapper-default
-  // remains the synth target, which makes the runtime fallback path (caller-arg evaluates
-  // to undefined -> wrapper-default fires) carry the polyfill
+  // mirrors the resolution-layer choice in detect-usage.js: a classifiable bare-Identifier
+  // caller-arg wins first; then a RESOLVABLE non-Identifier arg (proxy-global member
+  // `globalThis.X`, inline-resolvable call `(() => Array)()`) wins over a polyfill-DEAD-END
+  // default via `resolvableArgSupersedesDeadDefault` - its SE is rescued ahead of the synth.
+  // otherwise the wrapper-default stays the synth target (the live fallback for the
+  // undefined-arg runtime path); an opaque non-resolvable arg yields nothing and keeps it
   function findTargetPath(wrapper, objectPattern) {
     if (objectPattern.node.properties.some(property => t.isRestElement(property))) return null;
     if (wrapper?.isAssignmentPattern()) {
@@ -140,9 +141,9 @@ export default function createSynthSwapEmitter({
       // (Array)`) - synthesising onto the dead default would leave the live caller-arg native
       const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
       if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
-      // a safe-access proxy-global member-expr arg (`globalThis.Array`) supersedes the default when the
-      // default is a polyfill dead-end for the keys - mirrors the meta layer's `chooseFallbackReceiverNode`
-      if (argPath && memberExprArgSupersedesDeadDefault({
+      // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
+      // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
+      if (argPath && resolvableArgSupersedesDeadDefault({
         argNode: argPath.node, defaultNode: rightPath.node, objectPattern: objectPattern.node,
         scope: argPath.scope, adapter, path: argPath, resolvePure,
       })) return argPath;
