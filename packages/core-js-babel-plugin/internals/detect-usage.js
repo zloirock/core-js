@@ -34,7 +34,7 @@ import {
   resolveCallArgument,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isClassifiableReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isUsableFallbackReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -364,7 +364,10 @@ export function createUsageVisitors({
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
       const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
-      const receiverNode = isClassifiableReceiverArg(argNode, parent.scope, adapter) ? argNode : parent.node.right;
+      // caller-arg wins over the dead default when it is a usable fallback receiver (classifiable, or a
+      // conditional / logical enumerated per-branch); a non-receiver arg (notably `undefined`, where the
+      // runtime applies the default) keeps the default
+      const receiverNode = isUsableFallbackReceiverArg(argNode, parent.scope, adapter) ? argNode : parent.node.right;
       const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
       if (meta) onUsage(meta, path);
       return;
