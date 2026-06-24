@@ -220,12 +220,14 @@ const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier
 // before recurse, reject reassigned bindings. precomputes `VariableDeclarator` init for
 // the common "follow alias" step so callsites converge on `entry.init ? recurse : fallback`.
 // returns `{ binding, init, nextSeen }` on success, null on miss
-export function enterIdentifierBindingFollow({ node, scope, adapter, seen, path = null }) {
+export function enterIdentifierBindingFollow({ node, scope, adapter, seen, path = null, usageNode = null }) {
   if (seen?.has(node.name)) return null;
   const binding = adapter.getBinding(scope, node.name, path);
-  // method-aware reassignment bail: usage-global keeps following a reassigned key/value
-  // alias when the reassignment does not dominate the use; pure / narrowing keep the flat bail
-  if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
+  // method-aware reassignment bail: usage-global keeps following a reassigned key/value alias when the
+  // reassignment does not dominate the use; pure / narrowing keep the flat bail. `usageNode` anchors the
+  // dominance at THIS hop's read site so a multi-hop key alias (`let k='from'; const j=k; k='of';
+  // Array[j]`) sees `k='of'` as after the `const j=k` read, not dominating - `j` keeps 'from'
+  if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
   const nextSeen = new Set(seen);
   nextSeen.add(node.name);
   const init = binding.node?.type === 'VariableDeclarator' ? binding.node.init : null;
@@ -284,7 +286,7 @@ export function bindingSymbolKey(binding, packages = null) {
 // `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the StaticBlock
 // to find the enum. babel's scope tracker does anchor at StaticBlock so the legacy `scope.path`
 // fallback works for it; estree-toolkit needs the explicit path
-function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
+function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null }) {
   seen ??= new Set();
   if (seen.has(name)) return null;
   seen.add(name);
@@ -301,7 +303,7 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
   // imports without a polyfillHint don't map to a known global (their binding could point at
   // any user-imported value); param / catch / class name fall through to the final null
   if (IMPORT_BINDING_TYPES.has(bindingType)) return null;
-  if (bindingType === 'VariableDeclarator') return resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path });
+  if (bindingType === 'VariableDeclarator') return resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path, usageNode });
   return null;
 }
 
@@ -311,18 +313,20 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path }) {
 // Array; () => M.assign()`). returns the reaching value NODE to resolve instead of the dead init, or
 // null to keep following the init (no reassignment / init still live / value indeterminable - over-
 // inject-safe). shared by the key (resolveKey) and receiver (resolveVariableBindingToGlobal) follows
-function reachingValueOverDeadInit({ binding, adapter, path, scope }) {
+function reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode = null }) {
   if (adapter.method !== 'usage-global' || !isReassignedBeyondDeclarator(binding)) return null;
-  return reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey } });
+  return reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode });
 }
 
-function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path }) {
+function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path, usageNode = null }) {
   // a real reassignment (a constantViolation beyond a loop-reinit declarator-self) makes the alias
   // flow-dependent. usage-pure bails on ANY reassignment (its receiver-dropping rewrite is unsound);
   // usage-global bails ONLY when a reassignment DOMINATES the use (init provably dead) - a
   // conditional / after-use reassignment leaves the init live, and inject-if-maybe-needed keeps
-  // resolving it. the bail returns early, before the `.node.init/.id` deref below (malformed shapes)
-  if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path })) return null;
+  // resolving it. `usageNode` anchors the dominance at THIS hop's read site for a multi-hop alias
+  // (`let a = Array; const b = a; a = Map; b.from()` - `a = Map` is after `const b = a`, so it does not
+  // kill the value `b` captured). the bail returns early, before the `.node.init/.id` deref below
+  if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path, usageNode })) return null;
   // a function-scoped `var` whose assignment is conditional (`if (c) { var M = globalThis }`)
   // holds the global only on paths through that branch. usage-pure rewrites `M.Array.from` to a
   // receiver-less helper, DROPPING the guard - so a non-dominating assignment would mask the
@@ -332,8 +336,10 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     && !varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path, kind: binding.kind })) return null;
   // dead-init across a closure: resolve the reaching value as the receiver instead of the dead init
   // (`let M = Object; M = Array; () => M.assign()` resolves to Array, not the unreachable Object)
-  const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope });
-  if (reaching) return resolveObjectName({ objectNode: reaching, scope, adapter, seen: new Set(seen).add(name), path });
+  const reaching = reachingValueOverDeadInit({ binding, adapter, path, scope, usageNode });
+  if (reaching) return resolveObjectName({
+    objectNode: reaching, scope, adapter, seen: new Set(seen).add(name), path, usageNode: reaching,
+  });
   const { init } = binding.node;
   const pattern = binding.node.id;
   // `{ from, ...rest } = Array` - rest !=== init
@@ -342,7 +348,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // destructures bind `name` to a property of init, not init itself. proxy-global shorthand
   // (`{ Symbol } = globalThis`) is the only exception - aliases to the property key
   if (pattern?.type === 'ObjectPattern' && init) {
-    const alias = resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path });
+    const alias = resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path, usageNode });
     if (alias) return alias;
   }
   // a destructure that binds `name` to an element / value which is ITSELF a global
@@ -354,7 +360,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   if ((pattern?.type === 'ArrayPattern' || pattern?.type === 'ObjectPattern') && init) {
     const globals = new Set();
     for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
-      const global = resolveObjectName({ objectNode: value, scope, adapter, seen: new Set(seen).add(name), path });
+      const global = resolveObjectName({ objectNode: value, scope, adapter, seen: new Set(seen).add(name), path, usageNode: value });
       if (global) globals.add(global);
     }
     return globals.size === 1 ? [...globals][0] : null;
@@ -369,7 +375,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
     // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
     if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name, path)) return unwrapped.name;
-    return resolveBindingToGlobal({ name: unwrapped.name, scope, adapter, seen, path });
+    return resolveBindingToGlobal({ name: unwrapped.name, scope, adapter, seen, path, usageNode: unwrapped });
   }
   // identity / param-free / SE-prefix IIFE peel applied ONLY in the binding-init walk,
   // not in `resolveObjectName`'s generic CallExpression branch: the const intermediate
@@ -379,11 +385,11 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // and preserves its AST shape -- the identifier-visitor's inner-arg rewrite stays
   // unrivalled, no double-rewrite overlap with a wide polyfill substitution
   const iifePeeled = peelZeroArgIifeReturn(unwrapped);
-  if (iifePeeled) return resolveObjectName({ objectNode: iifePeeled, scope, adapter, seen, path });
+  if (iifePeeled) return resolveObjectName({ objectNode: iifePeeled, scope, adapter, seen, path, usageNode: iifePeeled });
   // MemberExpression / OptionalMemberExpression / CallExpression / OptionalCallExpression all
   // delegate to resolveObjectName - it handles each shape (proxy-global walk, call-inline).
   // unhandled shapes (NewExpression, BinaryExpression, etc.) safely return null
-  return unwrapped ? resolveObjectName({ objectNode: unwrapped, scope, adapter, seen, path }) : null;
+  return unwrapped ? resolveObjectName({ objectNode: unwrapped, scope, adapter, seen, path, usageNode: unwrapped }) : null;
 }
 
 // `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
@@ -395,18 +401,18 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
 // `const { foo: { Array } } = globalThis` (foo is non-global) bails. only known-global-
 // shaped leaf keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned - `const { foo } =
 // globalThis` should not push `'foo'` into downstream global lookups
-function resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path }) {
-  const receiver = resolveObjectName({ objectNode: init, scope, adapter, seen, path });
+function resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path, usageNode = null }) {
+  const receiver = resolveObjectName({ objectNode: init, scope, adapter, seen, path, usageNode: init });
   if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
-  return walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path });
+  return walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode });
 }
 
-function walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path }) {
+function walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode = null }) {
   for (const p of pattern.properties) {
     if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
     // propagate `seen` so computed keys backed by chained aliases (`const k = A; const A = k;`
     // -> { [k]: x }) reuse the outer cycle guard instead of starting a fresh walk
-    const key = resolveKey({ node: p.key, computed: p.computed, scope, adapter, seen, path });
+    const key = resolveKey({ node: p.key, computed: p.computed, scope, adapter, seen, path, usageNode });
     if (!key || !isStaticPlacement(key)) continue;
     if (patternBindingName(p.value) === name) return key;
     // nested ObjectPattern through a proxy-global intermediate key (`window`, `self`, ...)
@@ -414,7 +420,7 @@ function walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path
     // {Array}} = globalThis` resolves Array as a global just like the flat form
     const nested = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
     if (nested?.type === 'ObjectPattern' && POSSIBLE_GLOBAL_OBJECTS.has(key)) {
-      const inner = walkProxyDestructurePattern({ pattern: nested, name, scope, adapter, seen, path });
+      const inner = walkProxyDestructurePattern({ pattern: nested, name, scope, adapter, seen, path, usageNode });
       if (inner) return inner;
     }
   }
@@ -435,7 +441,7 @@ export function patternBindingName(node) {
 // responsible for marking the inner proxy-global identifier (`markSubsumedProxyChain`) so
 // unplugin's text-emit doesn't queue a parallel `globalThis -> _globalThis` rewrite that
 // would overlap the outer polyfill replacement
-function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
+function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null }) {
   // peel chain-assign AND SE-tail at every step: `((a = globalThis).Array).from(x)` buries
   // the assignment inside .object's .object, and `(eff(), globalThis).Map.groupBy` buries the
   // proxy root behind a sequence tail - a flat unwrapParens loses both. this is pure shape
@@ -445,14 +451,14 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
     // carry `seen` into computed-key resolution so a shared alias chain across the
     // proxy-global walk and its intermediate member keys can't exceed the cycle guard
     const memberKey = obj.computed
-      ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path })
+      ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode })
       : obj.property?.name;
     if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
     obj = peelChainAssignmentDeep(peelReceiverSequenceTail(obj.object));
   }
   if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
     const inlined = inlineCallReturnExpression({ callNode: obj, scope, adapter, seen, path });
-    if (inlined) return resolveProxyGlobalRoot({ receiver: inlined, scope, adapter, seen, path });
+    if (inlined) return resolveProxyGlobalRoot({ receiver: inlined, scope, adapter, seen, path, usageNode });
   }
   // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
   // the type resolver via the same canon)
@@ -464,7 +470,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path }) {
 // (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow.
 // initialize at entry so the cycle guard accumulates across recursion regardless of whether
 // the caller passed one - matches resolveBindingToGlobal's convention
-export function resolveObjectName({ objectNode, scope, adapter, seen, path }) {
+export function resolveObjectName({ objectNode, scope, adapter, seen, path, usageNode = null }) {
   seen ??= new Set();
   // peel chain-assign rhs + parens to a fixpoint (`(a = Array)`, `(a = b = Array)`,
   // `(a = (b = Array))`, `((a = Array))` all resolve to Array). closes binding-init walks
@@ -474,7 +480,7 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path }) {
   objectNode = peelChainAssignmentDeep(objectNode);
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name, path)) {
-      return resolveBindingToGlobal({ name: objectNode.name, scope, adapter, seen, path });
+      return resolveBindingToGlobal({ name: objectNode.name, scope, adapter, seen, path, usageNode });
     }
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
@@ -492,23 +498,23 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path }) {
   // its AST shape so identifier-visitor's inner rewrite stays the single source of truth
   if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
     const inlined = inlineCallReturnExpression({ callNode: objectNode, scope, adapter, seen, path });
-    return inlined ? resolveObjectName({ objectNode: inlined, scope, adapter, seen, path }) : null;
+    return inlined ? resolveObjectName({ objectNode: inlined, scope, adapter, seen, path, usageNode }) : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
   // computed: globalThis[`Array`] resolves the bracket expression; non-computed reads the
   // identifier name directly. either way the receiver chain must bottom out on a proxy global
   const propertyName = objectNode.computed
-    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, path })
+    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, path, usageNode })
     : objectNode.property.type === 'Identifier' ? objectNode.property.name : null;
   if (!propertyName) return null;
-  return resolveProxyGlobalRoot({ receiver: objectNode.object, scope, adapter, seen, path }) ? propertyName : null;
+  return resolveProxyGlobalRoot({ receiver: objectNode.object, scope, adapter, seen, path, usageNode }) ? propertyName : null;
 }
 
 // the distinct values an alias can hold at the use for the usage-global union: the resolved primary
 // (declarator init) plus every reachable reassignment RHS that resolves, deduped. a non-Identifier
 // alias or one with no reassignment contributes only the primary. `resolve` maps a value node to its
 // receiver name / key string
-export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path, seen }) {
+export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path, seen, usageNode = null }) {
   const values = primary ? [primary] : [];
   if (aliasNode?.type === 'Identifier') {
     const binding = adapter.getBinding(scope, aliasNode.name, path);
@@ -516,7 +522,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
       // the alias name activates pattern-LHS pairing (`[A] = [Iterator]`) in the enumerator -
       // adapter binding wrappers do not all surface the bound identifier
       for (const rhs of reassignmentValueNodes({
-        binding, usagePath: path, name: aliasNode.name, ctx: { scope, adapter, path, resolveKey },
+        binding, usagePath: path, name: aliasNode.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
       })) {
         const value = resolve(rhs);
         if (value) values.push(value);
@@ -528,9 +534,11 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
       // the underlying binding's reachable reassignments. `seen` guards alias cycles
       const init = unwrapParens(binding.node?.init);
       if (init?.type === 'Identifier' && init.name !== aliasNode.name && !seen?.has(init.name)) {
+        // anchor the transitive source's reachable values at THIS hop's read site (the init), so a
+        // write to the source AFTER `const M = M0` does not enter the union (`M` captured M0 earlier)
         values.push(...reachableAliasValues({
           aliasNode: init, primary: null, resolve, scope, adapter, path,
-          seen: new Set(seen).add(aliasNode.name),
+          seen: new Set(seen).add(aliasNode.name), usageNode: init,
         }));
       }
     }
@@ -545,7 +553,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
       // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
       // patternSlotValues - the Identifier-receiver branch above passes it for the same reason
       for (const rhs of reassignmentValueNodes({
-        binding, usagePath: path, name: callee.name, ctx: { scope, adapter, path, resolveKey },
+        binding, usagePath: path, name: callee.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
       })) {
         const fn = unwrapParens(rhs);
         if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
@@ -707,7 +715,7 @@ function isProxyGlobalIdentifier({ node, scope, adapter, seen, path }) {
   return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
-export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false }) {
+export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
   if (depth > MAX_KEY_DEPTH) return null;
   // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
   // binding inits; Babel strips them. unwrap up front so the identifier-alias and
@@ -744,7 +752,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // trip the cycle guard after the first interpolation mutates a shared Set.
         // mirrors the fork pattern in the BinaryExpression `+` branch below
         const part = resolveKey({
-          node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+          node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
         });
         if (part === null) return null;
         out += part;
@@ -756,7 +764,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   // (`polyfillHint` in-place mutation / `core-js/.../symbol/X` import, incl. user-aliased
   // polyfill packages from `additionalPackages`)
   if (node.type === 'Identifier' && computed) {
-    const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
+    const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path, usageNode });
     if (entry) {
       if (entry.init) {
         // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
@@ -769,12 +777,12 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
         // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
         // become the primary key; fall through to the init when no such value is determinable
-        const reaching = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope });
+        const reaching = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode });
         if (reaching) return resolveKey({
-          node: reaching, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
+          node: reaching, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1, usageNode: reaching,
         });
         return resolveKey({
-          node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
+          node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1, usageNode: entry.init,
         });
       }
       const key = bindingSymbolKey(entry.binding, adapter.packages);
@@ -785,9 +793,9 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
       // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
       const binding = adapter.getBinding(scope, node.name, path);
       const reaching = binding && isReassignedBeyondDeclarator(binding)
-        ? reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey } }) : null;
+        ? reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode }) : null;
       if (reaching) return resolveKey({
-        node: reaching, computed: true, scope, adapter, seen: new Set(seen).add(node.name), path, depth: depth + 1,
+        node: reaching, computed: true, scope, adapter, seen: new Set(seen).add(node.name), path, depth: depth + 1, usageNode: reaching,
       });
     }
   }
@@ -796,10 +804,10 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
     // cycle guard on the right branch after the left added `a` to the shared Set
     const left = resolveKey({
-      node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+      node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
     });
     const right = resolveKey({
-      node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+      node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
     });
     if (left !== null && right !== null) return left + right;
   }
@@ -815,7 +823,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) {
     const name = resolveKey({
-      node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+      node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
     });
     if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
   }
