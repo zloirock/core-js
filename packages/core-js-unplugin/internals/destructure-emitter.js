@@ -2178,7 +2178,7 @@ export function createDestructureEmitter({
     const objectPattern = metaPath.parent;
     const receiver = isSynthSimpleObjectPattern(objectPattern, { allowSideEffectComputedKeys: true })
       && computedKeysAllBound(objectPattern, metaPath.scope)
-      ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern, metaPath.scope, estreeAdapter) : null;
+      ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern, metaPath.scope, estreeAdapter, resolvePure) : null;
     if (!receiver) {
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
       // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
