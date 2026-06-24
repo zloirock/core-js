@@ -30,7 +30,7 @@ import {
   resolveFallbackReceiver,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
-import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { isUsableFallbackReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import { collectFallbackCollapseLeftSe, discardRescueNode, seBearingChainRootCall } from './members.js';
@@ -290,12 +290,12 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   let receiverNode = null;
   if (wrapperNode?.type === 'AssignmentPattern' && wrapperPath.parentPath?.node
       && FN_NODE_TYPES.has(wrapperPath.parentPath.node.type)) {
-    // AssignmentPattern is an IIFE param wrapper - prefer the call-arg over the default ONLY
-    // when it is a classifiable receiver; a non-classifiable arg (notably `undefined`, which
-    // makes the runtime apply the default) keeps the default so its branches are enumerated.
-    // mirrors the meta-build receiver choice in each plugin's detect-usage
+    // AssignmentPattern is an IIFE param wrapper - prefer the call-arg over the default when it is a
+    // usable fallback receiver (a classifiable single receiver OR a conditional / logical enumerated
+    // per-branch); a non-receiver arg (notably `undefined`, which makes the runtime apply the default)
+    // keeps the default. shared `isUsableFallbackReceiverArg` matches each plugin's usage-pure detect
     const desc = resolveFallbackReceiver(wrapperPath.parentPath, wrapperNode);
-    receiverNode = desc?.rhsNode && isClassifiableReceiverArg(desc.rhsNode, path.scope, adapter) ? desc.rhsNode : wrapperNode.right;
+    receiverNode = isUsableFallbackReceiverArg(desc?.rhsNode, path.scope, adapter) ? desc.rhsNode : wrapperNode.right;
   } else {
     const slot = destructureReceiverSlot(wrapperNode);
     if (slot) receiverNode = wrapperNode[slot];
