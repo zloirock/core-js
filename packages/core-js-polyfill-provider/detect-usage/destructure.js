@@ -275,7 +275,7 @@ function flattenFallbackBranches({ node, key, scope, adapter, path }) {
 // dispatch each branch's deps separately so `cond ? Array : Iterator` with `{from}` brings
 // in both `es.array.from` and `es.iterator.from` at file level. takes parser-agnostic path
 // API (uses .parentPath / .node / .scope) so both babel and estree-toolkit paths work
-export function enumerateFallbackDestructureBranches(meta, path, adapter) {
+export function enumerateFallbackDestructureBranches(meta, path, adapter, resolvePure = null) {
   if (!meta?.fromFallback || !path) return null;
   const objectPattern = path.parentPath?.node;
   // ObjectPattern's parent can be:
@@ -295,7 +295,9 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
     // per-branch); a non-receiver arg (notably `undefined`, which makes the runtime apply the default)
     // keeps the default. shared `isUsableFallbackReceiverArg` matches each plugin's usage-pure detect
     const desc = resolveFallbackReceiver(wrapperPath.parentPath, wrapperNode);
-    receiverNode = isUsableFallbackReceiverArg(desc?.rhsNode, path.scope, adapter) ? desc.rhsNode : wrapperNode.right;
+    receiverNode = chooseFallbackReceiverNode({
+      argNode: desc?.rhsNode, defaultNode: wrapperNode.right, objectPattern, scope: path.scope, adapter, path, resolvePure,
+    });
   } else {
     const slot = destructureReceiverSlot(wrapperNode);
     if (slot) receiverNode = wrapperNode[slot];
@@ -323,10 +325,61 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
 // non-instance resolution) so the gate and the registration cannot disagree on what "candidate" means.
 // single-sourced so both emitters share the gate (each calls it from its own synth-failure site)
 export function fallbackDestructureHasPolyfillableBranch(meta, path, adapter, resolvePure) {
-  return !!enumerateFallbackDestructureBranches(meta, path, adapter)?.some(branchMeta => {
+  return !!enumerateFallbackDestructureBranches(meta, path, adapter, resolvePure)?.some(branchMeta => {
     const pure = resolvePure(branchMeta);
     return pure && pure.kind !== 'instance';
   });
+}
+
+// extract static destructure key names, or null when any key is non-static (rest / spread / computed) -
+// then the dead-end determination below can't be certain and the default is kept
+function destructureStaticKeys(objectPattern) {
+  const props = objectPattern?.properties;
+  if (!props?.length) return null;
+  const keys = [];
+  for (const prop of props) {
+    if ((prop.type !== 'ObjectProperty' && prop.type !== 'Property') || prop.computed) return null;
+    const name = prop.key?.type === 'Identifier' ? prop.key.name
+      : prop.key?.type === 'StringLiteral' || prop.key?.type === 'Literal' ? prop.key.value : null;
+    if (name === null || name === undefined) return null;
+    keys.push(String(name));
+  }
+  return keys;
+}
+
+// does `node` (a fallback receiver) resolve to a viable - pure, non-instance - polyfill for `key`? mirrors
+// `fallbackDestructureHasPolyfillableBranch`'s per-branch viability so the dead-end decision shares the
+// SAME "carries a polyfill" notion the per-branch synth uses
+function nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure }) {
+  return flattenFallbackBranches({ node, key, scope, adapter, path })
+    .some(branchMeta => { const pure = resolvePure(branchMeta); return pure && pure.kind !== 'instance'; });
+}
+
+// a safe-access proxy-global IIFE call-arg (`globalThis.Array`) supersedes the wrapper param-default ONLY
+// when the default is a polyfill DEAD-END for every destructured key (`Object.from` resolves to nothing)
+// AND the arg itself carries a polyfill: then the live arg is the only receiver that polyfills. when the
+// default resolves a polyfill for some key it stays the synth target - it is the live fallback for the
+// undefined-arg runtime path (`globalThis.AsyncIterator` absent on the target -> default `Array` ->
+// `Array.from`). restricted to a (Optional)MemberExpression arg: bare Identifiers go through
+// `isClassifiableReceiverArg`, conditional / logical args through the per-branch synth, and an opaque or
+// inline-resolvable CALL arg must stay un-classifiable (synth-swapping it would DROP the call + its side
+// effects). shared by the meta layer and both emitters so detect and emit never disagree (which orphans)
+export function memberExprArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
+  if (!resolvePure || (argNode?.type !== 'MemberExpression' && argNode?.type !== 'OptionalMemberExpression')) return false;
+  const keys = destructureStaticKeys(objectPattern);
+  if (!keys) return false;
+  const yieldsAny = node => keys.some(key => nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure }));
+  return !yieldsAny(defaultNode) && yieldsAny(argNode);
+}
+
+// the IIFE-param fallback receiver choice, single-sourced across the meta layer and both emitters: a
+// classifiable arg (or per-branch conditional / logical) wins; else a safe-access proxy-global arg wins
+// over a polyfill-DEAD-END default; else the default. `objectPattern` + `resolvePure` may be omitted by
+// callers that can't supply them - then only the classifiable-arg rule applies (legacy behaviour)
+export function chooseFallbackReceiverNode({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
+  if (isUsableFallbackReceiverArg(argNode, scope, adapter)) return argNode;
+  if (memberExprArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure })) return argNode;
+  return defaultNode;
 }
 
 // Single source of truth for HOW a polyfillable destructure prop whose computed key has a side effect

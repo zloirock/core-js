@@ -30,7 +30,11 @@ import {
   markSynthReceiverSkipped,
   memberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
-import { classifyCallBranchForSynth, isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  classifyCallBranchForSynth,
+  isViableBranchForKey,
+  memberExprArgSupersedesDeadDefault,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   collectFallbackCollapseLeftSe,
   resolveCallRootedProxyCollapse,
@@ -136,6 +140,12 @@ export default function createSynthSwapEmitter({
       // (Array)`) - synthesising onto the dead default would leave the live caller-arg native
       const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
       if (argPath && isClassifiableReceiverArg(argPath.node, argPath.scope, adapter)) return argPath;
+      // a safe-access proxy-global member-expr arg (`globalThis.Array`) supersedes the default when the
+      // default is a polyfill dead-end for the keys - mirrors the meta layer's `chooseFallbackReceiverNode`
+      if (argPath && memberExprArgSupersedesDeadDefault({
+        argNode: argPath.node, defaultNode: rightPath.node, objectPattern: objectPattern.node,
+        scope: argPath.scope, adapter, path: argPath, resolvePure,
+      })) return argPath;
       // a fallback-shaped default (`Array || Iterator`, `Array ?? Iterator`) resolves its meta
       // through the LEFT branch (detection peels fallback wrappers deterministically), so the
       // synth replaces the WHOLE expression with the literal - the same left-collapse the
