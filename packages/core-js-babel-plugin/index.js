@@ -848,8 +848,6 @@ export default function plugin(api, options) {
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
-        // shared mutated-key enrichment: see `enrichMutatedStatics` for the model
-        enrichMutatedStatics({ mutatedStatics, resolvePure: resolvePureUnfiltered, injectPureImport });
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
         // `directives === true` signals `disable-file` - collapse both skip sources into one write.
@@ -895,6 +893,12 @@ export default function plugin(api, options) {
               if (keptCallee) stmt.get('expression').replaceWith(t.cloneNode(keptCallee));
               else stmt.remove();
             }
+          }
+          // mutated-key enrichment runs AFTER the scan registers the user's existing pure imports, so
+          // `injectPureImport` dedups a mutated key against a same-entry user import instead of emitting
+          // a duplicate (scan-before-enrich, mirroring unplugin). pure-only: it pins pure entries
+          if (method === 'usage-pure') {
+            enrichMutatedStatics({ mutatedStatics, resolvePure: resolvePureUnfiltered, injectPureImport });
           }
         }
       }
