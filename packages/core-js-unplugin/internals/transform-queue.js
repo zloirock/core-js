@@ -755,6 +755,8 @@ export default class TransformQueue {
     // them). the sort is for the guard; #composeEntries re-sorts inRange by logical span below
     this.#sortAndAssertNoPartialOverlap(inRange);
     const { composed, composedContent } = this.#composeEntries(inRange);
+    // no `emitSegments`: this drain path bakes splices into a relocated STRING (`spliceInRange`), which has
+    // no per-character sourcemap for split halves to refine - segments would be computed then discarded
     const splices = this.#outermostComposed(composed, composedContent);
     // peer-aware drain: logical-within membership already admits split halves only in pairs,
     // and #dropEntryAndPeer is idempotent on an already-removed entry, so dropping via the peer
@@ -879,8 +881,16 @@ export default class TransformQueue {
     const { composed, composedContent } = this.#composeEntries(transforms);
     // phase 2: overwrite outermost transforms only (split prefix owns its full logical range;
     // its suffix peer was excluded from `composed` via the role==='suffix' skip in phase 1)
-    for (const { start, end, content } of this.#outermostComposed(composed, composedContent)) {
-      this.#ms.overwrite(start, end, content);
+    for (const splice of this.#outermostComposed(composed, composedContent, true)) {
+      const { start, end, content, segments } = splice;
+      if (segments) {
+        // each segment is a source-adjacent run, so every split's suffix maps to its own columns (the
+        // `?.call` to the `.at?.(` site, not the receiver) - the nested generalization of addSplit's
+        // fast-path two-overwrite, also restoring folded inner splits in double-nested optional chains
+        for (const seg of segments) this.#ms.overwrite(seg.srcStart, seg.srcEnd, seg.content);
+      } else {
+        this.#ms.overwrite(start, end, content);
+      }
     }
   }
 
@@ -915,8 +925,9 @@ export default class TransformQueue {
   // whose logical range is swallowed by an earlier-starting wider sibling) as ordered, disjoint
   // { start, end, content } splices. shared by `#applyComposed` (overwrites each onto the
   // magic-string) and `composeAndDrainRange` (bakes them into relocated text). a split prefix
-  // overwrites its FULL logical range; its suffix peer was already excluded in phase 1
-  #outermostComposed(composed, composedContent) {
+  // overwrites its FULL logical range; its suffix peer was already excluded in phase 1.
+  // `emitSegments` is set only by the overwrite path - the relocated-string path has no per-character map
+  #outermostComposed(composed, composedContent, emitSegments = false) {
     // tiebreak by LOGICAL end - the swallow check below compares logical spans, and a split
     // prefix's physical end understates its range: sorting it after a same-start non-split
     // sibling would emit BOTH splices (overlapping) instead of swallowing the narrower one
@@ -926,18 +937,61 @@ export default class TransformQueue {
     for (const t of composed) {
       const tEnd = entryLogicalEnd(t);
       if (tEnd > maxEnd) {
-        // KNOWN LIMITATION (sourcemap precision, output is correct): a split that reaches the compose
-        // path (i.e. it is NESTED - either holding inners or folded into a wider outer) emits ONE
-        // overwrite over its full logical range, so its prefix/suffix halves no longer map to distinct
-        // source columns the way `addSplit`'s fast-path two-overwrite emission does. restoring per-half
-        // precision needs `#composeOne` / `#substituteInners` to track the substitution-adjusted half
-        // boundary inside the composed string - a high-risk change to the needle-substitution engine
-        // for a precision-only gain on a rare path; deliberately left as a known limitation
-        splices.push({ start: t.start, end: tEnd, content: composedContent.get(t) ?? t.content });
+        const content = composedContent.get(t) ?? t.content;
+        const splice = { start: t.start, end: tEnd, content };
+        // per-half sourcemap precision: EVERY split whose logical range sits within [t.start, tEnd) -
+        // the outermost split AND any folded inner ones (double-nested optional chains) - has a verbatim
+        // suffix that must map to its OWN `[mid, end)` source range, not the receiver's. `#splitSegments`
+        // locates each suffix in the composed string and partitions it into source-adjacent segments so
+        // `#applyComposed` overwrites each half against its real columns (like addSplit's fast path).
+        // null on any unmet assumption -> the single overwrite (correct output, coarse map). skipped on the
+        // relocated-string path, which bakes the splice whole and has no per-character map to refine
+        if (emitSegments) {
+          const segments = this.#splitSegments(t, tEnd, content);
+          if (segments) splice.segments = segments;
+        }
+        splices.push(splice);
         maxEnd = tEnd;
       }
     }
     return splices;
+  }
+
+  // partition a composed split string into source-adjacent `{ srcStart, srcEnd, content }` segments so
+  // each split's suffix maps to its OWN `[mid, end)` columns instead of the receiver's. collects every
+  // split (the outermost `t` plus any folded inner ones) whose logical range sits within `[t.start, tEnd)`
+  // and locates each suffix by its raw `peer.content` (unique in the composed string - its memo `_ref` is
+  // per-split). a suffix is verbatim only when its `[mid, end)` source carries no transforms; a suffix
+  // whose ARG got composed (an optional call on a polyfilled argument) no longer matches its raw content,
+  // so `indexOf` misses and the whole partition returns null - the caller falls back to one overwrite
+  // (correct output, coarse map for that rarer transformed-suffix shape). same null on overlap or segments
+  // that do not reconstruct the content. when all suffixes are verbatim they sort by source mid into
+  // adjacent prefix/suffix runs that tile the composed string exactly
+  #splitSegments(t, tEnd, content) {
+    const suffixes = [];
+    for (const e of this.#sorted) {
+      if (e.splitInfo?.role !== 'prefix' || e.start < t.start || entryLogicalEnd(e) > tEnd) continue;
+      const suffix = e.splitInfo.peer.content;
+      const pos = content.indexOf(suffix);
+      if (pos === -1) return null;
+      suffixes.push({ srcMid: e.end, srcEnd: entryLogicalEnd(e), contentStart: pos, contentEnd: pos + suffix.length });
+    }
+    if (!suffixes.length) return null;
+    suffixes.sort((a, b) => a.srcMid - b.srcMid);
+    const segments = [];
+    let srcCur = t.start;
+    let contentCur = 0;
+    for (const s of suffixes) {
+      if (s.srcMid < srcCur || s.contentStart < contentCur) return null;
+      if (s.srcMid > srcCur) segments.push({ srcStart: srcCur, srcEnd: s.srcMid, content: content.slice(contentCur, s.contentStart) });
+      segments.push({ srcStart: s.srcMid, srcEnd: s.srcEnd, content: content.slice(s.contentStart, s.contentEnd) });
+      srcCur = s.srcEnd;
+      contentCur = s.contentEnd;
+    }
+    if (srcCur < tEnd) segments.push({ srcStart: srcCur, srcEnd: tEnd, content: content.slice(contentCur) });
+    // a mis-located / partial suffix would corrupt output - require the segments to reconstruct it exactly
+    if (segments.reduce((acc, s) => acc + s.content, '') !== content) return null;
+    return segments;
   }
 
   // compose a single transform `t` with its inners + dups. returns the composed content
