@@ -80,8 +80,12 @@ export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path 
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
   const hop = receiver.object;
   if (hop?.type !== 'MemberExpression' && hop?.type !== 'OptionalMemberExpression') return null;
-  // the whole `.object` must be a proxy navigation (`<call>.self` / `.window`): a non-proxy hop -> null
-  if (!resolveObjectName({ objectNode: hop, scope, adapter, path })) return null;
+  // the immediate hop must be a proxy navigation (`<call>.self` / `.window`): its own leaf key has to
+  // be a proxy-global name. `resolveObjectName(hop)` is too weak - it returns truthy for a real ctor
+  // leaf (`<root>.self.Map` resolves `'Map'`), wrongly accepting `globalThis.self.Map.prototype` as
+  // proxy navigation and dropping `Map` to `_globalThis.prototype` (undefined off-engine)
+  const hopKey = resolveKey({ node: hop.property, computed: hop.computed, scope, adapter, path });
+  if (!hopKey || !POSSIBLE_GLOBAL_OBJECTS.has(hopKey)) return null;
   // resolve the CHAIN ROOT global, matching the Identifier collapse which substitutes the ROOT (not the
   // leaf hop): walk past the proxy hops to the call and resolve it by inlining. `.window` / `.self` chains
   // alike then read off the always-pure `_globalThis`, where the leaf-hop `window` may carry no pure entry
