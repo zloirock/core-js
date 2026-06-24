@@ -44,7 +44,7 @@ import {
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isClassifiableReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isUsableFallbackReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
 // --- isReferenced ---
@@ -729,7 +729,10 @@ export function createUsageVisitors({
         // through to the array/property inner-default cases below, which peel it to the real host
         if (isFunctionParamDestructureParent(objectPattern) && !isInnerDestructureDefault(parent)) {
           const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
-          initNode = isClassifiableReceiverArg(argNode, scope, adapter) ? argNode : parent.node.right;
+          // caller-arg wins over the dead default when it is a usable fallback receiver (classifiable, or
+          // a conditional / logical enumerated per-branch); a non-receiver arg (notably `undefined`, where
+          // the runtime applies the default) keeps the default. shared predicate with babel detect-usage
+          initNode = isUsableFallbackReceiverArg(argNode, scope, adapter) ? argNode : parent.node.right;
           break;
         }
         // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
