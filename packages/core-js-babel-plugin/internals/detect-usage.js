@@ -1,5 +1,6 @@
 import {
   buildDestructuringInitMeta,
+  chooseFallbackReceiverNode,
   isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
@@ -34,7 +35,7 @@ import {
   resolveCallArgument,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isUsableFallbackReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -207,6 +208,7 @@ export function createUsageVisitors({
   onUsage,
   onWarning,
   resolveMeta,
+  resolvePure = null,
   resolvedType,
   suppressProxyGlobals = false,
   toHint,
@@ -364,10 +366,13 @@ export function createUsageVisitors({
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
       const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
-      // caller-arg wins over the dead default when it is a usable fallback receiver (classifiable, or a
-      // conditional / logical enumerated per-branch); a non-receiver arg (notably `undefined`, where the
-      // runtime applies the default) keeps the default
-      const receiverNode = isUsableFallbackReceiverArg(argNode, parent.scope, adapter) ? argNode : parent.node.right;
+      // caller-arg wins over the default when it is a usable fallback receiver (classifiable, or a
+      // conditional / logical enumerated per-branch), OR a safe-access proxy-global member-expr whose
+      // default is a polyfill dead-end; a non-receiver arg (notably `undefined`, where the runtime
+      // applies the default) keeps the default. single-sourced chooser shared with unplugin + the emitters
+      const receiverNode = chooseFallbackReceiverNode({
+        argNode, defaultNode: parent.node.right, objectPattern: parent.node.left, scope: parent.scope, adapter, path, resolvePure,
+      });
       const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
       if (meta) onUsage(meta, path);
       return;

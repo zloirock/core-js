@@ -750,7 +750,7 @@ export default function createPlugin(options) {
           isInheritedStaticLookup,
           isInStaticContext,
           isShadowedByClassOwnMember,
-          enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, estreeAdapter),
+          enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, estreeAdapter, resolvePure),
         });
 
         const usageVisitors = createUsageVisitors({
@@ -759,6 +759,7 @@ export default function createPlugin(options) {
           onWarning: msg => debugOutput?.warn(msg),
           method,
           isEntryAvailable: isEntryNeeded,
+          resolvePure,
         });
         const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
@@ -1165,6 +1166,7 @@ export default function createPlugin(options) {
           walkAnnotations: false,
           isEntryAvailable: isEntryNeeded,
           resolveMeta: resolvePure,
+          resolvePure,
         }));
         traverse(ast, trackReferences ? mergeVisitors(usageVisitors, {
           Identifier(path) { injector.trackReferencedName(path.node.name); },
