@@ -10,7 +10,10 @@ import {
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
 } from '@core-js/polyfill-provider/helpers/class-walk';
-import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  canTransformDestructuring as sharedCanTransformDestructuring,
+  memberExprArgSupersedesDeadDefault,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
 
 // intermediate slots permitted on the walk from an inner Property up to a destructure host.
 // AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) - proxy-global
@@ -101,7 +104,7 @@ function detectIifeArgReceiver(wrapperPath, objectPattern) {
 // caller-arg replaces wrapper-default ONLY when statically classifiable (Identifier).
 // for non-Identifier caller-arg, wrapper-default remains the synth target so the
 // runtime fallback path carries the polyfill
-export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter) {
+export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter, resolvePure = null) {
   if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
   const wrapper = wrapperPath?.node;
   if (wrapper?.type === 'AssignmentPattern' && wrapper.left === objectPattern) {
@@ -122,6 +125,11 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // inline default even though the live receiver was statically known
     const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
     if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
+    // a safe-access proxy-global member-expr arg (`globalThis.Array`) supersedes the default when the
+    // default is a polyfill dead-end for the keys - mirrors the meta layer's `chooseFallbackReceiverNode`
+    if (memberExprArgSupersedesDeadDefault({
+      argNode: argReceiver, defaultNode: peeled, objectPattern, scope, adapter, path: wrapperPath, resolvePure,
+    })) return argReceiver;
     // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
     // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out
     const fallbackCollapse = peeled?.type === 'LogicalExpression' && peeled.operator !== '&&'

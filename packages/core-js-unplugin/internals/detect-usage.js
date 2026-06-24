@@ -1,6 +1,7 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
 import {
   buildDestructuringInitMeta,
+  chooseFallbackReceiverNode,
   isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
@@ -44,7 +45,7 @@ import {
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isUsableFallbackReceiverArg, isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
 // --- isReferenced ---
@@ -672,7 +673,7 @@ function isJsxMemberRoot(path) {
 
 export function createUsageVisitors({
   adapter, onUsage, onWarning, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
-  resolveMeta,
+  resolveMeta, resolvePure = null,
 }) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
@@ -729,10 +730,13 @@ export function createUsageVisitors({
         // through to the array/property inner-default cases below, which peel it to the real host
         if (isFunctionParamDestructureParent(objectPattern) && !isInnerDestructureDefault(parent)) {
           const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
-          // caller-arg wins over the dead default when it is a usable fallback receiver (classifiable, or
-          // a conditional / logical enumerated per-branch); a non-receiver arg (notably `undefined`, where
-          // the runtime applies the default) keeps the default. shared predicate with babel detect-usage
-          initNode = isUsableFallbackReceiverArg(argNode, scope, adapter) ? argNode : parent.node.right;
+          // caller-arg wins over the default when it is a usable fallback receiver (classifiable, or a
+          // conditional / logical enumerated per-branch), OR a safe-access proxy-global member-expr whose
+          // default is a polyfill dead-end; a non-receiver arg (notably `undefined`, where the runtime
+          // applies the default) keeps the default. single-sourced chooser shared with babel + the emitters
+          initNode = chooseFallbackReceiverNode({
+            argNode, defaultNode: parent.node.right, objectPattern: objectPattern.node, scope, adapter, path: parent, resolvePure,
+          });
           break;
         }
         // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
