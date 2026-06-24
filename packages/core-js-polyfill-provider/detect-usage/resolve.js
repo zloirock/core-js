@@ -986,6 +986,23 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null) {
   return prefix;
 }
 
+// the pure CONSTRUCTOR a per-branch synth's passthrough receiver collapses to when the receiver is a
+// proxy-global member whose object is the FULL proxy navigation and whose LEAF is a polyfillable global
+// constructor (`globalThis.Map` / `globalThis.self.Map` -> the Map pure ctor). the whole receiver swaps to
+// that pure ctor, so an unpolyfilled sibling key reads off it (`_Map.foo`), matching the nested partial-
+// mirror canon. a non-ctor leaf (`globalThis.Math`) returns null, leaving the proxy-root collapse
+// (`_globalThis.Math.x`). shared by both synth-swap emitters so their per-branch receiver agrees
+export function proxyGlobalMemberCtorPure({ receiver, aliasCtx = null, resolvePure }) {
+  if (!aliasCtx) return null;
+  // the canonical proxy-member walk returns the LEAF key (peeling intermediate proxy hops AND a
+  // call-rooted IIFE - `(() => globalThis)().Map` -> 'Map'), so it covers every navigation shape and
+  // never over-walks a leaf that is itself in POSSIBLE_GLOBAL_OBJECTS
+  const leaf = globalProxyMemberName({ node: receiver, ...aliasCtx });
+  if (!leaf) return null;
+  const pure = resolvePure({ kind: 'global', name: leaf });
+  return pure && pure.kind !== 'instance' ? pure : null;
+}
+
 // the maximal proxy-global prefix WHEN it spans at least one intermediate proxy hop
 // (`globalThis.self` in `globalThis.self.Array`), else null. a bare root is an Identifier; an
 // absorbed hop makes the prefix a member expression. distinguishes a chain whose collapse
