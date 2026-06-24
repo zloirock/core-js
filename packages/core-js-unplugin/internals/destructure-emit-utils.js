@@ -12,7 +12,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
-  memberExprArgSupersedesDeadDefault,
+  resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 
 // intermediate slots permitted on the walk from an inner Property up to a destructure host.
@@ -100,10 +100,10 @@ function detectIifeArgReceiver(wrapperPath, objectPattern) {
 // receiver node to swap; null means inline-default fallback. handles
 // `function({p} = R)` (AssignmentPattern.right) and arrow IIFE `(({p}) => body)(R)`
 // (call-arg node, expanding inline-array spreads).
-// mirrors babel-plugin's `findTargetPath` and the resolution-layer narrowing:
-// caller-arg replaces wrapper-default ONLY when statically classifiable (Identifier).
-// for non-Identifier caller-arg, wrapper-default remains the synth target so the
-// runtime fallback path carries the polyfill
+// mirrors babel-plugin's `findTargetPath` and the resolution-layer choice: a classifiable
+// bare-Identifier caller-arg wins first; then a RESOLVABLE non-Identifier arg (proxy-global
+// member, inline-resolvable call) wins over a polyfill-DEAD-END default via
+// `resolvableArgSupersedesDeadDefault`; otherwise the wrapper-default stays the synth target
 export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter, resolvePure = null) {
   if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
   const wrapper = wrapperPath?.node;
@@ -125,9 +125,9 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // inline default even though the live receiver was statically known
     const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
     if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
-    // a safe-access proxy-global member-expr arg (`globalThis.Array`) supersedes the default when the
-    // default is a polyfill dead-end for the keys - mirrors the meta layer's `chooseFallbackReceiverNode`
-    if (memberExprArgSupersedesDeadDefault({
+    // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
+    // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
+    if (resolvableArgSupersedesDeadDefault({
       argNode: argReceiver, defaultNode: peeled, objectPattern, scope, adapter, path: wrapperPath, resolvePure,
     })) return argReceiver;
     // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
