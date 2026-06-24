@@ -175,6 +175,59 @@ function * generateDestructureAlias() {
   }
 }
 
+// --- IIFE destructure-param default with a WINNING call-arg (caller-args-must-win) ---
+// `(({ from } = Number) => typeof from)(<arg>)`: the live call-arg supersedes the param-default. the
+// default `Number` is a polyfill DEAD-END, so whenever the arg STATICALLY RESOLVES to a constructor
+// carrying the destructured static, that static is injected onto the synth and the binding is a function.
+// the resolution mechanic is method-AGNOSTIC - it branches on the call-arg's AST SHAPE and the wrapper
+// FORM, never on WHICH static is destructured (the method name is pass-through data handed to `resolvePure`).
+// so the meaningful axes are HOST x ARG-SHAPE; per-method injection + strip coverage is the method-grammar's
+// job, and one strippable representative receiver (Array, carrying `from` + `of` for the multi-key fanout)
+// stands in for all. hosts are the two IIFE wrapper forms `detectIifeArgPath` accepts (arrow, function-
+// expression). arg shapes exercise each resolution path: bare Identifier, a proxy-global member, a deeper
+// proxy hop, an inline-resolvable call, an SE-sequence tail, a per-branch conditional. KEY-SET adds the
+// single- vs multi-key synth fanout. Array.from/of are strippable so the stripped realm is load-bearing - a
+// missed injection leaves a native static absent there, flipping `typeof` from `'function'` to `'undefined'`.
+// this root is shared by both emitters, so import-set parity can't catch a regression alone (both miss
+// together) - the stripped realm is the only oracle. seed-verified: neutering `resolvableArgSupersedes-
+// DeadDefault` fails the member/hop/call cases (12); restricting it to member-exprs fails only the call
+// cases (4 - the original missed-polyfill regression); ident + seq route through `isClassifiableReceiverArg`
+// (the SE-tail peels to an Identifier) and the conditional through the per-branch synth - each arg shape
+// locks a distinct resolution path, and each host independently exercises `detectIifeArgPath`. (a call arg's
+// SE rescue ahead of the synth literal is runtime-NEUTRAL so off-signal here - locked by the
+// audit-iife-param-call-arg-injects-resolvable fixture instead)
+const FA_ARG_SHAPES = [
+  { id: 'ident', arg: 'Array' },
+  { id: 'member', arg: 'globalThis.Array' },
+  { id: 'hop', arg: 'globalThis.globalThis.Array' },
+  { id: 'call', arg: '(() => Array)()' },
+  { id: 'seq', arg: '(log.push("e"), Array)' },
+  { id: 'conditional', arg: 'cond ? Array : Boolean' },
+];
+// the dead default must miss EVERY key; the single resolved receiver carries them all
+const FA_KEY_SETS = [
+  { id: 'single', keys: ['from'] },
+  { id: 'multi', keys: ['from', 'of'] },
+];
+// the two IIFE wrapper forms - both routed through `detectIifeArgPath` to locate the winning call-arg
+const FA_HOSTS = [
+  { id: 'arrow', wrap: (params, body, arg) => `(({ ${ params } } = Number) => ${ body })(${ arg })` },
+  { id: 'fn-expr', wrap: (params, body, arg) => `(function ({ ${ params } } = Number) { return ${ body }; })(${ arg })` },
+];
+function * generateFallbackArg() {
+  for (const host of FA_HOSTS) {
+    for (const shape of FA_ARG_SHAPES) {
+      for (const { id, keys } of FA_KEY_SETS) {
+        const obs = keys.length === 1
+          ? `typeof ${ keys[0] }`
+          : `[${ keys.map(k => `typeof ${ k }`).join(', ') }]`;
+        const body = host.wrap(keys.join(', '), obs, shape.arg);
+        yield { ...snippet(`fallback-arg/${ host.id }/${ id }/${ shape.id }`, body), strip: true };
+      }
+    }
+  }
+}
+
 // --- Proxy-global full-consume from a side-effecting receiver ---
 // a full-consume proxy-global destructure (every binding resolves to a proxy-global static /
 // constructor) off a receiver wrapped in a side-effecting SequenceExpression. the emitter drops the
@@ -1807,6 +1860,7 @@ export function * generate() {
   yield * generateGrammar();
   yield * generateDestructure();
   yield * generateDestructureAlias();
+  yield * generateFallbackArg();
   yield * generateProxyGlobalSEReceiver();
   yield * generateSynthSwapSeqReceiver();
   yield * generateNestedMirrorMixed();
