@@ -14,8 +14,14 @@ export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.ty
 // spec (any string-literal statement extends it), so a following `'use strict'` is still
 // active - a length gate here stopped the prologue scan early and anchored injected imports
 // AHEAD of the strict directive
-export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
-  && (typeof node.directive === 'string' || typeof node.expression?.directive === 'string');
+// the directive string of a directive-prologue node, read from EITHER shape - the marker on the
+// statement (`node.directive`, oxc / babel real directives) or on the inner StringLiteral / Literal
+// (`node.expression.directive`, sibling-plugin synth re-emit) - else null. one extractor so every
+// directive VALUE read (`=== 'use strict'`) and the boolean classifier agree on both shapes
+export const directiveValue = node => typeof node?.directive === 'string' ? node.directive
+  : typeof node?.expression?.directive === 'string' ? node.expression.directive : null;
+
+export const isDirectiveStatement = node => node?.type === 'ExpressionStatement' && directiveValue(node) !== null;
 
 // indirect-require call: `require('m')`, `require?.('m')` (optional), `require('m').default`
 // (MemberExpression tail), `(0, require)('m')` / `((0, require))('m')` (SequenceExpression callee).
@@ -745,7 +751,7 @@ function nodeHasUseStrict(node) {
   if (Array.isArray(body)) {
     for (const stmt of body) {
       if (!isDirectiveStatement(stmt)) break;
-      if (stmt.directive === 'use strict') return true;
+      if (directiveValue(stmt) === 'use strict') return true;
     }
   }
   return false;
