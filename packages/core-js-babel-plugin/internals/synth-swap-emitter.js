@@ -37,7 +37,8 @@ import {
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix, PROXY_HOP_VALUE_CARRIERS, resolveSynthKeys,
+  findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix, PROXY_HOP_VALUE_CARRIERS,
+  proxyGlobalMemberCtorPure, resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
@@ -404,6 +405,12 @@ export default function createSynthSwapEmitter({
       // a memo param (call-branch) replaces every receiver read - cloning the call would re-run it
       if (memoParam) return receiverRef = memoParam;
       if (isPolyfillableGlobal) return receiverRef = injectPureImport(receiverPure.entry, receiverPure.hintName);
+      // a proxy-global member with a pure-CTOR leaf (`globalThis.Map`) whole-swaps to the pure ctor, so
+      // an unpolyfilled sibling reads off it (`_Map.foo`) - the nested partial-mirror canon. without this
+      // the re-traverse of the raw receiver collapses inconsistently per chain depth (and diverges from
+      // unplugin); a non-ctor leaf falls through to the proxy-root collapse below
+      const ctorPure = proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx, resolvePure });
+      if (ctorPure) return receiverRef = injectPureImport(ctorPure.entry, ctorPure.hintName);
       return receiverRef = collapseProxyGlobalReceiver(readReceiver, aliasCtx) ?? readReceiver;
     }
 
