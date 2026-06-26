@@ -249,8 +249,12 @@ export function createMemberResolve({
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
     // peel TSParenthesizedType so a method call on a parenthesized union / intersection branch
     // (`(A | B).m()`, `A & (B)`) resolves through the branch instead of bailing on the wrapper
-    const peelBranch = branch => applySubst(peelTSParenthesized(unwrapTypeAnnotation(branch)), subst);
-    const recurse = peeled => resolveMemberCallReturn({ annotation: peeled, name, scope, resolve, depth: depth + 1, callPath });
+    function peelBranch(branch) {
+      return applySubst(peelTSParenthesized(unwrapTypeAnnotation(branch)), subst);
+    }
+    function recurse(peeled) {
+      return resolveMemberCallReturn({ annotation: peeled, name, scope, resolve, depth: depth + 1, callPath });
+    }
     if (isUnionType(aliased)) {
       let result = null;
       for (const branch of aliased.types) {
@@ -377,10 +381,10 @@ export function createMemberResolve({
     // lexically references an unrelated outer `type A` - the chain builder is capture-avoiding and
     // gates defaults, so the member type's own default resolves in its decl scope instead
     let defaultMap;
-    const resolve = p => {
+    function resolve(p) {
       if (defaultMap === undefined) defaultMap = followTypeAliasChain(annotation, scope).subst;
       return defaultMap ? substituteTypeParams(p, defaultMap, scope, 0) : resolveTypeAnnotation(p, scope);
-    };
+    }
     // property access (not a call): delegate to findTypeMember
     if (!callPath) {
       const memberType = findTypeMember({ objectType: annotation, key: name, scope });
@@ -459,7 +463,9 @@ export function createMemberResolve({
     const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
     const target = aliased ?? unwrapped;
     const keyKind = indexAccessKeyKind(path);
-    const lookup = typeNode => resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind);
+    function lookup(typeNode) {
+      return resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind);
+    }
     const info = isUnionType(target)
       ? target.types
         .map(b => applySubst(unwrapTypeAnnotation(b), subst))

@@ -133,9 +133,9 @@ QUnit.test('user method chain: a?.b?.().at(0)', assert => {
 
 // polyfillable instance method inside the chain + non-optional outer polyfill
 QUnit.test('poly chain with side-effect receiver: (a())?.at?.(1).slice(0)', assert => {
-  const nil = () => null;
+  function nil() { return null; }
   assert.same(nil()?.at?.(1).slice(0), undefined);
-  const arr = () => [[1], [2], [3]];
+  function arr() { return [[1], [2], [3]]; }
   assert.deepEqual(arr()?.at?.(1).slice(0), [2]);
 });
 
@@ -159,9 +159,9 @@ QUnit.test('poly chain both optional: arr.at?.(i)?.slice(0)', assert => {
 
 // side-effect receiver + polyfill chain + polyfill outer
 QUnit.test('poly chain: a()?.flat?.(1).at(0)', assert => {
-  const nil = () => null;
+  function nil() { return null; }
   assert.same(nil()?.flat?.(1).at(0), undefined);
-  const nested = () => [[1], [2]];
+  function nested() { return [[1], [2]]; }
   assert.same(nested()?.flat?.(1).at(0), 1);
 });
 
@@ -175,7 +175,9 @@ QUnit.test('deep user chain: a?.b?.c?.().at(0)', assert => {
 });
 
 QUnit.test('optional: factory returning maybe-null array + .at / .includes chain', assert => {
-  const make = n => n > 0 ? [1, 2, 3] : null;
+  function make(n) {
+    return n > 0 ? [1, 2, 3] : null;
+  }
   assert.same(make(1)?.at(-1), 3);
   assert.same(make(0)?.at(-1), undefined);
   assert.same(make(1)?.includes?.(2), true);
@@ -231,13 +233,13 @@ QUnit.test('optional method call preserves this: obj.getArr?.().at(0)', assert =
 // side-effecting receiver: `this` preserved AND the receiver evaluated exactly once
 QUnit.test('optional method call: side-effect receiver once + this kept', assert => {
   let calls = 0;
-  const make = () => {
+  function make() {
     calls += 1;
     return {
       data: [7, 8, 9],
       getArr() { return this.data; },
     };
-  };
+  }
   assert.same(make().getArr?.().at(0), 7);
   assert.same(calls, 1);
 });
@@ -245,10 +247,10 @@ QUnit.test('optional method call: side-effect receiver once + this kept', assert
 // non-bare optional root + non-optional polyfilled hops: root memoized once, not re-read
 QUnit.test('optional non-bare root single-eval: getO()?.p.slice(1).flat(2)', assert => {
   let calls = 0;
-  const getO = () => {
+  function getO() {
     calls += 1;
     return { p: [[1], [2], [3]] };
-  };
+  }
   assert.deepEqual(getO()?.p.slice(1).flat(2), [2, 3]);
   assert.same(calls, 1);
   assert.same(null?.p.slice(1).flat(2), undefined);
@@ -259,14 +261,14 @@ QUnit.test('optional non-bare root single-eval: getO()?.p.slice(1).flat(2)', ass
 // the key effect. (was unplugin-only: key effect emitted ahead of the receiver memo)
 QUnit.test('optional combined chain: receiver evaluates before computed-key SE', assert => {
   const log = [];
-  const recv = () => {
+  function recv() {
     log.push('recv');
     return [[1]];
-  };
-  const key = () => {
+  }
+  function key() {
     log.push('key');
     return 'flat';
-  };
+  }
   // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
   const r = recv()[key(), 'flat']?.().map(x => x);
   assert.deepEqual(r, [1]);
@@ -333,19 +335,19 @@ QUnit.test('optional call on non-static member of polyfilled global short-circui
 // evaluate the receiver exactly once (not drop or double-run the side effect) and still short-circuit
 QUnit.test('optional call on non-static global member: side-effect receiver runs once', assert => {
   let calls = 0;
-  const recv = () => {
+  function recv() {
     calls += 1;
     return Promise;
-  };
+  }
   assert.same((recv(), Promise).noSuchStatic?.().includes(0), undefined);
   assert.same(calls, 1);
   // SE-tail proxy-global static receiver, multi-trailing: the static collapses while the leading
   // effect stays ahead in eval order and runs exactly once, then the chain short-circuits
   let seq = 0;
-  const bump = () => {
+  function bump() {
     seq += 1;
     return 0;
-  };
+  }
   // eslint-disable-next-line es/no-nonstandard-map-properties -- the missing static IS the case
   assert.same((bump(), globalThis).Map.notAMethod?.().flat().at(0), undefined);
   assert.same(seq, 1);

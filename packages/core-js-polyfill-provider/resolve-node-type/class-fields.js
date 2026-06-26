@@ -397,7 +397,9 @@ export function createClassFields({
         // static-field temporal narrow not yet modeled (any `<C>.<X>` use could be a deferred
         // call observing static state). bound = Infinity keeps the existing fold-all behavior.
         // predicate matches the base class binding OR any descendant class binding (`Sub.<field> = Y`)
-        const predicate = p => isReceiverInClosure(p, closure) || descendantClosures.some(c => isReceiverInClosure(p, c));
+        function predicate(p) {
+          return isReceiverInClosure(p, closure) || descendantClosures.some(c => isReceiverInClosure(p, c));
+        }
         foldExternalWrites({ fieldName, predicate, bound: Infinity, program, out: candidates });
       },
     });
@@ -452,7 +454,9 @@ export function createClassFields({
           if (sub === classPath) continue;
           appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates);
         }
-        const predicate = p => isReceiverInClosure(p, closure) || isReceiverNewOfClass(p, constructorNames);
+        function predicate(p) {
+          return isReceiverInClosure(p, closure) || isReceiverNewOfClass(p, constructorNames);
+        }
         foldExternalWrites({ fieldName, predicate, bound, program, out: candidates });
       },
     });
@@ -562,7 +566,7 @@ export function createClassFields({
   // would be skipped without the post-traverse root handle
   function buildThisWritesIndex(methodPaths) {
     const index = new Map();
-    const handle = p => {
+    function handle(p) {
       const target = memberWriteTargetPath(p).node;
       // accept both `this.<field>` and `super.<field>` LHS - in a subclass method
       // `super.field = Y` targets the BASE class's field slot. callers that aggregate
@@ -576,17 +580,17 @@ export function createClassFields({
       if (!types) index.set(fieldName, types = []);
       const contributed = writePathContributedType(p);
       if (contributed) types.push(contributed);
-    };
+    }
     // a destructuring-assignment LHS (`({ v: this.x } = src)`) or for-of/for-in head
     // (`for (this.x of it)`) writes `this.x` to an opaque destructure / iteration value, but the
     // member never appears as a bare assignment LHS. route each write-target member through
     // `handle` (its bare-member branch contributes `unknown`, widening the flow) so an internal
     // `this`-write in external write shape isn't silently dropped
-    const handleAssignment = p => {
+    function handleAssignment(p) {
       const leftType = p.node.left?.type;
       if (leftType === 'ObjectPattern' || leftType === 'ArrayPattern') forEachPatternWriteMember(p.get('left'), handle);
       else handle(p);
-    };
+    }
     // skip ANY function-shaped sub-tree whose body rebinds `this`: FunctionDeclaration /
     // Expression / ObjectMethod / class wrappers. nested ClassMethod / ClassPrivateMethod /
     // MethodDefinition are reached only through their enclosing Class node, which is

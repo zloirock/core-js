@@ -84,7 +84,9 @@ QUnit.test('syntax: class extends + super.from', assert => {
 // --- arrow + polyfill ---
 
 QUnit.test('syntax: arrow with default param polyfill', assert => {
-  const fn = (items = Array.from([1, 2, 3])) => items.filter(x => x > 1);
+  function fn(items = Array.from([1, 2, 3])) {
+    return items.filter(x => x > 1);
+  }
   assert.deepEqual(fn(), [2, 3]);
 });
 
@@ -180,7 +182,9 @@ QUnit.test('syntax: early return with polyfill in branches', assert => {
 });
 
 QUnit.test('syntax: arrow body with chained polyfills', assert => {
-  const fn = arr => arr.filter(x => x > 0).map(x => x * 2).at(-1);
+  function fn(arr) {
+    return arr.filter(x => x > 0).map(x => x * 2).at(-1);
+  }
   assert.same(fn([1, -2, 3]), 6);
 });
 
@@ -214,7 +218,9 @@ QUnit.test('syntax: optional chaining chain continuation', assert => {
 // --- nullish coalescing + polyfill ---
 
 QUnit.test('syntax: nullish coalescing fallback to polyfill', assert => {
-  const getItems = x => x ?? Array.from([1, 2, 3]);
+  function getItems(x) {
+    return x ?? Array.from([1, 2, 3]);
+  }
   assert.deepEqual(getItems(null), [1, 2, 3]);
   assert.deepEqual(getItems([4]), [4]);
 });
@@ -405,7 +411,9 @@ QUnit.test('syntax: optional chaining computed member', assert => {
 // --- optional chaining: call on result ---
 
 QUnit.test('syntax: optional chaining call + instance method', assert => {
-  const getData = () => [3, 1, 2];
+  function getData() {
+    return [3, 1, 2];
+  }
   assert.deepEqual(getData()?.toSorted(), [1, 2, 3]);
 });
 
