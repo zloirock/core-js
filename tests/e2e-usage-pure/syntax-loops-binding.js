@@ -61,10 +61,10 @@ QUnit.test('loop: chained-polyfill receiver in a loop body runs once per iterati
   let calls = 0;
   const out = [];
   for (let i = 0; i < 3; i += 1) {
-    const make = () => {
+    function make() {
       calls += 1;
       return [i, i + 1];
-    };
+    }
     out.push(make().at(-1));
   }
   assert.deepEqual(out, [1, 2, 3]);
@@ -160,15 +160,21 @@ QUnit.test('loop: swap via array-destructure preserves polyfilled values', asser
 // --- Recursion / mutual recursion carrying a polyfill at each level ---
 
 QUnit.test('loop: recursion accumulates via a polyfill at each level', assert => {
-  const flatten = node => Array.isArray(node)
-    ? node.flatMap(flatten)
-    : [node];
+  function flatten(node) {
+    return Array.isArray(node)
+      ? node.flatMap(flatten)
+      : [node];
+  }
   assert.deepEqual(flatten([1, [2, [3, 4]], 5]), [1, 2, 3, 4, 5]);
 });
 
 QUnit.test('loop: mutual recursion threads a polyfilled accumulator', assert => {
-  const isEven = n => n === 0 ? Array.of(true).at(0) : isOdd(n - 1);
-  const isOdd = n => n === 0 ? Array.of(false).at(0) : isEven(n - 1);
+  function isEven(n) {
+    return n === 0 ? Array.of(true).at(0) : isOdd(n - 1);
+  }
+  function isOdd(n) {
+    return n === 0 ? Array.of(false).at(0) : isEven(n - 1);
+  }
   assert.true(isEven(4));
   assert.false(isOdd(4));
 });
@@ -177,11 +183,13 @@ QUnit.test('loop: mutual recursion threads a polyfilled accumulator', assert => 
 
 QUnit.test('loop: block-scoped polyfill alias used across nested function scopes', assert => {
   const { from } = Array;
-  const build = () => {
+  function build() {
     const inner = from('ab');
-    const tail = () => from(inner).at(-1);
+    function tail() {
+      return from(inner).at(-1);
+    }
     return tail();
-  };
+  }
   assert.same(build(), 'b');
 });
 
@@ -194,11 +202,11 @@ QUnit.test('loop: hoisted function declaration calls a polyfill before its defin
 
 QUnit.test('loop: inner-scope shadow keeps the polyfill on each value', assert => {
   const x = [1, 2, 3];
-  const inner = () => {
+  function inner() {
     // eslint-disable-next-line no-shadow -- shadowing is the construct under test
     const x = ['a', 'b'];
     return x.at(-1);
-  };
+  }
   assert.same(inner(), 'b');
   assert.same(x.at(-1), 3);
 });
@@ -236,11 +244,11 @@ QUnit.test('loop: for-in over a polyfill-built object visits its own keys', asse
 QUnit.test('loop: chained withResolvers-driven steps resolve in order', assert => {
   const async = assert.async();
   const out = [];
-  const step = value => {
+  function step(value) {
     const { promise, resolve } = Promise.withResolvers();
     resolve(value);
     return promise;
-  };
+  }
   step(1).then(a => {
     out.push(a);
     return step(2);

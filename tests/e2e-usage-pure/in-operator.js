@@ -109,10 +109,10 @@ QUnit.test("'groupBy' in (eff(), (m = Map)) -> sequence-tail assignment runs", a
 // from the side-effect harvest, so both the prefix and the tail call run in source order
 QUnit.test("'from' in (eff(), mk()).Array -> sequence-tail call runs", assert => {
   const log = [];
-  const mk = () => {
+  function mk() {
     log.push('r');
     return globalThis;
-  };
+  }
   const r = 'from' in (log.push('s'), mk()).Array;
   assert.true(r);
   assert.deepEqual(log, ['s', 'r']);
@@ -175,7 +175,9 @@ QUnit.test('receiver call before a computed key on the RHS object -> source orde
 // while a real side-effect prefix still runs in source order before the object
 QUnit.test("(globalThis, 'from') in Array -> proxy-global prefix drops, folds true", assert => {
   const log = [];
-  const eff = () => log.push('e');
+  function eff() {
+    return log.push('e');
+  }
   assert.true((globalThis, 'from') in Array);
   assert.true((eff(), 'from') in Array);
   assert.deepEqual(log, ['e']);
@@ -252,7 +254,9 @@ if (typeof Symbol == 'function' && !Symbol.sham) {
     const arr = [1, 2];
     assert.true((globalThis, Symbol.iterator) in arr);
     const log = [];
-    const eff = () => log.push('e');
+    function eff() {
+      return log.push('e');
+    }
     const has = (eff(), Symbol.iterator) in arr;
     assert.true(has);
     assert.deepEqual(log, ['e']);

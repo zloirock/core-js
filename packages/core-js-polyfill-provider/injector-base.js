@@ -266,7 +266,10 @@ export default class ImportInjectorState {
 
   uniqueName(prefix, extraCheck) {
     const cached = this.#nextSuffixByPrefix.get(prefix);
-    const isTaken = n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false);
+    const isNameTaken = this.isNameTaken.bind(this);
+    function isTaken(n) {
+      return isNameTaken(n) || (extraCheck ? extraCheck(n) : false);
+    }
     const startSuffix = chooseStartSuffix(cached, prefix, isTaken);
     const name = findUniqueName(prefix, startSuffix, isTaken);
     this.usedNames.add(name);
