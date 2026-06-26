@@ -3091,6 +3091,18 @@ export function unwrapParens(node) {
   return node;
 }
 
+// descend a proxy-nav ctor sub-receiver (`(c++, globalThis.self).Map` / the deeper `(c++, globalThis).self
+// .Map`) through its member hops to the root, peeling transparent wrappers (oxc parens, chains, TS casts -
+// `((c++, globalThis.self).Map as any).prototype`). true when that root is a SequenceExpression - a harvestable
+// SE prefix the prototype-fallback ctor swap re-emits; false for an IIFE-call / chain-assignment / bare root
+export function proxyNavRootIsSequence(node) {
+  let root = unwrapRuntimeExpr(node);
+  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    root = unwrapRuntimeExpr(root.object);
+  }
+  return root?.type === 'SequenceExpression';
+}
+
 // broader unwrap: strips parens, optional chains, AND TS expression wrappers
 // (`as`, `satisfies`, `!`) so callers see the runtime-effective expression
 export function unwrapRuntimeExpr(node) {

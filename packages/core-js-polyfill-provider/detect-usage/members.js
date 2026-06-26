@@ -1,7 +1,7 @@
 // member-expression resolution + `key in obj` BinaryExpression handler. produces meta for
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
-import { collectFoldedReceiverSideEffects, TRANSPARENT_EXPR_WRAPPER_TYPES } from '../helpers/ast-patterns.js';
+import { collectFoldedReceiverSideEffects, proxyNavRootIsSequence, TRANSPARENT_EXPR_WRAPPER_TYPES } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
@@ -272,6 +272,19 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
   let meta = tryBuildPrototypeMeta({ obj, key, scope, adapter, path });
+  // a SE-SEQUENCE-rooted ctor sub-receiver of a prototype-method read (`(c++, globalThis.self).Map.prototype
+  // .has` OR the deeper `(c++, globalThis).self.Map.prototype.has`) buries its leading SE below `node.object`
+  // (which is `X.Map.prototype`, a member - the top-level collect above saw none). descend the ctor sub-receiver
+  // proxy nav to its root; when that root is a SequenceExpression, harvest the folded SE into a SEPARATE field
+  // so ONLY the prototype-FALLBACK ctor swap re-emits it (`(c++, _Map).prototype.has`). the instance path
+  // (`X.Array.prototype.flat`) also builds a prototype meta but already harvests its receiver SE via its own
+  // collapse - putting this in `sideEffects` would double-count there and spuriously memoize. an IIFE-call /
+  // chain-assignment / computed-key nav root is owned elsewhere; mirrors the resolver's matching gate
+  if (meta && proxyNavRootIsSequence(obj.object)) {
+    const protoCtorReceiverSE = [];
+    collectFoldedReceiverSideEffects(obj.object, protoCtorReceiverSE);
+    if (protoCtorReceiverSE.length) meta.protoCtorReceiverSE = protoCtorReceiverSE;
+  }
   if (!meta) {
     // chain-assignment receiver `(a = Array).from(...)`: peel `=` chain so receiver
     // classification sees the rhs-most constructor (`Array`). don't push to sideEffects
@@ -423,9 +436,13 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // resolves to a real polyfill ONLY when the key names a global (`self.Map` -> `_Map`); an
     // unresolved key emits no replacement (and proxy-globals never take the static fallback), so the
     // receiver survives and its inner proxy-global must keep its own substitution - marking it handled
-    // would strand a raw `globalThis` / `self` (ReferenceError ie:11). constructor-rooted chains
-    // (`globalThis.Array.from`, object = a real ctor) always collapse, so they stay unaffected
-    const subsumesReceiver = !POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
+    // would strand a raw `globalThis` / `self` (ReferenceError ie:11). a constructor-rooted chain collapses
+    // via its ctor member ONLY when that ctor is pure-resolvable (`globalThis.Map.prototype.has` -> `_Map`);
+    // a NON-pure ctor (`globalThis.self.Headers.prototype.append`, no `_Headers`) does NOT collapse, so it
+    // must drop to the leaf-resolves check - which keeps an instance-method chain (`.Array.prototype.flat`,
+    // method resolves) but un-subsumes a dead ctor whose SE-wrapped proxy root would otherwise strand raw
+    const subsumesReceiver = (!POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
+        && !!resolveMeta?.({ kind: 'global', name: meta.object }, path))
       || !resolveMeta || !!resolveMeta(meta, path);
     markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver);
     // a static-placement member collapses the WHOLE `X.prop` to one import (`Symbol.iterator` ->
@@ -629,6 +646,15 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
   const ref = asSymbolRef({ node: prop.object, scope, adapter, path });
   if (!ref) return null;
+  // the Symbol ref's proxy-global chain receiver (`(c++, globalThis.self).Symbol.iterator`,
+  // `(c++, globalThis).self.Symbol.iterator`) is fully dropped when the eliminated `o[key]` rewrites to
+  // `_getIteratorMethod(o)`; descend the whole chain receiver and harvest every buried effect at any hop
+  // depth so they re-emit. only the chain form (`X.Symbol`, a member) drops it - a direct `(c++, Symbol)`
+  // keeps the whole key (SE survives there). the chain-root CALL is left to `collectChainRootCallEffect`
+  // (its purity is scope-aware), so no double-collect with the structural descent here
+  if (prop.object.type === 'MemberExpression' || prop.object.type === 'OptionalMemberExpression') {
+    collectFoldedReceiverSideEffects(prop.object, sideEffects);
+  }
   collectChainRootCallEffect({ node: prop, sideEffects, scope, adapter, path });
   const keyNode = prop.computed
     ? unwrapParensCollectingEffects(prop.property, sideEffects) : prop.property;
@@ -806,7 +832,10 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
   // (`current !== obj`) and the tail sat inside a sequence - a top-level one (`(eff(), globalThis.Array)
   // .from` -> `_Array$from`) or one buried below a static hop. a BARE tail global (`(eff(), globalThis)
   // .flat`, `.flat` gated off the global) is the receiver itself and keeps its own `_globalThis` polyfill
-  if ((wasSequence || buriedSequence) && current !== obj) {
+  // gated on `subsumesReceiver` (like the IIFE path below): when the static does NOT resolve to a collapse
+  // (`(eff(), globalThis.self).Array` - Array native, `.foo` non-global, a class-extends superclass), the SE
+  // receiver survives and its proxy-global leaf keeps its own substitution - marking it strands a raw global
+  if ((wasSequence || buriedSequence) && current !== obj && subsumesReceiver) {
     markProxyGlobalLeaf(current, handledObjects, scope, adapter, path);
   }
   // IIFE-rooted chain (`(() => globalThis)().self.Map.prototype.has`): the chain bottoms
