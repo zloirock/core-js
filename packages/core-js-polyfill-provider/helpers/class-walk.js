@@ -4,12 +4,13 @@ import {
   memberKeyName,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
+  staticMemberKeyName,
   unwrapRuntimeExpr,
 } from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
-// import path; canonical definition lives in `ast-patterns.js` next to `singleQuasiString`
-export { memberKeyName };
+// import path; canonical definitions live in `ast-patterns.js` next to `singleQuasiString`
+export { memberKeyName, staticMemberKeyName };
 
 // peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
 // to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`
@@ -138,7 +139,9 @@ export function peelProxyGlobalObject(node) {
   return ret ? unwrapRuntimeExpr(ret) : node;
 }
 
-// `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis.self.X` -> 'X', else null.
+// `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis[(e++, 'X')]` / `globalThis.self.X`
+// -> 'X', else null. `staticMemberKeyName` folds a side-effecting computed key to its static tail so a
+// SE-bearing hop / leaf resolves the same as its plain form (the emitter replays / collapse-guards the SE).
 // walks intermediate proxy-global links so deeper chains resolve to the leaf key; peels a
 // zero-arg IIFE-return at each hop so `(()=>globalThis)().Array` resolves like `globalThis.Array`.
 // empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
@@ -147,12 +150,12 @@ export function globalProxyMemberName({ node, scope, adapter, path }) {
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   let object = peelProxyGlobalObject(node.object);
   while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
-    const linkName = memberKeyName(object);
+    const linkName = staticMemberKeyName(object);
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
     object = peelProxyGlobalObject(object.object);
   }
   if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path })) return null;
-  return memberKeyName(node) || null;
+  return staticMemberKeyName(node) || null;
 }
 
 // strict: IIFE caller-arg overrides wrapper-default ONLY when it is a bare Identifier the
