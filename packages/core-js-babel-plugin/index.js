@@ -265,7 +265,7 @@ export default function plugin(api, options) {
         return injector.addPureImport(entry, hint);
       }
 
-      function handleSymbolIterator(path, sideEffects, receiverEffectCount) {
+      function handleSymbolIterator(path, sideEffects, receiverEffectCount, symbolReceiverProxyRoot) {
         // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
         if (t.isSuper(path.node.object)) return;
@@ -278,6 +278,29 @@ export default function plugin(api, options) {
         const callerPath = unwrapTSExpressionParent(path);
         const entry = resolveSymbolIteratorEntry(callerPath.node, callerPath.parent);
         if (!isEntryNeeded(entry)) return;
+        // collapse a proxy-global receiver to its ROOT pure import (provider-resolved): `globalThis.self[
+        // Symbol.iterator]` -> `_getIteratorMethod((droppedSe, _globalThis))`, NOT a leaf `_self` / dead
+        // `_globalThis.self.window` that diverges from unplugin. `_<root>` is always defined; droppedSe is
+        // the SE the dropped hop chain carried (hop keys + chain-root call), re-emitted as a sequence prefix
+        if (symbolReceiverProxyRoot) {
+          const rootResolved = resolvePure({ kind: 'global', name: symbolReceiverProxyRoot.rootName }, path);
+          if (rootResolved) {
+            const rootBinding = injectPureImport(rootResolved.entry, rootResolved.hintName);
+            const { droppedSe } = symbolReceiverProxyRoot;
+            path.node.object = droppedSe.length
+              ? t.sequenceExpression([...droppedSe.map(effect => t.cloneNode(effect)), rootBinding])
+              : rootBinding;
+          }
+        }
+        // a proxy-global receiver DEEPER than the immediate symbol hop (`(c++, globalThis.self).Array.prototype
+        // [Symbol.iterator]`) is not covered by symbolReceiverProxyRoot (it resolves only the hop directly before
+        // the symbol); collapse it through the shared receiver collapse so it matches unplugin - a raw
+        // `globalThis.self` off the deeper chain reads undefined off-engine. no-op once already collapsed
+        if (synthSwap && path.scope
+          && (path.node.object?.type === 'MemberExpression' || path.node.object?.type === 'OptionalMemberExpression')) {
+          const collapsedRecv = synthSwap.collapseProxyGlobalReceiver(path.node.object, { scope: path.scope, adapter, path });
+          if (collapsedRecv) path.node.object = collapsedRecv;
+        }
         if (path.node.computed) {
           // meta.sideEffects carries the key prefix; a side-effecting receiver is hoisted ahead of
           // it by the emit (hoistReceiverSE) so order holds. skip the SequenceExpression TAIL (the
@@ -559,7 +582,9 @@ export default function plugin(api, options) {
             // (the patch lives on the namespace, not the prototype chain) - keep the bail
             if (inheritedStatic && isMutatedStaticMeta(meta, mutatedStatics)) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
-            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, meta.sideEffects, meta.receiverEffectCount);
+            if (meta.key === 'Symbol.iterator') {
+              return handleSymbolIterator(path, meta.sideEffects, meta.receiverEffectCount, meta.symbolReceiverProxyRoot);
+            }
           }
         }
 
@@ -614,7 +639,7 @@ export default function plugin(api, options) {
           // undefined hop off the alias off-engine (ie:11 / Node). `isAliasProxyHopChain` is the shared
           // provider detection; peel to the root path and collapse (which self-gates on the hop again)
           const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
-          if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx)) {
+          if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx, true)) {
             let rootPath = path;
             while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
             synthSwap.collapseProxyHopRoot(rootPath, aliasCtx);
@@ -639,6 +664,18 @@ export default function plugin(api, options) {
           // for that shape and the `inheritedStatic && !result` bail above caught it
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
+            // a SE-wrapped proxy-global RECEIVER (`(c++, globalThis.self).Array.prototype.flat`) is skipped by
+            // the natural visitors: the provider marks the wrapped root handled (expecting a collapse), but the
+            // bare-receiver collapse runs in the secondary Identifier visit, which the handled-mark suppresses.
+            // collapse the receiver's proxy hops explicitly - climb to its proxy root (a SequenceExpression keeps
+            // its consuming member directly above, so the shared collapse needs no sequence-walk) and route
+            // through the same `collapseProxyHopRoot` the alias-hop-chain branch uses. without this the emit reads
+            // off a raw `(c++, globalThis.self).Array.prototype` whose `.self` is undefined off-engine (ie:11)
+            if (synthSwap && path.scope) {
+              let recvRoot = path.get('object');
+              while (recvRoot.isMemberExpression() || recvRoot.isOptionalMemberExpression()) recvRoot = recvRoot.get('object');
+              synthSwap.collapseProxyHopRoot(recvRoot, { scope: path.scope, adapter, path });
+            }
             const innerChain = findInnerPolyChain(path);
             if (innerChain) {
               const innerId = injectPureImport(innerChain.innerEntry, innerChain.innerHintName);
