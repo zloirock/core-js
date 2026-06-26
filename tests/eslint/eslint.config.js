@@ -1297,8 +1297,6 @@ const forbidCompletelyNonExistentBuiltIns = {
   ] }],
   'es/no-nonstandard-iterator-properties': [ERROR, { allow: [
     'range',
-    'zip',
-    'zipKeyed',
   ] }],
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
     'chunks',
@@ -1724,6 +1722,11 @@ const forbidES2026BuiltIns = {
   'math/prefer-math-sum-precise': OFF,
 };
 
+const forbidES2027BuiltIns = {
+  'es/no-iterator-zip': ERROR,
+  'es/no-iterator-zipkeyed': ERROR,
+};
+
 const forbidES2016IntlBuiltIns = {
   'es/no-intl-getcanonicallocales': ERROR,
 };
@@ -1798,6 +1801,7 @@ const forbidModernBuiltIns = {
   ...forbidES2024BuiltIns,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
+  ...forbidES2027BuiltIns,
   ...forbidES2016IntlBuiltIns,
   ...forbidES2017IntlBuiltIns,
   ...forbidES2018IntlBuiltIns,
@@ -1902,6 +1906,7 @@ const nodePackages = {
   ...forbidES2024BuiltIns,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
+  ...forbidES2027BuiltIns,
   ...disable(forbidES2016IntlBuiltIns),
   ...disable(forbidES2017IntlBuiltIns),
   ...forbidES2018IntlBuiltIns,
@@ -1924,6 +1929,7 @@ const nodeDev = {
   'es/no-string-prototype-towellformed': OFF,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
+  ...forbidES2027BuiltIns,
   ...forbidES2025IntlBuiltIns,
   ...forbidES2026IntlBuiltIns,
   // ReDoS vulnerability check

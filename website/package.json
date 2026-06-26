@@ -6,16 +6,16 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@babel/standalone": "^7.29.4",
+    "@babel/standalone": "^8.0.2",
     "@popperjs/core": "^2.11.8",
-    "@vitejs/plugin-legacy": "^8.0.1",
+    "@vitejs/plugin-legacy": "^8.1.0",
     "front-matter": "^4.0.2",
     "highlight.js": "^11.11.1",
     "jsdom": "^29.1.1",
-    "marked": "^18.0.3",
+    "marked": "^18.0.5",
     "marked-alert": "^2.1.2",
     "marked-gfm-heading-id": "^4.1.4",
-    "sass": "^1.99.0",
-    "vite": "^8.0.11"
+    "sass": "^1.101.0",
+    "vite": "^8.1.0"
   }
 }

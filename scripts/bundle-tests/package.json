@@ -1,9 +1,10 @@
 {
   "name": "scripts/bundle-tests",
   "devDependencies": {
+    "@babel/core": "^7.29.7",
     "@slowcheetah/qunitjs-1": "^1.23.1",
     "babel-loader": "^10.1.1",
-    "webpack": "^5.106.2",
-    "webpack-cli": "^7.0.2"
+    "webpack": "^5.108.1",
+    "webpack-cli": "^7.1.0"
   }
 }

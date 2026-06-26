@@ -102,7 +102,10 @@ function init() {
 
     try {
       code = Babel.transform(code, { plugins: ['playground-plugin'] }).code;
-      code = Babel.transform(`(async function () { ${ code } \n})().catch(console.error)`, { presets: ['env'] }).code;
+      code = Babel.transform(`(async function () { ${ code } \n})().catch(console.error)`, {
+        presets: ['env'],
+        targets: 'IE 11, Chrome>=38, Safari>=7.1, FF>=15',
+      }).code;
       // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
       const executeCode = new Function('console', code);
       executeCode(console);

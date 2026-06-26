@@ -719,6 +719,7 @@ URLState.prototype = {
               }
             } else {
               if (url.scheme === 'file' && !url.path.length && isWindowsDriveLetter(buffer)) {
+                // eslint-disable-next-line max-depth -- ok
                 if (url.host !== null && url.host !== '') url.host = '';
                 buffer = charAt(buffer, 0) + ':'; // normalize windows drive letter
               }
