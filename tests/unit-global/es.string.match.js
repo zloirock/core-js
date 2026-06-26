@@ -5,7 +5,7 @@ import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.match);
   assert.arity(''.match, 1);
   assert.name(''.match, 'match');
@@ -174,7 +174,7 @@ const run = assert => {
 
   assert.throws(() => ''.match.call(Symbol('match test'), /./), 'throws on symbol context');
   assert.throws(() => ''.match(Symbol('match test')), TypeError, 'throws on symbol argument');
-};
+}
 
 QUnit.test('String#match regression', run);
 
@@ -216,10 +216,10 @@ QUnit.test('String#match delegates to @@match', assert => {
 });
 
 QUnit.test('RegExp#@@match delegates to exec', assert => {
-  const exec = function (...args) {
+  function exec(...args) {
     execCalled = true;
     return /./.exec.apply(this, args);
-  };
+  }
 
   let execCalled = false;
   let re = /[ac]/;

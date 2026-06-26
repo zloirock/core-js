@@ -101,7 +101,9 @@ export function createTypeAnnotationResolve({
   }
 
   function resolveExtractExclude({ first, second, scope, depth, keep, typeParamMap, seen }) {
-    const resolve = node => resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
+    function resolve(node) {
+      return resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
+    }
     const target = resolve(second);
     if (!target) return null;
     let unwrapped = peelParens(unwrapTypeAnnotation(first));
@@ -169,13 +171,19 @@ export function createTypeAnnotationResolve({
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
     if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
     if (hasOwn(CONSTRUCTOR_ALIASES, name)) name = CONSTRUCTOR_ALIASES[name];
-    const resolveArgInner = arg => resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
+    function resolveArgInner(arg) {
+      return resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
+    }
     const known = resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
     if (known) return known;
-    const firstArg = () => getTypeArgs(node)?.params[0];
-    const resolveArg = (arg, fallback) => arg
-      ? resolveArgInner(arg) ?? fallback
-      : null;
+    function firstArg() {
+      return getTypeArgs(node)?.params[0];
+    }
+    function resolveArg(arg, fallback) {
+      return arg
+        ? resolveArgInner(arg) ?? fallback
+        : null;
+    }
     // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
     // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
     if (STRUCTURE_PRESERVING_WRAPPERS.has(name)) return resolveArg(firstArg(), new $Object('Object'));

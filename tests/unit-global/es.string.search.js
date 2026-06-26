@@ -4,7 +4,7 @@ import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.search);
   assert.arity(''.search, 1);
   assert.name(''.search, 'search');
@@ -80,7 +80,7 @@ const run = assert => {
   const regExpLike = { source: 'b', toString() { return 'a'; } };
   regExpLike[Symbol.match] = true;
   assert.same('ab'.search(regExpLike), 0, 'regex-like argument');
-};
+}
 
 QUnit.test('String#search regression', run);
 
