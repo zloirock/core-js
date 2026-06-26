@@ -18,7 +18,7 @@
   - Updated [Electron 42 and added 43 and 44](https://releases.electronjs.org/) compat data mapping
   - Added Samsung Internet 30 compat data mapping
   - Added Oculus Quest Browser 144+ compat data mapping
-  - Added Opera for [Android 97](https://forums.opera.com/topic/88511/opera-for-android-97) compat data mapping
+  - Added Opera for Android [97](https://forums.opera.com/topic/88511/opera-for-android-97), [98](https://forums.opera.com/topic/88625/opera-for-android-98), and [99](https://forums.opera.com/topic/88883/opera-for-android-99) compat data mapping
 
 ### [3.49.0 - 2026.03.16](https://github.com/zloirock/core-js/releases/tag/v3.49.0)
 - Changes [v3.48.0...v3.49.0](https://github.com/zloirock/core-js/compare/v3.48.0...v3.49.0) (373 commits)
