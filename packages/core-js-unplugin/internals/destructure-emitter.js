@@ -771,7 +771,7 @@ export function createDestructureEmitter({
   // reassembled init source, or null when no operand referenced a polyfillable global
   function polyfillLogicalInitOperands(node, src, baseStart, info) {
     let any = false;
-    const renderOperand = operand => {
+    function renderOperand(operand) {
       const peeled = unwrapParens(operand);
       const rawSrc = src.slice(operand.start - baseStart, operand.end - baseStart);
       let out = null;
@@ -809,7 +809,7 @@ export function createDestructureEmitter({
       if (out === null) return rawSrc;
       any = true;
       return out;
-    };
+    }
     const leftSrc = renderOperand(node.left);
     const rightSrc = renderOperand(node.right);
     if (!any) return null;
@@ -2910,12 +2910,12 @@ export function createDestructureEmitter({
     // `((globalThis.self).Array as any).prototype`) reaches its leaf receiver and collapses like babel. the
     // shared `maximalProxyGlobalPrefix` peels TS transparently (`TRANSPARENT_EXPR_WRAPPER_TYPES`), so the
     // emitter must too - else a TS-wrapped proxy hop survives here that babel already dropped
-    const peelOxc = path => {
+    function peelOxc(path) {
       let p = path;
       while (p && (p.node?.type === 'ParenthesizedExpression' || p.node?.type === 'ChainExpression'
         || TS_EXPR_WRAPPERS.has(p.node?.type))) p = p.parentPath;
       return p;
-    };
+    }
     // climb to the leaf member that consumes the maximal proxy-hop prefix. `allowSideEffectKeys`: advance
     // THROUGH a SE-bearing proxy hop (`globalThis[(eff(), 'self')].X`) too - it stops the climb at the hop
     // otherwise, leaving a dead `_globalThis.self.X`. the collapse below routes it to the call-rooted plan,
@@ -3016,10 +3016,12 @@ export function createDestructureEmitter({
       const needMemo = callBranch && planEntries.some(entry => !entry.polyfill);
       const memoName = needMemo ? injector.generateLocalRef() : null;
       let receiverSrc = null;
-      const getReceiverSrc = () => receiverSrc ??= memoName ?? (receiverPure
-        ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-        : ctorPure ? injectPureImport(ctorPure.entry, ctorPure.hintName)
-        : synthMemberReceiverSrc(readReceiver, ctx));
+      function getReceiverSrc() {
+        return receiverSrc ??= memoName ?? (receiverPure
+          ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+          : ctorPure ? injectPureImport(ctorPure.entry, ctorPure.hintName)
+          : synthMemberReceiverSrc(readReceiver, ctx));
+      }
       // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
       // only renders the entries as source text
       const entries = [];
