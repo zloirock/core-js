@@ -6,6 +6,7 @@ var createIteratorProxy = require('../internals/iterator-create-proxy');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
 var uncurryThis = require('../internals/function-uncurry-this');
+var IS_PURE = require('../internals/is-pure');
 
 var $RangeError = RangeError;
 var push = uncurryThis([].push);
@@ -31,7 +32,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.chunks` method
 // https://github.com/tc39/proposal-iterator-chunking
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   chunks: function chunks(chunkSize) {
     var O = anObject(this);
     if (typeof chunkSize != 'number' || !chunkSize || chunkSize >>> 0 !== chunkSize) {
