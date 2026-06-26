@@ -14,8 +14,8 @@
 - Compat data improvements:
   - [`Array.prototype.includes` bug](https://bugs.webkit.org/show_bug.cgi?id=309342) marked as fixed in Bun 1.3.12
   - Added [Node 26.0](https://github.com/nodejs/node/pull/62526) compat data mapping
-  - Updated Electron 42 compat data mapping
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8) and [Deno 2.8.0](https://github.com/denoland/deno/releases/tag/v2.8.0) compat data mapping
+  - Updated [Electron 42 and added 43 and 44](https://releases.electronjs.org/) compat data mapping
   - Added Samsung Internet 30 compat data mapping
   - Added Oculus Quest Browser 144+ compat data mapping
   - Added Opera for [Android 97](https://forums.opera.com/topic/88511/opera-for-android-97) compat data mapping
