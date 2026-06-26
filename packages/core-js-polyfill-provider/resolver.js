@@ -2,7 +2,7 @@
 // "is the receiver a proxy global?" to avoid recursing on `globalThis.X` -> `globalThis.X.X`.
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
-import { kebabToPascal, mayHaveSideEffects } from './helpers/ast-patterns.js';
+import { kebabToPascal, mayHaveSideEffects, proxyNavRootIsSequence, unwrapRuntimeExpr } from './helpers/ast-patterns.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
 import { createPolyfillContext, resolve } from './index.js';
@@ -375,10 +375,21 @@ export function createPolyfillResolver(options, {
       // the shell and rewrites its return leaf to the pure ctor - the fallback's whole-sub-receiver swap
       // would DROP that shell. defer conservatively when the receiver shape is unavailable / not a plain member
       if (meta.placement === 'prototype') {
-        const protoReceiver = path?.node?.object;
+        // peel transparent wrappers (parens / TS cast / non-null) so a TS-wrapped `.prototype` receiver
+        // (`((c++, globalThis.self).Map.prototype as any).has`) is seen as the plain `X.Map.prototype` member -
+        // else `plainMember` is false and the fallback bails, stranding the SE-wrapped proxy root raw
+        const protoReceiver = unwrapRuntimeExpr(path?.node?.object);
         const plainMember = protoReceiver
           && (protoReceiver.type === 'MemberExpression' || protoReceiver.type === 'OptionalMemberExpression');
-        if (!plainMember || mayHaveSideEffects(protoReceiver.object)) return { result: null, fallback: null };
+        // a SE-SEQUENCE-rooted ctor sub-receiver (`(c++, globalThis.self).Map.prototype` OR the deeper
+        // `(c++, globalThis).self.Map.prototype`) KEEPS the fallback - its ctor swap harvests the folded
+        // sequence SE into `(c++, _Map).prototype`. an IIFE-call / chain-assignment / computed-key root is owned
+        // by the receiver-peel / natural visitor (whose shell the whole-swap would drop) and stays deferred; a
+        // non-plain receiver is unavailable to swap. mirrors the detect-usage harvest gate
+        const seSequenceCtorSub = proxyNavRootIsSequence(protoReceiver?.object);
+        if (!plainMember || (mayHaveSideEffects(protoReceiver.object) && !seSequenceCtorSub)) {
+          return { result: null, fallback: null };
+        }
       }
       const globalMeta = { kind: 'global', name: meta.object };
       const globalResolved = resolve(globalMeta);
