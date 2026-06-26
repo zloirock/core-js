@@ -10,6 +10,7 @@ import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.map";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
+import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.self";
 // usage-global counterpart: detection must resolve each array-method polyfill THROUGH the logical-wrapped,
 // nested-sequence, trailing-hop proxy operand and inject the side-effect import, keeping the source verbatim
