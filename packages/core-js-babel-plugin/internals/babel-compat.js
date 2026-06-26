@@ -340,10 +340,20 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // unplugin `seMode !== 'peel'` gate). a CHECK skips the hoist only when receiver-borne SE
     // exists (the guard's own memoize replays it); a KEY-only SE list still hoists - the
     // receiver must evaluate BEFORE the key effects, like native member-call evaluation order
-    if ((check && receiverEffectCount > 0) || seMode === 'peel'
-      || !sideEffects?.length || !mayHaveSideEffects(object)) return [object, sideEffects];
+    // optional guard with a side-effecting receiver: the guard's `null == (_ref = receiver) ? ...`
+    // memoize already RAN the receiver-SE, so the body wrap must carry ONLY the key-SE. `suppress`
+    // (optional MEMBER access) already reduced `sideEffects` to key-SE upstream, so pass it through;
+    // otherwise the receiver-SE is still present (a deeper `?.` left `.X` non-optional, so suppress
+    // missed it) and must be dropped here - else a chain-root call `(call)?.self.X` double-runs
+    if (check && receiverEffectCount > 0) {
+      return [object, seMode === 'suppress' ? sideEffects : keySideEffectsOnly(receiverEffectCount, sideEffects)];
+    }
+    if (seMode === 'peel' || !sideEffects?.length || !mayHaveSideEffects(object)) return [object, sideEffects];
     const [memoAssign, ref] = memoize(object, scope);
-    return [ref, [memoAssign, ...sideEffects]];
+    // the memo `_ref = object` already evaluates the receiver's OWN side effects (a buried chain-root call
+    // or hop-key SE the resolver also listed lives inside `object`), so re-emitting the receiver-SE prefix
+    // would double-run it. append only the KEY SE (past receiverEffectCount); the memo owns the receiver SE
+    return [ref, [memoAssign, ...sideEffects.slice(receiverEffectCount)]];
   }
 
   // classify a (possibly TS-wrapped) member path's relationship to its enclosing call:
