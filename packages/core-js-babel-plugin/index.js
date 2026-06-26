@@ -7,6 +7,7 @@ import {
   isDeleteTarget,
   isForXWriteTarget,
   isInUpdateOperand,
+  isMemberWriteHost,
   isThisReceiver,
   getMinifierSequenceDestructureExpressions,
   isMutatedStaticMeta,
@@ -550,8 +551,12 @@ export default function plugin(api, options) {
           } else {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             // `path.isReferenced()` drops grandparent - pass it explicitly
-            if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
-            if (isForXWriteTarget(path)) return;
+            // `isForXWriteTarget` marks every same-shape member in a for-of/in BODY (not just the head) as
+            // part of the write set. `isMemberWriteHost` adds the immediate write hosts (`=` / update / `delete` /
+            // destructuring) AND climbs TS-cast / paren wrappers: a cast-wrapped LHS (`(globalThis.window.Set as
+            // any) = fn`) reads as `isReferenced` above (the cast IS a read position), so without it the member
+            // whole-swaps to the imported `_Set` const - reassigning a frozen import
+            if (isForXWriteTarget(path) || isMemberWriteHost(path)) return;
             // member update (`(obj.at)++`) - the rewrite would be a function call receiver
             // (not writable). this callback is only wired in usage-pure mode (see
             // `usageCallback = isPure ? usagePureCallback : ...`), so the pure-mode guard
