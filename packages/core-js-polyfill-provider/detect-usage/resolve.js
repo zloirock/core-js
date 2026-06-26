@@ -729,9 +729,14 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     // a side-effecting key prefix (`[(fn(), 'X')]`) can only be re-emitted by callers with an
     // effects channel. callers without one (destructure detection) pass bailOnSideEffectKey to
     // leave the key unresolved, so the whole construct is skipped rather than silently dropping
-    // the side effect (babel) or feeding the text composer a needle it cannot place (unplugin)
+    // the side effect (babel) or feeding the text composer a needle it cannot place (unplugin).
+    // the flag is threaded into the fold recursions below (`+` / template / Symbol.X) so an SE
+    // BURIED in a fold operand (`[(fn(), 'se') + 'lf']`) bails transitively, not just a top-level one
     if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return null;
-    while (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
+    // unwrap parens at EACH sequence level (mirror `sequenceKeyStaticName`): oxc keeps a
+    // `ParenthesizedExpression` between nested sequences (`(e++, (d++, 'self'))`), so a bare `.at(-1)`
+    // stops at the inner paren and bails the fold - babel folds the parens away so it never noticed
+    while (node?.type === 'SequenceExpression') node = unwrapParens(node.expressions.at(-1));
   }
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
@@ -752,7 +757,8 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // trip the cycle guard after the first interpolation mutates a shared Set.
         // mirrors the fork pattern in the BinaryExpression `+` branch below
         const part = resolveKey({
-          node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
+          node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen),
+          path, depth: depth + 1, usageNode, bailOnSideEffectKey,
         });
         if (part === null) return null;
         out += part;
@@ -804,10 +810,10 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
     // cycle guard on the right branch after the left added `a` to the shared Set
     const left = resolveKey({
-      node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
+      node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
     });
     const right = resolveKey({
-      node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
+      node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
     });
     if (left !== null && right !== null) return left + right;
   }
@@ -823,7 +829,8 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) {
     const name = resolveKey({
-      node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode,
+      node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen),
+      path, depth: depth + 1, usageNode, bailOnSideEffectKey,
     });
     if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
   }
@@ -907,24 +914,41 @@ export function createSelfRefVarGuard(getKind) {
   };
 }
 
+// descend a member chain to its ROOT, peeling the full wrapper set at every hop: transparent wrappers
+// (parens / TS / Chain) AND SequenceExpression tails via `peelReceiverSequenceTail` (`(eff(), globalThis).Map`
+// -> the SE prefix stays in the source for the emit side to collect), plus chain-assignments when
+// `throughChainAssign` (`(a = IIFE()).Symbol`). returns { root, firstHop, optionalCount } - the root node
+// (Identifier / Call / This / ...), the member sitting directly on it, and the number of optional hops in the
+// chain; root is null past the depth ceiling (pathological). the single chain-root walk shared by
+// `findProxyGlobal` and the detect-usage chain-root probes - each applies its own classification to the result
+export function descendToChainRoot(node, throughChainAssign = false) {
+  let root = peelReceiverSequenceTail(node);
+  if (throughChainAssign) root = peelChainAssignmentDeep(root);
+  let firstHop = null;
+  let optionalCount = 0;
+  let depth = 0;
+  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    if (++depth > MAX_KEY_DEPTH) return { root: null, firstHop, optionalCount };
+    // count the `.optional` FLAG only, NOT the node type: babel makes every member of an optional chain an
+    // OptionalMemberExpression (`a?.b.c` -> all three) with `.optional` true only on the actual `?.` hop, so
+    // a type-based count over-counts. the flag means "this hop uses `?.`" in both parsers
+    if (root.optional) optionalCount++;
+    firstHop = root;
+    root = peelReceiverSequenceTail(root.object);
+    if (throughChainAssign) root = peelChainAssignmentDeep(root);
+  }
+  return { root, firstHop, optionalCount };
+}
+
 // find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain.
-// depth-ceiling protects against pathological chains - same MAX_KEY_DEPTH bound used elsewhere
 // `aliasCtx` ({ scope, adapter, path }), when supplied, makes the root check follow const-alias
 // roots through the canonical resolver (`const g = globalThis; g.self.X`); without it the root is
 // classified by NAME only (POSSIBLE_GLOBAL_OBJECTS) - byte-identical to every existing node-only
 // caller. the emit-side collapse passes it so an aliased proxy global drops its `.self` hop too
 export function findProxyGlobal(node, aliasCtx = null) {
-  // peel SE tails too (`(eff(), globalThis).Map`): pure shape classification - the SE prefix
-  // stays in the source and the emit side collects it; a paren-only peel left the root
-  // unclassified and the receiver subtree unskipped (overlapping-rewrite crash on unplugin)
-  let obj = peelReceiverSequenceTail(node);
-  let depth = 0;
-  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
-    if (++depth > MAX_KEY_DEPTH) return null;
-    obj = peelReceiverSequenceTail(obj.object);
-  }
-  if (obj.type !== 'Identifier') return null;
-  return isProxyGlobalIdentifierNode({ node: obj, ...aliasCtx }) ? obj : null;
+  const { root } = descendToChainRoot(node);
+  if (root?.type !== 'Identifier') return null;
+  return isProxyGlobalIdentifierNode({ node: root, ...aliasCtx }) ? root : null;
 }
 
 // like `findProxyGlobal`, but returns the root WITH any wrapper directly around it (paren /
@@ -956,7 +980,7 @@ export function proxyGlobalWrappedRoot(node, aliasCtx = null) {
 // expression reads the constructor off the global object directly instead of an intermediate proxy:
 // `_globalThis.self.Array` would read an undefined `self` off the global object on hosts without it
 // (ie:11 pure, non-browser), whereas the collapsed `_globalThis.Array` is safe across the target range
-export function maximalProxyGlobalPrefix(node, aliasCtx = null) {
+export function maximalProxyGlobalPrefix(node, aliasCtx = null, allowSideEffectKeys = false) {
   const root = findProxyGlobal(node, aliasCtx);
   if (!root) return null;
   const chain = [];
@@ -975,10 +999,12 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null) {
     // is binding-aware: a const-alias computed hop (`const k='self'; globalThis[k].X`) resolves like
     // the dotted (`globalThis.self`) and computed-literal (`globalThis['self']`) forms, so the collapse
     // drops it too - `_globalThis.X`, not `_globalThis[k].X` which reads an undefined key off-engine. a
-    // side-effecting key bails (left uncollapsed) since dropping the hop would drop its effect. node-only
-    // callers (no aliasCtx) keep literal-only `memberKeyName`, byte-identical to the prior behavior
+    // side-effecting key bails (left uncollapsed) since dropping the hop would drop its effect - UNLESS the
+    // caller opts in via `allowSideEffectKeys` (the hop-collapse driver does, because it routes the collapse
+    // through the call-rooted plan that HARVESTS the dropped key SE). node-only callers (no aliasCtx) keep
+    // literal-only `memberKeyName`, byte-identical to the prior behavior
     const key = aliasCtx
-      ? resolveKey({ node: member.property, computed: member.computed, bailOnSideEffectKey: true, ...aliasCtx })
+      ? resolveKey({ node: member.property, computed: member.computed, bailOnSideEffectKey: !allowSideEffectKeys, ...aliasCtx })
       : memberKeyName(member);
     if (key && POSSIBLE_GLOBAL_OBJECTS.has(key)) prefix = member;
     else break;
@@ -1009,8 +1035,8 @@ export function proxyGlobalMemberCtorPure({ receiver, aliasCtx = null, resolvePu
 // actually changes the output (root + hops) from a bare root (`globalThis.Array`) that the
 // standard root substitution / natural global rewrite already handles. callers that only need
 // to drop the "extra" hops gate on this and leave the bare-root case alone
-export function maximalProxyGlobalHop(node, aliasCtx = null) {
-  const prefix = maximalProxyGlobalPrefix(node, aliasCtx);
+export function maximalProxyGlobalHop(node, aliasCtx = null, allowSideEffectKeys = false) {
+  const prefix = maximalProxyGlobalPrefix(node, aliasCtx, allowSideEffectKeys);
   return prefix && prefix.type !== 'Identifier' ? prefix : null;
 }
 
@@ -1022,14 +1048,16 @@ export function maximalProxyGlobalHop(node, aliasCtx = null) {
 // proxy-NAME root (`globalThis.self.X`) is EXCLUDED (it collapses via its own `kind:'global'` trigger, so
 // this never double-fires). the cheap dotted check screens before any binding resolve. the caller peels to
 // the root path and runs its per-emitter `collapseProxyHopRoot` (which self-gates on the hop again)
-export function isAliasProxyHopChain(node, aliasCtx) {
+export function isAliasProxyHopChain(node, aliasCtx, allowSideEffectKeys = false) {
   if (!aliasCtx || (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression')) return false;
   let cur = node;
   let hasProxyHopKey = false;
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const { computed, property: key } = cur;
+    // `allowSideEffectKeys`: recognize a SE-bearing hop key too (`g[(eff(), 'self')].X`); the collapse driver
+    // this gates now harvests the dropped key SE, so the hop is collapsible, not a forced bail
     const hopName = computed
-      ? resolveKey({ node: key, computed: true, bailOnSideEffectKey: true, ...aliasCtx })
+      ? resolveKey({ node: key, computed: true, bailOnSideEffectKey: !allowSideEffectKeys, ...aliasCtx })
       : key?.type === 'Identifier' && key.name;
     if (hopName && POSSIBLE_GLOBAL_OBJECTS.has(hopName)) hasProxyHopKey = true;
     cur = cur.object;
