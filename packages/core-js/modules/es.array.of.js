@@ -8,7 +8,7 @@ var setArrayLength = require('../internals/array-set-length');
 var $Array = Array;
 
 var ISNT_GENERIC = fails(function () {
-  function F() { /* empty */ }
+  var F = function () { /* empty */ };
   // eslint-disable-next-line es/no-array-of -- safe
   return !($Array.of.call(F) instanceof F);
 });

@@ -4,7 +4,7 @@ import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.replace);
   assert.arity(''.replace, 2);
   assert.name(''.replace, 'replace');
@@ -133,7 +133,7 @@ const run = assert => {
   assert.throws(() => ''.replace.call(Symbol('replace test'), /./, ''), 'throws on symbol context');
 
   assert.same('.a'.replace(new RegExp('a', 'y'), '.'), '.a', 'Replacement for y');
-};
+}
 
 QUnit.test('String#replace regression', run);
 
@@ -174,10 +174,10 @@ QUnit.test('String#replace delegates to @@replace', assert => {
 });
 
 QUnit.test('RegExp#@@replace delegates to exec', assert => {
-  const exec = function (...args) {
+  function exec(...args) {
     execCalled = true;
     return /./.exec.apply(this, args);
-  };
+  }
 
   let execCalled = false;
   let re = /[ac]/;

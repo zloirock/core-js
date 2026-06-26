@@ -52,8 +52,10 @@ if (BABEL_SKIP) {
   }
 }
 
-// eslint-disable-next-line promise/prefer-await-to-then -- ok
-const exists = file => access(file).then(() => true, () => false);
+function exists(file) {
+  // eslint-disable-next-line promise/prefer-await-to-then -- ok
+  return access(file).then(() => true, () => false);
+}
 
 function normalizeOutput(code) {
   return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');

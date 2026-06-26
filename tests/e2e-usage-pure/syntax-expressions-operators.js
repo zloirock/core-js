@@ -8,41 +8,43 @@
 
 QUnit.test('expr: side-effecting receiver evaluated once before a polyfilled .at', assert => {
   let calls = 0;
-  const get = () => {
+  function get() {
     calls += 1;
     return [10, 20, 30];
-  };
+  }
   assert.same(get().at(-1), 30);
   assert.same(calls, 1);
 });
 
 QUnit.test('expr: receiver evaluated once across TWO chained instance polyfills', assert => {
   let calls = 0;
-  const get = () => {
+  function get() {
     calls += 1;
     return [[1], [2], [3]];
-  };
+  }
   assert.same(get().flat().at(-1), 3);
   assert.same(calls, 1);
 });
 
 QUnit.test('expr: receiver evaluated once across THREE chained polyfills', assert => {
   let calls = 0;
-  const get = () => {
+  function get() {
     calls += 1;
     return [3, 1, 2];
-  };
+  }
   assert.same(get().toSorted().at(-1).toString(), '3');
   assert.same(calls, 1);
 });
 
 QUnit.test('expr: arrow-body chain memoizes the argument receiver once', assert => {
   let calls = 0;
-  const src = x => {
+  function src(x) {
     calls += 1;
     return [x, x + 1];
-  };
-  const f = x => src(x).at(-1).toFixed(0);
+  }
+  function f(x) {
+    return src(x).at(-1).toFixed(0);
+  }
   assert.same(f(5), '6');
   assert.same(calls, 1);
 });
@@ -61,10 +63,10 @@ QUnit.test('expr: instance polyfill after a static polyfill keeps its own receiv
 
 QUnit.test('expr: split chain into a temp does not duplicate the receiver effect', assert => {
   let calls = 0;
-  const make = () => {
+  function make() {
     calls += 1;
     return [1, 2, 3, 4];
-  };
+  }
   const arr = make();
   assert.same(arr.at(-1), 4);
   assert.same(arr.at(0), 1);
@@ -75,17 +77,21 @@ QUnit.test('expr: split chain into a temp does not duplicate the receiver effect
 
 QUnit.test('expr: optional chain short-circuits the polyfilled tail', assert => {
   // when the head is nullish the trailing `.at` polyfill must not run; a broken short-circuit throws
-  const make = present => present ? { arr: [1, 2, 3] } : null;
+  function make(present) {
+    return present ? { arr: [1, 2, 3] } : null;
+  }
   assert.same(make(false)?.arr.at(-1), undefined);
   assert.same(make(true)?.arr.at(-1), 3);
 });
 
 QUnit.test('expr: optional call short-circuits a chained polyfill', assert => {
   let calls = 0;
-  const provider = enabled => enabled ? () => {
-    calls += 1;
-    return [7, 8, 9];
-  } : undefined;
+  function provider(enabled) {
+    return enabled ? () => {
+      calls += 1;
+      return [7, 8, 9];
+    } : undefined;
+  }
   assert.same(provider(false)?.().at(-1), undefined);
   assert.same(calls, 0);
   assert.same(provider(true)?.().at(-1), 9);
@@ -99,7 +105,9 @@ QUnit.test('expr: nested optional chain with a polyfilled leaf', assert => {
 });
 
 QUnit.test('expr: optional member short-circuits a polyfilled includes', assert => {
-  const box = on => on ? { k: [4, 5, 6] } : null;
+  function box(on) {
+    return on ? { k: [4, 5, 6] } : null;
+  }
   assert.same(box(false)?.k.includes(5), undefined);
   assert.true(box(true)?.k.includes(5));
 });
@@ -108,10 +116,10 @@ QUnit.test('expr: optional member short-circuits a polyfilled includes', assert 
 
 QUnit.test('expr: spread source feeding a static polyfill is evaluated once', assert => {
   let calls = 0;
-  const gen = () => {
+  function gen() {
     calls += 1;
     return [1, 2, 3];
-  };
+  }
   assert.deepEqual(Array.of(...gen()), [1, 2, 3]);
   assert.same(calls, 1);
 });
@@ -141,11 +149,13 @@ QUnit.test('expr: sequence expression runs side effect before the polyfill value
 
 QUnit.test('expr: logical && suppresses the polyfilled right side when left is falsy', assert => {
   let calls = 0;
-  const right = () => {
+  function right() {
     calls += 1;
     return [1, 2, 3].at(-1);
-  };
-  const guarded = flag => flag && right();
+  }
+  function guarded(flag) {
+    return flag && right();
+  }
   assert.same(guarded(0), 0);
   assert.same(calls, 0);
   assert.same(guarded(1), 3);
@@ -154,11 +164,13 @@ QUnit.test('expr: logical && suppresses the polyfilled right side when left is f
 
 QUnit.test('expr: nullish coalescing only evaluates the polyfilled fallback when needed', assert => {
   let calls = 0;
-  const fallback = () => {
+  function fallback() {
     calls += 1;
     return Array.of(9).at(0);
-  };
-  const coalesce = input => input ?? fallback();
+  }
+  function coalesce(input) {
+    return input ?? fallback();
+  }
   assert.same(coalesce(5), 5);
   assert.same(calls, 0);
   assert.same(coalesce(null), 9);
@@ -168,15 +180,17 @@ QUnit.test('expr: nullish coalescing only evaluates the polyfilled fallback when
 QUnit.test('expr: ternary evaluates only the chosen arm polyfill', assert => {
   let a = 0;
   let b = 0;
-  const left = () => {
+  function left() {
     a += 1;
     return Array.of(1).at(0);
-  };
-  const right = () => {
+  }
+  function right() {
     b += 1;
     return Array.of(2).at(0);
-  };
-  const choose = cond => cond ? left() : right();
+  }
+  function choose(cond) {
+    return cond ? left() : right();
+  }
   assert.same(choose(true), 1);
   assert.same(a, 1);
   assert.same(b, 0);
@@ -186,10 +200,10 @@ QUnit.test('expr: ternary evaluates only the chosen arm polyfill', assert => {
 
 QUnit.test('expr: ||= assigns the polyfill only when the target is falsy', assert => {
   let calls = 0;
-  const compute = () => {
+  function compute() {
     calls += 1;
     return Array.of(1, 2, 3).at(-1);
-  };
+  }
   const box = { v: 7 };
   box.v ||= compute();
   assert.same(box.v, 7);
@@ -202,10 +216,10 @@ QUnit.test('expr: ||= assigns the polyfill only when the target is falsy', asser
 
 QUnit.test('expr: ??= assigns the polyfill only when the target is nullish', assert => {
   let calls = 0;
-  const compute = () => {
+  function compute() {
     calls += 1;
     return Array.from('xy');
-  };
+  }
   const box = { v: undefined };
   box.v ??= compute();
   assert.deepEqual(box.v, ['x', 'y']);
@@ -217,31 +231,33 @@ QUnit.test('expr: ??= assigns the polyfill only when the target is nullish', ass
 
 QUnit.test('expr: sequence-wrapped global receiver runs its effect once', assert => {
   let calls = 0;
-  const mark = () => {
+  function mark() {
     calls += 1;
     return Array;
-  };
+  }
   assert.deepEqual(mark().of(1, 2), [1, 2]);
   assert.same(calls, 1);
 });
 
 QUnit.test('expr: polyfill result drives a template literal once', assert => {
   let calls = 0;
-  const last = () => {
+  function last() {
     calls += 1;
     return [1, 2, 3].at(-1);
-  };
+  }
   assert.same(`last=${ last() }`, 'last=3');
   assert.same(calls, 1);
 });
 
 QUnit.test('expr: tagged template reads a polyfill interpolation once', assert => {
   let calls = 0;
-  const v = () => {
+  function v() {
     calls += 1;
     return Array.of(4, 2).at(0);
-  };
-  const tag = (strings, x) => `${ strings[0] }${ x }`;
+  }
+  function tag(strings, x) {
+    return `${ strings[0] }${ x }`;
+  }
   assert.same(tag`n=${ v() }`, 'n=4');
   assert.same(calls, 1);
 });

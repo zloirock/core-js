@@ -817,7 +817,7 @@ function * generateMutatedLiteralKey() {
     // the template property-name argument under BOTH define-property namespaces (the key resolves the
     // same way, but each namespace is a distinct mutation-detection callee - both must bail)
     for (const ns of ['Object', 'Reflect']) {
-      const dp = a => `${ ns }.defineProperty(${ s.recv }, \`${ s.key }\`, { value: ${ a }, configurable: true, writable: true })`;
+      function dp(a) { return `${ ns }.defineProperty(${ s.recv }, \`${ s.key }\`, { value: ${ a }, configurable: true, writable: true })`; }
       const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ dp('() => "P"') }; return ${ s.use }; } finally { ${ dp('_o') }; } })()`;
       yield { ...snippet(`mutated-literal-key/defineprop-template-${ ns.toLowerCase() }/${ s.recv }.${ s.key }`, body), strip: false };
     }

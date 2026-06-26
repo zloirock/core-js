@@ -328,7 +328,9 @@ export default function createPlugin(options) {
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
-  const resolvePure = (meta, path) => isMutatedStaticMeta(meta, currentMutatedStatics) ? null : resolvePureUnfiltered(meta, path);
+  function resolvePure(meta, path) {
+    return isMutatedStaticMeta(meta, currentMutatedStatics) ? null : resolvePureUnfiltered(meta, path);
+  }
   // `isWebpack` here is a behavior flag for the chunk-loader contract (see
   // `isChunkLoaderBundler` for the bundler set + rationale)
   const isWebpack = isChunkLoaderBundler(bundler);
@@ -922,7 +924,7 @@ export default function createPlugin(options) {
           collapseProxyHopRoot(rootPath);
         }
 
-        const usagePureCallback = (meta, metaPath) => {
+        function usagePureCallback(meta, metaPath) {
           // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
           // type-annotation positions. monkey-patched statics never reach here: detection
@@ -1096,7 +1098,7 @@ export default function createPlugin(options) {
             // the leaf is dropped from the output text and suppression still applies
             if (node.type === 'MemberExpression') skipUnpreservedReceiverLeaf(node.object, meta.sideEffects);
           }
-        };
+        }
 
         // mount tracker for every post pass (parity with `injector.enableReferenceTracking()`
         // gate above): standalone `phase: 'post'` without a pre-pass snapshot also needs

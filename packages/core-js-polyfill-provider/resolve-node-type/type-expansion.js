@@ -612,7 +612,9 @@ export function createTypeExpansion({
     // inferred binding isn't captured by the outer same-named param. mirrors applyAliasSubstDeep
     // TSConditionalType handling. falseType doesn't see infer bindings - keeps outer map
     const trueMap = trueBranchSubst(node.extendsType, typeParamMap);
-    const recurse = (branchNode, map) => substituteTypeParams(branchNode, map, scope, depth + 1, seen);
+    function recurse(branchNode, map) {
+      return substituteTypeParams(branchNode, map, scope, depth + 1, seen);
+    }
     // RAW AST + Type-object map path: substituteTypeParams resolves through typeParamMap.
     // pass raw AST + map to isUnconstrainedTypeReference so typeparam refs that bind via the
     // map are NOT misclassified as unconstrained
@@ -695,7 +697,9 @@ export function createTypeExpansion({
       // pattern, so without this fold the two sides never compare equal and the synonym pattern wrongly
       // takes the FALSE branch (a wrong-receiver polyfill). a same-family match binds U precisely; a
       // cross-family one (`Set` vs `Array<infer U>`) stays disjoint -> FALSE
-      const base = name => isPromiseRefName(name) ? 'Promise' : name.startsWith('Readonly') ? name.slice(8) : name;
+      function base(name) {
+        return isPromiseRefName(name) ? 'Promise' : name.startsWith('Readonly') ? name.slice(8) : name;
+      }
       return base(checkType.constructor) === base(container);
     }
     return family === 'iterable' && checkType.type === 'string';
