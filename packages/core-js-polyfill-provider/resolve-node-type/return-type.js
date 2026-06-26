@@ -203,8 +203,10 @@ export function createReturnType({
   // shadow them. this is handled per-TryStatement, not globally - returns outside
   // a try-finally are unaffected
   function collectReturnPaths(blockPath) {
-    const getChildren = (path, key) => Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
-    const collect = (path, depth = 0) => {
+    function getChildren(path, key) {
+      return Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
+    }
+    function collect(path, depth = 0) {
       if (depth > MAX_DEPTH || !path.node || t.isFunction(path.node)) return [];
       if (t.isReturnStatement(path.node)) return [path];
       const { node } = path;
@@ -231,7 +233,7 @@ export function createReturnType({
       if (node.alternate) for (const r of collect(path.get('alternate'), depth + 1)) result.push(r);
       if (node.cases) for (const p of path.get('cases')) for (const r of collect(p, depth + 1)) result.push(r);
       return result;
-    };
+    }
     const result = [];
     for (const stmt of blockPath.get('body')) for (const r of collect(stmt)) result.push(r);
     return result;

@@ -241,7 +241,9 @@ QUnit.test('JSON.parse', assert => {
 
 QUnit.test('JSON.parse source access', assert => {
   const { parse } = JSON;
-  const spy = (k, v, { source: $source }) => source = $source;
+  function spy(k, v, { source: $source }) {
+    return source = $source;
+  }
   let source;
   parse('1234', spy);
   assert.same(source, '1234', '1234');

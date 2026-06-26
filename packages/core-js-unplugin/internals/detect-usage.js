@@ -1011,8 +1011,8 @@ export function createUsageVisitors({
 
 export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack = false }) {
   const rules = createSyntaxRules({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
-  const onFunction = path => rules.onFunction(path.node);
-  const onClass = path => rules.onClass(path.node);
+  function onFunction(path) { return rules.onFunction(path.node); }
+  function onClass(path) { return rules.onClass(path.node); }
   return {
     ImportExpression(path) { rules.onImportExpression(path.node); },
     FunctionDeclaration: onFunction,

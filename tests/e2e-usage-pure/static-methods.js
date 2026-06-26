@@ -161,10 +161,10 @@ QUnit.test('static: Array.from chain-assign evaluates before computed key', asse
 // receiver chain collapses to the polyfill, but the prefix effect AND the root call still run first
 QUnit.test('static: chain-root call under SE prefix runs before dispatch', assert => {
   const log = [];
-  const mk = () => {
+  function mk() {
     log.push('mk');
     return globalThis;
-  };
+  }
   const r = (log.push('pre'), mk()).Array.from([1, 2]);
   assert.deepEqual(r, [1, 2]);
   assert.deepEqual(log, ['pre', 'mk']);
@@ -176,7 +176,9 @@ QUnit.test('static: chain-root call under SE prefix runs before dispatch', asser
 // left the unplugin member visitor queuing a parallel rewrite the compose could not locate -> crash
 QUnit.test('static: SE prefix below a forwarder member runs once, receiver collapses', assert => {
   const log = [];
-  const eff = () => log.push('e');
+  function eff() {
+    return log.push('e');
+  }
   const r = (eff(), globalThis.self).Array.from([1, 2, 3]);
   assert.deepEqual(r, [1, 2, 3]);
   assert.deepEqual(log, ['e']);

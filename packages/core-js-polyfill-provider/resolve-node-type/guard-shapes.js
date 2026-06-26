@@ -158,12 +158,12 @@ export function createPredicateGuards({
     const out = [];
     const binding = getScopeBinding(scope, peeled.name);
     const seen = new Set();
-    const push = path => {
+    function push(path) {
       if (seen.has(path)) return;
       seen.add(path);
       const info = resolveBindingReturnInfo(path.node);
       if (info) out.push({ fnNode: info.fnNode, returnType: info.returnType, scope: path.scope });
-    };
+    }
     if (binding) push(binding.path);
     for (const ambient of findAmbientFunctionPaths(peeled.name, scope)) push(ambient);
     return out;
