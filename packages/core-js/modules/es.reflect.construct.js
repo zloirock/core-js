@@ -20,7 +20,7 @@ var push = [].push;
 // Firefox < 45 ignores `newTarget` for built-in constructors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1055472
 var NEW_TARGET_BUG = fails(function () {
-  function F() { /* empty */ }
+  var F = function () { /* empty */ };
   return !(nativeConstruct(function () { /* empty */ }, [], F) instanceof F)
     || !(nativeConstruct(Boolean, [], F) instanceof F);
 });
