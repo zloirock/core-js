@@ -257,17 +257,16 @@
               {
                 "title": "Iterator chunking",
                 "url": "{docs-version}/docs/features/proposals/iterator-chunking"
-              },
-              {
-                "title": "Symbol.metadata for decorators metadata proposal",
-                "url": "{docs-version}/docs/features/proposals/symbol-metadata"
               }
             ]
           },
           {
             "title": "Stage 2.7 proposals",
             "children": [
-              // empty
+              {
+                "title": "Symbol.metadata for decorators metadata proposal",
+                "url": "{docs-version}/docs/features/proposals/symbol-metadata"
+              }
             ]
           },
           {
