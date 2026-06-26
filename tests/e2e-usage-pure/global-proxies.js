@@ -175,7 +175,9 @@ QUnit.test('IIFE-proxy with optional hop: side effect runs once', assert => {
 // `globalThis.Set` needle when the mid-chain ctor-static was wrongly collapsed into the instance receiver
 QUnit.test('global-proxy: mid-chain ctor-static under SE prefix composes with instance method', assert => {
   const log = [];
-  const eff = () => log.push('e');
+  function eff() {
+    return log.push('e');
+  }
   const r = (eff(), globalThis).Set.length.toFixed(2);
   assert.same(typeof r, 'string');
   assert.true(/\.00$/.test(r));

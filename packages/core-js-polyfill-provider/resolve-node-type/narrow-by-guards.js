@@ -212,9 +212,11 @@ export function createNarrowByGuards({
     // a fresh inner conditional re-narrows at runtime regardless of outer-scope mutations.
     // "fresh" requires no mutation in the consequent path AND no mutation in the inner
     // guard's own test slot
-    const bindingGuardedAt = current => !!(findConditionalGuards(current, varName).length
-      || findSwitchCaseGuards(current, varName).length
-      || findEarlyExitGuards(current, varName).length);
+    function bindingGuardedAt(current) {
+      return !!(findConditionalGuards(current, varName).length
+        || findSwitchCaseGuards(current, varName).length
+        || findEarlyExitGuards(current, varName).length);
+    }
     let innerFreshConditional = false;
     // host of the nearest fresh inner re-narrowing conditional (set once, at the first fresh
     // conditional walking leaf->up); feeds the stale-guard boundary computed at the final return

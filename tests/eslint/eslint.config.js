@@ -609,6 +609,20 @@ const base = {
   'unicorn/consistent-empty-array-spread': ERROR,
   // enforce consistent style for element existence checks with `indexOf()`, `lastIndexOf()`, `findIndex()`, and `findLastIndex()`
   'unicorn/consistent-existence-index-check': ERROR,
+  // enforce consistent decorator position on exported classes
+  'unicorn/consistent-export-decorator-position': [ERROR, 'above'],
+  // enforce function syntax by role
+  'unicorn/consistent-function-style': [ERROR, {
+    default: 'ignore',
+    namedFunctions: 'declaration',
+    namedExports: 'ignore',
+    callbacks: 'ignore',
+    objectProperties: 'ignore',
+    reassignedVariables: 'ignore',
+    typedVariables: 'ignore',
+  }],
+  // enforce consistent optional chaining for same-base member access
+  'unicorn/consistent-optional-chaining': ERROR,
   // enforce consistent JSON file reads before `JSON.parse()`
   'unicorn/consistent-json-file-read': [ERROR, 'buffer'],
   // enforce consistent style for escaping ${ in template literals
@@ -619,8 +633,12 @@ const base = {
   'unicorn/error-message': ERROR,
   // require escape sequences to use uppercase values
   'unicorn/escape-case': [ERROR, 'uppercase'],
+  // enforce or disallow explicit delay argument for `setTimeout()` and `setInterval()`
+  'unicorn/explicit-timer-delay': [ERROR, 'always'],
   // enforce a case style for filenames
   'unicorn/filename-case': [ERROR, { case: 'kebabCase' }],
+  // limit the depth of nested calls
+  'unicorn/max-nested-calls': [ERROR, { max: 5 }],
   // enforce specifying rules to disable in `eslint-disable` comments
   'unicorn/no-abusive-eslint-disable': ERROR,
   // disallow recursive access to `this` within getters and setters
@@ -639,8 +657,12 @@ const base = {
   'unicorn/no-canvas-to-image': ERROR,
   // disallow confusing uses of `Array#{ splice, toSpliced }()`
   'unicorn/no-confusing-array-splice': ERROR,
+  // disallow confusing uses of `Array#with()`
+  'unicorn/no-confusing-array-with': ERROR,
   // do not use leading/trailing space between `console.log` parameters
   'unicorn/no-console-spaces': ERROR,
+  // disallow `.map()` and `.filter()` in `for...of` and for `await...of` loop headers
+  'unicorn/no-duplicate-loops': ERROR,
   // disallow duplicate values in `Set` constructor array literals
   'unicorn/no-duplicate-set-values': ERROR,
   // disallow empty files
@@ -656,6 +678,8 @@ const base = {
   'unicorn/no-immediate-mutation': ERROR,
   // disallow incorrect `querySelector()` and `querySelectorAll()` usage
   'unicorn/no-incorrect-query-selector': ERROR,
+  // disallow incorrect template literal interpolation syntax
+  'unicorn/no-incorrect-template-string-interpolation': ERROR,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': [ERROR, { strategy: 'loose' }],
   // disallow invalid options in `fetch` and `Request`
@@ -1784,6 +1808,16 @@ const polyfills = {
   'regexp/prefer-regexp-test': OFF,
   // shorthand promises should be used
   'sonarjs/prefer-promise-shorthand': OFF,
+  // enforce function syntax by role
+  'unicorn/consistent-function-style': [ERROR, {
+    default: 'ignore',
+    namedFunctions: 'function-expression',
+    namedExports: 'ignore',
+    callbacks: 'ignore',
+    objectProperties: 'ignore',
+    reassignedVariables: 'ignore',
+    typedVariables: 'ignore',
+  }],
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
 };

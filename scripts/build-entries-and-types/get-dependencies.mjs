@@ -58,8 +58,8 @@ async function getModuleMetadata(path, stack = new Set()) {
 export async function getModulesMetadata(paths) {
   const dependencies = [];
   const types = [];
-  for (const module of paths.map(normalizeModulePath)) {
-    const result = await getModuleMetadata(module);
+  for (const module of paths) {
+    const result = await getModuleMetadata(normalizeModulePath(module));
     dependencies.push(...result.dependencies);
     types.push(...result.types);
   }

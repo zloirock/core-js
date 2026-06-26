@@ -328,9 +328,11 @@ export function createCallResolution({
     const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
     const target = aliased ?? unwrapped;
     const keyKind = propName === null ? indexAccessKeyKind(path) : null;
-    const lookup = typeNode => propName === null
-      ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind)
-      : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst });
+    function lookup(typeNode) {
+      return propName === null
+        ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind)
+        : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst });
+    }
     if (isUnionType(target)) {
       for (const branch of target.types) {
         const peeled = applySubst(unwrapTypeAnnotation(branch), subst);

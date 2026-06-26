@@ -132,7 +132,7 @@ QUnit.test('Array.from', assert => {
       };
     },
   };
-  const Frozen = function () { return freeze([]); };
+  function Frozen() { return freeze([]); }
   assert.throws(() => from.call(Frozen, iterable), TypeError, 'throws when createProperty fails');
   assert.true(returnCalled, 'iterator is closed when createProperty throws');
   // mapfn callable check should happen before ToObject(items)

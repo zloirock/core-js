@@ -91,7 +91,7 @@ export function createNameResolution({ t }) {
     let bodyPaths = scopePath.get('body');
     if (bodyPaths && !Array.isArray(bodyPaths)) bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
     const index = new Map();
-    const add = (stmtPaths, match) => {
+    function add(stmtPaths, match) {
       for (const stmtPath of stmtPaths) {
         const { type } = stmtPath.node ?? {};
         const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
@@ -113,7 +113,7 @@ export function createNameResolution({ t }) {
           arr.push(declPath);
         }
       }
-    };
+    }
     if (Array.isArray(bodyPaths)) add(bodyPaths, matchType);
     byMatch.set(matchType, index);
     return index;
