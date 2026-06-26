@@ -851,6 +851,12 @@ GLOBAL.tests = {
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
   },
+  'es.iterator.zip': function () {
+    return Iterator.zip;
+  },
+  'es.iterator.zip-keyed': function () {
+    return Iterator.zipKeyed;
+  },
   'es.json.is-raw-json': NATIVE_RAW_JSON,
   'es.json.parse': function () {
     var unsafeInt = '9007199254740993';
@@ -1957,12 +1963,6 @@ GLOBAL.tests = {
   },
   'esnext.iterator.windows': function () {
     return Iterator.prototype.windows;
-  },
-  'esnext.iterator.zip': function () {
-    return Iterator.zip;
-  },
-  'esnext.iterator.zip-keyed': function () {
-    return Iterator.zipKeyed;
   },
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;

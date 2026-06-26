@@ -1,5 +1,11 @@
 # Changelog
 ### Unreleased
+- [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration):
+  - Built-ins:
+    - `Iterator.zip`
+    - `Iterator.zipKeyed`
+  - Moved to stable ES, [May 2026 TC39 meeting](https://github.com/tc39/proposals/commit/7e2d9a45e71525984d4c35313a3daeb4260773ef)
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
   - Built-ins:
     - `Iterator.prototype.chunks`

@@ -360,6 +360,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/some') == 'function');
     ok(typeof load(NS, 'iterator/take') == 'function');
     ok(typeof load(NS, 'iterator/to-array') == 'function');
+    ok(typeof load(NS, 'iterator/zip') == 'function');
+    ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
@@ -721,8 +723,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/chunks') == 'function');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
-    ok(typeof load(NS, 'iterator/zip') == 'function');
-    ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
     ok(load(NS, 'symbol/metadata'));
 
     const instanceGroup = load(NS, 'instance/group');

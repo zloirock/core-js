@@ -826,6 +826,12 @@ export const data = {
     firefox: '131',
     safari: '18.4',
   },
+  'es.iterator.zip': {
+    firefox: '148',
+  },
+  'es.iterator.zip-keyed': {
+    firefox: '148',
+  },
   'es.json.is-raw-json': {
     bun: '1.1.43',
     chrome: '114',
@@ -2646,12 +2652,10 @@ export const data = {
   },
   'esnext.iterator.windows': {
   },
-  'esnext.iterator.zip': {
-    firefox: '148',
-  },
-  'esnext.iterator.zip-keyed': {
-    firefox: '148',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.zip': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.zip-keyed': null,
   // TODO: Remove from `core-js@4`
   'esnext.json.is-raw-json': null,
   // TODO: Remove from `core-js@4`
@@ -3257,6 +3261,8 @@ export const renamed = new Map([
   ['esnext.iterator.some', 'es.iterator.some'],
   ['esnext.iterator.take', 'es.iterator.take'],
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
+  ['esnext.iterator.zip', 'es.iterator.zip'],
+  ['esnext.iterator.zip-keyed', 'es.iterator.zip-keyed'],
   ['esnext.json.is-raw-json', 'es.json.is-raw-json'],
   ['esnext.json.parse', 'es.json.parse'],
   ['esnext.json.raw-json', 'es.json.raw-json'],
