@@ -13,6 +13,7 @@
 // common ancestor remains unsupported
 import {
   collectFoldedReceiverSideEffects,
+  isMemberWriteHost,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
   buildFlatSynthEntries,
@@ -322,11 +323,13 @@ export default function createSynthSwapEmitter({
     return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
   }
 
-  function collapseProxyGlobalReceiver(receiver, aliasCtx = null) {
+  function collapseProxyGlobalReceiver(receiver, aliasCtx = null, isWriteTarget = false) {
     if (!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) return null;
     // collapsible only when the whole `.object` is the pure-proxy navigation (its full span is the
-    // prefix) and `.property` is the constructor leaf
-    if (maximalProxyGlobalPrefix(receiver, aliasCtx) !== receiver.object) {
+    // prefix) and `.property` is the constructor leaf. a WRITE target admits SE-bearing hop keys
+    // (`globalThis[(e++, 'window')].Set = fn`) so the span reaches the SE-key hop instead of recursing into it
+    // (where the proxy-hop-leaf bail strands it raw); the SE prefix is harvested into the collapsed root below
+    if (maximalProxyGlobalPrefix(receiver, aliasCtx, isWriteTarget) !== receiver.object) {
       const callRooted = collapseCallRootedProxyReceiver(receiver, aliasCtx);
       if (callRooted) return callRooted;
       // the proxy navigation sits DEEPER than the immediate `.object` (`(c++, globalThis.self).Array.prototype`
@@ -336,11 +339,14 @@ export default function createSynthSwapEmitter({
       const inner = findProxyGlobal(receiver, aliasCtx) ? collapseProxyGlobalReceiver(receiver.object, aliasCtx) : null;
       return inner ? t.memberExpression(inner, t.cloneNode(receiver.property), receiver.computed) : null;
     }
-    // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to the pure ctor by the synth-swap /
-    // leaf path; a root-collapse here would emit the NATIVE `_globalThis.Map` and inject a dead
-    // `_globalThis`. skip it - only a NON-pure leaf (`.Array`, a user member) root-collapses its hops
+    // a pure-ctor leaf (`globalThis.self.Map`) on a READ is whole-swapped to the pure ctor by the synth-swap /
+    // leaf path; a root-collapse here would emit the NATIVE `_globalThis.Map` and inject a dead `_globalThis`.
+    // skip it - only a NON-pure leaf (`.Array`, a user member) root-collapses its hops. a WRITE TARGET
+    // (`globalThis.window.Map = fn`) is the exception: the leaf is the assignment slot, NOT whole-swapped, so
+    // its hops MUST collapse to the pure root - else a no-pure-entry hop (`.window`) stays raw
+    // (`_globalThis.window.Map = fn`, undefined off-engine -> crash), matching the read-receiver collapse
     const leafName = memberKeyName(receiver);
-    if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
+    if (!isWriteTarget && leafName && resolvePure({ kind: 'global', name: leafName })) return null;
     // the receiver's leaf is itself a redundant proxy HOP reached via a SE-bearing key
     // (`globalThis[(e++, 'self')]` - folds to a proxy-global name, not a real member): this base case
     // can't drop the hop (the harvest reads the chain OBJECT, not the SE key), so it would keep
@@ -368,6 +374,19 @@ export default function createSynthSwapEmitter({
     // `_globalThis['Object']` - leaving the hop verbatim reads `.self` off the global
     // object, which is undefined on hosts without it (ie:11 pure, Node)
     return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
+  }
+
+  // true when ANY hop of a proxy-nav is a proxy-global name WITHOUT a pure entry (`globalThis.window` - no
+  // `_window`): the natural visitor leaves it raw off the pure root (`_globalThis.window`, undefined off-engine).
+  // `staticMemberKeyName` folds a SE-bearing computed hop key (`globalThis[(e++, 'window')]`) so it is detected
+  function navHasUnresolvableProxyHop(navNode) {
+    let cur = navNode;
+    while (t.isMemberExpression(cur) || t.isOptionalMemberExpression(cur)) {
+      const hop = staticMemberKeyName(cur);
+      if (hop && POSSIBLE_GLOBAL_OBJECTS.has(hop) && !resolvePure({ kind: 'global', name: hop })) return true;
+      cur = cur.object;
+    }
+    return false;
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
@@ -409,7 +428,17 @@ export default function createSynthSwapEmitter({
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
     if (target?.type === 'ObjectPattern') return false;
-    const collapsed = collapseProxyGlobalReceiver(recPath.node, aliasCtx);
+    // a mutation TARGET (`globalThis.{self,window}.Map = fn` / `delete ...` / `...++`, the canonical
+    // `isMemberWriteHost` covers `=` / update / `delete` / destructuring / wrappers) collapses through a pure-ctor
+    // leaf - the leaf is the write slot, not a read whole-swap. unplugin's natural visitor resolves a hop that
+    // HAS a pure entry (`globalThis.self` -> `_self`) but leaves one WITHOUT (`globalThis.window`, no `_window`)
+    // raw; this guard reproduces that per-hop behaviour so babel matches unplugin: keep the natural `_self`
+    // resolution when every hop resolves, force the full root-collapse when ANY hop is raw (`.window` -> a
+    // `_globalThis.window` slot is undefined off-engine -> crash). without it babel would always collapse to
+    // `_globalThis`, diverging from unplugin (whose `_self` resolution is embedded too deep to re-route cheaply)
+    const isWriteTarget = isMemberWriteHost(recPath);
+    if (isWriteTarget && !navHasUnresolvableProxyHop(recPath.node.object)) return false;
+    const collapsed = collapseProxyGlobalReceiver(recPath.node, aliasCtx, isWriteTarget);
     if (!collapsed) return false;
     recPath.replaceWith(collapsed);
     return true;
