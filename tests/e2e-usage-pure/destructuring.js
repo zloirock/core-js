@@ -301,14 +301,14 @@ QUnit.test('destructuring: with default value', assert => {
 QUnit.test('destructuring: nested SE inside lifted callback', assert => {
   const log = [];
   let captured;
-  const wrap = obj => {
+  function wrap(obj) {
     log.push('outer');
     captured = obj.fn;
-  };
-  const innerFn = () => {
+  }
+  function innerFn() {
     const { of } = (log.push('inner'), Array);
     return of;
-  };
+  }
   const { from } = (wrap({ fn: innerFn }), Array);
   assert.deepEqual(log, ['outer']);
   assert.same(typeof captured(), 'function');
@@ -319,14 +319,14 @@ QUnit.test('destructuring: nested SE inside lifted callback', assert => {
 QUnit.test('destructuring: triple-level nested SE', assert => {
   const log = [];
   let mid, deep;
-  const outer = cb => {
+  function outer(cb) {
     log.push('outer');
     mid = cb;
-  };
-  const wrap = cb => {
+  }
+  function wrap(cb) {
     log.push('mid');
     deep = cb;
-  };
+  }
   const { from } = (outer(() => {
     const { of } = (wrap(() => {
       const { fromAsync } = (log.push('deep'), Array);
@@ -345,14 +345,14 @@ QUnit.test('destructuring: triple-level nested SE', assert => {
 QUnit.test('destructuring: nested SE in assignment form', assert => {
   const log = [];
   let captured;
-  const wrap = obj => {
+  function wrap(obj) {
     log.push('outer');
     captured = obj.fn;
-  };
-  const innerFn = () => {
+  }
+  function innerFn() {
     const { of } = (log.push('inner'), Array);
     return of;
-  };
+  }
   let from;
   // eslint-disable-next-line prefer-const -- testing assignment-form destructure path
   ({ from } = (wrap({ fn: innerFn }), Array));
@@ -410,9 +410,9 @@ QUnit.test('computed-key: const { [k]: from } = Array', assert => {
 
 QUnit.test('computed-key: param-default no-arg uses the polyfilled default', assert => {
   const k = 'of';
-  const fn = function ({ [k]: of } = Array) {
+  function fn({ [k]: of } = Array) {
     return of(7, 8);
-  };
+  }
   assert.deepEqual(fn(), [7, 8]);
 });
 
@@ -420,9 +420,9 @@ QUnit.test('computed-key: param-default no-arg uses the polyfilled default', ass
 // win. were the computed key body-extracted ("polyfill always wins") both calls would return [1]
 QUnit.test('computed-key: param-default preserves a caller-passed receiver', assert => {
   const k = 'of';
-  const fn = function ({ [k]: of } = Array) {
+  function fn({ [k]: of } = Array) {
     return of(1);
-  };
+  }
   assert.deepEqual(fn(), [1]);
   const custom = { of: (...args) => ['custom', ...args] };
   assert.deepEqual(fn(custom), ['custom', 1]);
@@ -433,9 +433,9 @@ QUnit.test('computed-key: param-default preserves a caller-passed receiver', ass
 QUnit.test('computed-key: plain `k` and computed `[k]` do not collide', assert => {
   const k = 'of';
   // eslint-disable-next-line es/no-nonstandard-array-properties -- plain key 'k' is an intentionally absent property
-  const fn = function ({ k: plainK, [k]: ofMethod } = Array) {
+  function fn({ k: plainK, [k]: ofMethod } = Array) {
     return [plainK, ofMethod(9)];
-  };
+  }
   const [plainK, ofResult] = fn();
   assert.same(plainK, undefined);
   assert.deepEqual(ofResult, [9]);
@@ -444,9 +444,9 @@ QUnit.test('computed-key: plain `k` and computed `[k]` do not collide', assert =
 QUnit.test('computed-key: interior position { from, [k]: build, of }', assert => {
   // computed key is itself a polyfilled static, so it resolves on every target (not just native)
   const k = 'fromAsync';
-  const fn = function ({ from, [k]: build, of } = Array) {
+  function fn({ from, [k]: build, of } = Array) {
     return [from([3]), typeof build, of(4)];
-  };
+  }
   const [fromResult, buildType, ofResult] = fn();
   assert.deepEqual(fromResult, [3]);
   assert.same(buildType, 'function');
@@ -455,9 +455,11 @@ QUnit.test('computed-key: interior position { from, [k]: build, of }', assert =>
 
 QUnit.test('computed-key: per-branch synth { from, [k]: len } = cond ? Array : Object', assert => {
   const k = 'length';
-  const pick = cond => (function ({ from, [k]: len } = cond ? Array : Object) {
-    return typeof from === 'function' ? [from([5]), typeof len] : null;
-  })();
+  function pick(cond) {
+    return (function ({ from, [k]: len } = cond ? Array : Object) {
+      return typeof from === 'function' ? [from([5]), typeof len] : null;
+    })();
+  }
   assert.deepEqual(pick(true), [[5], 'number']);
   assert.same(pick(false), null);
 });
@@ -465,9 +467,9 @@ QUnit.test('computed-key: per-branch synth { from, [k]: len } = cond ? Array : O
 // `[of]` reads the SIBLING binding `of`, so the synth default (evaluated before the pattern binds)
 // would read the wrong value - the scope-gate keeps this on the single-read inline-default path
 QUnit.test('computed-key: sibling-binding read stays single-read', assert => {
-  const fn = function ({ of, [of]: picked } = Array) {
+  function fn({ of, [of]: picked } = Array) {
     return [typeof of, picked];
-  };
+  }
   const [ofType, picked] = fn();
   assert.same(ofType, 'function');
   assert.same(picked, undefined);
@@ -495,7 +497,9 @@ QUnit.test('computed-key: side-effecting prefix in nested destructure', assert =
 
 QUnit.test('computed-key: side-effecting prefix in param-default destructure', assert => {
   const log = [];
-  const pick = ({ [(log.push('eff'), 'from')]: from } = Array) => from;
+  function pick({ [(log.push('eff'), 'from')]: from } = Array) {
+    return from;
+  }
   const from = pick();
   assert.deepEqual(log, ['eff']);
   assert.deepEqual(from([6, 7]), [6, 7]);
@@ -990,7 +994,9 @@ QUnit.test('destructuring: logical AND with SE IIFE side, setup runs once', asse
 // the polyfill is wired (for-init / call-arg positions)
 QUnit.test('destructuring: assignment form in call-arg position', assert => {
   let from;
-  const id = x => x;
+  function id(x) {
+    return x;
+  }
   id({ Array: { from } } = globalThis);
   assert.deepEqual(from([1, 2]), [1, 2]);
 });
@@ -1584,7 +1590,9 @@ QUnit.test('destructuring: assignment array wrap with rest cascade', assert => {
 // an unclassifiable IIFE arg keeps native priority (caller value wins) while the wrapper
 // default carries the polyfill for the undefined-arg path
 QUnit.test('destructuring: wrapper default vs unclassifiable caller arg', assert => {
-  const f = ({ of } = Array) => of;
+  function f({ of } = Array) {
+    return of;
+  }
   const custom = { of: 'caller' };
   assert.same(f(custom), 'caller');
   assert.same(f()(6)[0], 6);
@@ -1689,7 +1697,9 @@ QUnit.test('destructuring: for-init flatten sibling rest shape', assert => {
 // and never when the caller passes a value
 QUnit.test('destructuring: synth-swap rescues buried receiver side effects', assert => {
   const calls = [];
-  const eff = () => calls.push('eff');
+  function eff() {
+    return calls.push('eff');
+  }
   function f({ from } = (eff(), globalThis).Array) { return from; }
   assert.same(typeof f(), 'function');
   assert.same(calls.length, 1);
@@ -1785,11 +1795,11 @@ QUnit.test('destructuring: SE-key global-ctor alias re-polyfills member read', a
 // guard must not run it (the overwrite joins the destructure inside the implied block)
 QUnit.test('destructuring: bodyless-control nested-instance overwrite stays conditional', assert => {
   const arr = [1, [2], 3];
-  const grab = guard => {
+  function grab(guard) {
     let m;
     if (guard) [{ flat: m }] = [arr];
     return m;
-  };
+  }
   // false guard: the overwrite must NOT run, so `m` stays undefined (the bug ran it unconditionally)
   assert.same(grab(false), undefined);
   // true guard: the overwrite runs, binding `m` to the polyfilled `flat` (a function)

@@ -493,7 +493,9 @@ checkRangeDiagnosticSplit();
 // because NaN comparisons are always false - integer check surfaces the caller bug upfront
 function checkNonIntegerRangeThrows() {
   const code = '0123456789';
-  const make = () => new TransformQueue(code, new MagicString(code));
+  function make() {
+    return new TransformQueue(code, new MagicString(code));
+  }
   for (const bad of [[NaN, 5], [undefined, 5], [null, 5], ['5', 8], [5, NaN], [0.5, 5], [5, 5.5]]) {
     try {
       make().add(bad[0], bad[1], 'X');
@@ -1158,7 +1160,9 @@ checkRunTransformStateIsolation();
 // past bare. snapshot loss after user-edited removal of `_ref` declaration means bare is
 // free again; allocator must reuse it before claiming a new numeric slot
 function checkBareSlotReclaim() {
-  const newInj = () => new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  function newInj() {
+    return new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  }
   // baseline: only numbered orphan adopted -> bare reclaimed on first allocation
   const a = newInj();
   a.adoptOrphanRefs(['_ref2']);
@@ -1225,7 +1229,9 @@ checkGenerateDeclaredRefHoists();
 // agnostic (babel's violation node is the assignment, estree's the bound identifier - both count as one).
 // a real later reassignment, or a write alongside a declarator init, still poisons.
 function checkBodyExtractAliasCleanGate() {
-  const newInj = () => new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  function newInj() {
+    return new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  }
   const queryBinding = { identifier: { start: 0 } };
 
   // assignment form: exactly one write, no declarator init -> the aliasing event, not a reassignment
@@ -1601,8 +1607,10 @@ checkDirectivePrologueEnd();
 // imports and break the scan. interleaved shapes that mix declarations and code break
 // the scan at the first non-import statement, matching babel-plugin's reorderRefsAfterImports
 function checkLastUserImportEnd() {
-  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-  const tsProgramOf = src => parseSync('/x.ts', src, { sourceType: 'module' }).program;
+  function tsProgramOf(src) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    return parseSync('/x.ts', src, { sourceType: 'module' }).program;
+  }
   // empty body returns null (no anchor)
   check('lastUserImportEnd/empty', lastUserImportEnd(programOf('')), null);
   // single import: end at the import's `;`
@@ -1649,7 +1657,9 @@ checkLastUserImportEnd();
 // the callee is peeled of skippable wrappers first, so a parenthesized or comma-sequence
 // `require` (minifier / bundler output like `(0, require)('m')`) is still recognized
 function checkIsTopLevelImportLikeWrappedRequire() {
-  const stmtOf = src => programOf(src, 'script').body[0];
+  function stmtOf(src) {
+    return programOf(src, 'script').body[0];
+  }
   check('isTopLevelImportLike/bare require', isTopLevelImportLike(stmtOf("require('m');")), true);
   check('isTopLevelImportLike/paren-wrapped require', isTopLevelImportLike(stmtOf("(require)('m');")), true);
   check('isTopLevelImportLike/sequence-wrapped require', isTopLevelImportLike(stmtOf("(0, require)('m');")), true);
@@ -2906,15 +2916,17 @@ checkPrePostPostAddsSiblingInjectedUsage();
 // as a legal explicit value. runtime must accept `'pre'` (no-op redundant with default)
 // and reject any other phase value. parallel checks: undefined / null are also accepted
 function checkEntryGlobalPhaseGate() {
-  const noop = ctx => unplugin.raw({ method: 'entry-global', ...ctx, targets: 'chrome 50' }, { framework: 'vite' });
-  const tryFactory = ctx => {
+  function noop(ctx) {
+    return unplugin.raw({ method: 'entry-global', ...ctx, targets: 'chrome 50' }, { framework: 'vite' });
+  }
+  function tryFactory(ctx) {
     try {
       noop(ctx);
       return null;
     } catch (error) {
       return error;
     }
-  };
+  }
   check('entry-global phase: pre accepted (regression lock)', tryFactory({ phase: 'pre' }), null);
   check('entry-global phase: post rejects', tryFactory({ phase: 'post' })?.message?.includes('`phase`'), true);
   check('entry-global phase: pre+post rejects', tryFactory({ phase: 'pre+post' })?.message?.includes('`phase`'), true);
@@ -3057,14 +3069,14 @@ checkSnapshotPrePassTwiceWarn();
 // RangeError without indicating which side was bad
 function checkAddSplitInvariant() {
   const tq = new TransformQueue('abcdefghij');
-  const tryCall = args => {
+  function tryCall(args) {
     try {
       tq.addSplit(...args);
       return null;
     } catch (error) {
       return error?.message;
     }
-  };
+  }
   check('addSplit valid call: no throw', tryCall([0, 5, 10, 'p', 's', null, null]), null);
   const zeroLeft = tryCall([5, 5, 8, 'p', 's', null, null]);
   check('addSplit zero-left half: throws with positions', !!zeroLeft?.includes('[5,5,8)'), true);
@@ -3148,10 +3160,14 @@ await checkBundlerAdapterExports();
 // orthogonal), and Literal subtype dispatch (BigInt / RegExp / String / Number / Boolean / Null)
 async function checkEstreeNodeTypeMapper() {
   const { nodeType } = await import('../../packages/core-js-unplugin/internals/estree-compat.js');
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const parseTop = src => parseSync('test.js', src).program;
+  function parseTop(src) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    return parseSync('test.js', src).program;
+  }
   // ChainExpression wraps optional `a?.b` / `a?.()` in oxc; unwrap to inner Member/Call
-  const unwrapChain = node => node?.expression ?? node;
+  function unwrapChain(node) {
+    return node?.expression ?? node;
+  }
 
   // Property kinds via parsed object literal: init / method / get / set
   const props = parseTop('const o = { a: 1, b() {}, get c() {}, set c(v) {} };')
@@ -4341,7 +4357,9 @@ function checkPhantomViolationFilter() {
     });
     return result;
   }
-  const filteredCount = (src, name) => withoutPhantomDeclarationViolations(bindingFor(src, name)).constantViolations.length;
+  function filteredCount(src, name) {
+    return withoutPhantomDeclarationViolations(bindingFor(src, name)).constantViolations.length;
+  }
 
   check('phantom namespace-twin declaration violation dropped',
     filteredCount('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x'), 0);

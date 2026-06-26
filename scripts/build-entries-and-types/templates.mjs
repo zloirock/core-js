@@ -1,20 +1,30 @@
 import { basename } from 'node:path';
 import dedent from 'dedent';
 
-const importInternal = (module, level) => `require('${ level ? '../'.repeat(level) : './' }internals/${ module }');`;
+function importInternal(module, level) {
+  return `require('${ level ? '../'.repeat(level) : './' }internals/${ module }');`;
+}
 
-const importModule = (module, level) => `require('${ level ? '../'.repeat(level) : './' }modules/${ module }');`;
+function importModule(module, level) {
+  return `require('${ level ? '../'.repeat(level) : './' }modules/${ module }');`;
+}
 
-const importModules = ({ modules, level }) => modules.map(module => importModule(module, level)).join('\n');
+function importModules({ modules, level }) {
+  return modules.map(module => importModule(module, level)).join('\n');
+}
 
-const buildCoreJSTypeName = (namespace, name) => `CoreJS.${ namespace }${ name.charAt(0).toUpperCase() + name.slice(1) }`;
+function buildCoreJSTypeName(namespace, name) {
+  return `CoreJS.${ namespace }${ name.charAt(0).toUpperCase() + name.slice(1) }`;
+}
 
-const buildSelfForNamespace = (namespace, prefix, mutable) => {
+function buildSelfForNamespace(namespace, prefix, mutable) {
   const ns = mutable ? namespace : getSelfNamespace(namespace);
   return `${ prefix && missingNamespacesInES6.includes(ns) ? prefix : '' }${ ns }${ getCommonGenericsForNamespace(ns) }`;
-};
+}
 
-const buildModulePath = ({ entry, packageName }) => `${ packageName }${ entry }`;
+function buildModulePath({ entry, packageName }) {
+  return `${ packageName }${ entry }`;
+}
 
 function isAllowedFunctionName(name) {
   try {
@@ -104,12 +114,14 @@ function getCustomGenerics(count) {
 
 export const wrapEntryInStrict = template => `'use strict';\n${ template }\n`;
 
-const instanceTypes = p => dedent`
-  declare module '${ buildModulePath(p) }' {
-    const method: (arg: NonNullable<any>) => any;
-    export = method;
-  }
-`;
+function instanceTypes(p) {
+  return dedent`
+    declare module '${ buildModulePath(p) }' {
+      const method: (arg: NonNullable<any>) => any;
+      export = method;
+    }
+  `;
+}
 
 export const $justImport = p => ({
   entry: dedent`

@@ -103,7 +103,9 @@ export function createAwaited({
   function peelAwaitedArgument({ arg, scope, depth }) {
     if (!arg || depth > MAX_DEPTH) return arg;
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
-    const recurse = next => peelAwaitedArgument({ arg: next, scope, depth: depth + 1 });
+    function recurse(next) {
+      return peelAwaitedArgument({ arg: next, scope, depth: depth + 1 });
+    }
     // distribute Awaited over union / intersection. filter null members - a nested
     // union / intersection that collapses to empty `types[]` returns null; carrying
     // nulls into the parent's `.types` crashes findTypeMember's member-walk. drop
@@ -277,7 +279,9 @@ export function createAwaited({
     // oxc preserves `(T)` as TSParenthesizedType (babel strips); must peel before the
     // union / intersection / Promise check or distribution misses the inner shape
     const peeled = peelTSParenthesized(unwrapTypeAnnotation(node));
-    const recurse = next => resolveAwaitedAnnotation({ node: next, scope, depth: depth + 1, typeParamMap, seen });
+    function recurse(next) {
+      return resolveAwaitedAnnotation({ node: next, scope, depth: depth + 1, typeParamMap, seen });
+    }
 
     if (isUnionType(peeled)) {
       return foldUnionTypes(peeled.types, recurse);
