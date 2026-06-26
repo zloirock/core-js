@@ -9,7 +9,7 @@
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import { getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { unwrapParens } from './resolve.js';
+import { maximalProxyGlobalPrefix, unwrapParens } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
 // louder than silent skip). runtime-carrying wrappers (TSAsExpression, ...) stay out
@@ -294,16 +294,31 @@ export function isPolyfillableOptional({ node, scope, adapter, resolve, path, re
   // globalThis; g.Array`, computed links - deopts identically to the bare static. these must deopt to
   // the always-defined `_Array$from`; otherwise the chain falls into the generic optional-chain path
   // and emits a guarded native `.from` (and the static rewrite collides into the body: `_Array$fromcall`)
-  const objName = obj?.type === 'Identifier'
-    ? (adapter.hasBinding(scope, obj.name, path) ? null : obj.name)
-    : globalProxyMemberName({ node: obj, scope, adapter, path });
+  // a SE-wrapping SequenceExpression receiver (`(eff(), globalThis.self)?.X`) carries the proxy-global as its
+  // TAIL; the `?.` guards that always-defined value, so resolve the deopt against the tail (the prefix effect
+  // is preserved by the receiver collapse, NOT dropped by the deopt). matches both emitters' SE-tail collapse
+  const objCore = obj?.type === 'SequenceExpression' ? unwrapRuntimeExpr(unwrapParens(obj.expressions.at(-1))) : obj;
+  // a member-shape `?.` whose receiver is ENTIRELY proxy navigation (`globalThis.self`, multi-hop `.self.window`,
+  // a SE-bearing computed hop `globalThis[(eff(), 'self')]`, or any of those sequence-wrapped) is dead: the chain
+  // collapses to the always-defined pure root, and the hop-key / prefix effect rides the collapsed receiver, NOT
+  // the dropped guard. `globalProxyMemberName` below is literal-only (a SE computed key yields null), so resolve
+  // this directly off the SE-aware maximal prefix - both emitters then drop the guard identically
+  if (member === node && maximalProxyGlobalPrefix(objCore, { scope, adapter, path }, true) === objCore) return true;
+  const objName = objCore?.type === 'Identifier'
+    ? (adapter.hasBinding(scope, objCore.name, path) ? null : objCore.name)
+    : globalProxyMemberName({ node: objCore, scope, adapter, path });
   if (!objName) return false;
   // the global early-return applies ONLY to the member shape (`Global?.member`), where the `?.`
   // guards the always-defined global itself. for the call shape (`Global.member?.()`) the `?.`
   // guards the MEMBER, so the deopt is sound only when that member is a real static (the property
   // check below) - otherwise a non-static member (`Promise.noSuchStatic?.()`) loses its guard and
   // throws where the native chain short-circuits to undefined
-  if (member === node && resolve({ kind: 'global', name: objName })) return true;
+  // a proxy-global ALIAS last hop (`globalThis.self.window?.X` - `window` resolves no `kind:'global'` polyfill
+  // but IS a proxy alias of the always-defined global) deopts like `self`: the whole chain collapses to the
+  // pure root, so the `?.` over a multi-hop proxy receiver is as dead as over a single-hop one. a non-alias
+  // member (`globalThis.self.foo?.x`) stays guarded (`foo` may be undefined) - globalProxyMemberName returns
+  // the raw last-hop name without an alias check, so the POSSIBLE_GLOBAL_OBJECTS gate distinguishes the two
+  if (member === node && (resolve({ kind: 'global', name: objName }) || POSSIBLE_GLOBAL_OBJECTS.has(objName))) return true;
   const resolved = memberKey && resolve({ kind: 'property', object: objName, key: memberKey, placement: 'static' });
   if (resolved?.kind !== 'static' && resolved?.kind !== 'global') return false;
   // a monkey-patched / deleted static (`delete Array.from; Array.from?.()`) is no longer always-
