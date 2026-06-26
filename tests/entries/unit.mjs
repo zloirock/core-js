@@ -689,6 +689,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'clear-immediate') == 'function');
     ok(typeof load(NS, 'queue-microtask') == 'function');
     ok(typeof load(NS, 'url') == 'function');
+    ok(typeof load(NS, 'element/remove'));
     ok(load(NS, 'url/can-parse')('a:b') === true);
     ok(load(NS, 'url/parse')('a:b').href === 'a:b');
     load(NS, 'url/to-json');
@@ -1024,6 +1025,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('web/structured-clone')(42) === 42);
   ok(load('web/timers'));
   ok(load('web/url'));
+  ok(load('web/element/remove'));
   ok(load('web/url-search-params'));
   ok(load('web'));
 

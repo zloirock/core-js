@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
+/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this, no-unused-vars -- required for testing */
 /* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
@@ -2275,5 +2275,11 @@ GLOBAL.tests = {
   }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;
+  }],
+  'web.element.remove': [function () {
+    try {
+      var el = Element;
+    } catch (error) { return true; }
+    return Element.prototype.remove;
   }]
 };
