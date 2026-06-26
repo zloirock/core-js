@@ -188,7 +188,7 @@ QUnit.test('mutated-statics: optional delete routes through the constructor', as
 // user-installed ctor replacement must win there), so the key patch routed to the ponyfill
 // stays invisible through it on every runtime
 QUnit.test('mutated-statics: slot-mutated ctor keeps the raw global read in destructure', assert => {
-  const patched = function () { return 'patched'; };
+  function patched() { return 'patched'; }
   Map.groupBy = patched;
   try {
     assert.same(Map.groupBy(), 'patched');
@@ -203,7 +203,7 @@ QUnit.test('mutated-statics: slot-mutated ctor keeps the raw global read in dest
 // read off the routed constructor - the patch and the read share one object, so the
 // patched static is visible through the destructured binding
 QUnit.test('mutated-statics: nested-proxy destructure reads through the routed constructor', assert => {
-  const patched = function () { return 'patched'; };
+  function patched() { return 'patched'; }
   Iterator.zip = patched;
   try {
     const { Iterator: { zip: routedRead } } = globalThis;
@@ -219,7 +219,7 @@ QUnit.test('mutated-statics: nested-proxy destructure reads through the routed c
 // dotted restore would mark the slot on its own and make the substitution-bail vacuous. a distinct,
 // otherwise-unmutated static per test keeps each fail-before keyed on exactly its shape's detection.
 QUnit.test('mutated-statics: ternary-receiver mutation wins over substitution', assert => {
-  const patched = function () { return 'ternary-win'; };
+  function patched() { return 'ternary-win'; }
   const useP = true;
   const original = Promise.any;
   (useP ? Promise : Map).any = patched;
@@ -231,7 +231,7 @@ QUnit.test('mutated-statics: ternary-receiver mutation wins over substitution', 
 });
 
 QUnit.test('mutated-statics: logical-receiver mutation wins over substitution', assert => {
-  const patched = function () { return 'logical-win'; };
+  function patched() { return 'logical-win'; }
   const original = Promise.all;
   // a falsy left operand (`[].pop()` is undefined) selects the Promise branch at runtime; the gate fans
   // both branches statically
@@ -244,7 +244,7 @@ QUnit.test('mutated-statics: logical-receiver mutation wins over substitution', 
 });
 
 QUnit.test('mutated-statics: inline chain-assign receiver mutation wins over substitution', assert => {
-  const patched = function () { return 'chain-assign-win'; };
+  function patched() { return 'chain-assign-win'; }
   const original = Promise.race;
   const box = {};
   (box.recv = Promise).race = patched;
@@ -257,7 +257,7 @@ QUnit.test('mutated-statics: inline chain-assign receiver mutation wins over sub
 });
 
 QUnit.test('mutated-statics: computed const-key container mutation wins over substitution', assert => {
-  const patched = function () { return 'computed-key-win'; };
+  function patched() { return 'computed-key-win'; }
   const registry = { Promise };
   const ckey = 'Promise';
   const original = Promise.try;
@@ -273,7 +273,7 @@ QUnit.test('mutated-statics: computed const-key container mutation wins over sub
 // global namespace, so the mutator call is detected; `Reflect.set(target, key, value, RECEIVER)` writes
 // to the receiver, the real mutation host. patch and restore reuse the shape.
 QUnit.test('mutated-statics: proxy-global namespace mutator wins over substitution', assert => {
-  const patched = function () { return 'namespace-win'; };
+  function patched() { return 'namespace-win'; }
   const original = Promise.withResolvers;
   globalThis.Reflect.set(Promise, 'withResolvers', patched);
   try {
@@ -284,7 +284,7 @@ QUnit.test('mutated-statics: proxy-global namespace mutator wins over substituti
 });
 
 QUnit.test('mutated-statics: Reflect.set receiver-host mutation wins over substitution', assert => {
-  const patched = function () { return 'receiver-win'; };
+  function patched() { return 'receiver-win'; }
   const original = Promise.reject;
   Reflect.set({}, 'reject', patched, Promise);
   try {
@@ -297,7 +297,7 @@ QUnit.test('mutated-statics: Reflect.set receiver-host mutation wins over substi
 // An `Object.assign` source given as a const-bound variable resolves to its object-literal init, so the
 // copied static key is detected like an inline literal source. patch and restore reuse the variable shape.
 QUnit.test('mutated-statics: variable-source Object.assign mutation wins over substitution', assert => {
-  const patched = function () { return 'var-source-win'; };
+  function patched() { return 'var-source-win'; }
   const original = Iterator.concat;
   const patchSrc = { concat: patched };
   Object.assign(Iterator, patchSrc);

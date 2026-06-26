@@ -8,15 +8,21 @@ const { dirname, join, resolve } = path;
 const testDir = import.meta.dirname;
 const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
 const methods = ['entry-global', 'usage-global', 'usage-pure'];
-const inputOf = method => resolve(testDir, `input-${ method }.js`);
-const pluginOpts = (method, phase) => {
+
+function inputOf(method) {
+  return resolve(testDir, `input-${ method }.js`);
+}
+
+function pluginOpts(method, phase) {
   const opts = { method, version: '4.0', mode: 'full' };
   if (phase) opts.phase = phase;
   return opts;
-};
+}
 
 // `entry-global` rejects `phase`; everything else runs across all three.
-const phasesFor = method => method === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
+function phasesFor(method) {
+  return method === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
+}
 
 const expected = {
   filterReject: [2, 4],
@@ -122,7 +128,7 @@ async function webpackLikeBundle(compiler, input, plugin) {
 // each returns { code, ext?, verifier? }. verifier defaults to verifyInNode.
 
 const unplugin = await import('@core-js/unplugin');
-const pluginFor = name => (...args) => unplugin[name](...args);
+function pluginFor(name) { return (...args) => unplugin[name](...args); }
 
 const builders = {
   // babel-plugin has no `phase` option — receives base opts regardless
@@ -199,7 +205,7 @@ const builders = {
   async farm(input, method, phase) {
     const { build, Logger } = await import('@farmfe/core');
     // Logger level: 'error' doesn't silence "Build completed" — override info methods directly
-    const noop = () => { /* empty */ };
+    function noop() { /* empty */ }
     const silent = Object.assign(new Logger({ level: 'error' }), {
       info: noop, warn: noop, debug: noop, trace: noop, infoOnce: noop, warnOnce: noop, logMessage: noop,
     });

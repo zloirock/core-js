@@ -65,9 +65,11 @@ export function isInitlessVarDecl(stmt) {
 // any ExpressionStatement whose expression peels to a StringLiteral - includes already-promoted
 // directives AND raw string-literal expressions that would BECOME directives if their position
 // in the body reached the prologue
-const isStringLiteralExpressionStatement = node => node?.type === 'ExpressionStatement'
-  && (node.expression?.type === 'StringLiteral'
-    || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
+function isStringLiteralExpressionStatement(node) {
+  return node?.type === 'ExpressionStatement'
+    && (node.expression?.type === 'StringLiteral'
+      || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
+}
 
 // would removing `body[entryIndex]` silently extend an EXISTING directive prologue with the
 // next surviving string-literal sibling? `"use strict"; require('core-js'); "use asm"; foo()`
@@ -1348,24 +1350,28 @@ export function followConstLiteralAlias(node, ctx) {
 // side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
 export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
-  const slotFor = target => target?.type === 'AssignmentPattern' ? target.left : target;
+  function slotFor(target) {
+    return target?.type === 'AssignmentPattern' ? target.left : target;
+  }
   // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
   // pairing sees the underlying array / object, like the direct-literal form
   rhs = followConstLiteralAlias(rhs, ctx);
   // a computed property key (`{ [k]: A }`) resolves through the read-side key canon when a ctx is
   // supplied; the binding-blind static-name fallback covers literal keys for ctx-less callers
-  const propKey = prop => ctx?.resolveKey
-    ? ctx.resolveKey({ node: prop.key, computed: prop.computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path })
-    : propertyKeyName(prop);
+  function propKey(prop) {
+    return ctx?.resolveKey
+      ? ctx.resolveKey({ node: prop.key, computed: prop.computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path })
+      : propertyKeyName(prop);
+  }
   // a nested pattern slot (`[[M]]` / `{ x: [M] }`) pairs against the slot's RHS positionally /
   // by key - recurse so a binding bound through arbitrary nesting still surfaces its value union;
   // the slot's own default is an alternative RHS the nested bindings may pair against instead
-  const descend = (slot, element, pairedRhs) => {
+  function descend(slot, element, pairedRhs) {
     if (slot?.type !== 'ArrayPattern' && slot?.type !== 'ObjectPattern') return false;
     if (pairedRhs) out.push(...patternSlotValues(slot, pairedRhs, name, ctx));
     if (element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
     return true;
-  };
+  }
   if (pattern?.type === 'ArrayPattern') {
     for (let i = 0; i < pattern.elements.length; i++) {
       const element = pattern.elements[i];
