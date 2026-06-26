@@ -33,7 +33,7 @@ import {
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
-import { memberKeyName } from '../helpers/class-walk.js';
+import { staticMemberKeyName } from '../helpers/class-walk.js';
 
 const CLASS_PATH_TYPES = ['ClassDeclaration'];
 
@@ -614,9 +614,10 @@ export function createMemberResolve({
     // cache through the same key as their joined-string form (`['E'].join('.') === 'E'`)
     const enumDecl = findEnumDeclaration(segments, path.scope);
     if (!enumDecl) return null;
-    // `E.A` (Identifier) / `E['A']` (computed StringLiteral / ESTree Literal) / `` E[`A`] ``
-    // - all look up the same member; numeric keys fall through to the reverse-map fallback
-    const memberName = memberKeyName(path.node);
+    // `E.A` (Identifier) / `E['A']` (computed StringLiteral / ESTree Literal) / `` E[`A`] `` / a
+    // SE-bearing key `E[(c++, 'A')]` - all look up the same member (staticMemberKeyName folds the SE
+    // tail); numeric / dynamic keys fall through to the reverse-map fallback below
+    const memberName = staticMemberKeyName(path.node);
     if (memberName !== null) return resolveEnumMemberType(enumDecl, memberName);
     // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string
     if (!path.node.computed) return null;

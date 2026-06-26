@@ -17,7 +17,7 @@
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH } from './base.js';
-import { globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
   isTopLevelThisContext,
   getSuperTypeArgs,
@@ -59,9 +59,7 @@ export function createGlobalResolve({
   // mirror `globalProxyMemberName`'s walk but stays in resolve-node-type's path-based API
   function isProxyGlobalChainLink(objectPath) {
     if (!t.isMemberExpression(objectPath.node) && !t.isOptionalMemberExpression(objectPath.node)) return false;
-    // memberKeyName accepts computed string-literal keys (`globalThis['self']`), matching
-    // globalProxyMemberName's node-based link walk - a bare `.computed` bail would drop them
-    const propName = memberKeyName(objectPath.node);
+    const propName = staticMemberKeyName(objectPath.node);
     return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName) && isGlobalProxy(objectPath.get('object'));
   }
 
@@ -107,6 +105,14 @@ export function createGlobalResolve({
     if (isProxyGlobalChainLink(objectPath)) return true;
     if (t.isCallExpression(objectPath.node) || t.isOptionalCallExpression(objectPath.node)) {
       return isProxyGlobalIifeReturn(objectPath);
+    }
+    // a SequenceExpression `(eff(), globalThis.self)` evaluates to its tail; the proxy-global root IS the
+    // tail. peel transparent-to-tail (mirrors the IIFE-callee SE peel above and the runtime value-path) so a
+    // SE-wrapped receiver resolves its TYPE like the bare chain - else `(c++, globalThis.self).Array.prototype`
+    // under-narrows its receiver type (generic instance helper / over-injected es.string.* in the destructure)
+    if (objectPath.node.type === 'SequenceExpression') {
+      const exprs = objectPath.get('expressions');
+      return exprs.length ? isGlobalProxy(exprs.at(-1)) : false;
     }
     return false;
   }
@@ -172,9 +178,9 @@ export function createGlobalResolve({
     if (!isMemberLike(path)) return null;
     const object = peelSkippableWrapperPath(path.get('object'));
     if (!isGlobalProxy(object)) return null;
-    // memberKeyName covers `globalThis.Map` and `globalThis['Map']` (literal computed key),
-    // returning null for dynamic computed keys so they keep generic dispatch
-    return memberKeyName(path.node);
+    // staticMemberKeyName covers `globalThis.Map`, `globalThis['Map']` AND a SE-bearing key
+    // `globalThis[(e++, 'Map')]` -> 'Map', returning null for dynamic keys (generic dispatch)
+    return staticMemberKeyName(path.node);
   }
 
   // known constructor at the runtime-resolved target of `path`, or null
