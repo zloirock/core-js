@@ -1355,7 +1355,9 @@ d.promise.then(console.log); // => 42
 ```
 [Example](https://tinyurl.com/bde6am73) with async functions:
 ```js
-let delay = time => new Promise(resolve => setTimeout(resolve, time));
+function delay(time) {
+  return new Promise(resolve => setTimeout(resolve, time));
+}
 
 async function sleepRandom(time) {
   await delay(time * 1e3);
@@ -2848,12 +2850,6 @@ core-js(-pure)/actual|full/iterator/join
 core-js(-pure)/stage/2.7
 ```
 
-#### Stage 2.7 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js(-pure)/stage/2.7
-```
-
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
 ```ts
@@ -2868,7 +2864,7 @@ class Function {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/decorator-metadata
-core-js(-pure)/actual|full/symbol/metadata
+core-js(-pure)/full/symbol/metadata
 ```
 
 #### Stage 2 proposals[⬆](#index)

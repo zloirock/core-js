@@ -517,12 +517,12 @@ check('isCoreJSFile/core-js root index', isCoreJSFile('node_modules/core-js/inde
 
 // null handler on either side: treated as no-op (no crash)
 {
-  const fn = () => 'kept';
+  function fn() { return 'kept'; }
   const merged = mergeVisitors({ Foo: fn }, { Foo: null });
   check('mergeVisitors/null in extra preserves base', merged.Foo, fn);
 }
 {
-  const fn = () => 'kept';
+  function fn() { return 'kept'; }
   const merged = mergeVisitors({ Foo: null }, { Foo: fn });
   check('mergeVisitors/null in base accepts extra', merged.Foo, fn);
 }
@@ -839,13 +839,15 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
 // param-position read detection guarding param-destructure body-extract. synthetic param
 // nodes (no parser needed) - the helper is a pure structural walk over `.params`
 {
-  const id = name => ({ type: 'Identifier', name });
+  function id(name) { return { type: 'Identifier', name }; }
   const ofBinding = { type: 'ObjectProperty', key: id('of'), value: id('of'), computed: false, shorthand: true };
   const restEl = { type: 'RestElement', argument: id('rest') };
-  const dflt = (name, right) => ({
-    type: 'ObjectProperty', key: id(name), computed: false,
-    value: { type: 'AssignmentPattern', left: id(name), right },
-  });
+  function dflt(name, right) {
+    return {
+      type: 'ObjectProperty', key: id(name), computed: false,
+      value: { type: 'AssignmentPattern', left: id(name), right },
+    };
+  }
 
   // `{ of, dflt = of, ...rest } = Array` - sibling in-pattern default reads `of`
   const patternDefaultReadsOf = [{
@@ -1051,7 +1053,7 @@ check('isReusableReceiver/null safe', isReusableReceiver(null), false);
 // --- canonical spread guards (all positional / object-key spread-bail sites delegate here) ---
 // spreadAtOrBefore: a spread AT or BEFORE the index shifts later positions -> true; accepts paths or nodes
 const SP = { type: 'SpreadElement' };
-const EL = name => ({ type: 'Identifier', name });
+function EL(name) { return { type: 'Identifier', name }; }
 check('spreadAtOrBefore/spread at index', spreadAtOrBefore([SP, EL('b')], 0), true);
 check('spreadAtOrBefore/spread before index', spreadAtOrBefore([SP, EL('b'), EL('c')], 2), true);
 check('spreadAtOrBefore/spread after index', spreadAtOrBefore([EL('a'), EL('b'), SP], 1), false);
@@ -1060,8 +1062,8 @@ check('spreadAtOrBefore/path form (.node)', spreadAtOrBefore([{ node: SP }, { no
 check('spreadAtOrBefore/empty + null safe', spreadAtOrBefore([], 3) || spreadAtOrBefore(null, 0), false);
 
 // findObjectKeyBeforeSpread: last matching data property, or null if a spread sits AFTER the match
-const prop = (key, tag) => ({ type: 'Property', key, tag });
-const matchA = p => p.key === 'a';
+function prop(key, tag) { return { type: 'Property', key, tag }; }
+function matchA(p) { return p.key === 'a'; }
 check('findObjectKeyBeforeSpread/trailing spread bails',
   findObjectKeyBeforeSpread([prop('a', 1), SP], matchA), null);
 check('findObjectKeyBeforeSpread/leading spread keeps later match',

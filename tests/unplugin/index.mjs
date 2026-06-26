@@ -12,8 +12,10 @@ const UTF8 = { encoding: 'utf8' };
 const ROOT = path.resolve('../..').replaceAll('\\', '/');
 const fixturesDir = path.resolve('../transpiler-fixtures');
 
-// eslint-disable-next-line promise/prefer-await-to-then -- ok
-const exists = file => fs.access(file).then(() => true, () => false);
+function exists(file) {
+  // eslint-disable-next-line promise/prefer-await-to-then -- ok
+  return fs.access(file).then(() => true, () => false);
+}
 
 const counts = { passed: 0, failed: 0, skipped: 0 };
 
@@ -173,7 +175,9 @@ function rejectMap(directory, msg) {
 // shape: fields exist with correct types. wrong-typed fields would fail later checks
 // silently (e.g. iteration over non-array `sources`); fail loud here instead
 function checkMapShape(directory, map) {
-  const reject = msg => rejectMap(directory, msg);
+  function reject(msg) {
+    return rejectMap(directory, msg);
+  }
   if (map.version !== 3) return reject(`version=${ map.version } (expected 3)`);
   if (!Array.isArray(map.sources)) return reject('sources is not an array');
   if (typeof map.mappings !== 'string') return reject('mappings is not a string');
@@ -189,7 +193,9 @@ function checkMapShape(directory, map) {
 // downstream bundlers actually consume. `sourcesContent[0]` (if present) must match input
 // verbatim - mismatch means MagicString lost source bytes during transform composition
 function checkMapContent(directory, map, testId, source) {
-  const reject = msg => rejectMap(directory, msg);
+  function reject(msg) {
+    return rejectMap(directory, msg);
+  }
   if (map.sources.length && map.sources[0] !== testId) {
     return reject(`sources[0]=${ JSON.stringify(map.sources[0]) }, expected ${ JSON.stringify(testId) }`);
   }
@@ -206,7 +212,9 @@ function checkMapContent(directory, map, testId, source) {
 // but devtools can't navigate from. probes every line up to MAPPING_PROBE_LIMIT
 function checkMapMappings(directory, map, method) {
   if (!map.mappings || !map.sources.length) return true;
-  const reject = msg => rejectMap(directory, msg);
+  function reject(msg) {
+    return rejectMap(directory, msg);
+  }
   let tm;
   try {
     tm = new TraceMap(map);

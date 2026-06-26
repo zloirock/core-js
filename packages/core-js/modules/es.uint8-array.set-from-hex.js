@@ -8,7 +8,7 @@ var $fromHex = require('../internals/uint8-from-hex');
 
 // Should not throw an error on length-tracking views over ResizableArrayBuffer
 // https://issues.chromium.org/issues/454630441
-function throwsOnLengthTrackingView() {
+var throwsOnLengthTrackingView = function () {
   try {
     // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- required for testing
     var rab = new ArrayBuffer(16, { maxByteLength: 1024 });
@@ -17,7 +17,7 @@ function throwsOnLengthTrackingView() {
   } catch (error) {
     return true;
   }
-}
+};
 
 // `Uint8Array.prototype.setFromHex` method
 // https://tc39.es/ecma262/#sec-uint8array.prototype.setfromhex

@@ -8,10 +8,10 @@
 
 QUnit.test('control-flow: switch discriminant receiver evaluated once', assert => {
   let calls = 0;
-  const pick = () => {
+  function pick() {
     calls += 1;
     return [1, 2, 3];
-  };
+  }
   let hit;
   switch (pick().at(-1)) {
     case 1: hit = 'one'; break;
@@ -25,10 +25,10 @@ QUnit.test('control-flow: switch discriminant receiver evaluated once', assert =
 
 QUnit.test('control-flow: if-condition polyfill receiver evaluated once', assert => {
   let calls = 0;
-  const get = () => {
+  function get() {
     calls += 1;
     return [4, 5, 6];
-  };
+  }
   let branch;
   if (get().includes(5)) branch = 'yes'; else branch = 'no';
   assert.same(branch, 'yes');
@@ -64,10 +64,10 @@ QUnit.test('control-flow: do-while accumulates with one polyfill call per pass',
 
 QUnit.test('control-flow: short-circuit guard skips the polyfill operand', assert => {
   let calls = 0;
-  const risky = () => {
+  function risky() {
     calls += 1;
     return [1, 2, 3].at(-1);
-  };
+  }
   const safe = false;
   const result = safe && risky();
   assert.false(result);
@@ -76,14 +76,14 @@ QUnit.test('control-flow: short-circuit guard skips the polyfill operand', asser
 
 QUnit.test('control-flow: guard-then-polyfill chains evaluate left to right', assert => {
   const order = [];
-  const guard = () => {
+  function guard() {
     order.push('guard');
     return true;
-  };
-  const value = () => {
+  }
+  function value() {
     order.push('value');
     return Array.of(8, 9).at(-1);
-  };
+  }
   const out = guard() && value();
   assert.same(out, 9);
   assert.deepEqual(order, ['guard', 'value']);
@@ -94,15 +94,17 @@ QUnit.test('control-flow: guard-then-polyfill chains evaluate left to right', as
 QUnit.test('control-flow: ternary runs only the selected arm receiver', assert => {
   let a = 0;
   let b = 0;
-  const left = () => {
+  function left() {
     a += 1;
     return [1, 2].at(-1);
-  };
-  const right = () => {
+  }
+  function right() {
     b += 1;
     return [3, 4].at(-1);
-  };
-  const choose = cond => cond ? left() : right();
+  }
+  function choose(cond) {
+    return cond ? left() : right();
+  }
   assert.same(choose(false), 4);
   assert.same(a, 0);
   assert.same(b, 1);
@@ -110,11 +112,13 @@ QUnit.test('control-flow: ternary runs only the selected arm receiver', assert =
 
 QUnit.test('control-flow: nested ternary picks one polyfill branch', assert => {
   const hits = { lo: 0, mid: 0, hi: 0 };
-  const arm = key => {
+  function arm(key) {
     hits[key] += 1;
     return Array.of(key).at(0);
-  };
-  const select = n => n < 0 ? arm('lo') : n === 0 ? arm('mid') : arm('hi');
+  }
+  function select(n) {
+    return n < 0 ? arm('lo') : n === 0 ? arm('mid') : arm('hi');
+  }
   assert.same(select(5), 'hi');
   assert.deepEqual(hits, { lo: 0, mid: 0, hi: 1 });
 });
@@ -122,20 +126,20 @@ QUnit.test('control-flow: nested ternary picks one polyfill branch', assert => {
 // --- try / catch / finally: arm values and ordering ---
 
 QUnit.test('control-flow: finally return overrides a try return carrying a polyfill', assert => {
-  const fn = () => {
+  function fn() {
     try {
       return Array.of('try').at(0);
     } finally {
       // eslint-disable-next-line no-unsafe-finally -- testing finally override
       return Array.of('finally').at(0);
     }
-  };
+  }
   assert.same(fn(), 'finally');
 });
 
 QUnit.test('control-flow: finally runs after a polyfilled try value is computed', assert => {
   const order = [];
-  const fn = () => {
+  function fn() {
     try {
       const v = Array.of(1, 2, 3).at(-1);
       order.push('try');
@@ -143,7 +147,7 @@ QUnit.test('control-flow: finally runs after a polyfilled try value is computed'
     } finally {
       order.push('finally');
     }
-  };
+  }
   assert.same(fn(), 3);
   assert.deepEqual(order, ['try', 'finally']);
 });
@@ -170,10 +174,10 @@ QUnit.test('control-flow: thrown value built from a polyfill is inspected in cat
 
 QUnit.test('control-flow: catch arm computes a polyfilled fallback once', assert => {
   let calls = 0;
-  const fallback = () => {
+  function fallback() {
     calls += 1;
     return Array.of('fallback').at(0);
-  };
+  }
   let value;
   try {
     throw new Error('boom');
@@ -188,7 +192,7 @@ QUnit.test('control-flow: catch arm computes a polyfilled fallback once', assert
 
 QUnit.test('control-flow: nested-loop search stops after the matching polyfill result', assert => {
   let probes = 0;
-  const find = grid => {
+  function find(grid) {
     for (const row of grid) {
       for (const cell of row) {
         probes += 1;
@@ -196,7 +200,7 @@ QUnit.test('control-flow: nested-loop search stops after the matching polyfill r
       }
     }
     return null;
-  };
+  }
   assert.same(find([[1, 2], [3, 4], [5, 6]]), 4);
   assert.same(probes, 4);
 });
@@ -215,14 +219,14 @@ QUnit.test('control-flow: skip-row guard keeps only fully-valid rows', assert =>
 // --- Sequence in unusual positions ---
 
 QUnit.test('control-flow: switch arms each compute a distinct polyfill result', assert => {
-  const label = n => {
+  function label(n) {
     switch (n) {
       case 1: return Array.of('one').at(0);
       case 2: return Array.of('two').at(0);
       case 3: return Array.of('three').at(0);
       default: return 'none';
     }
-  };
+  }
   assert.same(label(2), 'two');
   assert.same(label(3), 'three');
   assert.same(label(9), 'none');
@@ -246,19 +250,19 @@ QUnit.test('control-flow: for-in breaks early after a polyfill match', assert =>
 // --- Conditional receiver selection (per-branch destructure inside control flow) ---
 
 QUnit.test('control-flow: conditional receiver destructure picks the right polyfill', assert => {
-  const choose = cond => {
+  function choose(cond) {
     const { from } = cond ? Array : { from: () => 'fallback' };
     return from('ab');
-  };
+  }
   assert.deepEqual(choose(true), ['a', 'b']);
   assert.same(choose(false), 'fallback');
 });
 
 QUnit.test('control-flow: early return in one branch carries a polyfill, other branch differs', assert => {
-  const classify = arr => {
+  function classify(arr) {
     if (arr.length === 0) return Array.of('empty').at(0);
     return arr.at(-1);
-  };
+  }
   assert.same(classify([]), 'empty');
   assert.same(classify([1, 2, 3]), 3);
 });

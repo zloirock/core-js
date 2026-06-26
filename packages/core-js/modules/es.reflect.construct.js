@@ -18,7 +18,7 @@ var push = [].push;
 // MS Edge supports only 2 arguments and argumentsList argument is optional
 // FF Nightly sets third argument as `new.target`, but does not create `this` from it
 var NEW_TARGET_BUG = fails(function () {
-  function F() { /* empty */ }
+  var F = function () { /* empty */ };
   return !(nativeConstruct(function () { /* empty */ }, [], F) instanceof F);
 });
 

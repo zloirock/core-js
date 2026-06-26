@@ -154,12 +154,12 @@ export function createPatternBindings({
   function staticMemberPresence(pattern, varName, bindingPath) {
     if (!t.isVariableDeclarator(bindingPath.node)) return null;
     const { init } = bindingPath.node;
-    const valuePresence = value => {
+    function valuePresence(value) {
       if (!value) return 'absent';
       if (value.type === 'Identifier' && value.name === 'undefined') return 'absent';
       if (value.type === 'UnaryExpression' && value.operator === 'void') return 'absent';
       return 'present';
-    };
+    }
     if (pattern.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
       const index = findPatternIndex(pattern, varName);
       if (index < 0) return null;
