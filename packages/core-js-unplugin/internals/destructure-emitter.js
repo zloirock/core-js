@@ -17,6 +17,7 @@ import {
   hasRestSiblingExcept,
   isBindingPosition,
   isFunctionParamDestructureParent,
+  isMemberWriteHost,
   computedKeysAllBound,
   dropDeadSequenceTail,
   isIdentifierPropValue,
@@ -2807,7 +2808,7 @@ export function createDestructureEmitter({
     return src.slice(0, target.object.start - baseStart) + rootText + tail;
   }
 
-  function substituteProxyGlobalRoot({ node, src, baseStart, aliasCtx = null, ctx = null }) {
+  function substituteProxyGlobalRoot({ node, src, baseStart, aliasCtx = null, ctx = null, isWriteTarget = false }) {
     // an SE init (`(track(), globalThis.self.Array)`) keeps its side-effecting prefix verbatim -
     // the proxy-global receiver to collapse is the tail. non-SE nodes peel to themselves, so the
     // member / identifier callers (`synthMemberReceiverSrc`, logical operands) are unaffected
@@ -2851,8 +2852,11 @@ export function createDestructureEmitter({
     // composing into the raw receiver, matching babel. a SE-WRAPPED root (`(e++, globalThis)[(c++,'self')]`) has
     // no bare proxy-global identifier for the natural visitor to rewrite, so it collapses HERE - harvesting both
     // the root-wrapper AND hop-key SE (babel leaves it raw `globalThis` -> reads undefined / ie:11 ReferenceError)
+    // a WRITE target (`globalThis[(e++,'window')].Set = fn`) is the exception: the leaf is the assignment slot,
+    // there is no proxy-immediate sub-chain for the natural visitor to nest, so the SE-hop must collapse HERE -
+    // else it stays raw (`_globalThis[(e++,'window')].Set`, undefined off-engine -> crash)
     const rootIsSeWrapped = unwrapParens(wrappedRoot)?.type === 'SequenceExpression';
-    if (!rootIsSeWrapped
+    if (!isWriteTarget && !rootIsSeWrapped
       && maximalProxyGlobalPrefix(target, aliasCtx).end !== maximalProxyGlobalPrefix(target, aliasCtx, true).end) {
       return null;
     }
@@ -2935,7 +2939,11 @@ export function createDestructureEmitter({
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
     if (target?.type === 'ObjectPattern') return false;
-    const collapsed = substituteProxyGlobalRoot({ node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx });
+    // a mutation TARGET (the canonical `isMemberWriteHost` covers `=` / update / `delete` / destructuring /
+    // wrappers) collapses a SE-bearing hop here rather than deferring its sub-chain to the natural visitor -
+    // the write slot has no sub-chain to nest
+    const isWriteTarget = isMemberWriteHost(recPath);
+    const collapsed = substituteProxyGlobalRoot({ node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget });
     if (collapsed === null) return false;
     const root = findProxyGlobal(recv, aliasCtx);
     if (root) skippedNodes.add(root); // suppress the parallel natural identifier rewrite
