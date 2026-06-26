@@ -9,5 +9,5 @@ import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integ
 let eff = () => 0;
 const obj = {};
 export const a = (eff(), _Array$from)([1, 2]);
-export const b = _getIteratorMethod(obj);
+export const b = (eff(), _getIteratorMethod(obj));
 export const c = _Number$MAX_SAFE_INTEGER;
