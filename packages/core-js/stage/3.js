@@ -7,6 +7,7 @@ require('../proposals/joint-iteration');
 require('../proposals/array-grouping-stage-3');
 require('../proposals/array-grouping-stage-3-2');
 require('../proposals/change-array-by-copy');
+require('../proposals/iterator-chunking-v2');
 require('../proposals/iterator-helpers-stage-3');
 
 module.exports = parent;

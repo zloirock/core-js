@@ -14,6 +14,8 @@ require('../../modules/es.iterator.reduce');
 require('../../modules/es.iterator.some');
 require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
+require('../../modules/esnext.iterator.chunks');
+require('../../modules/esnext.iterator.windows');
 require('../../modules/esnext.iterator.zip');
 require('../../modules/web.dom-collections.iterator');
 

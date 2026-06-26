@@ -14,9 +14,9 @@ require('../../modules/es.iterator.reduce');
 require('../../modules/es.iterator.some');
 require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
-require('../../modules/esnext.iterator.chunks');
 // TODO: drop from core-js@4
 require('../../modules/esnext.iterator.constructor');
+require('../../modules/esnext.iterator.chunks');
 require('../../modules/esnext.iterator.range');
 require('../../modules/esnext.iterator.sliding');
 require('../../modules/esnext.iterator.windows');
