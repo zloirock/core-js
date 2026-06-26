@@ -6,7 +6,7 @@ import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.split);
   assert.arity(''.split, 2);
   assert.name(''.split, 'split');
@@ -690,7 +690,7 @@ const run = assert => {
   }
 
   assert.throws(() => ''.split.call(Symbol('split test'), /./), 'throws on symbol context');
-};
+}
 
 QUnit.test('String#split regression', run);
 

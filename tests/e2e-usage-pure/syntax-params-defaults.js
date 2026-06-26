@@ -9,27 +9,27 @@
 // --- Synth-swap: a caller-passed receiver overrides the polyfilled default ---
 
 QUnit.test('params: param-default no-arg uses the polyfill, caller receiver overrides it', assert => {
-  const fn = function ({ of } = Array) {
+  function fn({ of } = Array) {
     return of(1);
-  };
+  }
   assert.deepEqual(fn(), [1]);
   const custom = { of: (...a) => ['custom', ...a] };
   assert.deepEqual(fn(custom), ['custom', 1]);
 });
 
 QUnit.test('params: caller receiver overrides BOTH polyfilled props', assert => {
-  const fn = function ({ from, of } = Array) {
+  function fn({ from, of } = Array) {
     return [from('ab'), of(9)];
-  };
+  }
   assert.deepEqual(fn(), [['a', 'b'], [9]]);
   const custom = { from: () => 'F', of: () => 'O' };
   assert.deepEqual(fn(custom), ['F', 'O']);
 });
 
 QUnit.test('params: aliased binding still overridden by caller receiver', assert => {
-  const fn = function ({ of: make } = Array) {
+  function fn({ of: make } = Array) {
     return make(2);
-  };
+  }
   assert.deepEqual(fn(), [2]);
   assert.same(fn({ of: () => 'aliased' }), 'aliased');
 });
@@ -38,9 +38,9 @@ QUnit.test('params: aliased binding still overridden by caller receiver', assert
 
 QUnit.test('params: destructure-default receiver effect runs only when no receiver is passed', assert => {
   let calls = 0;
-  const fn = function ({ of } = (calls += 1, Array)) {
+  function fn({ of } = (calls += 1, Array)) {
     return of(7);
-  };
+  }
   assert.deepEqual(fn(), [7]);
   assert.same(calls, 1);
   const custom = { of: () => ['c'] };
@@ -50,9 +50,9 @@ QUnit.test('params: destructure-default receiver effect runs only when no receiv
 
 QUnit.test('params: plain default value effect runs only when the argument is omitted', assert => {
   let calls = 0;
-  const fn = function (x = (calls += 1, Array.of(1, 2))) {
+  function fn(x = (calls += 1, Array.of(1, 2))) {
     return x;
-  };
+  }
   assert.deepEqual(fn(), [1, 2]);
   assert.same(calls, 1);
   assert.deepEqual(fn([9]), [9]);
@@ -61,9 +61,9 @@ QUnit.test('params: plain default value effect runs only when the argument is om
 
 QUnit.test('params: undefined explicitly passed still triggers the default polyfill effect', assert => {
   let calls = 0;
-  const fn = function ({ of } = (calls += 1, Array)) {
+  function fn({ of } = (calls += 1, Array)) {
     return of(0);
-  };
+  }
   assert.deepEqual(fn(undefined), [0]);
   assert.same(calls, 1);
 });
@@ -71,17 +71,17 @@ QUnit.test('params: undefined explicitly passed still triggers the default polyf
 // --- Default referencing an earlier param: polyfill applied to the live earlier value ---
 
 QUnit.test('params: default references an earlier param and polyfills it', assert => {
-  const fn = function (seed, list = Array.from(seed)) {
+  function fn(seed, list = Array.from(seed)) {
     return list;
-  };
+  }
   assert.deepEqual(fn('abc'), ['a', 'b', 'c']);
   assert.deepEqual(fn('x', [1, 2]), [1, 2]);
 });
 
 QUnit.test('params: second default builds on the first via a polyfill', assert => {
-  const fn = function (a = Array.of(1, 2), b = a.at(-1)) {
+  function fn(a = Array.of(1, 2), b = a.at(-1)) {
     return [a, b];
-  };
+  }
   assert.deepEqual(fn(), [[1, 2], 2]);
   assert.deepEqual(fn([5, 6, 7]), [[5, 6, 7], 7]);
 });
@@ -89,9 +89,9 @@ QUnit.test('params: second default builds on the first via a polyfill', assert =
 // --- Per-branch synth: a conditional receiver, caller still overrides ---
 
 QUnit.test('params: per-branch default selects a branch; caller receiver overrides both', assert => {
-  const run = function (cond, { from } = cond ? Array : { from: () => 'iter' }) {
+  function run(cond, { from } = cond ? Array : { from: () => 'iter' }) {
     return from('xy');
-  };
+  }
   assert.deepEqual(run(true), ['x', 'y']);
   assert.same(run(false), 'iter');
   assert.same(run(true, { from: () => 'caller' }), 'caller');
@@ -100,9 +100,9 @@ QUnit.test('params: per-branch default selects a branch; caller receiver overrid
 QUnit.test('params: per-branch default effect runs once for the taken branch only', assert => {
   let left = 0;
   let right = 0;
-  const run = function (cond, { of } = cond ? (left += 1, Array) : (right += 1, { of: () => 'R' })) {
+  function run(cond, { of } = cond ? (left += 1, Array) : (right += 1, { of: () => 'R' })) {
     return of(1);
-  };
+  }
   assert.deepEqual(run(true), [1]);
   assert.same(left, 1);
   assert.same(right, 0);
@@ -111,9 +111,9 @@ QUnit.test('params: per-branch default effect runs once for the taken branch onl
 // --- Scope-gate: a computed key reading a sibling binding stays single-read and correct ---
 
 QUnit.test('params: computed key reading a sibling binding stays correct', assert => {
-  const fn = function ({ of, [of]: picked } = Array) {
+  function fn({ of, [of]: picked } = Array) {
     return [typeof of, picked];
-  };
+  }
   const [ofType, picked] = fn();
   assert.same(ofType, 'function');
   assert.same(picked, undefined);
@@ -121,9 +121,9 @@ QUnit.test('params: computed key reading a sibling binding stays correct', asser
 
 QUnit.test('params: computed const-key param overridden by caller receiver', assert => {
   const k = 'of';
-  const fn = function ({ [k]: of } = Array) {
+  function fn({ [k]: of } = Array) {
     return of(3);
-  };
+  }
   assert.deepEqual(fn(), [3]);
   assert.same(fn({ of: () => 'c' }), 'c');
 });
@@ -148,20 +148,20 @@ QUnit.test('params: IIFE no-arg falls back to the polyfilled default', assert =>
 
 QUnit.test('params: rest param spread into a static polyfill once', assert => {
   let mapper = 0;
-  const fn = function (...args) {
+  function fn(...args) {
     return Array.from(args, x => {
       mapper += 1;
       return x * 2;
     });
-  };
+  }
   assert.deepEqual(fn(1, 2, 3), [2, 4, 6]);
   assert.same(mapper, 3);
 });
 
 QUnit.test('params: rest gathered into Object.fromEntries', assert => {
-  const fn = function (...pairs) {
+  function fn(...pairs) {
     return Object.fromEntries(pairs);
-  };
+  }
   assert.deepEqual(fn(['a', 1], ['b', 2]), { a: 1, b: 2 });
 });
 
@@ -169,9 +169,9 @@ QUnit.test('params: rest gathered into Object.fromEntries', assert => {
 
 QUnit.test('params: destructured object param member default polyfills only when absent', assert => {
   let calls = 0;
-  const fn = function ({ list = (calls += 1, Array.of(1, 2)) } = {}) {
+  function fn({ list = (calls += 1, Array.of(1, 2)) } = {}) {
     return list;
-  };
+  }
   assert.deepEqual(fn(), [1, 2]);
   assert.same(calls, 1);
   assert.deepEqual(fn({ list: [9] }), [9]);
@@ -179,17 +179,17 @@ QUnit.test('params: destructured object param member default polyfills only when
 });
 
 QUnit.test('params: destructured array param feeds a polyfill', assert => {
-  const fn = function ([head, ...tail] = []) {
+  function fn([head, ...tail] = []) {
     return Array.of(head, ...tail).at(-1);
-  };
+  }
   assert.same(fn([1, 2, 3]), 3);
   assert.same(fn(), undefined);
 });
 
 QUnit.test('params: rest sibling next to a polyfilled binding excludes that key', assert => {
-  const fn = function ({ from, ...rest } = Array) {
+  function fn({ from, ...rest } = Array) {
     return [typeof from, 'from' in rest];
-  };
+  }
   const [fromType, inRest] = fn();
   assert.same(fromType, 'function');
   assert.false(inRest);
@@ -198,18 +198,18 @@ QUnit.test('params: rest sibling next to a polyfilled binding excludes that key'
 // --- Generator / async params with polyfill defaults ---
 
 QUnit.test('params: generator param default polyfilled, caller overrides', assert => {
-  const gen = function * ({ of } = Array) {
+  function * gen({ of } = Array) {
     yield * of(1, 2);
-  };
+  }
   assert.deepEqual([...gen()], [1, 2]);
   assert.deepEqual([...gen({ of: () => [8, 9] })], [8, 9]);
 });
 
 QUnit.test('params: default param polyfill flows through a returned promise', assert => {
   const async = assert.async();
-  const run = function (list = Array.from('ab')) {
+  function run(list = Array.from('ab')) {
     return Promise.resolve(list);
-  };
+  }
   run().then(v => {
     assert.deepEqual(v, ['a', 'b']);
     async();
@@ -217,7 +217,9 @@ QUnit.test('params: default param polyfill flows through a returned promise', as
 });
 
 QUnit.test('params: arrow default param polyfill, caller overrides', assert => {
-  const fn = ({ of } = Array) => of(4);
+  function fn({ of } = Array) {
+    return of(4);
+  }
   assert.deepEqual(fn(), [4]);
   assert.same(fn({ of: () => 'a' }), 'a');
 });
@@ -226,9 +228,9 @@ QUnit.test('params: arrow default param polyfill, caller overrides', assert => {
 
 QUnit.test('params: default param uses an outer const polyfill alias', assert => {
   const { from } = Array;
-  const fn = function (input, build = from) {
+  function fn(input, build = from) {
     return build(input);
-  };
+  }
   assert.deepEqual(fn('ab'), ['a', 'b']);
   assert.deepEqual(fn('zz', x => `<${ x }>`), '<zz>');
 });
@@ -238,8 +240,10 @@ QUnit.test('params: default param uses an outer const polyfill alias', assert =>
 // run when the default fires. (was dropping the prefix in BOTH emitters)
 QUnit.test('params: fallback default side-effect prefix runs when default fires', assert => {
   const log = [];
-  const eff = () => { log.push('se'); };
-  const fn = ({ from } = (eff(), Array) || Set) => from([1, 2]);
+  function eff() { log.push('se'); }
+  function fn({ from } = (eff(), Array) || Set) {
+    return from([1, 2]);
+  }
   assert.deepEqual(fn(), [1, 2]);
   assert.deepEqual(log, ['se']);
 });
@@ -249,10 +253,12 @@ QUnit.test('params: fallback default side-effect prefix runs when default fires'
 // default fires - it was being dropped entirely (and crashed the text emitter)
 QUnit.test('params: call-rooted member default rescues the IIFE setup once', assert => {
   let calls = 0;
-  const fn = ({ from } = (() => {
+  function fn({ from } = (() => {
     calls++;
     return globalThis;
-  })().Array) => from([1, 2]);
+  })().Array) {
+    return from([1, 2]);
+  }
   assert.deepEqual(fn(), [1, 2]);
   assert.same(calls, 1);
   // caller-passed value beats the synth default; the default (and its IIFE) does not evaluate
@@ -265,10 +271,12 @@ QUnit.test('params: call-rooted member default rescues the IIFE setup once', ass
 // exactly once) - the structural prefix harvest alone stopped at the chain root and dropped it
 QUnit.test('params: fallback default call-rooted left rescues the chain-root call once', assert => {
   let calls = 0;
-  const fn = ({ from } = (() => {
+  function fn({ from } = (() => {
     calls++;
     return globalThis;
-  })().Array || Set) => from([3, 4]);
+  })().Array || Set) {
+    return from([3, 4]);
+  }
   assert.deepEqual(fn(), [3, 4]);
   assert.same(calls, 1);
   assert.same(fn({ from: () => 'y' }), 'y');
@@ -280,7 +288,9 @@ QUnit.test('params: fallback default call-rooted left rescues the chain-root cal
 // is itself polyfilled) rather than swallowed whole
 QUnit.test('params: fallback default polyfillable left prefix still runs', assert => {
   const seen = [];
-  const fn = ({ from } = (seen.push([9].at(0)), Array) || Set) => from([5, 6]);
+  function fn({ from } = (seen.push([9].at(0)), Array) || Set) {
+    return from([5, 6]);
+  }
   assert.deepEqual(fn(), [5, 6]);
   assert.deepEqual(seen, [9]);
 });
@@ -290,10 +300,12 @@ QUnit.test('params: fallback default polyfillable left prefix still runs', asser
 // rescuing AND re-reading would run the effect twice
 QUnit.test('params: SE receiver with an unresolved sibling key runs the effect once', assert => {
   let calls = 0;
-  const fn = ({ from, isArray } = (() => {
+  function fn({ from, isArray } = (() => {
     calls++;
     return globalThis;
-  })().Array) => [from([1]), isArray([])];
+  })().Array) {
+    return [from([1]), isArray([])];
+  }
   const result = fn();
   assert.deepEqual(result[0], [1]);
   assert.true(result[1]);
@@ -308,10 +320,12 @@ QUnit.test('params: SE receiver with an unresolved sibling key runs the effect o
 // than rescue-and-re-read
 QUnit.test('params: conditional branch SE receiver with unresolved sibling runs once', assert => {
   let calls = 0;
-  const fn = (cond, { from, isArray } = cond ? (() => {
+  function fn(cond, { from, isArray } = cond ? (() => {
     calls++;
     return globalThis;
-  })().Array : Set) => [from([1]), isArray([])];
+  })().Array : Set) {
+    return [from([1]), isArray([])];
+  }
   const result = fn(true);
   assert.deepEqual(result[0], [1]);
   assert.true(result[1]);
@@ -323,10 +337,12 @@ QUnit.test('params: conditional branch SE receiver with unresolved sibling runs 
 // right operand is dropped - the result is identical to the non-fallback receiver
 QUnit.test('params: fallback SE receiver with unresolved sibling memoizes the left', assert => {
   let calls = 0;
-  const fn = ({ from, isArray } = (() => {
+  function fn({ from, isArray } = (() => {
     calls++;
     return globalThis;
-  })().Array || Set) => [from([1]), isArray([])];
+  })().Array || Set) {
+    return [from([1]), isArray([])];
+  }
   const result = fn();
   assert.deepEqual(result[0], [1]);
   assert.true(result[1]);

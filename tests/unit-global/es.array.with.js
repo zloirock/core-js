@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/no-confusing-array-with -- testing */
 QUnit.test('Array#with', assert => {
   const { with: withAt } = Array.prototype;
 

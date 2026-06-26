@@ -4,7 +4,7 @@ import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.search);
   assert.arity(''.search, 1);
   assert.name(''.search, 'search');
@@ -74,7 +74,7 @@ const run = assert => {
   assert.same(string.search(/of/), string.search(/of/g), 'S15.5.4.12_A3_T2');
 
   assert.throws(() => ''.search.call(Symbol('search test'), /./), 'throws on symbol context');
-};
+}
 
 QUnit.test('String#search regression', run);
 
