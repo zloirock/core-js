@@ -8,6 +8,7 @@ import {
   asSymbolRef,
   bindingSymbolKey,
   collectMemberUnionCandidates,
+  descendToChainRoot,
   enterIdentifierBindingFollow,
   findProxyGlobal,
   inlineCallHasObservableEffects,
@@ -17,7 +18,6 @@ import {
   isTransparentWrapper,
   MAX_KEY_DEPTH,
   peelChainAssignment,
-  peelChainAssignmentDeep,
   peelReceiverSequenceTail,
   resolveKey,
   resolveObjectName,
@@ -35,27 +35,52 @@ function tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) {
   return protoName ? { kind: 'property', object: protoName, key, placement: 'prototype' } : null;
 }
 
-// walk a chain root to its underlying CallExpression. direct call (`f().X`) returns the
-// call node; MemberExpression chain (`(() => globalThis)().Array`, `globalThis.self.Array`)
-// descends through `.object` peeling parens until either a CallExpression surfaces or the
-// chain bottoms on a non-call (Identifier / proxy-global / etc.). returns null otherwise -
-// caller uses it to probe `inlineCallHasObservableEffects` for SE-preservation.
-// `throughChainAssign` additionally peels chain-assignments at every hop (matching
-// `chainRootResolvesToProxyGlobal`): the subsumption gate must see the call under
-// `(a = IIFE()).Symbol`, while the SE-harvest callers must NOT - the preserved assignment
-// already re-emits the call, so harvesting it too would double-run the setup
+// the underlying CallExpression at a chain root (`f().X`, `(() => globalThis)().Array`), null otherwise -
+// callers probe `inlineCallHasObservableEffects` for SE-preservation. `throughChainAssign` additionally
+// sees the call under `(a = IIFE()).Symbol` (the subsumption gate needs it); the SE-harvest callers must
+// NOT pass it - the preserved assignment already re-emits the call, so harvesting it too would double-run it
 function findChainRootCallExpression(node, throughChainAssign = false) {
-  // peel through wrappers AND SequenceExpression tails (`(eff(), mk())` -> `mk()`) so a chain-root
-  // call buried in a sequence tail is still found - the SE prefix is harvested separately upstream,
-  // so the root call's purity can still be probed. plain `unwrapParens` BAILED on an SE-prefix
-  // sequence, hiding the call (`'from' in (fn(), mk()).Array` then dropped `mk()`)
-  let cur = peelReceiverSequenceTail(node);
-  if (throughChainAssign) cur = peelChainAssignmentDeep(cur);
-  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    cur = peelReceiverSequenceTail(cur.object);
-    if (throughChainAssign) cur = peelChainAssignmentDeep(cur);
+  const { root } = descendToChainRoot(node, throughChainAssign);
+  return isCallShape(root) ? root : null;
+}
+
+// true when a single optional `?.` directly on a chain-root call keeps it LIVE in a null-guard memoize
+// (`_ref = call`) - so its inner proxy-global must still be visitor-rewritten (`globalThis -> _globalThis`),
+// like an SE-bearing root. requires EXACTLY ONE optional, the one on the call: a non-optional first hop
+// (`(call).self.X`) inlines/collapses the call, and a SECOND optional anywhere (`(call)?.self?.Map.name`)
+// makes the whole optional chain vestigially COLLAPSE to the always-defined polyfill on babel
+// (`_nameMaybeFunction(_Map)`), dropping the call - both subsume the inner correctly
+function chainRootCallKeptInOptionalGuard(node) {
+  const { root, firstHop, optionalCount } = descendToChainRoot(node);
+  // the single optional must be the hop ON the call (`firstHop.optional`): exactly one + on-the-call = the
+  // rebind shape; zero / >1 / optional-elsewhere all collapse or inline, subsuming the inner correctly
+  return optionalCount === 1 && isCallShape(root) && !!firstHop?.optional;
+}
+
+// true when a member ABOVE this one in the chain resolves to a receiver-WRAPPING `instance` polyfill
+// (`_nameMaybeFunction(recv)` / `_flatMaybeArray(recv)`): such a leaf keeps the whole chain as a runtime
+// receiver, so the optional rebind keeps the chain-root call LIVE (its inner must be visitor-rewritten).
+// if NO wrapper sits above - the chain instead navigates a polyfilled ctor's prototype (`_Map.prototype.has`,
+// whose leaf `resolveMeta` is null) or collapses to a ctor / static - the call is DROPPED, subsuming its
+// inner. mirrors babel exactly: REBIND iff the leaf is a Maybe-wrapper, COLLAPSE for everything reached
+// via `_Ctor...`. walks outward through the consuming member chain, peeling parser wrappers
+function hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }) {
+  if (!resolveMeta) return false;
+  let parentPath = path?.parentPath;
+  while (parentPath) {
+    const type = parentPath.node?.type;
+    if (type === 'ChainExpression' || type === 'ParenthesizedExpression' || type === 'TSNonNullExpression') {
+      parentPath = parentPath.parentPath;
+      continue;
+    }
+    if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression') return false;
+    const meta = buildMemberMeta({ node: parentPath.node, scope, adapter, path: parentPath });
+    // a `[Symbol.iterator]` leaf is also a receiver-WRAPPING helper (`_getIteratorMethod(recv)`) but
+    // `resolveMeta` does not classify the computed symbol key, so match it by key
+    if (meta && (meta.key === 'Symbol.iterator' || resolveMeta(meta, parentPath)?.kind === 'instance')) return true;
+    parentPath = parentPath.parentPath;
   }
-  return isCallShape(cur) ? cur : null;
+  return false;
 }
 
 // SE-bearing call at the root of a chain (`(() => { c++; return X; })()`, direct or under member
@@ -79,21 +104,28 @@ export function seBearingChainRootCall({ node, scope, adapter, path }) {
 export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
   const hop = receiver.object;
-  if (hop?.type !== 'MemberExpression' && hop?.type !== 'OptionalMemberExpression') return null;
+  // the immediate hop is normally a proxy-nav MEMBER (`<call>.self` / `.window`); a SE-wrapping
+  // SequenceExpression (`(c++, globalThis.self).Array`) hides that member as its TAIL - peel to it for the
+  // key/root checks, but harvest SE from the WHOLE original `hop` below (`collectFoldedReceiverSideEffects`
+  // recurses in source order, so nested sequences keep evaluation order)
+  const hopMember = hop?.type === 'SequenceExpression' ? peelReceiverSequenceTail(hop) : hop;
+  if (hopMember?.type !== 'MemberExpression' && hopMember?.type !== 'OptionalMemberExpression') return null;
   // the immediate hop must be a proxy navigation (`<call>.self` / `.window`): its own leaf key has to
   // be a proxy-global name. `resolveObjectName(hop)` is too weak - it returns truthy for a real ctor
   // leaf (`<root>.self.Map` resolves `'Map'`), wrongly accepting `globalThis.self.Map.prototype` as
   // proxy navigation and dropping `Map` to `_globalThis.prototype` (undefined off-engine)
-  const hopKey = resolveKey({ node: hop.property, computed: hop.computed, scope, adapter, path });
+  const hopKey = resolveKey({ node: hopMember.property, computed: hopMember.computed, scope, adapter, path });
   if (!hopKey || !POSSIBLE_GLOBAL_OBJECTS.has(hopKey)) return null;
   // resolve the CHAIN ROOT global, matching the Identifier collapse which substitutes the ROOT (not the
   // leaf hop): walk past the proxy hops to the call and resolve it by inlining. `.window` / `.self` chains
   // alike then read off the always-pure `_globalThis`, where the leaf-hop `window` may carry no pure entry
-  let root = hop;
-  while (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') root = root.object;
-  const rootName = resolveObjectName({ objectNode: root, scope, adapter, path });
-  if (!rootName || !POSSIBLE_GLOBAL_OBJECTS.has(rootName)) return null;
-  return { rootName, callSe: seBearingChainRootCall({ node: receiver, scope, adapter, path }) };
+  const rootName = proxyGlobalChainRootName({ node: hopMember, scope, adapter, path });
+  if (!rootName) return null;
+  // harvest EVERY SE the collapse drops from the proxy-hop prefix: the chain-root call AND any hop-key SE
+  // buried in a computed hop (`globalThis[(c++, 'self')]`). returning only the chain-root call missed a
+  // key-buried effect in the memo path, silently dropping it on babel while unplugin kept it (desync + lost SE)
+  const rescue = seedChainRootCallRescue({ node: receiver, scope, adapter, path });
+  return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, [], rescue) };
 }
 
 // an inline-resolvable call at the root of a FOLDED chain (receiver collapsed into a static
@@ -103,6 +135,26 @@ export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path 
 function collectChainRootCallEffect({ node, sideEffects, scope, adapter, path }) {
   const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
   if (rootCall) sideEffects.push(rootCall);
+}
+
+// seed a `rescue` Set with the chain-root call so an object-first fold walk emits it at the chain's source
+// TERMINUS (deepest object, evaluated first) - interleaved ahead of shallower hop-key SE in a single pass.
+// a two-step harvest-then-append would put the deep call LAST, reversing source `(call, key)` to `(key, call)`
+function seedChainRootCallRescue({ node, scope, adapter, path }) {
+  const rescue = new Set();
+  const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
+  if (rootCall) rescue.add(rootCall);
+  return rescue;
+}
+
+// resolve the ROOT proxy-global NAME of a member chain - the collapse substitutes the ROOT (`_globalThis`),
+// not the leaf hop. descend to the root (call roots are kept so `resolveObjectName` can inline a chain-root
+// IIFE), then resolve its name through the canonical resolver. returns null when the root isn't a proxy global
+function proxyGlobalChainRootName({ node, scope, adapter, path }) {
+  const { root } = descendToChainRoot(node);
+  if (!root) return null;
+  const name = resolveObjectName({ objectNode: root, scope, adapter, path });
+  return name && POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null;
 }
 
 // outermost chain-assignment buried under a member chain (`(a = IIFE()).Array`, `(a = X).self.Y`).
@@ -168,17 +220,21 @@ export function shouldDropRescueReceiver(inner) {
   return obj?.type === 'MemberExpression' || obj?.type === 'OptionalMemberExpression';
 }
 
-// a static dispatch on a member-chain receiver collapses the WHOLE receiver into a single
-// polyfill call (`globalThis[(o.push(1), 'Array')].from(x)` -> `_Array$from(x)`), so any side
-// effect buried in the receiver's nested computed keys (or paren / sequence wrappers) would be
-// silently dropped. walk the chain object-first (source eval order) collecting those effects so
-// the emit's SequenceExpression wrap re-emits them once. instance dispatch memoizes the receiver
-// (`_ref = receiver`), preserving its source and side effects, so only the static path needs this
-function collectCollapsingReceiverEffects(node, effects) {
+// a static dispatch on a member-chain receiver collapses the WHOLE receiver into a single polyfill call
+// (`globalThis[(o.push(1), 'Array')].from(x)` -> `_Array$from(x)`), so a side effect buried in the
+// receiver's nested computed keys (incl `+` / template folds) OR its chain-root CALL would be silently
+// dropped. walk the chain object-first (source eval order): the deepest object - a chain-root call seeded
+// in `rescue` - is pushed FIRST, ahead of the shallower hop-key SE, so a two-step harvest-then-append
+// can't reverse source `(call, key)` to `(key, call)`. STOPS at a chain-ASSIGNMENT (the emit re-emits the
+// whole rhs, so harvesting it here too would double-run). instance dispatch memoizes the receiver,
+// preserving its source + SE, so only the static path needs this
+function collectCollapsingReceiverEffects(node, effects, rescue = null) {
   const peeled = unwrapParensCollectingEffects(node, effects);
   if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
-    collectCollapsingReceiverEffects(peeled.object, effects);
-    if (peeled.computed) unwrapParensCollectingEffects(peeled.property, effects);
+    collectCollapsingReceiverEffects(peeled.object, effects, rescue);
+    if (peeled.computed) collectFoldedReceiverSideEffects(peeled.property, effects);
+  } else if (rescue?.has(peeled)) {
+    effects.push(peeled);
   }
 }
 
@@ -204,9 +260,13 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   // receiver classifies as a collapsing static) can be ordered before it - source eval runs the
   // receiver, including its nested computed keys, before this property key
   const keyEffects = [];
-  // peel the computed key once (the SE side channel must not double-collect); reused below to
-  // enumerate the usage-global key union when it is a conditionally reassigned alias
-  const computedKeyNode = node.computed ? unwrapParensCollectingEffects(node.property, keyEffects) : null;
+  // peel the computed key to its sequence tail (reused below to enumerate the usage-global key union
+  // when it is a conditionally reassigned alias). harvest the key SE through the fold-descending
+  // collector - a folded-away key (`[(eff(), 'fr') + 'om']`, `` [`fr${(eff(),'o')}m`] ``) collapses
+  // with the member, so a SE buried in a `+` / template operand must re-emit too, not just a top-level
+  // sequence prefix. peel + collect are split so the side channel still collects exactly once
+  const computedKeyNode = node.computed ? peelReceiverSequenceTail(node.property) : null;
+  if (node.computed) collectFoldedReceiverSideEffects(node.property, keyEffects);
   const key = node.computed
     ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path })
     : node.property.name || node.property.value;
@@ -240,8 +300,13 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     });
     if (extraCandidates.length) meta.extraCandidates = extraCandidates;
     // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
-    // (including these nested keys) via the preserved assignment - collecting here too double-runs it
-    if (placement === 'static' && !chainAssignOuter) collectCollapsingReceiverEffects(classifyTarget, sideEffects);
+    // (including these nested keys) via the preserved assignment - collecting here too double-runs it.
+    // static collapse discards the WHOLE receiver, so harvest its SE (chain-root call + buried hop-key) in
+    // source-eval order via the rescue-seeded fold walk
+    if (placement === 'static' && !chainAssignOuter) {
+      const rescue = seedChainRootCallRescue({ node: classifyTarget, scope, adapter, path });
+      collectCollapsingReceiverEffects(classifyTarget, sideEffects, rescue);
+    }
     // inline-resolved receiver call (`(() => Promise)()`, `f()` where `const f = () => Promise`)
     // carries through to the polyfill emit if the body block has a prefix expression statement
     // (`() => { calls++; return Promise; }`). without preserving the original call here, emit
@@ -257,8 +322,12 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // call) by re-emitting the outermost `=` expression. pushing the inner root-call into
     // sideEffects here would duplicate it - the SequenceExpression wrap would emit the
     // IIFE both as part of `(a = IIFE())` and as a standalone receiver re-eval. only
-    // probe the chain root when there's no chain-assign wrapper.
-    if (objectName && !chainAssignOuter) collectChainRootCallEffect({ node: classifyTarget, sideEffects, scope, adapter, path });
+    // probe the chain root when there's no chain-assign wrapper. the STATIC case already harvested its
+    // chain-root call (interleaved via the rescue above), so only NON-static dispatch reaches here - its
+    // memoized receiver keeps the hop SE in place, leaving just the chain-root call to preserve
+    if (objectName && placement !== 'static' && !chainAssignOuter) {
+      collectChainRootCallEffect({ node: classifyTarget, sideEffects, scope, adapter, path });
+    }
   }
   // record where the receiver-SE ends (everything collected above: parens/sequence + chain-collapse +
   // inline-call root) so the emit-side receiver/key split uses the SAME boundary the build collected,
@@ -292,14 +361,47 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // _globalThis` rewrite that overlaps the outer text replacement and crashes the queue.
     // usage-global keeps the member-expression, so the proxy-global stays visible and earns
     // its own polyfill (same mode split as `handleBinaryIn`)
-    if (suppressProxyGlobals) markSubsumedProxyChain(symbolKey.ref.unwrapped, handledObjects, scope, adapter, path);
+    // the receiver is KEPT as the polyfill argument (`_getIteratorMethod(<receiver>)`). a proxy-global hop
+    // in it (`globalThis.self[Symbol.iterator]`) must collapse to the proxy ROOT the SAME way on both
+    // emitters - a kept leaf hop diverges (babel `_self`, dead `_globalThis.self.window`; unplugin crash /
+    // root). resolve the proxy ROOT + the SE its hop chain drops ONCE here so both emitters render
+    // `_getIteratorMethod((droppedSe, _root))` identically; `_<root>` (`_globalThis`) is always defined,
+    // unlike a leaf-hop pure import. gate on a proxy-global root so a real-object receiver
+    // (`arr[Symbol.iterator]`) stays untouched (it is the genuine argument)
+    let symbolReceiverProxyRoot = null;
+    if (suppressProxyGlobals) {
+      markSubsumedProxyChain(symbolKey.ref.unwrapped, handledObjects, scope, adapter, path);
+      // peel a SEQUENCE / paren wrapper to the receiver's actual proxy chain (`(n++, globalThis.self)` ->
+      // `globalThis.self`) before resolving + subsuming it. its proxy tail MUST be subsumed too - else the
+      // member visitor's `globalThis.self -> _self` rewrite collides with the collapsed receiver and the
+      // text compose throws ("could not locate inner needle")
+      const receiverObj = unwrapParens(node.object);
+      const receiverChain = peelReceiverSequenceTail(receiverObj);
+      const receiverName = resolveObjectName({ objectNode: receiverChain, scope, adapter, path });
+      if (receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
+        // subsume the chain so the identifier visitor does not queue a parallel rewrite (unplugin crash)
+        markSubsumedProxyChain(receiverChain, handledObjects, scope, adapter, path);
+        // collapse to the proxy ROOT from the (sequence-peeled) tail chain; the prefix SE of a sequence
+        // receiver re-emits via `droppedSe` (`(n++, globalThis.self)` -> `(n++, _globalThis)`). this keeps
+        // BOTH emitters consistent with how they collapse a sequence-tail hop for other dispatch
+        // (`(n++, globalThis.self).Map` -> `(n++, _Map)`); babel kept a leaf `_self` ONLY for symbol-iter
+        const rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
+        if (rootName) {
+          const rescue = seedChainRootCallRescue({ node: node.object, scope, adapter, path });
+          symbolReceiverProxyRoot = { rootName, droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue) };
+        }
+      }
+    }
     // re-emit side effects in source eval order: receiver first, then computed-key
     // (`(recv(), arr)[Symbol[(key(), 'iterator')]]`). the emit replays the receiver-SE by either
     // peeling + prepending (non-optional) or via the null-guard memoize (optional - where the
     // suppress path drops this prefix and folds only the key-SE), so collect both here in order
     const meta = { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
     const sideEffects = [];
-    unwrapParensCollectingEffects(node.object, sideEffects);
+    // a collapsed proxy receiver carries its OWN SE in `droppedSe` (embedded in `(droppedSe, _root)`), so
+    // the receiver SE must NOT also enter meta.sideEffects (would double-run). otherwise collect it here
+    if (symbolReceiverProxyRoot) meta.symbolReceiverProxyRoot = symbolReceiverProxyRoot;
+    else unwrapParensCollectingEffects(node.object, sideEffects);
     meta.receiverEffectCount = sideEffects.length;
     sideEffects.push(...symbolKey.sideEffects);
     if (sideEffects.length) meta.sideEffects = sideEffects;
@@ -338,7 +440,15 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // observable effects (the re-emitted body keeps a live reference that still needs `_globalThis`)
     if (suppressProxyGlobals && subsumesReceiver && meta.placement === 'static'
       && findChainRootCallExpression(node.object, true)) {
-      markSubsumedProxyChain(node.object, handledObjects, scope, adapter, path);
+      // the chain-root call stays LIVE (its inner must be visitor-rewritten) when the optional `?.` guard
+      // memoizes it AND a receiver-WRAPPING `instance` polyfill keeps the chain as a runtime receiver - either
+      // THIS member is itself that wrapper leaf (`...Map.name` -> `_nameMaybeFunction(_ref.self.Map)`), or one
+      // sits above it in the chain. otherwise the chain collapses to a receiver-less import (ctor / static / a
+      // polyfilled ctor's `.prototype.method`, whose leaf resolves to null), dropping the call - subsume the inner
+      const keepCallInner = chainRootCallKeptInOptionalGuard(node)
+        && ((!POSSIBLE_GLOBAL_OBJECTS.has(meta.object) && resolveMeta?.(meta, path)?.kind === 'instance')
+          || hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }));
+      markSubsumedProxyChain(node.object, handledObjects, scope, adapter, path, keepCallInner);
     }
   }
   return meta;
@@ -573,7 +683,7 @@ function markProxyGlobalLeaf(node, handledObjects, scope, adapter, path) {
 // scope-aware leaf check: a user binding that shadows a known global (`function f(globalThis)
 // { globalThis.Symbol.iterator in arr }`) must NOT be marked as handled - the local binding
 // has its own value, and suppressing the polyfill here would silently drop a legitimate emit
-function markSubsumedProxyChain(node, handledObjects, scope, adapter, path) {
+function markSubsumedProxyChain(node, handledObjects, scope, adapter, path, keepCallInner = false) {
   let current = peelMarkedWrappers(node, handledObjects);
   while (current && (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')) {
     handledObjects.add(current);
@@ -586,8 +696,9 @@ function markSubsumedProxyChain(node, handledObjects, scope, adapter, path) {
     // chain bottoms on a CallExpression that inlines to a proxy global. mark the call + its
     // inner identifier so the inner visitor doesn't queue a parallel `globalThis -> _globalThis`
     // rewrite overlapping the outer subsumption, the same way markHandledObjects treats an
-    // IIFE-rooted constructor chain. without it unplugin's text-emit crashes the compose
-    markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects });
+    // IIFE-rooted constructor chain. without it unplugin's text-emit crashes the compose.
+    // `keepCallInner`: the call is held LIVE by an optional `?.` guard, so leave its inner alone
+    markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects, keepCallInner });
   }
 }
 
@@ -618,7 +729,10 @@ function markChainLinksAndProxyLeaf(node, handledObjects) {
 // must still fire. skip marking in this case so the Identifier visit goes through.
 // loop unrolls nested IIFE (`(() => (() => globalThis)())()`): when the inlined return is
 // itself a CallExpression, continue marking the inner IIFE the same way
-function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObjects }) {
+function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObjects, keepCallInner = false }) {
+  // an optional `?.` guard memoizes the call and keeps it live (`_ref = call`), so its inner survives in
+  // the output and must still be visitor-rewritten - same reasoning as the observable-effects bail below
+  if (keepCallInner) return;
   let current = callNode;
   while (isCallShape(current)) {
     if (inlineCallHasObservableEffects({ callNode: current, scope, adapter, path })) return;
@@ -642,21 +756,14 @@ function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObj
 // chain root's binding so an aliased proxy-global root is recognised like a literal one
 function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
   if (!scope || !adapter) return false;
-  // peel chain-assignments AND sequence-prefix tails at every hop (matching resolveProxyGlobalRoot): a
-  // chain-assignment root (`(a = globalThis).Promise.resolve`) or an SE-prefix root (`(n++, g).Map` with
-  // `const g = globalThis`) hides the proxy-global identifier behind an AssignmentExpression /
-  // SequenceExpression that plain unwrapParens can't see through, so without the peel the mid-chain
-  // constructor member stays unmarked and unplugin queues an overlapping rewrite
-  let obj = peelChainAssignmentDeep(peelReceiverSequenceTail(node));
-  let depth = 0;
-  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
-    if (++depth > MAX_KEY_DEPTH) return false;
-    obj = peelChainAssignmentDeep(peelReceiverSequenceTail(obj.object));
-  }
-  if (obj.type !== 'Identifier') return false;
-  const resolved = resolveObjectName({ objectNode: obj, scope, adapter, path });
+  // descend WITH chain-assignment peeling: a chain-assignment root (`(a = globalThis).Promise.resolve`) or an
+  // SE-prefix root (`(n++, g).Map` with `const g = globalThis`) hides the proxy-global behind an
+  // AssignmentExpression / SequenceExpression - without the peel the mid-chain ctor stays unmarked and
+  // unplugin queues an overlapping rewrite. only an IDENTIFIER root classifies here (no call inlining)
+  const { root } = descendToChainRoot(node, true);
+  if (root?.type !== 'Identifier') return false;
   // null / undefined resolved name is not in the set, so no explicit nullish guard needed
-  return POSSIBLE_GLOBAL_OBJECTS.has(resolved);
+  return POSSIBLE_GLOBAL_OBJECTS.has(resolveObjectName({ objectNode: root, scope, adapter, path }));
 }
 
 function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver = true) {
@@ -717,13 +824,19 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
   // the identifier visitor must still substitute - marking it handled would strand a raw global.
   // a bare / SE-tail-rooted chain (handled above) always collapses, so it stays ungated
   if (scope && adapter && subsumesReceiver) {
+    // an OPTIONAL hop keeps the chain-root call live in the null-guard (`_ref = call`) rather than inlining it
+    // away, so its inner proxy-global stays a reference the identifier visitor must rewrite - subsuming it here
+    // strands a raw `globalThis`. skip broadly on any optional hop; the static-leaf path (markSubsumedProxyChain
+    // via the placement-static branch) re-subsumes the receiver-LESS collapse cases that genuinely drop the call
+    let optionalToCall = node.type === 'OptionalMemberExpression' || node.optional;
     while (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
       const propName = current.computed ? null : current.property?.name;
       if (!propName || !POSSIBLE_GLOBAL_OBJECTS.has(propName)) break;
+      if (current.type === 'OptionalMemberExpression' || current.optional) optionalToCall = true;
       handledObjects.add(current);
       current = unwrapParens(current.object);
     }
-    if (isCallShape(current)) {
+    if (isCallShape(current) && !optionalToCall) {
       markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects });
     }
   }

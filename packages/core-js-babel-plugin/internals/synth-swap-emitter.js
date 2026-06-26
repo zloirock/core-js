@@ -12,7 +12,7 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
-  collectBuriedChainSePrefixes,
+  collectFoldedReceiverSideEffects,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
   buildFlatSynthEntries,
@@ -29,6 +29,8 @@ import {
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
   memberKeyName,
+  POSSIBLE_GLOBAL_OBJECTS,
+  staticMemberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   classifyCallBranchForSynth,
@@ -315,8 +317,8 @@ export default function createSynthSwapEmitter({
     const rootPure = resolvePure({ kind: 'global', name: plan.rootName });
     if (!rootPure || rootPure.kind === 'instance') return null;
     const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
-    const rootNode = plan.callSe
-      ? t.sequenceExpression([t.cloneNode(plan.callSe), rootBinding]) : rootBinding;
+    const rootNode = plan.droppedSe.length
+      ? t.sequenceExpression([...plan.droppedSe.map(effect => t.cloneNode(effect)), rootBinding]) : rootBinding;
     return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
   }
 
@@ -324,21 +326,40 @@ export default function createSynthSwapEmitter({
     if (!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) return null;
     // collapsible only when the whole `.object` is the pure-proxy navigation (its full span is the
     // prefix) and `.property` is the constructor leaf
-    if (maximalProxyGlobalPrefix(receiver, aliasCtx) !== receiver.object) return collapseCallRootedProxyReceiver(receiver, aliasCtx);
+    if (maximalProxyGlobalPrefix(receiver, aliasCtx) !== receiver.object) {
+      const callRooted = collapseCallRootedProxyReceiver(receiver, aliasCtx);
+      if (callRooted) return callRooted;
+      // the proxy navigation sits DEEPER than the immediate `.object` (`(c++, globalThis.self).Array.prototype`
+      // - the proxy hop is `.Array`'s object, not `.prototype`'s): recurse into `.object` and rebuild the
+      // `<collapsed>.property` above it, so a destructure / member source with a non-proxy leaf chain stacked
+      // over the proxy hop still collapses (`(c++, _globalThis).Array.prototype`). gated on a proxy-global root
+      const inner = findProxyGlobal(receiver, aliasCtx) ? collapseProxyGlobalReceiver(receiver.object, aliasCtx) : null;
+      return inner ? t.memberExpression(inner, t.cloneNode(receiver.property), receiver.computed) : null;
+    }
     // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to the pure ctor by the synth-swap /
     // leaf path; a root-collapse here would emit the NATIVE `_globalThis.Map` and inject a dead
     // `_globalThis`. skip it - only a NON-pure leaf (`.Array`, a user member) root-collapses its hops
     const leafName = memberKeyName(receiver);
     if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
+    // the receiver's leaf is itself a redundant proxy HOP reached via a SE-bearing key
+    // (`globalThis[(e++, 'self')]` - folds to a proxy-global name, not a real member): this base case
+    // can't drop the hop (the harvest reads the chain OBJECT, not the SE key), so it would keep
+    // `_globalThis[(e++, 'self')]` - a re-rooted proxy chain that re-triggers this rewrite (loop). bail
+    // BEFORE injecting the root, so no dead `_globalThis` import is stranded. `leafName` (literal-only)
+    // misses the SE-key, so fold it here
+    const hopLeaf = staticMemberKeyName(receiver);
+    if (hopLeaf && POSSIBLE_GLOBAL_OBJECTS.has(hopLeaf)) return null;
     const root = findProxyGlobal(receiver, aliasCtx);
     const rootPure = root && resolvePure({ kind: 'global', name: root.name });
     // an ALIAS root (`const g = globalThis; g.self.X`) keeps its (already-rewritten) identifier and
     // only drops the redundant proxy hops (`g.self.X` -> `g.X`); a direct root swaps to its pure ctor
     const isAliasRoot = isAliasProxyRoot(root, aliasCtx);
     if ((!rootPure || rootPure.kind === 'instance') && !isAliasRoot) return null;
-    // SE prefixes buried along the hop chain keep evaluating (root-first order):
-    // `(eff(), globalThis).self.X` collapses to `(eff(), _globalThis).X`, not `_globalThis.X`
-    const prefixes = collectBuriedChainSePrefixes(receiver.object);
+    // SE prefixes buried along the hop chain keep evaluating in SOURCE order: `(eff(), globalThis).self.X`
+    // collapses to `(eff(), _globalThis).X`. the shared recursive harvest keeps a NESTED sequence's prefixes
+    // in evaluation order (`(c++, (d++, globalThis.self)).window.X` -> `(c++, d++, _globalThis).X`) - a buried
+    // unshift-based walk reversed them (`(d++, c++, ...)`) once a trailing hop deepened the chain
+    const prefixes = collectFoldedReceiverSideEffects(receiver.object);
     const rootBinding = isAliasRoot ? t.cloneNode(root) : injectPureImport(rootPure.entry, rootPure.hintName);
     const rootNode = prefixes.length
       ? t.sequenceExpression([...prefixes.map(expr => t.cloneNode(expr)), rootBinding])
@@ -365,13 +386,16 @@ export default function createSynthSwapEmitter({
     let recPath = idPath.parentPath;
     // advance while the member is ENTIRELY proxy navigation (its own maximal prefix spans the whole
     // node), so we stop at the first member whose leaf is non-proxy - the collapse receiver
+    // `allowSideEffectKeys`: advance THROUGH a SE-bearing proxy hop (`globalThis[(eff(), 'self')].X`) too -
+    // it stops the climb at the hop otherwise, leaving a dead `_globalThis.self.X`. the collapse below routes
+    // it to the call-rooted plan, which HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
     while ((recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression())
-      && maximalProxyGlobalPrefix(recPath.node, aliasCtx) === recPath.node) {
+      && maximalProxyGlobalPrefix(recPath.node, aliasCtx, true) === recPath.node) {
       recPath = recPath.parentPath;
     }
     if (!recPath?.isMemberExpression() && !recPath?.isOptionalMemberExpression()) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
-    if (!maximalProxyGlobalHop(recPath.node, aliasCtx)) return false;
+    if (!maximalProxyGlobalHop(recPath.node, aliasCtx, true)) return false;
     // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
     // (named props feed a synth literal `{ from: _Array$from }`); collapsing here too double-injects a dead
     // `_globalThis`, even when the source sits under value carriers (`{from} = (se, chain) || Set`). climb
