@@ -53,10 +53,10 @@ QUnit.test('object: getter building via a polyfill is not invoked until read', a
 
 QUnit.test('object: computed keys evaluate in source order around polyfill values', assert => {
   const order = [];
-  const key = name => {
+  function key(name) {
     order.push(name);
     return name;
-  };
+  }
   const obj = {
     [key('a')]: Array.of(1).at(0),
     [key('b')]: Array.of(2).at(0),
@@ -67,10 +67,10 @@ QUnit.test('object: computed keys evaluate in source order around polyfill value
 
 QUnit.test('object: computed key whose value is a polyfill is evaluated once', assert => {
   let calls = 0;
-  const make = () => {
+  function make() {
     calls += 1;
     return Array.from('xy');
-  };
+  }
   const k = 'list';
   const obj = { [k]: make() };
   assert.deepEqual(obj[k], ['x', 'y']);
@@ -81,10 +81,10 @@ QUnit.test('object: computed key whose value is a polyfill is evaluated once', a
 
 QUnit.test('object: spread source feeding a polyfill is evaluated once', assert => {
   let calls = 0;
-  const src = () => {
+  function src() {
     calls += 1;
     return Object.fromEntries([['a', 1], ['b', 2]]);
-  };
+  }
   const merged = { ...src(), c: 3 };
   assert.deepEqual(merged, { a: 1, b: 2, c: 3 });
   assert.same(calls, 1);
@@ -209,10 +209,10 @@ QUnit.test('object: nested destructure default builds via a polyfill only when a
 QUnit.test('object: computed member key feeding a chained polyfill runs once', assert => {
   let calls = 0;
   const store = { rows: [10, 20, 30] };
-  const key = () => {
+  function key() {
     calls += 1;
     return 'rows';
-  };
+  }
   assert.same(store[key()].at(-1), 30);
   assert.same(calls, 1);
 });

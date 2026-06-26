@@ -370,7 +370,9 @@ export function resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objec
   if (!argNode || !resolvePure || argNode.type === 'Identifier') return false;
   const keys = destructureStaticKeys(objectPattern);
   if (!keys) return false;
-  const yieldsAny = node => keys.some(key => nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure }));
+  function yieldsAny(node) {
+    return keys.some(key => nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure }));
+  }
   return !yieldsAny(defaultNode) && yieldsAny(argNode);
 }
 

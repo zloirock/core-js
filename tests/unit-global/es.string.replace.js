@@ -171,10 +171,10 @@ QUnit.test('String#replace delegates to @@replace', assert => {
 });
 
 QUnit.test('RegExp#@@replace delegates to exec', assert => {
-  const exec = function (...args) {
+  function exec(...args) {
     execCalled = true;
     return /./.exec.apply(this, args);
-  };
+  }
 
   let execCalled = false;
   let re = /[ac]/;

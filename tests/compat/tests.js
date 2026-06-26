@@ -45,7 +45,7 @@ var ARRAY_BUFFER_TRANSFER_BUG = IS_NODE && /^(?:21\.|22\.[0-3]\.)/.test(versions
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
-var ITERATOR_RESULT_CHECK_SUPPORT = function () {
+function ITERATOR_RESULT_CHECK_SUPPORT() {
   // Same WebKit and pre-Safari 15 JSC detection as iterator-result-webkit-bug.
   var webkit = USERAGENT.match(/AppleWebKit\/(\d+)\./);
   if (!webkit || +webkit[1] <= 537) return true;
@@ -57,11 +57,11 @@ var ITERATOR_RESULT_CHECK_SUPPORT = function () {
   } catch (error) {
     return true;
   }
-};
+}
 
-var PROMISES_SUPPORT = function () {
+function PROMISES_SUPPORT() {
   var promise = new Promise(function (resolve) { resolve(1); });
-  var empty = function () { /* empty */ };
+  function empty() { /* empty */ }
   var FakePromise = (promise.constructor = {})[Symbol.species] = function (exec) {
     exec(empty, empty);
   };
@@ -70,9 +70,9 @@ var PROMISES_SUPPORT = function () {
     && V8_VERSION !== 66
     // Replacing Deno's native Promise for rejection tracking breaks host APIs.
     && (!IS_BROWSER || typeof PromiseRejectionEvent == 'function');
-};
+}
 
-var PROMISE_STATICS_ITERATION = function () {
+function PROMISE_STATICS_ITERATION() {
   var ITERATION_SUPPORT = false;
   try {
     var object = {};
@@ -86,21 +86,21 @@ var PROMISE_STATICS_ITERATION = function () {
     Promise.all(object).then(undefined, function () { /* empty */ });
   } catch (error) { /* empty */ }
   return ITERATION_SUPPORT;
-};
+}
 
-var SYMBOLS_SUPPORT = function () {
+function SYMBOLS_SUPPORT() {
   return Object.getOwnPropertySymbols && String(Symbol('symbol detection')) && !(V8_VERSION && V8_VERSION < 41);
-};
+}
 
 var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
   return Symbol.for && Symbol.keyFor;
 }];
 
-var ACCEPTS_INVALID_URL = function (input) {
+function ACCEPTS_INVALID_URL(input) {
   try {
     return !!new URL(input);
   } catch (error) { /* empty */ }
-};
+}
 
 // The first part of the `URL` and `URLSearchParams` detection: what it was before the checks of hosts,
 // non-special URLs and record keys. The modules that only add a method to the native constructors keep
@@ -108,7 +108,7 @@ var ACCEPTS_INVALID_URL = function (input) {
 // TODO: In `core-js@4`, merge it back into `URL_AND_URL_SEARCH_PARAMS_SUPPORT`: test those modules as
 // "the constructors are polyfilled or the method is supported" and set their compat data to the first versions
 // from which that always holds
-var URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY = function () {
+function URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY() {
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing
   var url = new URL('b?a=1&b=2&c=3', 'https://a');
   var searchParams = url.searchParams;
@@ -130,9 +130,9 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY = function () {
     && result === 'a1c3'
     // throws in Safari 14.0-: https://bugs.webkit.org/show_bug.cgi?id=215734
     && new URL('https://x', undefined).host === 'x';
-};
+}
 
-var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
+function URL_AND_URL_SEARCH_PARAMS_SUPPORT() {
   return URL_AND_URL_SEARCH_PARAMS_SUPPORT_LEGACY()
     // forbidden host code points are accepted in Safari 15.3-, NodeJS 18.5- and Deno 1.25.1-
     && !ACCEPTS_INVALID_URL('http://a\u0001b')
@@ -148,20 +148,20 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
     && new URL('http://127.0.0.%31').host === '127.0.0.1'
     // record keys that shadow `Object.prototype` are dropped in NodeJS 16.17 - 18.16 and 19
     && String(new URLSearchParams({ constructor: 1 })) === 'constructor=1';
-};
+}
 
 // eslint-disable-next-line no-proto -- safe
 var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || {}.__proto__;
 
-var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
+function OBJECT_PROTOTYPE_ACCESSORS_SUPPORT() {
   try {
     Object.prototype.__defineSetter__.call(null, Math.random(), function () { /* empty */ });
   } catch (error) {
     return Object.prototype.__defineSetter__;
   }
-};
+}
 
-var SAFE_ITERATION_CLOSING_SUPPORT = function () {
+function SAFE_ITERATION_CLOSING_SUPPORT() {
   var SAFE_CLOSING = false;
   try {
     var called = 0;
@@ -180,18 +180,18 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
   } catch (error) {
     return SAFE_CLOSING;
   }
-};
+}
 
-var DATA_VIEW_INT8_CONVERSION_BUG = function () {
+function DATA_VIEW_INT8_CONVERSION_BUG() {
   var testView = new DataView(new ArrayBuffer(2));
   testView.setInt8(0, 2147483648);
   testView.setInt8(1, 2147483649);
 
   // iOS Safari 7.x bug
   return !testView.getInt8(0) && !!testView.getInt8(1);
-};
+}
 
-var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS = function () {
+function TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS() {
   try {
     return !Int8Array(1);
   } catch (error) { /* empty */ }
@@ -214,7 +214,7 @@ var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS = function () {
 
   return new Int8Array(iterable)[0] === 1
     && new Int8Array(new ArrayBuffer(2), 1, undefined).length === 1;
-};
+}
 
 function NCG_SUPPORT() {
   var re = RegExp('(?<a>b)');
@@ -1457,12 +1457,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     var calls = '';
     var expected = INDICES_SUPPORT ? 'dgimsy' : 'gimsy';
 
-    var addGetter = function (key, chr) {
+    function addGetter(key, chr) {
       Object.defineProperty(O, key, { get: function () {
         calls += chr;
         return true;
       } });
-    };
+    }
 
     var pairs = {
       dotAll: 's',

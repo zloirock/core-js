@@ -195,7 +195,9 @@ export default function plugin(api, options) {
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
-  const resolvePure = (meta, path) => isMutatedStaticMeta(meta, mutatedStatics) ? null : resolvePureUnfiltered(meta, path);
+  function resolvePure(meta, path) {
+    return isMutatedStaticMeta(meta, mutatedStatics) ? null : resolvePureUnfiltered(meta, path);
+  }
 
   let injector, importStyle, debugOutput;
 
@@ -420,13 +422,13 @@ export default function plugin(api, options) {
         // rare but possible wrappers: ParenthesizedExpression (babel's
         // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
         // unwrap both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
-        const unwrap = p => {
+        function unwrap(p) {
           while (p.node && (TS_EXPR_WRAPPERS.has(p.node.type)
             || p.node.type === 'ChainExpression' || p.node.type === 'ParenthesizedExpression')) {
             p = p.get('expression');
           }
           return p;
-        };
+        }
         let current = unwrap(path.get('object'));
         // outer call's immediate (wrapper-peeled) receiver. when the descent below crosses
         // non-optional Member/Call hops (`.map(...)` / `.slice(...)`) to reach the optional
@@ -974,7 +976,9 @@ export default function plugin(api, options) {
 
       // descending `index` so later splices don't shift earlier ones in the same body;
       // descending `seq` breaks ties deterministically (later-generated first)
-      const batchOrder = (a, b) => b.index - a.index || b.seq - a.seq;
+      function batchOrder(a, b) {
+        return b.index - a.index || b.seq - a.seq;
+      }
 
       // augment a visitor set with the unconditional proxy-hop trigger: an anchored plan must
       // fire even when NO leaf resolves (`{ Map: { customY } } = globalThis` - the point is

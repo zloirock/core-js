@@ -89,10 +89,12 @@ QUnit.test('class: super.resolve in extends Promise', assert => {
 // --- Advanced class patterns ---
 
 QUnit.test('class: mixin factory producing class with polyfilled methods', assert => {
-  const Sorted = Base => class extends Base {
-    asSorted() { return this.items.toSorted(); }
-    asReversed() { return this.items.toReversed(); }
-  };
+  function Sorted(Base) {
+    return class extends Base {
+      asSorted() { return this.items.toSorted(); }
+      asReversed() { return this.items.toReversed(); }
+    };
+  }
   class Basket {
     constructor(items) { this.items = Array.from(items); }
   }
