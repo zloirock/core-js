@@ -3213,6 +3213,10 @@ export const data = {
     node: '19.8',
     safari: '17.0',
   },
+  'web.request-idle-callback': {
+    chrome: '47',
+    // firefox: '55', -- incorrect type for timeout
+  },
 };
 
 export const renamed = new Map([

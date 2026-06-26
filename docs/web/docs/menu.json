@@ -413,6 +413,10 @@
           {
             "title": "Iterable DOM collections",
             "url": "{docs-version}/docs/features/web-standards/iterable-dom-collections"
+          },
+          {
+            "title": "Idle Callback",
+            "url": "{docs-version}/docs/features/web-standards/idle-callback"
           }
         ]
       },
