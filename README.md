@@ -2795,7 +2795,9 @@ core-js(-pure)/actual|full/iterator/windows
 ```
 [*Examples*](https://tinyurl.com/24xnkcnn)
 ```js
-const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+function digits() {
+  return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+}
 
 let chunks = Array.from(digits().chunks(2));  // [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
 
