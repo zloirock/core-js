@@ -69,6 +69,8 @@ function buildSeTailSrc(prefixSrcs, pureBinding) {
 // the root binding text for a `seTailProxyGlobalSubst` result: the pure import for a real proxy-global, or
 // the kept alias name for a proxy-global alias (its binding is rewritten to the pure root by the visitor)
 function seTailRootBinding(seTail, injectPureImport) {
+  // a trailing-static tail carries its fully-collapsed source (already pure-resolved); use it verbatim
+  if (seTail.tailSrc !== undefined) return seTail.tailSrc;
   return seTail.pure ? injectPureImport(seTail.pure.entry, seTail.pure.hintName) : seTail.aliasBinding;
 }
 
@@ -997,11 +999,22 @@ export function createPolyfillEmitter({
     // the sequence tail is the proxy-global receiver: a bare Identifier (`(eff(), globalThis)`) OR a fully-
     // proxy-nav member chain whose redundant hops collapse to the root (`(eff(), globalThis.self)` -> root
     // `globalThis`, the `.self` hop falls inside the whole-tail replacement). a member tail with a TRAILING
-    // static (`globalThis.self.Map`) is not fully proxy-nav, so dropping it would lose the static - bail those
+    // static (`globalThis.self.Map` / `globalThis.self.Array`) is not fully proxy-nav: rather than bail, collapse
+    // the WHOLE tail through the shared chain resolver and carry its source. that resolver keeps a pure ctor
+    // (`globalThis.self.Map` -> `_Map`) and drops the redundant hop off a native static (`globalThis.self.Array`
+    // -> `_globalThis.Array`) - a flat suffix-slice would emit `_globalThis.Map`, the unpolyfilled native Map.
+    // babel flattens these via its recursive collapse; a one-level peel here left the raw global ie:11
     const leafFromMember = tail?.type !== 'Identifier';
     const leaf = leafFromMember ? findProxyGlobal(tail, aliasCtx) : tail;
     if (leaf?.type !== 'Identifier') return null;
-    if (tail !== leaf && maximalProxyGlobalPrefix(tail, aliasCtx) !== tail) return null;
+    if (tail !== leaf && maximalProxyGlobalPrefix(tail, aliasCtx) !== tail) {
+      const collapsedTail = resolveProxyGlobalChainSrc(tail, metaPath);
+      if (!collapsedTail) return null;
+      return {
+        leaf: collapsedTail.leafNode, pure: null, aliasBinding: null,
+        tailSrc: collapsedTail.src, prefixSrcs: seqPrefix.map(expr => nodeSrc(expr)),
+      };
+    }
     const pure = resolveGlobalPolyfill(leaf.name);
     // a real proxy-global swaps to its pure import; a SHADOW of a global name (own local binding) bails. an
     // ALIAS of the proxy-global reached through a member tail (`const g = globalThis; (c++, g.self).Array`)
@@ -1701,14 +1714,19 @@ export function createPolyfillEmitter({
   // `replaceWith(withSideEffects(id, allEffects))` shape: receiver chain-assignment +
   // `meta.sideEffects` (computed-key SE captured by detect-usage) compose into the
   // replacement so `called++` in `(called++, Promise).noSuchStatic` doesn't drop
-  function replaceStaticFallback({ binding, node, metaPath, sideEffects, receiverEffectCount, receiverNode = node.object }) {
+  function replaceStaticFallback({
+    binding, node, metaPath, sideEffects, receiverEffectCount, receiverNode = node.object, protoCtorReceiverSE,
+  }) {
     // receiver-only swap: the computed `[key]` property survives and re-runs its own SE, so prepend
     // only the receiver-SE (drop the trailing computed-key SE) to avoid double-evaluating it.
     // `receiverNode` is the CTOR sub-receiver for a `prototype` placement (`globalThis.Map` within
-    // `globalThis.Map.prototype`) so `.prototype` is kept; the whole `.object` for a static placement
+    // `globalThis.Map.prototype`) so `.prototype` is kept; the whole `.object` for a static placement.
+    // `protoCtorReceiverSE`: a SE-sequence buried in that ctor sub-receiver (`(c++, globalThis.self).Map`) the
+    // receiver-SE collect couldn't reach - re-emit so the `_Map` swap keeps the `c++` (`(c++, _Map).prototype`)
+    const baseEffects = receiverSideEffectsOnly(receiverEffectCount, sideEffects) ?? [];
     transforms.add(receiverNode.start, receiverNode.end, composeBindingReplacement({
       binding, receiverObj: receiverNode, metaPath, start: receiverNode.start,
-      sideEffects: receiverSideEffectsOnly(receiverEffectCount, sideEffects),
+      sideEffects: protoCtorReceiverSE ? [...protoCtorReceiverSE, ...baseEffects] : baseEffects,
     }));
   }
 
