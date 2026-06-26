@@ -287,6 +287,170 @@ function * generateProxyHopCtor() {
   }
 }
 
+// --- Discarded computed-key prefix proxy-global (text-emitter compose crash) ---
+// a PURE proxy-global (`globalThis`) buried in a DISCARDED computed-key sequence prefix
+// (`x[(globalThis, 'flat')]`) is peeled to the tail key, and the polyfill swap drops the whole `[...]`
+// text. the dropped proxy-global must not strand a `globalThis -> _globalThis` rewrite against eliminated
+// source (a text emitter crashes composing it, an AST emitter drops the subtree). the comma discards the
+// real `globalThis` so each shape runs natively - the three-way value AND the transform-crash oracle both
+// fire on a regression. distinct dispatch + method per shape: instance drop, static collapse, symbol-iter,
+// nested-paren prefix, and a multi-proxy-global prefix
+const DKP_SHAPES = [
+  { id: 'instance-flat', expr: '[[7]][(globalThis, "flat")]()' },
+  { id: 'static-from', expr: 'Array[(globalThis, "from")]([1, 2])' },
+  { id: 'symbol-iter', expr: '[...[9][(globalThis, Symbol.iterator)]()]' },
+  { id: 'instance-at', expr: '[5, 6][(globalThis, "at")](1)' },
+  { id: 'nested-paren-prefix', expr: '[[3]][((globalThis), "flat")]()' },
+  { id: 'double-global-prefix', expr: '[[4]][(globalThis, globalThis, "flat")]()' },
+];
+function * generateDiscardedKeyPrefixProxy() {
+  for (const shape of DKP_SHAPES) {
+    yield { ...snippet(`discarded-key-prefix/${ shape.id }`, shape.expr), strip: false };
+  }
+}
+
+// --- Buried side-effect in a `+` / template fold of a computed key ---
+// an effect buried in a `+`-concat or template fold of a computed key (`X[(log.push('k'), 'fr') + 'om']`),
+// unlike a top-level sequence prefix, was invisible to the fold-blind SE harvest: the key folds to a static
+// name and the member collapses to a polyfill, silently dropping the buried effect on BOTH emitters. the
+// `effects` log makes the drop a value divergence (native runs it, a fold-blind emitter does not). distinct
+// dispatch / fold shape, SE in either `+` operand
+const BFK_SHAPES = [
+  { id: 'static-concat-left', expr: 'Array[(log.push("s"), "fr") + "om"]([1, 2])' },
+  { id: 'static-concat-right', expr: 'Array["fr" + (log.push("r"), "om")]([8])' },
+  { id: 'instance-concat', expr: '[3, 4][(log.push("i"), "a") + "t"](0)' },
+  // eslint-disable-next-line no-template-curly-in-string -- the `${}` is literal template-literal syntax in the GENERATED snippet code, not a mis-quoted source template
+  { id: 'static-template', expr: 'Object[`ent${ (log.push("t"), "r") }ies`]({ x: 1 })' },
+];
+function * generateBuriedFoldKeySE() {
+  for (const shape of BFK_SHAPES) {
+    yield { ...snippet(`buried-fold-key-se/${ shape.id }`, shape.expr), strip: false };
+  }
+}
+
+// --- Static-collapse receiver SE order: chain-root call before hop-key ---
+// a static dispatch discards the whole receiver and re-emits its SE as a sequence prefix. they must run in
+// source-eval order: the chain-root CALL (the deepest object) BEFORE the shallower computed hop-key. a
+// harvest that appended the call LAST reversed `(call, key)` to `(key, call)` on BOTH emitters - a consistent
+// error only the NATIVE comparison catches (the `effects` log records the order). `self`/`window` are absent
+// in Node, so the host aliases `globalThis.self` to globalThis self-restoringly (try/finally, no leak)
+const SCO_SHAPES = [
+  { id: 'call-before-key-of', inner: '(() => { log.push("call"); return globalThis; })()[(log.push("key"), "self")].Array.of(1)' },
+  { id: 'call-before-key-from', inner: '(() => { log.push("c"); return globalThis; })()[(log.push("k"), "self")].Array.from([1])' },
+  { id: 'key-only', inner: 'globalThis[(log.push("k2"), "self")].Array.of(2)' },
+  // NESTED sequence in the hop-key: parsers that keep a `ParenthesizedExpression` between the comma levels
+  // need a per-level unwrap to fold past the inner `(k4, 'self')`. a bare tail-peel stops at the inner paren
+  // and leaves the hop raw - the `effects` log pins that BOTH buried increments still run, in source order
+  { id: 'nested-seq-key', inner: 'globalThis[(log.push("k3"), (log.push("k4"), "self"))].Array.of(3)' },
+];
+function * generateStaticCollapseSEOrder() {
+  for (const shape of SCO_SHAPES) {
+    const body = '(() => { const s = globalThis.self; globalThis.self = globalThis; '
+      + `try { return ${ shape.inner }; } finally { globalThis.self = s; } })()`;
+    yield { ...snippet(`static-collapse-se-order/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- `.name` memo on a proxy chain-root-call receiver: inner resolution ---
+// a `.name` (MaybeFunction get) on `(call).hop.Ctor` memoizes `(call, _Ctor)`, harvesting the call as a RAW
+// source prefix. the call's BODY must resolve EXACTLY as the natural visitor would (whole-receiver collapse
+// leaves it visitor-rewritten, the compose substitutes through it) - not a bare-identifier re-emit. shapes a
+// bare-identifier re-emit mis-handled: a proxy-global MEMBER chain return (`globalThis.self`) and a polyfillable
+// member inside the body (`[1].flat()`). the `.name` value + the `log` SE order are the three-way oracle
+const NCR_SHAPES = [
+  { id: 'member-chain-return', expr: '(() => { log.push("m"); return globalThis.self; })().window.Map.name' },
+  { id: 'polyfillable-inside', expr: '(() => { [1].flat(); log.push("p"); return globalThis; })().self.Set.name' },
+  { id: 'bare-control', expr: '(() => { log.push("c"); return globalThis; })().self.WeakMap.name' },
+];
+function * generateNameChainRootCallInner() {
+  for (const shape of NCR_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`name-chain-root-call-inner/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- OPTIONAL `.name` on a proxy chain-root-CALL receiver: receiver-SE runs ONCE ---
+// `(call)?.self.Ctor.name` memoizes the call in the `?.` null-guard (`_ref = call`), which RUNS its
+// receiver-SE. the body must NOT re-emit that SE - it double-ran the call on BOTH emitters (native `[1]`,
+// transpiled `[1,1]`). a computed key-SE folds into the non-null branch (runs once, after the guard). the
+// `.name` value + the `log` order are the three-way oracle; the call always returns non-null so `?.` passes
+const ONC_SHAPES = [
+  { id: 'bare-root', expr: '(() => { log.push(1); return globalThis; })()?.self.Map.name' },
+  { id: 'deep-hop', expr: '(() => { log.push(1); return globalThis; })()?.self.window.Set.name' },
+  { id: 'key-se', expr: '(() => { log.push(1); return globalThis; })()?.self[(log.push(2), "WeakMap")].name' },
+];
+function * generateOptionalNameChainRootCall() {
+  for (const shape of ONC_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`optional-name-chain-root-call/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- Optional proxy-global chain rooted in a PURE call: receiver-WRAP vs receiver-LESS collapse ---
+// a PURE chain-root call under an optional `?.` (`(() => globalThis)()?.self.X`) is KEPT in the null-guard, NOT
+// inlined away. a receiver-WRAPPING polyfill (instance method / `instance`-kind `.name` get) keeps the call +
+// rewrites its inner global + rebinds the tail off `_ref` (the buggy emit collapsed to a ponyfill `_self`,
+// diverging the import-set); a receiver-LESS collapse (ctor on the proxy-global / called static method) drops
+// the subsumed call (mis-detecting it as kept CRASHED unplugin's compose). self-restoring host so native runs
+const OPC_SHAPES = [
+  { id: 'wrap-instance', expr: '(() => globalThis)()?.self.Array.prototype.flat.call([1, [2]]).join(",")' },
+  { id: 'wrap-get', expr: '(() => globalThis)()?.self.Map.name' },
+  { id: 'deep-wrap', expr: '(() => globalThis)()?.self.window.Array.prototype.flat.call([1, [2]]).join(",")' },
+  { id: 'collapse-ctor', expr: 'new ((() => globalThis)()?.self.Set)([1, 1]).size' },
+  { id: 'collapse-static', expr: '(() => globalThis)()?.self.Object.fromEntries([["a", 1]]).a' },
+  // SE-bearing chain-root call: a receiver-LESS collapse drops the call's RETURN but must PRESERVE its SE,
+  // re-emitting it as a sequence prefix (`(log.push(7), _Set)`) - the SE-bail keeps the inner global live too
+  { id: 'se-collapse-ctor', expr: 'new ((() => { log.push(7); return globalThis; })()?.self.Set)([1, 1]).size' },
+  { id: 'se-collapse-static', expr: '(() => { log.push(8); return globalThis; })()?.self.Object.fromEntries([["a", 1]]).a' },
+  // SECOND optional anywhere flips rebind -> vestigial COLLAPSE (drops the call): on a proxy hop or on the
+  // leaf. the optional-count keys on the `?.` FLAG (babel types every chain member OptionalMemberExpression);
+  // mis-counting kept the call live AND collapsed the receiver -> orphaned inner global -> unplugin crash
+  { id: 'multi-opt-hop-collapse', expr: '(() => globalThis)()?.self?.Map.name' },
+  { id: 'multi-opt-leaf-collapse', expr: '(() => globalThis)()?.self.WeakMap?.name' },
+  // LEAF decides collapse-vs-rebind: a polyfilled ctor's prototype method INVOKED at the leaf routes through
+  // `_Map.prototype.has` and COLLAPSES (drops the call); a wrapper leaf above it (`.name`) keeps the chain and
+  // REBINDS. mis-deciding at the static (which can't see the leaf) crashed unplugin on the collapse form
+  { id: 'proto-method-collapse', expr: '(() => globalThis)()?.self.Map.prototype.has.call(new Map([[1, 2]]), 1)' },
+  { id: 'proto-wrapper-rebind', expr: '(() => globalThis)()?.self.Set.prototype.add.name' },
+  // a [Symbol.iterator] leaf is also a receiver-wrapping helper (_getIteratorMethod) -> REBIND off a
+  // ctor-prototype receiver; its kept-call inner global must rewrite (was raw in the symbol-iter path)
+  { id: 'proto-symbol-iter-rebind', expr: 'typeof (() => globalThis)()?.self.Map.prototype[Symbol.iterator]' },
+];
+function * generateOptionalProxyPureCall() {
+  for (const shape of OPC_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`optional-proxy-pure-call/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- Symbol-iterator proxy-hop receiver collapse ---
+// the receiver of `[Symbol.iterator]` is KEPT as the polyfill argument; a proxy-global hop in it must
+// collapse to the proxy ROOT identically on both emitters (a kept leaf hop diverged: babel `_self` / dead
+// `_globalThis.self.window`, unplugin compile-CRASH). `self`/`window` are absent in Node, so the host
+// aliases them to globalThis self-restoringly; the observed value is `=== globalThis[Symbol.iterator]` (the
+// global's iterator method, undefined either way) - the regression surfaces as the unplugin transform crash
+const SIR_SHAPES = [
+  { id: 'single', expr: 'globalThis.self[Symbol.iterator]' },
+  { id: 'deep', expr: 'globalThis.self.window[Symbol.iterator]' },
+  { id: 'optional', expr: 'globalThis?.self[Symbol.iterator]' },
+  { id: 'paren', expr: '(globalThis.self)[Symbol.iterator]' },
+  // SEQUENCE receiver with a proxy tail: the tail hop collapses to the root, the prefix SE re-emits via the
+  // collapse sequence. unplugin CRASHED here (tail rewrite double-composed); the transformCrash oracle locks it
+  { id: 'seq', expr: '(log.push(1), globalThis.self)[Symbol.iterator]' },
+  { id: 'seq-deep', expr: '(log.push(1), globalThis.self.window)[Symbol.iterator]' },
+  { id: 'seq-multi', expr: '(log.push(1), log.push(2), globalThis.self)[Symbol.iterator]' },
+];
+function * generateSymbolIterProxyReceiver() {
+  for (const shape of SIR_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr } === globalThis[Symbol.iterator]; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`symbol-iter-proxy-receiver/${ shape.id }`, body), strip: false };
+  }
+}
+
 // --- Single-key synth-swap param-default with a sequence-prefixed / fallback-logical MEMBER receiver ---
 // a single-key synth-swap param-default whose receiver is a proxy-global member behind a sequence prefix
 // (`(pre, globalThis.Array)`) or a fallback-logical (`(pre, globalThis.Array) || Set`). the synth literal
@@ -1893,6 +2057,13 @@ export function * generate() {
   yield * generateFallbackArg();
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
+  yield * generateDiscardedKeyPrefixProxy();
+  yield * generateBuriedFoldKeySE();
+  yield * generateStaticCollapseSEOrder();
+  yield * generateNameChainRootCallInner();
+  yield * generateOptionalNameChainRootCall();
+  yield * generateOptionalProxyPureCall();
+  yield * generateSymbolIterProxyReceiver();
   yield * generateSynthSwapSeqReceiver();
   yield * generateNestedMirrorMixed();
   yield * generateReceiverCopyShape();
