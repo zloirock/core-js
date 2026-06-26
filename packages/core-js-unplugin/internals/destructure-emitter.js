@@ -22,6 +22,7 @@ import {
   isIdentifierPropValue,
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
+  collectFoldedReceiverSideEffects,
   nestedMirrorOwnsMixedPattern,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
@@ -2799,8 +2800,8 @@ export function createDestructureEmitter({
     const rootPure = resolveGlobalPolyfill(plan.rootName);
     if (!rootPure) return null;
     const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
-    const rootText = plan.callSe
-      ? `(${ src.slice(plan.callSe.start - baseStart, plan.callSe.end - baseStart) }, ${ rootBinding })`
+    const rootText = plan.droppedSe.length
+      ? `(${ plan.droppedSe.map(effect => src.slice(effect.start - baseStart, effect.end - baseStart)).join(', ') }, ${ rootBinding })`
       : rootBinding;
     const tail = dropLeafOptionalConnector(src.slice(target.object.end - baseStart));
     return src.slice(0, target.object.start - baseStart) + rootText + tail;
@@ -2819,6 +2820,19 @@ export function createDestructureEmitter({
     // where `self` is not polyfilled) still bails to the verbatim fallback
     const isAliasRoot = isAliasProxyRoot(proxyRoot, aliasCtx);
     if (!rootPure && !isAliasRoot) return null;
+    // a SE-bearing proxy hop (`globalThis[(c++, 'self')].Array`) is BAILED by maximalProxyGlobalPrefix below
+    // (it cannot drop the hop without dropping the effect), which would leave a dead `.self` off the pure
+    // root (`_globalThis.self.Array` - undefined off-engine). route it through the call-rooted collapse,
+    // which harvests the dropped hop SE as a sequence prefix and re-roots, matching babel's `droppedSe`.
+    // both the destructure path (`ctx`) and the standalone hop-collapse driver (`aliasCtx`) reach here
+    const collapseCtx = ctx ?? aliasCtx;
+    if (collapseCtx) {
+      const callPlan = resolveCallRootedProxyCollapse({ receiver: target, ...collapseCtx });
+      if (callPlan?.droppedSe.length) {
+        const delegated = substituteCallRootedProxyHop({ target, src, baseStart, ctx: collapseCtx });
+        if (delegated !== null) return delegated;
+      }
+    }
     // replace the WHOLE proxy-global navigation prefix (root + intermediate proxy hops such as
     // the `self` in `globalThis.self.Array`), not just the root id: keeping `.self` would read an
     // undefined property off the global object on hosts without it (`_globalThis.self` on ie:11
@@ -2828,32 +2842,40 @@ export function createDestructureEmitter({
     // start would leave a dangling open paren. the end must be symmetric: a bare root's
     // `maximalProxyGlobalPrefix` ends BEFORE the matching `)`, so without the `max` the close paren
     // dangles (`_globalThis).Array`; an SE-prefixed root doubles it). a proxy-hop prefix
-    // (`(globalThis).self`) ends past the wrapper, so `max` keeps that wider span unchanged
+    // (`(globalThis).self`) ends past the wrapper, so `max` keeps that wider span unchanged. `true`
+    // admits SE-bearing hop keys into the span so a `[(c++,'self')]` hop collapses (SE harvested below)
     const wrappedRoot = proxyGlobalWrappedRoot(target, aliasCtx);
-    const prefixEnd = Math.max(maximalProxyGlobalPrefix(target, aliasCtx).end, wrappedRoot.end);
-    const start = wrappedRoot.start - baseStart;
-    // SE prefixes buried in the root wrapper keep evaluating (root-first order):
-    // `(eff(), globalThis).self.X` collapses to `(eff(), _globalThis).X`, not `_globalThis.X`
-    const prefixSrcs = [];
-    let rootCur = wrappedRoot;
-    for (;;) {
-      const peeledRoot = unwrapParens(rootCur);
-      if (peeledRoot?.type === 'SequenceExpression' && peeledRoot.expressions.length) {
-        for (const expr of peeledRoot.expressions.slice(0, -1)) {
-          prefixSrcs.push(src.slice(expr.start - baseStart, expr.end - baseStart));
-        }
-        rootCur = peeledRoot.expressions.at(-1);
-      } else break;
+    // a BARE-rooted deeper SE-hop (`globalThis[(c++,'self')].Array.prototype` - immediate hop is the native
+    // `.Array`, so the call-rooted collapse above missed the `[(c++,'self')]`) BAILS: the natural visitor
+    // collapses the proxy-immediate sub-chain (`...Array` -> `(c++, _globalThis).Array`) as a NESTED transform
+    // composing into the raw receiver, matching babel. a SE-WRAPPED root (`(e++, globalThis)[(c++,'self')]`) has
+    // no bare proxy-global identifier for the natural visitor to rewrite, so it collapses HERE - harvesting both
+    // the root-wrapper AND hop-key SE (babel leaves it raw `globalThis` -> reads undefined / ie:11 ReferenceError)
+    const rootIsSeWrapped = unwrapParens(wrappedRoot)?.type === 'SequenceExpression';
+    if (!rootIsSeWrapped
+      && maximalProxyGlobalPrefix(target, aliasCtx).end !== maximalProxyGlobalPrefix(target, aliasCtx, true).end) {
+      return null;
     }
+    // the maximal proxy navigation prefix (root + every redundant hop, computed-key hops admitted via `true`)
+    // is the span to replace with the pure root + its buried side effects; the surviving tail stays. ONE
+    // recursive harvest captures every buried prefix in source order regardless of shape - a SE root-wrapper
+    // (`(eff(), globalThis).self`), nested sequences, a computed-key hop (`[(c++, 'self')]`) - so the
+    // reconstruction needs no per-shape boundary arithmetic. a sequence-BURIED root + trailing hop
+    // (`(c++, (d++, globalThis.self)).window.X`) reconstructs cleanly here; the prior bare-identifier start
+    // sat INSIDE the parens and the slice cut across the `))`, yielding unbalanced parens (a build-break)
+    const maxPrefix = maximalProxyGlobalPrefix(target, aliasCtx, true);
+    // span the WHOLE proxy nav incl. a wrapper directly around the bare root: WITH a hop, maxPrefix's object
+    // IS the wrapper so maxPrefix is the outer node; with NO hop the wrapper is maxPrefix's PARENT, so fall
+    // back to proxyGlobalWrappedRoot (`(globalThis)` -> the `(`). the outer (min-start) of the two spans both
+    // and its recursive harvest captures every buried prefix in source order (SE wrappers, nested sequences,
+    // computed-key hops) - so a sequence-buried root + trailing hop reconstructs cleanly, no per-shape math
+    const spanNode = maxPrefix.start <= wrappedRoot.start ? maxPrefix : wrappedRoot;
+    const start = spanNode.start - baseStart;
+    const prefixEnd = Math.max(maxPrefix.end, wrappedRoot.end);
+    const prefixSrcs = collectFoldedReceiverSideEffects(spanNode)
+      .map(effect => src.slice(effect.start - baseStart, effect.end - baseStart));
     // direct root swaps to its pure binding; an alias root keeps its (already-rewritten) name
     const rootBinding = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : nodeSrc(proxyRoot);
-    // an IRREGULAR root wrapper (the unwrap does not bottom at the proxy identifier - e.g.
-    // an SE wrapping a partial member chain, `((e2(), (e1(), globalThis).self)).Array`) makes
-    // the [wrappedRoot.start, prefixEnd) slice structurally unsound (the full-collapse rewrite
-    // corrupted the parens) - bail to the caller's verbatim fallback: the chain stays a
-    // residual target whose root the NATURAL visitor substitutes (a manual root slice here
-    // collided with that queued transform and the compose remapped it onto the hop key)
-    if (unwrapParens(rootCur) !== proxyRoot) return null;
     const rootText = prefixSrcs.length ? `(${ [...prefixSrcs, rootBinding].join(', ') })` : rootBinding;
     // drop the leaf's redundant optional connector ONLY where babel does, for parity: a pure-import
     // root (babel's normalizeOptionalChain on the injected `_globalThis`) or a collapsed proxy hop
@@ -2888,16 +2910,19 @@ export function createDestructureEmitter({
       while (p && (p.node?.type === 'ParenthesizedExpression' || p.node?.type === 'ChainExpression')) p = p.parentPath;
       return p;
     };
-    // climb to the leaf member that consumes the maximal proxy-hop prefix
+    // climb to the leaf member that consumes the maximal proxy-hop prefix. `allowSideEffectKeys`: advance
+    // THROUGH a SE-bearing proxy hop (`globalThis[(eff(), 'self')].X`) too - it stops the climb at the hop
+    // otherwise, leaving a dead `_globalThis.self.X`. the collapse below routes it to the call-rooted plan,
+    // which HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
     let recPath = peelOxc(metaPath?.parentPath);
     while ((recPath?.node?.type === 'MemberExpression' || recPath?.node?.type === 'OptionalMemberExpression')
-      && maximalProxyGlobalPrefix(recPath.node, aliasCtx) === recPath.node) {
+      && maximalProxyGlobalPrefix(recPath.node, aliasCtx, true) === recPath.node) {
       recPath = peelOxc(recPath.parentPath);
     }
     const recv = recPath?.node;
     if (recv?.type !== 'MemberExpression' && recv?.type !== 'OptionalMemberExpression') return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
-    if (!maximalProxyGlobalHop(recv, aliasCtx)) return false;
+    if (!maximalProxyGlobalHop(recv, aliasCtx, true)) return false;
     // the destructure path OWNS the chain when it is an OBJECT-pattern destructure SOURCE (named props feed
     // a synth literal), even when wrapped in value carriers (`{from} = (se, globalThis.self.Array) || Set`).
     // walk up through those wrappers to the binding context and skip an OBJECT-pattern target. an ARRAY
