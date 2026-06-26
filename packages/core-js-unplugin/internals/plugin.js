@@ -21,6 +21,7 @@ import {
   peelToExpressionStatement,
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -1001,9 +1002,12 @@ export default function createPlugin(options) {
             // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
             // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
             // `_Map.prototype.has`; the whole receiver swap would drop `.prototype` -> the undefined `_Map.has`
+            // peel transparent wrappers (parens / TS cast / non-null) so a TS-wrapped `.prototype` receiver
+            // (`((c++, globalThis.self).Map.prototype as any).has`) reaches the ctor sub-receiver `X.Map`
+            const protoReceiverNode = unwrapRuntimeExpr(node.object);
             const isProtoReceiver = meta.placement === 'prototype'
-              && (node.object.type === 'MemberExpression' || node.object.type === 'OptionalMemberExpression');
-            const receiverNode = isProtoReceiver ? node.object.object : node.object;
+              && (protoReceiverNode.type === 'MemberExpression' || protoReceiverNode.type === 'OptionalMemberExpression');
+            const receiverNode = isProtoReceiver ? protoReceiverNode.object : node.object;
             // a kept SE-bearing inline-call receiver already yields the polyfill binding through
             // its own rewritten return leaf - leave the member untouched, the inner visits do the job
             if (staticFallbackSwapRedundant(receiverNode, meta.sideEffects)) return;
@@ -1020,6 +1024,7 @@ export default function createPlugin(options) {
             // `(called++, Promise).noSuchStatic` keeps the `called++` rather than dropping it
             replaceStaticFallback({
               binding, node, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount, receiverNode,
+              protoCtorReceiverSE: meta.protoCtorReceiverSE,
             });
             // outer text-emit absorbs the whole receiver: any inner Identifier whose name
             // matches the polyfill's substitution would compose into the emit (`_Map` substring
