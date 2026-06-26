@@ -510,15 +510,15 @@ function resolveLeafName(leaf, ctx) {
 function resolveMutationSite({ targetNode, scope, adapter, path }) {
   const names = new Set();
   const seenBindings = new Set();
-  const visitAliasValues = (valueNode, depth) => {
+  function visitAliasValues(valueNode, depth) {
     if (!valueNode || depth > 8) return;
     for (const leaf of valueFanLeaves(valueNode, [])) {
       const name = resolveLeafName(leaf, { scope, adapter, path });
       if (name) names.add(name);
       if (leaf.type === 'Identifier') visitBinding(leaf, depth + 1);
     }
-  };
-  const visitBinding = (identNode, depth) => {
+  }
+  function visitBinding(identNode, depth) {
     if (!adapter.hasBinding(scope, identNode.name, path)) return;
     const binding = adapter.getBinding(scope, identNode.name, path);
     if (!binding || seenBindings.has(binding)) return;
@@ -529,13 +529,13 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: identNode.name, ctx: reCtx }) ?? []) {
       visitAliasValues(rhs, depth);
     }
-  };
+  }
   // a member-chain target whose root reaches a proxy global through a value fan keys the mutation
   // under the chain's constructor leaf when a reachable root value is a proxy global (over-record -
   // the safe direction). two root shapes fan: a BOUND identifier (`let h; h = c ? other : globalThis;
   // h.Array.of = patch`) fans its init + reassignment union; an INLINE value fan
   // (`(c ? globalThis : self).Array.of = patch`) fans the chain root's own branches
-  const visitChainRootAlias = leaf => {
+  function visitChainRootAlias(leaf) {
     const parts = memberChainParts(leaf, { scope, adapter, path });
     if (!parts) return;
     if (!parts.keys.slice(0, -1).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
@@ -559,7 +559,7 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
         }
       }
     }
-  };
+  }
   const target = valueFanLeaves(targetNode, []);
   for (const leaf of target) {
     if (leaf.type === 'Identifier') {

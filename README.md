@@ -1413,7 +1413,9 @@ d.promise.then(console.log); // -> 42
 ```
 [*Examples*](https://core-js.io/playground#code=let+delay+%3D+time+%3D%3E+new+Promise%28resolve+%3D%3E+setTimeout%28resolve%2C+time%29%29%3B%0A%0Aasync+function+sleepRandom%28time%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++return+0+%7C+Math.random%28%29+%2A+1e3%3B%0A%7D%0A%0Aasync+function+sleepError%28time%2C+msg%29+%7B%0A++await+delay%28time+%2A+1e3%29%3B%0A++throw+new+Error%28msg%29%3B%0A%7D%0A%0A%28async+%28%29+%3D%3E+%7B%0A++try+%7B%0A++++console.log%28%27Run%27%29%3B++++++++++++++++%2F%2F+-%3E+Run%0A++++console.log%28await+sleepRandom%285%29%29%3B+%2F%2F+-%3E+936%2C+after+5+sec.%0A++++let+%5Ba%2C+b%2C+c%5D+%3D+await+Promise.all%28%5B%0A++++++sleepRandom%285%29%2C%0A++++++sleepRandom%2815%29%2C%0A++++++sleepRandom%2810%29%2C%0A++++%5D%29%3B%0A++++console.log%28a%2C+b%2C+c%29%3B++++++++++++++%2F%2F+-%3E+210+445+71%2C+after+15+sec.%0A++++await+sleepError%285%2C+%27Error%21%27%29%3B%0A++++console.log%28%27Will+not+be+displayed%27%29%3B%0A++%7D+catch+%28error%29+%7B%0A++++console.log%28error%29%3B++++++++++++++++%2F%2F+-%3E+Error%3A+Error%21%2C+after+5+sec.%0A++%7D%0A%7D%29%28%29%3B) with async functions:
 ```js
-let delay = time => new Promise(resolve => setTimeout(resolve, time));
+function delay(time) {
+  return new Promise(resolve => setTimeout(resolve, time));
+}
 
 async function sleepRandom(time) {
   await delay(time * 1e3);
@@ -3036,12 +3038,6 @@ await Promise.allSettledKeyed({
 core-js(-pure)/stage/2.7
 ```
 
-#### Stage 2.7 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js(-pure)/stage/2.7
-```
-
 ##### [`Symbol.metadata` for the decorator metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
 ```ts
@@ -3056,7 +3052,7 @@ class Function {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/decorator-metadata
-core-js(-pure)/actual|full/symbol/metadata
+core-js(-pure)/full/symbol/metadata
 ```
 
 #### Stage 2 proposals[⬆](#index)

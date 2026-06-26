@@ -257,8 +257,8 @@ export function createTypeMembers({
   function appendMergedInterfaceMembers({ segments, scope, depth, out, receiverArgs, visited }) {
     if (!segments) return;
     const seen = visited ?? new Set();
-    for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
-      if (seen.has(iface)) continue;
+    for (const iface of findAllTypeDeclarations(segments, scope)) {
+      if (!isInterfaceDeclaration(iface) || seen.has(iface)) continue;
       seen.add(iface);
       const ifaceSubst = declSubst(iface, receiverArgs, scope);
       out.push(...substMembers(interfaceBodyMembers(iface), ifaceSubst));
@@ -439,7 +439,9 @@ export function createTypeMembers({
     // outer subst intentionally - the branch picker matches the check expression against
     // the constraint, both use outer-scope substitutions
     const innerSubst = dropMapKeys(subst, collectInferredNames(aliased.extendsType));
-    const innerWithSubst = node => node ? applySubst(unwrapTypeAnnotation(node), innerSubst) : node;
+    function innerWithSubst(node) {
+      return node ? applySubst(unwrapTypeAnnotation(node), innerSubst) : node;
+    }
     // array element-infer thread, ahead of pickConditionalBranchVia (which returns null for an
     // `infer` extends - undecidable structurally): `T extends Array<infer U> ? <true> : ...` with an
     // array check type fires the TRUE branch, and U = the check's element (AST). thread it so a
@@ -542,14 +544,14 @@ export function createTypeMembers({
     if (passthrough) {
       return findTypeMember({ objectType: passthrough, key, scope, depth: depth + 1 });
     }
-    const withSubst = node => {
+    function withSubst(node) {
       if (!node) return node;
       // peel TSParenthesizedType (oxc preserves `(B)` / `(B | C)` as a wrapper; babel keeps it
       // in member position too) so union / intersection branch recursion and member-type
       // returns see the raw discriminated shape instead of bailing on the wrapper
       const unwrapped = peelTSParenthesized(unwrapTypeAnnotation(node));
       return applySubst(unwrapped, subst);
-    };
+    }
     // conditional types route through dedicated helper: extracts the branch-pick logic
     // (AST equality > structural Type Object eval > infer-pattern fallback > undecidable
     // union fold) into one place. without the extraction, findTypeMember exceeds the
@@ -558,7 +560,9 @@ export function createTypeMembers({
     if (aliased?.type === 'TSConditionalType') {
       return findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst });
     }
-    const resolveBranch = member => findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
+    function resolveBranch(member) {
+      return findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
+    }
     if (isUnionType(aliased)) {
       const found = aliased.types.map(resolveBranch).filter(Boolean);
       if (!found.length) return null;

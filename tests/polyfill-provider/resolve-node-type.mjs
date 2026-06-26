@@ -3792,7 +3792,7 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     return parentPath;
   }
   // predicate: node.type startsWith 'TS'
-  const isTSAnnotation = type => type.startsWith('TS');
+  function isTSAnnotation(type) { return type.startsWith('TS'); }
 
   const checker = createTypeAnnotationChecker(isTSAnnotation);
   // leaf inside `TSTypeReference` -> true
@@ -4561,7 +4561,7 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     noSE?.sideEffects, undefined);
 
   // buildSuperStaticMeta: ClassDeclaration with superClass resolved by resolveSuperType
-  const fakeResolver = id => id?.type === 'Identifier' ? id.name : null;
+  function fakeResolver(id) { return id?.type === 'Identifier' ? id.name : null; }
   const classWithSuper = {
     type: 'ClassDeclaration',
     superClass: { type: 'Identifier', name: 'Base' },
