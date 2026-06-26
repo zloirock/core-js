@@ -2905,13 +2905,15 @@ export function createDestructureEmitter({
     // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
     const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
     if (!findProxyGlobal(metaPath?.node, aliasCtx)) return false;
-    // oxc preserves `ParenthesizedExpression` / `ChainExpression` wrappers that babel's AST folds away;
-    // peel them while climbing so a paren-wrapped proxy navigation (`(globalThis.self).Array`) reaches
-    // its leaf receiver and collapses like babel (which never sees the wrapper). TS wrappers are NOT
-    // peeled - babel keeps them too, so both leave that residual hop, staying in parity
+    // oxc preserves `ParenthesizedExpression` / `ChainExpression` / TS-cast wrappers that babel's AST folds
+    // away; peel them while climbing so a wrapped proxy navigation (`(globalThis.self).Array`,
+    // `((globalThis.self).Array as any).prototype`) reaches its leaf receiver and collapses like babel. the
+    // shared `maximalProxyGlobalPrefix` peels TS transparently (`TRANSPARENT_EXPR_WRAPPER_TYPES`), so the
+    // emitter must too - else a TS-wrapped proxy hop survives here that babel already dropped
     const peelOxc = path => {
       let p = path;
-      while (p && (p.node?.type === 'ParenthesizedExpression' || p.node?.type === 'ChainExpression')) p = p.parentPath;
+      while (p && (p.node?.type === 'ParenthesizedExpression' || p.node?.type === 'ChainExpression'
+        || TS_EXPR_WRAPPERS.has(p.node?.type))) p = p.parentPath;
       return p;
     };
     // climb to the leaf member that consumes the maximal proxy-hop prefix. `allowSideEffectKeys`: advance
@@ -2934,7 +2936,18 @@ export function createDestructureEmitter({
     // never owns it - collapse the hop HERE (else a residual `_globalThis.self.Array` reads undefined
     // off-engine). a plain default VALUE (`{ x = globalThis.self.Array }`, target Identifier) is NOT a source
     let ctxPath = recPath.parentPath;
-    while (PROXY_HOP_VALUE_CARRIERS.has(ctxPath?.node?.type)) ctxPath = ctxPath.parentPath;
+    let climbedFrom = recPath.node;
+    // climb value carriers, PLUS a receiver-member read sitting above an SE receiver (`{flat} = (eff(),
+    // globalThis.self.Array).prototype`): the destructure path memoizes / replaces the WHOLE SE receiver, so
+    // collapsing the inner hop HERE races that replacement (transform-queue compose crash). reaching the
+    // binding lets the ObjectPattern defer below fire. a NON-SE `.prototype` source has no separate
+    // replacement - its member is not climbed (the sequence gate fails), so it stays collapsed in place here
+    while (ctxPath && (PROXY_HOP_VALUE_CARRIERS.has(ctxPath.node?.type)
+      || ((ctxPath.node?.type === 'MemberExpression' || ctxPath.node?.type === 'OptionalMemberExpression')
+        && ctxPath.node.object === climbedFrom && unwrapParens(climbedFrom)?.type === 'SequenceExpression'))) {
+      climbedFrom = ctxPath.node;
+      ctxPath = ctxPath.parentPath;
+    }
     const ctx = ctxPath?.node;
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;

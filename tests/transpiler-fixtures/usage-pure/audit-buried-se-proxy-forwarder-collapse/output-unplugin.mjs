@@ -21,4 +21,4 @@ export const b = (eff(), _Number$MAX_SAFE_INTEGER);
 export const c = (eff(), _getIteratorMethod(obj));
 export const d = _Math$trunc(1.5);
 export const e = (eff(), _Array$of)(1, 2);
-export const f = obj[eff(), _Symbol$asyncIterator];
+export const f = obj[(eff(), _Symbol$asyncIterator)];
