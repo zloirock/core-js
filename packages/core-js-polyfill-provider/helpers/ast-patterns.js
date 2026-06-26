@@ -188,6 +188,15 @@ export function memberKeyName(node) {
   return staticStringKey(property);
 }
 
+// the static member name, FOLDING a side-effecting computed key to its static tail
+// (`globalThis[(e++, 'Map')]` -> 'Map'): memberKeyName covers dotted / static-string-computed keys,
+// sequenceKeyStaticName recovers the tail of an SE-bearing computed key (its SE prefix is replayed by
+// the caller). the ONE canonical member-name resolver for every proxy-global / enum consumer - a bare
+// memberKeyName under-resolves the SE-key form and diverges from the consumers that already fold it
+export function staticMemberKeyName(node) {
+  return memberKeyName(node) ?? (node.computed ? sequenceKeyStaticName(node.property) : null);
+}
+
 // `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
 // `weak-map` / `promise` -> `WeakMap` / `Promise` via the Pascal variant
 const DASH_WORD = /-(?<c>\w)/g;
@@ -453,27 +462,6 @@ export const FUNCTION_LIKE_NODE_TYPES = new Set([
   // method to the enclosing class, landing the body-extract decl outside the method body
   'ClassPrivateMethod',
 ]);
-
-// SE prefix expressions buried along a member chain's object spine (`(e1(), globalThis).self`
-// roots, mid-chain SE wrappers, arbitrarily nested), in EVALUATION order (deepest first - the
-// innermost prefix runs before outer ones at runtime). pure shape walk: callers re-emit the
-// prefixes ahead of whatever replaces the chain so the effects keep running
-export function collectBuriedChainSePrefixes(node) {
-  const prefixes = [];
-  let cur = node;
-  while (cur) {
-    if (cur.type === 'SequenceExpression' && cur.expressions.length) {
-      prefixes.unshift(...cur.expressions.slice(0, -1));
-      cur = cur.expressions.at(-1);
-    } else if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
-      || TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type)) {
-      cur = cur.expression;
-    } else if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
-      cur = cur.object;
-    } else break;
-  }
-  return prefixes;
-}
 
 // pragmatic assumption shared by detection and the type resolver: top-level `this` IS the
 // global proxy regardless of sourceType - nobody reads properties off the ESM-undefined
@@ -2374,9 +2362,9 @@ export function sequencePrefixWithSideEffects(expr) {
 }
 
 // STRUCTURAL side effects of an expression whose VALUE is fully DISCARDED (an `in` fold replaces the
-// whole operand with constant `true`), in source-eval order. unlike `sequencePrefixWithSideEffects` /
-// `collectBuriedChainSePrefixes` - which peel to a surviving tail VALUE and harvest only the effects
-// AHEAD of it - nothing survives here, so a sequence's trailing element and a member's computed key
+// whole operand with constant `true`), in source-eval order. unlike `sequencePrefixWithSideEffects`
+// - which peels to a surviving tail VALUE and harvests only the effects AHEAD of it - nothing survives
+// here, so a sequence's trailing element and a member's computed key
 // carry effects too (their SE ran in the source). eval order: a member's object before its computed
 // key; a sequence left-to-right (its non-final elements are pushed WHOLE when SE-bearing, the final
 // is recursed as a value). a value-position BARE call is intentionally NOT pushed: the caller pairs

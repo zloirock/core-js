@@ -913,7 +913,7 @@ export default function createPlugin(options) {
         // detection; peel to the root path and collapse (which self-gates on the hop again)
         function tryCollapseAliasProxyHop(node, metaPath) {
           const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
-          if (!isAliasProxyHopChain(node, aliasCtx)) return;
+          if (!isAliasProxyHopChain(node, aliasCtx, true)) return;
           let rootPath = metaPath;
           while (rootPath.node.type === 'MemberExpression' || rootPath.node.type === 'OptionalMemberExpression') {
             rootPath = rootPath.get('object');
@@ -986,6 +986,7 @@ export default function createPlugin(options) {
             if (isTaggedTemplateTag(parent, node, meta.placement)) return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator({
               node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+              symbolReceiverProxyRoot: meta.symbolReceiverProxyRoot,
             });
           }
 

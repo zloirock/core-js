@@ -16,5 +16,5 @@ var _ref, _ref2, _ref3, _ref4;
 let eff = () => 0;
 const p = _globalThis;
 export const a = _at(_ref = _nameMaybeFunction(_Map)).call(_ref, 0);
-export const b = _padStartMaybeString(_ref2 = (_ref3 = (eff(), _Set), eff(), _nameMaybeFunction(_ref3))).call(_ref2, 5);
+export const b = _padStartMaybeString(_ref2 = (_ref3 = (eff(), _Set), _nameMaybeFunction(_ref3))).call(_ref2, 5);
 export const c = _includes(_ref4 = _nameMaybeFunction(_Promise)).call(_ref4, 'P');

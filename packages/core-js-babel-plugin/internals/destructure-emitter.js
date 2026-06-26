@@ -102,7 +102,11 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null
     collapseRetainedProxyReceiver(synthSwap, receiver, 'right', aliasCtx);
     return;
   }
-  if (!receiver || !maximalProxyGlobalHop(receiver, aliasCtx)) return;
+  // `true` (allowSideEffectKeys): a SE-bearing computed proxy hop (`(c++, (d++, globalThis))[(e++, 'self')]
+  // .Array`) otherwise bails the gate to the bare root and leaves the operand RAW (a bare `globalThis` -
+  // ie:11 ReferenceError - under a `|| {}` logical); collapseProxyGlobalReceiver routes the dropped key SE
+  // through the call-rooted plan, matching the instance source gate and the unplugin operand collapse
+  if (!receiver || !maximalProxyGlobalHop(receiver, aliasCtx, true)) return;
   const collapsed = synthSwap.collapseProxyGlobalReceiver(receiver, aliasCtx);
   if (collapsed) slotParent[slotKey] = collapsed;
 }
@@ -1337,7 +1341,22 @@ export default function createDestructureEmitter({
     if (kind === 'instance') {
       const objectNode = resolveDestructuringObject(prop, resolvePropertyObjectType(prop));
       if (!objectNode) return;
-      value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
+      // collapse a SE-wrapped proxy-global source receiver (`(c++, globalThis.self).Array.prototype`) BEFORE
+      // wrapping it in the instance polyfill: the wrap hides it from the post-statement collapseRetainedProxyReceiver
+      // and the natural visitor skips it (the provider marks the wrapped root handled). mirrors the instance-call path
+      const instAliasCtx = aliasCtxFromPath(prop);
+      // `true` (allowSideEffectKeys): a SE-bearing computed proxy hop (`(e++, globalThis)[(c++, 'self')].Array
+      // .prototype`) otherwise bails the prefix to the bare root, hiding the hop from this gate; the collapse
+      // itself routes the dropped key SE through the call-rooted plan (`(e++, c++, _globalThis).Array.prototype`)
+      const collapsedObj = instAliasCtx && maximalProxyGlobalHop(objectNode, instAliasCtx, true)
+        ? synthSwap.collapseProxyGlobalReceiver(objectNode, instAliasCtx) : null;
+      value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(collapsedObj ?? objectNode)]);
+      // a `X || fallback` logical source (`{flat} = (c++, globalThis.self).Array.prototype || {}`) keeps each
+      // operand live; the single-member gate above misses it, so collapse the proxy hop in the WRAPPED operands
+      // (collapseRetainedProxyReceiver recurses logical operands) - else an evaluated proxy operand reads raw `.self`
+      if (!collapsedObj && objectNode?.type === 'LogicalExpression') {
+        collapseRetainedProxyReceiver(synthSwap, value.arguments, 0, instAliasCtx);
+      }
     } else {
       value = injectPureImport(entry, hintName);
     }
