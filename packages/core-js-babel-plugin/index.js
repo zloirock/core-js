@@ -65,6 +65,16 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 // Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
 // so function / loop / try / class-static / namespace bodies are covered too; a Program-only
 // walk would silently bail destructure-emitter inside non-Program statement lists
+// climb a babel path through transparent runtime wrappers (parens / ChainExpression / TS cast / non-null)
+// to the underlying expression path, so receiver navigation reaches the real node a TS cast or paren hides
+function peelWrapperPath(p) {
+  while (p?.node && (TS_EXPR_WRAPPERS.has(p.node.type)
+    || p.node.type === 'ChainExpression' || p.node.type === 'ParenthesizedExpression')) {
+    p = p.get('expression');
+  }
+  return p;
+}
+
 function splitMinifierSequenceDestructure(programPath, t) {
   // a split product can ITSELF be a minifier-sequence nested in the SAME statement list (e.g.
   // `(a, (b, ({x} = R)), ({y} = S))` - the middle operand is a sequence-destructure too). the
@@ -609,8 +619,12 @@ export default function plugin(api, options) {
           // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
           // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
           // `_Map.prototype.has`; swapping the whole receiver (`globalThis.Map.prototype`) would drop
-          // `.prototype` -> the undefined `_Map.has`. a static placement swaps the whole receiver
-          const receiverPath = meta.placement === 'prototype' ? path.get('object').get('object') : path.get('object');
+          // `.prototype` -> the undefined `_Map.has`. a static placement swaps the whole receiver. peel
+          // transparent wrappers (parens / TS cast / non-null) on the `.prototype` receiver so a TS-wrapped
+          // one (`((c++, globalThis.self).Map.prototype as any).has`) reaches the ctor sub-receiver `X.Map`
+          const receiverPath = meta.placement === 'prototype'
+            ? peelWrapperPath(path.get('object')).get('object')
+            : path.get('object');
           // mirror the main static-rewrite branch (`replacePath.replaceWith(withSideEffects(
           // id, allEffects))` below): preserve `meta.sideEffects` (computed-key SE in the
           // original member access) AND `prependChainAssignmentEffect` over the receiver
@@ -618,9 +632,13 @@ export default function plugin(api, options) {
           // replacement drops them). without this, `(called++, Promise).noSuchStatic`
           // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`.
           // receiver-only: the computed `[key]` property SURVIVES this swap and re-runs its own SE,
-          // so prepend only the receiver-SE (dropping the trailing key-SE) to avoid double-eval
-          const allEffects = prependChainAssignmentEffect(receiverPath.node,
-            receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects));
+          // so prepend only the receiver-SE (dropping the trailing key-SE) to avoid double-eval.
+          // `protoCtorReceiverSE`: a SE-sequence buried in a prototype ctor sub-receiver
+          // (`(c++, globalThis.self).Map.prototype.has`) the receiver-SE collect couldn't reach - re-emit so
+          // the `_Map` swap keeps the `c++` (`(c++, _Map).prototype.has`)
+          const baseEffects = prependChainAssignmentEffect(receiverPath.node,
+            receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects)) ?? [];
+          const allEffects = meta.protoCtorReceiverSE ? [...meta.protoCtorReceiverSE, ...baseEffects] : baseEffects;
           receiverPath.replaceWith(withSideEffects(id, allEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
@@ -677,8 +695,14 @@ export default function plugin(api, options) {
             // through the same `collapseProxyHopRoot` the alias-hop-chain branch uses. without this the emit reads
             // off a raw `(c++, globalThis.self).Array.prototype` whose `.self` is undefined off-engine (ie:11)
             if (synthSwap && path.scope) {
-              let recvRoot = path.get('object');
-              while (recvRoot.isMemberExpression() || recvRoot.isOptionalMemberExpression()) recvRoot = recvRoot.get('object');
+              // peel transparent wrappers (parens / TS cast / non-null) while climbing so a TS-wrapped receiver
+              // (`((c++, globalThis.self).Array.prototype as any).flat`) reaches its proxy root and collapses
+              // its hops like the unwrapped form, instead of leaving `_globalThis.self` (undefined off-engine,
+              // diverging from unplugin which drops it)
+              let recvRoot = peelWrapperPath(path.get('object'));
+              while (recvRoot.isMemberExpression() || recvRoot.isOptionalMemberExpression()) {
+                recvRoot = peelWrapperPath(recvRoot.get('object'));
+              }
               synthSwap.collapseProxyHopRoot(recvRoot, { scope: path.scope, adapter, path });
             }
             const innerChain = findInnerPolyChain(path);
