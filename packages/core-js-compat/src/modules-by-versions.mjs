@@ -327,5 +327,6 @@ export default {
     'es.iterator.zip',
     'es.iterator.zip-keyed',
     'esnext.iterator.includes',
+    'esnext.iterator.join',
   ],
 };

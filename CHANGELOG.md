@@ -15,6 +15,9 @@
 - [`Iterator` includes stage 3 proposal](https://github.com/tc39/proposal-iterator-includes):
   - Added built-in:
     - `Iterator.prototype.includes`
+- [`Iterator` join stage 3 proposal](https://github.com/tc39/proposal-iterator-join):
+  - Added built-in:
+    - `Iterator.prototype.join`
 - Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
 - Fixed possible crash on some keys in `Symbol.for`
 - Some `get-iterator` / `get-iterator-method` fixes

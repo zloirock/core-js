@@ -722,6 +722,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
     ok(load(NS, 'iterator/includes')([1, 2].values(), 2) === true);
+    ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(load(NS, 'symbol/metadata'));
@@ -958,6 +959,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-chunking');
   load('proposals/iterator-chunking-v2');
   load('proposals/iterator-includes');
+  load('proposals/iterator-join');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');

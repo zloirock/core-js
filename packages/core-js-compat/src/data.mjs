@@ -2636,6 +2636,8 @@ export const data = {
   },
   'esnext.iterator.indexed': {
   },
+  'esnext.iterator.join': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.map': null,
   'esnext.iterator.range': {

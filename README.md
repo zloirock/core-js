@@ -174,6 +174,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Iterator` chunking](#iterator-chunking)
       - [`Iterator` includes](#iterator-includes)
+      - [`Iterator` join](#iterator-join)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2 proposals](#stage-2-proposals)
@@ -2920,6 +2921,24 @@ core-js(-pure)/actual|full/iterator/includes
 [NaN].values().includes(NaN);       // => true
 [1, 2, 3].values().includes(3, 2);  // => true
 [1, 2, 3].values().includes(1, 1);  // => false
+```
+
+##### [`Iterator` join](https://github.com/tc39/proposal-iterator-join)[⬆](#index)
+Module [`esnext.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.join.js)
+```ts
+class Iterator {
+  join(separator?: string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-join
+core-js(-pure)/actual|full/iterator/join
+```
+```js
+[1, 2, 3].values().join();     // => '1,2,3'
+[1, 2, 3].values().join('-');  // => '1-2-3'
+[1, null, 3].values().join();  // => '1,,3'
 ```
 
 #### Stage 2.7 proposals[⬆](#index)

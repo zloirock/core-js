@@ -12,6 +12,7 @@ require('../../modules/esnext.iterator.flat-map');
 require('../../modules/esnext.iterator.for-each');
 require('../../modules/esnext.iterator.from');
 require('../../modules/esnext.iterator.includes');
+require('../../modules/esnext.iterator.join');
 require('../../modules/esnext.iterator.map');
 require('../../modules/esnext.iterator.reduce');
 require('../../modules/esnext.iterator.some');
