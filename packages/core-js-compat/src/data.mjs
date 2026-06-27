@@ -2638,6 +2638,7 @@ export const data = {
   'esnext.iterator.indexed': {
   },
   'esnext.iterator.join': {
+    firefox: '154',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.map': null,
