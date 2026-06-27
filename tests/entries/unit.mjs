@@ -721,6 +721,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
+    ok(load(NS, 'iterator/includes')([1, 2].values(), 2) === true);
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(load(NS, 'symbol/metadata'));
@@ -956,6 +957,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-sequencing');
   load('proposals/iterator-chunking');
   load('proposals/iterator-chunking-v2');
+  load('proposals/iterator-includes');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');

@@ -326,5 +326,6 @@ export default {
   '3.50': [
     'es.iterator.zip',
     'es.iterator.zip-keyed',
+    'esnext.iterator.includes',
   ],
 };

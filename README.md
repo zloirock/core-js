@@ -173,6 +173,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Iterator` chunking](#iterator-chunking)
+      - [`Iterator` includes](#iterator-includes)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2 proposals](#stage-2-proposals)
@@ -2899,6 +2900,26 @@ let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 
 let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // [[0, 1]]
 
 let windowsFull = Array.from([0, 1].values().windows(3));  // []
+```
+
+##### [`Iterator` includes](https://github.com/tc39/proposal-iterator-includes)[⬆](#index)
+Module [`esnext.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.includes.js)
+```ts
+class Iterator {
+  includes(searchElement: any, skippedElements?: number): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-includes
+core-js(-pure)/actual|full/iterator/includes
+```
+```js
+[1, 2, 3].values().includes(2);     // => true
+[1, 2, 3].values().includes(4);     // => false
+[NaN].values().includes(NaN);       // => true
+[1, 2, 3].values().includes(3, 2);  // => true
+[1, 2, 3].values().includes(1, 1);  // => false
 ```
 
 #### Stage 2.7 proposals[⬆](#index)

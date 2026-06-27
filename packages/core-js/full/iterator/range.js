@@ -17,6 +17,7 @@ require('../../modules/es.iterator.to-array');
 // TODO: drop from core-js@4
 require('../../modules/esnext.iterator.constructor');
 require('../../modules/esnext.iterator.chunks');
+require('../../modules/esnext.iterator.includes');
 require('../../modules/esnext.iterator.range');
 require('../../modules/esnext.iterator.sliding');
 require('../../modules/esnext.iterator.windows');

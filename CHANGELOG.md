@@ -12,6 +12,9 @@
     - `Iterator.prototype.windows`
   - Moved to stage 3, [May 2026 TC39 meeting](https://github.com/tc39/proposals/commit/7226f0af93443025010efcad219115cec7dc8b2a)
   - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection
+- [`Iterator` includes stage 3 proposal](https://github.com/tc39/proposal-iterator-includes):
+  - Added built-in:
+    - `Iterator.prototype.includes`
 - Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
 - Fixed possible crash on some keys in `Symbol.for`
 - Some `get-iterator` / `get-iterator-method` fixes

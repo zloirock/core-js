@@ -1955,6 +1955,9 @@ GLOBAL.tests = {
   'esnext.iterator.chunks': function () {
     return Iterator.prototype.chunks;
   },
+  'esnext.iterator.includes': function () {
+    return Iterator.prototype.includes;
+  },
   'esnext.iterator.range': function () {
     return Iterator.range;
   },
