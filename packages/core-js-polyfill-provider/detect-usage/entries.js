@@ -4,7 +4,7 @@
 // plugin-injected ones
 import { declaresRequireBinding, mayHaveSideEffects, peelSkippableWrappers, singleQuasiString } from '../helpers/ast-patterns.js';
 import { normalizeImportSource } from '../helpers/path-normalize.js';
-import { bindsModuleDefault, unwrapParens } from './resolve.js';
+import { bindsModuleDefault, unwrapTransparentSeq } from './resolve.js';
 
 // extract a static string from a node that's either a StringLiteral or a no-interpolation
 // TemplateLiteral. without TemplateLiteral support, `require(\`core-js/actual/promise\`)`
@@ -26,7 +26,7 @@ function extractStaticString(node, adapter) {
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
 // form some parsers emit (`{type: 'CallExpression', callee: {type: 'Import'}, arguments: [...]}`)
 function importExpressionSource(node, adapter) {
-  const inner = unwrapParens(node);
+  const inner = unwrapTransparentSeq(node);
   if (!inner) return null;
   if (inner.type === 'ImportExpression') return extractStaticString(inner.source, adapter);
   if (inner.type === 'CallExpression' && inner.callee?.type === 'Import') {
@@ -43,10 +43,10 @@ function importExpressionSource(node, adapter) {
 function requireCallSource(node, adapter, scope) {
   if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
     || node.arguments?.length !== 1) return null;
-  let callee = unwrapParens(node.callee);
+  let callee = unwrapTransparentSeq(node.callee);
   if (callee?.type === 'SequenceExpression') {
     const tail = callee.expressions?.at(-1);
-    if (tail) callee = unwrapParens(tail);
+    if (tail) callee = unwrapTransparentSeq(tail);
   }
   if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
   if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
@@ -74,7 +74,7 @@ export function getEntrySource(node, adapter, scope) {
   if (node.type !== 'ExpressionStatement') return null;
   // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
-  const expr = unwrapParens(node.expression);
+  const expr = unwrapTransparentSeq(node.expression);
   // require('core-js/...') (incl. webpack `(0, require)(...)`, TS-wrapped, optional `require?.()`)
   const required = requireCallSource(expr, adapter, scope);
   if (required !== null) return required;
