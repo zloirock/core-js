@@ -309,6 +309,25 @@ function * generateDiscardedKeyPrefixProxy() {
   }
 }
 
+// --- Nested side-effect buried UNDER a proxy hop in an SE-tail receiver ---
+// `(log.push(1), (log.push(2), globalThis).self).Array.prototype.flat...`: the receiver collapses onto the
+// pure root, so EVERY buried effect must re-emit - the outer prefix AND the one BELOW the `.self` hop. an
+// outer-sequence-only harvest dropped the hop-buried push, so `effects` desyncs ([1] instead of [1, 2]).
+// self / window are aliased to globalThis self-restoringly so the hop is executable in Node
+const NSH_SHAPES = [
+  { id: 'instance-flat', tail: '(log.push(2), globalThis).self', call: r => `${ r }.Array.prototype.flat.call([1, [2]], 1)` },
+  { id: 'static-of', tail: '(log.push(2), globalThis).window', call: r => `${ r }.Array.of(7)` },
+  { id: 'instance-flatMap', tail: '(log.push(2), globalThis).self.window', call: r => `${ r }.Array.prototype.flatMap.call([1, 2], n => [n])` },
+];
+function * generateNestedSeHopReceiver() {
+  for (const shape of NSH_SHAPES) {
+    const inner = shape.call(`(log.push(1), ${ shape.tail })`);
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ inner }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`nested-se-hop/${ shape.id }`, body), strip: false };
+  }
+}
+
 // --- Buried side-effect in a `+` / template fold of a computed key ---
 // an effect buried in a `+`-concat or template fold of a computed key (`X[(log.push('k'), 'fr') + 'om']`),
 // unlike a top-level sequence prefix, was invisible to the fold-blind SE harvest: the key folds to a static
@@ -2058,6 +2077,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateDiscardedKeyPrefixProxy();
+  yield * generateNestedSeHopReceiver();
   yield * generateBuriedFoldKeySE();
   yield * generateStaticCollapseSEOrder();
   yield * generateNameChainRootCallInner();
