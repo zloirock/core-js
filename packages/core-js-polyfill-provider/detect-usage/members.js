@@ -21,7 +21,7 @@ import {
   peelReceiverSequenceTail,
   resolveKey,
   resolveObjectName,
-  unwrapParens,
+  unwrapTransparentSeq,
   unwrapParensCollectingEffects,
 } from './resolve.js';
 
@@ -164,7 +164,7 @@ function proxyGlobalChainRootName({ node, scope, adapter, path }) {
 export function findBuriedChainAssignment(node) {
   let cur = node;
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    cur = unwrapParens(cur.object);
+    cur = unwrapTransparentSeq(cur.object);
     if (cur?.type === 'AssignmentExpression') return cur;
   }
   return null;
@@ -243,7 +243,7 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
   // them via a SequenceExpression wrap in the plugin's emission path
   const sideEffects = [];
-  // `obj` is then passed to `resolveObjectName` which calls `unwrapParens` again - idempotent
+  // `obj` is then passed to `resolveObjectName` which calls `unwrapTransparentSeq` again - idempotent
   // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
   // walk is cheap; avoids threading an "already-unwrapped" flag through every caller.
   // receiver-SE comes first (source eval order). the emit decides how to replay it: peel +
@@ -365,7 +365,7 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
   if (symbolKey) {
     // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
     // the identifier-visitor (unwrapped Identifier) re-enters this node. `asSymbolRef`
-    // already walked the `unwrapParens` chain and confirmed the binding guard
+    // already walked the `unwrapTransparentSeq` chain and confirmed the binding guard
     handledObjects.add(symbolKey.ref.raw);
     handledObjects.add(symbolKey.ref.unwrapped);
     // usage-pure rewrites the WHOLE member-expression (`obj[globalThis.Symbol.iterator]` ->
@@ -388,7 +388,7 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
       // `globalThis.self`) before resolving + subsuming it. its proxy tail MUST be subsumed too - else the
       // member visitor's `globalThis.self -> _self` rewrite collides with the collapsed receiver and the
       // text compose throws ("could not locate inner needle")
-      const receiverObj = unwrapParens(node.object);
+      const receiverObj = unwrapTransparentSeq(node.object);
       const receiverChain = peelReceiverSequenceTail(receiverObj);
       const receiverName = resolveObjectName({ objectNode: receiverChain, scope, adapter, path });
       if (receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
@@ -478,7 +478,7 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
 // minus the string-folding cases
 function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
   if (depth > MAX_KEY_DEPTH) return false;
-  node = unwrapParens(node);
+  node = unwrapTransparentSeq(node);
   const { type } = node;
   // string-folded sources - plain strings, not the symbol
   if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
@@ -548,7 +548,7 @@ export function resolveSymbolIteratorEntry(node, parent, isCall = isCallShape(pa
 // behaviour-compatible
 export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path }) {
   if (node.operator !== 'in') return null;
-  const left = unwrapParens(node.left);
+  const left = unwrapTransparentSeq(node.left);
   // peel SequenceExpression-tail on the receiver: `(fn(), Symbol).iterator in obj`
   // should resolve to the symbol-in polyfill path same as bare `Symbol.iterator in obj`.
   // SE preceding-elements are preserved at emit time by the structural harvest
@@ -605,8 +605,8 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
   // peel a SequenceExpression tail off the RHS (`'k' in (fn(), Object)`): the `in` detection
   // only decides whether to inject (the expression is never rewritten), so the SE prefix runs
   // as written at runtime and the tail names the object to classify
-  let rightObject = unwrapParens(node.right);
-  if (rightObject?.type === 'SequenceExpression') rightObject = unwrapParens(rightObject.expressions.at(-1));
+  let rightObject = unwrapTransparentSeq(node.right);
+  if (rightObject?.type === 'SequenceExpression') rightObject = unwrapTransparentSeq(rightObject.expressions.at(-1));
   if (resolvedLeft) {
     const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path });
     if (objectName) {
@@ -733,10 +733,10 @@ function markSubsumedProxyChain(node, handledObjects, scope, adapter, path, keep
 // an outer polyfill replacement. returns the unwalked node (typically a CallExpression
 // for IIFE-rooted chains, terminator otherwise) so callers can chain further marking
 function markChainLinksAndProxyLeaf(node, handledObjects) {
-  let cur = unwrapParens(node);
+  let cur = unwrapTransparentSeq(node);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     handledObjects.add(cur);
-    cur = unwrapParens(cur.object);
+    cur = unwrapTransparentSeq(cur.object);
   }
   if (cur?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) handledObjects.add(cur);
   return cur;
@@ -793,14 +793,14 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
 }
 
 function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver = true) {
-  let obj = unwrapParens(node.object);
+  let obj = unwrapTransparentSeq(node.object);
   // a sequence receiver `(eff(), globalThis.Array).from` resolves through its LAST element; the
   // prefix expressions survive in the output (their own polyfills must still fire), so descend to
   // the tail without marking the prefix. without this the proxy-global leaf stays unmarked and
   // unplugin queues a parallel `globalThis -> _globalThis` rewrite overlapping the outer subsumption
   // (`_Array$from`) - the text-transform queue can't compose the eliminated needle and throws
   const wasSequence = obj.type === 'SequenceExpression';
-  while (obj.type === 'SequenceExpression') obj = unwrapParens(obj.expressions.at(-1));
+  while (obj.type === 'SequenceExpression') obj = unwrapTransparentSeq(obj.expressions.at(-1));
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
     handledObjects.add(obj);
     return;
@@ -818,13 +818,13 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
     && (findProxyGlobal(current) || chainRootResolvesToProxyGlobal({ node: current, scope, adapter, path }))) {
     handledObjects.add(current);
     // descend into a sequence BURIED below a static hop (`(eff(), globalThis.self).Array`, where the
-    // top-level receiver is NOT itself a sequence): SE-blind unwrapParens stopped at the sequence,
+    // top-level receiver is NOT itself a sequence): SE-blind unwrapTransparentSeq stopped at the sequence,
     // leaving its inner proxy leaf unmarked -> the member visitor queued a parallel rewrite the outer
     // collapse couldn't compose -> crash. a TOP-LEVEL sequence (wasSequence) is already peeled to its
     // tail, and its OWN nested sequence stays SE-blind here: peeling it would over-suppress a forwarder's
     // inner global (`(p(), (p(), globalThis).globalThis).Array`) into a dead `_globalThis` import
-    if (!wasSequence && unwrapParens(current.object).type === 'SequenceExpression') buriedSequence = true;
-    current = wasSequence ? unwrapParens(current.object) : peelReceiverSequenceTail(current.object);
+    if (!wasSequence && unwrapTransparentSeq(current.object).type === 'SequenceExpression') buriedSequence = true;
+    current = wasSequence ? unwrapTransparentSeq(current.object) : peelReceiverSequenceTail(current.object);
   }
   // a sequence-tail proxy-global leaf is independently visited (the tail sits inside a separately
   // walked SequenceExpression), unlike a direct receiver whose nested leaf the member visitor's
@@ -863,7 +863,7 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
       if (!propName || !POSSIBLE_GLOBAL_OBJECTS.has(propName)) break;
       if (current.type === 'OptionalMemberExpression' || current.optional) optionalToCall = true;
       handledObjects.add(current);
-      current = unwrapParens(current.object);
+      current = unwrapTransparentSeq(current.object);
     }
     if (isCallShape(current) && !optionalToCall) {
       markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects });
