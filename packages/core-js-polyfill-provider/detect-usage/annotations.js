@@ -9,7 +9,7 @@
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import { getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { maximalProxyGlobalPrefix, unwrapParens } from './resolve.js';
+import { maximalProxyGlobalPrefix, unwrapTransparentSeq } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
 // louder than silent skip). runtime-carrying wrappers (TSAsExpression, ...) stay out
@@ -256,7 +256,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 }
 
 // the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
-// `unwrapParens` peels ParenthesizedExpression (oxc preserves; babel strips) and the
+// `unwrapTransparentSeq` peels ParenthesizedExpression (oxc preserves; babel strips) and the
 // SequenceExpression tail when preceding elements are SE-free (`(0, globalThis)?.Array`).
 // `unwrapRuntimeExpr` follow-up strips TS expression wrappers so `(globalThis as any)?.Array`
 // also reaches the Identifier check and the polyfill consumes the optional `?.`.
@@ -270,7 +270,7 @@ export function isPolyfillableOptional({ node, scope, adapter, resolve, path, re
   // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
   // a non-member callee (`foo?.()`) leaves `.object` undefined and falls through to false
   const member = node.type === 'OptionalCallExpression' || node.type === 'CallExpression' ? node.callee : node;
-  const obj = unwrapRuntimeExpr(unwrapParens(member.object));
+  const obj = unwrapRuntimeExpr(unwrapTransparentSeq(member.object));
   // static key of the optional callee: Identifier (`Array.from`), static-string computed key
   // (`Array["from"]`, single-quasi `Array[`from`]`), or null for a dynamic key (`Array[k]`). a
   // static-string key resolves to the same static as the dotted form, so the callee is equally
@@ -297,7 +297,7 @@ export function isPolyfillableOptional({ node, scope, adapter, resolve, path, re
   // a SE-wrapping SequenceExpression receiver (`(eff(), globalThis.self)?.X`) carries the proxy-global as its
   // TAIL; the `?.` guards that always-defined value, so resolve the deopt against the tail (the prefix effect
   // is preserved by the receiver collapse, NOT dropped by the deopt). matches both emitters' SE-tail collapse
-  const objCore = obj?.type === 'SequenceExpression' ? unwrapRuntimeExpr(unwrapParens(obj.expressions.at(-1))) : obj;
+  const objCore = obj?.type === 'SequenceExpression' ? unwrapRuntimeExpr(unwrapTransparentSeq(obj.expressions.at(-1))) : obj;
   // a member-shape `?.` whose receiver is ENTIRELY proxy navigation (`globalThis.self`, multi-hop `.self.window`,
   // a SE-bearing computed hop `globalThis[(eff(), 'self')]`, or any of those sequence-wrapped) is dead: the chain
   // collapses to the always-defined pure root, and the hop-key / prefix effect rides the collapsed receiver, NOT
