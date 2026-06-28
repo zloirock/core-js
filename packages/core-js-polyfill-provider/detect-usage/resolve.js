@@ -1,5 +1,5 @@
 // AST-pattern resolvers shared across detect-usage submodules. covers the core walk
-// primitives (`unwrapParens`, `unwrapParensCollectingEffects`, `isStaticPlacement`),
+// primitives (`unwrapTransparentSeq`, `unwrapParensCollectingEffects`, `isStaticPlacement`),
 // binding-to-global resolution (`resolveBindingToGlobal` and friends), and the high-level
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
@@ -25,6 +25,7 @@ import {
   singleQuasiString,
   singleReturnBodyExpression,
   synthSwapPropKey,
+  SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   varInitDominatesUsage,
 } from '../helpers/ast-patterns.js';
@@ -33,16 +34,14 @@ import {
 // exported so cohort recursive walkers (`isSymbolSourcedKey` in members.js) share the bound
 export const MAX_KEY_DEPTH = 64;
 
-// transparent wrapper types - both unwrap modes peel them identically
-const TRANSPARENT_WRAPPER_TYPES = new Set(['ParenthesizedExpression', 'ChainExpression']);
-
+// transparent expression wrappers (paren / optional-chain / TS) - single-sourced from the canon
 export function isTransparentWrapper(node) {
-  return TRANSPARENT_WRAPPER_TYPES.has(node.type) || TS_EXPR_WRAPPERS.has(node.type);
+  return SKIPPABLE_WRAPPER_TYPES.has(node.type);
 }
 
 // SequenceExpression bail mode: stop unwrapping when preceding elements carry side effects.
 // caller can't preserve them (inner resolveKey recursion, handleBinaryIn) - keep sequence intact
-export function unwrapParens(node) {
+export function unwrapTransparentSeq(node) {
   while (node) {
     if (isTransparentWrapper(node)) {
       node = node.expression;
@@ -135,13 +134,13 @@ export function receiverSideEffectsOnly(receiverEffectCount, sideEffects) {
 // `createParenthesizedExpressions: true` option. returns null `outer` when input isn't a
 // chain-assign shape
 export function peelChainAssignment(node) {
-  const peeled = unwrapParens(node);
+  const peeled = unwrapTransparentSeq(node);
   if (peeled?.type !== 'AssignmentExpression' || peeled.operator !== '=') return { value: peeled, outer: null };
   let cur = peeled.right;
   // alternate paren-peel + chain-assign-descend to fixpoint; covers `(a = (b = X))` and
   // multi-layer paren wraps around inner `=`
   for (;;) {
-    cur = unwrapParens(cur);
+    cur = unwrapTransparentSeq(cur);
     if (cur?.type !== 'AssignmentExpression' || cur.operator !== '=') break;
     cur = cur.right;
   }
@@ -444,7 +443,7 @@ export function patternBindingName(node) {
 function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null }) {
   // peel chain-assign AND SE-tail at every step: `((a = globalThis).Array).from(x)` buries
   // the assignment inside .object's .object, and `(eff(), globalThis).Map.groupBy` buries the
-  // proxy root behind a sequence tail - a flat unwrapParens loses both. this is pure shape
+  // proxy root behind a sequence tail - a flat unwrapTransparentSeq loses both. this is pure shape
   // classification: the SE prefix stays in the source and is collected by the emit side
   let obj = peelChainAssignmentDeep(peelReceiverSequenceTail(receiver));
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
@@ -532,7 +531,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
       // transitive reassignments (`let M0 = Object; if (c) M0 = Array; const M = M0; M.from()`).
       // the primary already captured M's resolved init value; recurse on the init Identifier to add
       // the underlying binding's reachable reassignments. `seen` guards alias cycles
-      const init = unwrapParens(binding.node?.init);
+      const init = unwrapTransparentSeq(binding.node?.init);
       if (init?.type === 'Identifier' && init.name !== aliasNode.name && !seen?.has(init.name)) {
         // anchor the transitive source's reachable values at THIS hop's read site (the init), so a
         // write to the source AFTER `const M = M0` does not enter the union (`M` captured M0 earlier)
@@ -547,7 +546,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
     // value returns X. recover each so a dominating reassignment to a polyfillable global (`let f =
     // () => Object; f = () => Array; f().from()`) still injects the reaching value's polyfill - the
     // direct-Identifier-receiver union path could not, since `f()` is not an Identifier alias
-    const callee = unwrapParens(aliasNode.callee);
+    const callee = unwrapTransparentSeq(aliasNode.callee);
     const binding = callee.type === 'Identifier' ? adapter.getBinding(scope, callee.name, path) : null;
     if (binding && isReassignedBeyondDeclarator(binding)) {
       // pass the factory name so pattern-LHS reassignments (`[f] = [() => Array]`) pair via
@@ -555,7 +554,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
       for (const rhs of reassignmentValueNodes({
         binding, usagePath: path, name: callee.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
       })) {
-        const fn = unwrapParens(rhs);
+        const fn = unwrapTransparentSeq(rhs);
         if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
           && !fn.params?.length && !fn.async && !fn.generator) {
           const ret = singleReturnBodyExpression(fn.body);
@@ -609,11 +608,11 @@ export function collectMemberUnionCandidates(options) {
 // cycle protection (`const f = () => g(); const g = () => f();`); pass an empty Set when
 // recursion isn't possible at the call site
 function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
-  // SE-bail (unwrapParens), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
+  // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
   // makes the resolver inline it, but the emit layer cannot compose a receiver-less static
   // substitution over the SE-wrapped callee (transform-queue "could not locate inner needle" crash).
   // the SE-bail keeps the shape unresolved (native call survives) - the safe-from-crash outcome
-  let callee = unwrapParens(callNode.callee);
+  let callee = unwrapTransparentSeq(callNode.callee);
   if (callee.type === 'Identifier') {
     const { name } = callee;
     if (!adapter.hasBinding(scope, name, path) || seen.has(name)) return null;
@@ -624,7 +623,7 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
     if (adapter.getBindingNodeType(scope, name, path) === 'VariableDeclarator') {
       const initNode = binding.node?.init;
       if (!initNode) return null;
-      callee = unwrapParens(initNode);
+      callee = unwrapTransparentSeq(initNode);
     } else {
       // a zero-param FunctionDeclaration is the same inline shape (`function g() { return X; }
       // const B = g();`) - the declaration node IS the callee function
@@ -696,7 +695,7 @@ function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
 // wrappers first: oxc keeps the arrow-body parens (`() => (a = Array)`) babel strips, so the write
 // hides under a ParenthesizedExpression on one adapter only
 export function returnedReceiverHasEffects(node) {
-  node &&= unwrapParens(node);
+  node &&= unwrapTransparentSeq(node);
   if (!node) return false;
   if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') return true;
   if (node.type === 'SequenceExpression') {
@@ -725,7 +724,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   // direct callers without an effects channel (resolveStaticInheritedMember) get the
   // peeled tail so super[(fn(),'X')] still classifies as super.X
   if (computed) {
-    node = unwrapParens(node);
+    node = unwrapTransparentSeq(node);
     // a side-effecting key prefix (`[(fn(), 'X')]`) can only be re-emitted by callers with an
     // effects channel. callers without one (destructure detection) pass bailOnSideEffectKey to
     // leave the key unresolved, so the whole construct is skipped rather than silently dropping
@@ -736,7 +735,7 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     // unwrap parens at EACH sequence level (mirror `sequenceKeyStaticName`): oxc keeps a
     // `ParenthesizedExpression` between nested sequences (`(e++, (d++, 'self'))`), so a bare `.at(-1)`
     // stops at the inner paren and bails the fold - babel folds the parens away so it never noticed
-    while (node?.type === 'SequenceExpression') node = unwrapParens(node.expressions.at(-1));
+    while (node?.type === 'SequenceExpression') node = unwrapTransparentSeq(node.expressions.at(-1));
   }
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
@@ -870,7 +869,7 @@ function resolvesToGlobalSymbol({ node, scope, adapter, seen, path }) {
 // preserve pre-unwrap node so callers can seed both forms into handledObjects;
 // Set dedup absorbs the duplicate when raw === unwrapped
 export function asSymbolRef({ node, scope, adapter, seen, path }) {
-  const unwrapped = unwrapParens(node);
+  const unwrapped = unwrapTransparentSeq(node);
   return unwrapped && resolvesToGlobalSymbol({ node: unwrapped, scope, adapter, seen, path })
     ? { raw: node, unwrapped } : null;
 }
@@ -900,7 +899,7 @@ export function createSelfRefVarGuard(getKind) {
     const { id, init } = decl;
     // oxc preserves `ParenthesizedExpression` while babel strips them - peel so
     // `var Promise = (Promise)` matches the self-ref shape in both parsers
-    const peeled = unwrapParens(init);
+    const peeled = unwrapTransparentSeq(init);
     const result = getKind(binding) === 'var'
       && id?.type === 'Identifier'
       && peeled?.type === 'Identifier'
@@ -960,9 +959,9 @@ export function findProxyGlobal(node, aliasCtx = null) {
 // around the root, including the parens-around-prefix shape (`(globalThis.self).X`)
 export function proxyGlobalWrappedRoot(node, aliasCtx = null) {
   if (!findProxyGlobal(node, aliasCtx)) return null;
-  // peelReceiverSequenceTail (not SE-bailing unwrapParens): for a SE-prefix receiver
+  // peelReceiverSequenceTail (not SE-bailing unwrapTransparentSeq): for a SE-prefix receiver
   // `(se(), globalThis.self.Array)` the bare root identifier sits in the SE tail - peeling to it
-  // gives the correct deletion span. identical to unwrapParens for the directly-wrapped-root case
+  // gives the correct deletion span. identical to unwrapTransparentSeq for the directly-wrapped-root case
   // (`(globalThis).self.X` still returns the paren-inclusive `(globalThis)`), so byte-spans are kept
   let wrapped = peelReceiverSequenceTail(node);
   let root = wrapped;
@@ -986,7 +985,7 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null, allowSideEffectK
   const chain = [];
   // peel the SE tail (matching findProxyGlobal above, which roots the chain via peelReceiverSequenceTail):
   // a SE-prefixed proxy receiver `(se(), globalThis.self.Array)` must still collapse its `.self` hop -
-  // SE-bailing unwrapParens left the chain unwalked so `_globalThis.self.Array` survived to ie:11
+  // SE-bailing unwrapTransparentSeq left the chain unwalked so `_globalThis.self.Array` survived to ie:11
   let cur = peelReceiverSequenceTail(node);
   while (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
     chain.push(cur);

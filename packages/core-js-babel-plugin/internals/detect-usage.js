@@ -14,7 +14,7 @@ import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfi
 import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
-  unwrapParens,
+  unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import {
@@ -43,16 +43,16 @@ const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportNamespaceSpecifier',
 ]);
 
-// shared `unwrapParens` peels paren / TS expression wrappers / safe SequenceExpression so
+// shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression so
 // `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
 // all reach the underlying StringLiteral. parity with unplugin's adapter which routes the
 // arg through the same helper before the type check
 function isStringLiteral(node) {
-  return unwrapParens(node)?.type === 'StringLiteral';
+  return unwrapTransparentSeq(node)?.type === 'StringLiteral';
 }
 
 function stringLiteralValue(node) {
-  const inner = unwrapParens(node);
+  const inner = unwrapTransparentSeq(node);
   return inner?.type === 'StringLiteral' ? inner.value : null;
 }
 
