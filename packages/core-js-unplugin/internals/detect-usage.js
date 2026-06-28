@@ -19,7 +19,7 @@ import {
 import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
-  unwrapParens,
+  unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
@@ -370,15 +370,15 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // var-hoist fallback parity with getBinding: a nested-block `var` surfaces as a declarator
       return path && findFunctionScopeVarDeclaratorInPath(path, name) ? 'VariableDeclarator' : null;
     },
-    // shared `unwrapParens` peels paren / TS expression wrappers / safe SequenceExpression
+    // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression
     // so `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
     // all reach the underlying string literal. SE prefix that carries observable side-effects
     // stops further peeling - entry-detection doesn't rewrite the call, so unsafe SE stays
     isStringLiteral(node) {
-      return isLiteralString(unwrapParens(node));
+      return isLiteralString(unwrapTransparentSeq(node));
     },
     getStringValue(node) {
-      const inner = unwrapParens(node);
+      const inner = unwrapTransparentSeq(node);
       return isLiteralString(inner) ? inner.value : null;
     },
   };
