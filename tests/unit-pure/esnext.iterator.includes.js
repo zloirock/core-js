@@ -28,11 +28,9 @@ QUnit.test('Iterator#includes', assert => {
   assert.true(includes.call(createIterator([1, 2, 3]), 1, 0), 'skippedElements 0');
   assert.true(includes.call(createIterator([1, 2, 3]), 1, -0), 'skippedElements -0');
   assert.true(includes.call(createIterator([1, 2, 3]), 1, undefined), 'skippedElements undefined');
-  assert.false(includes.call(createIterator([1, 2, 3]), 1, Infinity), 'skippedElements Infinity');
   assert.true(includes.call(createIterator([1, 2, 3, 2]), 2, 2), 'skippedElements finds later occurrence');
   assert.false(includes.call(createIterator([1, 2, 3]), 2, 3), 'skippedElements skips all');
 
-  // skippedElements parameter - invalid values (must be integral Number, +Infinity, or -Infinity)
   assert.throws(() => includes.call(createIterator([1]), 1, 1.5), TypeError, 'non-integer number');
   assert.throws(() => includes.call(createIterator([1]), 1, NaN), TypeError, 'NaN');
   assert.throws(() => includes.call(createIterator([1]), 1, '1'), TypeError, 'string');
@@ -40,9 +38,10 @@ QUnit.test('Iterator#includes', assert => {
   assert.throws(() => includes.call(createIterator([1]), 1, null), TypeError, 'null');
   assert.throws(() => includes.call(createIterator([1]), 1, {}), TypeError, 'object');
 
-  // skippedElements - negative values
-  assert.throws(() => includes.call(createIterator([1]), 1, -1), RangeError, 'negative integer');
+  assert.throws(() => includes.call(createIterator([1, 2, 3]), 1, Infinity), RangeError, 'skippedElements Infinity');
   assert.throws(() => includes.call(createIterator([1]), 1, -Infinity), RangeError, 'negative Infinity');
+  assert.throws(() => includes.call(createIterator([1]), 1, -1), RangeError, 'negative integer');
+  assert.throws(() => includes.call(createIterator([1]), 1, 0x20000000000000), RangeError, 'unsafe integer');
 
   // iterator closing on match
   const it1 = createIterator([1, 2, 3], {

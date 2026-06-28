@@ -11,7 +11,7 @@ var $RangeError = RangeError;
 var $TypeError = TypeError;
 var $Infinity = Infinity;
 
-var INVALID_SKIPPED_ELEMENTS = 'skippedElements should be a positive integer or Infinity';
+var INVALID_SKIPPED_ELEMENTS = 'skippedElements should be a positive safe integer';
 
 // `Iterator.prototype.includes` method
 // https://github.com/tc39/proposal-iterator-includes
@@ -29,7 +29,9 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
       } else {
         throw new $TypeError(INVALID_SKIPPED_ELEMENTS);
       }
-      if (toSkip < 0) throw new $RangeError(INVALID_SKIPPED_ELEMENTS);
+      if (toSkip < 0 || toSkip > 0x1FFFFFFFFFFFFF) {
+        throw new $RangeError(INVALID_SKIPPED_ELEMENTS);
+      }
     } catch (error) {
       iteratorClose(this, 'throw', error);
     }
