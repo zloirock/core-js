@@ -40,7 +40,7 @@ import {
   peelChainAssignmentDeep,
   resolveKey as sharedResolveKey,
   resolveObjectName,
-  unwrapParens,
+  unwrapTransparentSeq,
 } from './resolve.js';
 
 // build meta for a destructuring property given its resolved init node + key.
@@ -59,7 +59,7 @@ export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path
 function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = null }) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
-  const unwrapped = unwrapParens(initNode);
+  const unwrapped = unwrapTransparentSeq(initNode);
   // branch handlers for binary / sequence / conditional shapes recurse with the per-branch
   // expression; pure positional resolution falls through to the type-specific cases below.
   // `path` threads through every recursion so downstream `adapter.hasBinding(scope, name,
@@ -677,7 +677,7 @@ function proxyGlobalNameOf({ node, binding = null, adapter = null, scope = null 
 
 function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = null, seen = null }) {
   if (depth > STATIC_WALK_DEPTH) return null;
-  let current = unwrapParens(node);
+  let current = unwrapTransparentSeq(node);
   let currentScope = scope;
   // where the CURRENT hop is read: the host use for the first alias, then each prior hop's declarator
   // (`const a = b` reads `b` there). the reassignment-dominance check must use this read site - a write
@@ -763,7 +763,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
       // static-method aliasing; safe miss preferred over false-positive constructor
       return null;
     }
-    current = unwrapParens(initNode);
+    current = unwrapTransparentSeq(initNode);
     currentScope = binding.scope ?? currentScope;
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
@@ -1569,9 +1569,9 @@ export function resolveBranchProxyName({ branchNode, scope, adapter, path }) {
 // could fire on its legitimate `undefined`, so the caller must bail there. `&&` yields its RIGHT (left
 // is a guard), `||` / `??` either operand, a conditional both arms, a chain assignment its RHS value,
 // a transparent IIFE its return; parens / sequences are peeled (babel uses `extra.parenthesized` so
-// unwrapParens is a no-op there - it only makes the oxc ParenthesizedExpression node match babel)
+// unwrapTransparentSeq is a no-op there - it only makes the oxc ParenthesizedExpression node match babel)
 function allDestructureValueBranches(node, isLeaf) {
-  const { tail } = peelNestedSequenceExpressions(unwrapParens(node));
+  const { tail } = peelNestedSequenceExpressions(unwrapTransparentSeq(node));
   if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
     const inlined = peelZeroArgIifeReturn(tail);
     if (inlined) return allDestructureValueBranches(inlined, isLeaf);
