@@ -179,6 +179,7 @@ export function createDestructureEmitter({
   nodeSrc,
   resolveGlobalPolyfill,
   resolvePure,
+  resolveReceiverSource,
   scopeTracker,
   skippedNodes,
   source,
@@ -2809,6 +2810,18 @@ export function createDestructureEmitter({
   }
 
   function substituteProxyGlobalRoot({ node, src, baseStart, aliasCtx = null, ctx = null, isWriteTarget = false }) {
+    // a READ receiver delegates to the shared single-call resolver (the canonical proxy-global collapse, also
+    // used by the instance-call path). a WRITE-target keeps the reconstruction below: the leaf is the assignment
+    // SLOT (`globalThis.self.Set = fn`), not a static READ - the shared resolver's `.Set -> _Set` swap would
+    // reassign the import. an alias / call-rooted read the shared resolver does not cover also falls through
+    const metaPath = aliasCtx?.path ?? ctx?.path ?? null;
+    if (!isWriteTarget) {
+      const shared = resolveReceiverSource(node, metaPath);
+      if (shared?.substituted) {
+        if (shared.skipNode) skippedNodes.add(shared.skipNode);
+        return shared.src;
+      }
+    }
     // an SE init (`(track(), globalThis.self.Array)`) keeps its side-effecting prefix verbatim -
     // the proxy-global receiver to collapse is the tail. non-SE nodes peel to themselves, so the
     // member / identifier callers (`synthMemberReceiverSrc`, logical operands) are unaffected
@@ -2937,14 +2950,15 @@ export function createDestructureEmitter({
     // off-engine). a plain default VALUE (`{ x = globalThis.self.Array }`, target Identifier) is NOT a source
     let ctxPath = recPath.parentPath;
     let climbedFrom = recPath.node;
-    // climb value carriers, PLUS a receiver-member read sitting above an SE receiver (`{flat} = (eff(),
-    // globalThis.self.Array).prototype`): the destructure path memoizes / replaces the WHOLE SE receiver, so
-    // collapsing the inner hop HERE races that replacement (transform-queue compose crash). reaching the
-    // binding lets the ObjectPattern defer below fire. a NON-SE `.prototype` source has no separate
-    // replacement - its member is not climbed (the sequence gate fails), so it stays collapsed in place here
+    // climb value carriers AND receiver-member reads off the collapsing chain (`{flat} = X.prototype`,
+    // `{flatMap} = globalThis[(eff(), 'self')].Array.prototype`) to reach the binding context: a destructure
+    // SOURCE is owned by the destructure path, which collapses the WHOLE receiver atomically via the shared
+    // resolver, so collapsing the inner hop HERE too races that replacement (transform-queue compose crash).
+    // reaching the binding lets the ObjectPattern defer below fire; array-pattern / non-pattern targets do not
+    // defer, so they still collapse in place here
     while (ctxPath && (PROXY_HOP_VALUE_CARRIERS.has(ctxPath.node?.type)
       || ((ctxPath.node?.type === 'MemberExpression' || ctxPath.node?.type === 'OptionalMemberExpression')
-        && ctxPath.node.object === climbedFrom && unwrapParens(climbedFrom)?.type === 'SequenceExpression'))) {
+        && ctxPath.node.object === climbedFrom))) {
       climbedFrom = ctxPath.node;
       ctxPath = ctxPath.parentPath;
     }
