@@ -8,6 +8,7 @@
 import {
   collectFoldedReceiverSideEffects,
   isReusableReceiver,
+  markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   peelMemoizeWrappers,
   peelNestedSequenceExpressions,
@@ -597,13 +598,8 @@ export function createPolyfillEmitter({
 
   // mark a node and its transparent wrappers (parens, ChainExpression, TS wrappers) as skipped
   function skipWrappedNode(node) {
-    let cur = node;
-    while (cur) {
-      skippedNodes.add(cur);
-      if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
-          || TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
-      else break;
-    }
+    const inner = markAndPeelSkippableWrappers(node, skippedNodes);
+    if (inner) skippedNodes.add(inner);
   }
 
   // resolve optional root + skip redundant guard when nested inside an outer transform
@@ -1280,9 +1276,8 @@ export function createPolyfillEmitter({
         let hopKeyNode = hopCallee.property;
         let hopKeySE = [];
         if (hopCallee.computed) {
-          const { prefix, tail } = peelNestedSequenceExpressions(hopCallee.property);
-          hopKeyNode = tail;
-          hopKeySE = prefix.filter(mayHaveSideEffects).map(e => code.slice(e.start, e.end));
+          hopKeyNode = peelNestedSequenceExpressions(hopCallee.property).tail;
+          hopKeySE = collectFoldedReceiverSideEffects(hopCallee.property).map(e => code.slice(e.start, e.end));
         }
         const hopKey = resolveKey({
           node: hopKeyNode, computed: hopCallee.computed,
@@ -1320,12 +1315,12 @@ export function createPolyfillEmitter({
     let innerKeySE = [];
     let innerMethodName;
     if (callee.computed) {
-      const { prefix, tail } = peelNestedSequenceExpressions(callee.property);
+      const innerKeyTail = peelNestedSequenceExpressions(callee.property).tail;
       innerMethodName = resolveKey({
-        node: tail, computed: true, scope: currentPath.scope, adapter: estreeAdapter, path: currentPath,
+        node: innerKeyTail, computed: true, scope: currentPath.scope, adapter: estreeAdapter, path: currentPath,
       });
       if (innerMethodName === null) return null;
-      innerKeySE = prefix.filter(mayHaveSideEffects);
+      innerKeySE = collectFoldedReceiverSideEffects(callee.property);
     } else if (callee.property?.type === 'Identifier') {
       innerMethodName = callee.property.name;
     } else return null;
