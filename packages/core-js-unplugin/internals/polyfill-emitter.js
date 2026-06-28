@@ -97,13 +97,15 @@ function rebuildWrappedProxyChain(hops, binding, code) {
 
 function dropLeadingProxyHops(hops, aliasCtx) {
   let boundary = null;
-  // a dropped hop with a side-effecting COMPUTED key (`globalThis[(c++,'self')]`) folds that key's SE prefix
-  // out (the proxy nav itself collapses): harvest it so the caller can re-emit it ahead of the pure root
-  // (`(c++, _globalThis).Array.prototype`), matching babel - else the `c++` is silently dropped
+  // a dropped hop with a side-effecting COMPUTED key (`globalThis[(c++,'self')]`, or a FOLD like
+  // `globalThis[(eff(),'se')+'lf']` / `` globalThis[`s${(eff(),'e')}lf`] ``) folds that key's SE out (the proxy
+  // nav itself collapses): descend the key and harvest EVERY buried effect so the caller re-emits it ahead of
+  // the pure root (`(eff(), _globalThis).Array.prototype`), matching babel. an outer-sequence-only peel dropped
+  // effects buried in a `+`-concat or template operand
   const droppedSe = [];
   while (hops.length && maximalProxyGlobalPrefix(hops.at(-1), aliasCtx, true) === hops.at(-1)) {
     const hop = hops.at(-1);
-    if (hop.computed) droppedSe.push(...peelNestedSequenceExpressions(hop.property).prefix);
+    if (hop.computed) droppedSe.push(...collectFoldedReceiverSideEffects(hop.property));
     boundary = hop;
     hops.length -= 1;
   }
@@ -177,14 +179,19 @@ function skipReceiverTailMembers(receiverNode, skippedNodes, rootBoundary) {
 function skipDroppedKeyPrefix(node, sideEffects, skippedNodes) {
   if (!node.computed) return;
   const { prefix } = peelNestedSequenceExpressions(node.property);
-  if (!prefix.length) return;
   const rescued = new Set();
   if (sideEffects) for (const effect of sideEffects) walkAstNodes({ root: effect, visit: n => rescued.add(n) });
-  for (const operand of prefix) {
-    walkAstNodes({ root: operand, visit: n => { if (!rescued.has(n)) skippedNodes.add(n); } });
-    const proxy = findProxyGlobal(operand);
+  // the OUTER sequence prefix is fully discarded - skip every node in it (proxy-globals AND polyfilled statics
+  // like a buried `Symbol.iterator`) so the natural visitor cannot rewrite against the eliminated prefix
+  for (const operand of prefix) walkAstNodes({ root: operand, visit: n => { if (!rescued.has(n)) skippedNodes.add(n); } });
+  // the resolved key TAIL may SURVIVE the entry-availability bail (excluded helper -> `globalThis.Symbol.iterator`
+  // keeps its static rewrite to `_Symbol$iterator`), so skip ONLY proxy-globals there, never the whole tail - and
+  // a `+`-concat or template fold can bury a proxy the outer-prefix peel never sees
+  walkAstNodes({ root: node.property, visit: n => {
+    if (rescued.has(n)) return;
+    const proxy = findProxyGlobal(n);
     if (proxy) skippedNodes.add(proxy);
-  }
+  } });
 }
 
 export function createPolyfillEmitter({
@@ -1795,6 +1802,7 @@ export function createPolyfillEmitter({
     replaceInstanceChainCombined,
     replaceStaticFallback,
     resolveReceiverPolyfill,
+    resolveReceiverSource,
     skipProxyGlobal,
     skipWrappedNode,
     sliceBetweenParens,
