@@ -13,7 +13,7 @@ jobs:
       branches: ${{ steps.set-branches.outputs.branches }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Get branch list and set output
@@ -37,7 +37,7 @@ jobs:
         branch: ${{ fromJson(needs.list-branches.outputs.branches) }}
     name: Build for ${{ matrix.branch }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ matrix.branch }}
       - name: Build cache key
@@ -47,7 +47,7 @@ jobs:
           echo "CACHE_KEY=${{ matrix.branch }}-$HASH" >> "$GITHUB_ENV"
       - name: Restore cached artifacts
         id: artifacts-restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: ${{ matrix.branch }}
           key: ${{ env.CACHE_KEY }}
@@ -73,7 +73,7 @@ jobs:
           cp tests/unit-browser/* ${{ matrix.branch }}/unit-browser
       - name: Save cached artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: ${{ matrix.branch }}
           key: ${{ env.CACHE_KEY }}
@@ -90,7 +90,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:

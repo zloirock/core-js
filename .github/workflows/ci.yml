@@ -9,7 +9,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: 26
@@ -26,12 +26,12 @@ jobs:
     env:
       PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: ^24.18
           cache: npm
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: D:\ms-playwright
           key: playwright-windows-2022-${{ hashFiles('tests/unit-karma/package-lock.json') }}
@@ -41,7 +41,7 @@ jobs:
   bun:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: 26
@@ -64,7 +64,7 @@ jobs:
           - 26
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
