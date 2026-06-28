@@ -806,7 +806,16 @@ GLOBAL.tests = {
   },
   'es.iterator.drop': [
     iteratorHelperThrowsErrorOnInvalidIterator('drop', 0),
-    checkIteratorClosingOnEarlyError('drop', RangeError)
+    checkIteratorClosingOnEarlyError('drop', RangeError),
+    function () {
+      try {
+        Iterator.prototype.drop.call({
+          next: function () { return { done: true }; }
+        }, 0x20000000000000);
+      } catch (error) {
+        return error instanceof RangeError;
+      }
+    }
   ],
   'es.iterator.every': checkIteratorClosingOnEarlyError('every', TypeError),
   'es.iterator.filter': [
@@ -846,7 +855,16 @@ GLOBAL.tests = {
   'es.iterator.some': checkIteratorClosingOnEarlyError('some', TypeError),
   'es.iterator.take': [
     iteratorHelperThrowsErrorOnInvalidIterator('take', 1),
-    checkIteratorClosingOnEarlyError('take', RangeError)
+    checkIteratorClosingOnEarlyError('take', RangeError),
+    function () {
+      try {
+        Iterator.prototype.take.call({
+          next: function () { return { done: true }; }
+        }, 0x20000000000000);
+      } catch (error) {
+        return error instanceof RangeError;
+      }
+    }
   ],
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;

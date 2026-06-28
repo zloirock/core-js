@@ -718,11 +718,13 @@ export const data = {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
     // https://bugs.webkit.org/show_bug.cgi?id=291195
-    bun: '1.2.11', // '1.2.4', // '1.1.31',
-    chrome: '135', // '122',
-    deno: '2.2.5', // '1.38.1',
-    firefox: '141', // '131',
-    safari: '26.0', // 18.4',
+    // with changes related to changed limit validation
+    // https://github.com/tc39/ecma262/pull/3776
+    // bun: '1.2.11', // '1.2.4', // '1.1.31',
+    chrome: '150', // '135', // '122',
+    // deno: '2.2.5', // '1.38.1',
+    // firefox: '141', // '131',
+    // safari: '26.0', // 18.4',
   },
   'es.iterator.every': {
     // with changes related to the new iteration closing approach on early error
@@ -813,11 +815,13 @@ export const data = {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
     // https://bugs.webkit.org/show_bug.cgi?id=291195
-    bun: '1.2.11', // '1.2.4', // '1.1.31',
-    chrome: '135', // '122',
-    deno: '2.2.5', // '1.38.1',
-    firefox: '141', // '131',
-    safari: '26.0', // 18.4',
+    // with changes related to changed limit validation
+    // https://github.com/tc39/ecma262/pull/3776
+    // bun: '1.2.11', // '1.2.4', // '1.1.31',
+    chrome: '150', // '135', // '122',
+    // deno: '2.2.5', // '1.38.1',
+    // firefox: '141', // '131',
+    // safari: '26.0', // 18.4',
   },
   'es.iterator.to-array': {
     bun: '1.1.31',
