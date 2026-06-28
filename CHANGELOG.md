@@ -33,6 +33,7 @@
   - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2034104)
   - [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2047995)
   - [`Array.prototype.includes` bug](https://bugs.webkit.org/show_bug.cgi?id=309342) marked as fixed in Bun 1.3.12
+  - [`queueMicrotask` bug](https://github.com/oven-sh/bun/issues/9249) marked as fixed in Bun 1.3.15
   - Added [Node 26.0](https://github.com/nodejs/node/pull/62526) compat data mapping
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8) and [Deno 2.8.0](https://github.com/denoland/deno/releases/tag/v2.8.0) compat data mapping
   - Updated [Electron 42 and added 43 and 44](https://releases.electronjs.org/) compat data mapping
