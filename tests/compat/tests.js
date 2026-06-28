@@ -1136,7 +1136,7 @@ GLOBAL.tests = {
     return Object.preventExtensions(true);
   },
   'es.object.proto': function () {
-    return '__proto__' in Object.prototype;
+    return {}.__proto__ === Object.prototype;
   },
   'es.object.seal': function () {
     return Object.seal(true);

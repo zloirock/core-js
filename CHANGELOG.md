@@ -18,6 +18,7 @@
 - [`Iterator` join stage 3 proposal](https://github.com/tc39/proposal-iterator-join):
   - Added built-in:
     - `Iterator.prototype.join`
+- Deno 2.9+ [*replaces* `Object.prototype.__proto__`](https://github.com/denoland/deno/pull/35192) instead of removing it, so the feature detection updated
 - Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
 - Fixed possible crash on some keys in `Symbol.for`
 - Some `get-iterator` / `get-iterator-method` fixes
