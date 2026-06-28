@@ -302,6 +302,11 @@ const DKP_SHAPES = [
   { id: 'instance-at', expr: '[5, 6][(globalThis, "at")](1)' },
   { id: 'nested-paren-prefix', expr: '[[3]][((globalThis), "flat")]()' },
   { id: 'double-global-prefix', expr: '[[4]][(globalThis, globalThis, "flat")]()' },
+  // the discarded prefix global buried in a `+`-concat / template FOLD (not just the outer sequence): the skip
+  // must descend the fold, else the `globalThis -> _globalThis` rewrite strands against the eliminated key
+  { id: 'binary-fold-prefix', expr: '[[8]][(globalThis, "fl") + "at"]()' },
+  // eslint-disable-next-line no-template-curly-in-string -- intentional template-literal in the GENERATED code
+  { id: 'template-fold-prefix', expr: '[[8]][`fl${ (globalThis, "") }at`]()' },
 ];
 function * generateDiscardedKeyPrefixProxy() {
   for (const shape of DKP_SHAPES) {
@@ -318,6 +323,11 @@ const NSH_SHAPES = [
   { id: 'instance-flat', tail: '(log.push(2), globalThis).self', call: r => `${ r }.Array.prototype.flat.call([1, [2]], 1)` },
   { id: 'static-of', tail: '(log.push(2), globalThis).window', call: r => `${ r }.Array.of(7)` },
   { id: 'instance-flatMap', tail: '(log.push(2), globalThis).self.window', call: r => `${ r }.Array.prototype.flatMap.call([1, 2], n => [n])` },
+  // a side effect buried in a `+`-concat / template HOP key (`globalThis[(log.push(2), 'se') + 'lf']`): the
+  // dropped hop must harvest it through the fold, not just an outer sequence prefix
+  { id: 'concat-key-hop', tail: 'globalThis[(log.push(2), "se") + "lf"]', call: r => `${ r }.Array.prototype.flat.call([1, [2]], 1)` },
+  // eslint-disable-next-line no-template-curly-in-string -- intentional template-literal in the GENERATED code
+  { id: 'template-key-hop', tail: 'globalThis[`s${ (log.push(2), "e") }lf`]', call: r => `${ r }.Array.prototype.flatMap.call([1, 2], n => [n])` },
 ];
 function * generateNestedSeHopReceiver() {
   for (const shape of NSH_SHAPES) {
