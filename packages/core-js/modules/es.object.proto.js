@@ -15,6 +15,7 @@ var PROTO = '__proto__';
 
 // `Object.prototype.__proto__` accessor
 // https://tc39.es/ecma262/#sec-object.prototype.__proto__
+// Deno 2.9+ patch this accessor, so we can't use `in` for feature detection
 if (DESCRIPTORS && getPrototypeOf && setPrototypeOf && ({}[PROTO] !== ObjectPrototype)) try {
   defineBuiltInAccessor(ObjectPrototype, PROTO, {
     configurable: true,

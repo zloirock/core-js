@@ -1136,6 +1136,8 @@ GLOBAL.tests = {
     return Object.preventExtensions(true);
   },
   'es.object.proto': function () {
+    // Deno 2.9+ patch this accessor, so we can't use `in` for feature detection
+    // eslint-disable-next-line no-proto -- detection
     return {}.__proto__ === Object.prototype;
   },
   'es.object.seal': function () {
