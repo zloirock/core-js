@@ -6,6 +6,7 @@
 // from the outer transform context (code / scopeTracker / transforms / injector / Sets /
 // resolver hooks).
 import {
+  collectFoldedReceiverSideEffects,
   isReusableReceiver,
   mayHaveSideEffects,
   peelMemoizeWrappers,
@@ -1016,16 +1017,25 @@ export function createPolyfillEmitter({
       };
     }
     const pure = resolveGlobalPolyfill(leaf.name);
+    // the whole tail collapses onto the leaf, so harvest its buried effects too - not just the outer sequence
+    // prefix. the outer prefix stays VERBATIM (keeps a pure discard `(0, globalThis)` -> `(0, _globalThis)`, as
+    // babel does); the tail's effects sit BELOW a member hop (`(a++, (b2++, globalThis).globalThis)`), which
+    // `peelNestedSequenceExpressions` does not descend, so the fold-descending collector reaches them at any
+    // depth. the two spans are disjoint (outer prefix vs tail interior), so no effect is harvested twice
+    const prefixSrcs = [
+      ...seqPrefix.map(expr => nodeSrc(expr)),
+      ...collectFoldedReceiverSideEffects(tail).map(expr => nodeSrc(expr)),
+    ];
     // a real proxy-global swaps to its pure import; a SHADOW of a global name (own local binding) bails. an
     // ALIAS of the proxy-global reached through a member tail (`const g = globalThis; (c++, g.self).Array`)
     // keeps its OWN name (the natural visitor rewrites the `g` binding to `_globalThis`) and just drops the
     // redundant hop - findProxyGlobal already confirmed `g` resolves to the proxy-global
     if (pure) {
       if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
-      return { leaf, pure, aliasBinding: null, prefixSrcs: seqPrefix.map(expr => nodeSrc(expr)) };
+      return { leaf, pure, aliasBinding: null, prefixSrcs };
     }
     if (!leafFromMember) return null;
-    return { leaf, pure: null, aliasBinding: nodeSrc(leaf), prefixSrcs: seqPrefix.map(expr => nodeSrc(expr)) };
+    return { leaf, pure: null, aliasBinding: nodeSrc(leaf), prefixSrcs };
   }
 
   // member-chain receiver rooted at a polyfillable global Identifier (`globalThis?.X.Y`,
