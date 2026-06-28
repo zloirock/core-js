@@ -17,7 +17,7 @@ import {
   isTransparentWrapper,
   resolveKey,
   returnedReceiverHasEffects,
-  unwrapParens,
+  unwrapTransparentSeq,
   unwrapParensCollectingEffects,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import { resolveSymbolIteratorEntry } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
@@ -220,34 +220,34 @@ runBoth('scanExistingCoreJSImports/later package matches after prefix-package su
   checkDeep(lbl, globals, ['es.array.at']);
 });
 
-// --- unwrapParens ---
+// --- unwrapTransparentSeq ---
 
 // babel: `(x)` produces ParenthesizedExpression around Identifier (with `createParenthesizedExpressions`)
 // oxc: drops parens at parse time - tests below feed already-parsed nodes from each parser
-runBoth('unwrapParens/Identifier passes through', 'x;', (adapter, prog, lbl) => {
+runBoth('unwrapTransparentSeq/Identifier passes through', 'x;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'Identifier');
-  check(lbl, unwrapParens(path.node).type, 'Identifier');
+  check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
 // TSAsExpression wrapper (TS-AST only)
-runBoth('unwrapParens/TSAsExpression peeled', 'x as number;', (adapter, prog, lbl) => {
+runBoth('unwrapTransparentSeq/TSAsExpression peeled', 'x as number;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'TSAsExpression');
   if (!path) return; // oxc may emit differently for ts cast
-  check(lbl, unwrapParens(path.node).type, 'Identifier');
+  check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
 // TSNonNullExpression wrapper
-runBoth('unwrapParens/TSNonNullExpression peeled', 'x!;', (adapter, prog, lbl) => {
+runBoth('unwrapTransparentSeq/TSNonNullExpression peeled', 'x!;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'TSNonNullExpression');
   if (!path) return;
-  check(lbl, unwrapParens(path.node).type, 'Identifier');
+  check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
 // TSSatisfiesExpression wrapper
-runBoth('unwrapParens/TSSatisfiesExpression peeled', 'x satisfies number;', (adapter, prog, lbl) => {
+runBoth('unwrapTransparentSeq/TSSatisfiesExpression peeled', 'x satisfies number;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'TSSatisfiesExpression');
   if (!path) return;
-  check(lbl, unwrapParens(path.node).type, 'Identifier');
+  check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
 // --- unwrapParensCollectingEffects ---
