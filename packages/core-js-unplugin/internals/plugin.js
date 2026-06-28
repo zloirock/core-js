@@ -835,6 +835,7 @@ export default function createPlugin(options) {
           replaceGlobalOrStatic,
           replaceInstance,
           replaceStaticFallback,
+          resolveReceiverSource,
           skipProxyGlobal,
         } = emitter;
 
@@ -855,6 +856,7 @@ export default function createPlugin(options) {
           nodeSrc,
           resolveGlobalPolyfill,
           resolvePure,
+          resolveReceiverSource,
           scopeTracker,
           skippedNodes,
           source: code,
