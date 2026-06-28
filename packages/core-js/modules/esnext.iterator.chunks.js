@@ -4,11 +4,10 @@ var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var getIteratorDirect = require('../internals/get-iterator-direct');
-var iteratorClose = require('../internals/iterator-close');
+var chunkSizeValidation = require('../internals/iterator-chunk-size-validation');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IS_PURE = require('../internals/is-pure');
 
-var $RangeError = RangeError;
 var push = uncurryThis([].push);
 
 var IteratorProxy = createIteratorProxy(function () {
@@ -34,11 +33,9 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-chunking
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   chunks: function chunks(chunkSize) {
-    var O = anObject(this);
-    if (typeof chunkSize != 'number' || !chunkSize || chunkSize >>> 0 !== chunkSize) {
-      return iteratorClose(O, 'throw', new $RangeError('`chunkSize` must be integer in [1, 2^32-1]'));
-    }
-    return new IteratorProxy(getIteratorDirect(O), {
+    anObject(this);
+    chunkSizeValidation(chunkSize, this);
+    return new IteratorProxy(getIteratorDirect(this), {
       chunkSize: chunkSize
     });
   }

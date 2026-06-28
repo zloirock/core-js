@@ -32,8 +32,11 @@ QUnit.test('Iterator#chunks', assert => {
     assert.throws(() => chunks.call(5, 1), TypeError, 'non-iterable-object this #3');
   }
 
-  assert.throws(() => chunks.call(it), RangeError, 'throws on empty argument');
+  assert.throws(() => chunks.call(it), TypeError, 'throws on empty argument');
+  assert.throws(() => chunks.call(it, '2'), TypeError, 'throws on empty argument');
+  assert.throws(() => chunks.call(it, 2.1), TypeError, 'throws on empty argument');
   assert.throws(() => chunks.call(it, -1), RangeError, 'throws on negative argument');
+  assert.throws(() => chunks.call(it, 2 ** 32), RangeError, 'throws on negative argument');
 
   const observableReturn = {
     return() {

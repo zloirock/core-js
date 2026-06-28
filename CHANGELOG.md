@@ -10,6 +10,7 @@
   - Built-ins:
     - `Iterator.prototype.chunks`
     - `Iterator.prototype.windows`
+  - Throw a `TypeError` instead of `RangeError` on non integer number `chunkSize` / `windowSize`, following [tc39/proposal-iterator-chunking/#30](https://github.com/tc39/proposal-iterator-chunking/pull/30)
   - Moved to stage 3, [May 2026 TC39 meeting](https://github.com/tc39/proposals/commit/7226f0af93443025010efcad219115cec7dc8b2a)
   - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection
 - [`Iterator` includes stage 3 proposal](https://github.com/tc39/proposal-iterator-includes):

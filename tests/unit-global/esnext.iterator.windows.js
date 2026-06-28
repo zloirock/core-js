@@ -36,8 +36,11 @@ QUnit.test('Iterator#windows', assert => {
     assert.throws(() => windows.call(5, 1), TypeError, 'non-iterable-object this #3');
   }
 
-  assert.throws(() => windows.call(it), RangeError, 'throws on empty argument');
+  assert.throws(() => windows.call(it), TypeError, 'throws on empty argument');
+  assert.throws(() => windows.call(it, '2'), TypeError, 'throws on empty argument');
+  assert.throws(() => windows.call(it, 2.1), TypeError, 'throws on empty argument');
   assert.throws(() => windows.call(it, -1), RangeError, 'throws on negative argument');
+  assert.throws(() => windows.call(it, 2 ** 32), RangeError, 'throws on negative argument');
 
   const observableReturn = {
     return() {

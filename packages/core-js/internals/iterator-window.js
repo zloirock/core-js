@@ -5,9 +5,9 @@ var createIteratorProxy = require('../internals/iterator-create-proxy');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
+var chunkSizeValidation = require('../internals/iterator-chunk-size-validation');
 var uncurryThis = require('../internals/function-uncurry-this');
 
-var $RangeError = RangeError;
 var $TypeError = TypeError;
 var push = uncurryThis([].push);
 var slice = uncurryThis([].slice);
@@ -36,9 +36,7 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-chunking
 module.exports = function (O, windowSize, undersized) {
   anObject(O);
-  if (typeof windowSize != 'number' || !windowSize || windowSize >>> 0 !== windowSize) {
-    return iteratorClose(O, 'throw', new $RangeError('`windowSize` must be integer in [1, 2^32-1]'));
-  }
+  chunkSizeValidation(windowSize, O);
   if (undersized !== undefined && undersized !== 'only-full' && undersized !== ALLOW_PARTIAL) {
     return iteratorClose(O, 'throw', new $TypeError('Incorrect `undersized` argument'));
   }
