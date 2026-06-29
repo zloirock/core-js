@@ -1,8 +1,14 @@
 // member-expression resolution + `key in obj` BinaryExpression handler. produces meta for
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
-import { collectFoldedReceiverSideEffects, proxyNavRootIsSequence, TRANSPARENT_EXPR_WRAPPER_TYPES } from '../helpers/ast-patterns.js';
-import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
+import {
+  collectFoldedReceiverSideEffects,
+  memberKeyName,
+  proxyNavRootIsSequence,
+  staticMemberKeyName,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+} from '../helpers/ast-patterns.js';
+import { isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
@@ -16,6 +22,7 @@ import {
   isCallShape,
   isStaticPlacement,
   isTransparentWrapper,
+  maximalProxyGlobalPrefix,
   MAX_KEY_DEPTH,
   peelChainAssignment,
   peelReceiverSequenceTail,
@@ -126,6 +133,71 @@ export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path 
   // key-buried effect in the memo path, silently dropping it on babel while unplugin kept it (desync + lost SE)
   const rescue = seedChainRootCallRescue({ node: receiver, scope, adapter, path });
   return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, [], rescue) };
+}
+
+// substrate-neutral proxy-global receiver collapse DECISION. the three emitter collapsers (babel
+// `collapseProxyGlobalReceiver`, unplugin `resolveProxyGlobalChainSrc` / `substituteProxyGlobalRoot`)
+// re-implemented this same decision (drop redundant `.self`/`.window` hops, swap the root to its pure import
+// or keep an alias, harvest buried SE in eval order, recurse a deeper nav) against different substrates. this
+// is the single source; each emitter RENDERS the result (babel builds AST, unplugin slices text). null when
+// not collapsible. uses only shared provider primitives + the passed `resolvePure`. shapes:
+//   { kind: 'collapse', rootBinding: { alias: node } | { pure: { entry, hintName } },
+//     harvestedSE: node[], property: node, computed: bool }
+//   { kind: 'member', inner: <plan>, property: node, computed: bool }   // deeper nav under a kept leaf chain
+export function planProxyReceiver(receiver, { aliasCtx = null, isWriteTarget = false, bailOnPureLeaf = true, resolvePure }) {
+  if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
+  // collapsible only when the whole `.object` is the proxy-nav prefix; else try call/IIFE-rooted, then a deeper
+  // nav stacked under a non-proxy leaf chain (`(c++, globalThis.self).Array.prototype`)
+  if (maximalProxyGlobalPrefix(receiver, aliasCtx, isWriteTarget) !== receiver.object) {
+    const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
+    if (callRooted) return callRooted;
+    if (!findProxyGlobal(receiver, aliasCtx)) return null;
+    const inner = planProxyReceiver(receiver.object, { aliasCtx, bailOnPureLeaf, resolvePure });
+    return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
+  }
+  // `bailOnPureLeaf` (synth-swap context): a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map`
+  // elsewhere, so bail here (a root-collapse would emit native `_globalThis.Map` + a dead import). an INSTANCE-CALL
+  // receiver keeps a pure ctor mid-chain (`globalThis.self.Array.prototype` -> `_globalThis.Array.prototype`) so it
+  // passes bailOnPureLeaf=false to collapse through. a WRITE target's leaf is the assignment slot - hops still collapse
+  const leafName = memberKeyName(receiver);
+  if (bailOnPureLeaf && !isWriteTarget && leafName && resolvePure({ kind: 'global', name: leafName })) return null;
+  // the leaf is itself a redundant proxy hop reached via a SE-bearing key (`globalThis[(e++, 'self')]`) - the
+  // harvest reads the chain OBJECT not the key, so collapsing would re-root a proxy chain and loop; bail
+  const hopLeaf = staticMemberKeyName(receiver);
+  if (hopLeaf && POSSIBLE_GLOBAL_OBJECTS.has(hopLeaf)) return null;
+  const root = findProxyGlobal(receiver, aliasCtx);
+  const rootPure = root && resolvePure({ kind: 'global', name: root.name });
+  // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
+  // root swaps to its pure ctor
+  const isAliasRoot = isAliasProxyRoot(root, aliasCtx);
+  if ((!rootPure || rootPure.kind === 'instance') && !isAliasRoot) return null;
+  return {
+    kind: 'collapse',
+    rootBinding: isAliasRoot ? { alias: root } : { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
+    harvestedSE: collectFoldedReceiverSideEffects(receiver.object),
+    property: receiver.property,
+    computed: receiver.computed,
+  };
+}
+
+// call/IIFE-rooted proxy nav (`(() => globalThis)().self.Array`): `findProxyGlobal` validates only bare-Identifier
+// roots, so the main path bails. resolve the root global (inlining the call), drop the proxy hop, keep an
+// SE-bearing chain-root call as the harvested prefix
+function planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure) {
+  if (!aliasCtx) return null;
+  const plan = resolveCallRootedProxyCollapse({ receiver, ...aliasCtx });
+  if (!plan) return null;
+  const leafName = memberKeyName(receiver);
+  if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
+  const rootPure = resolvePure({ kind: 'global', name: plan.rootName });
+  if (!rootPure || rootPure.kind === 'instance') return null;
+  return {
+    kind: 'collapse',
+    rootBinding: { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
+    harvestedSE: plan.droppedSe,
+    property: receiver.property,
+    computed: receiver.computed,
+  };
 }
 
 // an inline-resolvable call at the root of a FOLDED chain (receiver collapsed into a static
