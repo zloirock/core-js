@@ -12,7 +12,6 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
-  collectFoldedReceiverSideEffects,
   isMemberWriteHost,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
@@ -24,12 +23,10 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  isAliasProxyRoot,
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
-  memberKeyName,
   POSSIBLE_GLOBAL_OBJECTS,
   staticMemberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -40,7 +37,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   collectFallbackCollapseLeftSe,
-  resolveCallRootedProxyCollapse,
+  planProxyReceiver,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
@@ -298,82 +295,26 @@ export default function createSynthSwapEmitter({
   // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
   // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
 
-  // proxy-global member receiver (`globalThis.self.Array`): collapse the proxy navigation (root +
-  // intermediate proxy hops) to the substituted root, so an unpolyfilled-key fallback reads the
-  // constructor off the global object directly. keeping `.self` would read an undefined property
-  // off the global object on hosts without it (ie:11 pure, non-browser). the constructor sits
-  // directly on the pure-proxy prefix here (a non-proxy hop breaks resolution before synth-swap),
-  // so the collapsed form is `<polyfilled root>.<constructor>`. null when not a collapsible chain
-  // a call/IIFE-rooted proxy navigation (`(() => globalThis)().self.Array`): `findProxyGlobal` validates
-  // only bare-Identifier roots, so the Identifier collapse below bails. resolve the root global (inlining
-  // the call) and drop the proxy hop, preserving an SE-bearing chain-root call as a sequence prefix:
-  // `(callSe, _root).leaf`. without this the verbatim `.self` hop is undefined off-browser (ie:11 / Node)
-  function collapseCallRootedProxyReceiver(receiver, aliasCtx) {
-    if (!aliasCtx) return null;
-    const plan = resolveCallRootedProxyCollapse({ receiver, ...aliasCtx });
-    if (!plan) return null;
-    // a pure-ctor leaf (`(() => globalThis)().self.Map`) is whole-swapped to the pure ctor elsewhere
-    const leafName = memberKeyName(receiver);
-    if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
-    const rootPure = resolvePure({ kind: 'global', name: plan.rootName });
-    if (!rootPure || rootPure.kind === 'instance') return null;
-    const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
-    const rootNode = plan.droppedSe.length
-      ? t.sequenceExpression([...plan.droppedSe.map(effect => t.cloneNode(effect)), rootBinding]) : rootBinding;
-    return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
+  // render a substrate-neutral proxy-receiver plan (from the shared `planProxyReceiver`) into collapsed AST.
+  // the decision (drop hops / swap root / harvest SE / recurse a deeper nav) lives in the provider; this only
+  // builds nodes - keep the leaf's own computed flag (`globalThis.self['Object']` -> `_globalThis['Object']`)
+  function renderProxyReceiverPlanAst(plan) {
+    if (plan.kind === 'member') {
+      const inner = renderProxyReceiverPlanAst(plan.inner);
+      return inner ? t.memberExpression(inner, t.cloneNode(plan.property), plan.computed) : null;
+    }
+    const rootBinding = plan.rootBinding.alias
+      ? t.cloneNode(plan.rootBinding.alias)
+      : injectPureImport(plan.rootBinding.pure.entry, plan.rootBinding.pure.hintName);
+    const rootNode = plan.harvestedSE.length
+      ? t.sequenceExpression([...plan.harvestedSE.map(expr => t.cloneNode(expr)), rootBinding])
+      : rootBinding;
+    return t.memberExpression(rootNode, t.cloneNode(plan.property), plan.computed);
   }
 
   function collapseProxyGlobalReceiver(receiver, aliasCtx = null, isWriteTarget = false) {
-    if (!t.isMemberExpression(receiver) && !t.isOptionalMemberExpression(receiver)) return null;
-    // collapsible only when the whole `.object` is the pure-proxy navigation (its full span is the
-    // prefix) and `.property` is the constructor leaf. a WRITE target admits SE-bearing hop keys
-    // (`globalThis[(e++, 'window')].Set = fn`) so the span reaches the SE-key hop instead of recursing into it
-    // (where the proxy-hop-leaf bail strands it raw); the SE prefix is harvested into the collapsed root below
-    if (maximalProxyGlobalPrefix(receiver, aliasCtx, isWriteTarget) !== receiver.object) {
-      const callRooted = collapseCallRootedProxyReceiver(receiver, aliasCtx);
-      if (callRooted) return callRooted;
-      // the proxy navigation sits DEEPER than the immediate `.object` (`(c++, globalThis.self).Array.prototype`
-      // - the proxy hop is `.Array`'s object, not `.prototype`'s): recurse into `.object` and rebuild the
-      // `<collapsed>.property` above it, so a destructure / member source with a non-proxy leaf chain stacked
-      // over the proxy hop still collapses (`(c++, _globalThis).Array.prototype`). gated on a proxy-global root
-      const inner = findProxyGlobal(receiver, aliasCtx) ? collapseProxyGlobalReceiver(receiver.object, aliasCtx) : null;
-      return inner ? t.memberExpression(inner, t.cloneNode(receiver.property), receiver.computed) : null;
-    }
-    // a pure-ctor leaf (`globalThis.self.Map`) on a READ is whole-swapped to the pure ctor by the synth-swap /
-    // leaf path; a root-collapse here would emit the NATIVE `_globalThis.Map` and inject a dead `_globalThis`.
-    // skip it - only a NON-pure leaf (`.Array`, a user member) root-collapses its hops. a WRITE TARGET
-    // (`globalThis.window.Map = fn`) is the exception: the leaf is the assignment slot, NOT whole-swapped, so
-    // its hops MUST collapse to the pure root - else a no-pure-entry hop (`.window`) stays raw
-    // (`_globalThis.window.Map = fn`, undefined off-engine -> crash), matching the read-receiver collapse
-    const leafName = memberKeyName(receiver);
-    if (!isWriteTarget && leafName && resolvePure({ kind: 'global', name: leafName })) return null;
-    // the receiver's leaf is itself a redundant proxy HOP reached via a SE-bearing key
-    // (`globalThis[(e++, 'self')]` - folds to a proxy-global name, not a real member): this base case
-    // can't drop the hop (the harvest reads the chain OBJECT, not the SE key), so it would keep
-    // `_globalThis[(e++, 'self')]` - a re-rooted proxy chain that re-triggers this rewrite (loop). bail
-    // BEFORE injecting the root, so no dead `_globalThis` import is stranded. `leafName` (literal-only)
-    // misses the SE-key, so fold it here
-    const hopLeaf = staticMemberKeyName(receiver);
-    if (hopLeaf && POSSIBLE_GLOBAL_OBJECTS.has(hopLeaf)) return null;
-    const root = findProxyGlobal(receiver, aliasCtx);
-    const rootPure = root && resolvePure({ kind: 'global', name: root.name });
-    // an ALIAS root (`const g = globalThis; g.self.X`) keeps its (already-rewritten) identifier and
-    // only drops the redundant proxy hops (`g.self.X` -> `g.X`); a direct root swaps to its pure ctor
-    const isAliasRoot = isAliasProxyRoot(root, aliasCtx);
-    if ((!rootPure || rootPure.kind === 'instance') && !isAliasRoot) return null;
-    // SE prefixes buried along the hop chain keep evaluating in SOURCE order: `(eff(), globalThis).self.X`
-    // collapses to `(eff(), _globalThis).X`. the shared recursive harvest keeps a NESTED sequence's prefixes
-    // in evaluation order (`(c++, (d++, globalThis.self)).window.X` -> `(c++, d++, _globalThis).X`) - a buried
-    // unshift-based walk reversed them (`(d++, c++, ...)`) once a trailing hop deepened the chain
-    const prefixes = collectFoldedReceiverSideEffects(receiver.object);
-    const rootBinding = isAliasRoot ? t.cloneNode(root) : injectPureImport(rootPure.entry, rootPure.hintName);
-    const rootNode = prefixes.length
-      ? t.sequenceExpression([...prefixes.map(expr => t.cloneNode(expr)), rootBinding])
-      : rootBinding;
-    // keep the leaf's own computed flag: `globalThis.self['Object']` collapses to
-    // `_globalThis['Object']` - leaving the hop verbatim reads `.self` off the global
-    // object, which is undefined on hosts without it (ie:11 pure, Node)
-    return t.memberExpression(rootNode, t.cloneNode(receiver.property), receiver.computed);
+    const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, resolvePure });
+    return plan ? renderProxyReceiverPlanAst(plan) : null;
   }
 
   // true when ANY hop of a proxy-nav is a proxy-global name WITHOUT a pure entry (`globalThis.window` - no
