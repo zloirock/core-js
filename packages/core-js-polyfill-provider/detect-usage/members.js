@@ -212,7 +212,7 @@ function collectChainRootCallEffect({ node, sideEffects, scope, adapter, path })
 // seed a `rescue` Set with the chain-root call so an object-first fold walk emits it at the chain's source
 // TERMINUS (deepest object, evaluated first) - interleaved ahead of shallower hop-key SE in a single pass.
 // a two-step harvest-then-append would put the deep call LAST, reversing source `(call, key)` to `(key, call)`
-function seedChainRootCallRescue({ node, scope, adapter, path }) {
+export function seedChainRootCallRescue({ node, scope, adapter, path }) {
   const rescue = new Set();
   const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
   if (rootCall) rescue.add(rootCall);
@@ -724,8 +724,13 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   // depth so they re-emit. only the chain form (`X.Symbol`, a member) drops it - a direct `(c++, Symbol)`
   // keeps the whole key (SE survives there). the chain-root CALL is left to `collectChainRootCallEffect`
   // (its purity is scope-aware), so no double-collect with the structural descent here
-  if (prop.object.type === 'MemberExpression' || prop.object.type === 'OptionalMemberExpression') {
-    collectFoldedReceiverSideEffects(prop.object, sideEffects);
+  // peel transparent wrappers first: `(globalThis[(c++,'self')].Symbol).iterator` PARENTHESIZES the chain
+  // receiver, so a raw `.type === MemberExpression` check would miss it and DROP the buried `c++` when the
+  // whole `o[key]` rewrites to `_getIteratorMethod(o)`
+  let symbolReceiver = prop.object;
+  while (symbolReceiver && isTransparentWrapper(symbolReceiver)) symbolReceiver = symbolReceiver.expression;
+  if (symbolReceiver?.type === 'MemberExpression' || symbolReceiver?.type === 'OptionalMemberExpression') {
+    collectFoldedReceiverSideEffects(symbolReceiver, sideEffects);
   }
   collectChainRootCallEffect({ node: prop, sideEffects, scope, adapter, path });
   const keyNode = prop.computed
