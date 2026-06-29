@@ -1,9 +1,10 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+import { subsume } from './subsumption.js';
 import {
-  markAndPeelSkippableWrappers,
   memberKeyName,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
+  SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
   unwrapRuntimeExpr,
 } from './ast-patterns.js';
@@ -13,8 +14,10 @@ import {
 export { memberKeyName, staticMemberKeyName };
 
 // peel parens / TS wrappers AND SequenceExpression tail (`(se(), X)` -> `X` at runtime)
-// to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`
-function unwrapInitForResolution(node) {
+// to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`. exported so the unplugin
+// destructure emitter can tell a buried receiver effect (in the member - survives) from a liftable
+// top-level prefix (peeled away here)
+export function unwrapInitForResolution(node) {
   while (node) {
     const peeled = unwrapRuntimeExpr(node);
     if (peeled?.type === 'SequenceExpression') node = peeled.expressions.at(-1);
@@ -202,14 +205,7 @@ export function isExpandedClassifiableReceiver({ node, scope, adapter, path }) {
 // inner-Identifier visitor doesn't double-fire (orphan import / transform-queue overlap).
 // walks through paren / chain / TS wrappers on each `.object` hop too
 export function markSynthReceiverSkipped(receiver, skippedNodes) {
-  if (!receiver) return;
-  let cur = receiver;
-  while (cur) {
-    skippedNodes.add(cur);
-    if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
-      cur = markAndPeelSkippableWrappers(cur.object, skippedNodes);
-    } else break;
-  }
+  for (const node of subsume(receiver, { form: 'kept-spine', skippableTypes: SKIPPABLE_WRAPPER_TYPES })) skippedNodes.add(node);
 }
 
 // skip a synth-swap receiver subtree the literal REPLACES (or DROPS, re-emitting only its harvested
@@ -220,8 +216,7 @@ export function markSynthReceiverSkipped(receiver, skippedNodes) {
 // `walkNode(root, visit)` is the emitter's full-subtree walker (babel `traverseFast`, estree `walkAstNodes`)
 export function markReplacedReceiverSkipped({ receiver, keepSe = [], skippedNodes, walkNode }) {
   if (!receiver) return;
-  walkNode(receiver, node => { skippedNodes.add(node); });
-  for (const se of keepSe) walkNode(se, node => { skippedNodes.delete(node); });
+  for (const node of subsume(receiver, { form: 'replace', rescueRoots: keepSe, walkNode })) skippedNodes.add(node);
 }
 
 // rewire `superMeta.object` from binding name (`MyPromise`) to registered global hint
