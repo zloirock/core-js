@@ -42,7 +42,6 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   globalProxyMemberName,
-  isAliasProxyRoot,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
   memberKeyName,
@@ -62,6 +61,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   collectFallbackCollapseLeftSe,
+  planProxyReceiver,
   resolveCallRootedProxyCollapse,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
@@ -2828,12 +2828,14 @@ export function createDestructureEmitter({
     const target = peelNestedSequenceExpressions(node).tail ?? node;
     const proxyRoot = findProxyGlobal(target, aliasCtx);
     if (!proxyRoot) return substituteCallRootedProxyHop({ target, src, baseStart, ctx });
-    const rootPure = resolveGlobalPolyfill(proxyRoot.name);
-    // an ALIAS root (`const g = globalThis; g.self.X`) keeps its (already-rewritten) name and only
-    // drops the redundant proxy hops (`g.self.X` -> `g.X`); a direct root with no pure entry (`self.X`
-    // where `self` is not polyfilled) still bails to the verbatim fallback
-    const isAliasRoot = isAliasProxyRoot(proxyRoot, aliasCtx);
-    if (!rootPure && !isAliasRoot) return null;
+    // root resolution via the shared synth-swap collapse plan (the SAME decision as babel's
+    // collapseProxyGlobalReceiver). a direct root -> rootBinding.pure; an ALIAS root (`const g = globalThis;
+    // g.self.X`) -> rootBinding.alias, so rootPure is null and the reconstruction keeps the verbatim alias name
+    // and only drops the hops. a non-collapsible root (`self.X` where `self` has no pure entry) -> null plan
+    let collapse = planProxyReceiver(target, { aliasCtx, isWriteTarget, resolvePure });
+    while (collapse?.kind === 'member') collapse = collapse.inner;
+    if (collapse?.kind !== 'collapse') return null;
+    const rootPure = collapse.rootBinding.pure ?? null;
     // a SE-bearing proxy hop (`globalThis[(c++, 'self')].Array`) is BAILED by maximalProxyGlobalPrefix below
     // (it cannot drop the hop without dropping the effect), which would leave a dead `.self` off the pure
     // root (`_globalThis.self.Array` - undefined off-engine). route it through the call-rooted collapse,
