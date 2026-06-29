@@ -108,3 +108,30 @@ QUnit.test('Symbol.asyncIterator: AsyncIterator.prototype exposes the key', asse
     async();
   });
 });
+
+// a Symbol.iterator computed KEY whose Symbol chain receiver buries an effect in a proxy-hop key
+// (`arr[(globalThis[(eff(), 'self')].Symbol).iterator]`): the whole `arr[key]` collapses to the iterator
+// helper, so the buried effect must be HARVESTED ahead of it (else it is silently dropped). live runtime
+// oracle - fail-before drops the increment (counter stays 0); also throws in Node (raw `globalThis.self`)
+QUnit.test('Symbol.iterator: effect buried in the proxy-hop Symbol receiver of a computed key is harvested', assert => {
+  let count = 0;
+  const arr = [10, 20];
+  // eslint-disable-next-line no-sequences, @stylistic/no-extra-parens -- proxy-hop key + parenthesized Symbol receiver under test
+  const iteratorMethod = arr[(globalThis[count++, 'self'].Symbol).iterator];
+  assert.same(typeof iteratorMethod, 'function');
+  assert.same(iteratorMethod.call(arr).next().value, 10);
+  assert.same(count, 1);
+});
+
+// a FULLY-consumed pure-ctor destructure whose receiver buries an effect in a proxy-hop key
+// (`const {iterator} = globalThis[(eff(), 'self')].Symbol`): the receiver collapses to the pure Symbol ctor and
+// the buried effect MUST be harvested EXACTLY ONCE ahead of it - not dropped (SE-loss) nor re-run (double-
+// harvest). live oracle: count must be 1. fail-before throws in Node (raw `_globalThis.self` is undefined)
+QUnit.test('Symbol: pure-ctor destructure harvests a proxy-hop-key effect exactly once', assert => {
+  let count = 0;
+  // eslint-disable-next-line no-sequences -- the computed-key proxy-hop sequence IS the case under test
+  const { iterator } = globalThis[count++, 'self'].Symbol;
+  // notSame(_, undefined) not typeof==='symbol': pure-mode Symbol is a string on no-native-symbol engines
+  assert.notSame(iterator, undefined);
+  assert.same(count, 1);
+});
