@@ -22,12 +22,48 @@ var scriptTag = function (content) {
 
 // Create object with fake `null` prototype: use ActiveX Object with cleared prototype
 var NullProtoObjectViaActiveX = function (activeXDocument) {
-  activeXDocument.write(scriptTag(''));
-  activeXDocument.close();
-  var temp = activeXDocument.parentWindow.Object;
+  var temp;
+  try {
+    activeXDocument.write(scriptTag(''));
+    activeXDocument.close();
+    temp = activeXDocument.parentWindow.Object;
+  } catch (error) {
+    temp = NullProtoObjectViaSc32bit();
+  }
   // eslint-disable-next-line no-useless-assignment -- avoid memory leak
   activeXDocument = null;
   return temp;
+};
+
+// Attempt to obtain an Object constructor capable of creating
+// null-prototype objects using 32-bit MSScriptControl.
+// This approach only works in 32-bit environments where ScriptControl is available.
+var sc32bit;
+
+// Function to retrieve Object constructor via 32-bit ScriptControl (typically provided by Microsoft)
+var NullProtoObjectViaSc32bit = function () {
+  try {
+    sc32bit = new ActiveXObject('MSScriptControl.ScriptControl');
+    sc32bit.Language = 'JScript';
+    return sc32bit.Eval('Object');
+  } catch (error) {
+    // Fallback to 64-bit alternative if 32-bit ScriptControl is unavailable
+    return NullProtoObjectViaSc64bit();
+  }
+};
+
+// Reference for 64-bit ScriptControl instance
+var sc64bit;
+
+// Function to retrieve the Object constructor via 64-bit ScriptControl (typically provided by third parties)
+var NullProtoObjectViaSc64bit = function () {
+  try {
+    sc64bit = new ActiveXObject('ScriptControl');
+    sc64bit.Language = 'JScript';
+    return sc64bit.Eval('Object');
+  } catch (error) {
+    throw new Error('Cannot create an object with a null prototype in the current environment.');
+  }
 };
 
 // Create object with fake `null` prototype: use iframe Object with cleared prototype
