@@ -15,6 +15,7 @@ import {
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
+import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
@@ -137,20 +138,23 @@ function findProxyGlobalStaticHop(hops, ctx, resolveGlobalPolyfill) {
 // prefix, so its inner globals / polyfills / hops must stay visitor-rewritten and compose into the re-emitted
 // (raw) source, matching babel's re-visit of the cloned receiver - skipping its whole subtree stranded a raw
 // inner `globalThis` that only a hand-rolled reemit could substitute
+// estree subtree walker adapted to the substrate-neutral subsume() walkNode(root, visit) contract
+function walkSubtree(root, visit) {
+  walkAstNodes({ root, visit });
+}
+
 function skipCollapsedChainExceptRootCall(staticHop, skippedNodes) {
-  const rescued = new Set();
   // peel a SEQUENCE tail at each hop (`(k++, (call).self).Map` -> the proxy chain lives in the tail): without
   // it the walk stopped at the SequenceExpression and never reached the chain-root call -> its inner globals
   // were skipped -> stranded raw `globalThis`. the prefix SE (`k++`) carries no proxy global, so skipping it
-  // is harmless; the leadingMemo re-emits it verbatim
+  // is harmless; the leadingMemo re-emits it verbatim. the chain-root call SURVIVES (rescued) - it is the
+  // collapse-target receiver re-emitted in place, so its inner globals must keep their queued rewrites
   let chainRoot = peelReceiverSequenceTail(unwrapNode(staticHop));
   while (chainRoot.type === 'MemberExpression' || chainRoot.type === 'OptionalMemberExpression') {
     chainRoot = peelReceiverSequenceTail(unwrapNode(chainRoot.object));
   }
-  if (chainRoot.type === 'CallExpression' || chainRoot.type === 'OptionalCallExpression') {
-    walkAstNodes({ root: chainRoot, visit: n => rescued.add(n) });
-  }
-  walkAstNodes({ root: staticHop, visit: n => { if (!rescued.has(n)) skippedNodes.add(n); } });
+  const rootCall = chainRoot.type === 'CallExpression' || chainRoot.type === 'OptionalCallExpression' ? [chainRoot] : [];
+  for (const node of subsume(staticHop, { form: 'replace', rescueRoots: rootCall, walkNode: walkSubtree })) skippedNodes.add(node);
 }
 
 // skip the member hops of a receiver chain ABOVE the rebind root boundary so the member visitor queues no
@@ -179,20 +183,17 @@ function skipReceiverTailMembers(receiverNode, skippedNodes, rootBoundary) {
 // none. module-level so the emitter factory stays in budget
 function skipDroppedKeyPrefix(node, sideEffects, skippedNodes) {
   if (!node.computed) return;
-  const { prefix } = peelNestedSequenceExpressions(node.property);
-  const rescued = new Set();
-  if (sideEffects) for (const effect of sideEffects) walkAstNodes({ root: effect, visit: n => rescued.add(n) });
-  // the OUTER sequence prefix is fully discarded - skip every node in it (proxy-globals AND polyfilled statics
-  // like a buried `Symbol.iterator`) so the natural visitor cannot rewrite against the eliminated prefix
-  for (const operand of prefix) walkAstNodes({ root: operand, visit: n => { if (!rescued.has(n)) skippedNodes.add(n); } });
-  // the resolved key TAIL may SURVIVE the entry-availability bail (excluded helper -> `globalThis.Symbol.iterator`
-  // keeps its static rewrite to `_Symbol$iterator`), so skip ONLY proxy-globals there, never the whole tail - and
-  // a `+`-concat or template fold can bury a proxy the outer-prefix peel never sees
-  walkAstNodes({ root: node.property, visit: n => {
-    if (rescued.has(n)) return;
-    const proxy = findProxyGlobal(n);
-    if (proxy) skippedNodes.add(proxy);
-  } });
+  // dropped-key: the discarded OUTER sequence prefix is subsumed wholesale (proxy-globals AND buried statics);
+  // on the resolved key tail ONLY proxy-globals are subsumed - a static like a buried `Symbol.iterator` may
+  // SURVIVE the entry-availability bail and keep its `-> _Symbol$iterator` rewrite. subtrees rescued into
+  // `sideEffects` are re-emitted verbatim, so their inner rewrites stay queued
+  for (const skipNode of subsume(node.property, {
+    form: 'dropped-key',
+    rescueRoots: sideEffects || [],
+    outerPrefix: prop => peelNestedSequenceExpressions(prop).prefix,
+    isProxyGlobal: findProxyGlobal,
+    walkNode: walkSubtree,
+  })) skippedNodes.add(skipNode);
 }
 
 export function createPolyfillEmitter({
@@ -1111,26 +1112,26 @@ export function createPolyfillEmitter({
         );
       }
     } else if (staticPure) {
-      // a proxy-global static collapses even when the leaf is an ALIAS binding (`const g = globalThis;
-      // g.Map`): resolveObjectName followed the binding to confirm the static, so a bound leaf is fine
-      // here (unlike the verbatim leaf-swap below, which needs an unbound proxy-global)
+      // a proxy-global static collapses even when the leaf is an ALIAS binding (`const g = globalThis; g.Map`):
+      // resolveObjectName followed the binding to confirm the static, so a bound leaf is fine here
       const { value: caRhs, outer: chainAssign } = peelChainAssignment(staticHop.object);
-      // a chain-assign receiver carries an observable assignment the collapse must not drop. a DIRECT
-      // one (`(a = globalThis).Map`) is preserved as a sequence ahead of the static value; one buried
-      // under another SE wrapper (`(eff(), a = globalThis).Map`) can't be rebuilt here, so defer the
-      // whole receiver to the natural visitor (which composes its chain-assign effects)
+      // a DIRECT chain-assign (`(a = globalThis).Map`) is preserved as a sequence ahead of the static; one buried
+      // under another SE wrapper (`(eff(), a = globalThis).Map`) can't be rebuilt here, so defer to the visitor
       if (!chainAssign && prependChainAssignmentEffect(staticHop, []).length) return null;
-      // `suppressInject`: an optional-rebind caller will DISCARD this collapsed `src` (it stitches a raw
-      // `_ref.self.Ctor` tail), so injecting the pure import here would strand a dead binding. the empty
-      // binding is never emitted - the discarded src is replaced by the raw tail
-      const staticBinding = suppressInject ? '' : injectPureImport(staticPure.entry, staticPure.hintName);
-      // `(a = globalThis).Map` -> `(a = _globalThis, _Map)`: the assignment root renders like any
-      // receiver (`_globalThis` unbound / verbatim alias), the static is the sequence value
+      // harvest the SE buried in the proxy hops BELOW the static (`globalThis[(c++,'self')].Symbol` -> `(c++,
+      // _Symbol)`) so the collapse re-emits it, matching babel + the non-static leaf branch below; without it the
+      // static collapse silently DROPS the effect (a SE-loss). the harvest pops those hops, `hops.length` the rest
+      const staticDropped = dropLeadingProxyHops(hops, { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath });
+      // double-harvest guards: an optional-rebind DISCARDS this src + harvests into its guard; a chain-assign root
+      // would need the SE spliced into its assign sequence in eval order. defer both to the natural visitor
+      if ((suppressInject || chainAssign) && staticDropped.droppedSe.length) return null;
+      // `suppressInject` (optional-rebind) DISCARDS this src for a raw `_ref.self.Ctor` tail, so the pure import
+      // would strand a dead binding - emit the empty binding (never reached). chain-assign root renders as a
+      // sequence (`(a = _globalThis, _Map)`); else wrap the harvested hop SE ahead of the pure ctor
       polyfillBinding = chainAssign
-        ? `(${ code.slice(chainAssign.start, caRhs.start) }${ resolveReceiverSource(caRhs, metaPath).src }, ${ staticBinding })`
-        : staticBinding;
-      leafBoundary = staticHop;
-      skipNode = staticHop;
+        ? `(${ code.slice(chainAssign.start, caRhs.start) }${ resolveReceiverSource(caRhs, metaPath).src }, ${ suppressInject ? '' : injectPureImport(staticPure.entry, staticPure.hintName) })`
+        : wrapSideEffects(suppressInject ? '' : injectPureImport(staticPure.entry, staticPure.hintName), staticDropped.droppedSe);
+      skipNode = leafBoundary = staticHop;
       skipCollapsedChainExceptRootCall(staticHop, skippedNodes);
       hops.length = staticIdx;
     } else {
