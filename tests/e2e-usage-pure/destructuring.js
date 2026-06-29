@@ -1932,3 +1932,125 @@ QUnit.test('destructuring: call-rooted proxy + unresolved sibling collapses hop,
   assert.same(len, 1);
   assert.same(c, 1);
 });
+
+// a fully-consumed STATIC destructure whose receiver buries a side effect in a proxy-hop KEY
+// (`globalThis[(eff(), 'self')].Array`): the effect must run, so the consumed receiver survives as a
+// residual, and its redundant `.self` hop must collapse - `_globalThis.self` is undefined off-browser
+// (ie:11 / Node), so a verbatim hop reads it raw and THROWS. live runtime oracle (fail-before throws in Node)
+QUnit.test('destructuring: SE-in-hop-key proxy-global static destructure collapses, effect runs once', assert => {
+  let c = 0;
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const { from } = globalThis[c++, 'self'].Array;
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+  assert.same(c, 1);
+});
+
+// the same SE-in-hop-key receiver inside a for-init, which keeps the consumed receiver under a synthesized
+// sink declarator - the buried effect still runs once and the hop still collapses off the pure root
+QUnit.test('destructuring: SE-in-hop-key proxy-global static destructure in for-init collapses', assert => {
+  let c = 0;
+  let out;
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  for (const { of } = globalThis[c++, 'self'].Array; c < 2;) {
+    out = of(7, 8);
+    c++;
+  }
+  assert.deepEqual(out, [7, 8]);
+  assert.same(c, 2);
+});
+
+// the SE-in-hop-key receiver under a SEQUENCE root (`(eff(), globalThis[(eff(), 'self')].Object)`): the
+// collapse must peel through the sequence tail to the receiver member, harvesting BOTH effects in order, and
+// still drop the `.self` hop. fail-before throws in Node (raw `_globalThis.self`)
+QUnit.test('destructuring: SE-in-hop-key proxy-global static destructure under a sequence root collapses', assert => {
+  let d = 0;
+  let e = 0;
+  // eslint-disable-next-line no-sequences -- the computed-key + sequence-root sequences ARE the case under test
+  const { keys } = (d++, globalThis[e++, 'self'].Object);
+  assert.deepEqual(keys({ x: 1 }), ['x']);
+  assert.same(d, 1);
+  assert.same(e, 1);
+});
+
+// a STATIC proxy hop (`.self`) AHEAD of the computed-effect hop: both must collapse, and the single-hop
+// retained-default collapse must NOT also fire (two overlapping transforms on the residual would compose-crash
+// at build time). fail-before throws in Node (raw `_globalThis.self`)
+QUnit.test('destructuring: SE-in-hop-key proxy-global static destructure with a leading static hop collapses', assert => {
+  let f = 0;
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const { assign } = globalThis.self[f++, 'window'].Object;
+  assert.deepEqual(assign({}, { a: 1 }), { a: 1 });
+  assert.same(f, 1);
+});
+
+// an ASSIGNMENT-destructure (`({from} = globalThis[(eff(), 'self')].Array)`) re-emits its consumed receiver as
+// a residual statement just like the const-declaration form, so the SE-in-hop-key proxy receiver must collapse
+// the same way. live oracle: fail-before keeps the raw `_globalThis.self` hop (throws in Node) and on engines
+// where it does not throw still leaves the dead hop; pass-after collapses to the pure root and runs the effect
+QUnit.test('destructuring: SE-in-hop-key proxy receiver in an ASSIGNMENT-destructure collapses', assert => {
+  let c = 0;
+  let from;
+  // eslint-disable-next-line no-sequences, prefer-const -- proxy-hop key seq; assignment target needs a pre-declared let
+  ({ from } = globalThis[c++, 'self'].Array);
+  assert.deepEqual(from([5, 6]), [5, 6]);
+  assert.same(c, 1);
+});
+
+// SE-in-hop-key proxy receiver inside a LOGICAL operand (`{from} = (globalThis[(eff(), 'self')].Array) || Array`):
+// the residual keeps the whole logical for the effect, so the proxy operand's redundant hop must collapse the
+// same way a bare member receiver does. fail-before keeps the raw hop (throws in Node / dead hop off-engine)
+QUnit.test('destructuring: SE-in-hop-key proxy receiver in a LOGICAL operand collapses', assert => {
+  let c = 0;
+  // eslint-disable-next-line no-sequences, @stylistic/no-extra-parens -- proxy-hop key seq + logical-operand parens under test
+  const { from } = (globalThis[c++, 'self'].Array) || Array;
+  assert.deepEqual(from([7, 8]), [7, 8]);
+  assert.same(c, 1);
+});
+
+// SE-in-hop-key proxy receiver rooted in an ALIAS of a proxy global (`const g = globalThis; {from} = g[(eff(),
+// 'self')].Array`): the visitor fires the hop-collapse only on LITERAL proxy roots, so the alias chain must be
+// collapsed by the destructure that consumes it. fail-before keeps `g[(c++,'self')].Array` (throws in Node)
+QUnit.test('destructuring: SE-in-hop-key proxy receiver rooted in a proxy-global ALIAS collapses', assert => {
+  let c = 0;
+  const g = globalThis;
+  // eslint-disable-next-line no-sequences -- the computed-key proxy-hop sequence IS the case under test
+  const { from } = g[c++, 'self'].Array;
+  assert.deepEqual(from([9, 10]), [9, 10]);
+  assert.same(c, 1);
+});
+
+// a MIXED static+SE proxy hop (`g.self[(eff(), 'window')].Object`) rooted in an ALIAS: collapseProxyHopRoot fully
+// owns it (multi-hop drop + SE harvest), so the single-hop static-delete default must stand down - running both
+// queues two overlapping transforms and crashes the compose. live oracle: count exactly 1 + the method works
+QUnit.test('destructuring: alias + MIXED static+SE proxy hop collapses (no double-transform crash)', assert => {
+  let count = 0;
+  const al = globalThis;
+  // eslint-disable-next-line no-sequences -- the computed-key proxy-hop sequence IS the case under test
+  const { fromEntries } = al.self[count++, 'window'].Object;
+  assert.deepEqual(fromEntries([['k', 1]]), { k: 1 });
+  assert.same(count, 1);
+});
+
+// the same MIXED static+SE hop inside a LOGICAL operand - the gate must descend the logical to see the owned operand
+QUnit.test('destructuring: MIXED static+SE proxy hop inside a LOGICAL operand collapses', assert => {
+  let count = 0;
+  // eslint-disable-next-line no-sequences, @stylistic/no-extra-parens -- proxy-hop seq + logical-operand parens under test
+  const { getOwnPropertyNames } = (globalThis.self[count++, 'window'].Object) || Object;
+  assert.deepEqual(getOwnPropertyNames({ z: 1 }), ['z']);
+  assert.same(count, 1);
+});
+
+// a CALL / IIFE-rooted proxy receiver consumed by a destructure (`const {resolve} = sf().self.Promise`): the
+// receiver value is DISCARDED, so it collapses to its pure ctor enter-time, whole-swapping the leaf and harvesting
+// the SE chain-root call exactly once. live oracle: the side-effecting call's counter increments exactly 1 (not
+// 0=dropped, not 2=double). fail-before reads `sf().self` (undefined in Node) and throws
+QUnit.test('destructuring: SE call-rooted proxy receiver collapses + harvests the call once', assert => {
+  let count = 0;
+  function sf() {
+    count++;
+    return globalThis;
+  }
+  const { resolve } = sf().self.Promise;
+  assert.same(typeof resolve, 'function');
+  assert.same(count, 1);
+});
