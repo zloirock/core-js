@@ -486,6 +486,62 @@ export function createBindingAnalysis({
     return 'leak';
   }
 
+  // stricter classifier for the ARRAY-ELEMENT narrow (`const a = [{...}]`, the tracked object is an
+  // ELEMENT). the default treats `a[i]` as a trivial member-receiver - true for the array binding, but the
+  // READ RESULT `a[i]` IS the tracked element: if it is HELD (`sink(a[i])` / `return a[i]` / `b = a[i]`)
+  // the element escapes, even though reading the array doesn't leak the array binding. `a[i].m()` keeps it
+  // local (the element is dereferenced, not held). computed-only - `a.length` / `a.map` are not elements.
+  // NOT usable as the default: an OBJECT-field read `foo(obj[k])` must stay trivial (the field VALUE
+  // escapes, not `obj`) - only an array's element-read aliases the tracked object out
+  // classifier for a NESTED anon: `fieldPath` is its slot path inside the carrier binding (`[{index}]` array
+  // slot / `[{key}]` object field, outermost-first). the anon stays local ONLY when its OWN slot read
+  // (`a[i]` / `o.wrap` / `a[i][j]` / `o.a.b`) is DEREFERENCED to a member / call (`a[i].m()` / `o.wrap.read()`);
+  // a HELD slot read (`sink(a[i])` / `sink(o.wrap)`) aliases it out. a reference that does NOT follow the slot
+  // path could still expose the whole carrier - iteration, spread, a destructure, a method call on the
+  // binding; a structural read / a DIFFERENT field doesn't reach the anon, so the shared default decides
+  function makeNestedAnonAliasRefClassifier(fieldPath) {
+    return function (parent, refNode, refPath) {
+      let access = refPath;
+      let node = refNode;
+      let matched = true;
+      for (const step of fieldPath) {
+        const member = access?.parentPath?.node;
+        // a COMPUTED read (`a[i]` array slot / `o["wrap"]` / `o[0]` / dynamic `o[k]`) could extract this slot,
+        // so it matches conservatively; a DOTTED read matches only its own key, keeping a different field
+        // (`o.count`) provably-local
+        const stepOk = isMemberRefReceiver(member, node) && (member.computed
+          || (!step.index && member.property?.type === 'Identifier' && member.property.name === step.key));
+        if (!stepOk) {
+          matched = false;
+          break;
+        }
+        access = access.parentPath;
+        node = member;
+      }
+      if (matched) {
+        const use = access?.parentPath?.node;
+        return isMemberRefReceiver(use, node) ? 'trivial' : 'leak';
+      }
+      if (isForXStatement(parent) && parent.right === refNode) return 'leak';
+      if (parent?.type === 'SpreadElement') return 'leak';
+      if (parent?.type === 'VariableDeclarator' && parent.init === refNode
+        && (parent.id?.type === 'ObjectPattern' || parent.id?.type === 'ArrayPattern')) return 'leak';
+      if (isMemberRefReceiver(parent, refNode)) {
+        const use = refPath?.parentPath?.parentPath?.node;
+        if ((use?.type === 'CallExpression' || use?.type === 'OptionalCallExpression') && use.callee === parent) {
+          return 'leak';
+        }
+      }
+      // the WHOLE carrier passed to a function (`Object.values(o)` / `Object.assign(t, o)` / `sink(o)`) may
+      // hand the nested anon - or its values - out. this overrides the default's non-MUTATING trivials
+      // (`Object.values` / `Object.entries` / `Object.assign`-source EXPOSE values without mutating), at the
+      // cost of over-bailing a rare non-exposing call (`JSON.stringify(o)`) - the bias-safe direction
+      if ((parent?.type === 'CallExpression' || parent?.type === 'NewExpression'
+        || parent?.type === 'OptionalCallExpression') && parent.arguments?.includes(refNode)) return 'leak';
+      return defaultAliasRefClassifier(parent, refNode, refPath);
+    };
+  }
+
   // recognise type-position parent node types where an Identifier child is a TYPE reference
   // (TS or Flow). TS shares a common `TS`-prefix; Flow uses suffix-based naming
   // (`*TypeAnnotation` / `*TypeIdentifier`) plus a small explicit set of declaration sites
@@ -515,8 +571,13 @@ export function createBindingAnalysis({
   // binding identity (not name) is the cycle-guard and merge key: two sibling scopes both
   // declaring `const c = obj` would collide on name but each gets its own binding, so the
   // closure tracks both. shadow-loss avoided
-  function computeAliasClosureFromBinding({ rootBinding, rootName, anchorPath, classifier = defaultAliasRefClassifier }) {
+  function computeAliasClosureFromBinding({
+    rootBinding, rootName, anchorPath, classifier = defaultAliasRefClassifier, fieldPath = null,
+  }) {
     if (!rootBinding) return null;
+    // a nested anon (`const a = [{...}]` / `const o = { f: {...} }`) is held by a slot of the binding, so a
+    // held read of THAT slot aliases it out even though the binding stays local - swap in the path classifier
+    if (fieldPath?.length) classifier = makeNestedAnonAliasRefClassifier(fieldPath);
     const closure = new Map([[rootBinding, rootName]]);
     const queue = [{ name: rootName, binding: rootBinding }];
     while (queue.length) {
