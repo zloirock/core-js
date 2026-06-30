@@ -19,6 +19,27 @@ QUnit.test('mutated-statics: alias mutation wins over substitution', assert => {
   else delete A.of;
 });
 
+// a patch through a DESTRUCTURE-LEAF alias (`const { Iterator: I } = globalThis; I.range = ...`) names the same
+// global static as a dotted patch - the pre-pass must follow the destructure KEY (I -> Iterator) via the read-side
+// canon, not the raw declarator init (`globalThis`). before the fix the patch was mis-keyed and the read of
+// `Iterator.range` routed to the injected polyfill, ignoring the user patch. uses Iterator.range: Iterator is not
+// ctor-slot-replaced here and `range` is patched by no sibling (the sibling tests patch Iterator.from), so the
+// static is only touched via the path under test and its destructure binding routes through the same pure ctor
+QUnit.test('mutated-statics: destructure-leaf alias mutation wins over substitution', assert => {
+  const { Iterator: I } = globalThis;
+  const had = 'range' in I;
+  const original = I.range;
+  I.range = function patched() {
+    return 'destructure-leaf-patched';
+  };
+  try {
+    assert.same(Iterator.range(0, 3), 'destructure-leaf-patched');
+  } finally {
+    if (had) I.range = original;
+    else delete I.range;
+  }
+});
+
 // a patch through a COMPUTED const-aliased key (`const k = 'from'; Array[k] = ...`) names the
 // same slot as a dotted patch; the resolver follows the const binding, so the later read keeps
 // the user patch instead of routing to the polyfill. patch AND restore go through the const-key
