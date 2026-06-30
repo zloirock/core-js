@@ -42,6 +42,7 @@ export function createTypeMembers({
   buildParentClassSubstFromNodes,
   substMembers,
   applySubst,
+  shadowedAliasReturnAnnotation,
   applyAliasSubstDeep,
   applySubstToTypeRefArgs,
   findTupleElement,
@@ -204,11 +205,10 @@ export function createTypeMembers({
       // mirrors `resolveNamedType`'s ReturnType branch. `InstanceType<>` always needs
       // a class binding so the typeof-only path stays
       if (segments[0] === 'ReturnType' && arg.type !== 'TSTypeQuery') {
-        const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
-        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
-        if (!ret) return null;
-        const target = applySubst(ret, subst);
-        return getTypeMembers({ objectType: unwrapTypeAnnotation(target), scope, depth: depth + 1, visited });
+        // extract + shadow the signature-local `<T>` + fold the alias subst (shared with the `ReturnType`
+        // case in type-annotation-resolve), then enumerate the resolved return's members
+        const target = shadowedAliasReturnAnnotation(arg, scope);
+        return target ? getTypeMembers({ objectType: unwrapTypeAnnotation(target), scope, depth: depth + 1, visited }) : null;
       }
       if (arg.type !== 'TSTypeQuery') return null;
       const resolved = resolveTypeQueryBinding(arg, scope);
