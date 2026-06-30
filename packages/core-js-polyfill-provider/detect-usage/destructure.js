@@ -6,6 +6,8 @@
 // (`canTransformDestructuring`)
 import {
   collectFoldedReceiverSideEffects,
+  findArrayWrappedDestructureHost,
+  propBindingIdentifier,
   staticStringKey,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
@@ -976,6 +978,24 @@ export function outerDestructureReceiver(leafPattern, scope = null, adapter = nu
     ? descendArrayWrapperInit(host.node[slot], indices, scope, adapter, host)
     : host.node[slot];
   return descended ? unwrapExpressionChain(peelNestedSequenceExpressions(descended).tail) : null;
+}
+
+// shared DECISION for array-wrapped residual-static extraction (`[, { Array: { from } }] = [0, R]`): both
+// emitters re-implemented this guard sequence then rendered per-substrate. single-sourced so they can't drift -
+// a conditional/logical array element cedes to the receiver-aware mirror, else a static binds unconditionally.
+// returns `{ localId, declaration, isExport, declarationKind }` or null; caller injects + renders off `declaration`
+export function planArrayWrappedStaticExtract({ propNode, parentPath, scope, adapter, kind }) {
+  if (kind === 'instance') return null;
+  const localId = propBindingIdentifier(propNode.value);
+  if (!localId) return null;
+  const recv = outerDestructureReceiver(parentPath, scope, adapter);
+  if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return null;
+  const host = findArrayWrappedDestructureHost(parentPath);
+  if (!host?.needsResidualExtraction) return null;
+  const declaration = host.declarator.parentPath;
+  if (declaration?.node?.type !== 'VariableDeclaration') return null;
+  const isExport = declaration.parentPath?.node?.type === 'ExportNamedDeclaration';
+  return { localId, declaration, isExport, declarationKind: declaration.node.kind };
 }
 
 // follow const-bound Identifier through its init at each hop, peeling parens / chain / TS /
