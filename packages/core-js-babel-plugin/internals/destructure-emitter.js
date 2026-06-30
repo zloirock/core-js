@@ -10,7 +10,6 @@
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
 import {
   paramsHaveInvisibleCallers,
-  findArrayWrappedDestructureHost,
   hasRestSiblingExcept,
   isBindingPosition,
   isFunctionParamDestructureParent,
@@ -42,6 +41,7 @@ import {
   renderSynthTree,
   buildNestedParamSynthPlan,
   outerDestructureReceiver,
+  planArrayWrappedStaticExtract,
   canTransformDestructuring as sharedCanTransformDestructuring,
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
@@ -1039,26 +1039,15 @@ export default function createDestructureEmitter({
   // target keeps binding - "polyfill always wins" without disturbing them. static keys only: an
   // instance method needs a concrete receiver the residual array slot can't supply here
   function tryExtractArrayWrappedStatic(prop, entry, hintName, kind) {
-    // static keys only: an instance method needs a concrete receiver the residual array can't supply
-    if (kind === 'instance') return false;
-    // a CONDITIONAL / LOGICAL array element (`[, { Array: { from } }] = [0, c ? globalThis : u]`) must
-    // NOT extract `const from = _polyfill` unconditionally - on the diverging branch native reads the
-    // user's own value, so the unconditional bind corrupts it. cede to the receiver-aware mirror (it
-    // descends the array wrapper and swaps only the proxy branch inside the element); a bare element extracts
-    const recv = outerDestructureReceiver(prop.parentPath, prop.scope, adapter);
-    if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return false;
-    const valueNode = propBindingIdentifier(prop.node.value);
-    if (!valueNode) return false;
-    const host = findArrayWrappedDestructureHost(prop.parentPath);
-    if (!host?.needsResidualExtraction) return false;
-    const declaration = host.declarator.parentPath;
-    if (!declaration?.isVariableDeclaration()) return false;
-    // export host re-exports the extracted binding too (`export const from = _Array$from`)
-    const isExport = declaration.parentPath?.isExportNamedDeclaration();
-    injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
+    const plan = planArrayWrappedStaticExtract({
+      propNode: prop.node, parentPath: prop.parentPath, scope: prop.scope, adapter, kind,
+    });
+    if (!plan) return false;
+    const { localId, declaration, isExport, declarationKind } = plan;
+    injector.registerBodyExtractAlias(localId.name, entry, prop.scope.getBinding(localId.name));
     const id = injectPureImport(entry, hintName);
-    const extracted = t.variableDeclaration(declaration.node.kind,
-      [t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id))]);
+    const extracted = t.variableDeclaration(declarationKind,
+      [t.variableDeclarator(t.cloneNode(localId), t.cloneNode(id))]);
     (isExport ? declaration.parentPath : declaration)
       .insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
     // rename the consumed key to `_unused`: the residual array destructure keeps its shape
