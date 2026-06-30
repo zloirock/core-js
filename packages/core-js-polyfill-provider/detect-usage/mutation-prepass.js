@@ -523,6 +523,12 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     const binding = adapter.getBinding(scope, identNode.name, path);
     if (!binding || seenBindings.has(binding)) return;
     seenBindings.add(binding);
+    // delegate the bound-identifier receiver to the read-side canon: it resolves a destructure-leaf alias
+    // (`const {Map:M}=globalThis` -> M=Map), a peeled namespace, a multi-hop prototype root - shapes the raw
+    // declarator-init value-fan below misses, since the init is the WHOLE rhs (`globalThis`), dropping the
+    // `{Map:M}` selector. over-record stays the safe direction; the fan still runs for reassignment unions
+    const direct = resolveObjectName({ objectNode: identNode, scope, adapter, path });
+    if (direct) names.add(direct);
     const init = binding.path?.node?.init ?? binding.node?.init;
     visitAliasValues(init, depth);
     const reCtx = { scope, adapter, path, resolveKey };
