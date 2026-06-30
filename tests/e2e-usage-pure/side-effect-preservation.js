@@ -179,3 +179,48 @@ QUnit.test('side effect: deep proxy-hop key under .Array.prototype harvests its 
   assert.strictEqual(a, 1);
   assert.strictEqual(b, 1);
 });
+
+// SE: a side-effecting destructure key in a BODYLESS control body (`if (c) var {...} = R`). the polyfill
+// extract is emitted as a statement before the surviving residual, so the two must share a block - else the
+// residual escapes the guard and runs the key effect even when the branch is not taken. `var` is required:
+// a lexical declaration cannot be a bodyless body
+QUnit.test('side effect: bodyless-if destructure key stays under the guard when not taken', assert => {
+  function branch(taken) { return taken; }
+  let keyEval = 0;
+  // eslint-disable-next-line no-var -- bodyless control body must use `var`
+  if (branch(false)) var { [(keyEval++, 'from')]: build } = Array;
+  assert.strictEqual(keyEval, 0, 'key effect did not run on the untaken branch');
+  assert.strictEqual(typeof build, 'undefined', 'binding stayed unassigned (the extract did not escape the guard)');
+});
+
+QUnit.test('side effect: bodyless-if destructure runs the key once and binds the polyfill when taken', assert => {
+  function branch(taken) { return taken; }
+  let keyEval = 0;
+  // eslint-disable-next-line no-var -- bodyless control body must use `var`
+  if (branch(true)) var { [(keyEval++, 'from')]: build } = Array;
+  assert.strictEqual(keyEval, 1, 'key effect ran once on the taken branch');
+  assert.deepEqual(build([7, 8]), [7, 8], 'static polyfill bound and working under the guard');
+});
+
+// SE: a bodyless do-while body with a side-effecting key on a CONSTANT-literal receiver. the memoized `_ref`
+// hoist runs before the residual too, so all three statements share the body block - and a do-while body can
+// hold only one statement, so without the block it was unparsable. this shape crashed the build before the fix
+QUnit.test('side effect: bodyless do-while memoized-receiver destructure builds and runs the key once', assert => {
+  function again() { return false; }
+  let keyEval = 0;
+  // eslint-disable-next-line no-var -- bodyless control body must use `var`
+  do var { [(keyEval++, 'at')]: pick } = [10, 20, 30]; while (again());
+  assert.strictEqual(keyEval, 1, 'key effect ran once on the single do-while pass');
+  assert.strictEqual(typeof pick, 'function', 'instance method extracted to the memoized receiver (build did not crash)');
+});
+
+// SE: a bodyless for-of body runs its block-wrapped extract + residual EACH iteration, so the key effect fires
+// once per pass and the binding re-extracts per element (a single-pass `if`/do-while can't exercise this)
+QUnit.test('side effect: bodyless for-of body destructure runs the key effect once per iteration', assert => {
+  let keyEval = 0;
+  // eslint-disable-next-line no-var -- bodyless control body must use `var`
+  for (const row of [[1, 2], [3, 4]]) var { [(keyEval++, 'flat')]: pick } = row;
+  assert.strictEqual(keyEval, 2, 'key effect ran once per loop iteration');
+  // eslint-disable-next-line block-scoped-var -- `var` is function-scoped; reading the binding after the bodyless loop is the point
+  assert.strictEqual(typeof pick, 'function', 'instance method re-extracted each iteration');
+});
