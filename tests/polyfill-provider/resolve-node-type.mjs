@@ -4827,7 +4827,7 @@ runBoth('anonymous object this-field flow bails when the object escapes via retu
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } returned anon-object field not narrowed to Array`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } returned anon-object field not narrowed to Array`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 
 // a SWITCH discriminant (`switch (b.tag)`) is also invalidated by a write to its discriminant field
@@ -4839,7 +4839,7 @@ runBoth('switch discriminant narrow drops when the discriminant field is written
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } switch discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } switch discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 
 // the discriminant write-host detection peels transparent LHS wrappers (TS `as` / `!` / parens), so a
@@ -4852,7 +4852,7 @@ runBoth('discriminant narrow drops when the discriminant field is written throug
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } cast-LHS discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } cast-LHS discriminant write drops narrow`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 
 // an anonymous object also escapes when its value is carried OUT through a container/forwarder whose
@@ -4863,7 +4863,7 @@ runBoth('anonymous object this-field flow bails when it escapes as a returned ob
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } object-property-value escape not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } object-property-value escape not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 runBoth('anonymous object this-field flow bails when it escapes through a returned conditional branch',
   'declare const c: boolean;\n'
@@ -4871,7 +4871,7 @@ runBoth('anonymous object this-field flow bails when it escapes through a return
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } conditional-branch escape not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } conditional-branch escape not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 
 // a container bound to a name escapes when that BINDING leaks (exported / returned / passed) - the carrier
@@ -4881,7 +4881,7 @@ runBoth('anonymous object in a container bound to an EXPORTED name bails (bindin
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } exported-binding container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } exported-binding container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 runBoth('anonymous object in a container bound to a LOCAL name keeps the per-element narrow',
   'const local = [{ data: ["x"], read() { return this.data.at(0); } }];\nlocal[0].read();',
@@ -4895,7 +4895,7 @@ runBoth('anonymous object in a container ASSIGNED to a name that leaks bails',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } assigned-binding leak container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } assigned-binding leak container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 // value-out channels also include `throw` (value reaches a catch handler) and an assignment used as an
 // expression (`return (x = [...])`) - the assignment binds x AND forwards the assigned value upward
@@ -4904,15 +4904,164 @@ runBoth('anonymous object thrown via a container bails',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } thrown container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } thrown container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 runBoth('anonymous object in an assignment that is itself returned bails',
   'function f() {\n  let x: unknown[];\n  return (x = [{ data: ["x"], read() { return this.data.at(0); } }]);\n}',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } returned-assignment container element not narrowed`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } returned-assignment container element not narrowed`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
+
+// --- anon object escapes when stored into a member / class-field slot of a NON-provably-local holder ---
+// the holder (`this`, a call result, a param) is externally reachable, so an outside `holder.f.field = Y`
+// can rewrite the object's fields - its `this.<field>` flow must NOT narrow. regression: each position was
+// treated module-local, type-locking `this.data` to Array so `this.data.at` emitted `_atMaybeArray` that
+// throws on a foreign value at ie:11. covers a non-binding member root (`this.f` / `getObj().f` / `this[k]`),
+// a logical-assign ref-store (`||=` / `??=`), a param-rooted `=` store, and a class field initializer
+const ANON_ESC = '{ data: ["x"], read() { return this.data.at(0); } }';
+for (const [variant, code] of [
+  ['this.f member store (non-binding root)', `function f() {\n  this.f = ${ ANON_ESC };\n}`],
+  ['call-result member store getObj().f', `function f(getObj) {\n  getObj().f = ${ ANON_ESC };\n}`],
+  ['this[k] computed member store', `function f(k) {\n  this[k] = ${ ANON_ESC };\n}`],
+  ['logical-assign ||= ref-store', `function f(obj) {\n  obj.f ||= ${ ANON_ESC };\n}`],
+  ['logical-assign ??= ref-store', `function f(obj) {\n  obj.f ??= ${ ANON_ESC };\n}`],
+  ['param-rooted = member store', `function f(obj) {\n  obj.f = ${ ANON_ESC };\n}`],
+  ['instance class field initializer', `class C {\n  f = ${ ANON_ESC };\n}`],
+  ['static class field initializer', `class C {\n  static f = ${ ANON_ESC };\n}`],
+  // babel `#f` is a ClassPrivateProperty (estree keeps PropertyDefinition) - CLASS_FIELD_TYPES must cover it
+  // so the escape is cross-parser-symmetric, not babel-narrows / oxc-escapes
+  ['private class field initializer', `class C {\n  #f = ${ ANON_ESC };\n}`],
+]) {
+  runBoth(`anon object escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundary: a COERCING compound assign (`obj.f += {...}`) consumes the object as a primitive - it never
+// reaches the holder, so the object stays module-local and its field narrows (the ref-store gate excludes it)
+runBoth('anon object in a coercing += compound stays local (narrows)',
+  `function f(obj) {\n  obj.f += ${ ANON_ESC };\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// boundary: a member store rooted at a LOCAL var that never leaks keeps the object module-local (narrows) -
+// the kind gate routes a const / let / var root through the leak analysis, not the unconditional escape
+runBoth('anon object stored via a leak-free local-var member root narrows',
+  `function f() {\n  const obj = {};\n  obj.f = ${ ANON_ESC };\n  obj.f.read();\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// boundary: a destructuring-assignment LHS (`({ x: f } = ...)` / `[f] = ...`) binds the value to a TARGET
+// var, not a member slot - a leak-free target keeps the narrow. the member-store escape must NOT catch an
+// ObjectPattern / ArrayPattern LHS (whose `memberRootName` is ALSO null), only a true member access
+runBoth('anon object via leak-free object-destructure-assignment narrows',
+  'function take(init) {\n  let f = init;\n  ({ x: f } = { x: { data: ["y"] } });\n  return f.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('anon object via leak-free array-destructure-assignment narrows',
+  'function take() {\n  let f;\n  [f] = [{ data: ["y"] }];\n  return f.data.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- the object escapes via ITERATION / array-element exposure, not only a member-store ---
+// an inline `for (const x of [{...}]) {}` binds the elements to the loop variable; an array binding's
+// element-read `a[i]` that is HELD aliases the element out. both escape the object's `this.<field>` flow
+// even though it was never stored into a member slot
+for (const [variant, code] of [
+  ['inline for-of whose loop var leaks', `function f(sink) {\n  for (const x of [${ ANON_ESC }]) { sink(x); }\n}`],
+  ['array binding held element-read sink(a[i])', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  sink(a[0]);\n}`],
+  ['array binding returned element-read', `function f() {\n  const a = [${ ANON_ESC }];\n  return a[0];\n}`],
+  ['assigned array binding held element-read', `function f(sink) {\n  let x;\n  x = [${ ANON_ESC }];\n  sink(x[0]);\n}`],
+  // member-target destructure stores the matched value into a member slot - a member store with an
+  // uncertain holder; a nested array's held element-read aliases the deep element out
+  ['object-destructure into a member target', `function f(obj) {\n  ({ x: obj.f } = { x: ${ ANON_ESC } });\n}`],
+  ['array-destructure into a member target', `function f(obj) {\n  [obj.f] = [${ ANON_ESC }];\n}`],
+  ['nested-array held element-read sink(a[i][j])', `function f(sink) {\n  const a = [[${ ANON_ESC }]];\n  sink(a[0][0]);\n}`],
+  // a BOUND array's iteration / spread / element-exposing method all alias elements out
+  ['bound for-of whose loop var leaks', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  for (const x of a) { sink(x); }\n}`],
+  ['array spread copies elements out', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  const b = [...a];\n  sink(b[0]);\n}`],
+  ['element-exposing method a.forEach', `function f(sink) {\n  const a = [${ ANON_ESC }];\n  a.forEach(x => sink(x));\n}`],
+]) {
+  runBoth(`anon array element escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries that keep the per-element narrow: a leak-free inline for-of loop var; a for-IN (iterates KEYS,
+// never the elements - stays the module-local default); an element used as a call / member receiver
+// (`a[i].read()` - the element is dereferenced, not held)
+for (const [variant, code] of [
+  ['inline for-of whose loop var stays local', `function f() {\n  for (const x of [${ ANON_ESC }]) { x.read(); }\n}`],
+  ['for-in iterates keys not elements', `function f() {\n  for (const k in [${ ANON_ESC }]) { k; }\n}`],
+  ['element dereferenced a[i].read()', `function f() {\n  const a = [${ ANON_ESC }];\n  a[0].read();\n}`],
+  ['nested element dereferenced a[i][j].read()', `function f() {\n  const a = [[${ ANON_ESC }]];\n  a[0][0].read();\n}`],
+  ['alias const b = a then b[i].read()', `function f() {\n  const a = [${ ANON_ESC }];\n  const b = a;\n  b[0].read();\n}`],
+]) {
+  runBoth(`anon array element keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// the SAME field-path soundness extends to an anon nested in an OBJECT field (`const o = { wrap: {...} }`)
+// and to mixed object-of-array nesting: a held read of the anon's OWN slot (`o.wrap` / `o.a.b` / `o.list[i]`)
+// aliases it out, and the whole carrier escaping (`sink(o)` / `{ ...o }`) exposes it too
+for (const [variant, code] of [
+  ['object field held read sink(o.wrap)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  sink(o.wrap);\n}`],
+  ['deep object field held read sink(o.a.b)', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink(o.a.b);\n}`],
+  ['the carrier object itself is held sink(o)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  sink(o);\n}`],
+  ['object spread copies the field out', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  const o2 = { ...o };\n  sink(o2.wrap);\n}`],
+  ['mixed object-of-array held read sink(o.list[i])', `function f(sink) {\n  const o = { list: [${ ANON_ESC }] };\n  sink(o.list[0]);\n}`],
+  // a value-exposing call hands the field values (the anon) out without mutating; a destructure-init reads
+  // the field directly. both alias the nested anon out even though the binding stays module-local
+  ['value-exposing Object.values(o)', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  sink(Object.values(o));\n}`],
+  ['object destructure-init { wrap } = o', `function f(sink) {\n  const o = { wrap: ${ ANON_ESC } };\n  const { wrap } = o;\n  sink(wrap);\n}`],
+  // a DEFAULT-value carrier (param default / destructure default) binds the anon to the default's target, so a
+  // held read of its slot aliases it out the same way a bound carrier does
+  ['param-default held f(o = { wrap }) sink(o.wrap)', `function f(sink, o = { wrap: ${ ANON_ESC } }) {\n  sink(o.wrap);\n}`],
+  ['destructure-default held { x = { wrap } } sink(x.wrap)', `function f(sink, s) {\n  const { x = { wrap: ${ ANON_ESC } } } = s;\n  sink(x.wrap);\n}`],
+  // a COMPUTED slot read (`o[0]` numeric key / `o["w"]` string key) extracts the field the same as a dotted read
+  ['numeric-key computed read sink(o[0])', `function f(sink) {\n  const o = { 0: ${ ANON_ESC } };\n  sink(o[0]);\n}`],
+  ['string-key computed read sink(o["w"])', `function f(sink) {\n  const o = { w: ${ ANON_ESC } };\n  sink(o["w"]);\n}`],
+  // a for-of loop var carries the anon's path WITHIN the iterated element, so a held read of its slot escapes
+  ['for-of loop-var field held for (o of [{ wrap }]) sink(o.wrap)', `function f(sink) {\n  for (const o of [{ wrap: ${ ANON_ESC } }]) sink(o.wrap);\n}`],
+]) {
+  runBoth(`nested anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries: the anon's slot DEREFERENCED (`o.wrap.read()` / `o.list[i].read()`) stays local, and reading a
+// DIFFERENT field (`foo(o.count)`) doesn't reach the anon
+for (const [variant, code] of [
+  ['object field dereferenced o.wrap.read()', `function f() {\n  const o = { wrap: ${ ANON_ESC } };\n  o.wrap.read();\n}`],
+  ['deep object field dereferenced o.a.b.read()', `function f() {\n  const o = { a: { b: ${ ANON_ESC } } };\n  o.a.b.read();\n}`],
+  ['mixed object-of-array dereferenced o.list[i].read()', `function f() {\n  const o = { list: [${ ANON_ESC }] };\n  o.list[0].read();\n}`],
+  ['a different field read does not reach the anon', `function f(foo) {\n  const o = { wrap: ${ ANON_ESC }, count: 0 };\n  foo(o.count);\n  o.wrap.read();\n}`],
+  // a DEFAULT-value carrier whose slot is only DEREFERENCED keeps the anon module-local, like a bound carrier
+  ['param-default field dereferenced o.wrap.read()', `function f(o = { wrap: ${ ANON_ESC } }) {\n  o.wrap.read();\n}`],
+  ['param-default direct dereference o.read()', `function f(o = ${ ANON_ESC }) {\n  o.read();\n}`],
+  // a computed slot DEREFERENCED (`o[0].read()`) still keeps the anon module-local
+  ['numeric-key computed dereference o[0].read()', `function f() {\n  const o = { 0: ${ ANON_ESC } };\n  o[0].read();\n}`],
+  // a for-of loop var whose element slot is only DEREFERENCED keeps the anon module-local
+  ['for-of loop-var field dereferenced for (o of [{ wrap }]) o.wrap.read()', `function f() {\n  for (const o of [{ wrap: ${ ANON_ESC } }]) o.wrap.read();\n}`],
+]) {
+  runBoth(`nested anon keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
 
 // the enum-as-computed-key shadow check uses the CONST-AGNOSTIC binding lookup, so a reassigned `let`
 // of the enum's name shadows it just like a `const` would - the key is the let's value, not the enum's
@@ -4924,7 +5073,7 @@ runBoth('enum-as-computed-key is shadowed by a reassigned let of the same name',
   (adapter, prog, lbl) => {
     const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
     const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
-    check(`${ lbl } reassigned-let shadow not resolved as enum value`, !(resolved && !resolved.primitive && resolved.ctor === 'Array'), true);
+    check(`${ lbl } reassigned-let shadow not resolved as enum value`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
   });
 
 // control: a callable field with a SINGLE-family declared return (`() => number[]`) resolves the
