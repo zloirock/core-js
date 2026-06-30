@@ -40,6 +40,7 @@ export function createTypeAnnotationResolve({
   safeInnerType,
   followTypeAliasChain,
   applySubst,
+  shadowedAliasReturnAnnotation,
   resolveKnownConstructor,
   typeFromHint,
   resolveInnerType,
@@ -49,7 +50,6 @@ export function createTypeAnnotationResolve({
   resolveNonNullableAnnotation,
   resolveAwaitedAnnotation,
   resolveReturnTypeFromTypeQuery,
-  functionTypeReturnAnnotation,
   resolveTypeQueryBinding,
   resolveTypeQuery,
   unwrapPromise,
@@ -259,9 +259,10 @@ export function createTypeAnnotationResolve({
         // follow the alias chain, extract return annotation, fold accumulated subst into it
         // (mirrors Awaited / Extract / findTupleElement)
         if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope, depth);
-        const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
-        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
-        return ret ? resolveTypeAnnotation(applySubst(ret, subst), scope, depth + 1) : null;
+        // direct function type alias (`type Fn = () => T; ReturnType<Fn>`): extract + shadow the signature-
+        // local `<T>` + fold the alias subst, then resolve (shared with the getTypeMembers mirror branch)
+        const target = shadowedAliasReturnAnnotation(arg, scope);
+        return target ? resolveTypeAnnotation(target, scope, depth + 1) : null;
       }
       case 'InstanceType': {
         const arg = firstArg();
