@@ -2100,8 +2100,32 @@ function * generateAsiFusion() {
   for (const c of D_ASI_FUSION) yield { ...snippet(`asi-fusion/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
 }
 
+// bare get-iterator paren-lookup with an OPTIONAL receiver and a computed-key side effect
+// (`(recv?.[(eff(), Symbol.iterator)])()`): native short-circuits the `?.` before evaluating the key, so the
+// key SE must NOT run on a nullish receiver - it counts the SE and asserts the throw. the `_getIterator` call
+// stays unconditional (throws on null like native). a missing unplugin guard runs the SE eagerly -> `ran`
+// diverges from babel. `present` is the positive control (SE runs once, iterator obtained on a non-null receiver).
+// `proxy-hop`: a proxy-global hop receiver (`globalThis[(eff(), 'self')]`) collapses to the root pure import,
+// dropping the `.self` hop - but the hop's OWN side effect must survive. with a following computed
+// iterator-key SE the receiver is peeled, and a lost droppedSe re-route drops the hop SE (`hop` diverges from
+// native/unplugin). the call throws (the root is not iterable); the body swallows it and returns the SE
+// counts, so the comparison is on order-preserving SE execution, not the throw message
+const D_GETITERATOR_SE = [
+  { id: 'nullish', body: 'let ran = 0; const k = () => (ran++, Symbol.iterator); const arr = null; try { (arr?.[(k(), Symbol.iterator)])(); } catch (e) {} return ran;' },
+  { id: 'present', body: 'let ran = 0; const k = () => (ran++, Symbol.iterator); const arr = [1, 2]; const it = (arr?.[(k(), Symbol.iterator)])(); return [ran, typeof it.next];' },
+  { id: 'proxy-hop', body: 'let hop = 0, key = 0; try { globalThis[(hop++, "self")][(key++, Symbol.iterator)](); } catch (e) {} return [hop, key];' },
+  // OPTIONAL proxy-hop: the receiver keeps the `(droppedSe, _root)` sequence (the null-guard memoize replays
+  // the hop SE) - a route that mis-classified this as non-optional would fold droppedSe into a bare root and
+  // the suppress/guard would DROP it. globalThis is never null so both SE run; asserts the hop SE survives
+  { id: 'proxy-hop-optional', body: 'let hop = 0, key = 0; try { (globalThis?.[(hop++, "self")][(key++, Symbol.iterator)])(); } catch (e) {} return [hop, key];' },
+];
+function * generateGetIteratorKeySE() {
+  for (const c of D_GETITERATOR_SE) yield { ...snippet(`getiterator-key-se/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+}
+
 export function * generate() {
   yield * generateAsiFusion();
+  yield * generateGetIteratorKeySE();
   yield * generateGrammar();
   yield * generateDestructure();
   yield * generateDestructureAlias();
