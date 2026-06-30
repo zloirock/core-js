@@ -469,6 +469,7 @@ export function createTypeSubst({
     applySubst,
     substMembers,
     shadowMethodTypeParams,
+    dropTypeParamSubst,
     reset,
   };
 }
