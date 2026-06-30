@@ -1069,6 +1069,11 @@ export default function createDestructureEmitter({
   function keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode }) {
     const valueNode = propBindingIdentifier(prop.node.value);
     if (!valueNode) return false;
+    // an `insertBefore` below auto-wraps a bodyless control body (`if (c) var {...}=R`) in a block and
+    // re-points THIS path at the wrapping block (whose `.kind` is undefined). the memoize hoist inserts
+    // EARLY (before the kind read + the extract insert), so track the residual declaration separately and
+    // re-resolve it after the block-conversion; the static / non-memoize path inserts last, so it is unaffected
+    let residualDecl = declaration;
     // memoize a constant-literal receiver into a shared `_ref` so the surviving residual doesn't keep a
     // duplicate of the (possibly large) literal beside the extract. one hoist per receiver; sibling leaves
     // of the same receiver reuse the `_ref`. constant-only, so re-crawling the hoisted clone is inert
@@ -1076,13 +1081,15 @@ export default function createDestructureEmitter({
     if (plan.memoizeReceiver) {
       let ref = bodyExtractReceiverRefs.get(objectNode);
       if (!ref) {
-        ref = generateLocalRef(declaration.scope);
+        ref = generateLocalRef(residualDecl.scope);
         bodyExtractReceiverRefs.set(objectNode, ref);
-        declaration.insertBefore(t.variableDeclaration(declaration.node.kind,
+        residualDecl.insertBefore(t.variableDeclaration(residualDecl.node.kind,
           [t.variableDeclarator(t.cloneNode(ref), t.cloneNode(objectNode))]));
+        // bodyless host: the hoist wrapped the body in a block; re-point to the residual (block's last statement)
+        if (residualDecl.isBlockStatement()) residualDecl = residualDecl.get('body').at(-1);
         // swap the receiver in the surviving residual for `_ref`, located by identity in the declaration
         let receiverPath = null;
-        declaration.traverse({
+        residualDecl.traverse({
           enter(p) {
             if (p.node !== objectNode) return;
             receiverPath = p;
@@ -1131,10 +1138,10 @@ export default function createDestructureEmitter({
       attachToPrevDeclarator.add(trailing);
       declaration.pushContainer('declarations', trailing);
     } else {
-      const isExport = declaration.parentPath?.isExportNamedDeclaration();
-      const extracted = t.variableDeclaration(declaration.node.kind,
+      const isExport = residualDecl.parentPath?.isExportNamedDeclaration();
+      const extracted = t.variableDeclaration(residualDecl.node.kind,
         [t.variableDeclarator(t.cloneNode(valueNode), polyfillValue)]);
-      (isExport ? declaration.parentPath : declaration)
+      (isExport ? residualDecl.parentPath : residualDecl)
         .insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
     }
     prop.get('value').replaceWith(generateUnusedId());
