@@ -2086,7 +2086,22 @@ const STRIP_FAMILIES = new Set([
   'string-receiver', 'static-more', 'array-new-methods', 'collection-methods',
 ]);
 
+// ASI left-fusion: a destructure whose lifted side-effect re-roots its statement-overwrite on a hazard char
+// (`/re/` divides, `+x` / `-x` continue a binary) must not fuse into a `;`-less value-consuming prev statement.
+// the observable returns the prev binding `a` (corrupted by a fused `i++ + x`) plus the polyfilled method's
+// type; a fused `i++ / re` throws (`re` undefined). babel inserts via AST (immune), so a missing unplugin guard
+// diverges by value or throw. covers the two statement-overwrite sites the corpus's IIFE-braced hosts cannot reach
+const D_ASI_FUSION = [
+  { id: 'flatten-regex', body: 'let i = 0; const a = i++\nconst { Array: { from } } = (/re/.test("a"), globalThis); return [a, typeof from];' },
+  { id: 'flatten-plus', body: 'let i = 0; const a = i++\nconst { Object: { fromEntries } } = (+(7), globalThis); return [a, typeof fromEntries];' },
+  { id: 'cascade-minus', body: 'let i = 0, m; const a = i++\n({ Map: { groupBy: m } } = (-(3), globalThis)); return [a, typeof m];' },
+];
+function * generateAsiFusion() {
+  for (const c of D_ASI_FUSION) yield { ...snippet(`asi-fusion/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+}
+
 export function * generate() {
+  yield * generateAsiFusion();
   yield * generateGrammar();
   yield * generateDestructure();
   yield * generateDestructureAlias();
