@@ -512,7 +512,7 @@ export function createPolyfillEmitter({
   function buildReplacement(binding, objectSrc, opts) {
     const { optionalRoot, rootRaw, deoptPositions, objectStart, preAllocatedGuardRef,
       substituted, rootIsReceiver, sideEffects, rootNodeEnd, receiverEnd, methodCall,
-      isNonIdent, seMode, receiverHasSE, receiverEffectCount = 0 } = opts;
+      isNonIdent, seMode, receiverHasSE, receiverEffectCount = 0, bareParenLookup = false } = opts;
 
     let bodyObj = deoptPositions?.length ? stripOptionalDots(objectSrc, objectStart ?? 0, deoptPositions) : objectSrc;
     let guard = '';
@@ -578,6 +578,29 @@ export function createPolyfillEmitter({
     const ctx = { ...opts, isNonIdent: bodyIsNonIdent, binding, bodyObj, guard, guardRef };
     const { body, clearGuard = false, clearSE = false, split = null } = BODY_STRATEGIES[classifyEmitStrategy(opts)](ctx);
     if (clearGuard) guard = '';
+
+    // bare get-iterator paren-lookup (`(arr?.[(k(), Symbol.iterator)])()` -> `_getIterator(arr)`): the receiver
+    // is optional, so its computed-key SE must fire only on the NON-null branch - native short-circuits the `?.`
+    // before evaluating the key. the call itself stays unconditional (`_getIterator(recv)` throws on null like
+    // native `(undefined)()`, which a whole-expression guard would swallow into void 0). guard ONLY the key-SE as
+    // a leading sequence member, memoizing a non-bare receiver so the guard test and the call read it once.
+    // mirrors babel-compat's parenLookupOnly split (`(recv == null ? void 0 : (keySE, void 0), _getIterator(recv))`)
+    if (bareParenLookup && !clearSE && wrapSE?.length) {
+      let guardTest, callBody;
+      if (leadingMemo) {
+        guardTest = `null == (${ leadingMemo })`; // side-effecting non-bare receiver already memoized into bodyObj
+        callBody = body;
+      } else if (bodyIsNonIdent) {
+        const ref = scopeTracker.genRef(); // non-bare receiver re-read by guard + call -> memoize once
+        guardTest = `null == (${ ref } = ${ bodyObj })`;
+        callBody = `${ binding }(${ ref })`;
+      } else {
+        guardTest = `${ bodyObj } == null`; // bare identifier: re-reference is free
+        callBody = body;
+      }
+      const guardedSE = `${ guardTest } ? void 0 : ${ wrapSideEffects('void 0', wrapSE) }`;
+      return { replacement: `(${ guardedSE }, ${ callBody })`, split: null };
+    }
 
     return {
       // `clearSE`: the strategy already folded the SE into its body (parenLookup guard alternate)
@@ -889,7 +912,7 @@ export function createPolyfillEmitter({
       // by the binding-length delta and corrupts the tail (e.g. `.Y` -> `Y`)
       rootNodeEnd: rootNode?.end,
       receiverEnd: node.object.end,
-      parenLookupOnly, methodCall,
+      parenLookupOnly, methodCall, bareParenLookup,
     });
     let { replacement } = built;
     const { split } = built;
@@ -954,17 +977,28 @@ export function createPolyfillEmitter({
     // collapse a proxy-global receiver to its ROOT pure import (provider-resolved), matching babel:
     // `globalThis[(e++, 'self')][Symbol.iterator]` -> `_getIterator((e++, _globalThis))`, NOT a dead
     // `_globalThis.self` hop. droppedSe is the SE the dropped hop chain carried (hop keys + chain-root call)
+    const parenLookupOnly = isParenLookupOnlyCall(node, parent);
     let recvOverride = null;
     if (symbolReceiverProxyRoot) {
       const rootPure = resolveGlobalPolyfill(symbolReceiverProxyRoot.rootName);
       if (rootPure) {
         const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
-        const { droppedSe } = symbolReceiverProxyRoot;
+        let { droppedSe } = symbolReceiverProxyRoot;
+        // NON-optional + a following computed-key SE: route droppedSe through the SE channel (bare root) so
+        // both emitters render flat (`droppedSe, keySE, _getIterator(_root)`) - else the leadingMemo needlessly
+        // memoizes the single-use `(droppedSe, _root)` sequence. OPTIONAL keeps the sequence: its null-guard
+        // memoize replays droppedSe (a bare collapsed root has nothing for the guard to memoize). mirrors the
+        // babel-plugin proxy-hop route. conservative gate - any optional marker keeps the (runtime-safe) sequence
+        const isOptionalAccess = node.optional || node.object?.optional || parenLookupOnly;
+        if (droppedSe.length && sideEffects?.length && !isOptionalAccess) {
+          sideEffects = [...droppedSe, ...sideEffects];
+          receiverEffectCount += droppedSe.length;
+          droppedSe = [];
+        }
         const src = wrapSideEffects(rootBinding, droppedSe);
         recvOverride = { src, isNonIdent: droppedSe.length > 0, substituted: true, skipNode: null };
       }
     }
-    const parenLookupOnly = isParenLookupOnlyCall(node, parent);
     // `sideEffects` carries computed-key SE prefixes peeled by `resolveComputedSymbolKey`
     // (`recv[Symbol[(fn(), 'iterator')]]`). without the carry, the rewrite would discard the
     // whole `Symbol[...]` subtree and silently drop `fn()`. `addInstanceTransform` re-emits
