@@ -1294,7 +1294,7 @@ export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = 
 // assignment operators that flow the RHS into the LHS binding as a POSSIBLE value: plain `=`
 // plus the logical forms (`A ||= Map` makes Map reachable). compound arithmetic (`+=`) and
 // updates produce derived values, not replacements, and stay out
-const VALUE_FLOW_ASSIGN_OPS = new Set(['=', ...LOGICAL_ASSIGN_OPS]);
+export const VALUE_FLOW_ASSIGN_OPS = new Set(['=', ...LOGICAL_ASSIGN_OPS]);
 
 // the pattern slot's POSSIBLE values for the binding named `name`: the positionally / key-
 // paired RHS value plus the slot's own default (either may be live at runtime). a dynamic
@@ -3549,11 +3549,14 @@ function jsxHasSideEffects(node, type, depth) {
 // `extends` clause at class-eval time. method bodies / instance-field initializers
 // execute later (instance construction); static-field initializers and StaticBlock
 // bodies execute at class-eval, so they count
-// regular fields (`ClassProperty` babel / `PropertyDefinition` estree) AND auto-accessor fields
-// (`ClassAccessorProperty` babel / `AccessorProperty` estree): both carry an initializer `.value`
-// that runs at class-eval (static) or construction (instance), so both gate field-init contexts
-const CLASS_FIELD_TYPES = new Set([
+// regular fields (`ClassProperty` babel / `PropertyDefinition` estree), PRIVATE fields (`ClassPrivateProperty`
+// babel - estree keeps `PropertyDefinition` with a PrivateIdentifier key) AND auto-accessor fields
+// (`ClassAccessorProperty` babel / `AccessorProperty` estree): all carry an initializer `.value` that runs
+// at class-eval (static) or construction (instance), so all gate field-init contexts. `ClassPrivateProperty`
+// is the babel-only split - omitting it silently mis-routed babel `#x = ...` public (cross-parser asymmetry)
+export const CLASS_FIELD_TYPES = new Set([
   'ClassProperty',
+  'ClassPrivateProperty',
   'PropertyDefinition',
   'ClassAccessorProperty',
   'AccessorProperty',
