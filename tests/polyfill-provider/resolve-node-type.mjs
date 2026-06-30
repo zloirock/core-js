@@ -1376,6 +1376,48 @@ runBoth('utility: ReturnType<() => number[]> -> Array',
       { primitive: false, ctor: 'Array' });
   });
 
+// --- Signature-local <T> shadowing before an enclosing type-substitution ---
+// a method / function's OWN `<T>` is bound by its CALL ARGS, not the enclosing generic's `T`. when a return
+// slot is EXTRACTED and then substituted (class method / `ReturnType<alias>` / fn-type member), the
+// signature-local `<T>` must be shadowed first, or the enclosing subst captures it and a bare T re-binds to
+// the receiver's concrete arg -> a foreign-type Maybe helper that throws on the real return at ie:11
+for (const [variant, code] of [
+  ['class method same-named <T> (resolveReturnType)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string[]>;\ndeclare const n: number;\nc.take(n).at(0);'],
+  ['ReturnType<Fn<...>> alias fn-type <T>', 'type Fn<T> = <T>(x: T) => T;\ndeclare const r: ReturnType<Fn<string[]>>;\nr.at(0);'],
+  ['fn-type property <T> (member-call annotation)', 'type Box<T> = { take: <T>(x: T) => T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb.take(n).at(0);'],
+  ['interface method same-named <T>', 'interface Box<T> { take<T>(x: T): T }\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb.take(n).at(0);'],
+  ['indexed-access into alias method <T>', 'type Box<T> = { take<T>(x: T): T };\ndeclare const f: Box<string[]>["take"];\ndeclare const n: number;\nf(n).at(0);'],
+  ['ReturnType<Fn> structural-return member (getTypeMembers path)', 'type Fn<T> = <T>() => { x: T };\ndeclare const r: ReturnType<Fn<string[]>>;\nr.x.at(0);'],
+  ['standalone generic fn<T>(): T', 'declare function f<T>(): T;\nf().at(0);'],
+  ['async <T>(): Promise<T> awaited', 'declare class C<T> { take<T>(x: T): Promise<T>; }\ndeclare const c: C<string[]>;\nasync function g() { (await c.take(1)).at(0); }'],
+  ['generic call signature { <T>(x: T): T }', 'type Box<T> = { <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nb(n).at(0);'],
+  ['generic construct signature { new <T>(x: T): T }', 'type Box<T> = { new <T>(x: T): T };\ndeclare const b: Box<string[]>;\ndeclare const n: number;\nnew b(n).at(0);'],
+  ['unresolvable call-arg falls back to unknown (no capture)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string[]>;\nc.take(globalThis.zz).at(0);'],
+]) {
+  runBoth(`signature-local <T> shadows enclosing subst: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed to the enclosing arg`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries: a DIFFERENTLY-named method `<U>` is still bound by the CALL ARGS (call-site inference, not the
+// enclosing subst), and a NON-generic method returning the class `T` keeps the real narrow
+for (const [variant, code] of [
+  ['differently-named <U> bound by an array call-arg', 'declare class C<T> { make<U>(x: U): U; }\ndeclare const c: C<string>;\ndeclare const arr: number[];\nc.make(arr).at(0);'],
+  ['non-generic method returns the class T (real array)', 'declare class C<T> { get(): T; }\ndeclare const c: C<string[]>;\nc.get().at(0);'],
+  ['alias-level T (no signature-local <T>) IS the structural return type', 'type Fn<T> = () => { x: T };\ndeclare const r: ReturnType<Fn<number[][]>>;\nr.x.at(0);'],
+  ['constrained <T extends any[]> narrows via its array call-arg', 'declare class C<T> { take<T extends any[]>(x: T): T; }\ndeclare const c: C<string>;\nc.take([1, 2, 3]).at(0);'],
+  ['multi-param: class U return survives the <T> shadow', 'declare class C<T, U> { take<T>(): U; }\ndeclare const c: C<string, number[][]>;\nc.take(0).at(0);'],
+  ['same-named <T> narrows via an array call-arg (call-site, not capture)', 'declare class C<T> { take<T>(x: T): T; }\ndeclare const c: C<string>;\nc.take([1, 2, 3]).at(0);'],
+  ['method <U> returning the class T keeps the real array narrow', 'declare class C<T> { m<U>(x: U): T; }\ndeclare const c: C<string[]>;\ndeclare const n: number;\nc.m(n).at(0);'],
+  ['defaulted <T = string[]> narrows to its default array', 'declare class C<T> { take<T = string[]>(): T; }\ndeclare const c: C<number>;\nc.take().at(0);'],
+]) {
+  runBoth(`enclosing subst still narrows: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
 // `ConstructorParameters<typeof C>` where C has no own constructor and extends an AMBIENT
 // `declare class` parent: babel's runtime-expression lookup bails on the value-less ambient super,
 // so without a TYPE-level fallback the inherited element type diverges from oxc (which resolves
