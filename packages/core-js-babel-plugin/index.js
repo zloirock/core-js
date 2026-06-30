@@ -300,9 +300,23 @@ export default function plugin(api, options) {
           if (rootResolved) {
             const rootBinding = injectPureImport(rootResolved.entry, rootResolved.hintName);
             const { droppedSe } = symbolReceiverProxyRoot;
-            path.node.object = droppedSe.length
-              ? t.sequenceExpression([...droppedSe.map(effect => t.cloneNode(effect)), rootBinding])
-              : rootBinding;
+            // a following computed-key SE makes the NON-optional emit `peel` the receiver (classifyReceiverSE
+            // returns 'peel' for a SequenceExpression receiver), and the peel replays only the prefix recorded
+            // in `sideEffects` - so an inline `(droppedSe, _root)` receiver loses its droppedSe. route droppedSe
+            // through the SE channel (receiver-SE ahead of the key-SE) so the hoist preserves + orders it. the
+            // OPTIONAL access uses 'suppress' (memoizes the whole receiver in the null-guard), which preserves
+            // the inline sequence's droppedSe already - leave it the tighter inline form. with no key-SE there
+            // is no peel either, so keep the inline `_getIterator((droppedSe, _root))`
+            const isOptional = path.node.optional || path.isOptionalMemberExpression();
+            if (droppedSe.length && sideEffects?.length && !isOptional) {
+              sideEffects = [...droppedSe.map(effect => t.cloneNode(effect)), ...sideEffects];
+              receiverEffectCount += droppedSe.length;
+              path.node.object = rootBinding;
+            } else {
+              path.node.object = droppedSe.length
+                ? t.sequenceExpression([...droppedSe.map(effect => t.cloneNode(effect)), rootBinding])
+                : rootBinding;
+            }
           }
         }
         // a proxy-global receiver DEEPER than the immediate symbol hop (`(c++, globalThis.self).Array.prototype
