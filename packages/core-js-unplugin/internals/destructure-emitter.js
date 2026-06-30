@@ -202,6 +202,19 @@ export function createDestructureEmitter({
     return isMulti && isBodylessStatementBody(hostPath) ? `{ ${ src } }` : src;
   }
 
+  // prepend a `;` when a statement-position overwrite's first char would fuse LEFTWARD into the prev surviving
+  // statement. a hazard-leading lifted SE (`/re/`, `+x`, `-x`) re-roots the line on a char the ORIGINAL node's
+  // leading token (`const` / an ASI-split `(`) did not expose, so the node parsed statement-separate but the
+  // rewrite carries no such guarantee (`i++` <- `/x/` divides into an unparsable line; babel is immune via
+  // AST insert). gated to a STATEMENT-LIST position: a bodyless control body's prev significant char is the
+  // control HEADER's `)` / `do` keyword, NOT a fusion-capable prev statement - a single-statement body
+  // (`if (c) /x/`) cannot fuse, and a multi-statement body is already `{ }`-wrapped, so a `;` there would only
+  // empty the slot and run the body unconditionally. a `{`-wrapped or keyword-led overwrite is a no-op anyway
+  function guardOverwriteLeftFusion(start, text, hostPath) {
+    if (!text || isBodylessStatementBody(hostPath)) return text;
+    return statementOverwriteFusesLeft(source, start, text[0]) ? `;${ text }` : text;
+  }
+
   // emit a polyfill-extract statement that must precede a destructure declaration's surviving residual.
   // a braced or top-level host inserts it directly. a BODYLESS control body holds a single statement, so a
   // preceding extract beside the residual would escape the guard (the residual's key SE then runs even when
@@ -502,8 +515,8 @@ export function createDestructureEmitter({
       bakeResidualIntoSlot(entry.result);
       const drainedRefs = consumeRefsAndInserts(entry.stmtNode.start, entry.stmtNode.end);
       const segments = renderCascadeSegments(entry, drainedRefs);
-      transforms.add(entry.stmtNode.start, entry.stmtNode.end,
-        wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, entry.stmtPath));
+      transforms.add(entry.stmtNode.start, entry.stmtNode.end, guardOverwriteLeftFusion(entry.stmtNode.start,
+        wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, entry.stmtPath), entry.stmtPath));
     }
     pendingCascade.length = 0;
   }
@@ -1111,7 +1124,7 @@ export function createDestructureEmitter({
       const parent = declPath.parentPath?.node;
       const useExportRange = !isForInit && parent?.type === 'ExportNamedDeclaration';
       const [start, end] = useExportRange ? [parent.start, parent.end] : [declaration.start, declaration.end];
-      transforms.add(start, end, replacement);
+      transforms.add(start, end, guardOverwriteLeftFusion(start, replacement, declPath));
     }
     pendingFlatten.length = 0;
   }
@@ -3347,8 +3360,7 @@ export function createDestructureEmitter({
         // a lifted-SE first product (`+eff()` / `/re/...`) re-roots the line on a hazard char the original
         // node's leading `(` / `let` did not expose - guard the left boundary like the minifier split does
         const text = wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath);
-        const guard = statementOverwriteFusesLeft(source, replaceNode.start, text[0]) ? ';' : '';
-        transforms.add(replaceNode.start, replaceNode.end, guard + text);
+        transforms.add(replaceNode.start, replaceNode.end, guardOverwriteLeftFusion(replaceNode.start, text, declPath));
       }
     }
 
