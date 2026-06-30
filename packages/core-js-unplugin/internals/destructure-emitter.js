@@ -12,7 +12,6 @@ import {
   buildFlatSynthEntries,
   paramsHaveInvisibleCallers,
   FUNCTION_LIKE_NODE_TYPES,
-  findArrayWrappedDestructureHost,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
   isBindingPosition,
@@ -78,6 +77,7 @@ import {
   buildNestedParamSynthPlan,
   destructureValueBranchesAllProxy,
   outerDestructureReceiver,
+  planArrayWrappedStaticExtract,
   isConstantLiteralReceiver,
   isReReferenceableReceiver,
   isViableBranchForKey,
@@ -2420,25 +2420,16 @@ export function createDestructureEmitter({
   // wins" without disturbing the other targets. mirrors babel-plugin's `tryExtractArrayWrappedStatic`.
   // static keys only: an instance method needs a concrete receiver the residual array slot can't supply
   function tryExtractArrayWrappedStaticPure(meta, metaPath, propNode) {
-    const localId = propBindingIdentifier(propNode.value);
-    if (!localId) return false;
     const pureResult = resolvePure(meta, metaPath);
-    // static keys only: an instance method needs a concrete receiver the residual array can't supply
-    if (!pureResult || pureResult.kind === 'instance') return false;
-    // a CONDITIONAL / LOGICAL array element (`[, { Array: { from } }] = [0, c ? globalThis : u]`) must
-    // NOT extract `const from = _polyfill` unconditionally - the diverging branch reads the user's own
-    // value, so the unconditional bind corrupts it. cede to the receiver-aware mirror (it descends the
-    // array wrapper and swaps only the proxy branch inside the element); a bare element still extracts
-    const recv = outerDestructureReceiver(metaPath.parentPath, metaPath.scope, estreeAdapter);
-    if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return false;
-    const host = findArrayWrappedDestructureHost(metaPath.parentPath);
-    if (!host?.needsResidualExtraction) return false;
-    const declaration = host.declarator.parentPath;
-    if (declaration?.node?.type !== 'VariableDeclaration') return false;
-    const isExport = declaration.parentPath?.node?.type === 'ExportNamedDeclaration';
+    if (!pureResult) return false;
+    const plan = planArrayWrappedStaticExtract({
+      propNode, parentPath: metaPath.parentPath, scope: metaPath.scope, adapter: estreeAdapter, kind: pureResult.kind,
+    });
+    if (!plan) return false;
+    const { localId, declaration, isExport, declarationKind } = plan;
     const hostNode = isExport ? declaration.parentPath.node : declaration.node;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
-    const kw = isExport ? `export ${ declaration.node.kind }` : declaration.node.kind;
+    const kw = isExport ? `export ${ declarationKind }` : declarationKind;
     transforms.insert(hostNode.start, `${ kw } ${ localId.name } = ${ binding };\n`);
     // rename the consumed key to `_unused`: the residual array destructure keeps its shape
     const keySrc = propNode.computed ? `[${ nodeSrc(propNode.key) }]` : propNode.key.name;
