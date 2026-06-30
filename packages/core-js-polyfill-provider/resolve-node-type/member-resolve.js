@@ -188,6 +188,27 @@ export function createMemberResolve({
     return null;
   }
 
+  // the callable member's signature-local `<T>` type-parameters (parallel to memberCallReturnAnnotation). a
+  // METHOD signature (`take<T>(): T`) carries them on the member; a PROPERTY whose type is a function
+  // (`take: <T>(x: T) => T`) carries them on the FUNCTION TYPE annotation, not the member - so shadowing
+  // `member.typeParameters` alone misses the fn-type-property shape
+  function memberCallTypeParameters(member) {
+    switch (member.type) {
+      case 'TSMethodSignature':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+      case 'TSDeclareMethod':
+        return member.typeParameters;
+      case 'MethodDefinition':
+        return member.value?.typeParameters;
+      case 'TSPropertySignature':
+        return unwrapTypeAnnotation(member.typeAnnotation)?.typeParameters;
+      case 'ObjectTypeProperty':
+        return unwrapTypeAnnotation(member.value)?.typeParameters;
+    }
+    return null;
+  }
+
   // resolve a method call's return type from a single (non-union) annotation by walking its members
   //   1. ARGUMENT-MATCH first: TS picks the FIRST overload whose params accept the call args, so
   //      `p.parse(123)` (number) selects `parse(x: number): string`, NOT the declaration-first
@@ -211,7 +232,7 @@ export function createMemberResolve({
       // (`Box<number[]>.get<T>(): T` must stay generic, not resolve the method's T to number[] ->
       // `_atMaybeArray` on the real foreign return, ie:11 throw). dropping instead of shadowing would
       // re-bind the bare `T` to the receiver arg via scope lookup - the same capture
-      const memberSubst = subst ? shadowMethodTypeParams(member.typeParameters, subst) : null;
+      const memberSubst = subst ? shadowMethodTypeParams(memberCallTypeParameters(member), subst) : null;
       const substituted = memberSubst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), memberSubst) : returnAnnotation;
       const resolved = resolve(substituted);
       if (resolved) resolvedReturns.push(resolved);

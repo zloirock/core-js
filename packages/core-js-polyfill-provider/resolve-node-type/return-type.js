@@ -43,6 +43,8 @@ export function createReturnType({
   substituteTypeParams,
   generatorTypeParams,
   classSubstInner,
+  shadowMethodTypeParams,
+  dropTypeParamSubst,
   isNullableOrNever,
   safeInnerType,
   commonType,
@@ -510,18 +512,26 @@ export function createReturnType({
       if (!inner && yieldType && callPath) inner = applyCallSiteSubst(yieldType, fnPath, callPath);
       return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', safeInnerType(inner));
     }
-    // peel TSTypeAnnotation + apply class subst upfront. `returnInner` is the peeled type
-    // node (or null) used for both method-level subst and direct annotation resolution
-    const returnInner = classSubstInner(fnPath.node.returnType, classSubst);
+    // peel TSTypeAnnotation + apply class subst upfront. a method's signature-local `<T>` (`take<T>(): T`)
+    // is bound by the CALL ARGS, not the enclosing class subst, so DROP it from the class subst first - a
+    // same-named method param must not be captured by `C<X>` (-> wrong type-specific Maybe on the foreign
+    // call return, ie:11 throw). dropping (not shadowing) keeps it a bare `T` so call-site inference can bind
+    // it from the args, exactly like a differently-named `<U>`
+    const methodTypeParams = fnPath.node.typeParameters;
+    const callSiteInner = classSubstInner(fnPath.node.returnType, dropTypeParamSubst(methodTypeParams, classSubst));
     const isAsync = fnPath.node.async;
     // async normalization: wrap non-Promise results, fall back to bare Promise on null
     function wrap(type) { return wrapAsyncPromise(type, isAsync); }
     const asyncFallback = isAsync ? new $Object('Promise') : null;
     // infer generic type parameters and substitute into return type
-    if (returnInner && callPath) {
-      const substituted = applyCallSiteSubst(returnInner, fnPath, callPath);
+    if (callSiteInner && callPath) {
+      const substituted = applyCallSiteSubst(callSiteInner, fnPath, callPath);
       if (substituted) return wrap(substituted);
     }
+    // no call-site binding (no call / unresolvable args): remap the method's own `<T>` to `unknown` so a bare
+    // T doesn't re-bind to the class's concrete type-arg via scope lookup. non-generic methods are unaffected
+    // (drop / shadow are identity when the signature declares no own type-params, so this matches the old path)
+    const returnInner = classSubstInner(fnPath.node.returnType, shadowMethodTypeParams(methodTypeParams, classSubst));
     if (returnInner) {
       const resolved = resolveTypeAnnotation(returnInner, fnPath.scope, depth + 1);
       if (resolved) return wrap(resolved);
