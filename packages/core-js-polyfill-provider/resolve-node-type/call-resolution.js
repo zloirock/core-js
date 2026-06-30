@@ -69,6 +69,7 @@ export function createCallResolution({
   getMemberProperty,
   followTypeAliasChain,
   applySubst,
+  shadowMethodTypeParams,
   applyAliasSubstDeep,
   isNullableOrNeverAnnotation,
   getTypeMembers,
@@ -263,6 +264,18 @@ export function createCallResolution({
       default:
         return null;
     }
+  }
+
+  // `ReturnType<Fn alias>` (the non-typeof form): follow the alias chain, extract the function's return,
+  // and shadow its signature-local `<T>` so the alias subst can't capture the unconstrained return into
+  // `T`'s concrete arg, then apply the subst. shared by the `ReturnType` case in type-annotation resolution
+  // and its mirror branch in `getTypeMembers` - keeping the shadow structural (in ONE place) so neither
+  // consumer can drift back to capturing the method's own type-params
+  function shadowedAliasReturnAnnotation(arg, scope) {
+    const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
+    const fnType = unwrapTypeAnnotation(aliased);
+    const ret = functionTypeReturnAnnotation(fnType);
+    return ret ? applySubst(ret, shadowMethodTypeParams(fnType?.typeParameters, subst)) : null;
   }
 
   // extract return type from a binding's function-type annotation:
@@ -557,6 +570,7 @@ export function createCallResolution({
     resolveCallReturnType,
     resolveCallReturnTypeFromAnnotation,
     functionTypeReturnAnnotation,
+    shadowedAliasReturnAnnotation,
     staticPairFromDestructure,
     findExpressionAnnotation,
     resolveIndexSignatureValue,
