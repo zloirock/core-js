@@ -734,6 +734,7 @@ function createResolveNodeType(babelNodeType, t, {
     applySubst,
     substMembers,
     shadowMethodTypeParams,
+    dropTypeParamSubst,
     reset: resetTypeSubst,
   } = createTypeSubst({
     unwrapTypeAnnotation,
@@ -857,6 +858,8 @@ function createResolveNodeType(babelNodeType, t, {
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     generatorTypeParams,
     classSubstInner: (...args) => classSubstInner(...args),
+    shadowMethodTypeParams,
+    dropTypeParamSubst,
     isNullableOrNever,
     safeInnerType,
     commonType,
@@ -1645,6 +1648,7 @@ function createResolveNodeType(babelNodeType, t, {
     getMemberProperty,
     followTypeAliasChain,
     applySubst,
+    shadowMethodTypeParams,
     applyAliasSubstDeep,
     isNullableOrNeverAnnotation,
     getTypeMembers: (...args) => getTypeMembers(...args),
@@ -1657,7 +1661,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveIndexedAccessMemberAnnotationAST,
   });
   ({ functionTypeReturnAnnotation, findExpressionAnnotation, buildCallSiteSubst } = callResolutionCluster);
-  const { resolveCallReturnType, resolveIndexSignatureValue, indexAccessKeyKind } = callResolutionCluster;
+  const { resolveCallReturnType, resolveIndexSignatureValue, indexAccessKeyKind, shadowedAliasReturnAnnotation } = callResolutionCluster;
 
   // type-annotation-resolve cluster: ResolveTypeAnnotation + named-utility-type dispatch.
   // instantiated here because it consumes typeQuery / call-resolution / element-types
@@ -1683,6 +1687,7 @@ function createResolveNodeType(babelNodeType, t, {
     safeInnerType,
     followTypeAliasChain,
     applySubst,
+    shadowedAliasReturnAnnotation,
     resolveKnownConstructor,
     typeFromHint,
     resolveInnerType,
@@ -1692,7 +1697,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNonNullableAnnotation,
     resolveAwaitedAnnotation,
     resolveReturnTypeFromTypeQuery,
-    functionTypeReturnAnnotation,
     resolveTypeQueryBinding,
     resolveTypeQuery,
     unwrapPromise,
@@ -1745,6 +1749,7 @@ function createResolveNodeType(babelNodeType, t, {
     buildParentClassSubstFromNodes,
     substMembers,
     applySubst,
+    shadowedAliasReturnAnnotation,
     applyAliasSubstDeep,
     applySubstToTypeRefArgs,
     findTupleElement,
