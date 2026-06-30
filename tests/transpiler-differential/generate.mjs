@@ -145,6 +145,13 @@ const D_HOSTS = [
   { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
   { id: 'param-default', strip: false, build: p => `(() => { function g(${ p.lhs } = ${ p.recv }) { return ${ p.observe }; } return g(); })()` },
   { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
+  // bodyless control-body declaration hosts: a polyfill extract emitted before the surviving residual must
+  // share the body's `{ }` block with it. `var` is required (a bodyless body cannot host a lexical
+  // declaration); `if (1)` / `while (0)` run the body once so the binding is assigned. without the block a
+  // do-while body holding two statements is unparsable and an `if` residual escapes the guard - both surface
+  // as a transform crash / runtime mismatch here, so these are the durable backstop for the block-wrap
+  { id: 'bodyless-if', strip: true, build: p => `(() => { if (1) var ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
+  { id: 'bodyless-do-while', strip: true, build: p => `(() => { do var ${ p.lhs } = ${ p.recv }; while (0); return ${ p.observe }; })()` },
 ];
 
 function * generateDestructure() {

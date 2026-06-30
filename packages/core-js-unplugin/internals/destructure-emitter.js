@@ -202,6 +202,19 @@ export function createDestructureEmitter({
     return isMulti && isBodylessStatementBody(hostPath) ? `{ ${ src } }` : src;
   }
 
+  // emit a polyfill-extract statement that must precede a destructure declaration's surviving residual.
+  // a braced or top-level host inserts it directly. a BODYLESS control body holds a single statement, so a
+  // preceding extract beside the residual would escape the guard (the residual's key SE then runs even when
+  // the control is not taken) or - in a do-while - be unparsable. defer those: accumulate per declaration
+  // and block-wrap the body once at flush. mirrors babel's `insertBefore` auto-block on a bodyless body
+  function emitPrecedingDeclStatement({ declPath, insertPos, text }) {
+    if (isBodylessStatementBody(declPath)) {
+      bodylessBlockWrapEntry(declPath.node).before.push(text);
+    } else {
+      transforms.insert(insertPos, text);
+    }
+  }
+
   // emit the shared "conditional destructure left untouched" debug-warn when a fromFallback prop's
   // per-branch synth-swap could not be registered (no resolvable fallback receiver, or an unviable
   // pattern). gated on a GENUINE candidate (some branch actually polyfills the key) via the shared
@@ -289,11 +302,19 @@ export function createDestructureEmitter({
   // `emit(text)` routes the copy to its branch-specific sink (trailing sibling / flatten slot /
   // standalone insert / assignment overwrite)
   const pendingReceiverCopies = [];
-  // bodyless-control assignment statement node -> its appended nested-instance overwrites. a
-  // bodyless control body (`if (c) STMT;`) holds one statement, so the overwrites must join STMT
-  // inside a `{ }` block (else they run unconditionally) - accumulated here and block-wrapped once
-  // at flush (a multi-element pattern appends several to the same statement)
-  const pendingBodylessAssignOverwrites = new Map();
+  // bodyless-control statement node -> the polyfill statements that must share its `{ }` block. a bodyless
+  // control body (`if (c) STMT;`) holds ONE statement, so anything emitted beside the residual must join it in
+  // a block - else a preceding extract's residual escapes the guard (its key SE runs unconditionally), a
+  // do-while body holding two statements is unparsable, or a trailing overwrite runs even when not taken.
+  // `before` runs ahead of the residual (a preceding SE-key / array-wrapper extract), `after` behind it (a
+  // nested-instance assignment overwrite). accumulated here (a multi-element pattern pushes several) and
+  // block-wrapped once at flush, mirroring babel's `insertBefore` auto-block on a bodyless body
+  const pendingBodylessBlockWraps = new Map();
+  function bodylessBlockWrapEntry(node) {
+    let entry = pendingBodylessBlockWraps.get(node);
+    if (!entry) pendingBodylessBlockWraps.set(node, entry = { node, before: [], after: [] });
+    return entry;
+  }
   // declarator node -> its skipped pendingDestructuring info, for declarators that share a
   // VariableDeclaration with a proxy-global flatten declarator. the byStatement emit skips them
   // (a second whole-declaration overwrite would collide on the flatten's range); instead the
@@ -2000,8 +2021,11 @@ export function createDestructureEmitter({
     const declaration = declPath?.node;
     if (declaration?.type !== 'VariableDeclaration') return false;
     const hostNode = declPath.parentPath?.node;
-    // for-of / for-in head binding can host neither a preceding statement nor a sibling declarator
-    if (hostNode?.type === 'ForOfStatement' || hostNode?.type === 'ForInStatement') return false;
+    // a for-of / for-in HEAD binding (`for (var { [se]: f } of R)`) can host neither a preceding statement
+    // nor a sibling declarator, so bail - but ONLY for the head. the SAME node types host an unbraced BODY
+    // (`for (x of y) var { [se]: f } = R`), where the residual + extract block-wrap like any bodyless body;
+    // keying on the type alone dropped the polyfill there (the body was mistaken for the head)
+    if ((hostNode?.type === 'ForOfStatement' || hostNode?.type === 'ForInStatement') && hostNode.left === declaration) return false;
     const pureResult = resolvePure(meta, metaPath);
     if (!pureResult) return false;
     const isForInit = hostNode?.type === 'ForStatement' && hostNode.init === declaration;
@@ -2117,7 +2141,8 @@ export function createDestructureEmitter({
         // dropping the destructure - and every sibling binding - out of the export. matches babel
         const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
         const extraction = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ copyExpr };`;
-        transforms.insert(exportNode ? exportNode.start : declaration.start, `${ hoist }${ extraction }\n`);
+        emitPrecedingDeclStatement({ declPath, insertPos: exportNode ? exportNode.start : declaration.start,
+          text: `${ hoist }${ extraction }\n` });
       }
     }
     if (!plan.instance) {
@@ -2174,11 +2199,9 @@ export function createDestructureEmitter({
       const overwrite = `${ bindingId.name } = ${ binding }(${ text });`;
       if (isBodylessStatementBody(statement)) {
         // bodyless control body: the overwrite must join STMT inside a `{ }` (else it runs even when
-        // the guard is false). accumulate per-statement; one block-wrap at flush keeps multi-element
+        // the guard is false). accumulate behind the residual; one block-wrap at flush keeps multi-element
         // patterns (each appends an overwrite) from emitting nested / duplicated braces
-        let entry = pendingBodylessAssignOverwrites.get(statement.node);
-        if (!entry) pendingBodylessAssignOverwrites.set(statement.node, entry = { statement, overwrites: [] });
-        entry.overwrites.push(overwrite);
+        bodylessBlockWrapEntry(statement.node).after.push(overwrite);
       } else {
         transforms.insert(statement.node.end, `\n${ overwrite }`);
       }
@@ -2430,7 +2453,8 @@ export function createDestructureEmitter({
     const hostNode = isExport ? declaration.parentPath.node : declaration.node;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     const kw = isExport ? `export ${ declarationKind }` : declarationKind;
-    transforms.insert(hostNode.start, `${ kw } ${ localId.name } = ${ binding };\n`);
+    emitPrecedingDeclStatement({ declPath: declaration, insertPos: hostNode.start,
+      text: `${ kw } ${ localId.name } = ${ binding };\n` });
     // rename the consumed key to `_unused`: the residual array destructure keeps its shape
     const keySrc = propNode.computed ? `[${ nodeSrc(propNode.key) }]` : propNode.key.name;
     transforms.add(propNode.start, propNode.end, `${ keySrc }: ${ injector.generateUnusedName() }`);
@@ -3328,15 +3352,17 @@ export function createDestructureEmitter({
       }
     }
 
-    // block-wrap bodyless-control nested-instance assignment overwrites: replace the bodyless body
-    // statement with `{ <stmt>; <overwrites> }` so the overwrites stay conditional. one overwrite
-    // per element of a multi-element pattern, joined into the single block (`composedRangeSrc`
-    // folds any inner rewrite of the statement so the range overwrite is queue-safe)
-    for (const { statement, overwrites } of pendingBodylessAssignOverwrites.values()) {
-      transforms.add(statement.node.start, statement.node.end,
-        `{ ${ composedRangeSrc(statement.node) }\n${ overwrites.join('\n') } }`);
+    // block-wrap each bodyless-control statement that gained polyfill statements: overwrite the body with
+    // `{ <before> <residual> <after> }` so a preceding extract's residual stays under the guard (its key SE
+    // runs once, only when taken), a trailing overwrite stays conditional, and a do-while body holds a single
+    // statement. `composedRangeSrc` folds the residual's key-rename / receiver rewrites so the range overwrite
+    // is queue-safe; `before` extracts carry their trailing `;\n`. ordered after the receiver-copy drain so a
+    // deferred instance copy has routed its extract / overwrite into this map
+    for (const { node, before, after } of pendingBodylessBlockWraps.values()) {
+      transforms.add(node.start, node.end,
+        `{ ${ before.join('') }${ composedRangeSrc(node) }${ after.length ? `\n${ after.join('\n') }` : '' } }`);
     }
-    pendingBodylessAssignOverwrites.clear();
+    pendingBodylessBlockWraps.clear();
   }
 
   return {
