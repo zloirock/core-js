@@ -57,6 +57,10 @@ function patternSlotHost(refNode, refPath) {
     const { node: w } = cur;
     // only a property VALUE is a slot; a key (esp. computed `{ [ref]: x }`) is a reference
     if ((w.type === 'Property' || w.type === 'ObjectProperty') && w.value !== node) return null;
+    // only the LEFT of a default is a slot; the default VALUE (`x = C` / `{ a = C }`) is a real
+    // reference (`C` is read when the slot is absent), which babel's referencePaths keeps - excluding
+    // it as a declaration would drop `C`'s escaping read and unsoundly narrow `C`'s type
+    if (w.type === 'AssignmentPattern' && w.right === node) return null;
     node = w;
     cur = cur.parentPath;
   }
