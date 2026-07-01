@@ -583,13 +583,17 @@ function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
   if (type !== 'Identifier') return false;
   const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
   if (!entry) return false;
+  // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
+  // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
+  // to the whole receiver and lose the `.iterator` slot
+  if (bindingSymbolKey(entry.binding, adapter.packages) !== null) return true;
   // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
   // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
   // user-aliased polyfill packages from `additionalPackages`)
   if (entry.init) return isSymbolSourcedKey({
     node: entry.init, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
   });
-  return bindingSymbolKey(entry.binding, adapter.packages) !== null;
+  return false;
 }
 
 // Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
