@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
-// PROMISE_SYNONYMS aliases PromiseLike / Thenable to Promise upfront in
-// resolveNamedType. probe whether mixed PromiseLike + Promise chains unwrap
+// The named-type resolution aliases PromiseLike / Thenable to Promise upfront.
+// probe whether mixed PromiseLike + Promise chains unwrap
 // transparently to the inner type via Awaited.
 type Pulled = Awaited<PromiseLike<Promise<number[]>>>;
 declare const arr: Pulled;
