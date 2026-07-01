@@ -432,10 +432,12 @@ function createResolveNodeType(babelNodeType, t, {
       // declaration. the shadow test needs the binding SCOPE only, so use the const-agnostic lookup
       // (`constantBindingPath` would miss a reassigned `let Enum` and read the enum value under it)
       if (enumIsNearestValue(objectName, scope, bindingDeclaratorPath(objectName, scope))) {
-        const enumDecl = findEnumDeclaration(objectName, scope);
-        const member = enumDecl && findEnumMember(enumDecl, memberName);
-        const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
-        if (initValue !== null) return initValue;
+        // TS merges enum blocks - the member may live in any block
+        for (const enumDecl of findAllEnumDeclarations(objectName, scope)) {
+          const member = findEnumMember(enumDecl, memberName);
+          const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
+          if (initValue !== null) return initValue;
+        }
       }
     }
     return null;
@@ -469,7 +471,7 @@ function createResolveNodeType(babelNodeType, t, {
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
-    findEnumDeclaration,
+    findAllEnumDeclarations,
     enumIsNearestValue,
     findAllTypeDeclarations,
     typeParamName,
@@ -811,6 +813,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveKnownConstructor,
     resolveKnownContainerType: (...args) => resolveKnownContainerType(...args),
     resolveEnumType,
+    findAllEnumDeclarations,
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     dropMapKeys,
@@ -1096,7 +1099,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') return null;
     let initPath = bindingPath.get('init');
     if (!initPath?.node) return null;
-    if (id?.typeAnnotation && isNullishInit(initPath.node)) return null;
+    if (id?.typeAnnotation && isNullishInit(initPath.node, initPath.scope)) return null;
     // zero-arg IIFE on init (`const x = (() => RHS)()`) evaluates to the function body's
     // sole expression at runtime. peel one IIFE layer when the callee is an expression-body
     // arrow with no params - downstream alias-walker then reaches RHS just like `const x = RHS`.
@@ -1145,12 +1148,15 @@ function createResolveNodeType(babelNodeType, t, {
   // guard excludes `/foo/` literals which also reuse the `Literal` node in ESTree.
   // shared `unwrapRuntimeExpr` strips ParenthesizedExpression / TS expression wrappers
   // (`null as any`, `(null)`) so the nullish-tail is recognized through user-applied wrappers
-  function isNullishInit(node) {
+  function isNullishInit(node, scope) {
     const inner = unwrapRuntimeExpr(node);
     if (!inner) return false;
     if (inner.type === 'NullLiteral') return true;
     if (inner.type === 'Literal' && inner.value === null && !inner.regex) return true;
-    if (isBareUndefinedIdentifier(inner)) return true;
+    // `undefined` is shadowable (`const undefined = X` / `(undefined) => ...`), so the bare shape ALONE is
+    // over-resolve - require no local binding too, the scope gate the docstring mandates and the sibling
+    // consumers (return-type / pattern-bindings) already apply; a shadowed local is a value, not nullish
+    if (isBareUndefinedIdentifier(inner) && !scope?.getBinding?.('undefined')) return true;
     return inner.type === 'UnaryExpression' && inner.operator === 'void';
   }
 
@@ -1528,7 +1534,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveInnerType,
     commonType,
     isNullableOrNever,
-    findEnumDeclaration,
+    findAllEnumDeclarations,
     resolveEnumMemberType,
     findTypeMember: (...args) => findTypeMember(...args),
     substituteTypeParams: (...args) => substituteTypeParams(...args),
@@ -1577,9 +1583,8 @@ function createResolveNodeType(babelNodeType, t, {
     t,
     constantBindingPath,
     bindingDeclaratorPath,
-    findEnumDeclaration,
+    findAllEnumDeclarations,
     enumIsNearestValue,
-    findDeclPathBySegments,
     withLookupPath,
     resolveEnumMemberType,
     isFunctionOrClassDeclaration,
@@ -1709,6 +1714,9 @@ function createResolveNodeType(babelNodeType, t, {
     resolveElementType,
     foldUnionTypes,
     foldIntersectionTypes,
+    commonType,
+    typesEqual,
+    innersEqual,
     findTypeMember: (...args) => findTypeMember(...args),
     findTupleElement,
     unwrapMappedTypePassthrough,
@@ -1819,7 +1827,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectFieldFlow,
     findAmbientClassPath,
     resolveArrayLiteralElement,
-    findEnumDeclaration,
+    findAllEnumDeclarations,
     resolveEnumMemberType,
     resolveEnumType,
     resolveNodeType,

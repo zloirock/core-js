@@ -76,7 +76,7 @@ export function createMemberResolve({
   resolveObjectFieldFlow,
   findAmbientClassPath,
   resolveArrayLiteralElement,
-  findEnumDeclaration,
+  findAllEnumDeclarations,
   resolveEnumMemberType,
   resolveEnumType,
   resolveNodeType,
@@ -661,23 +661,29 @@ export function createMemberResolve({
   //     `v` in `const v = E[E.A]; v.includes('A')` falls back to a generic `_includes`
   //     instead of the string-narrowed variant. computed access with non-numeric key
   //     (forward `E['A']` / index by user expr) bails - those resolve through other paths.
-  // namespace-qualified receiver: `findEnumDeclaration` accepts segment-array form to walk
+  // namespace-qualified receiver: `findAllEnumDeclarations` accepts segment-array form to walk
   // through TSModuleDeclaration anchors so `namespace N { export enum E {...} }` resolves
   function resolveEnumMemberAccess(path) {
     const segments = collectMemberSegments(path.node.object);
     if (!segments) return null;
-    // findEnumDeclaration accepts both string and segment array - single-segment arrays
-    // cache through the same key as their joined-string form (`['E'].join('.') === 'E'`)
-    const enumDecl = findEnumDeclaration(segments, path.scope);
-    if (!enumDecl) return null;
+    // findAllEnumDeclarations accepts both string and segment array. TS merges multiple `enum E {}`
+    // blocks, so a member may live in any block - search them all (a single-block enum yields one)
+    const enumDecls = findAllEnumDeclarations(segments, path.scope);
+    if (!enumDecls.length) return null;
     // `E.A` (Identifier) / `E['A']` (computed StringLiteral / ESTree Literal) / `` E[`A`] `` / a
     // SE-bearing key `E[(c++, 'A')]` - all look up the same member (staticMemberKeyName folds the SE
     // tail); numeric / dynamic keys fall through to the reverse-map fallback below
     const memberName = staticMemberKeyName(path.node);
-    if (memberName !== null) return resolveEnumMemberType(enumDecl, memberName);
+    if (memberName !== null) {
+      for (const decl of enumDecls) {
+        const memberType = resolveEnumMemberType(decl, memberName);
+        if (memberType) return memberType;
+      }
+      return null;
+    }
     // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string
     if (!path.node.computed) return null;
-    if (resolveEnumType(enumDecl)?.type !== 'number') return null;
+    if (!enumDecls.every(decl => resolveEnumType(decl)?.type === 'number')) return null;
     return resolveNodeType(path.get('property'))?.type === 'number' ? new $Primitive('string') : null;
   }
 
