@@ -86,9 +86,7 @@ if (PATCH) {
       // ^(? + rx + ) is needed, in combination with some str slicing, to
       // simulate the 'y' flag.
       reCopy = new RegExp('^(?:' + source + ')', flags);
-    }
-
-    if (NPCG_INCLUDED) {
+    } else if (NPCG_INCLUDED) {
       reCopy = new RegExp('^' + source + '$(?!\\s)', flags);
     }
     if (UPDATES_LAST_INDEX_WRONG) lastIndex = re.lastIndex;
