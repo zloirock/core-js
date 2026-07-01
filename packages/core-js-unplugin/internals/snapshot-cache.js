@@ -69,11 +69,18 @@ const HMR_TIMESTAMP_RE = /[&?]t=\d+(?:\.\d+)?(?=[#&]|$)/g;
 function stripHMRTimestamp(id) {
   // HMR markers are query tokens: Vite uses `?t=<ms>` (first query) or `&t=<ms>` (appended to an
   // existing query). a `t=` BEFORE the first `?` is literal path text - restricting the strip to
-  // the query portion stops a path `&t=N` from colliding with the bare path key
-  const queryStart = id.indexOf('?');
+  // the query portion stops a path `&t=N` from colliding with the bare path key.
+  // the query ends at `#`: a `?` that sits AFTER a `#` is opaque fragment text (`file.js#frag?t=1`),
+  // NOT a query, so split the fragment off FIRST and re-append it verbatim. otherwise `indexOf('?')`
+  // would find the in-fragment `?` and strip its `?t=N` -> two ids differing only in fragment collapse
+  // to one key (and the regex's `$` boundary would also over-strip a trailing in-fragment marker)
+  const hashStart = id.indexOf('#');
+  const fragment = hashStart === -1 ? '' : id.slice(hashStart);
+  const beforeHash = hashStart === -1 ? id : id.slice(0, hashStart);
+  const queryStart = beforeHash.indexOf('?');
   if (queryStart === -1) return id;
-  const path = id.slice(0, queryStart);
-  const query = id.slice(queryStart);
+  const path = beforeHash.slice(0, queryStart);
+  const query = beforeHash.slice(queryStart);
   HMR_TIMESTAMP_RE.lastIndex = 0;
   if (!HMR_TIMESTAMP_RE.test(query)) return id;
   let stripped = query.replaceAll(HMR_TIMESTAMP_RE, '');
@@ -82,7 +89,7 @@ function stripHMRTimestamp(id) {
   if (query.startsWith('?t=') && stripped.startsWith('&')) stripped = `?${ stripped.slice(1) }`;
   return path + stripped
     .replace(/\?&/, '?')
-    .replace(/[&?]$/, '');
+    .replace(/[&?]$/, '') + fragment;
 }
 
 // build the cache key from the SAME structured parse the SFC DETECTION uses (`parseModuleId`), so the
@@ -96,7 +103,12 @@ function stripHMRTimestamp(id) {
 function normalizeKey(id) {
   const { path, params, hash } = parseModuleId(stripHMRTimestamp(id));
   if (isSfcSubBlock(params)) {
-    const tokens = [...params].map(([key, value]) => value === '' ? key : `${ key }=${ value }`).sort();
+    // re-encode each decoded key/value before the `&`/`=` join: a decoded `&` or `=` inside a value
+    // (`a=x%26y` -> value `x&y`) would otherwise re-parse as extra tokens, colliding distinct param sets
+    // on one key. re-encoding also folds `+`/`%20` (both decode to space) onto one canonical spelling
+    const tokens = [...params].map(([key, value]) => value === ''
+      ? encodeURIComponent(key)
+      : `${ encodeURIComponent(key) }=${ encodeURIComponent(value) }`).sort();
     return `${ normalizePath(path) }?${ tokens.join('&') }${ hash }`;
   }
   return normalizePath(path);
