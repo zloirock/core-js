@@ -2,7 +2,7 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2;
 // `ReturnType<Fn>` of a generic alias whose function has a signature-local `<T>` and returns a STRUCTURAL
-// type (`<T>() => { x: T }`): resolving a member of that ReturnType goes through the getTypeMembers member-
+// type (`<T>() => { x: T }`): resolving a member of that ReturnType goes through the member-
 // enumeration path, which must shadow the `<T>` before folding the alias subst - else the enclosing
 // `Fn<string[]>` captures it and `r.x` resolves to `string[]`, injecting the array-specific helper on a value
 // that is NOT an array (the real return is the signature-local, unconstrained). shadowed -> unknown, usage-
