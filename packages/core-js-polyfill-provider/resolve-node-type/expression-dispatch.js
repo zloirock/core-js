@@ -69,7 +69,9 @@ export function createExpressionDispatch({
     // so a bare Identifier degrades to the foreign nominal `$Object('X')` and misses an `extends
     // Array`/`Set` base without the ambient-index fallback estree-toolkit gets from `scope.bindings`)
     const classPath = resolveExpressionToClassPath(callee);
-    if (classPath) return resolveClassInheritance(classPath) || new $Object('Object');
+    // resolveClassInheritance now distinguishes base-less (-> `Object`) from unknowable super (-> null /
+    // generic), so no `|| $Object('Object')` floor - that would re-suppress the unknowable case
+    if (classPath) return resolveClassInheritance(classPath);
     const resolved = resolveRuntimeExpression(callee);
     // callee resolves to a TSConstructorType signature (or TSFunctionType - they share the
     // `returnType` slot and `functionTypeReturnAnnotation` treats both identically). example:
@@ -175,7 +177,8 @@ export function createExpressionDispatch({
         // narrowing rewrote static aliases of `class C extends Array` to instance helpers
         // (native TypeError became a silent undefined)
         if (context.isStatic) return new $Object('Function');
-        return resolveClassInheritance(context.classPath) || new $Object('Object');
+        // base-less `this` -> Object; unknowable super -> null (generic), not a re-suppressing Object floor
+        return resolveClassInheritance(context.classPath);
       }
       case 'NewExpression':
         return resolveNewExpressionType(path);
