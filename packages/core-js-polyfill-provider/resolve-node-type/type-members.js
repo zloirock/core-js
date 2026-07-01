@@ -16,6 +16,7 @@ import { canonicalArrayIndex, KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESE
 import {
   interfaceBodyMembers,
   isInterfaceDeclaration,
+  isReadonlyArrayType,
   isTypeAlias,
   isUnionType,
   synthInterfaceExtendsRef,
@@ -451,7 +452,12 @@ export function createTypeMembers({
     // gated on arrayCheckElement being non-null - i.e. the check IS an array, so it genuinely
     // extends Array<infer U> and the true branch is the firing one
     const inferName = arrayElementInferName(aliased.extendsType);
-    const inferElement = inferName ? arrayElementType(checkSubst) : null;
+    // a readonly check side (`readonly string[]`) is NOT assignable to a MUTABLE `Array<infer U>` pattern -
+    // TS picks the FALSE branch. bind U only when the pattern is itself readonly OR the check is mutable;
+    // else arrayElementType's readonly-peel would wrongly match and fire the TRUE branch (over-resolve)
+    const inferElement = inferName
+      && (isReadonlyArrayType(aliased.extendsType) || !isReadonlyArrayType(checkSubst))
+      ? arrayElementType(checkSubst) : null;
     if (inferElement) {
       const threadedSubst = new Map(innerSubst);
       threadedSubst.set(inferName, inferElement);
