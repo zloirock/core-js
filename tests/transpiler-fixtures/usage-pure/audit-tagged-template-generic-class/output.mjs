@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // Tagged template against a class instance method whose return type uses generic subst.
-// resolveClassMember -> resolveReturnType -> buildTypeParamMap with callPath = TTE.
+// resolving the class member's return type builds a type-param map with callPath = TTE.
 // callPath.get('arguments') has no .node on TTE - exercises that fallback path.
 declare class Box<T> {
   pull<U>(strs: TemplateStringsArray): U[];

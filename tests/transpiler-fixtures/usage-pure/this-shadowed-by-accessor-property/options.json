@@ -12,6 +12,14 @@
     ]
   ],
   "parserOpts": {
-    "plugins": ["decoratorAutoAccessors", ["decorators", { "version": "2023-11" }]]
+    "plugins": [
+      "decoratorAutoAccessors",
+      [
+        "decorators",
+        {
+          "version": "2023-11"
+        }
+      ]
+    ]
   }
 }

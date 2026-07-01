@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// findAmbientFunctionPath / walkAmbientDeclarationPath: ambient function
-// declared inside a namespace block. Use through ReturnType<typeof NS.makeArr>
-// path which uses findNamespacedFunctionPath to traverse module-decl segments
+// ambient-function path lookup: ambient function declared inside a namespace block.
+// Used through the ReturnType<typeof NS.makeArr> path, which traverses the module-decl
+// segments to resolve the namespaced function.
 declare namespace NS {
   function makeArr(): number[];
 }

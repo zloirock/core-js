@@ -1,5 +1,5 @@
 // User-declared `function _ref` shadows plugin's slot 1. Plugin allocator
-// must consult scope binding (babel) / collectAllBindingNames (unplugin)
+// must consult scope binding (babel) / collected binding names (unplugin)
 // and pick `_ref2` instead. Test verifies bare-slot shadow path
 function _ref(x) {
   return x.find(item => item > 0);

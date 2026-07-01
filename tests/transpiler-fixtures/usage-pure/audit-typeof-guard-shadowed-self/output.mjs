@@ -1,5 +1,5 @@
 import _at from "@core-js/pure/actual/instance/at";
-// user-shadowed `self` parameter must defeat the instanceof guard's globalProxyMemberName
+// user-shadowed `self` parameter must defeat the instanceof guard's global-proxy member
 // resolution. `x instanceof self.Array` reads `Array` off the LOCAL `self` param, not the
 // real global - so the runtime type of `x` is opaque and `.at` must NOT specialize to
 // `_atMaybeArray`. without scope threading on the global-proxy lookup, the shadow goes
