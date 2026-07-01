@@ -3,4 +3,4 @@ namespace N {
   class C {}
 }
 declare const c: C;
-export const r = c.flat();
+export const r = c.at(0);

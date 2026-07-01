@@ -1,7 +1,8 @@
-// resolveEnumMemberKind classifies UnaryExpression with operator +/-/~ as 'number' regardless
-// of operand shape. `+'42'` evaluates to a number at runtime, so the kind is correctly 'number'.
-// TS would actually reject this as a non-constant expression for numeric enums but we stay
-// permissive on operand-shape inference. distinct methods per line probe the narrowed type.
+// enum-member kind classification treats a UnaryExpression with operator +/-/~ as 'number'
+// regardless of operand shape. `+'42'` evaluates to a number at runtime, so the kind is
+// correctly 'number'. TS would actually reject this as a non-constant expression for numeric
+// enums but we stay permissive on operand-shape inference. distinct methods per line probe the
+// narrowed type.
 enum N {
   A = +'42',
   B = -3,
