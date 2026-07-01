@@ -34,7 +34,7 @@
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
-import { isUnionType, primitiveTypeKind, selectOverloadByArgKinds, typeRefName } from './ast-shapes.js';
+import { isUnionType, typeRefName } from './ast-shapes.js';
 import { getTypeArgs, isCleanDestructureAliasBinding } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -51,6 +51,7 @@ export function createCallResolution({
   resolveNodeType,
   resolveRuntimeExpression,
   resolveReturnType,
+  foldOverloadReturns,
   findAmbientFunctionPath,
   findAmbientFunctionPaths,
   resolveFromMemberExpression,
@@ -117,28 +118,26 @@ export function createCallResolution({
     // ambient `declare function` (not in scope.bindings) keyed by Identifier name. cast-on-
     // callee shapes (`(fn as () => T)()`, `fn!()`) hit `findExpressionAnnotation` below
     if (t.isIdentifier(callee.node)) {
-      const ambient = selectAmbientFunctionOverload(callee.node.name, callee.scope, callee.parentPath);
-      if (ambient) return resolveReturnType(ambient, callee.parentPath);
+      const ambient = resolveAmbientFunctionReturn(callee.node.name, callee.scope, callee.parentPath);
+      if (ambient !== undefined) return ambient;
     }
     // chained alias `const f = getArr; f()`: ambient probe by callee name 'f' missed; retry
     // against walked Identifier so the ambient return type reaches downstream member chains
     if (resolved.node?.type === 'Identifier' && resolved.node !== callee.node) {
-      const ambient = selectAmbientFunctionOverload(resolved.node.name, resolved.scope, callee.parentPath);
-      if (ambient) return resolveReturnType(ambient, callee.parentPath);
+      const ambient = resolveAmbientFunctionReturn(resolved.node.name, resolved.scope, callee.parentPath);
+      if (ambient !== undefined) return ambient;
     }
     return resolveCallReturnTypeFromAnnotation(callee, signatureKind);
   }
 
-  // ambient `declare function` overloads are arg-discriminated like interface method overloads: pick the
-  // overload whose params match the call args (shared `selectOverloadByArgKinds`), else the first declared.
-  // a single declaration returns itself; the call return then comes from the SELECTED overload, not always
-  // the first (`declare function parse(x: string): string[]; parse(x: number): string` on `parse(123)`)
-  function selectAmbientFunctionOverload(name, scope, callPath) {
+  // ambient `declare function` overloads are arg-discriminated like interface method overloads, so the call
+  // return resolves through the shared `foldOverloadReturns`: arg-match one overload, else WIDEN the divergent
+  // set to generic rather than hand back one arm's type-specific Maybe (ie:11 throw on a foreign return).
+  // `undefined` -> not an ambient function (caller falls through); `null` -> ambient but generic
+  function resolveAmbientFunctionReturn(name, scope, callPath) {
     const paths = findAmbientFunctionPaths(name, scope);
-    if (!paths.length) return null;
-    const argPaths = callPath?.get('arguments') ?? [];
-    const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
-    return selectOverloadByArgKinds(paths, p => p.node.params, argKinds) ?? paths[0];
+    if (!paths.length) return undefined;
+    return foldOverloadReturns(paths, p => p.node.params, p => resolveReturnType(p, callPath), p => p.node.returnType, callPath);
   }
 
   // resolve aliased static-method call return type. tries each alias shape's extractor
@@ -368,12 +367,17 @@ export function createCallResolution({
     if (!members) return null;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
-      // honor accessor kind like findTypeMember: a setter is write-only - skip to a paired getter
-      // (else its signature is mis-read as the readable member type); a getter falls through to its
-      // RETURN type; a plain method yields the full signature
-      if (m.type === 'TSMethodSignature' && m.kind === 'set') continue;
-      const isMethodProper = m.type === 'TSMethodSignature' && m.kind !== 'get';
-      const raw = isMethodProper ? m : (m.typeAnnotation ?? m.returnType ?? m.value);
+      // honor accessor kind like findTypeMember (keep the shape handling in sync): a setter is write-only
+      // - skip to a paired getter (any parser shape, not just TSMethodSignature); a GETTER yields its
+      // RETURN type - babel carries it on the node, oxc/ESTree nests it on `value.returnType` (a class
+      // getter as a `(TSAbstract)MethodDefinition` whose `.value` is a TSEmptyBodyFunctionExpression),
+      // so the bare `?? m.value` read the FUNCTION and lost the chain past the getter; a plain method
+      // signature yields the full signature (caller peels the return)
+      if (m.kind === 'set') continue;
+      let raw;
+      if (m.kind === 'get') raw = m.typeAnnotation ?? m.returnType ?? m.value?.returnType;
+      else if (m.type === 'TSMethodSignature') raw = m;
+      else raw = m.typeAnnotation ?? m.returnType ?? m.value;
       if (!raw) continue;
       return { annotation: applySubst(raw, subst), scope };
     }

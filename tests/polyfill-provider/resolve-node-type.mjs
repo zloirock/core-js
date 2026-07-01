@@ -4861,6 +4861,60 @@ runBoth('discriminant narrow holds across a function boundary when a non-discrim
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
+// a DISCRIMINANT field write in a deferred-execution region (loop body re-runs per iteration; a function
+// body defers to invocation) flips the variant the OUTER guard tested before the use re-reads it - the narrow
+// must DROP (a stale type-specific Maybe would throw on the re-tagged variant). the write textually FOLLOWS
+// the use, so the straight-line interval misses it - the guard interval extends over the deferred region
+const VARIANT = 'type V = { kind: "a"; arr: number[] } | { kind: "b"; arr: string };\n';
+for (const [variant, code] of [
+  ['loop body', `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) {\n      s.arr.at(0);\n      s.kind = "b";\n    }\n  }\n}`],
+  ['function boundary', `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    const g = () => { s.arr.at(0); };\n    s.kind = "b";\n    g();\n  }\n}`],
+]) {
+  runBoth(`discriminant narrow drops on a discriminant write in a deferred region: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } stale variant narrow dropped`, !(resolved && resolved.constructor === 'Array'), true);
+  });
+}
+// a NON-discriminant write in a loop must NOT drop (same variant); a guard INSIDE the loop re-narrows each
+// iteration so it survives its own discriminant write
+runBoth('discriminant narrow holds across a loop when a non-discriminant field is written',
+  'type W = { kind: "a"; arr: number[]; data: number } | { kind: "b"; arr: string; data: number };\n'
+  + 'function f(s: W, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) {\n      s.arr.at(0);\n      s.data = 9;\n    }\n  }\n}',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('discriminant narrow inside a loop re-narrows each iteration past its own discriminant write',
+  `${ VARIANT }function f(s: V, cond: any) {\n  while (cond()) {\n    if (s.kind === "a") {\n      s.arr.at(0);\n      s.kind = "b";\n    }\n  }\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// an IIFE runs SYNCHRONOUSLY: a discriminant write AFTER it cannot reach the already-run use, so the deferred
+// bound is the IIFE call (NOT unbounded) and the narrow HOLDS. inside a loop the body re-executes, so the
+// write DOES reach the next iteration's IIFE use - it drops. a switch does not re-execute, so a write after
+// the use holds (the deferred extension is only for genuine loop back-edges)
+runBoth('discriminant narrow holds when the use is in an immediately-invoked function (IIFE)',
+  `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    (() => { s.arr.at(0); })();\n  }\n  s.kind = "b";\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('discriminant narrow drops for an IIFE inside a loop with a discriminant write',
+  `${ VARIANT }function f(s: V, cond: any) {\n  if (s.kind === "a") {\n    while (cond()) { (() => { s.arr.at(0); })(); s.kind = "b"; }\n  }\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } stale narrow dropped`, !(resolved && resolved.constructor === 'Array'), true);
+  });
+runBoth('discriminant narrow holds across a switch (no back-edge) when a discriminant field is written after',
+  `${ VARIANT }function f(s: V) {\n  if (s.kind === "a") {\n    switch (1) { case 1: s.arr.at(0); s.kind = "b"; }\n  }\n}`,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
 // an anonymous object literal whose VALUE is handed to external code (a return / call argument / default
 // export) can have its fields written from outside, so its `this.<field>` flow must NOT narrow - the
 // escape bails to the empty-closure exclusion. a module-local object (declarator / member-call) narrows
@@ -5392,5 +5446,203 @@ loopBackEdgeCase('loopReExec: while-body block let is re-created each iteration 
 // while-body `var` hoists to function scope and carries across the back-edge -> violation
 loopBackEdgeCase('loopReExec: while-body var hoists to function scope and carries',
   'function f() { while (cond) { var n = []; n.flat(); n = "s"; } }', 'n', true);
+
+// --- G-PICKARM-MAYBE: widen a heterogeneous union/overload/default instead of picking one arm ---
+// picking one arm of a divergent overload / index-signature union / present-but-unresolvable default emits a
+// type-specific Maybe helper that throws on a value matching another arm. the receiver must WIDEN to generic
+for (const [variant, code] of [
+  ['divergent overload', 'interface P { parse(x: string): number[]; parse(x: boolean): string; }\ndeclare const p: P;\nfunction g(u) { return p.parse(u).at(0); }'],
+  ['divergent ambient fn-declaration overload', 'declare function f(x: string): number[];\ndeclare function f(x: boolean): string;\nfunction g(u) { return f(u).at(0); }'],
+  ['index-signature union', 'type D = { [k: string]: number[] } | { [k: string]: string };\ndeclare const d: D;\nfunction g(k) { return d[k].at(0); }'],
+  ['default on a present-but-unresolvable arg (declared)', 'declare function f<T = number[]>(x: T): T;\nfunction g(z) { return f(z).at(0); }'],
+  ['default on a present-but-unresolvable arg (bodied body-fold)', 'function f<T = number[]>(x: T): T { return x; }\nfunction g(z) { return f(z).at(0); }'],
+  ['body-fold: a `T | null` return still references the unbound T', 'function f<T = number[]>(x: T): T | null { return x; }\nfunction g(z) { return f(z).at(0); }'],
+  ['divergent declare-class method overload', 'declare class C { m(x: string): number[]; m(x: boolean): string; }\ndeclare const c: C;\nfunction g(u) { return c.m(u).at(0); }'],
+  ['merged class+iface overload', 'class C {}\ninterface C { m(x: string): number[]; m(x: boolean): string; }\ndeclare const c: C;\nfunction g(u) { return c.m(u).at(0); }'],
+  // a divergent set where ONE arm is an unresolvable non-nullable type (bare generic `<T>`) is uncertain - the
+  // resolvable `T[]` arm must NOT win the fold (the other arm could be a foreign type)
+  ['generic overload, one arm bare `<T>` (interface)', 'interface P { m<T>(x: string): T[]; m<T>(x: boolean): T; }\ndeclare const p: P;\nfunction g(u) { return p.m(u).at(0); }'],
+  ['generic overload, one arm bare `<T>` (ambient fn)', 'declare function f<T>(x: string): T[];\ndeclare function f<T>(x: boolean): T;\nfunction g(u) { return f(u).at(0); }'],
+  ['generic overload, one arm bare `<T>` (class)', 'declare class C { m<T>(x: string): T[]; m<T>(x: boolean): T; }\ndeclare const c: C;\nfunction g(u) { return c.m(u).at(0); }'],
+  // the same "one unresolvable non-nullable arm makes the set uncertain" applies to the index-signature union fold
+  ['index-sig union unresolvable branch', 'type D = { [k: string]: number[] } | { [k: string]: NotDefinedType };\ndeclare const d: D;\nfunction g(k) { return d[k].at(0); }'],
+]) {
+  runBoth(`pickarm widens not picks: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed to an arm`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// literal-discriminated overloads (`get('a'): A; get('b'): B`) are NOT divergent - TS picks by the literal
+// arg, so the receiver narrows PRECISELY (the widen must not over-broaden them)
+runBoth('pickarm: literal overload narrows precisely (string arm)',
+  'interface D { get(k: "a"): string; get(k: "b"): number; }\ndeclare const d: D;\nd.get("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: true, kind: 'string' });
+  });
+runBoth('pickarm: literal overload narrows precisely (array arm)',
+  'interface D { get(k: "a"): string; get(k: "c"): string[]; }\ndeclare const d: D;\nd.get("c").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// the literal match handles MIXED literal+keyword params (`get(k: 'a', x: number)`) and ambient fn-decl overloads
+runBoth('pickarm: mixed literal+keyword overload param narrows precisely',
+  'interface D { get(k: "a", x: number): string[]; get(k: "b", x: number): number; }\ndeclare const d: D;\nd.get("a", 5).at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: literal ambient fn-declaration overload narrows precisely',
+  'declare function f(x: "a"): string[];\ndeclare function f(x: "b"): number;\nf("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// the same arg-discrimination applies to declare-class method overloads (literal arg -> precise arm) and
+// merged class+interface overloads - findClassMember / resolveMemberFromMembers must not pick the last/first arm
+runBoth('pickarm: declare-class method literal overload narrows precisely',
+  'declare class C { m(x: "a"): string[]; m(x: "b"): number; }\ndeclare const c: C;\nc.m("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: declare-class method keyword overload narrows by arg kind',
+  'declare class C { m(x: string): number[]; m(x: boolean): string; }\ndeclare const c: C;\nc.m("s").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: merged class+interface literal overload narrows precisely',
+  'class C {}\ninterface C { m(x: "a"): string[]; m(x: "b"): number; }\ndeclare const c: C;\nc.m("a").at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// a NULLABLE / never overload arm IS empty and stays skippable - the widen must not over-broaden a divergent
+// set whose only "other" arm is `undefined` / `never` (the resolvable arm narrows)
+runBoth('pickarm: a nullable overload arm is skipped, resolvable arm narrows',
+  'interface P { m(x: string): number[]; m(x: boolean): undefined; }\ndeclare const p: P;\nfunction g(u) { return p.m(u).at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('pickarm: index-sig union nullable value branch skipped, resolvable narrows',
+  'type D = { [k: string]: number[] } | { [k: string]: undefined };\ndeclare const d: D;\nfunction g(k) { return d[k].at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+// suppression: an UNKNOWABLE super must NOT masquerade as `Object` (which suppresses the polyfill); a BASE-
+// LESS class IS `Object`; a KNOWN super (Array) keeps its narrow
+runBoth('pickarm: unknowable super stays generic (no Object-suppression)',
+  'declare const Base: any;\nclass C extends Base {}\nnew C().at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not Object/Array suppression`, !(resolved && (resolved.constructor === 'Object' || resolved.constructor === 'Array')), true);
+  });
+runBoth('pickarm: base-less class IS Object',
+  'class C {}\nnew C().at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Object' });
+  });
+runBoth('pickarm: known Array super keeps the narrow',
+  'class C extends Array {}\nnew C().at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// a CLASS / declare-class GETTER returns its declared type on the node (babel) but nested on
+// `value.returnType` (oxc/ESTree, a TSEmptyBodyFunctionExpression) - the member reader must read the
+// RETURN, not the function value, so a 2-hop chain `s.value.first.at` narrows identically on both parsers
+// (the bare `?? m.value` read the function -> the next hop bailed -> parser-asymmetric import set)
+for (const [variant, code] of [
+  ['declared', 'declare class S { get value(): { first: number[] }; }\ndeclare const s: S;\ns.value.first.at(0);'],
+  ['bodied', 'class S {\n  get value(): { first: number[] } { return { first: [] }; }\n}\ndeclare const s: S;\ns.value.first.at(0);'],
+]) {
+  runBoth(`class getter member-chain narrows cross-parser: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// a binding referenced as a DEFAULT VALUE (`x = box` param-default / `{ a = box }` destructure-default) is a
+// real escaping read, NOT a binding declaration - it must keep `box` from being narrowed as a trusted anon
+// object (a stale type-specific Maybe on a value the default-holder may have mutated throws on a foreign
+// runtime value). babel's referencePaths keeps the ref; the estree walk must match (not over-exclude the slot)
+for (const [variant, code] of [
+  ['param-default', 'const box = { items: [1, 2, 3] };\nfunction use(s = box) { return s; }\nbox.items.at(0);'],
+  ['destructure-default', 'const box = { items: [1, 2, 3] };\nconst src = {};\nconst { a = box } = src;\nbox.items.at(0);'],
+]) {
+  runBoth(`default-value ref escapes the binding (no over-narrow): ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed to Array`, !(resolved && resolved.constructor === 'Array'), true);
+  });
+}
+// the LEFT of a default is still a binding declaration - an anon object with no escaping ref stays narrowed
+runBoth('default-value LEFT slot stays a binding (no escape -> narrowed)',
+  'const { a = 1 } = { a: 2 };\nconst box = { items: [1, 2, 3] };\nbox.items.at(0);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+// --- regression-guard coverage for every probed syntactic FORM (defense cycle) ---
+// S030: a discriminant write the use re-reads (loop re-execution) or that precedes a deferred invocation
+// drops the narrow to generic. one entry per distinct loop / guard / function-deferral form
+function dropAtReceiver(adapter, prog, lbl) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+  check(`${ lbl } stale narrow dropped`, !(resolved && resolved.constructor === 'Array'), true);
+}
+function arrayAtReceiver(adapter, prog, lbl) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+}
+for (const [form, code] of [
+  ['do-while', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { do { s.arr.at(0); s.kind="b"; } while(c()); } }`],
+  ['for-of', `${ VARIANT }function f(s: V, xs: any) { if (s.kind==="a") { for (const x of xs) { s.arr.at(0); s.kind="b"; } } }`],
+  ['labeled loop', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { outer: while(c()) { s.arr.at(0); s.kind="b"; } } }`],
+  ['nested loop, outer write', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { while(c()){ s.arr.at(0); } s.kind="b"; } } }`],
+  ['for-init write before use', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { for (s.kind="b"; c();) { s.arr.at(0); } } }`],
+  ['ternary arm in loop', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a") { while(c()) { const z = c() ? s.arr.at(0) : 0; s.kind="b"; } } }`],
+  ['&& logical guard', `${ VARIANT }function f(s: V, c: any) { if (s.kind==="a" && c()) { while(c()){ s.arr.at(0); s.kind="b"; } } }`],
+  ['class-method body', `${ VARIANT }class Q { m(s: V, c: any) { if (s.kind==="a") { while(c()){ s.arr.at(0); s.kind="b"; } } } }`],
+  ['nested function, invoke after write', `${ VARIANT }function f(s: V) { if (s.kind==="a") { function g() { return () => s.arr.at(0); } s.kind="b"; g()(); } }`],
+  ['async function boundary', `${ VARIANT }function f(s: V) { if (s.kind==="a") { const g = async () => { s.arr.at(0); }; s.kind="b"; g(); } }`],
+  ['callback arg escapes into a call', `${ VARIANT }function f(s: V, run: (cb: any)=>void) { if (s.kind==="a") { run(() => { s.arr.at(0); }); } s.kind="b"; }`],
+]) {
+  runBoth(`discriminant narrow drops across a deferred form: ${ form }`, code, dropAtReceiver);
+}
+// synchronous / non-re-executing forms KEEP the narrow (the write cannot reach the already-run use)
+for (const [form, code] of [
+  ['nested IIFE', `${ VARIANT }function f(s: V) { if (s.kind==="a") { (() => { (() => { s.arr.at(0); })(); })(); } s.kind="b"; }`],
+  ['early return before write', `${ VARIANT }function f(s: V) { if (s.kind==="a") { s.arr.at(0); return; s.kind="b"; } }`],
+]) {
+  runBoth(`discriminant narrow holds across a synchronous form: ${ form }`, code, arrayAtReceiver);
+}
+// S036: a class-getter member chain narrows identically across parser shapes for every getter form
+for (const [form, code] of [
+  ['generic class getter', 'declare class C<T> { get v(): { first: T[] }; }\ndeclare const c: C<number>;\nc.v.first.at(0);'],
+  ['3-hop getter', 'declare class C { get a(): { b: { c: number[] } }; }\ndeclare const c: C;\nc.a.b.c.at(0);'],
+  ['interface-merge getter', 'declare class C {}\ninterface C { get bucket(): { items: number[] }; }\ndeclare const c: C;\nc.bucket.items.at(0);'],
+  ['type-param bound by class arg', 'declare class C<T> { get val(): T; }\ndeclare const c: C<number[]>;\nc.val.at(0);'],
+  ['abstract getter', 'abstract class C { abstract get value(): { first: number[] }; }\ndeclare const c: C;\nc.value.first.at(0);'],
+]) {
+  runBoth(`class getter chain narrows for form: ${ form }`, code, arrayAtReceiver);
+}
+// S034: a binding referenced as a DEFAULT VALUE escapes (single-hop receiver stays generic) across forms
+for (const [form, code] of [
+  ['nested destructure default', 'const box = { items: [1, 2, 3] };\nconst src = { a: {} };\nconst { a: { b = box } } = src;\nbox.items.at(0);'],
+  ['array-pattern default', 'const box = { items: [1, 2, 3] };\nconst src = [];\nconst [a = box] = src;\nbox.items.at(0);'],
+  ['default through a call', 'const box = { items: [1, 2, 3] };\nfunction mk(z) { return z; }\nfunction use(s = mk(box)) {}\nbox.items.at(0);'],
+]) {
+  runBoth(`default-value ref escapes the binding for form: ${ form }`, code, dropAtReceiver);
+}
 
 finish();

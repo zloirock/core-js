@@ -42,6 +42,7 @@ export function createClassObjectMember({
   resolveRuntimeExpression,
   resolveNodeType,
   resolveReturnType,
+  foldOverloadReturns,
   resolveTypeAnnotation,
   applySubst,
   applyAliasSubstDeep,
@@ -305,6 +306,30 @@ export function createClassObjectMember({
     return resolveTypeAnnotation(ret, scope);
   }
 
+  // `declare class` / `abstract` method OVERLOADS: several same-named bodyless signatures (with no
+  // implementation, or whose impl callers never see). findClassMember's last-wins reverse-walk picks
+  // ONE signature regardless of the call args - an over-resolve emitting a type-specific Maybe on a
+  // foreign return. returns a type, null (generic), or undefined when this isn't an arg-discriminable
+  // overload set (single sig / accessor) so the caller resolves the single signature instead
+  function resolveBodylessMethodOverloads({ member, callPath, classSubst }) {
+    if (member.node.kind === 'get' || member.node.kind === 'set') return undefined;
+    const siblings = member.parentPath?.get('body');
+    if (!Array.isArray(siblings) || siblings.length < 2) return undefined;
+    const { key } = member.node;
+    const name = member.node.computed
+      ? (literalKeyValue(key) ?? singleQuasiString(key))
+      : (key?.type === 'Identifier' ? key.name : literalKeyValue(key));
+    if (name === undefined || name === null) return undefined;
+    const isStatic = !!member.node.static;
+    const overloads = siblings.filter(m => !!m.node.static === isStatic
+      && m.node.kind !== 'get' && m.node.kind !== 'set'
+      && bodylessReturnPath(m) && memberKeyMatches(m.node.key, m.node.computed, name));
+    if (overloads.length < 2) return undefined;
+    return foldOverloadReturns(overloads, m => m.node.params ?? m.node.value?.params,
+      m => resolveReturnType(bodylessReturnPath(m), callPath, classSubst),
+      m => bodylessReturnPath(m)?.node.returnType, callPath);
+  }
+
   function resolveClassMemberNode(member, callPath, classSubst) {
     const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
     // bodyless method (ambient `declare class` / `abstract`) - no body, only the return-type
@@ -314,6 +339,9 @@ export function createClassObjectMember({
     // returnType / typeParameters) on either parser, or null when there's no declared signature
     const declaredReturnPath = bodylessReturnPath(member);
     if (callPath) {
+      // arg-discriminated bodyless overload set wins over findClassMember's single last-match
+      const overloaded = resolveBodylessMethodOverloads({ member, callPath, classSubst });
+      if (overloaded !== undefined) return overloaded;
       if (methodFn) {
         const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
         if (r) return r;
@@ -379,6 +407,19 @@ export function createClassObjectMember({
 
   function resolveMemberFromMembers({ members, name, scope, callPath }) {
     if (!members) return null;
+    // overload-aware call resolution: a merged-interface / super walk can surface several same-named
+    // TS call signatures. returning the FIRST arm over-resolves a divergent overload set, so match the
+    // args to one / fold to generic (mirrors the bodyless class-method + interface paths)
+    if (callPath) {
+      const sigs = members.filter(m => !m.computed && keyMatchesName(m.key, name)
+        && m.type === 'TSMethodSignature' && m.kind !== 'get' && m.kind !== 'set');
+      if (sigs.length >= 2) {
+        return foldOverloadReturns(sigs, m => m.parameters ?? m.params, m => {
+          const rt = m.returnType ?? m.typeAnnotation;
+          return rt ? resolveTypeAnnotation(rt, scope) : null;
+        }, m => m.returnType ?? m.typeAnnotation, callPath);
+      }
+    }
     for (const member of members) {
       if (member.computed) continue;
       if (!keyMatchesName(member.key, name)) continue;

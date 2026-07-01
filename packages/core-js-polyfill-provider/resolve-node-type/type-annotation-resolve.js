@@ -268,7 +268,8 @@ export function createTypeAnnotationResolve({
         const arg = firstArg();
         const resolved = arg ? resolveTypeQueryBinding(arg, scope) : null;
         if (!(t.isClass(resolved?.node) || isAmbientClassNode(resolved?.node))) return null;
-        return resolveClassInheritance(resolved) || new $Object('Object');
+        // base-less -> Object; unknowable super -> null (generic). no `|| $Object('Object')` re-suppression
+        return resolveClassInheritance(resolved);
       }
       case 'Extract':
       case 'Exclude': {

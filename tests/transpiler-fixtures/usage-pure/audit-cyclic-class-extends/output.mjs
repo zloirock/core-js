@@ -4,7 +4,7 @@ import _at from "@core-js/pure/actual/instance/at";
 // to the generic instance-method polyfill (still emitted, not suppressed)
 class A extends B {
   foo() {
-    return this.at(0);
+    return _at(this).call(this, 0);
   }
 }
 class B extends A {}
