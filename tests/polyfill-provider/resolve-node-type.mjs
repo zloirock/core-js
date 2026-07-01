@@ -261,6 +261,25 @@ runBoth('aliased const binding -> Array', 'const a = []; const b = a;', (adapter
     { primitive: false, ctor: 'Array' });
 });
 
+// --- Nullish init vs a shadowed `undefined` binding ---
+// `let x: T = undefined` treats the init as nullish so the annotation `T` wins - but only when
+// `undefined` is the global. A local `undefined` binding makes `= undefined` a real value init,
+// which must win over the annotation (matches the runtime value the polyfill sees).
+
+runBoth('shadowed `undefined` init is a real value - wins over the annotation',
+  'let undefined = [1, 2];\nlet x: string = undefined;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('global `undefined` init is nullish - annotation wins',
+  'let x: string = undefined;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
 // --- isString / isObject predicates ---
 
 runBoth('isString("hi" init) / isObject false', 'const s = "hi";', (adapter, prog, lbl) => {
@@ -606,6 +625,250 @@ runBoth('TS conditional: nested `T extends ... ? ... : T extends ... ? A : B` wi
     const resolver = adapter.makeResolver();
     const type = resolver.resolveNodeType(decl.get('id'));
     checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// --- Readonly array is NOT assignable to a mutable `Array<infer U>` infer pattern ---
+// TS picks the FALSE branch for a `readonly T[]` / `ReadonlyArray<T>` check side against an
+// `Array<infer U>` pattern. Binding U from a readonly check would key an array-only helper to the
+// false-branch receiver, throwing on it. A `ReadonlyArray<infer U>` pattern, and any mutable check,
+// still bind U.
+
+runBoth('readonly check vs mutable `Array<infer U>` pattern picks FALSE branch',
+  'type T = readonly number[] extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('mutable check vs mutable `Array<infer U>` pattern binds U (TRUE branch)',
+  'type T = number[] extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('readonly check vs `ReadonlyArray<infer U>` pattern binds U (TRUE branch)',
+  'type T = readonly number[] extends ReadonlyArray<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly-shape probe must peel parentheses so both parsers agree (oxc keeps `(readonly T[])`
+// / `(ReadonlyArray<U>)` as TSParenthesizedType where babel strips it)
+runBoth('parenthesized readonly check side still picks FALSE branch',
+  'type T = (readonly number[]) extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('parenthesized `(ReadonlyArray<infer U>)` pattern binds a readonly check (TRUE branch)',
+  'type T = readonly number[] extends (ReadonlyArray<infer U>) ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the FALSE gate is scoped to the MUTABLE `Array<infer U>` container: a readonly array is still
+// assignable to a non-mutable-array infer pattern (`Iterable<infer U>`) and binds U there
+runBoth('readonly check binds U against an `Iterable<infer U>` pattern (readonly arrays are iterable)',
+  'type T = readonly number[] extends Iterable<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly-not-assignable-to-mutable rule generalises across collection families: `ReadonlySet` is
+// not assignable to a mutable `Set<infer U>` pattern, `ReadonlyMap` not to `Map<infer K, infer V>`
+// (a multi-param container the single-element fast-path never matches). Mutable-to-either still binds.
+runBoth('readonly Set check picks FALSE against a mutable `Set<infer U>` pattern',
+  'type T = ReadonlySet<number> extends Set<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('readonly Map check picks FALSE against a mutable `Map<infer K, infer V>` pattern',
+  'type T = ReadonlyMap<string, number> extends Map<infer K, infer V> ? K[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('mutable Set check binds U against `Set<infer U>` (TRUE control)',
+  'type T = Set<number> extends Set<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the `Readonly<X>` utility applied to a collection is that collection's readonly form (`Readonly<T[]>`
+// === `readonly T[]`), so it is not assignable to the mutable pattern either - array, tuple, Set and
+// Map spellings all take the FALSE branch; a `Readonly<{...}>` object is not a collection (unaffected)
+for (const [label, checkExpr, pattern, trueBranch] of [
+  ['Readonly array', 'Readonly<number[]>', 'Array<infer U>', 'U[]'],
+  ['Readonly tuple', 'Readonly<[number]>', 'Array<infer U>', 'U[]'],
+  ['Readonly Set', 'Readonly<Set<number>>', 'Set<infer U>', 'U[]'],
+  ['Readonly Map', 'Readonly<Map<string, number>>', 'Map<infer K, infer V>', 'K[]'],
+]) {
+  runBoth(`\`${ label }\` check picks FALSE against its mutable pattern`,
+    `type T = ${ checkExpr } extends ${ pattern } ? ${ trueBranch } : string; let r: T;`,
+    (adapter, prog, lbl) => {
+      const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+      checkType(lbl, type, { primitive: true, kind: 'string' });
+    });
+}
+
+runBoth('`Readonly<number[]>` still binds U against a non-mutable-array family (`Iterable<infer U>`)',
+  'type T = Readonly<number[]> extends Iterable<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// readonly-vs-mutable boundaries: a bare `Array` / empty readonly tuple / nested `Readonly` all take
+// FALSE; the REVERSE direction (a mutable check against a readonly pattern) still binds U because a
+// mutable collection IS assignable to its readonly view
+runBoth('readonly check against a bare (type-arg-less) `Array` pattern picks FALSE',
+  'type T = readonly number[] extends Array ? number[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('empty readonly tuple `readonly []` picks FALSE against `Array<infer U>`',
+  'type T = readonly [] extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('nested `Readonly<Readonly<number[]>>` still detected as readonly (FALSE)',
+  'type T = Readonly<Readonly<number[]>> extends Array<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('mutable check against a `ReadonlyArray<infer U>` pattern binds U (mutable IS-A readonly)',
+  'type T = number[] extends ReadonlyArray<infer U> ? U[] : string; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('readonly conditional resolved through `Awaited<...>` keeps the FALSE branch (string)',
+  'type Inner = readonly number[] extends Array<infer U> ? U[] : string; type T = Awaited<Inner>; let r: T;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('ReadonlySet check through a member-lookup conditional picks the FALSE branch (string)',
+  'type Box<X> = X extends Set<infer U> ? { v: U[] } : { v: string }; declare const c: Box<ReadonlySet<number>>; c.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+// readonly-ness is dropped when a type resolves (all readonly forms -> mutable Array/Set/Map ctor), so
+// a readonly collection reached through an ALIAS / a generic TYPE-PARAM / `Readonly<type-param>` is
+// re-detected via the resolved-Type `.readonly` marker - it still picks FALSE against the mutable pattern
+for (const [label, decls, checkExpr] of [
+  ['alias to ReadonlyArray', 'type RA = ReadonlyArray<number>;', 'RA'],
+  ['generic type-param bound to readonly array', 'type W<X> = X;', 'W<readonly number[]>'],
+  ['`Readonly<type-param>` over a collection', 'type W<X> = Readonly<X>;', 'W<number[]>'],
+]) {
+  runBoth(`readonly collection behind ${ label } still picks FALSE`,
+    `${ decls } type T = ${ checkExpr } extends Array<infer U> ? U[] : string; declare const r: T; r.at(0);`,
+    (adapter, prog, lbl) => {
+      const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+    });
+}
+
+runBoth('`Readonly<type-param>` over a NON-collection object is not tagged readonly (no false FALSE)',
+  'type W<X> = Readonly<X>; type T = W<{ a: number }> extends Array<infer U> ? U[] : string; declare const r: T; r.at(0);',
+  (adapter, prog, lbl) => {
+    // a readonly object is not a readonly collection - the conditional is FALSE via the family check,
+    // not the readonly marker (string branch), and resolves cleanly rather than binding array U
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+runBoth('readonly check through a member-lookup conditional picks the FALSE branch (string), not array U',
+  'type Box<X> = X extends Array<infer U> ? { v: U[] } : { v: string }; declare const c: Box<readonly number[]>; c.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+runBoth('mutable check through a member-lookup conditional binds array U',
+  'type Box<X> = X extends Array<infer U> ? { v: U[] } : { v: string }; declare const d: Box<number[]>; d.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+  });
+
+// the readonly rule also reaches the member-lookup path (findConditionalTypeMember -> the general
+// branch decider) for a multi-family check: a ReadonlyMap member-lookup picks the FALSE branch
+runBoth('ReadonlyMap check through a member-lookup conditional picks the FALSE branch (string)',
+  'type Box<X> = X extends Map<infer K, infer V> ? { v: K[] } : { v: string }; declare const c: Box<ReadonlyMap<string, number>>; c.v;',
+  (adapter, prog, lbl) => {
+    const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'MemberExpression'));
+    checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+
+// --- `Iterable<infer U>` pattern: array-like check sides match, Promise does not ---
+// An array is iterable, so `number[] extends Iterable<infer U>` fires the TRUE branch and binds U.
+// A Promise is NOT a plain iterable, so it must take the FALSE branch instead of binding U (which
+// would key an array-only helper to a Promise receiver).
+
+runBoth('array check side matches `Iterable<infer U>` pattern (TRUE branch)',
+  'type T = number[] extends Iterable<infer U> ? U[] : string;\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('Promise check side does not match `Iterable<infer U>` pattern (FALSE branch)',
+  'type T = Promise<number> extends Iterable<infer U> ? U[] : string;\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+// A parenthesized extends-clause (`(Array<infer U>)`) must match the same as the unparenthesized
+// form. oxc keeps the parens as TSParenthesizedType where babel strips them - both must resolve.
+runBoth('parenthesized `(Array<infer U>)` pattern matches the same as unparenthesized',
+  'type T = number[] extends (Array<infer U>) ? U[] : string;\ndeclare const r: T;\nr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// --- Extract/Exclude fold distinct string literals into an undecidable literal union ---
+// `Extract<'a' | 'b', string>` is `'a' | 'b'`; a later `extends 'a'` is FALSE (a union is not
+// assignable to a single literal), so the conditional must NOT fire the true branch. Folding to the
+// first literal alone would wrongly decide it TRUE and key an array helper to a string receiver.
+
+runBoth('Extract of two string literals stays undecidable under `extends literal` (no array over-resolve)',
+  "type E = Extract<'a' | 'b', string>;\ntype C = E extends 'a' ? number[] : string;\ndeclare const r: C;\nr.at(0);",
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkTruthy(lbl, adapter.makeResolver().resolveNodeType(recv)?.constructor !== 'Array',
+      'literal-union Extract must not resolve the true (array) branch');
+  });
+
+runBoth('Extract of a single string literal decides `extends literal` TRUE',
+  "type E = Extract<'a', string>;\ntype C = E extends 'a' ? number[] : string;\ndeclare const r: C;\nr.at(0);",
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
   });
 
 // --- Discriminant-union narrowing (`if (u.kind === 'a') { u.value }`) ---
@@ -1954,6 +2217,11 @@ const ENUM_MEMBER_CASES = [
   // const enum: constness is compile-time concern; runtime kind identical to non-const
   { label: 'const enum string', src: 'const enum E { A = "foo" } const v = E.A;', kind: 'string' },
   { label: 'const enum numeric', src: 'const enum E { A = 42 } const v = E.A;', kind: 'number' },
+  // declaration merging: TS unions members across `enum E {}` blocks; a member in a later block
+  // must still resolve, and members in the first block keep resolving
+  { label: 'decl-merge member in 2nd block (string)', src: 'enum E { A = "x" } enum E { B = "y" } const v = E.B;', kind: 'string' },
+  { label: 'decl-merge member in 2nd block (numeric)', src: 'enum E { A = 1 } enum E { B = 2 } const v = E.B;', kind: 'number' },
+  { label: 'decl-merge member in 1st block still resolves', src: 'enum E { A = "x" } enum E { B = "y" } const v = E.A;', kind: 'string' },
 ];
 
 for (const { label, src, kind } of ENUM_MEMBER_CASES) {
@@ -1979,6 +2247,57 @@ for (const { label, src } of ENUM_BAIL_CASES) {
     return fail(lbl, `expected null bail, got ${ JSON.stringify(type) }`);
   });
 }
+
+// enum declaration-merging through the `typeof` paths (separate from value-position member access):
+// a member declared in a later `enum E {}` block must resolve via typeof-member (`typeof E.B`),
+// namespaced typeof (`typeof N.E.B`), and a `typeof E` annotation member - all share the decl-merge set
+const ENUM_MERGE_TYPEOF_CASES = [
+  { label: 'typeof E.B (2nd block)', src: 'enum E { A = "x" } enum E { B = "y" } declare const r: typeof E.B; r.at(0);' },
+  { label: 'typeof N.E.B (namespaced 2nd block)', src: 'namespace N { export enum E { A = "x" } export enum E { B = "y" } } declare const r: typeof N.E.B; r.at(0);' },
+  { label: 'typeof E annotation member (2nd block)', src: 'enum E { A = "x" } enum E { B = "y" } declare const o: typeof E; const { B } = o; B.at(0);' },
+];
+
+for (const { label, src } of ENUM_MERGE_TYPEOF_CASES) {
+  runBoth(`enum decl-merge via typeof: ${ label } -> string`, src, (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+}
+
+// computed member key `o[E.B]` resolves the enum member's value to the static key name - the 2nd-block
+// member must resolve too (decl-merge), so `o[E.B]` picks the same property as `o.x` when `E.B = "x"`
+runBoth('enum decl-merge via computed key: o[E.B] resolves the 2nd-block member value',
+  'enum E { A = "z" } enum E { B = "x" } const o = { x: [1, 2] }; o[E.B].at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// whole enum type (`let x: E`) folds the value-kind across merged blocks: uniform -> that kind, a
+// cross-block kind mismatch -> generic (null), consistent with a single-block mixed enum (rather than
+// masquerading the nearest block's kind for a member declared in another block)
+runBoth('merged enum whole-type: uniform kind folds across blocks (string)',
+  'enum E { A = "x" } enum E { B = "y" } let x: E;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('merged enum whole-type: cross-block kind mismatch is generic, not the nearest block',
+  'enum E { A = "x" } enum E { B = 1 } let x: E;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkTruthy(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')) === null,
+      'mixed-kind merged enum must not resolve to one block kind');
+  });
+
+runBoth('namespaced merged enum whole-type: cross-block mismatch is generic (name-qualified fold)',
+  'namespace N { export enum E { A = "x" } export enum E { B = 1 } } let x: N.E;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkTruthy(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')) === null,
+      'namespaced mixed-kind merged enum must not resolve to one block kind');
+  });
 
 // type-position enum-member reference (`let v: E.A`) goes through resolveTypeAnnotation -
 // separate path from value-position. resolver must not crash; narrow type-ref tabulation
