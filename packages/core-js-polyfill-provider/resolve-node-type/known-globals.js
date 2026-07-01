@@ -102,8 +102,9 @@ export function createKnownGlobals({
   }
 
   // the receiver may sit behind transparent wrappers or a sequence tail
-  // (`(eff(), Array).from(x)`): peel to the runtime expression before the global lookup,
-  // matching the call dispatch's own runtime-expression peel
+  // (`(eff(), Array).from(x)`): peel those structural forms before the global lookup. this is a
+  // bounded (MAX_PEEL) structural peel - transparent wrappers / sequence-tail / simple `=`
+  // assignment only; it does NOT follow identifier bindings the way `resolveRuntimeExpression` does
   function peelToRuntimeObject(objectPath) {
     let cur = objectPath;
     for (let i = 0; i < MAX_PEEL && cur?.node; i++) {
@@ -112,7 +113,7 @@ export function createKnownGlobals({
         cur = cur.get('expressions')[cur.node.expressions.length - 1];
       } else if (type === 'AssignmentExpression' && cur.node.operator === '=') {
         // `(a = Array).from()` evaluates to the assigned value (rightmost operand) at runtime -
-        // parity with resolveRuntimeExpression, so the return type narrows off the real constructor
+        // peel to the right operand so the return type narrows off the real constructor
         cur = cur.get('right');
       } else if (type === 'ParenthesizedExpression' || type === 'ChainExpression'
         || TS_EXPR_WRAPPERS.has(type)) {

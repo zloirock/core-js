@@ -56,6 +56,16 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return resolveNodeType ? resolveNodeType(p) : null;
   }
 
+  // clone a memoized `_ref` and, when its Type is known, seed it on the SAME clone that goes into
+  // the AST so `resolveNodeType`'s WeakMap short-circuit resolves the synthesized (position-less)
+  // ref back - keying a separate clone loses the type and enhanceMeta falls to the generic variant.
+  // `resolvedType` may be undefined when wired without typeResolvers (raw AST-rewrite tooling)
+  function seededRefClone(ref, type) {
+    const clone = t.cloneNode(ref);
+    if (type) resolvedType?.set(clone, type);
+    return clone;
+  }
+
   // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement)
   function isLeadingIdentLike(node) {
     return t.isIdentifier(node) || t.isThisExpression(node) || t.isSuper(node);
@@ -183,8 +193,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       methodNode.object = t.cloneNode(receiverRef);
     }
     const [methodMemo, methodRef] = memoize(methodNode, scope, chainStart.node);
-    if (memoType) resolvedType?.set(t.cloneNode(methodRef), memoType);
-    chainStart.node.callee = t.memberExpression(t.cloneNode(methodRef), t.identifier('call'));
+    chainStart.node.callee = t.memberExpression(seededRefClone(methodRef, memoType), t.identifier('call'));
     chainStart.node.arguments = [callReceiver, ...chainStart.node.arguments.map(arg => t.cloneNode(arg))];
     // when recv is memoized, fold its assignment ahead of the method memo so it runs first
     return receiverMemo ? t.sequenceExpression([receiverMemo, methodMemo]) : methodMemo;
@@ -232,14 +241,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       if (check === null) {
         let ref;
         [check, ref] = memoize(chainStart.node[key], path.scope, chainStart.node);
-        // cache the memoized value's Type keyed on the cloned `_ref` so the synthesized ref
-        // (replacing chainStart's receiver/callee) resolves back to the memoized value's type via
-        // `resolveNodeType`'s WeakMap short-circuit - the generated `_ref` has no source position,
-        // so without this the receiver's type is lost and enhanceMeta falls to the generic variant.
-        // `resolvedType` may be undefined when wired without typeResolvers (raw AST-rewrite tooling)
-        const refClone = t.cloneNode(ref);
-        if (memoType) resolvedType?.set(refClone, memoType);
-        chainStart.node[key] = refClone;
+        chainStart.node[key] = seededRefClone(ref, memoType);
       }
     }
     deoptionalizeNode(chainStart);
