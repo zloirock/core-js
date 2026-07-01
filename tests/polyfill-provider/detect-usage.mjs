@@ -6,6 +6,8 @@ import {
   scanExistingCoreJSImports,
 } from '../../packages/core-js-polyfill-provider/detect-usage/entries.js';
 import {
+  checkLogicalAssignLhsGlobal,
+  checkLogicalAssignLhsMember,
   isKnownGlobalName,
   KNOWN_FUNCTION_GLOBALS,
   KNOWN_NAMESPACE_GLOBALS,
@@ -560,6 +562,44 @@ for (const op of ['||=', '&&=', '??=']) {
       const { reassignmentNodes, usagePath } = pickReassignUse(adapter, prog, 'AssignmentExpression');
       check(lbl, reassignmentDominatesUsage({ reassignmentNodes, usagePath }), false);
     });
+}
+
+// --- logical-assign LHS warn: only usage-pure-rewritten globals warn (S021) ---
+// the warn holds only for a name whose bare READ usage-pure rewrites to a read-only import. namespaces
+// (Math / JSON), always-present constructors (Array / Number) and method-only injectables (TypedArrays,
+// Errors) are NEVER bare-rewritten -> silent; whole-global ponyfills (Map / Promise) and proxy globals
+// (globalThis / self) DO warn. gates the `pure`-entry subset, not the broader known-global / all-injectable set
+function assignLhsPath(adapter, prog, type, match) {
+  return adapter.collectPaths(prog, type, p => p.parentPath?.node?.type === 'AssignmentExpression'
+    && p.parentPath.node.left === p.node && match(p))[0];
+}
+for (const [name, warns] of [['Map', true], ['Math', false], ['Array', false], ['globalThis', true], ['Number', false], ['TypeError', false]]) {
+  runBoth(`checkLogicalAssignLhsGlobal/${ name } ${ warns ? 'warns' : 'silent' }`, `${ name } ||= 1;`,
+    (adapter, prog, lbl) => {
+      const path = assignLhsPath(adapter, prog, 'Identifier', p => p.node.name === name);
+      check(lbl, checkLogicalAssignLhsGlobal(path, false) !== null, warns);
+    });
+}
+// member form shares that gate on the resolved LEAF: `globalThis.Map` -> injectable Map (warn),
+// `globalThis.JSON` -> namespace JSON (silent). no scope/adapter here exercises the unshadowed proxy
+// path (isProxyGlobalIdentifierNode's `!scope || !adapter` fallback); the shadowed-root suppression
+// (S021-2, `path` threaded to the binding check) needs a real adapter and is covered by the composite
+// Map (whole-global ponyfill) warns; JSON (namespace, no injectable entry) and Number (injectable but
+// method-only, no `pure` bare-rewrite) are both silent - the leaf feeds the same pure-entry gate
+for (const [leaf, warns] of [['Map', true], ['JSON', false], ['Number', false]]) {
+  runBoth(`checkLogicalAssignLhsMember/globalThis.${ leaf } ${ warns ? 'warns' : 'silent' }`,
+    `globalThis.${ leaf } ||= 1;`, (adapter, prog, lbl) => {
+      const path = assignLhsPath(adapter, prog, 'MemberExpression', () => true);
+      check(lbl, checkLogicalAssignLhsMember({ path, scope: undefined, adapter: undefined }) !== null, warns);
+    });
+}
+// non-trivial member shapes compose: a chained proxy hop and a computed string key both resolve to the
+// leaf, which the injectable-set gate then decides (chained injectable Map -> warn; computed namespace JSON -> silent)
+for (const [src, id, warns] of [['globalThis.self.Map ||= 1;', 'chained-hop', true], ["globalThis['JSON'] ||= 1;", 'computed-key', false]]) {
+  runBoth(`checkLogicalAssignLhsMember/${ id } ${ warns ? 'warns' : 'silent' }`, src, (adapter, prog, lbl) => {
+    const path = assignLhsPath(adapter, prog, 'MemberExpression', () => true);
+    check(lbl, checkLogicalAssignLhsMember({ path, scope: undefined, adapter: undefined }) !== null, warns);
+  });
 }
 
 // SHALLOW: a reassignment in an OUTER scope (the use sits in a nested closure) does NOT dominate via
