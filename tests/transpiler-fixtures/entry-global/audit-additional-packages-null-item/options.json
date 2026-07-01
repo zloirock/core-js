@@ -5,7 +5,10 @@
       {
         "method": "entry-global",
         "version": "4.0",
-        "additionalPackages": ["ok", null]
+        "additionalPackages": [
+          "ok",
+          null
+        ]
       }
     ]
   ]

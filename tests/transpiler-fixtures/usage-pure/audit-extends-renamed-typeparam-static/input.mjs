@@ -1,5 +1,5 @@
 // Static inheritance with renamed type param across class chain.
-// `class B<U> extends A<U>` should propagate U through buildParentClassSubst.
+// `class B<U> extends A<U>` should propagate U through the parent-class substitution.
 declare class A<T> {
   static head<X>(): X[];
 }

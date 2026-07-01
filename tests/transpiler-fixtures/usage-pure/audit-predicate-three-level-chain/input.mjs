@@ -1,5 +1,5 @@
-// resolveMemberCallChain n-deep stress: `tools.guards.checkArray(x)` 3-level method
-// predicate. helper walks props leaf-first then root-down through getTypeMembers;
+// member-call-chain resolution n-deep stress: `tools.guards.checkArray(x)` 3-level method
+// predicate. the resolver walks props leaf-first then root-down through the type members;
 // the leaf member's TSMethodSignature carries the type-predicate. Successful
 // narrowing means `.at` polyfill emits inside the truthy branch only.
 declare const tools: {

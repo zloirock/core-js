@@ -1,5 +1,5 @@
 // `class C extends MyP` where MyP comes from a user-namespace destructure `const { Promise: MyP } = NS`,
-// NS being a const-bound object containing the real Promise. resolveSuperClassName must
+// NS being a const-bound object containing the real Promise. The superclass resolver must
 // synthesize the equivalent `NS.Promise` member access and resolve through the unified
 // namespace walker - otherwise the destructure-key info is lost and `super.try()` falls
 // through without emitting the Promise.try polyfill
