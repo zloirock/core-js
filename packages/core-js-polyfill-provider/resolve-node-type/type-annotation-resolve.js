@@ -15,7 +15,7 @@
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
 import { $Object, $Primitive, literalNodeValue } from './base.js';
-import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
+import { isMethodShapeMember, isUnionType, readonlyCollectionBase, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -59,6 +59,9 @@ export function createTypeAnnotationResolve({
   resolveElementType,
   foldUnionTypes,
   foldIntersectionTypes,
+  commonType,
+  typesEqual,
+  innersEqual,
   findTypeMember,
   findTupleElement,
   unwrapMappedTypePassthrough,
@@ -66,29 +69,15 @@ export function createTypeAnnotationResolve({
   getTypeMembers,
 }) {
   function isAssignableTo(candidate, target) {
-    if (typesEqualLocal(candidate, target)) {
+    if (typesEqual(candidate, target)) {
       // matching outer type (e.g. both Array) - require inner distinction for container types
       // so `Extract<Array<number>|Array<string>, Array<string>>` narrows correctly. target with
       // no inner (bare `Array`) accepts any inner (covariant); mismatched inners reject
       if (!target.inner) return true;
-      return innersEqualLocal(candidate.inner, target.inner);
+      return innersEqual(candidate.inner, target.inner);
     }
     // any non-primitive is assignable to object / Object
     return !candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object');
-  }
-
-  // local equality helpers to keep the cluster self-contained. mirrors factory's
-  // `typesEqual` / `innersEqual` semantics (referential outer + recursive inner-by-string
-  // or inner-by-type)
-  function typesEqualLocal(a, b) {
-    return a.type === b.type && a.constructor === b.constructor;
-  }
-
-  function innersEqualLocal(a, b) {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    if (typeof a === 'string' || typeof b === 'string') return a === b;
-    return typesEqualLocal(a, b) && innersEqualLocal(a.inner, b.inner);
   }
 
   // oxc preserves `(A | B)` as TSParenthesizedType around the union (babel strips during
@@ -121,25 +110,17 @@ export function createTypeAnnotationResolve({
       const resolved = resolve(substituted);
       if (!resolved) return null;
       // `never` is the union identity (`T | never == T`): it contributes no real receiver and
-      // mismatches in `commonTypeLocal`, bailing the whole Extract/Exclude result. skip it before
+      // mismatches in `commonType`, bailing the whole Extract/Exclude result. skip it before
       // the assignability fold (mirrors union folding), so the surviving members still resolve
       if (resolved.primitive && resolved.type === 'never') continue;
       if (isAssignableTo(resolved, target) !== keep) continue;
       anyKept = true;
-      result = commonTypeLocal(result, resolved);
+      result = commonType(result, resolved);
       if (!result) return null;
     }
     // all members excluded -> never (not null/unknown)
     if (!anyKept) return new $Primitive('never');
     return result;
-  }
-
-  // local commonType to avoid pulling another factory dep; mirrors factory's `commonType`
-  function commonTypeLocal(existing, incoming) {
-    if (!existing) return incoming;
-    if (!typesEqualLocal(existing, incoming)) return null;
-    if (existing.primitive || innersEqualLocal(existing.inner, incoming.inner)) return existing;
-    return new $Object(existing.constructor);
   }
 
   function resolveKnownContainerType({ name, base, node, innerResolver }) {
@@ -186,7 +167,16 @@ export function createTypeAnnotationResolve({
     }
     // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
     // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
-    if (STRUCTURE_PRESERVING_WRAPPERS.has(name)) return resolveArg(firstArg(), new $Object('Object'));
+    if (STRUCTURE_PRESERVING_WRAPPERS.has(name)) {
+      const resolved = resolveArg(firstArg(), new $Object('Object'));
+      // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
+      // infer check picks the FALSE branch. `readonlyCollectionBase` can't see this at the AST level when
+      // the collection is behind a type-param (`Readonly<T>`), so key off the resolved constructor here.
+      // only `Readonly` implies readonly (Partial / Pick / ... do not)
+      return name === 'Readonly' && resolved && !resolved.primitive && !resolved.readonly
+        && (resolved.constructor === 'Array' || resolved.constructor === 'Set' || resolved.constructor === 'Map')
+        ? new $Object(resolved.constructor, resolved.inner, true) : resolved;
+    }
     switch (name) {
       // structurally new shape from their type parameter - collapse to Object
       case 'Record':
@@ -341,21 +331,17 @@ export function createTypeAnnotationResolve({
   function resolveConditionalType(node, scope, depth) {
     let byScope = conditionalResultCache.get(node);
     const cached = byScope?.get(scope);
-    // a `stable` result is depth-independent - it came from the infer pattern or from BOTH branches
-    // resolving, so it is reused regardless of remaining budget. an unstable result (a lenient
-    // single-branch fold or a null) may be a depth-cutoff artifact - the deepest branch-path hits
-    // MAX_DEPTH first - so it is reused only when the current call has no more budget than the
-    // cached one (depth >= cached.depth); a shallower reach has more budget and recomputes
-    if (cached && (cached.stable || depth >= cached.depth)) return cached.result;
+    // a cached result may be a depth-cutoff artifact - the deepest branch-path hits MAX_DEPTH
+    // first - so it is reused only when the current call has no more budget than the cached one
+    // (depth >= cached.depth); a shallower reach has more budget and recomputes
+    if (cached && depth >= cached.depth) return cached.result;
     // route through the canonical conditional evaluator: it runs the structural branch pick
     // (pickConditionalBranchVia) before the both-branch fold - the local re-implementation
     // folded BOTH branches even when the conditional decidably fires to a single one (wrong
     // branch leaked when the other resolved to never / null)
     const result = evaluateConditionalType(node, null, scope, depth, null);
-    // the canonical evaluator does not report which path produced the result, so entries stay
-    // depth-guarded: reused only by calls with no more budget than they were computed with
     if (!byScope) conditionalResultCache.set(node, byScope = new Map());
-    byScope.set(scope, { result, depth, stable: false });
+    byScope.set(scope, { result, depth });
     return result;
   }
 
@@ -456,7 +442,21 @@ export function createTypeAnnotationResolve({
     return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
   }
 
+  // tag readonly-collection forms with `.readonly` so a conditional-infer check can distinguish a
+  // readonly collection from its mutable form after resolution drops the syntactic readonly-ness -
+  // recovers the FALSE branch for readonly checks behind an alias / type-param / `Readonly<X>`
+  // indirection, where the AST-level check no longer sees the readonly keyword. idempotent (skips an
+  // already-tagged result); readonlyCollectionBase is null for every non-readonly form so mutable
+  // collections are never tagged (over-fire-safe)
   function resolveTypeAnnotation(node, scope, depth = 0, seen = null) {
+    const result = resolveTypeAnnotationInner(node, scope, depth, seen);
+    if (result && !result.primitive && !result.readonly && readonlyCollectionBase(node)) {
+      return new $Object(result.constructor, result.inner, true);
+    }
+    return result;
+  }
+
+  function resolveTypeAnnotationInner(node, scope, depth = 0, seen = null) {
     if (depth > MAX_DEPTH) return null;
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
