@@ -394,6 +394,50 @@ QUnit.test('destructuring: IIFE param-default with nested-spread arg bails to na
   assert.same(typeof pick([1, userArg]), 'undefined');
 });
 
+// IIFE-identity peel: `(arg => arg)(X)` lifts the call arg X as the receiver. the lift is sound ONLY
+// when the param flows unchanged to `return arg` - a rebind before the return makes the runtime
+// receiver the reassigned value, so the destructured static reads off the wrong object. an
+// over-resolve would substitute the polyfill and wrongly succeed where native throws; these run the
+// transformed output to prove the peel resolves the clean case and BAILS every rebind (the native
+// throw is preserved). the never-invoked closure is the boundary - it does not run, native resolves,
+// and the conservative bail keeps the native receiver
+QUnit.test('IIFE-identity peel: clean identity resolves the receiver', assert => {
+  const { from } = (arg => arg)(Array);
+  assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
+});
+
+QUnit.test('IIFE-identity peel: direct param rebind bails, native throws', assert => {
+  assert.throws(() => {
+    const { from } = (arg => {
+      arg = 'reassigned';
+      return arg;
+    })(Array);
+    from([1, 2]);
+  }, TypeError);
+});
+
+QUnit.test('IIFE-identity peel: immediately-invoked closure rebind bails, native throws', assert => {
+  assert.throws(() => {
+    const { of } = (arg => {
+      (() => { arg = 'reassigned'; })();
+      return arg;
+    })(Array);
+    of(1, 2);
+  }, TypeError);
+});
+
+QUnit.test('IIFE-identity peel: never-invoked closure still resolves the receiver', assert => {
+  // the closure writing `arg` is created but NEVER called, so `Result === Array` at runtime - the
+  // peel must RESOLVE (inject the polyfill), not bail. bailing would leave native `Array.from`,
+  // absent on old engines (this ran green only because a modern host has it). only a closure that
+  // actually RUNS reassigns the param and forces the bail
+  const { from } = (arg => {
+    () => { arg = 'never'; };
+    return arg;
+  })(Array);
+  assert.deepEqual(from([4, 5]), [4, 5]);
+});
+
 // --- Computed-key destructuring ---
 // a const-Identifier computed key `[k]` is recognised as a polyfill alias just like a plain key:
 // declaration form body-extracts (`const m = _polyfill`), param-default form mirrors the key into
