@@ -137,10 +137,15 @@ export function $Primitive(type, literal) {
 
 $Primitive.prototype.primitive = true;
 
-export function $Object(constructor, inner) {
+export function $Object(constructor, inner, readonly) {
   this.type = 'object';
   this.constructor = constructor;
   this.inner = inner ?? null;
+  // readonly-collection marker (`ReadonlyArray` / `readonly T[]` / `ReadonlySet` / `ReadonlyMap` /
+  // `Readonly<collection>`): the syntactic readonly-ness is otherwise dropped at resolution (all
+  // resolve to the mutable Array/Set/Map constructor), so a conditional-infer check can no longer tell
+  // a readonly collection from its mutable form once it is behind an alias / type-param indirection
+  if (readonly) this.readonly = true;
 }
 
 $Object.prototype.primitive = false;
@@ -318,11 +323,16 @@ export const NUMERIC_KEY_SHAPE_RE = /^-?(?:\d+|\d*\.\d+)(?:e[+-]?\d+)?$/i;
 // per-placeholder segment validators. table is the single source of truth for which
 // `${T}` placeholder types are statically decidable. extending support to `${bigint}` /
 // `${boolean}` is one entry each. `${number}` regex enforces TS number-literal syntax,
-// `Number.isFinite` guards Infinity / NaN edge cases the regex alone would mis-classify
+// `Number.isFinite` guards Infinity / NaN edge cases the regex alone would mis-classify.
+// for a PURE INTEGER segment the canonical `String(Number) === segment` then rejects a leading-zero
+// form (`'01'` / `'00'`) that the regex admits but TS's `${number}` does not - matching it renames a
+// per-TS-absent member and injects a wrong Maybe (over-resolve). exponential (`'7e1'`) and decimal
+// forms are left to the regex - TS admits those, so canonicalizing them would UNDER-resolve real matches
 export const NUMBER_LITERAL_RE = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 export const PLACEHOLDER_VALIDATORS = {
   TSStringKeyword: () => true,
-  TSNumberKeyword: segment => NUMBER_LITERAL_RE.test(segment) && Number.isFinite(Number(segment)),
+  TSNumberKeyword: segment => NUMBER_LITERAL_RE.test(segment) && Number.isFinite(Number(segment))
+    && (!/^-?\d+$/.test(segment) || String(Number(segment)) === segment),
 };
 
 // the canonical array-index for a key, or null. a string index counts ONLY in its canonical form

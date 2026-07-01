@@ -453,6 +453,12 @@ export function createNameResolution({ t }) {
     return decl?.type === 'TSEnumDeclaration' ? decl : null;
   }
 
+  // all merged `enum E {}` blocks for a name (TS declaration merging unions their members).
+  // reuses the canonical decl-merge walk so a member declared in a later block still resolves
+  function findAllEnumDeclarations(name, scope) {
+    return findAllTypeDeclarations(name, scope).filter(decl => decl?.type === 'TSEnumDeclaration');
+  }
+
   // the enum is the NEAREST value declaration for `name` - i.e. its members can be read off `name`
   // at runtime - only when a lexically-nearer const/let/var/param of the same name does not shadow
   // it. an enum exists for the name AND either there is no value binding, or the enum is no longer
@@ -604,6 +610,7 @@ export function createNameResolution({ t }) {
     findDeclPathBySegments,
     findTypeDeclaration,
     findEnumDeclaration,
+    findAllEnumDeclarations,
     enumIsNearestValue,
     findAllTypeDeclarations,
     typeParamName,
