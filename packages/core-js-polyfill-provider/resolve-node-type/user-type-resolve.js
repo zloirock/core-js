@@ -194,15 +194,15 @@ export function createUserTypeResolve({
     if (isInterfaceDeclaration(declaration)) {
       const parents = declaration.extends;
       if (parents?.length) {
-        const cycleFlipped = cycleFlipDetector(visited);
         for (const parent of parents) {
           const result = runParentWalkWithCycleIsolation(visited,
             () => resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }));
           if (result) return result;
         }
-        if (cycleFlipped()) return null;
         // extends parents that ALL resolved to nothing are unknowable (undeclared / unresolved
-        // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null
+        // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null.
+        // no cycle-flip check here: unlike the class branch (which would else masquerade as Object),
+        // both the cyclic and the all-unresolved outcomes are already null
         return null;
       }
       return new $Object('Object');
