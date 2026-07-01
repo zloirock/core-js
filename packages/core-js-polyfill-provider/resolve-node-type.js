@@ -701,8 +701,6 @@ function createResolveNodeType(babelNodeType, t, {
     expandMappedTypeMembers,
     evaluateConditionalType,
     pickConditionalBranchVia,
-    resolveInferElementPattern,
-    resolveConditionalBranches,
     isUnconstrainedTypeReference,
     collectInferredNames,
     typeRefSegmentsEqual,
@@ -1715,8 +1713,6 @@ function createResolveNodeType(babelNodeType, t, {
     findTupleElement,
     unwrapMappedTypePassthrough,
     tupleAsArrayType,
-    resolveInferElementPattern,
-    resolveConditionalBranches,
     getTypeMembers: (...args) => getTypeMembers(...args),
   });
   ({
