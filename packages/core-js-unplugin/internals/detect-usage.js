@@ -199,10 +199,10 @@ export function withoutPhantomDeclarationViolations(binding) {
   if (!violations?.length) return binding;
   const real = violations.filter(v => !isPhantomDeclarationViolation(v, binding));
   if (real.length === violations.length) return binding;
-  // spread (own props), NOT Object.create: a resolver consumer re-spreads the binding
-  // (`{ ...binding, constantViolations: combined }`) and would lose a prototype-inherited
-  // `path` / `scope` / `kind`. carry `constant` explicitly too - it is a prototype getter on the
-  // estree Binding (not copied by spread) and `constantBindingPath` reads it
+  // spread copies the binding's OWN props (`path` / `scope` / `kind`) so a resolver consumer can
+  // re-spread (`{ ...binding, constantViolations: combined }`) without losing them. carry
+  // `constant` explicitly - it is a prototype getter on the estree Binding (not copied by spread)
+  // and `constantBindingPath` reads it
   return { ...binding, constantViolations: real, constant: real.length === 0 };
 }
 
