@@ -120,7 +120,7 @@ export function createClassObjectMember({
       const arg = returnPath.get('argument');
       if (!arg.node) return null;
       const value = resolveRuntimeExpression(arg);
-      if (!value) return null;
+      if (!value.node) return null;
       if (result === null || result.node === value.node) {
         result = value;
         continue;
