@@ -13,9 +13,16 @@ let passed = 0;
 const failures = [];
 for (const snippet of generate()) {
   if (index++ % total !== shard) continue;
-  const { failed, detail } = summarizeVerdict(await checkSnippet(snippet.code, OPTIONS, snippet.ts, snippet.strip));
-  if (failed) failures.push(`${ snippet.name } :: ${ detail }`);
-  else passed++;
+  // a harness-level throw (e.g. the TS-strip of a plugin output failing, outside checkSnippet's own
+  // transform/eval guards) must NOT crash the shard - that discards every divergence accumulated so
+  // far and the coordinator sees only "produced no result". record it as a failure and keep going
+  try {
+    const { failed, detail } = summarizeVerdict(await checkSnippet(snippet.code, OPTIONS, snippet.ts, snippet.strip));
+    if (failed) failures.push(`${ snippet.name } :: ${ detail }`);
+    else passed++;
+  } catch (error) {
+    failures.push(`${ snippet.name } :: HARNESS CRASH ${ error?.message ?? error }`);
+  }
 }
 
 closeStrippedWorker();
