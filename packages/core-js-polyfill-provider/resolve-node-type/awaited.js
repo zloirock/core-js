@@ -28,7 +28,7 @@
 //   peelUserThenable(annotation, scope)
 //   functionTypeParams(node)
 //
-// `functionTypeParams` is here because `cbFirstArgAnnotation` + `peelUserThenable` consume
+// `functionTypeParams` is here because the cluster's local callback-param extractors consume
 // it; factory has its own `functionTypeParams` declaration that this cluster's caller-side
 // `unwrap` / `resolve` already work past.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
