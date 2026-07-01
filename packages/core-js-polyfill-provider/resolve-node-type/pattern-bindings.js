@@ -28,7 +28,7 @@ export function createPatternBindings({
   resolveInnerType,
   commonType,
   isNullableOrNever,
-  findEnumDeclaration,
+  findAllEnumDeclarations,
   resolveEnumMemberType,
   findTypeMember,
   substituteTypeParams,
@@ -423,8 +423,8 @@ export function createPatternBindings({
       const segments = collectQualifiedSegments(unwrapped.exprName);
       const rootName = segments?.[0];
       if (rootName && segments.length === 1) {
-        const enumDecl = findEnumDeclaration(rootName, scope);
-        if (enumDecl) {
+        // TS merges enum blocks - the member may live in any block
+        for (const enumDecl of findAllEnumDeclarations(rootName, scope)) {
           const type = resolveEnumMemberType(enumDecl, keyName);
           if (type) return type;
         }
