@@ -265,3 +265,46 @@ export function selectOverloadByArgKinds(overloads, getParams, argKinds) {
   }
   return null;
 }
+
+// the literal VALUE of a literal NODE (a call arg or a TSLiteralType's `.literal`): babel StringLiteral /
+// NumericLiteral / BooleanLiteral or estree `Literal` (all carry a primitive `.value`); a wrapper
+// (UnaryMinus, Identifier, TemplateLiteral) yields undefined
+export function literalNodeValue(node) {
+  const t = node?.type;
+  const isLit = t === 'StringLiteral' || t === 'NumericLiteral' || t === 'BooleanLiteral' || t === 'Literal';
+  return isLit && typeof node.value !== 'object' ? node.value : undefined;
+}
+
+// the literal value of a literal-typed param (`k: 'a'` / `k: 1` / `k: true`), or undefined
+export function paramLiteralValue(param) {
+  const lit = param?.typeAnnotation?.typeAnnotation;
+  return lit?.type === 'TSLiteralType' ? literalNodeValue(lit.literal) : undefined;
+}
+
+// TS overload selection by args, LITERAL-aware. a literal-discriminated overload (`get('a'): A; get('b'): B`,
+// possibly MIXED with keyword params) is matched per-param: a LITERAL param by its `.value` against the arg's
+// literal value, a KEYWORD param by primitive kind - and at least one literal param must line up (else it is
+// a pure-kind shape, deferred to `selectOverloadByArgKinds`). null when nothing disambiguates -> caller widens.
+// `argPaths` are the call's argument paths; the literal is read off the arg NODE (the resolved type erases it),
+// the kind from `resolveNodeType`. owning this extraction keeps the matcher's input contract in one place
+export function matchOverloadByArgs(overloads, getParams, argPaths, resolveNodeType) {
+  if (overloads.length < 2) return null;
+  const argLiterals = argPaths.map(a => literalNodeValue(a.node));
+  const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
+  if (argLiterals.some(v => v !== undefined)) {
+    const byLiteral = overloads.find(ov => {
+      const params = getParams(ov);
+      if (params?.length !== argLiterals.length) return false;
+      let anyLiteralParam = false;
+      const ok = params.every((p, i) => {
+        const pLit = paramLiteralValue(p);
+        if (pLit === undefined) return paramPrimitiveKind(p) === argKinds[i];
+        anyLiteralParam = true;
+        return pLit === argLiterals[i];
+      });
+      return ok && anyLiteralParam;
+    });
+    if (byLiteral) return byLiteral;
+  }
+  return selectOverloadByArgKinds(overloads, getParams, argKinds);
+}

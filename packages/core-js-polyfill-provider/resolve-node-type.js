@@ -63,6 +63,7 @@ import {
 import { createTypeAnnotationResolve } from './resolve-node-type/type-annotation-resolve.js';
 import { createTypeExpansion } from './resolve-node-type/type-expansion.js';
 import { createTypeFolding } from './resolve-node-type/type-folding.js';
+import { createOverloadFold } from './resolve-node-type/overload-fold.js';
 import { createTypeMembers } from './resolve-node-type/type-members.js';
 import { createTypeQuery } from './resolve-node-type/type-query.js';
 import { createTypeResolveDispatch } from './resolve-node-type/type-resolve-dispatch.js';
@@ -1360,6 +1361,8 @@ function createResolveNodeType(babelNodeType, t, {
   // resolution. instantiated after classFields (consumes its `resolveClassFieldType` output);
   // forward-decl `let`s above let returnType / awaited / classFields service objects route
   // these through thunks
+  // shared overload select+fold for every call-return site (class methods, merged interfaces, ambient fns)
+  const foldOverloadReturns = createOverloadFold({ resolveNodeType, isNullableOrNeverAnnotation, unwrapTypeAnnotation, foldUnionTypes });
   const classObjectMemberCluster = createClassObjectMember({
     t,
     keyMatchesName,
@@ -1373,6 +1376,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveNodeType,
     resolveReturnType,
+    foldOverloadReturns,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     applySubst,
     applyAliasSubstDeep,
@@ -1630,6 +1634,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolveRuntimeExpression,
     resolveReturnType,
+    foldOverloadReturns,
     findAmbientFunctionPath,
     findAmbientFunctionPaths,
     resolveFromMemberExpression: (...args) => resolveFromMemberExpression(...args),
