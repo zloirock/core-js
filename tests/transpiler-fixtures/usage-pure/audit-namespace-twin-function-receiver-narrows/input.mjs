@@ -6,4 +6,4 @@ namespace N {
     return 'x';
   }
 }
-export const r = makeArr().flat();
+export const r = makeArr().at(0);

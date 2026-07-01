@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 var _ref;
-// findNamespacedFunctionPath: typeof NS.Inner.fn / typeof NS.Inner.Cls
-// resolved through walkScopesForDecl with isFunctionOrClassDeclaration leafMatch
+// namespaced function/class lookup: typeof NS.Inner.fn / typeof NS.Inner.Cls
+// resolved by walking scopes for the declaration, matching a function-or-class leaf
 declare namespace NS {
   namespace Inner {
     function makeArr(): number[];
