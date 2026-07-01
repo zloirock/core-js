@@ -39,6 +39,8 @@ QUnit.test('Iterator#windows', assert => {
   assert.throws(() => windows.call(it), TypeError, 'throws on empty argument');
   assert.throws(() => windows.call(it, '2'), TypeError, 'throws on empty argument');
   assert.throws(() => windows.call(it, 2.1), TypeError, 'throws on empty argument');
+  assert.throws(() => windows.call(it, Infinity), TypeError, 'throws a TypeError on non-integral Infinity argument');
+  assert.throws(() => windows.call(it, -Infinity), TypeError, 'throws a TypeError on non-integral -Infinity argument');
   assert.throws(() => windows.call(it, -1), RangeError, 'throws on negative argument');
   assert.throws(() => windows.call(it, 2 ** 32), RangeError, 'throws on negative argument');
 
