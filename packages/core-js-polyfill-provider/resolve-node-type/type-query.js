@@ -20,13 +20,18 @@ import { $Object } from './base.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
 import { isAmbientFunctionNode, isAmbientFunctionOrClassNode } from './name-resolution.js';
 
+// getter/setter members carry `kind` 'get'/'set' (a plain method is 'method'): a `typeof obj.accessor`
+// reads the accessor's RETURN value, not the function, so callers must not resolve it as a method
+function isAccessorKind(node) {
+  return node?.kind === 'get' || node?.kind === 'set';
+}
+
 export function createTypeQuery({
   t,
   constantBindingPath,
   bindingDeclaratorPath,
-  findEnumDeclaration,
+  findAllEnumDeclarations,
   enumIsNearestValue,
-  findDeclPathBySegments,
   withLookupPath,
   resolveEnumMemberType,
   isFunctionOrClassDeclaration,
@@ -92,17 +97,18 @@ export function createTypeQuery({
     // 'number')), but only when a nearer value binding doesn't shadow the enum head. const-agnostic
     // lookup: the shadow needs only the binding scope, and a reassigned `let Enum` shadows too
     const bindingPath = bindingDeclaratorPath(objectName, scope);
+    // TS merges enum blocks, so a member may live in any block - search them all
     if (memberPath.length === 1 && enumIsNearestValue(objectName, scope, bindingPath)) {
-      const type = resolveEnumMemberType(findEnumDeclaration(objectName, scope), memberPath[0]);
-      if (type) return type;
+      for (const decl of findAllEnumDeclarations(objectName, scope)) {
+        const type = resolveEnumMemberType(decl, memberPath[0]);
+        if (type) return type;
+      }
     } else if (memberPath.length > 1) {
-      // namespaced `typeof NS.E.Member` - traverse namespace segments to the enum decl
-      // then map the trailing segment as enum member. `findDeclPathBySegments` returns
-      // a NodePath; `.node` carries the TSEnumDeclaration shape
+      // namespaced `typeof NS.E.Member` - findAllEnumDeclarations walks the namespace segments to
+      // the enum blocks; map the trailing segment as the enum member
       const enumSegments = [objectName, ...memberPath.slice(0, -1)];
-      const declPath = findDeclPathBySegments(enumSegments, scope, decl => decl.type === 'TSEnumDeclaration');
-      if (declPath?.node) {
-        const type = resolveEnumMemberType(declPath.node, memberPath.at(-1));
+      for (const decl of findAllEnumDeclarations(enumSegments, scope)) {
+        const type = resolveEnumMemberType(decl, memberPath.at(-1));
         if (type) return type;
       }
     }
@@ -163,13 +169,16 @@ export function createTypeQuery({
       const property = findObjectMember(containerPath, name);
       if (!property) return null;
       if (t.isObjectProperty(property.node)) return resolveRuntimeExpression(property.get('value'));
-      if (t.isObjectMethod(property.node)) return methodFnPath(property);
+      // a plain method's `typeof obj.m` IS the function; a getter/setter access resolves to the getter's
+      // RETURN value (or undefined), NOT the function - returning the fn over-resolves to a wrong Function
+      // type (throwing Maybe). bail to generic (bias-safe) rather than mistype the accessor
+      if (t.isObjectMethod(property.node)) return isAccessorKind(property.node) ? null : methodFnPath(property);
     }
     if (t.isClass(containerPath.node)) {
       const found = findClassMember({ classPath: containerPath, name, isStatic: true });
       if (!found) return null;
       const { member } = found;
-      if (t.isClassMethod(member.node)) return methodFnPath(member);
+      if (t.isClassMethod(member.node)) return isAccessorKind(member.node) ? null : methodFnPath(member);
       if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
         const value = member.get('value');
         return value.node ? resolveRuntimeExpression(value) : null;
