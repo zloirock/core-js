@@ -678,8 +678,9 @@ export function createTypeExpansion({
   // ONLY to `Iterable<string>` - the minimal interface needing just `[Symbol.iterator]` - so only
   // the sync `Iterable` family admits a string check side; it is not assignable to Array / Set /
   // Promise nor to the stricter iterator/generator interfaces (see `containerInferFamily`). object
-  // check types pass through - cross-family object subtyping (`Set` extends `Iterable`) is real and
-  // over-emit is safe
+  // check types are admitted for the permissive `Iterable` family or an unresolved container, but
+  // otherwise must match the pattern's base container family (`Set` against `Array<infer U>` stays
+  // disjoint); see the branch below
   function checkTypeMatchesContainerFamily(checkType, family, container) {
     if (!checkType?.primitive) {
       // a non-primitive check side must be assignable to `container<U>` for `infer U` to bind. an
