@@ -123,6 +123,36 @@ export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector
     && aliasInitResolvesToGlobal(binding.path.node.init, scope, adapter, injector);
 }
 
+// does the destructure RHS resolve to the Symbol constructor SPECIFICALLY? `aliasInitResolvesToGlobal`
+// pinned to Symbol - accepts a bare `Symbol`, a proxy-global `globalThis.Symbol`, babel's rewritten
+// `_Symbol`, and the defaulted-ternary form; rejects any other object
+function aliasInitResolvesToSymbol(node, scope, adapter, injector) {
+  if (!node) return false;
+  if (node.type === 'ConditionalExpression') {
+    return aliasInitResolvesToSymbol(node.alternate, scope, adapter, injector)
+      || aliasInitResolvesToSymbol(node.consequent, scope, adapter, injector);
+  }
+  if (node.type === 'LogicalExpression' || node.type === 'BinaryExpression') {
+    return aliasInitResolvesToSymbol(node.left, scope, adapter, injector)
+      || aliasInitResolvesToSymbol(node.right, scope, adapter, injector);
+  }
+  const peeled = peelProxyGlobalObject(node);
+  if (peeled?.type === 'Identifier') return peeled.name === 'Symbol' || injector?.getPureImport(peeled.name)?.hint === 'Symbol';
+  return globalProxyMemberName({ node: peeled, scope, adapter, path: null }) === 'Symbol';
+}
+
+// shadow guard for a body-extract Symbol.X destructure alias (`const { iterator } = Symbol`). the
+// injector's binding-info is name-keyed (flat), so a NESTED same-name binding queries the outer
+// alias's registered source; confirming THIS binding is an un-reassigned ObjectPattern destructure
+// whose RHS resolves to Symbol rejects a shadow off another object (`= { iterator: 5 }` / `= Array`)
+export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter, injector }) {
+  return !!info?.source
+    && binding?.path?.node?.type === 'VariableDeclarator'
+    && binding.path.node.id?.type === 'ObjectPattern'
+    && !binding.constantViolations?.length
+    && aliasInitResolvesToSymbol(binding.path.node.init, scope, adapter, injector);
+}
+
 // unwrap paren / TS / SE wrappers AND a zero-arg IIFE returning a proxy-global: at runtime
 // `(function(){return globalThis})().Array` accesses `Array` on `globalThis` exactly like the
 // bare `globalThis.Array` chain. owns the unwrap so callers pass the raw `.object` node;
