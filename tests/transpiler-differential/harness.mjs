@@ -162,7 +162,11 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   let strippedMismatch = false;
   let babelStripped = null;
   let unpluginStripped = null;
-  if (stripCheck) {
+  // ALSO gate on native producing a value (not a throw): a vacuous-by-throw snippet makes the strip
+  // oracle meaningless - a MISSED injection throws too, and runtimeKey collapses distinct errors to the
+  // errorName, so ERR == ERR regardless of whether the polyfill ran. only a value-producing native gives
+  // the stripped realm a reference that a leftover (now-throwing) native call would visibly diverge from
+  if (stripCheck && !native.startsWith('ERR')) {
     babelStripped = await evalStripped(babelEval.file);
     unpluginStripped = await evalStripped(unpluginEval.file);
     strippedMismatch = babelStripped !== native || unpluginStripped !== native;

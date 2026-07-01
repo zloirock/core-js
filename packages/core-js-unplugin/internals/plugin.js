@@ -709,8 +709,11 @@ export default function createPlugin(options) {
         // validity check enforces this contract.
         // INTENTIONAL TRADE-OFF: mappings still anchor at splitCode positions while
         // sourcesContent is preSplitCode. for the rare minifier-shape input where the split
-        // fires, a line-offset drift in devtools is the cost of keeping sourcesContent ==
-        // input. proper fix (compose split-pass map with post-pass map via
+        // fires, devtools resolve a generated position through the splitCode-anchored mapping but
+        // display preSplitCode text, so every mapped position can land on the wrong line AND column
+        // by however much the split shifted that code - a per-position drift (the split can spread one
+        // minified line across many), NOT a uniform offset. that misalignment is the cost of keeping
+        // sourcesContent == input. proper fix (compose split-pass map with post-pass map via
         // @jridgewell/remapping) requires a new direct dep - deferred until the
         // observable surface (minifier output rarely consumed with sourcemaps) widens
         if (preSplitCode !== null && map?.sourcesContent?.[0]) {
