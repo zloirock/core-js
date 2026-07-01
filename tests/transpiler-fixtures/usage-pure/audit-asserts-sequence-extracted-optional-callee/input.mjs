@@ -1,8 +1,8 @@
-// edge: SequenceExpression-extracted optional callee `(0, obj?.assert)(x)`. the SE wrapper
-// strips method-context but the optional segment inside still means the call may be skipped
-// when obj is nullish. lock current behavior: the assertion DOES narrow here (padStart emits
-// the string-specific helper) because the SE-extracted callee is unwrapped only after the
-// optional check, a soundness gap when the SE wraps an OptionalMember
+// edge: SequenceExpression-extracted optional callee `(0, obj?.assertStr)(x)`. the SE wrapper
+// strips method-context and the optional segment means the call may be skipped when obj is
+// nullish - so the assertion does NOT narrow `input` (narrowing through a maybe-skipped call
+// would be unsound, and TS itself declines it). `.at` stays the generic `_at` (proving no
+// narrow); `padStart` emits the string helper only because `padStart` is String-only
 declare const obj: {
   assertStr(x: unknown): asserts x is string;
 } | undefined;
