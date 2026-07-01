@@ -15,6 +15,7 @@ import {
   isVarDeclaratorInLoopBody,
   kebabToCamel,
   mayHaveSideEffects,
+  paramReboundInBody,
   patternSlotValues,
   peelZeroArgIifeReturn,
   reachingReassignmentValueNode,
@@ -270,12 +271,24 @@ function importSourceMatchesUserPackage(source, packages) {
 // (`additionalPackages` config) so monorepo / vendor-fork imports are recognised
 export function bindingSymbolKey(binding, packages = null) {
   if (binding.polyfillHint?.startsWith('Symbol.')) return binding.polyfillHint;
-  if (!binding.importSource) return null;
-  if (!CORE_JS_SOURCE_PREFIX.test(binding.importSource)
-    && !importSourceMatchesUserPackage(binding.importSource, packages)) return null;
-  const match = SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
-  if (!match || !bindsModuleDefault(binding.node)) return null;
-  return `Symbol.${ kebabToCamel(match.groups.name) }`;
+  // a registered destructure alias whose import source is a Symbol.X module (`const { iterator } =
+  // Symbol` / `= globalThis.Symbol`): the binding is a pattern, not a module default, so the
+  // `importSource` path below can't claim it (`bindsModuleDefault` fails). the adapter's
+  // shadow-safe `aliasSymbolSource` (surfaced only when `isPolyfillAliasBinding` holds) carries the
+  // module source directly, so both substrates fold uniformly regardless of the pattern's mutated init
+  const aliasKey = symbolKeyFromSource(binding.aliasSymbolSource, packages);
+  if (aliasKey) return aliasKey;
+  if (!bindsModuleDefault(binding.node)) return null;
+  return symbolKeyFromSource(binding.importSource, packages);
+}
+
+// `<pkg>/.../symbol/<name>` module source -> `Symbol.<name>`, or null when the source is absent /
+// unrelated. CORE_JS_SOURCE_PREFIX (+ user `packages`) rejects a coincidental `my-lib/symbol/X`
+function symbolKeyFromSource(source, packages) {
+  if (!source) return null;
+  if (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
+  const match = SYMBOL_IMPORT_SOURCE.exec(source);
+  return match ? `Symbol.${ kebabToCamel(match.groups.name) }` : null;
 }
 
 // `path` (optional) - an AST path inside the lookup site so the adapter can anchor TS-runtime
@@ -607,7 +620,7 @@ export function collectMemberUnionCandidates(options) {
 // `seen` (caller-owned Set) tracks binding names already in the resolution chain for
 // cycle protection (`const f = () => g(); const g = () => f();`); pass an empty Set when
 // recursion isn't possible at the call site
-function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
+function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam = false }) {
   // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
   // makes the resolver inline it, but the emit layer cannot compose a receiver-less static
   // substitution over the SE-wrapped callee (transform-queue "could not locate inner needle" crash).
@@ -635,8 +648,19 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
   }
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
     && callee.type !== 'FunctionDeclaration')
-    || callee.params?.length || callee.async || callee.generator) return null;
+    || (callee.params?.length && !identityParam({ callee, allowIdentityParam })) || callee.async || callee.generator) return null;
   return callee;
+}
+
+// an `(x) => x` identity callee is inlineable when `allowIdentityParam` is set: its single Identifier
+// param is substituted with the call arg by `inlineCallReturnExpression`. every other param shape
+// needs substitution we don't do, so it still bails (params?.length && !identity -> null above)
+function identityParam({ callee, allowIdentityParam }) {
+  if (!allowIdentityParam || callee.params?.length !== 1 || callee.params[0].type !== 'Identifier') return false;
+  // the param must flow UNCHANGED to the return - a body write (`arg = x`, `[arg] = e`, `arg++`, or
+  // one inside a nested closure that runs) makes `return arg` yield the new value, not the call arg,
+  // so the passthrough would over-resolve (native throws / diverges on the reassigned value)
+  return !paramReboundInBody(callee.body, new Set([callee.params[0].name]));
 }
 
 // resolve an inline-eligible call to its single-return expression. `null` if the callee
@@ -644,8 +668,15 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen }) {
 // `singleReturnBodyExpression`). prefix ExpressionStatements ARE allowed - their effects
 // are preserved at the call site via `inlineCallHasObservableEffects` + `meta.sideEffects`
 export function inlineCallReturnExpression({ callNode, scope, adapter, seen, path }) {
-  const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen });
-  return callee ? singleReturnBodyExpression(callee.body) : null;
+  const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true });
+  if (!callee) return null;
+  const body = singleReturnBodyExpression(callee.body);
+  if (!callee.params?.length) return body;
+  // identity passthrough (`(x) => x` applied to one arg): the body IS the param, so the receiver is
+  // the ARG - recovers a call/IIFE-rooted receiver (`((x)=>x)(globalThis).Symbol`, and the nested
+  // `g(f()).Symbol` since the arg `f()` is itself resolved by the caller). an SE-bearing arg is
+  // preserved by `inlineCallHasObservableEffects` (checks callNode.arguments), so return it as-is
+  return body?.type === 'Identifier' && body.name === callee.params[0].name ? callNode.arguments?.[0] ?? null : null;
 }
 
 export function isCallShape(node) {
@@ -771,6 +802,11 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
   if (node.type === 'Identifier' && computed) {
     const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path, usageNode });
     if (entry) {
+      // a registered Symbol.X alias resolves the key regardless of the binding's (possibly mutated /
+      // pattern) init: `const { iterator } = Symbol; obj[iterator]`. must run BEFORE the init branch -
+      // following a destructure init resolves the WHOLE receiver (`Symbol`), losing the `.iterator` slot
+      const aliasKey = bindingSymbolKey(entry.binding, adapter.packages);
+      if (aliasKey) return aliasKey;
       if (entry.init) {
         // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
         // the literal only on the guarded path, so following it would rewrite `Builtin[K]()` to a
@@ -790,8 +826,6 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
           node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1, usageNode: entry.init,
         });
       }
-      const key = bindingSymbolKey(entry.binding, adapter.packages);
-      if (key) return key;
     } else if (!seen?.has(node.name)) {
       // the alias-follow bailed on a reassignment (declarator init dead at the use). resolve the key
       // from the value the use actually sees - the reaching definition (`K = 'of'` in
