@@ -28,6 +28,7 @@ import {
   quasiText,
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { readonlyCollectionBase, mutableCollectionName } from './ast-shapes.js';
 
 // `resolveInferElementPattern` sentinel: the extends clause is a recognised `Container<infer U>`
 // pattern AND the check side is a disjoint primitive, so the conditional definitively takes the
@@ -439,10 +440,23 @@ export function createTypeExpansion({
   // not resolved $Primitive / $Object types). complementary to `pickConditionalBranch` -
   // operates on AST shape after subst applied, so literal-type precision (`'narrow'`
   // vs primitive `string`) is preserved. returns true / false / null (undecidable)
+  // a readonly collection (`readonly T[]` / `ReadonlyArray` / `ReadonlySet` / `ReadonlyMap`) is NOT
+  // assignable to the MUTABLE form of the SAME base - a conditional whose check is the readonly view
+  // of the extends clause's mutable container takes the FALSE branch. single rule, applied both in the
+  // single-element infer fast-path (resolveInferElementPattern) and the general branch decider below
+  // (which handles the multi-param `Map<infer K, infer V>` the fast-path never matches)
+  function readonlyCheckVsMutablePattern(checkAST, extendsAST) {
+    const roBase = readonlyCollectionBase(checkAST);
+    return roBase !== null && roBase === mutableCollectionName(extendsAST);
+  }
+
   function pickConditionalBranchByAST(check, extend) {
     if (!check || !extend) return null;
     check = peelTSParenthesized(check);
     extend = peelTSParenthesized(extend);
+    // readonly check is not assignable to its mutable-form pattern -> FALSE branch (covers containers
+    // the single-element fast-path doesn't, e.g. two-param `Map<infer K, infer V>`)
+    if (readonlyCheckVsMutablePattern(check, extend)) return false;
     // template-literal extends (`prefix_${string}`): can't statically decide without a
     // concrete check side. resolveTypeAnnotation maps both check and extend to $Primitive
     // ('string'), so the Type-Object equality below would over-return true. signal
@@ -509,6 +523,11 @@ export function createTypeExpansion({
     // - a single literal (`string extends "a"`) OR a literal union (`string extends 'a' | 'b'`) - so it
     // takes the FALSE branch. the reverse (`"a" extends string`) is true and folds through the family rules
     if (extendNarrow && !checkNarrow) return false;
+    // a readonly collection check (`.readonly` marker, set on resolution) is NOT assignable to the
+    // MUTABLE form of the same constructor - FALSE. covers the multi-param `Map<infer K, infer V>` the
+    // single-element fast-path never matches, and readonly collections reached through indirection. a
+    // readonly extend (a `ReadonlyX` pattern) is also tagged, so readonly-to-readonly still binds
+    if (check.readonly && !extend.readonly && check.constructor === extend.constructor) return false;
     if (typesEqual(check, extend)) {
       if (innersEqual(check.inner, extend.inner)) return true;
       // extends has no inner constraint. three sub-cases distinguished by caller-supplied flags:
@@ -684,12 +703,14 @@ export function createTypeExpansion({
   function checkTypeMatchesContainerFamily(checkType, family, container) {
     if (!checkType?.primitive) {
       // a non-primitive check side must be assignable to `container<U>` for `infer U` to bind. an
-      // `Iterable<infer U>` admits any iterable; otherwise the check side's container must MATCH the
-      // pattern's (`Set<string>` against `Array<infer U>` is disjoint -> conditional FALSE, so the
-      // false branch resolves precisely instead of binding U=string -> wrong helper variant). Array
-      // and ReadonlyArray share element semantics (interchangeable); an unrecognised structural object
-      // or an unknown pattern container stays permissive (could be assignable; over-emit-safe)
-      if (family === 'iterable' || !checkType.constructor || !container) return true;
+      // `Iterable<infer U>` admits any iterable EXCEPT a Promise (not iterable - `Promise<X>` must take
+      // the FALSE branch, not bind U from a non-iterable); otherwise the check side's container must MATCH
+      // the pattern's (`Set<string>` against `Array<infer U>` is disjoint -> conditional FALSE, so the false
+      // branch resolves precisely instead of binding U=string -> wrong helper variant). Array and
+      // ReadonlyArray share element semantics (interchangeable); an unrecognised structural object or an
+      // unknown pattern container stays permissive (could be assignable; over-emit-safe)
+      if (family === 'iterable') return !isPromiseRefName(checkType.constructor);
+      if (!checkType.constructor || !container) return true;
       // compare BASE container family - strip a `Readonly` prefix so `ReadonlyArray` / `ReadonlySet`
       // share their mutable form's element semantics (a `Set` IS-A `ReadonlySet`, an `Array` IS-A
       // `ReadonlyArray`, and either direction binds the same element) AND fold the Promise synonyms
@@ -717,6 +738,15 @@ export function createTypeExpansion({
     // definitively FALSE - signal that so the caller resolves the false branch precisely, instead
     // of binding U (the wrong-receiver polyfill the finding targets) or folding both branches
     if (!checkTypeMatchesContainerFamily(checkType, match.family, match.container)) return INFER_PATTERN_FALSE;
+    // a readonly collection check is NOT assignable to its mutable-form infer pattern (`ReadonlyArray`
+    // / `readonly T[]` -> `Array<infer U>`, `ReadonlySet` -> `Set<infer U>`) - TS picks the FALSE
+    // branch. readonly-to-readonly, mutable-to-either, and a readonly array against a non-mutable-array
+    // family (`Iterable<U>` binds U; disjoint `Set<U>` rejected above by the family check) still pass.
+    // the AST form catches the direct spelling; the resolved `checkType.readonly` marker catches a
+    // readonly collection reached through an alias / type-param indirection (`match.container` is the
+    // mutable base name, so a `ReadonlyX<infer U>` pattern - container `ReadonlyX` - never matches)
+    if (readonlyCheckVsMutablePattern(node.checkType, node.extendsType)
+      || (checkType.readonly && checkType.constructor === match.container)) return INFER_PATTERN_FALSE;
     // constraint AST (TSStringKeyword / TSNumberKeyword / ...) must pass through
     // resolveTypeAnnotation first; `substituteTypeParams` inserts the value as-is, and
     // downstream consumers expect the internal `$Primitive` / `$Object` shape rather than
@@ -783,9 +813,11 @@ export function createTypeExpansion({
   // otherwise. constraint is the optional `extends C` annotation (TS 4.7+); plain
   // `infer U` returns `constraint: null`
   function matchArrayInferPattern(extendsType) {
-    let node = unwrapTypeAnnotation(extendsType);
+    // oxc keeps a parenthesized extends-clause (`(Array<infer U>)`) as TSParenthesizedType where
+    // babel strips it - peel so both parsers reach the inner pattern shape
+    let node = peelTSParenthesized(unwrapTypeAnnotation(extendsType));
     // peel `readonly X` modifier (TSTypeOperator operator='readonly')
-    if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') node = node.typeAnnotation;
+    if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') node = peelTSParenthesized(node.typeAnnotation);
     if (node?.type === 'TSArrayType') {
       // babel wraps `(infer U)` in TSParenthesizedType; oxc collapses to bare TSInferType.
       // peel the wrapper so both shapes reach the inner inference name. `(infer U)[]` is

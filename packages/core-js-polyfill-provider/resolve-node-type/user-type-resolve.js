@@ -66,6 +66,7 @@ export function createUserTypeResolve({
   resolveKnownConstructor,
   resolveKnownContainerType,
   resolveEnumType,
+  findAllEnumDeclarations,
   substituteTypeParams,
   resolveTypeAnnotation,
   dropMapKeys,
@@ -148,6 +149,23 @@ export function createUserTypeResolve({
     return resolveParentAnchored(parentPath, { name: segments, node: parent, scope, depth, typeParamMap, seen: visited });
   }
 
+  // fold the value-kind across all merged `enum E {}` blocks: uniform -> that kind, a cross-block
+  // mismatch -> null (generic), matching a single-block mixed enum instead of masquerading the
+  // nearest block's kind. `name` is the (possibly namespace-qualified) lookup key so merged blocks
+  // inside a `namespace` resolve too; the `includes` guard keeps the fold to THIS declaration's
+  // merge-set - if the lookup resolves a different enum, fall back to the single-declaration kind
+  function resolveMergedEnumType(declaration, name, scope) {
+    const blocks = findAllEnumDeclarations(name ?? declaration.id?.name, scope);
+    if (!blocks.includes(declaration)) return resolveEnumType(declaration);
+    let kind = null;
+    for (const block of blocks) {
+      const blockKind = resolveEnumType(block);
+      if (!blockKind || (kind && kind.type !== blockKind.type)) return null;
+      kind ??= blockKind;
+    }
+    return kind;
+  }
+
   function resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen }) {
     if (depth > MAX_DEPTH) return null;
     // type parameters shadow type declarations with the same name.
@@ -190,7 +208,7 @@ export function createUserTypeResolve({
       ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1, visited)
       : p => resolveTypeAnnotation(p, scope, depth + 1, visited);
     if (isTypeAlias(declaration)) return resolve(typeAliasBody(declaration));
-    if (declaration.type === 'TSEnumDeclaration') return resolveEnumType(declaration);
+    if (declaration.type === 'TSEnumDeclaration') return resolveMergedEnumType(declaration, name, scope);
     if (isInterfaceDeclaration(declaration)) {
       const parents = declaration.extends;
       if (parents?.length) {
