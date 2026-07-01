@@ -429,18 +429,26 @@ export function createReturnType({
     // drop the leading `this` pseudo-param so param annotations align with the call args (this side
     // reads annotations only, no AST params path - the dropped list is enough)
     const params = dropLeadingThisParam(fnPath.node.params);
+    // type-params determined by a PRESENT call arg (even when that arg is unresolvable). they must NOT fall
+    // to the phase-2 default: the default is for an OMITTED type-arg with no constraining arg, but a present-
+    // but-unresolvable arg means the type IS supplied (just opaque) - the default would emit a type-specific
+    // Maybe on a foreign runtime value (ie:11 throw). only a type-param with no present arg uses the default
+    const argConstrainedParams = new Set();
     // phase 1: match param annotations against type parameter names
     for (let i = 0; i < params.length && i < args.length; i++) {
       const { param, isRest } = effectiveParam(params[i]);
       const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
       if (!paramAnnotation) continue;
       const name = typeRefName(paramAnnotation);
+      const innerName = innerTypeParamName(paramAnnotation, name);
+      if (typeParamNames.has(name)) argConstrainedParams.add(name);
+      if (innerName && typeParamNames.has(innerName)) argConstrainedParams.add(innerName);
       // rest-only generic `function fn<T>(...xs: T[])` - annotation is T[] or Array<T>, bind T
       // to the element type of the first rest-arg. spread-call `fn(...arr)` passes `args[0]`
       // as a SpreadElement whose overall type IS the array - `resolveCallArgType` unwraps
       // once to get the element. no more params possible after rest, so break regardless
       if (isRest) {
-        bindTypeParam(innerTypeParamName(paramAnnotation, name), typeParamNames, typeParamMap, resolveCallArgType(args[i]));
+        bindTypeParam(innerName, typeParamNames, typeParamMap, resolveCallArgType(args[i]));
         break;
       }
       // direct: param type is exactly T. for `fn(...arr)` against `t: T`, T binds
@@ -454,7 +462,7 @@ export function createReturnType({
         continue;
       }
       // container wrapper: param type is T[], Array<T>, Set<T>, Promise<T>, etc.
-      bindTypeParam(innerTypeParamName(paramAnnotation, name), typeParamNames, typeParamMap, resolveInnerType(resolveNodeType(arg)));
+      bindTypeParam(innerName, typeParamNames, typeParamMap, resolveInnerType(resolveNodeType(arg)));
     }
     // phase 2: default / constraint fallback for unresolved type params (TS binds to `default`
     // when call-site omits a type arg; constraint is only the upper bound, usually over-broad).
@@ -465,7 +473,7 @@ export function createReturnType({
     // populates T from the explicit arg before phase 2 fills U
     for (const typeParam of fnPath.node.typeParameters.params) {
       const name = typeParamName(typeParam);
-      if (typeParamMap.has(name)) continue;
+      if (typeParamMap.has(name) || argConstrainedParams.has(name)) continue;
       const annotation = typeParam.default ?? typeParam.constraint;
       if (annotation) {
         const resolved = substituteTypeParams(annotation, typeParamMap, fnPath.scope, 0);
@@ -539,6 +547,16 @@ export function createReturnType({
       // scalar Type. bail so callers route through `findExpressionAnnotation` which
       // preserves the structural shape for member lookups. see isStructuralAnnotation
       if (isStructuralAnnotation(returnInner)) return asyncFallback;
+    }
+    // a return REFERENCING a method type-param the call-site couldn't bind (`T`, `T | null`, `T | string`, ...)
+    // is generic - T is opaque. the body fold would re-derive that T from a `return x` (`x: T`) via the bare-
+    // type-param DEFAULT heuristic, an over-resolve on a present-but-unresolvable arg (type-specific Maybe that
+    // throws at ie:11), so stay generic. (`T[]` / `Promise<T>` already resolved above to a concrete container,
+    // so a STILL-unresolved return here means T leaked through unbound)
+    const methodTypeParamNames = new Set((methodTypeParams?.params ?? []).map(typeParamName));
+    const returnAnno = unwrapTypeAnnotation(fnPath.node.returnType);
+    if (methodTypeParamNames.size && returnAnno && hasTypeParamReference(returnAnno, methodTypeParamNames, 0)) {
+      return asyncFallback;
     }
     // fallback: analyze return statements in the function body
     return wrap(resolveBodyReturnType(fnPath, callPath)) ?? asyncFallback;

@@ -29,7 +29,7 @@
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
 import {
   collectQualifiedSegments, isMethodShapeMember, isQualifiedNameNode, isUnionType, peelTSParenthesized,
-  primitiveTypeKind, selectOverloadByArgKinds, typeRefName,
+  matchOverloadByArgs, typeRefName,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
@@ -235,13 +235,23 @@ export function createMemberResolve({
       const memberSubst = subst ? shadowMethodTypeParams(memberCallTypeParameters(member), subst) : null;
       const substituted = memberSubst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), memberSubst) : returnAnnotation;
       const resolved = resolve(substituted);
-      if (resolved) resolvedReturns.push(resolved);
+      if (resolved) {
+        resolvedReturns.push(resolved);
+        continue;
+      }
+      // a NON-nullable arm we couldn't resolve (bare generic `<T>`, complex type) makes the whole divergent
+      // set uncertain - we can't prove this arm isn't a foreign type - so widen to generic rather than collapse
+      // to the arms that did resolve (which would emit their type-specific Maybe). a nullable / never arm is
+      // empty and stays skippable
+      if (!isNullableOrNeverAnnotation(unwrapTypeAnnotation(substituted))) return null;
     }
     if (!resolvedReturns.length) return null;
     if (resolvedReturns.length === 1) return resolvedReturns[0];
     // arg-match already collapsed to one member when it could; a multi-element set here means the args
-    // were unresolvable / accepted by several overloads - fold convergent returns, else best-effort first
-    return foldUnionTypes(resolvedReturns, r => r) ?? resolvedReturns[0];
+    // were unresolvable / accepted by several overloads. fold: convergent (incl. compatible containers like
+    // `number[]`/`string[]` -> Array) -> the widened type; DIVERGENT (`number[]` vs `string`) -> null
+    // (generic), NOT the first arm - picking it emits a type-specific Maybe that throws on a foreign return
+    return foldUnionTypes(resolvedReturns, r => r);
   }
 
   // TS overload selection: the FIRST signature whose params accept the call args wins. returns that member
@@ -254,8 +264,10 @@ export function createMemberResolve({
   function selectOverloadByArgs(matchingMembers, callPath) {
     const argPaths = callPath?.get('arguments');
     if (!Array.isArray(argPaths)) return null;
-    const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
-    return selectOverloadByArgKinds(matchingMembers, m => m.parameters ?? m.params, argKinds);
+    // literal-aware overload select (DOM `createElement`, registries, discriminated getters): a literal arg
+    // picks its matching overload PRECISELY - including mixed literal+keyword params - else divergent overloads
+    // widen to generic, not first-arm
+    return matchOverloadByArgs(matchingMembers, m => m.parameters ?? m.params, argPaths, resolveNodeType);
   }
 
   // union/intersection method calls - for `x: A | B` or `x: A & B` calling `x.foo()`,
@@ -487,26 +499,43 @@ export function createMemberResolve({
     function lookup(typeNode) {
       return resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind);
     }
-    const info = isUnionType(target)
-      ? target.types
+    // resolve one index-signature value (`{ annotation, scope }`) to a type. a CALL through the index
+    // (`d[k]()`) yields the value's RETURN, not the value itself; a non-function value isn't statically
+    // callable (`number[]()` throws at runtime) -> null (generic helper), not the non-callable value type
+    function resolveIndexValue(found) {
+      if (!found) return null;
+      if (callPath) {
+        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(found.annotation));
+        return ret ? resolveTypeAnnotation(ret, found.scope) : null;
+      }
+      return resolveTypeAnnotation(found.annotation, found.scope);
+    }
+    if (isUnionType(target)) {
+      // WIDEN across the union's per-branch index values (`{ [k]: number[] } | { [k]: string }`): fold them
+      // - convergent / compatible containers -> the widened type, DIVERGENT -> null (generic), NOT the first
+      // arm (a value matching a later branch would hit a type-specific Maybe and throw at ie:11)
+      const infos = target.types
         .map(b => applySubst(unwrapTypeAnnotation(b), subst))
         .filter(b => !isNullableOrNeverAnnotation(b))
         .map(lookup)
-        .find(Boolean)
-      : lookup(target);
-    if (info) {
-      // a function-valued index signature CALLED via a computed key (`d[k]()`) yields the
-      // function's RETURN, not the function value itself - peel the return when resolving a call
-      if (callPath) {
-        // a CALL through the index signature (`d[k]()`) yields the value's RETURN type. when the
-        // value isn't a function (`[k: string]: number[]`), the call isn't statically resolvable
-        // (`number[]()` throws at runtime) - bail to the generic helper rather than hand back the
-        // non-callable value type as if it were the call's return
-        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(info.annotation));
-        return ret ? resolveTypeAnnotation(ret, info.scope) : null;
+        .filter(Boolean);
+      if (!infos.length) return resolveKeyofSelfMemberViaTypeParam(path, unwrapped, objInfo.scope);
+      const vals = [];
+      for (const info of infos) {
+        const v = resolveIndexValue(info);
+        if (v) {
+          vals.push(v);
+          continue;
+        }
+        // a NON-call index whose value is a non-nullable type we couldn't resolve makes the union uncertain ->
+        // widen rather than collapse to the branches that resolved. (a call through the index already folds a
+        // non-callable branch to generic, so leave the callPath case alone; a nullable value stays skippable)
+        if (!callPath && !isNullableOrNeverAnnotation(unwrapTypeAnnotation(info.annotation))) return null;
       }
-      return resolveTypeAnnotation(info.annotation, info.scope);
+      return vals.length ? foldUnionTypes(vals, r => r) : null;
     }
+    const info = lookup(target);
+    if (info) return resolveIndexValue(info);
     return resolveKeyofSelfMemberViaTypeParam(path, unwrapped, objInfo.scope);
   }
 
