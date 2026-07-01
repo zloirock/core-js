@@ -51,6 +51,49 @@ export function typeRefName(node) {
   return segments?.length === 1 ? segments[0] : null;
 }
 
+// the MUTABLE collection a readonly-collection type is a read-only view of: `readonly T[]` /
+// `readonly [T, U]` / `ReadonlyArray<T>` -> 'Array', `ReadonlySet<T>` -> 'Set', `ReadonlyMap<K, V>`
+// -> 'Map', `Readonly<T[]>` / `Readonly<Set<T>>` (the utility applied to a collection) -> that
+// collection's base. else null. a readonly collection is NOT assignable to its mutable form, so the
+// conditional-infer matcher gates the true branch when the check is the readonly view of the pattern's
+// container. peels a leading TSTypeAnnotation and TSParenthesized (oxc keeps `(readonly T[])` parens
+// where babel strips them - without the peel the gate misfires on the oxc path)
+export function readonlyCollectionBase(node) {
+  const n = peelTSParenthesized(node?.type === 'TSTypeAnnotation' ? node.typeAnnotation : node);
+  if (n?.type === 'TSTypeOperator' && n.operator === 'readonly') return 'Array';
+  if (n?.type !== 'TSTypeReference') return null;
+  const name = typeRefName(n);
+  if (name === 'ReadonlyArray') return 'Array';
+  if (name === 'ReadonlySet') return 'Set';
+  if (name === 'ReadonlyMap') return 'Map';
+  // `Readonly<X>` is the readonly view of X - on a collection it IS that collection's readonly form
+  // (`Readonly<T[]>` === `readonly T[]`, `Readonly<[T, U]>` === `readonly [T, U]`), so its base is X's
+  // collection base (a tuple is array-family, matching the `readonly` operator form above)
+  if (name === 'Readonly') {
+    const arg = peelTSParenthesized(getTypeArgs(n)?.params?.[0]);
+    if (arg?.type === 'TSTupleType' || arg?.type === 'TupleTypeAnnotation') return 'Array';
+    return mutableCollectionName(arg) ?? readonlyCollectionBase(arg);
+  }
+  return null;
+}
+
+// is the type node a READONLY array shape (`readonly T[]` / `ReadonlyArray<T>`)?
+export function isReadonlyArrayType(node) {
+  return readonlyCollectionBase(node) === 'Array';
+}
+
+// the MUTABLE collection name a type node denotes: `T[]` / `Array<T>` -> 'Array', `Set<T>` -> 'Set',
+// `Map<K, V>` -> 'Map'. else null (readonly forms return null - they are not the mutable collection).
+// paired with `readonlyCollectionBase`: a readonly check is not assignable to the mutable form of the
+// SAME base, so a conditional `<readonly X> extends <mutable X>` takes the FALSE branch
+export function mutableCollectionName(node) {
+  const n = peelTSParenthesized(node?.type === 'TSTypeAnnotation' ? node.typeAnnotation : node);
+  if (n?.type === 'TSArrayType') return 'Array';
+  if (n?.type !== 'TSTypeReference') return null;
+  const name = typeRefName(n);
+  return name === 'Array' || name === 'Set' || name === 'Map' ? name : null;
+}
+
 export function isTypeAlias(decl) {
   return decl?.type === 'TSTypeAliasDeclaration' || decl?.type === 'TypeAlias' || decl?.type === 'OpaqueType';
 }
