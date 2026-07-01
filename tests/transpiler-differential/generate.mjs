@@ -38,10 +38,11 @@ const G_RECEIVERS = [
   { id: 'static-object-proxy', src: 'globalThis.Object', type: 'sobject' },
   { id: 'static-number', src: 'Number', type: 'snumber' },
   { id: 'static-number-proxy', src: 'globalThis.Number', type: 'snumber' },
+  { id: 'static-map', src: 'Map', type: 'smap' },
 ];
-// `strip: false` marks a method whose target builtin is NOT in strip-builtins.mjs (Number statics):
-// the stripped oracle would be vacuous (native still present), so it stays full-env only. the 3-way
-// (native == babel == unplugin) + import parity still cover its resolution
+// every method's target builtin is stripped in strip-builtins.mjs, so all carry the builtin-stripped
+// oracle (a missed injection leaves a leftover native call that now throws). the host-level `strip:false`
+// further below (param-default / assignment hosts) is a separate axis - those may legitimately not inject
 const G_METHODS = [
   { id: 'flat', call: 'flat()', types: ['array'] },
   { id: 'at', call: 'at(0)', types: ['array', 'string'] },
@@ -62,10 +63,14 @@ const G_METHODS = [
   { id: 'of', call: 'of(1, 2)', types: ['sarray'] },
   { id: 'fromEntries', call: 'fromEntries([["a", 1]])', types: ['sobject'] },
   { id: 'hasOwn', call: 'hasOwn({ a: 1 }, "a")', types: ['sobject'] },
-  { id: 'isInteger', call: 'isInteger(3)', types: ['snumber'], strip: false },
-  { id: 'isFinite', call: 'isFinite(3)', types: ['snumber'], strip: false },
-  { id: 'isSafeInteger', call: 'isSafeInteger(3)', types: ['snumber'], strip: false },
-  { id: 'isNaN', call: 'isNaN(3)', types: ['snumber'], strip: false },
+  // Object.groupBy (observable object result) + Map.groupBy (Map value serializes vacuously, but the
+  // stripped oracle still catches a missed injection - the leftover native static is gone -> it throws).
+  // exercises the Object.groupBy / Map.groupBy strip entries that no prior snippet reached
+  { id: 'groupBy', call: 'groupBy([1, 2, 3], x => x % 2 ? "odd" : "even")', types: ['sobject', 'smap'] },
+  // one representative snumber static: isInteger / isFinite / isSafeInteger / isNaN are pass-through
+  // DATA to one identical static-detection path (no per-method branch), so a single armed entry covers
+  // it. armed (strip) since the pure static stands alone - is-integral-number falls back to its own impl
+  { id: 'isInteger', call: 'isInteger(3)', types: ['snumber'] },
 ];
 // each wrapper renders the full `receiver.method` so it owns both the receiver dressing and the
 // call join (`.` vs `?.`); `ts: true` wrappers make the whole snippet TypeScript
@@ -2123,10 +2128,30 @@ function * generateGetIteratorKeySE() {
   for (const c of D_GETITERATOR_SE) yield { ...snippet(`getiterator-key-se/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
 }
 
+// TS leading-`this` param (`function f(this: T, x): R`): the resolver must DROP the leading this-param
+// before matching call args to the signature (dropLeadingThisParam / argIndexForParam), else the real
+// first arg maps to `this`, a generic return loses its array narrow, and `.at` degrades to the generic
+// import. babel (path-based) and oxc (node-based) shape the this-param differently, so a one-sided drop
+// surfaces as an import divergence. strip-armed: the narrowed `.at` must also stand alone builtin-stripped
+const D_TS_LEADING_THIS = [
+  // generic return inferred from the real arg - the this-param must be skipped for `x: T[]` to bind to it
+  '(() => { function pick<T>(this: unknown, x: T[]): T[] { return x; } return pick([3, [1, 2]]).at(0); })()',
+  // this-param + TWO real args: a correct drop maps a->number, b->T[]; a wrong drop shifts the arg index
+  '(() => { function pick<T>(this: { z: 1 }, a: number, b: T[]): T[] { return b; } return pick(0, [3, [1, 2]]).at(0); })()',
+  // method form (object-literal shorthand) carrying a this-param on a generic signature
+  '(() => { const o = { pick<T>(this: any, x: T[]): T[] { return x; } }; return o.pick([3, [1, 2]]).at(0); })()',
+];
+function * generateTsLeadingThis() {
+  for (const [i, expr] of D_TS_LEADING_THIS.entries()) {
+    yield { ...snippet(`ts-leading-this/${ i }`, expr), ts: true, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateAsiFusion();
   yield * generateGetIteratorKeySE();
   yield * generateGrammar();
+  yield * generateTsLeadingThis();
   yield * generateDestructure();
   yield * generateDestructureAlias();
   yield * generateFallbackArg();
