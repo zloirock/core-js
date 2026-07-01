@@ -45,7 +45,7 @@ import {
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isPolyfillAliasBinding, isSymbolDestructureAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
 // --- isReferenced ---
@@ -353,12 +353,19 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         : b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
           : b.kind === 'let' || b.kind === 'const' ? collectScopeLetReassignments(b.path, name)
             : b.constantViolations;
+      // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
+      // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
+      // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding
+      // whose RHS is not Symbol (the name-keyed injector info is flat)
+      const aliasSymbolSource = isSymbolDestructureAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() })
+        ? info.source : null;
       return {
         node: b.path.node,
         kind: b.kind,
         constantViolations,
         importSource,
         polyfillHint,
+        aliasSymbolSource,
       };
     },
     getBindingNodeType(scope, name, path = null) {
