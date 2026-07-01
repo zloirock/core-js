@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // 3-level method-form predicate: `ns.utils.guards.isArr(x)`. each intermediate hop
-// (utils, guards) steps into the carried annotation via getTypeMembers; the leaf's
+// (utils, guards) steps into the carried annotation via type-member lookup; the leaf's
 // TSTypePredicate `x is unknown[]` narrows the receiver in the truthy branch
 declare const ns: {
   utils: {

@@ -1,6 +1,6 @@
 // ConstructorParameters<typeof Sub> where Sub has no own constructor: TS picks up
-// Base's constructor. resolveParametersParams walks superClass chain via
-// resolveRuntimeExpression. probe whether inherited ctor params resolve correctly,
+// Base's constructor. constructor-parameter resolution walks the superClass chain via
+// the runtime-expression resolver. probe whether inherited ctor params resolve correctly,
 // AND whether the resolved tuple element receives proper Array narrowing.
 class Base {
   constructor(items: number[], names: string[]) {}
