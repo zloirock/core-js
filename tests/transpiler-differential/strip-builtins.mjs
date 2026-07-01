@@ -31,6 +31,9 @@ dropProto(String, ['at', 'padStart', 'padEnd', 'replaceAll', 'trimStart', 'trimE
 dropStatic(Array, ['from', 'of', 'fromAsync']);
 dropStatic(Object, ['fromEntries', 'groupBy', 'hasOwn']);
 dropStatic(Map, ['groupBy']);
+// Number.isInteger: the pure static stands alone (is-integral-number falls back to its own impl when
+// the native is absent - evaluated at load, after this preload), so a missed injection surfaces here
+dropStatic(Number, ['isInteger']);
 // the new-Set-methods leaf ops: core-js implements each on its own pure Set and never consumes them
 // internally, so removing them from the native prototype (the constructor stays) only forces a missed
 // `new Set` -> pure-Set rewrite to surface (the native op is now gone) instead of silently using native
