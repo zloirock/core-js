@@ -24,6 +24,8 @@ import {
   peelLabeledStatementPath,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   unwrapRuntimeExpr,
+  isIifeCallNode,
+  IIFE_CALL_CALLEE_WRAPPERS,
 } from '../helpers/ast-patterns.js';
 import { scopeNode, bindingLoopAnchor, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
@@ -252,7 +254,7 @@ export function createDiscriminantNarrow({
   // because the binding at the use site is the post-SE value, not the pre-test one).
   // routed through `violationsHitAnyInterval` so synthetic violations conservatively drop
   // the guard - mirrors `hasMutationAfterGuards`' `isBefore` polarity
-  function discriminantGuardApplies(scope, testNode, ctx) {
+  function discriminantGuardApplies(scope, testNode, ctx, deferredUpper) {
     const { rootName, objectBinding, targetKey, objectStart } = ctx;
     if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
     // a direct field write only flips THIS guard when the field is one of its discriminants
@@ -261,8 +263,13 @@ export function createDiscriminantNarrow({
     const testStart = testNode?.start;
     const testEnd = testNode?.end;
     if (testEnd === undefined || objectStart === undefined) return false;
+    // the upper bound normally ends at the use (objectStart), but when the use sits inside a loop / function
+    // ABOVE which this guard lives, the use re-executes (per loop iteration) or defers (to invocation) AFTER
+    // a relevant write that textually follows it - `deferredUpper` (loop body end / unbounded for a function)
+    // extends the check so a DISCRIMINANT write in that region drops the guard. a non-discriminant write is
+    // already filtered out by `relevantGuardViolations`, so it still keeps the narrow
     return !violationsHitAnyInterval(relevant, [
-      { from: testEnd, to: objectStart, inclusive: false },
+      { from: testEnd, to: deferredUpper ?? objectStart, inclusive: false },
       { from: testStart, to: testEnd, inclusive: true },
     ]);
   }
@@ -283,7 +290,7 @@ export function createDiscriminantNarrow({
   // scan preceding-sibling statements of `current` at its block level; for each one that
   // unconditionally exits (`if (X) return;` / `... else throw ...`), collect the narrowed
   // discriminant form into `out`. mirrors `findPrecedingExitGuards` but for discriminant kinds
-  function collectPrecedingExitDiscriminants({ current, targetKey, out, ctx }) {
+  function collectPrecedingExitDiscriminants({ current, targetKey, out, ctx, deferredUpper }) {
     const siblings = getStatementSiblings(current);
     if (!siblings) return;
     for (let i = current.key - 1; i >= 0; i--) {
@@ -293,7 +300,7 @@ export function createDiscriminantNarrow({
       const sibling = peelLabeledStatementPath(siblings[i]);
       const exitCond = resolveExitCondition(sibling);
       if (exitCond === null) continue;
-      if (!discriminantGuardApplies(sibling.scope, sibling.node.test, ctx)) continue;
+      if (!discriminantGuardApplies(sibling.scope, sibling.node.test, ctx, deferredUpper)) continue;
       pushDiscriminantClauses({ test: sibling.node.test, conditionTrue: exitCond, targetKey, out, scope: sibling.scope });
     }
   }
@@ -303,7 +310,7 @@ export function createDiscriminantNarrow({
   // fall-through predecessor; fall-through requires OR-of-values which the AND-semantics
   // guards.every filter can't express - bail conservatively). default case with no
   // preceding fall-through emits negative guards for each explicit case value
-  function collectSwitchCaseDiscriminants({ current, targetKey, out, ctx }) {
+  function collectSwitchCaseDiscriminants({ current, targetKey, out, ctx, deferredUpper }) {
     const switchCase = current.parentPath;
     if (!t.isSwitchCase(switchCase?.node)) return;
     // gate on consequent slot - mirror of the `if (current.key !== 'consequent' &&
@@ -317,7 +324,7 @@ export function createDiscriminantNarrow({
     if (!t.isSwitchStatement(switchStmt?.node)) return;
     const fieldPath = matchTargetFieldPath(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey, switchStmt.scope);
     if (fieldPath === null) return;
-    if (!discriminantGuardApplies(switchStmt.scope, switchStmt.node.discriminant, ctx)) return;
+    if (!discriminantGuardApplies(switchStmt.scope, switchStmt.node.discriminant, ctx, deferredUpper)) return;
     const { cases } = switchStmt.node;
     const { scope } = switchCase;
     const caseIndex = cases.indexOf(switchCase.node);
@@ -338,6 +345,18 @@ export function createDiscriminantNarrow({
   // plus preceding early-exit siblings. `targetKey` covers arbitrary LHS shapes
   // (Identifier / `this.x` / `obj.a.b`). binding-identity + mutation checks (via `ctx`)
   // reject inner-shadow leakage and stale narrowing across reassignments
+  // the deferred-execution upper bound for a use inside `funcPath`. an IIFE / immediately-invoked function
+  // runs SYNCHRONOUSLY at its call, so a discriminant write AFTER the call cannot reach the (already-run) use
+  // - the bound is the call's end, not unbounded. a function bound to a name / passed / returned could be
+  // invoked after ANY later write, so it stays unbounded (a write before that invocation drops the narrow)
+  function functionDeferredBound(funcPath) {
+    let p = funcPath;
+    while (p.parentPath && IIFE_CALL_CALLEE_WRAPPERS.has(p.parentPath.node.type)) p = p.parentPath;
+    const call = p.parentPath?.node;
+    if (isIifeCallNode(call) && call.callee === p.node && typeof call.end === 'number') return call.end;
+    return Number.MAX_SAFE_INTEGER;
+  }
+
   function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
     const ctx = buildDiscriminantContext(varPath, targetKey);
@@ -346,6 +365,10 @@ export function createDiscriminantNarrow({
     // once we walk out past a back-edge loop whose body reassigns the binding, every guard above
     // it is outside the loop and cannot re-narrow per iteration - drop it (mirror narrow-by-guards)
     let crossedBackEdgeLoop = false;
+    // upper bound for the guard mutation-check interval; grows past the use as the walk crosses a loop /
+    // function CONTAINING the use, so a discriminant field write in that deferred-execution region (which
+    // textually follows the use but runs before its re-execution / invocation) drops a guard ABOVE it
+    let deferredUpper = ctx.objectStart;
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
       if (!crossedBackEdgeLoop && isLoopStatement(parent.node)
@@ -357,6 +380,11 @@ export function createDiscriminantNarrow({
       // outer-scope reassignment between those moments invalidates narrowing. mirrors the
       // typeof-side stop in `findEnclosingTypeGuards`. const bindings stay closure-stable
       if (t.isFunction(parent.node) && ctx.violations.length) break;
+      // a discriminant FIELD write (no identity reassignment) is not caught by the gates above - extend the
+      // deferred region instead: a loop body re-runs to its end; a function body defers to invocation (any
+      // later write matters), so the bound becomes unbounded
+      if (isLoopStatement(parent.node) && typeof parent.node.end === 'number') deferredUpper = Math.max(deferredUpper, parent.node.end);
+      else if (t.isFunction(parent.node)) deferredUpper = Math.max(deferredUpper, functionDeferredBound(parent));
       if (crossedBackEdgeLoop) continue;
       let test;
       let conditionTrue;
@@ -372,11 +400,11 @@ export function createDiscriminantNarrow({
         conditionTrue = parent.node.operator === '&&';
         test = parent.node.left;
       } else {
-        collectSwitchCaseDiscriminants({ current, targetKey, out: guards, ctx });
-        collectPrecedingExitDiscriminants({ current, targetKey, out: guards, ctx });
+        collectSwitchCaseDiscriminants({ current, targetKey, out: guards, ctx, deferredUpper });
+        collectPrecedingExitDiscriminants({ current, targetKey, out: guards, ctx, deferredUpper });
         continue;
       }
-      if (!discriminantGuardApplies(parent.scope, test, ctx)) continue;
+      if (!discriminantGuardApplies(parent.scope, test, ctx, deferredUpper)) continue;
       pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, scope: parent.scope });
     }
     return guards;
