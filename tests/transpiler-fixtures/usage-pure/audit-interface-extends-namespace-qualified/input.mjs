@@ -1,5 +1,5 @@
 // interface I extends NS.Base - namespace-qualified extends. parent ref resolution via
-// segment-based findTypeDeclaration finds the Base interface inside NS, member walk
+// segment-based type-declaration lookup finds the Base interface inside NS, member walk
 // then sees Base's structural members and the array-typed `items` property narrows
 namespace NS { export interface Base { items: number[] } }
 interface I extends NS.Base {}

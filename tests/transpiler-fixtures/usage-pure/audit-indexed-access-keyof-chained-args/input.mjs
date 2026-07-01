@@ -1,5 +1,5 @@
-// chained `Items[K1][K2]` with both indexNodes typeparam-bound at the call site. each
-// indexFromArgLiteral hop rewrites independently, then rebuildIndexedAccess re-folds
+// chained `Items[K1][K2]` with both index nodes typeparam-bound at the call site. each
+// arg-literal index hop rewrites independently, then re-folding the indexed access rebuilds
 // the outer-first nodes into the chained AST so the dispatcher walks two hops
 // (`Items['a']` -> `{x:string[]}` -> `['x']`) to land on string[]. without per-hop
 // rewrite either slot stays a typeparam ref and the chain bails to undecidable

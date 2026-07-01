@@ -1,4 +1,4 @@
-// resolvePropertyObjectType walks `path.get('object')` for member access. When `arr` is
+// property-object type resolution walks `path.get('object')` for member access. When `arr` is
 // the result of an aliased static-method call (`from(...)` with `from = Array.from`),
 // the `object` resolution must follow through the alias to recognise Array. Tests that
 // optional chaining shape (arr?.method) routes through the same path, and the receiver
