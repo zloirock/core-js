@@ -19,6 +19,14 @@ export const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespace
 // this set a self-reference `var Iterator = Iterator` injects nothing and the logical-assign LHS
 // diagnostic stays silent (globalThis / self are the only other misses, already covered as proxies)
 const INJECTABLE_GLOBALS = new Set(Object.keys(builtInDefinitions.globals));
+// the subset usage-pure rewrites the bare READ of to a read-only pure import: globals with a whole-global
+// `pure` ponyfill (`Map` / `Set` / `Promise` / `Iterator` / `structuredClone` / `globalThis` / `self`) -
+// NOT always-present constructors / global fns whose only pure modules are methods/statics (`Number`,
+// `Error`, TypedArrays), whose bare `X` stays native so `X ||= Y` is a harmless native write. a few
+// pure-entry global fns (`parseInt`) are rewritten only on CALL, not a bare reference, so they stay a
+// rare residual over-warn - excluding them would need a hand-maintained list
+const PURE_REWRITTEN_GLOBALS = new Set(
+  Object.keys(builtInDefinitions.globals).filter(name => builtInDefinitions.globals[name].pure));
 
 // covers constructors / global methods / namespaces / proxy globals - any polyfillable name
 export function isKnownGlobalName(name) {
@@ -59,7 +67,11 @@ function checkLogicalAssignLhs({ peeledPath, resolveName, formatChain, reason })
   const op = logicalAssignOperator(peeledPath);
   if (!op) return null;
   const name = resolveName();
-  if (!name || !isKnownGlobalName(name)) return null;
+  // gate on PURE_REWRITTEN_GLOBALS (the bare-read-rewrite subset), NOT the broader `isKnownGlobalName` or
+  // the all-injectable set: the warn only holds for a name whose bare READ becomes a read-only import.
+  // namespaces (Math / JSON), always-present constructors (Array / Number) and method-only injectables
+  // (TypedArrays) are never bare-rewritten, so `Math ||= X` / `Number ||= X` are harmless native writes
+  if (!name || !PURE_REWRITTEN_GLOBALS.has(name)) return null;
   return `\`${ formatChain() } ${ op } ...\` left-hand side cannot be polyfilled `
     + `(${ reason }); expected runtime engine to provide \`${ name }\``;
 }
@@ -88,7 +100,10 @@ export function checkLogicalAssignLhsMember({ path, scope, adapter }) {
   if (!node || node.type !== 'MemberExpression') return null;
   return checkLogicalAssignLhs({
     peeledPath: peelTransparentExprAncestorPath(path),
-    resolveName: () => globalProxyMemberName({ node, scope, adapter }),
+    // thread `path` so `isProxyGlobalIdentifierNode` sees the reference site: a TS-runtime shadow of the
+    // proxy-global root (`namespace globalThis {}`) makes it a local, not the global - without `path` the
+    // shadow is missed and a `(shadowed globalThis).Map ||= X` gets a spurious warn
+    resolveName: () => globalProxyMemberName({ node, scope, adapter, path }),
     formatChain: () => stringifyMemberChain(node),
     reason: 'plugin rewrites reads, not writes',
   });
