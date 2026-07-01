@@ -2,8 +2,8 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 var _ref, _ref2;
 // Pick<T, K> with multi-key K narrowing - K is union of literal strings.
-// resolveNamedType maps Pick to STRUCTURE_PRESERVING_WRAPPERS, returning
-// resolveArg of inner T (full T regardless of K). Probe whether picked
+// The named-type resolver maps Pick to STRUCTURE_PRESERVING_WRAPPERS, returning
+// the resolved inner T (full T regardless of K). Probe whether picked
 // member access still narrows when K limits keys but the inner shape is
 // still queried by member name. Documented precision limit per CLAUDE.md.
 type Source = { items: number[]; tags: string[]; meta: { ok: boolean } };

@@ -1,5 +1,5 @@
-// destructure with computed template-literal key (no interpolation): singleQuasiString
-// returns 'Map'. findDestructureKeyForBinding accepts this through staticKeyName
+// destructure with computed template-literal key (no interpolation): the single-quasi
+// template resolves to 'Map', and the destructure-key lookup accepts it as a static key name
 const { [`Map`]: MyMap } = globalThis;
 class C extends MyMap {
   static use() {
