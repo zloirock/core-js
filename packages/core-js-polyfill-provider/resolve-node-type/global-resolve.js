@@ -16,7 +16,7 @@
 //                                              `const { prototype: P } = Cls` paths
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
-import { MAX_DEPTH } from './base.js';
+import { MAX_DEPTH, $Object } from './base.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
   isTopLevelThisContext,
@@ -227,7 +227,20 @@ export function createGlobalResolve({
   //    `globalProxyMemberName` resolves the chain uniformly with the direct-globalThis shape
   function resolveSuperGlobalName(superPath) {
     const direct = resolveGlobalName(superPath);
-    if (direct) return direct;
+    if (direct) {
+      // `extends _Set` (the `Set` super rewritten in place to its polyfill import) has no scope binding,
+      // so `resolveGlobalName` returns the bare alias `_Set` - NOT a known constructor. map it via its
+      // polyfillHint to the global it aliases (`_Set` -> `Set`) so `this` resolves to that global, whose
+      // instance methods the polyfilled super already provides - else they are redundantly re-injected on
+      // `this` (a `class extends Set` calling `this.values()` over-emitted `_values` past the `_Set` super)
+      if (!resolveKnownConstructor(direct)) {
+        const aliasPath = peelSkippableWrapperPath(superPath);
+        const hint = t.isIdentifier(aliasPath?.node)
+          && babelBindingAdapter.getBindingPolyfillHint?.(aliasPath.scope, aliasPath.node.name);
+        if (hint && resolveKnownConstructor(hint)) return hint;
+      }
+      return direct;
+    }
     // `resolveGlobalName` already peels the full TS/Flow wrapper chain (`(Base as any)`, `Base!`,
     // `<Base>x`, `Base satisfies Ctor`) and resolves a bare global under it, so the only shape left to
     // try is a proxy-global MEMBER chain that `globalProxyMemberName` accepts beyond `resolveGlobalName`
@@ -241,7 +254,11 @@ export function createGlobalResolve({
     let current = classPath;
     let depth = MAX_DEPTH;
     while (depth--) {
-      if (!current.node.superClass) return null;
+      // BASE-LESS (no `extends`) - a plain class whose instances are plain objects. distinct from an
+      // UNKNOWABLE super (an `extends` that does not resolve, below): base-less is DEFINITELY `Object`,
+      // unknowable could be anything (incl. Array), so the latter must stay generic (null) to keep the
+      // polyfill rather than masquerade as `Object` and suppress it
+      if (!current.node.superClass) return new $Object('Object');
       const superPath = current.get('superClass');
       const name = resolveSuperGlobalName(superPath);
       if (name) {
