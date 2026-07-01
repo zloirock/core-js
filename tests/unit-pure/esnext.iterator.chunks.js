@@ -34,6 +34,8 @@ QUnit.test('Iterator#chunks', assert => {
   assert.throws(() => chunks.call(it), TypeError, 'throws on empty argument');
   assert.throws(() => chunks.call(it, '2'), TypeError, 'throws on empty argument');
   assert.throws(() => chunks.call(it, 2.1), TypeError, 'throws on empty argument');
+  assert.throws(() => chunks.call(it, Infinity), TypeError, 'throws a TypeError on non-integral Infinity argument');
+  assert.throws(() => chunks.call(it, -Infinity), TypeError, 'throws a TypeError on non-integral -Infinity argument');
   assert.throws(() => chunks.call(it, -1), RangeError, 'throws on negative argument');
   assert.throws(() => chunks.call(it, 2 ** 32), RangeError, 'throws on negative argument');
 
