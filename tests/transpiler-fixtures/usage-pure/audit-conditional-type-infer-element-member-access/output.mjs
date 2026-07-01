@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // member-lookup through a conditional type whose true-branch is the inferred element:
-// `T extends Promise<infer U> ? U : never`. findTypeMember must thread through the
+// `T extends Promise<infer U> ? U : never`. type-member lookup must thread through the
 // conditional + infer pattern so the receiver narrows to `string[]`. `.at()` shows the
 // narrowing distinctly - array-narrowed `_atMaybeArray` vs the generic `_at` that would
 // be picked when the inner type stays unresolved

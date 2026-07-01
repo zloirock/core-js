@@ -1,6 +1,6 @@
 // negative-shape pin: property (NOT method) indexed-access `C<number[]>['items']` must
 // continue to peel to the value type, not be mistaken for function-type. ensures the new
-// method-shape branch in resolveIndexedAccessMemberAnnotationAST doesn't over-trigger on
+// method-shape branch in the indexed-access member resolution doesn't over-trigger on
 // property-shape members. PropertyDefinition class field is the parser-divergent case -
 // babel emits ClassProperty / TSAbstractPropertyDefinition variants too
 class C<V> {
