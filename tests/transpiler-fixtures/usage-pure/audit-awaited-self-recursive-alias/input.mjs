@@ -1,5 +1,5 @@
 // Self-recursive Promise alias `type R = Promise<R>` would loop forever during recursive
-// Promise-peel. resolveAwaitedAnnotation depth bound + followTypeAliasChain `visited` Set
+// Promise-peel. The Awaited-unwrap depth bound plus the alias-chain walk's `visited` Set
 // must terminate; resolver gracefully degrades to generic dispatch (no Awaited resolution)
 async function recursiveAwait() {
   type Recur = Promise<Recur>;

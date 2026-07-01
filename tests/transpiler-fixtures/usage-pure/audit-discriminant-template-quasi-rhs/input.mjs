@@ -1,5 +1,5 @@
 // discriminant comparison against a single-quasi template literal: `w.kind ===
-// `a``. `resolveComputedKeyName` routes through `singleQuasiString` which
+// `a``. the computed-key-name resolution routes through the single-quasi text extraction which
 // returns the cooked text for templates with zero interpolations, so the value
 // classifies the same as the bare string literal 'a'. without that branch the
 // discriminant clause would not extract a value and narrowing would degrade

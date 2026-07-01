@@ -2,7 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _at from "@core-js/pure/actual/instance/at";
-// Mix optional chain (`?.`) with static + instance polyfills: substituteInner
+// Mix optional chain (`?.`) with static + instance polyfills: inner-substitution
 // candidate ordering covers raw -> deoptionalized -> guardRef-rewritten paths
 const f = x => {
   var _ref, _ref2;
