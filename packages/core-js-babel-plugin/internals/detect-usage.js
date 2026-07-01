@@ -35,7 +35,7 @@ import {
   resolveCallArgument,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isPolyfillAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isPolyfillAliasBinding, isSymbolDestructureAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -157,7 +157,13 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // to the destructured global, any declaration kind) and rejects user-declared shadows
         const isAliasBindingShape = isPolyfillAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() });
         const polyfillHint = info && (isAliasBindingShape || isImportBinding) ? info.hint : null;
-        return { node: b.path.node, kind: b.kind, constantViolations: b.constantViolations, importSource, polyfillHint };
+        // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it
+        // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module
+        // source so `bindingSymbolKey` can fold `obj[iterator]`. the shadow gate rejects a nested
+        // same-name binding whose RHS is not Symbol (the name-keyed injector info is flat)
+        const aliasSymbolSource = isSymbolDestructureAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() })
+          ? info.source : null;
+        return { node: b.path.node, kind: b.kind, constantViolations: b.constantViolations, importSource, polyfillHint, aliasSymbolSource };
       }
       if (!info) return null;
       return { node: null, constantViolations: null, importSource: info.source, polyfillHint: info.hint };

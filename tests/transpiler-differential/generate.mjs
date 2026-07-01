@@ -612,6 +612,59 @@ function * generateFullConsumeSeRescue() {
   }
 }
 
+// --- Identity-IIFE peel: param REBOUND before return -> receiver is NOT the global ---
+// the peel lifts the call arg (`(arg => arg)(Array)` -> `Array`) ONLY when the param flows unchanged
+// to `return arg`. a rebind that RUNS - direct, pattern-LHS, sequence, or a write inside a nested
+// closure that is invoked (IIFE / `.call` / `new` / for-of / callback) - makes `return arg` yield the
+// reassigned value, so `{ from } = ...` reads off the wrong object and native THROWS. an over-resolve
+// substitutes `_Array$from` and wrongly succeeds: a THROW divergence from native, caught three-way.
+// these `throws:true` cases keep strip:false (nothing injected). the `never-invoked` closure is the
+// boundary - a DISCARDED function statement provably does not run, so native `Result === Array` and the
+// peel RESOLVES (strip:true - the injected `_Array$from` must stand alone in the stripped realm, the
+// exact case that broke on old engines when the peel wrongly bailed)
+const IIFE_REBIND_BODIES = [
+  { id: 'direct', body: 'arg = "x"; return arg;' },
+  { id: 'pattern', body: '[arg] = ["x"]; return arg;' },
+  { id: 'seq', body: '(0, arg = "x"); return arg;' },
+  { id: 'iife-closure', body: '(() => { arg = "x"; })(); return arg;' },
+  { id: 'call-invoke', body: '(() => { arg = "x"; }).call(); return arg;' },
+  { id: 'for-of', body: '(() => { for (arg of ["x"]) { /* rebinds */ } })(); return arg;' },
+  { id: 'new-expr', body: 'new (function () { arg = "x"; })(); return arg;' },
+  { id: 'never-invoked', body: '() => { arg = "x"; }; return arg;', resolves: true },
+];
+function * generateIdentityIifeRebind() {
+  for (const rebind of IIFE_REBIND_BODIES) {
+    const body = `(() => { const { from } = (arg => { ${ rebind.body } })(Array); return String(from([1, 2])); })()`;
+    yield { ...snippet(`iife-rebind/${ rebind.id }`, body), strip: !!rebind.resolves };
+  }
+}
+
+// --- Symbol.iterator alias fold: `obj[iterator]` where `iterator` resolves to Symbol.iterator ---
+// direct, bare-constructor destructure, and proxy-global destructure all bind `iterator` to
+// Symbol.iterator, so `[x][iterator]` is an iterator-method access and folds to `_getIteratorMethod(x)`.
+// a MISSED fold leaves `[x][Symbol.iterator]` reading natively: in the STRIPPED realm the array's
+// iterator is not on the prototype (pure doesn't patch it), so `typeof` is `undefined` there while the
+// full-env reference is `function` - the divergence the strip oracle catches. all three must fold in
+// BOTH emitters (bare/proxy previously folded only in babel via its early pattern-flatten)
+const SYMBOL_ITER_ALIAS = [
+  { id: 'direct', pre: '', key: 'Symbol.iterator' },
+  { id: 'bare', pre: 'const { iterator } = Symbol;', key: 'iterator' },
+  { id: 'proxy', pre: 'const { iterator } = globalThis.Symbol;', key: 'iterator' },
+  { id: 'renamed', pre: 'const { iterator: it } = Symbol;', key: 'it' },
+];
+function * generateSymbolIteratorAliasFold() {
+  for (const c of SYMBOL_ITER_ALIAS) {
+    const body = `(() => { ${ c.pre } return typeof [10, 20][${ c.key }]; })()`;
+    yield { ...snippet(`symbol-iter-alias/${ c.id }`, body), strip: true };
+  }
+  // SHADOW: a NESTED same-name binding off a non-Symbol object must NOT fold (the injector's
+  // name-keyed alias info is flat). native reads `[x][5]` -> undefined; an over-fold would call
+  // `_getIteratorMethod` (a function) -> a THREE-WAY value divergence from native. strip:false
+  // (the outer alias injects an unused import; the observed inner read is native, nothing stands alone)
+  const shadow = '(() => { const { iterator } = Symbol; const f = () => { const { iterator } = { iterator: 5 }; return typeof [10, 20][iterator]; }; return f(); })()';
+  yield { ...snippet('symbol-iter-alias/shadow', shadow), strip: false };
+}
+
 // --- Conditional-receiver destructure mirror grammar ---
 // the receiver is a runtime-selected ternary / `&&` / `||` carrying a global-PROXY operand beside a
 // USER-object (or short-circuit) operand. each snippet exercises BOTH runtime selections; the bug
@@ -2169,6 +2222,8 @@ export function * generate() {
   yield * generateNestedMirrorMixed();
   yield * generateReceiverCopyShape();
   yield * generateFullConsumeSeRescue();
+  yield * generateIdentityIifeRebind();
+  yield * generateSymbolIteratorAliasFold();
   yield * generateConditionalMirror();
   yield * generateChains();
   yield * generateIn();

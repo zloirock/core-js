@@ -2429,10 +2429,9 @@ export function sequenceKeyPrefix(keyNode) {
 }
 
 // nodes that introduce their own scope and may shadow outer bindings - subtree walkers
-// stop at these boundaries: `bodyHasParamReference` / `prefixStmtRebindsParam` treat them
-// as opaque (can't reason about inner bindings statically), `subtreeContainsExit` (in
-// straight-line-flow) treats them as scope-local exits that don't propagate to the outer
-// straight-line check
+// stop at these boundaries: `bodyHasParamReference` treats them as opaque (can't reason
+// about inner bindings statically), `subtreeContainsExit` (in straight-line-flow) treats
+// them as scope-local exits that don't propagate to the outer straight-line check
 export const NESTED_BINDING_INTRODUCERS = new Set([
   'ArrowFunctionExpression',
   'FunctionExpression',
@@ -2589,62 +2588,65 @@ export function paramListReadsName(params, name) {
 }
 
 // extract the body's terminal return expression while validating the prefix. arrow
-// expression-body returns directly. BlockStatement body: accept a side-effect
-// ExpressionStatement prefix preceding `return expr;`. non-ExpressionStatement
-// intermediates (control flow, bindings) or expressions that rebind a param (`arg = X`
-// / `arg++`) make the peel unsound. single body walk handles both checks.
+// expression-body returns directly. BlockStatement body: accept side-effect
+// ExpressionStatement prefixes preceding `return expr;`. non-ExpressionStatement
+// intermediates (control flow, bindings) make the returned value non-static.
 // the returned node is unwrapped to its runtime-effective value (oxc preserves the
 // `(Arg)` paren babel strips at parse): without this `(Arg => (Arg))(X)` fails the
-// identity-lift and `bodyHasParamReference` flags the parenthesised param -> IIFE bails
+// identity-lift and `bodyHasParamReference` flags the parenthesised param -> IIFE bails.
+// a param rebound anywhere the body can reach (`paramReboundInBody`, incl. the return
+// expression's own writes) makes `return arg` yield the new value, not the call arg
 function iifeBodyReturn(callee, paramNames) {
   const { body } = callee;
-  if (callee.type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') return unwrapExpressionChain(body) ?? null;
+  if (callee.type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') {
+    return paramReboundInBody(body, paramNames) ? null : unwrapExpressionChain(body) ?? null;
+  }
   if (body?.type !== 'BlockStatement') return null;
   const stmts = body.body ?? [];
   if (stmts.length === 0) return null;
   const last = stmts.at(-1);
   if (last?.type !== 'ReturnStatement' || !last.argument) return null;
-  for (let i = 0; i < stmts.length - 1; i++) {
-    if (stmts[i]?.type !== 'ExpressionStatement') return null;
-    if (prefixStmtRebindsParam(stmts[i].expression, paramNames)) return null;
-  }
+  for (let i = 0; i < stmts.length - 1; i++) if (stmts[i]?.type !== 'ExpressionStatement') return null;
+  if (paramReboundInBody(body, paramNames)) return null;
   return unwrapExpressionChain(last.argument);
 }
 
-// detect any param reassignment hidden anywhere inside `expr` (the expression of one
-// prefix ExpressionStatement before the body's `return`). recursive walk covers:
-//  - pattern-LHS: `[arg] = X`, `{a: arg} = X`, `[...arg] = X`, `[arg = 0] = X` -
-//    `walkPatternIdentifiers` enumerates every binding leaf (also handles bare
-//    Identifier and bare MemberExpression LHS uniformly: `arg.foo = X` walks no
-//    identifiers, so it correctly stays sound for property writes)
-//  - wrapper-hidden: SequenceExpression (`side(), arg = X`), BinaryExpression / Logical /
-//    Conditional, ParenthesizedExpression (oxc preserves; babel strips at parse),
-//    TS_EXPR_WRAPPERS, ChainExpression - the assignment / update sits one or more levels deep,
-//    generic `Object.keys` descent finds it
-//  - shallow Identifier LHS / UpdateExpression target - the direct top-level case, no wrapper to descend
-// `NESTED_BINDING_INTRODUCERS` bail: do not descend into nested function / class
-// bodies. their rebinds either shadow (own param with same name) or only run when
-// the closure is invoked elsewhere - neither propagates to the outer param's value
-// at the prefix-statement evaluation point
-function prefixStmtRebindsParam(expr, paramNames) {
-  if (!expr || paramNames.size === 0) return false;
-  if (typeof expr !== 'object' || typeof expr.type !== 'string') return false;
-  if (NESTED_BINDING_INTRODUCERS.has(expr.type)) return false;
-  if (expr.type === 'UpdateExpression') {
-    return expr.argument?.type === 'Identifier' && paramNames.has(expr.argument.name);
+// is any param in `paramNames` written somewhere the IIFE body can reach before the peel's return?
+// the identity-lift is sound only when the param flows UNCHANGED to `return arg`. a write hides
+// behind wrappers, a for-of/in head, a pattern-LHS, or inside a nested closure that RUNS - and a
+// closure runs through many forms (call / new callee, `.call`/`.apply`, a callback arg, iteration).
+// so descend into every nested scope BY DEFAULT (a callback whose invocation is undecidable
+// over-reports and bails - the safe usage-pure direction). the ONE closure that provably does NOT
+// run is a function/arrow that is a DISCARDED ExpressionStatement (`() => { arg = X; };` - created
+// and dropped): skip its body, since treating it as a rebind would UNDER-resolve a receiver that IS
+// the call arg and drop a needed polyfill (breaks on engines lacking the native builtin). a nested
+// function that shadows the param with its own binding is likewise skipped
+export function paramReboundInBody(node, paramNames) {
+  if (!node || paramNames.size === 0 || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (node.type === 'UpdateExpression') return node.argument?.type === 'Identifier' && paramNames.has(node.argument.name);
+  if (node.type === 'AssignmentExpression') {
+    return patternBindsIdentifier(node.left, id => paramNames.has(id.name)) || paramReboundInBody(node.right, paramNames);
   }
-  if (expr.type === 'AssignmentExpression') {
-    if (patternBindsIdentifier(expr.left, id => paramNames.has(id.name))) return true;
-    // RHS may carry its own rebind too (`other = (arg = X)`) - keep walking
-    return prefixStmtRebindsParam(expr.right, paramNames);
-  }
-  for (const key of Object.keys(expr)) {
-    const value = expr[key];
+  // a for-of / for-in head assigns the loop target each iteration (bare target / pattern, not a
+  // fresh `let`/`const`/`var` that introduces its own binding)
+  if ((node.type === 'ForOfStatement' || node.type === 'ForInStatement')
+    && node.left?.type !== 'VariableDeclaration' && patternBindsIdentifier(node.left, id => paramNames.has(id.name))) return true;
+  // a bare function/arrow that is a discarded ExpressionStatement never runs - skip its body
+  if (node.type === 'ExpressionStatement' && isPlainFunctionNode(unwrapRuntimeExpr(node.expression))) return false;
+  // a nested function whose own params rebind the target shadows ours - its writes hit its OWN binding
+  if (isPlainFunctionNode(node)
+    && (node.params ?? []).some(param => patternBindsIdentifier(param, id => paramNames.has(id.name)))) return false;
+  for (const key of Object.keys(node)) {
+    const value = node[key];
     if (Array.isArray(value)) {
-      if (value.some(v => prefixStmtRebindsParam(v, paramNames))) return true;
-    } else if (prefixStmtRebindsParam(value, paramNames)) return true;
+      if (value.some(child => paramReboundInBody(child, paramNames))) return true;
+    } else if (paramReboundInBody(value, paramNames)) return true;
   }
   return false;
+}
+
+function isPlainFunctionNode(node) {
+  return node?.type === 'ArrowFunctionExpression' || node?.type === 'FunctionExpression';
 }
 
 // does the pattern bind a target Identifier satisfying `predicate`? walks exactly the binding leaves
