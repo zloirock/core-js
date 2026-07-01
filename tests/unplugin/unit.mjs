@@ -2181,6 +2181,18 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/Up.vue?%56ue&type=script', { tag: 'sfc-upenc' });
   check('SnapshotCache/sfc percent-encoded uppercase marker canonical',
     cache.take('/src/Up.vue?vue&type=script')?.tag, 'sfc-upenc');
+  // an in-HASH `?t=N` (after `#`) is opaque fragment text, NOT an HMR marker: stripping it (the old
+  // `indexOf('?')` matched the in-fragment `?`) collapsed two sub-blocks differing only in the fragment
+  cache.store('/src/Frag.vue?vue&type=script#L1?t=1', { tag: 'frag-a' });
+  cache.store('/src/Frag.vue?vue&type=script#L1?t=2', { tag: 'frag-b' });
+  check('SnapshotCache/in-hash query not HMR-stripped a', cache.take('/src/Frag.vue?vue&type=script#L1?t=1')?.tag, 'frag-a');
+  check('SnapshotCache/in-hash query not HMR-stripped b', cache.take('/src/Frag.vue?vue&type=script#L1?t=2')?.tag, 'frag-b');
+  // a decoded `&` in a param value must not merge with the `&` token join: the single param `a=b&c`
+  // (`a=b%26c`) and the two params `a=b` + `c` must key distinctly, not both re-serialize to `a=b&c&vue`
+  cache.store('/src/Amp.vue?vue&a=b%26c', { tag: 'enc-amp' });
+  cache.store('/src/Amp.vue?vue&a=b&c', { tag: 'two-param' });
+  check('SnapshotCache/decoded & no join collision a', cache.take('/src/Amp.vue?vue&a=b%26c')?.tag, 'enc-amp');
+  check('SnapshotCache/decoded & no join collision b', cache.take('/src/Amp.vue?vue&a=b&c')?.tag, 'two-param');
   // dotted virtual-ext lang sub-blocks of one file (`&lang.ts` vs `&lang.tsx`) carry distinct queries, so
   // their keys must differ - else the second snapshot clobbers the first as the framework marker alone
   // would collapse both to the same key
