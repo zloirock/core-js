@@ -31,6 +31,12 @@ nav {
     max-width: 60%;
 
     @include media('min', 'sm') {
+      width: 335px;
+      max-width: unset;
+      padding-right: 1rem;
+    }
+
+    @include media('min', 'xl') {
       width: 360px;
       max-width: unset;
     }
