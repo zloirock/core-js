@@ -48,7 +48,6 @@ import {
   registerCtorAliasExtractions,
   registerDeclAliasIfSound,
   memberKeyName,
-  POSSIBLE_GLOBAL_OBJECTS,
   symbolKeyToEntry,
   unwrapInitForResolution,
 } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -64,13 +63,14 @@ import {
   PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalMemberCtorPure,
   proxyGlobalWrappedRoot,
+  resolveKey,
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   collectFallbackCollapseLeftSe,
+  planCallRootDiscardedProxySwap,
   planProxyReceiver,
   resolveCallRootedProxyCollapse,
-  seedChainRootCallRescue,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
@@ -609,7 +609,7 @@ export function createDestructureEmitter({
     const perDecl = declaration.declarations.map(d => rewriteDeclarator(d, scope, declPath));
     if (!perDecl.some(r => r.extractions.length || r.anchored)) return false;
     flattenedNestedDecls.add(declaration);
-    seedSkippedForExtractedDeclarators(declaration, perDecl);
+    seedSkippedForExtractedDeclarators(declaration, perDecl, { scope, path: declPath });
     // defer rendering + transforms.add to applyDestructuringTransforms - sibling subtree
     // visits AFTER this point may register `var _ref;` scope-tracker bindings for inner
     // instance-method polyfills. baking those into preservedSrc requires post-traverse state
@@ -1191,7 +1191,7 @@ export function createDestructureEmitter({
   // shared with `cascadeAssignmentExpression`: walk the receiver tail (peeled through
   // SE prefixes, parens, TS wrappers) and mark its subtree skipped so leaf Identifier
   // visitors don't double-emit polyfills for already-flattened receivers
-  // `keepNode` (the harvested discard-SE call) is excluded with its subtree: its source is
+  // `keepNodes` (the harvested discard-SE nodes) are excluded with their subtrees: their source is
   // re-emitted by the flatten, so its inner rewrites (`globalThis -> _globalThis`) must stay
   // queued for the compose splice - and their imports must survive
   // estree subtree walker adapted to the substrate-neutral subsume() walkNode(root, visit) contract
@@ -1199,13 +1199,13 @@ export function createDestructureEmitter({
     walkAstNodes({ root, visit });
   }
 
-  function skipReceiverTailSubtree(receiverNode, keepNode = null) {
+  function skipReceiverTailSubtree(receiverNode, keepNodes = null) {
     if (!receiverNode) return;
     const { tail } = peelNestedSequenceExpressions(receiverNode);
     if (!tail) return;
-    // the peeled receiver tail collapses into the rebuilt flatten init; a kept `keepNode` (discarded-SE node
-    // re-emitted verbatim) is rescued by source range so its own rewrites stay queued
-    const rescueRanges = keepNode ? [{ start: keepNode.start, end: keepNode.end }] : null;
+    // the peeled receiver tail collapses into the rebuilt flatten init; kept `keepNodes` (discarded-SE nodes
+    // re-emitted verbatim) are rescued by source range so their own rewrites stay queued
+    const rescueRanges = keepNodes?.length ? keepNodes.map(node => ({ start: node.start, end: node.end })) : null;
     for (const node of subsume(tail, { form: 'replace', rescueRanges, walkNode: walkSubtree })) skippedNodes.add(node);
   }
 
@@ -1227,7 +1227,7 @@ export function createDestructureEmitter({
     for (const node of subsume(root, { form: 'replace', rescueRanges, walkNode: walkSubtree })) skippedNodes.add(node);
   }
 
-  function seedSkippedForExtractedDeclarators(declaration, perDecl) {
+  function seedSkippedForExtractedDeclarators(declaration, perDecl, keyCtx) {
     const flattenedReceivers = new Set();
     for (let i = 0; i < perDecl.length; i++) {
       if (!perDecl[i].extractions.length && !perDecl[i].anchored) continue;
@@ -1248,7 +1248,7 @@ export function createDestructureEmitter({
     if (flattenedReceivers.size) {
       for (let i = 0; i < perDecl.length; i++) {
         if (!perDecl[i].extractions.length) {
-          polyfillSiblingReceiverRefs(declaration.declarations[i], flattenedReceivers);
+          polyfillSiblingReceiverRefs(declaration.declarations[i], flattenedReceivers, keyCtx);
         }
       }
     }
@@ -1471,7 +1471,7 @@ export function createDestructureEmitter({
     // init when the receiver swap drops the SE-bearing tail (partial consume), else the last
     // extraction's binding (full consume - matching babel's emit position, whose final per-prop
     // visit performs the discard). single consumption keeps the setup running exactly once
-    let discardSeSrc = plan.discardSe ? nodeSrc(plan.discardSe) : null;
+    let discardSeSrc = plan.discardSe ? plan.discardSe.map(node => nodeSrc(node)).join(', ') : null;
     function takeDiscardSe() {
       const src = discardSeSrc;
       discardSeSrc = null;
@@ -1615,7 +1615,7 @@ export function createDestructureEmitter({
   // substitutes them with their polyfill binding directly in the rendered source, and seeds
   // skippedNodes so identifier visitor doesn't queue a parallel transform that would mismatch
   // TransformQueue's nth-count compose
-  function polyfillSiblingReceiverRefs(declarator, flattenedReceivers) {
+  function polyfillSiblingReceiverRefs(declarator, flattenedReceivers, keyCtx) {
     // collect Identifier matches with shadowing + parent-MemberExpression filtering. skip rules:
     //   (1) parent MemberExpression resolves to a polyfillable global (`globalThis.Map`,
     //       `globalThis['Map']`). the outer MemberExpression transform replaces the whole
@@ -1744,9 +1744,21 @@ export function createDestructureEmitter({
     function readsStaticOffConstructor(constructorName, outerMember, innerMember) {
       if (!isStaticPlacement(constructorName)) return false;
       if (outerMember?.type !== 'MemberExpression' || outerMember.object !== innerMember) return false;
-      const staticKey = memberKeyName(outerMember);
+      const staticKey = foldMemberKey(outerMember);
       return staticKey !== null
         && !!resolveBuiltIn({ kind: 'property', object: constructorName, key: staticKey, placement: 'static' });
+    }
+
+    // the hop-key fold must mirror the natural visitor's FULL canonical resolution (SE-sequence
+    // tail, const-alias identifier, `+`-concat, template) - any narrower extractor under-resolves
+    // a key the visitor folds, breaks the chain walk, and lets the competing receiver substitution
+    // land inside the visitor's overwrite (compose needle crash). the predicate's safe direction
+    // is over-skip: a skipped receiver stays a raw global read, which is the pure-mode bail
+    function foldMemberKey(member) {
+      return resolveKey({
+        node: member.property, computed: member.computed,
+        scope: keyCtx.scope, adapter: estreeAdapter, path: keyCtx.path,
+      });
     }
 
     // skip the receiver-ref substitution when ANY enclosing member access (at any depth)
@@ -1764,12 +1776,12 @@ export function createDestructureEmitter({
     function isPolyfillableMemberAccess(ancestors, identifierNode) {
       // walk UP the enclosing member chain: each hop's `.object` must be the previous hop
       // (the chain rooted at `identifierNode`); stop at the first non-MemberExpression or
-      // dynamic key, since that breaks the contiguous chain anchored at the receiver
+      // truly dynamic key, since that breaks the contiguous chain anchored at the receiver
       let child = identifierNode;
       for (let depth = ancestors.length - 1; depth >= 0; depth--) {
         const member = ancestors[depth];
         if (member?.type !== 'MemberExpression' || member.object !== child) break;
-        const key = memberKeyName(member);
+        const key = foldMemberKey(member);
         if (key === null) break;
         if (resolveGlobalPolyfill(key)) return true;
         if (readsStaticOffConstructor(key, ancestors[depth - 1], member)) return true;
@@ -2880,27 +2892,22 @@ export function createDestructureEmitter({
     // once-per-pattern fire across multi-prop calls. a LITERAL / alias root (findProxyGlobal true) is handled elsewhere
     if ((peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression')
       || findProxyGlobal(peeled, ctx) || collapsedCallRootReceivers.has(peeled)) return;
-    // the synth-swap ALREADY classified this receiver as a proxy-nav-to-pure-ctor (it resolved `iterator ->
-    // _Symbol$iterator`), so resolve the leaf ctor by name + verify the immediate hop key is a proxy global
-    // (`.self` / `.window`). the shared `proxyGlobalMemberCtorPure` cannot be reused here: its `globalProxyMemberName`
-    // walk rejects a CALL root (`isProxyGlobalIdentifierNode` wants a bare proxy identifier), so it safe-misses the
-    // call-rooted receiver in this substrate - see TASKS.md CALL-ROOT-PROXY-SUBSTRATE for the provider unification
-    const leafName = memberKeyName(peeled);
-    const ctorPure = leafName && resolveGlobalPolyfill(leafName);
-    const hopKey = peeled.object?.type === 'MemberExpression' || peeled.object?.type === 'OptionalMemberExpression'
-      ? memberKeyName(peeled.object) : null;
-    if (!ctorPure || !hopKey || !POSSIBLE_GLOBAL_OBJECTS.has(hopKey)) return;
-    // whole-swap the leaf to its pure ctor (`Symbol -> _Symbol`) like babel, harvesting the receiver's buried SE
-    // ahead of it: a SE-bearing chain-root call (`(f(), _Symbol)`) via the rescue, plus any buried hop-key SE. a
-    // PURE chain-root call is dropped (rescue empty -> `_Symbol`, matching babel). dropping the `.self` navigation
-    // is safe - the value is discarded, so there is no this-binding to preserve
-    const rescue = seedChainRootCallRescue({ node: peeled, ...ctx });
-    const se = collectFoldedReceiverSideEffects(peeled.object, [], rescue);
-    const binding = injectPureImport(ctorPure.entry, ctorPure.hintName);
-    const collapsed = se.length ? `(${ se.map(node => nodeSrc(node)).join(', ') }, ${ binding })` : binding;
+    // the DECISION is the shared discarded-receiver plan (leaf-pure + hop verification through
+    // the canonical call-rooted resolver, which also resolves an SE-bearing computed hop key and
+    // harvests its effect); babel needs no call site - its lifted residual re-enters the natural
+    // member detection, which routes through the same shared pieces. only the text substitution
+    // and the compose-skip below are substrate work. dropping the `.self` navigation is safe -
+    // the value is discarded, so there is no this-binding to preserve
+    const plan = ctx && planCallRootDiscardedProxySwap({ receiver: peeled, ...ctx, resolvePure });
+    if (!plan) return;
+    const binding = injectPureImport(plan.leafPure.entry, plan.leafPure.hintName);
+    const collapsed = plan.harvestedSE.length
+      ? `(${ plan.harvestedSE.map(node => nodeSrc(node)).join(', ') }, ${ binding })` : binding;
     collapsedCallRootReceivers.add(peeled);
-    // skip the receiver subtree so the natural visitor does not also rewrite its proxy hop into this collapse
-    walkAstNodes({ root: peeled, visit: n => skippedNodes.add(n) });
+    // skip the receiver subtree so the natural visitor does not also rewrite its proxy hop into
+    // this collapse - but keep the harvested SE subtrees visible, so their own polyfillable
+    // content still rewrites and composes into the re-emitted text by needle
+    skipReplacedReceiver(peeled, plan.harvestedSE);
     transforms.add(peeled.start, peeled.end, collapsed);
   }
 
