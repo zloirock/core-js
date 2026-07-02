@@ -143,18 +143,21 @@ function walkSubtree(root, visit) {
   walkAstNodes({ root, visit });
 }
 
-function skipCollapsedChainExceptRootCall(staticHop, skippedNodes) {
+function skipCollapsedChainExceptRootCall(staticHop, skippedNodes, keepSe = []) {
   // peel a SEQUENCE tail at each hop (`(k++, (call).self).Map` -> the proxy chain lives in the tail): without
   // it the walk stopped at the SequenceExpression and never reached the chain-root call -> its inner globals
   // were skipped -> stranded raw `globalThis`. the prefix SE (`k++`) carries no proxy global, so skipping it
   // is harmless; the leadingMemo re-emits it verbatim. the chain-root call SURVIVES (rescued) - it is the
-  // collapse-target receiver re-emitted in place, so its inner globals must keep their queued rewrites
+  // collapse-target receiver re-emitted in place, so its inner globals must keep their queued rewrites.
+  // `keepSe` (harvested hop-key effects, re-emitted ahead of the collapsed binding) is rescued for the
+  // same reason: its polyfillable content must keep its queued rewrites to compose into the re-emit
   let chainRoot = peelReceiverSequenceTail(unwrapNode(staticHop));
   while (chainRoot.type === 'MemberExpression' || chainRoot.type === 'OptionalMemberExpression') {
     chainRoot = peelReceiverSequenceTail(unwrapNode(chainRoot.object));
   }
-  const rootCall = chainRoot.type === 'CallExpression' || chainRoot.type === 'OptionalCallExpression' ? [chainRoot] : [];
-  for (const node of subsume(staticHop, { form: 'replace', rescueRoots: rootCall, walkNode: walkSubtree })) skippedNodes.add(node);
+  const rescue = chainRoot.type === 'CallExpression' || chainRoot.type === 'OptionalCallExpression'
+    ? [...keepSe, chainRoot] : [...keepSe];
+  for (const node of subsume(staticHop, { form: 'replace', rescueRoots: rescue, walkNode: walkSubtree })) skippedNodes.add(node);
 }
 
 // skip the member hops of a receiver chain ABOVE the rebind root boundary so the member visitor queues no
@@ -1166,7 +1169,7 @@ export function createPolyfillEmitter({
         ? `(${ code.slice(chainAssign.start, caRhs.start) }${ resolveReceiverSource(caRhs, metaPath).src }, ${ suppressInject ? '' : injectPureImport(staticPure.entry, staticPure.hintName) })`
         : wrapSideEffects(suppressInject ? '' : injectPureImport(staticPure.entry, staticPure.hintName), staticDropped.droppedSe);
       skipNode = leafBoundary = staticHop;
-      skipCollapsedChainExceptRootCall(staticHop, skippedNodes);
+      skipCollapsedChainExceptRootCall(staticHop, skippedNodes, staticDropped.droppedSe);
       hops.length = staticIdx;
     } else {
       leaf = unwrappedLeaf;

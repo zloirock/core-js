@@ -573,7 +573,12 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
   // its AST shape so identifier-visitor's inner rewrite stays the single source of truth
   if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
     const inlined = inlineCallReturnExpression({ callNode: objectNode, scope, adapter, seen, path });
-    return inlined ? resolveObjectName({ objectNode: inlined, scope, adapter, seen, path, usageNode }) : null;
+    // an SE-arrow body inlines to a SEQUENCE (`() => (r++, globalThis)`) - classify through its
+    // tail value like the proxy-root walk does; SE preservation stays the emit side's concern
+    // (`inlineCallHasObservableEffects`), this is pure shape classification
+    return inlined ? resolveObjectName({
+      objectNode: peelReceiverSequenceTail(inlined), scope, adapter, seen, path, usageNode,
+    }) : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
   // computed: globalThis[`Array`] resolves the bracket expression; non-computed reads the
