@@ -2098,3 +2098,87 @@ QUnit.test('destructuring: SE call-rooted proxy receiver collapses + harvests th
   assert.same(typeof resolve, 'function');
   assert.same(count, 1);
 });
+
+// an assignment-form ctor alias (`let M; ({ Map: M } = globalThis)`): the registered trusted write
+// lets a SEPARATE static narrow (the whole-swap alone would strand it on the bare pure ctor), and a
+// user reassignment after the alias write must keep the user's value (last-write-wins, never the hint)
+QUnit.test('destructuring: assignment-form ctor alias narrows separate statics, reassignment keeps user value', assert => {
+  let M;
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  ({ Map: M } = globalThis);
+  const grouped = M.groupBy([1, 2, 3], it => it % 2);
+  assert.same(grouped.get(1).length, 2);
+  let R;
+  // eslint-disable-next-line no-useless-assignment -- the pre-reassignment alias write is the case under test
+  ({ Map: R } = globalThis);
+  R = { groupBy: () => 'USER' };
+  assert.same(R.groupBy(), 'USER');
+});
+
+// a REFUSED ctor-alias registration (conditional write) keeps member reads RAW: the untaken
+// path throws on the undefined binding exactly like untranspiled code; optional forms
+// short-circuit to undefined
+QUnit.test('destructuring: conditional ctor alias member stays raw on the untaken path', assert => {
+  function taken(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    return M.groupBy;
+  }
+  assert.throws(() => taken(false), TypeError);
+  function probe(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    return typeof M?.groupBy;
+  }
+  assert.same(probe(false), 'undefined');
+});
+
+// a use textually BEFORE its alias write (an earlier-defined closure body) stays raw: called
+// before the write it throws like untranspiled code
+QUnit.test('destructuring: closure use before the alias write stays raw', assert => {
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  let P;
+  function read() { return P.try(() => 42); }
+  assert.throws(() => read(), TypeError);
+  ({ Promise: P } = globalThis);
+  assert.same(typeof read, 'function');
+});
+
+// a write under a conditional EXPRESSION container (ternary branch / logical operand) refuses
+// flow-trust like an `if`-guarded one: the member read stays raw and the untaken path throws
+QUnit.test('destructuring: ternary/logical-wrapped alias write stays raw', assert => {
+  function viaTernary(c) {
+    let M;
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the ternary-wrapped WRITE is the form under test
+    (c ? ({ Map: M } = globalThis) : 0);
+    return M.groupBy;
+  }
+  assert.throws(() => viaTernary(false), TypeError);
+  function viaLogical(c) {
+    let P;
+    c && ({ Promise: P } = globalThis);
+    return typeof P.try;
+  }
+  assert.throws(() => viaLogical(false), TypeError);
+});
+
+// destructure FROM a refused ctor alias stays raw: the untaken path throws on the destructure
+// exactly like untranspiled code; caller args always win for a param DEFAULT
+QUnit.test('destructuring: extraction from a conditional ctor alias stays raw', assert => {
+  function taken(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    const { groupBy } = M;
+    return groupBy;
+  }
+  assert.throws(() => taken(false), TypeError);
+  function viaParam(c) {
+    let P;
+    if (c) ({ Promise: P } = globalThis);
+    function f({ try: t } = P) {
+      return t;
+    }
+    return f(c ? undefined : { try: 'CALLER' });
+  }
+  assert.same(viaParam(false), 'CALLER');
+});
