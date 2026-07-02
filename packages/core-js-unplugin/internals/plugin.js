@@ -1081,24 +1081,27 @@ export default function createPlugin(options) {
             return;
           }
           const { entry: importEntry, kind, hintName } = pureResult;
-          const binding = injectPureImport(importEntry, hintName);
 
           // proxy-global suppression is dispatch-conditional. instance dispatch leaves the
           // receiver Identifier live so its substitution composes into the outer guard's
           // rootRaw slot (`_globalThis.foo` instead of `globalThis?.foo` in the memo'd guard).
           // static dispatch already swallows the receiver in its own emit, so suppress the
           // parallel identifier transform (its needle wouldn't compose anyway and the
-          // injected import would be filtered as dead by reference tracking, but skipping
-          // saves a wasted transform allocation)
+          // injected import would strand as a dead line - single-pass runs carry no
+          // reference tracking to filter it)
           if (node.type === 'MemberExpression' && kind !== 'instance') skipProxyGlobal(node);
+
+          // a proxy-global root navigating a NON-pure leaf through redundant hops collapses the prefix
+          // (`globalThis.self.Array` -> `_globalThis.Array`); the bare identifier rewrite is skipped.
+          // checked BEFORE the import injection: the collapse emits its own binding(s), so an eager
+          // root import here would strand a dead line the collapse never references (babel emits none)
+          if (kind === 'global' && node.type === 'Identifier' && collapseProxyHopRoot(metaPath)) return;
+          const binding = injectPureImport(importEntry, hintName);
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance({
               binding, node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
             });
-          } else if (kind === 'global' && node.type === 'Identifier' && collapseProxyHopRoot(metaPath)) {
-            // a proxy-global root navigating a NON-pure leaf through redundant hops collapsed the prefix
-            // (`globalThis.self.Array` -> `_globalThis.Array`); the bare identifier rewrite is skipped
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
             replaceGlobalOrStatic({
               binding, node, parent, metaPath, inheritedStatic,

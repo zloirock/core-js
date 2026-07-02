@@ -2099,6 +2099,77 @@ QUnit.test('destructuring: SE call-rooted proxy receiver collapses + harvests th
   assert.same(count, 1);
 });
 
+// the same call-rooted collapse with a side effect buried in a COMPUTED hop key
+// (`sf()[(c++, 'self')].Map`): both the chain-root call and the key effect must be harvested in
+// source order, each exactly once. fail-before reads `sf()[...(undefined hop)]` and throws in Node
+QUnit.test('destructuring: SE-computed hop key on a call-rooted proxy receiver harvests both effects once', assert => {
+  let c = 0;
+  function sf() {
+    c++;
+    return globalThis;
+  }
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const { groupBy } = sf()[c++, 'self'].Map;
+  assert.same(typeof groupBy, 'function');
+  assert.same(c, 2);
+});
+
+// the side effect buried in the LEAF's own computed key (`sf().self[(k++, 'Array')]`): the leaf key
+// folds to its static tail so the swap still happens, and the key effect is harvested after the
+// chain-root call's. fail-before strands the raw `.self` hop (undefined in Node) and throws
+QUnit.test('destructuring: SE-folded leaf key on a call-rooted proxy receiver swaps + harvests both effects', assert => {
+  let k = 0;
+  function sf() {
+    k++;
+    return globalThis;
+  }
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const { from } = sf().self[k++, 'Array'];
+  assert.deepEqual(from([1, 2]), [1, 2]);
+  assert.same(k, 2);
+});
+
+// a NESTED destructure consuming its receiver whole must still run the effect buried in the
+// receiver's computed hop key exactly once - the discard used to fold the key and silently
+// drop its effect (counter stayed 0). fail-before: c === 0
+QUnit.test('destructuring: nested full consume re-emits the hop-key effect once', assert => {
+  let c = 0;
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const { Symbol: { iterator } } = globalThis[c++, 'self'];
+  assert.same(iterator, Symbol.iterator);
+  assert.same(c, 1);
+});
+
+// the partial-consume twin: a surviving residual sibling reads through the swapped receiver,
+// and the folded hop-key effect must still run exactly once ahead of it
+QUnit.test('destructuring: nested partial consume keeps the hop-key effect once', assert => {
+  let c = 0;
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const { Promise: { resolve }, other } = globalThis[c++, 'self'];
+  assert.same(typeof resolve, 'function');
+  assert.same(typeof other, 'undefined');
+  assert.same(c, 1);
+});
+
+// a for-init destructure off a call-rooted multi-hop receiver: the loop-header sink must carry
+// only the harvested effects (chain-root call + hop-key effect), each exactly once - a verbatim
+// sink kept the raw proxy hop and threw off-browser. fail-before throws in Node
+QUnit.test('destructuring: for-init sink harvests a call-rooted multi-hop receiver', assert => {
+  let c = 0;
+  function sf() {
+    c++;
+    return globalThis;
+  }
+  let out;
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  for (const { groupBy } = sf()[c++, 'self'].Map; c < 3;) {
+    out = typeof groupBy;
+    c++;
+  }
+  assert.same(out, 'function');
+  assert.same(c, 3);
+});
+
 // an assignment-form ctor alias (`let M; ({ Map: M } = globalThis)`): the registered trusted write
 // lets a SEPARATE static narrow (the whole-swap alone would strand it on the bare pure ctor), and a
 // user reassignment after the alias write must keep the user's value (last-write-wins, never the hint)
