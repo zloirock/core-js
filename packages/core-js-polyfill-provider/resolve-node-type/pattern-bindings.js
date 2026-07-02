@@ -327,13 +327,23 @@ export function createPatternBindings({
       || (t.isAssignmentPattern(bindingPath.node) && node.left?.typeAnnotation);
   }
 
-  // classify a rest binding at any depth of an array destructuring: an array-rest (`[...v]`,
-  // `[[...v]]`) always yields Array, an object-rest (`[{...v}]`) always yields Object -
-  // independent of the iterable's element type. catches the top-level and nested forms uniformly;
-  // without it a nested rest falls through to the for-of element/runtime fallback and is mis-typed
-  // as the iterable element (`for (const [[...rest]] of strings[][]` -> string instead of Array)
+  // classify a rest binding at any depth of an array OR object destructuring: an array-rest (`[...v]`,
+  // `[[...v]]`) always yields Array, an object-rest (`{...v}`, `[{...v}]`) always yields Object -
+  // independent of the source type. recurses through BOTH pattern kinds symmetrically, so a rest
+  // nested under the OTHER kind (`{ x: [{ ...v }] }`, `[{ y: [...v] }]`) is still classified; without
+  // it such a rest falls through to the init / for-of element fallback and is mis-typed as the source
   function nestedRestType(pattern, varName) {
-    if (pattern?.type === 'ObjectPattern') return bindsObjectRest(pattern, varName) ? new $Object('Object') : null;
+    if (pattern?.type === 'ObjectPattern') {
+      for (const prop of pattern.properties) {
+        if (prop?.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === varName) {
+          return new $Object('Object');
+        }
+        if (babelNodeType(prop) !== 'ObjectProperty') continue;
+        const nested = nestedRestType(peelAssignmentPattern(prop.value), varName);
+        if (nested) return nested;
+      }
+      return null;
+    }
     if (pattern?.type !== 'ArrayPattern') return null;
     for (const el of pattern.elements ?? []) {
       if (!el) continue;
@@ -560,27 +570,14 @@ export function createPatternBindings({
     return result;
   }
 
-  // walk an ObjectPattern (and any nested ObjectPatterns under its property values) looking
-  // for a RestElement whose argument identifier matches `varName`. covers both top-level
-  // (`{ ...rest } = obj`) and nested (`{ x: {...rest} } = obj`) cases - a single-level rest
-  // check only inspects the immediate properties array, so without the recursive walk the resolver
-  // falls through to keyPath logic and nested `rest` ends up null. narrow to `$Object('Object')`
-  // lets the `arg-is-object` filter (e.g. on `Object.keys`) subsume the polyfill when the user
-  // passes a provably non-primitive rest binding
-  function bindsObjectRest(pattern, varName) {
-    if (pattern?.type !== 'ObjectPattern') return false;
-    for (const prop of pattern.properties) {
-      if (prop?.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === varName) return true;
-      if (babelNodeType(prop) !== 'ObjectProperty') continue;
-      if (bindsObjectRest(peelAssignmentPattern(prop.value), varName)) return true;
-    }
-    return false;
-  }
-
   function resolveObjectBinding(objectPattern, varName, bindingPath) {
-    // object rest at any depth: `{ ...rest } = obj` and `{ x: {...rest} } = obj` both bind
-    // an Object. the recursive walk in `bindsObjectRest` catches both cases uniformly
-    if (bindsObjectRest(objectPattern, varName)) return new $Object('Object');
+    // a rest at any depth binds a fixed type independent of the source: `{ ...rest }` / `{ x: {...rest} }`
+    // an Object, `{ x: [...rest] }` an Array, `{ x: [{ ...rest }] }` an Object. `nestedRestType` recurses
+    // both pattern kinds; a single-level check would miss the array-nested forms and fall through to the
+    // keyPath logic, leaving `rest` null. the narrowed type lets an `arg-is-object` / `arg-is-array` filter
+    // subsume the polyfill when the user passes a provably non-primitive rest binding
+    const restType = nestedRestType(objectPattern, varName);
+    if (restType) return restType;
     // annotation on the pattern: const { items }: { items: number[] } = ...
     if (objectPattern.typeAnnotation) {
       const result = resolveDestructuredType(objectPattern, varName, bindingPath.scope);
