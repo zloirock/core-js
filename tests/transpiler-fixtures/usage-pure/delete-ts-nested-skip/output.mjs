@@ -1,0 +1,1 @@
+delete (obj.at! as any);

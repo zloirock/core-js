@@ -1,0 +1,196 @@
+import { WINDOWS_UNC_PREFIX_RE } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { isSfcSubBlock, parseModuleId } from './sfc-shapes.js';
+
+// pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
+// output emits `_ref = ...` free assignments; post lands the matching `var _ref;` via
+// `#rehydrate(inherit)`. losing the snapshot between passes leaves refs dangling at runtime,
+// so entries stick around until `reset()` on `buildEnd` drains them - pre-only ids leak
+// within a single invocation but can't accumulate across builds.
+// ids normalize so pre and post match regardless of the form their bundler emits:
+// - `?query` / `#hash` stripped (`foo.js` vs `foo.js?v=1`)
+// - backslash -> forward (`C:\src\foo.js` <-> `C:/src/foo.js`)
+// - Vite scheme prefixes stripped (`file:///abs/foo.js`, `/@fs/abs/foo.js`, `/@id/virtual:foo`
+//   all resolve to `/abs/foo.js`); `i` flag tolerates upper-case `FILE://` / `/@FS/`
+// - SFC sub-block queries (`?vue&type=script&setup=true`) kept intact so distinct scripts of
+//   the same file don't collide on one key
+// - collapse `//` -> `/` so a doubled slash on one side still matches the other
+// `/@fs` requires trailing `/` OR end-of-input boundary: without it `/@fsfoo/bar.js`
+// would get its leading `/@fs` stripped, producing `foo/bar.js` - theoretical virtual
+// module collision. `/@id/` already has trailing slash literal in the pattern.
+// `file://` accepts optional `localhost` host segment per RFC 3986 - some bundlers /
+// Node URL helpers serialize file URLs as `file://localhost/abs/path` instead of the
+// canonical `file:///abs/path` triple-slash form. `(?=\/)` lookahead pins the optional
+// host to localhost only: `file://otherhost/path` doesn't match `localhost`, doesn't
+// follow with `/` after the empty optional group either, so the regex passes through
+const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/(?:localhost)?(?=\/)|\/@fs(?=\/|$)|\/@id\/)/i;
+const REPEATED_SLASHES_RE = /\/{2,}/g;
+// `WINDOWS_UNC_PREFIX_RE` (shared) matches `//?/` long-path AND `//./` device-path forms.
+// strip to canonical `C:/...` so SnapshotCache lookups align across path-mangling stages
+// (`\\?\C:\src\App.vue` vs `C:/src/App.vue` - same logical file produces same key).
+// Windows drive letter case asymmetry: some bundler stages lowercase (`c:/src/...`), others
+// preserve source case (`C:/src/...`). same logical file produces different keys without
+// canonicalisation - lowercase the drive letter so pre / post align under any pipeline mix.
+// optional leading `/` matches Vite-style residual after `/@fs/` strip (`/@fs/C:/src/foo.js`
+// -> `/C:/src/foo.js`) and `file:///` (`file:///C:/src/foo.js` -> `/C:/src/foo.js`); without
+// it those forms keep the slash and the drive letter never lowercases - same logical file,
+// different cache keys, snapshot lost between pre / post on Windows + Vite dev-server.
+// case-insensitive (`i`, not a bare `[A-Z]` class): an already-lowercase drive behind a scheme
+// prefix (`/@fs/c:/...`) must ALSO shed its residual leading `/`, else its key `/c:/...`
+// diverges from bare `c:/...`
+const WINDOWS_DRIVE_LETTER_RE = /^\/?(?<letter>[a-z]):\//i;
+function normalizePath(path) {
+  let p = path.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
+  // composite chains like `/@id/file:///abs/foo` carry two schemes back-to-back. one-pass
+  // replace would leave `file:///abs/foo` and miss the bare `/abs/foo` snapshot. iterate
+  // until a pass produces no change so any nested scheme combination collapses
+  let prev;
+  do {
+    prev = p;
+    p = p.replace(VITE_SCHEME_PREFIX_RE, '');
+  } while (p !== prev);
+  p = p.replaceAll(REPEATED_SLASHES_RE, '/');
+  return p.replace(WINDOWS_DRIVE_LETTER_RE, (_, letter) => `${ letter.toLowerCase() }:/`);
+}
+// Vite HMR appends `&t=<timestamp>` (or `?t=` if no other query) to invalidate module
+// cache. each HMR re-fire produces a different timestamp, breaking pre->post snapshot
+// lookup for the same logical file. strip the timestamp marker so the key stays stable.
+// `g` flag handles legitimate multi-marker shapes (`?t=1&t=2` from re-fire wrapping a
+// previous wrapper). post-strip cleanup keeps the resulting key in canonical query shape:
+// `?t=1&type=script` -> `?type=script`, `?t=1` -> `''`, `?t=1&import` -> `?import`.
+// optional `(?:\.\d+)?` accepts decimal timestamps (some bundlers emit `?t=1234.5`); the
+// `(?=[&#]|$)` boundary anchors the match so `?t=1.5/foo` doesn't truncate path text -
+// without it `\d+` alone would consume only `1`, leaving `.5` as garbage in the key
+const HMR_TIMESTAMP_RE = /[&?]t=\d+(?:\.\d+)?(?=[#&]|$)/g;
+// when the FIRST `?t=` was stripped a leading `&` may now sit where `?` belonged - swap.
+// gate on positional check: only apply when ORIGINAL id had `?t=` at the first `?`/`#`
+// boundary AND the post-strip char at the same offset is `&`. without the position gate,
+// paths containing literal `&` (e.g. `/dir&with/file.js?t=1` -> `/dir&with/file.js`) get
+// their first `&` mistakenly rewritten to `?`, producing wrong-key snapshot lookups
+function stripHMRTimestamp(id) {
+  // HMR markers are query tokens: Vite uses `?t=<ms>` (first query) or `&t=<ms>` (appended to an
+  // existing query). a `t=` BEFORE the first `?` is literal path text - restricting the strip to
+  // the query portion stops a path `&t=N` from colliding with the bare path key.
+  // the query ends at `#`: a `?` that sits AFTER a `#` is opaque fragment text (`file.js#frag?t=1`),
+  // NOT a query, so split the fragment off FIRST and re-append it verbatim. otherwise `indexOf('?')`
+  // would find the in-fragment `?` and strip its `?t=N` -> two ids differing only in fragment collapse
+  // to one key (and the regex's `$` boundary would also over-strip a trailing in-fragment marker)
+  const hashStart = id.indexOf('#');
+  const fragment = hashStart === -1 ? '' : id.slice(hashStart);
+  const beforeHash = hashStart === -1 ? id : id.slice(0, hashStart);
+  const queryStart = beforeHash.indexOf('?');
+  if (queryStart === -1) return id;
+  const path = beforeHash.slice(0, queryStart);
+  const query = beforeHash.slice(queryStart);
+  HMR_TIMESTAMP_RE.lastIndex = 0;
+  if (!HMR_TIMESTAMP_RE.test(query)) return id;
+  let stripped = query.replaceAll(HMR_TIMESTAMP_RE, '');
+  // query begins with `?`; if `?t=` was the first token it is now gone and a `&`-prefixed token
+  // may sit at offset 0 - restore the `?`
+  if (query.startsWith('?t=') && stripped.startsWith('&')) stripped = `?${ stripped.slice(1) }`;
+  return path + stripped
+    .replace(/\?&/, '?')
+    .replace(/[&?]$/, '') + fragment;
+}
+
+// build the cache key from the SAME structured parse the SFC DETECTION uses (`parseModuleId`), so the
+// key can never drift from detection. an SFC sub-block (framework-marked, or a markerless `lang=`-admitted
+// JS block - incl. style / template, which still need a distinct key so sibling blocks of one file don't
+// collide) keeps its query, canonicalised by the parse: lowercased + percent/`+`-decoded. param order is
+// bundler-dependent (vite vs farm vs custom), so sort the decoded tokens; the hash is appended VERBATIM
+// (never sorted - an in-hash `?b=1&a=2` is opaque fragment text). parsing ONCE (not a second hand-split)
+// is what keeps the path-boundary rule (`#`-before-`?`), the case, and the encoding consistent between the
+// sub-block GATE and the key. a non-sub-block id keys on bare path (its query + hash are identity-irrelevant)
+function normalizeKey(id) {
+  const { path, params, hash } = parseModuleId(stripHMRTimestamp(id));
+  if (isSfcSubBlock(params)) {
+    // re-encode each decoded key/value before the `&`/`=` join: a decoded `&` or `=` inside a value
+    // (`a=x%26y` -> value `x&y`) would otherwise re-parse as extra tokens, colliding distinct param sets
+    // on one key. re-encoding also folds `+`/`%20` (both decode to space) onto one canonical spelling
+    const tokens = [...params].map(([key, value]) => value === ''
+      ? encodeURIComponent(key)
+      : `${ encodeURIComponent(key) }=${ encodeURIComponent(value) }`).sort();
+    return `${ normalizePath(path) }?${ tokens.join('&') }${ hash }`;
+  }
+  return normalizePath(path);
+}
+
+export default class SnapshotCache {
+  #snapshots = new Map();
+  #debug;
+
+  constructor({ debug = false } = {}) {
+    this.#debug = debug;
+  }
+
+  store(id, entry) {
+    const key = normalizeKey(id);
+    // double-call is legit in dev-servers (Vite --force, HMR re-invalidation) - gate the
+    // diagnostic under `debug` so it only fires when the user is actively investigating.
+    // last-write-wins is the right semantic for HMR: the latest pre is the one whose source
+    // post will see, so its snapshot is the current truth
+    if (this.#debug && this.#snapshots.has(key) && typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console -- opt-in diagnostic
+      console.warn(`[core-js] pre-pass called twice for ${ id }; latest snapshot wins`);
+    }
+    this.#snapshots.set(key, entry);
+  }
+
+  take(id) {
+    const key = normalizeKey(id);
+    const entry = this.#snapshots.get(key);
+    if (entry) this.#snapshots.delete(key);
+    return entry ?? null;
+  }
+
+  // parse reuse requires `postInput` byte-equality with current code - sibling plugins may
+  // have mutated text between passes, and only matching bytes guarantee AST position fidelity.
+  // null `stored` (cache miss) and null `stored.ast` (pre stored nulls intentionally) both
+  // collapse to the same empty shape; non-null ast with mismatched bytes nulls the ast/comments
+  // but still surfaces the snapshot so callers can use the bag-of-globals without reparse
+  static #withParseShape(stored, code) {
+    if (!stored) return { snapshot: null, ast: null, comments: null, preRewroteSource: false };
+    const canReuse = stored.ast && stored.postInput === code;
+    return {
+      snapshot: stored.snapshot,
+      ast: canReuse ? stored.ast : null,
+      comments: canReuse ? stored.comments : null,
+      // whether pre rewrote the source (emitted a content map); gates post's sourcesContent chaining
+      preRewroteSource: !!stored.preRewroteSource,
+    };
+  }
+
+  // non-destructive parse-reuse lookup: returns the cached snapshot plus whether pre's parse
+  // (AST / comments) can be reused for `code`, leaving the snapshot in place. used by callers that
+  // need to inspect the cached AST (disable-directive scan) before deciding whether to commit to
+  // the snapshot. on the commit path, callers follow up with `take(id)` to drop the entry; on bail
+  // paths the snapshot survives so a subsequent retry can still consume it
+  peekWithParse(id, code) {
+    return SnapshotCache.#withParseShape(this.#snapshots.get(normalizeKey(id)), code);
+  }
+
+  // per-file invalidation hook for Vite/Rollup `watchChange`. drops the bare-path snapshot
+  // AND any SFC sub-block entries (`/abs/App.vue?vue&type=script&lang=ts`, `?vue&type=template`
+  // etc.) that share the same source file. without sub-block fanout, edits to an SFC would
+  // leave the script/template/style snapshots stale in cache indefinitely (the cache has no
+  // size cap). bounds growth in long-running dev servers where a pre-pass ran but the matching post
+  // was skipped (tree-shake, sibling bail). returns true when any entry was removed
+  invalidate(id) {
+    const key = normalizeKey(id);
+    let removed = this.#snapshots.delete(key);
+    // sub-block keys have the bare path as a `?`-suffix prefix - sweep them too
+    const prefix = `${ key }?`;
+    for (const k of this.#snapshots.keys()) {
+      if (k.startsWith(prefix)) {
+        this.#snapshots.delete(k);
+        removed = true;
+      }
+    }
+    return removed;
+  }
+
+  size() { return this.#snapshots.size; }
+
+  reset() {
+    this.#snapshots.clear();
+  }
+}

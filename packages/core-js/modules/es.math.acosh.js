@@ -22,5 +22,5 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
     return n < 1 ? NaN : n > 94906265.62425156
       ? log(n) + LN2
       : log1p(n - 1 + sqrt(n - 1) * sqrt(n + 1));
-  }
+  },
 });

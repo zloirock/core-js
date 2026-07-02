@@ -3,11 +3,8 @@
     "strict": true,
     "target": "esnext",
     "module": "nodenext",
-    "moduleResolution": "nodenext",
     "esModuleInterop": true,
+    "moduleResolution": "nodenext",
     "noEmit": true
-  },
-  "include": [
-    "*.ts"
-  ]
+  }
 }

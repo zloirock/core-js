@@ -1,7 +1,7 @@
-import { STRICT, WHITESPACES } from '../helpers/constants.js';
+import { WHITESPACES } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import trimStart from 'core-js-pure/es/string/trim-start';
+import Symbol from '@core-js/pure/es/symbol';
+import trimStart from '@core-js/pure/es/string/trim-start';
 
 QUnit.test('String#trimStart', assert => {
   assert.isFunction(trimStart);
@@ -11,8 +11,6 @@ QUnit.test('String#trimStart', assert => {
 
   assert.throws(() => trimStart(Symbol('trimStart test')), 'throws on symbol context');
 
-  if (STRICT) {
-    assert.throws(() => trimStart(null, 0), TypeError);
-    assert.throws(() => trimStart(undefined, 0), TypeError);
-  }
+  assert.throws(() => trimStart(null, 0), TypeError);
+  assert.throws(() => trimStart(undefined, 0), TypeError);
 });

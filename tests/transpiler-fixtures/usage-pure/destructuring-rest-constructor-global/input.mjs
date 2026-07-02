@@ -1,0 +1,1 @@
+const { resolve, ...rest } = Promise;

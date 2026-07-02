@@ -1,10 +1,10 @@
 /* eslint-disable prefer-regex-literals, regexp/no-unused-capturing-group, unicorn/prefer-string-replace-all -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.replace);
   assert.arity(''.replace, 2);
   assert.name(''.replace, 'replace');
@@ -133,7 +133,7 @@ const run = assert => {
   assert.throws(() => ''.replace.call(Symbol('replace test'), /./, ''), 'throws on symbol context');
 
   assert.same('.a'.replace(new RegExp('a', 'y'), '.'), '.a', 'Replacement for y');
-};
+}
 
 QUnit.test('String#replace regression', run);
 
@@ -151,9 +151,10 @@ QUnit.test('RegExp#@@replace basic behavior', assert => {
 });
 
 QUnit.test('String#replace delegates to @@replace', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
+  /* eslint-disable es/no-nonstandard-string-prototype-properties -- @@replace */
   object[Symbol.replace] = function (a, b) {
     return { a, b };
   };
@@ -169,13 +170,14 @@ QUnit.test('String#replace delegates to @@replace', assert => {
   assert.same(string.replace(regexp, 42).b, 42);
   assert.same(''.replace.call(number, regexp, 42).a, number);
   assert.same(''.replace.call(number, regexp, 42).b, 42);
+  /* eslint-enable es/no-nonstandard-string-prototype-properties -- @@replace */
 });
 
 QUnit.test('RegExp#@@replace delegates to exec', assert => {
-  const exec = function (...args) {
+  function exec(...args) {
     execCalled = true;
     return /./.exec.apply(this, args);
-  };
+  }
 
   let execCalled = false;
   let re = /[ac]/;

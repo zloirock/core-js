@@ -1,0 +1,10 @@
+core-js@4: `DEBUG` option
+
+Using targets: <RESOLVED>
+
+Using polyfills with `usage-pure` method:
+The core-js@4 polyfill added the following polyfills:
+  array/instance/at
+
+Warnings:
+  [core-js] sibling plugin stripped ESM markers after our traversal; emitted imports will stay ESM while file body is CJS. set `importStyle: "require"` to avoid mixing

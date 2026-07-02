@@ -1,3 +1,4 @@
+// @types: web/url
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
@@ -5,6 +6,7 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var toString = require('../internals/to-string');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 
+// @dependency: web.url.constructor
 var URL = getBuiltIn('URL');
 
 // `URL.parse` method
@@ -19,5 +21,5 @@ $({ target: 'URL', stat: true, forced: !USE_NATIVE_URL }, {
     } catch (error) {
       return null;
     }
-  }
+  },
 });

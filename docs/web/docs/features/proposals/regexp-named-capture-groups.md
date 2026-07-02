@@ -16,3 +16,6 @@ class RegExp {
 ```plaintext
 core-js/proposals/regexp-named-groups
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/regexp-named-groups`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/regexp-named-groups.d.ts)

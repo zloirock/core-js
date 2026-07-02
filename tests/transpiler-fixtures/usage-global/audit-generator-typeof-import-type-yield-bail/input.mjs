@@ -1,0 +1,11 @@
+// generator declared as `Generator<typeof import('foo').Bar>` - the yield type is the same
+// TSTypeQuery-over-TSImportType structural-opaque nesting that the return-type bail
+// recognises. when the yield type resolves to null (opaque TSImportType), the iterator's
+// inner type is unknown. for-of over the generator yields a value whose receiver type is
+// that unresolved yield - the polyfill on the leaf method must NOT be silently dropped.
+function* gen(): Generator<typeof import("foo").Bar> {
+  yield null as any;
+}
+for (const x of gen()) {
+  x.at(0);
+}

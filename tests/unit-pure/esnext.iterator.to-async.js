@@ -1,10 +1,8 @@
-import { STRICT } from '../helpers/constants.js';
-
-import Promise from 'core-js-pure/es/promise';
-import Set from 'core-js-pure/es/set';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
-import Iterator from 'core-js-pure/actual/iterator';
-import 'core-js-pure/actual/async-iterator';
+import Promise from '@core-js/pure/es/promise';
+import Set from '@core-js/pure/es/set';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
+import Iterator from '@core-js/pure/full/iterator';
+import '@core-js/pure/full/async-iterator';
 
 QUnit.test('Iterator#toAsync', assert => {
   const { toAsync } = Iterator.prototype;
@@ -13,10 +11,8 @@ QUnit.test('Iterator#toAsync', assert => {
   assert.arity(toAsync, 0);
   assert.name(toAsync, 'toAsync');
 
-  if (STRICT) {
-    assert.throws(() => toAsync.call(undefined), TypeError);
-    assert.throws(() => toAsync.call(null), TypeError);
-  }
+  assert.throws(() => toAsync.call(undefined), TypeError);
+  assert.throws(() => toAsync.call(null), TypeError);
 
   const closableIterator = {
     closed: false,

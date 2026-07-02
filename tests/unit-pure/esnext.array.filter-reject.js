@@ -1,7 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
-
-import Symbol from 'core-js-pure/es/symbol';
-import filterReject from 'core-js-pure/full/array/filter-reject';
+import Symbol from '@core-js/pure/es/symbol';
+import filterReject from '@core-js/pure/full/array/filter-reject';
 
 QUnit.test('Array#filterReject', assert => {
   assert.isFunction(filterReject);
@@ -14,14 +12,16 @@ QUnit.test('Array#filterReject', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
+
   assert.deepEqual(filterReject([1, 2, 3, 'q', {}, 4, true, 5], it => typeof it != 'number'), [1, 2, 3, 4, 5]);
-  if (STRICT) {
-    assert.throws(() => filterReject(null, () => { /* empty */ }), TypeError);
-    assert.throws(() => filterReject(undefined, () => { /* empty */ }), TypeError);
-  }
+
+  assert.throws(() => filterReject(null, () => { /* empty */ }), TypeError);
+  assert.throws(() => filterReject(undefined, () => { /* empty */ }), TypeError);
+
   assert.notThrows(() => filterReject({ length: -1, 0: 1 }, () => {
     throw new Error();
   }), 'uses ToLength');
+
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {

@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-sequencing)
 
 ## Modules 
-[`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js)
+[`es.iterator.concat`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.concat.js)
 
 ## Built-ins signatures
 ```ts
@@ -17,6 +17,9 @@ class Iterator {
 core-js/proposals/iterator-sequencing
 core-js(-pure)/es|stable|actual|full/iterator/concat
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-sequencing`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-sequencing.d.ts)
 
 ## Example
 ```js

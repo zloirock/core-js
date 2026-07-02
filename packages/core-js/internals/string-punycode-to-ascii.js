@@ -21,7 +21,9 @@ var exec = uncurryThis(regexSeparators.exec);
 var floor = Math.floor;
 var fromCharCode = String.fromCharCode;
 var charCodeAt = uncurryThis(''.charCodeAt);
+var forEach = uncurryThis([].forEach);
 var join = uncurryThis([].join);
+var map = uncurryThis([].map);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
 var split = uncurryThis(''.split);
@@ -99,15 +101,13 @@ var encode = function (input) {
   var n = initialN;
   var delta = 0;
   var bias = initialBias;
-  var i, currentValue;
 
   // Handle the basic code points.
-  for (i = 0; i < input.length; i++) {
-    currentValue = input[i];
+  forEach(input, function (currentValue) {
     if (currentValue < 0x80) {
       push(output, fromCharCode(currentValue));
     }
-  }
+  });
 
   var basicLength = output.length; // number of basic code points.
   var handledCPCount = basicLength; // number of code points that have been handled;
@@ -121,12 +121,11 @@ var encode = function (input) {
   while (handledCPCount < inputLength) {
     // All non-basic code points < n have been handled already. Find the next larger one:
     var m = maxInt;
-    for (i = 0; i < input.length; i++) {
-      currentValue = input[i];
+    forEach(input, function (currentValue) {
       if (currentValue >= n && currentValue < m) {
         m = currentValue;
       }
-    }
+    });
 
     // Increase `delta` enough to advance the decoder's <n,i> state to <m,0>, but guard against overflow.
     var handledCPCountPlusOne = handledCPCount + 1;
@@ -137,8 +136,7 @@ var encode = function (input) {
     delta += (m - n) * handledCPCountPlusOne;
     n = m;
 
-    for (i = 0; i < input.length; i++) {
-      currentValue = input[i];
+    forEach(input, function (currentValue) {
       if (currentValue < n && ++delta > maxInt) {
         throw new $RangeError(OVERFLOW_ERROR);
       }
@@ -161,7 +159,7 @@ var encode = function (input) {
         delta = 0;
         handledCPCount++;
       }
-    }
+    });
 
     delta++;
     n++;
@@ -170,12 +168,8 @@ var encode = function (input) {
 };
 
 module.exports = function (input) {
-  var encoded = [];
   var labels = split(replace(toLowerCase(input), regexSeparators, '\u002E'), '.');
-  var i, label;
-  for (i = 0; i < labels.length; i++) {
-    label = labels[i];
-    push(encoded, exec(regexNonASCII, label) ? 'xn--' + encode(label) : label);
-  }
-  return join(encoded, '.');
+  return join(map(labels, function (label) {
+    return exec(regexNonASCII, label) ? 'xn--' + encode(label) : label;
+  }), '.');
 };

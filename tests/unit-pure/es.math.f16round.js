@@ -1,7 +1,7 @@
 // some asserts based on https://github.com/petamoriken/float16/blob/master/test/f16round.js
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import f16round from 'core-js-pure/es/math/f16round';
+import f16round from '@core-js/pure/es/math/f16round';
 
 const { MAX_VALUE, MIN_VALUE } = Number;
 

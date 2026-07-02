@@ -1,12 +1,12 @@
+// @types: proposals/array-unique
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/a-typed-array');
+var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 var $arrayUniqueBy = require('../internals/array-unique-by');
 
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var arrayUniqueBy = uncurryThis($arrayUniqueBy);
 
 // `%TypedArray%.prototype.uniqueBy` method

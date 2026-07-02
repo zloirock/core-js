@@ -1,0 +1,5 @@
+{
+  "name": "tests/polyfill-provider",
+  "private": true,
+  "type": "module"
+}

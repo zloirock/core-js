@@ -1,0 +1,1 @@
+const headers = new Headers();

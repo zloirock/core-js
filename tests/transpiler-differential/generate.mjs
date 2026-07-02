@@ -1,0 +1,2572 @@
+// Transpiler-differential generator. Each family yields self-contained modules exporting `r` (the observed
+// value) and `effects` (a side-effect log, so a receiver double-eval shows up as a duplicated
+// entry). Snippets must run natively without a "boring" throw so the runtime three-way comparison
+// stays high-signal. `arr`, `cond`, `nul`, `log` are bound by the prelude. Node-only: `globalThis`
+// is used (never `self` / `window`, which don't exist here).
+const PRELUDE = [
+  'const log = [];',
+  'const cond = true;',
+  'const nul = null;',
+  'const arr = [3, [1, 2]];',
+];
+
+function snippet(name, expr) {
+  return {
+    name,
+    code: [...PRELUDE, `export const r = ${ expr };`, 'export const effects = log;'].join('\n'),
+  };
+}
+
+// --- Combinatorial grammar ---
+// the real generative core: a polyfilled call is RECEIVER (typed) . METHOD (valid for that type),
+// dressed by a WRAPPER (optional / side-effect / TS cast / non-null) and dropped into a CONTEXT (the
+// syntactic position - statement, parameter default, class field, ...). the cross-product explores
+// combinations no one wrote by hand; `effects` stays single because every context evaluates the
+// hole exactly once. each receiver/method carries a `type` so only valid pairings are emitted
+const G_RECEIVERS = [
+  { id: 'array-lit', src: '[3, [1, 2]]', type: 'array' },
+  { id: 'array-local', src: 'arr', type: 'array' },
+  { id: 'array-call', src: 'arr.slice()', type: 'array' },
+  // a STATIC-call result whose return type narrows to Array (KNOWN_STATIC_METHOD_RETURN_TYPES) - distinct
+  // resolver path from the instance-call result above; the `from` static AND the chained instance method
+  // both inject, so import parity + the cast/optional/context cross all exercise the return-narrow surface
+  { id: 'static-call', src: 'Array.from([3, [1, 2]])', type: 'array' },
+  { id: 'string-lit', src: '"abcde"', type: 'string' },
+  { id: 'static-array', src: 'Array', type: 'sarray' },
+  { id: 'static-array-proxy', src: 'globalThis.Array', type: 'sarray' },
+  { id: 'static-object', src: 'Object', type: 'sobject' },
+  { id: 'static-object-proxy', src: 'globalThis.Object', type: 'sobject' },
+  { id: 'static-number', src: 'Number', type: 'snumber' },
+  { id: 'static-number-proxy', src: 'globalThis.Number', type: 'snumber' },
+  { id: 'static-map', src: 'Map', type: 'smap' },
+];
+// every method's target builtin is stripped in strip-builtins.mjs, so all carry the builtin-stripped
+// oracle (a missed injection leaves a leftover native call that now throws). the host-level `strip:false`
+// further below (param-default / assignment hosts) is a separate axis - those may legitimately not inject
+const G_METHODS = [
+  { id: 'flat', call: 'flat()', types: ['array'] },
+  { id: 'at', call: 'at(0)', types: ['array', 'string'] },
+  { id: 'includes', call: 'includes(3)', types: ['array'] },
+  { id: 'flatMap', call: 'flatMap(x => [x])', types: ['array'] },
+  { id: 'findLast', call: 'findLast(x => x === 3)', types: ['array'] },
+  { id: 'findLastIndex', call: 'findLastIndex(x => x === 3)', types: ['array'] },
+  { id: 'toReversed', call: 'toReversed()', types: ['array'] },
+  { id: 'toSorted', call: 'toSorted()', types: ['array'] },
+  { id: 'toSpliced', call: 'toSpliced(0, 1)', types: ['array'] },
+  { id: 'with', call: 'with(0, 9)', types: ['array'] },
+  { id: 'padStart', call: 'padStart(8, "0")', types: ['string'] },
+  { id: 'padEnd', call: 'padEnd(8, "0")', types: ['string'] },
+  { id: 'trimStart', call: 'trimStart()', types: ['string'] },
+  { id: 'trimEnd', call: 'trimEnd()', types: ['string'] },
+  { id: 'replaceAll', call: 'replaceAll("a", "z")', types: ['string'] },
+  { id: 'from', call: 'from([1, 2])', types: ['sarray'] },
+  { id: 'of', call: 'of(1, 2)', types: ['sarray'] },
+  { id: 'fromEntries', call: 'fromEntries([["a", 1]])', types: ['sobject'] },
+  { id: 'hasOwn', call: 'hasOwn({ a: 1 }, "a")', types: ['sobject'] },
+  // Object.groupBy (observable object result) + Map.groupBy (Map value serializes vacuously, but the
+  // stripped oracle still catches a missed injection - the leftover native static is gone -> it throws).
+  // exercises the Object.groupBy / Map.groupBy strip entries that no prior snippet reached
+  { id: 'groupBy', call: 'groupBy([1, 2, 3], x => x % 2 ? "odd" : "even")', types: ['sobject', 'smap'] },
+  // one representative snumber static: isInteger / isFinite / isSafeInteger / isNaN are pass-through
+  // DATA to one identical static-detection path (no per-method branch), so a single armed entry covers
+  // it. armed (strip) since the pure static stands alone - is-integral-number falls back to its own impl
+  { id: 'isInteger', call: 'isInteger(3)', types: ['snumber'] },
+];
+// each wrapper renders the full `receiver.method` so it owns both the receiver dressing and the
+// call join (`.` vs `?.`); `ts: true` wrappers make the whole snippet TypeScript
+const G_WRAPPERS = [
+  { id: 'plain', render: (r, m) => `${ r }.${ m }`, ts: false },
+  { id: 'optional', render: (r, m) => `${ r }?.${ m }`, ts: false },
+  { id: 'paren-se', render: (r, m) => `(log.push("e"), ${ r }).${ m }`, ts: false },
+  { id: 'cast', render: (r, m) => `(${ r } as any).${ m }`, ts: true },
+  { id: 'nonnull', render: (r, m) => `(${ r })!.${ m }`, ts: true },
+];
+// each context is a template with a `{hole}` for the polyfilled expression, wrapping it so the value
+// surfaces as `r`. `ts: true` contexts are TypeScript-only positions
+const G_CONTEXTS = [
+  { id: 'stmt', tpl: e => e, ts: false },
+  { id: 'param-default', tpl: e => `(() => { function f(p = ${ e }) { return p; } return f(); })()`, ts: false },
+  { id: 'destructure-default', tpl: e => `(() => { const [p = ${ e }] = []; return p; })()`, ts: false },
+  { id: 'class-field', tpl: e => `(() => { class C { p = ${ e }; } return new C().p; })()`, ts: false },
+  { id: 'ternary', tpl: e => `(true ? ${ e } : null)`, ts: false },
+  { id: 'loop-body', tpl: e => `(() => { let p; for (const _ of [0]) p = ${ e }; return p; })()`, ts: false },
+  // the polyfilled call as a logical-assignment RHS: `p ??= <hole>` evaluates the hole (p is undefined)
+  // and surfaces its value, so the runtime three-way still compares the call result in this position
+  { id: 'logical-assign-rhs', tpl: e => `(() => { let p; p ??= ${ e }; return p; })()`, ts: false },
+  // the polyfilled call as a switch DISCRIMINANT: the observable is constant ("d"), so this leg covers
+  // import parity + no-throw + the stripped realm (a missed injection throws when the discriminant runs),
+  // not the value - the discriminant position can't return its own value the way the others do
+  { id: 'switch-discriminant', tpl: e => `(() => { let out = "x"; switch (${ e }) { default: out = "d"; } return out; })()`, ts: false },
+  { id: 'ts-param-prop', tpl: e => `(() => { class C { constructor(public p = ${ e }) {} } return new C().p; })()`, ts: true },
+];
+
+function * generateGrammar() {
+  for (const ctx of G_CONTEXTS) {
+    for (const recv of G_RECEIVERS) {
+      for (const method of G_METHODS) {
+        if (!method.types.includes(recv.type)) continue;
+        for (const wrapper of G_WRAPPERS) {
+          const inner = wrapper.render(recv.src, method.call);
+          const name = `grammar/${ ctx.id }/${ recv.id }/${ method.id }/${ wrapper.id }`;
+          // grammar receivers are typed + provable -> the plugin MUST inject every polyfillable
+          // call, so the builtin-stripped oracle applies (a leftover native call = a real missed
+          // injection). hand-written EXPR_FAMILIES include deliberate bail cases (unprovable
+          // receivers) where a native call legitimately survives, so they stay full-env only
+          yield { ...snippet(name, ctx.tpl(inner)), ts: ctx.ts || wrapper.ts, strip: method.strip !== false };
+        }
+      }
+    }
+  }
+}
+
+// --- Destructure grammar ---
+// the generative core for the destructure family: an extraction PATTERN off a provable receiver,
+// dropped into a binding HOST (declaration / param-default / assignment). replaces hand-adding
+// single destructure examples - the cross-product covers shorthand / alias / multi / rest / nested
+// proxy-hop / side-effect-key uniformly. each pattern OBSERVES an injected binding (`typeof from`)
+// so the stripped-realm oracle stays valid (the observable never reads a native that wasn't replaced).
+// `strip` is pattern.strip && host.strip: only declaration hosts off a guaranteed-injected pattern
+// qualify; param-default (synth-swap may bail) and assignment hosts stay full-env only
+const D_PATTERNS = [
+  { id: 'shorthand', recv: 'Array', lhs: '{ from }', names: ['from'], observe: 'typeof from', strip: true },
+  { id: 'alias', recv: 'Array', lhs: '{ from: f }', names: ['f'], observe: 'typeof f', strip: true },
+  { id: 'multi', recv: 'Array', lhs: '{ from, of }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
+  { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true },
+  { id: 'object', recv: 'Object', lhs: '{ fromEntries }', names: ['fromEntries'], observe: 'typeof fromEntries', strip: true },
+  { id: 'nested-proxy', recv: 'globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
+  { id: 'nested-proxy-multi', recv: 'globalThis', lhs: '{ Array: { from, of } }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
+  { id: 'se-key', recv: 'Array', lhs: '{ [(log.push("k"), "from")]: f }', names: ['f'], observe: 'typeof f', strip: true },
+  // nested INSTANCE-method destructure (`{ y: { flat: m } } = { y: <recv> }`) - the body-extract path
+  // distinct from the static / proxy-hop patterns above. a SOLE binding off a side-effect-free receiver
+  // drops the dead residual entirely (`const m = _flat(<recv>)`); a SIBLING binding keeps the residual and
+  // memoizes a constant-literal receiver into one `_ref`. `m` is the polyfilled method, so `typeof m` is
+  // `function` on every realm once injected (stripped oracle valid). the sibling form's `a: log.push("e")`
+  // pins side-effect-once: a memoize that re-ran the receiver, or a dropped sibling, shows in `effects`
+  { id: 'nested-instance-lit', recv: '{ y: [3, [1, 2]] }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-ident', recv: '{ y: arr }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-sibling', recv: '{ a: log.push("e"), y: [3, [1, 2]] }', lhs: '{ a, y: { flat: m } }', names: ['a', 'm'], observe: '[a, typeof m]', strip: true },
+];
+const D_HOSTS = [
+  { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
+  { id: 'param-default', strip: false, build: p => `(() => { function g(${ p.lhs } = ${ p.recv }) { return ${ p.observe }; } return g(); })()` },
+  { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
+  // bodyless control-body declaration hosts: a polyfill extract emitted before the surviving residual must
+  // share the body's `{ }` block with it. `var` is required (a bodyless body cannot host a lexical
+  // declaration); `if (1)` / `while (0)` run the body once so the binding is assigned. without the block a
+  // do-while body holding two statements is unparsable and an `if` residual escapes the guard - both surface
+  // as a transform crash / runtime mismatch here, so these are the durable backstop for the block-wrap
+  { id: 'bodyless-if', strip: true, build: p => `(() => { if (1) var ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
+  { id: 'bodyless-do-while', strip: true, build: p => `(() => { do var ${ p.lhs } = ${ p.recv }; while (0); return ${ p.observe }; })()` },
+];
+
+function * generateDestructure() {
+  for (const host of D_HOSTS) {
+    for (const pat of D_PATTERNS) {
+      const name = `destructure-grammar/${ host.id }/${ pat.id }`;
+      yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip };
+    }
+  }
+}
+
+// --- Destructure ALIAS grammar (binding aliases the CONSTRUCTOR via element / value) ---
+// distinct from the member-extraction family above: `const [A] = [Array]` binds A to the Array
+// constructor itself (the array element), so the LATER static call resolves through A. covers the
+// const-array-init (rhs is a const-identifier bound to the literal), computed-key and object-value
+// alias shapes. the observable IS the folded static call's result, so the stripped-realm oracle
+// stays valid (the static is replaced by its polyfill on every realm). declaration host => strippable
+const D_ALIAS = [
+  { id: 'element', setup: 'const [A] = [Array];', use: 'A.from([1, 2])' },
+  { id: 'const-array-init', setup: 'const arr = [Array]; const [A] = arr;', use: 'A.from([1, 2])' },
+  { id: 'computed-key', setup: 'const k = "x"; const { [k]: A } = { x: Array };', use: 'A.from([1, 2])' },
+  { id: 'object-value', setup: 'const { y: A } = { y: Object };', use: 'A.fromEntries([["a", 1]])' },
+];
+function * generateDestructureAlias() {
+  for (const s of D_ALIAS) {
+    const body = `(() => { ${ s.setup } return JSON.stringify(${ s.use }); })()`;
+    yield { ...snippet(`destructure-alias/${ s.id }`, body), strip: true };
+  }
+}
+
+// --- IIFE destructure-param default with a WINNING call-arg (caller-args-must-win) ---
+// `(({ from } = Number) => typeof from)(<arg>)`: the live call-arg supersedes the param-default. the
+// default `Number` is a polyfill DEAD-END, so whenever the arg STATICALLY RESOLVES to a constructor
+// carrying the destructured static, that static is injected onto the synth and the binding is a function.
+// the resolution mechanic is method-AGNOSTIC - it branches on the call-arg's AST SHAPE and the wrapper
+// FORM, never on WHICH static is destructured (the method name is pass-through data handed to `resolvePure`).
+// so the meaningful axes are HOST x ARG-SHAPE; per-method injection + strip coverage is the method-grammar's
+// job, and one strippable representative receiver (Array, carrying `from` + `of` for the multi-key fanout)
+// stands in for all. hosts are the two IIFE wrapper forms `detectIifeArgPath` accepts (arrow, function-
+// expression). arg shapes exercise each resolution path: bare Identifier, a proxy-global member, a deeper
+// proxy hop, an inline-resolvable call, an SE-sequence tail, a per-branch conditional. KEY-SET adds the
+// single- vs multi-key synth fanout. Array.from/of are strippable so the stripped realm is load-bearing - a
+// missed injection leaves a native static absent there, flipping `typeof` from `'function'` to `'undefined'`.
+// this root is shared by both emitters, so import-set parity can't catch a regression alone (both miss
+// together) - the stripped realm is the only oracle. seed-verified: neutering `resolvableArgSupersedes-
+// DeadDefault` fails the member/hop/call cases (12); restricting it to member-exprs fails only the call
+// cases (4 - the original missed-polyfill regression); ident + seq route through `isClassifiableReceiverArg`
+// (the SE-tail peels to an Identifier) and the conditional through the per-branch synth - each arg shape
+// locks a distinct resolution path, and each host independently exercises `detectIifeArgPath`. (a call arg's
+// SE rescue ahead of the synth literal is runtime-NEUTRAL so off-signal here - locked by the
+// audit-iife-param-call-arg-injects-resolvable fixture instead)
+const FA_ARG_SHAPES = [
+  { id: 'ident', arg: 'Array' },
+  { id: 'member', arg: 'globalThis.Array' },
+  { id: 'hop', arg: 'globalThis.globalThis.Array' },
+  { id: 'call', arg: '(() => Array)()' },
+  { id: 'seq', arg: '(log.push("e"), Array)' },
+  { id: 'conditional', arg: 'cond ? Array : Boolean' },
+];
+// the dead default must miss EVERY key; the single resolved receiver carries them all
+const FA_KEY_SETS = [
+  { id: 'single', keys: ['from'] },
+  { id: 'multi', keys: ['from', 'of'] },
+];
+// the two IIFE wrapper forms - both routed through `detectIifeArgPath` to locate the winning call-arg
+const FA_HOSTS = [
+  { id: 'arrow', wrap: (params, body, arg) => `(({ ${ params } } = Number) => ${ body })(${ arg })` },
+  { id: 'fn-expr', wrap: (params, body, arg) => `(function ({ ${ params } } = Number) { return ${ body }; })(${ arg })` },
+];
+function * generateFallbackArg() {
+  for (const host of FA_HOSTS) {
+    for (const shape of FA_ARG_SHAPES) {
+      for (const { id, keys } of FA_KEY_SETS) {
+        const obs = keys.length === 1
+          ? `typeof ${ keys[0] }`
+          : `[${ keys.map(k => `typeof ${ k }`).join(', ') }]`;
+        const body = host.wrap(keys.join(', '), obs, shape.arg);
+        yield { ...snippet(`fallback-arg/${ host.id }/${ id }/${ shape.id }`, body), strip: true };
+      }
+    }
+  }
+}
+
+// --- Proxy-global full-consume from a side-effecting receiver ---
+// a full-consume proxy-global destructure (every binding resolves to a proxy-global static /
+// constructor) off a receiver wrapped in a side-effecting SequenceExpression. the emitter drops the
+// dead receiver value but lifts the SE prefix; the dropped proxy-global root must NOT orphan a
+// `globalThis -> _globalThis` rewrite inside the statement overwrite (an unplugin text-composition
+// crash that aborts the whole file) nor leak a now-dead import. flat + nested-hop patterns across
+// declaration and assignment hosts; the prefix's `log.push` pins the effect so a dropped / doubled
+// SE shows in `effects`. for-init keeps the tail in a sink declarator (static-fixture territory).
+// declaration host is stripped-valid (every binding is an injected polyfill); assignment host stays
+// full-env like the other assignment-host destructure families
+const PGS_PATTERNS = [
+  { id: 'flat-single', lhs: '{ Map }', names: ['Map'], observe: 'typeof Map' },
+  { id: 'flat-multi', lhs: '{ Map, Set }', names: ['Map', 'Set'], observe: '[typeof Map, typeof Set]' },
+  { id: 'nested-hop', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from' },
+];
+const PGS_HOSTS = [
+  { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = (log.push("r"), globalThis); return ${ p.observe }; })()` },
+  { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = (log.push("r"), globalThis)); return ${ p.observe }; })()` },
+];
+
+function * generateProxyGlobalSEReceiver() {
+  for (const host of PGS_HOSTS) {
+    for (const pat of PGS_PATTERNS) {
+      const name = `proxy-global-se-receiver/${ host.id }/${ pat.id }`;
+      yield { ...snippet(name, host.build(pat)), strip: host.strip };
+    }
+  }
+}
+
+// --- Proxy-global HOP + pure constructor + no-meta-leaf terminal ---
+// a pure constructor reached through a proxy-global HOP (`.self` / `.window`) and a terminal that carries
+// no member meta (bare `.prototype`, computed / optional / dynamic key) must keep the constructor: a
+// too-weak hop-guard drops it to `_<root>.prototype` (undefined off-engine - a wrong-value + import-set
+// divergence). `self` / `window` don't exist in Node, so the host aliases them to globalThis
+// self-restoringly (try/finally, no leak) and observes `=== Ctor.prototype`: native keeps the constructor
+// while a buggy drop reads undefined, so the full-env three-way catches it. distinct ctor per shape.
+const PHC_LEAVES = [
+  { id: 'bare-proto', leaf: c => `${ c }.prototype` },
+  { id: 'computed-proto', leaf: c => `${ c }["prototype"]` },
+  { id: 'optional-proto', leaf: c => `${ c }?.prototype` },
+  { id: 'dynamic-key', leaf: c => `${ c }[k]`, key: true },
+];
+const PHC_HOPS = ['globalThis.self', 'globalThis.window', 'globalThis.self.window'];
+const PHC_CTORS = ['Map', 'Set', 'Promise', 'WeakMap', 'WeakSet'];
+function * generateProxyHopCtor() {
+  let i = 0;
+  for (const hop of PHC_HOPS) {
+    for (const variant of PHC_LEAVES) {
+      const ctor = PHC_CTORS[i++ % PHC_CTORS.length];
+      const observed = `${ hop }.${ variant.leaf(ctor) } === ${ ctor }.prototype`;
+      const inner = variant.key ? `(k => ${ observed })('prototype')` : observed;
+      const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+        + `try { return ${ inner }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+      const name = `proxy-hop-ctor/${ hop.replaceAll('.', '-') }/${ variant.id }`;
+      yield { ...snippet(name, body), strip: false };
+    }
+  }
+}
+
+// --- Discarded computed-key prefix proxy-global (text-emitter compose crash) ---
+// a PURE proxy-global (`globalThis`) buried in a DISCARDED computed-key sequence prefix
+// (`x[(globalThis, 'flat')]`) is peeled to the tail key, and the polyfill swap drops the whole `[...]`
+// text. the dropped proxy-global must not strand a `globalThis -> _globalThis` rewrite against eliminated
+// source (a text emitter crashes composing it, an AST emitter drops the subtree). the comma discards the
+// real `globalThis` so each shape runs natively - the three-way value AND the transform-crash oracle both
+// fire on a regression. distinct dispatch + method per shape: instance drop, static collapse, symbol-iter,
+// nested-paren prefix, and a multi-proxy-global prefix
+const DKP_SHAPES = [
+  { id: 'instance-flat', expr: '[[7]][(globalThis, "flat")]()' },
+  { id: 'static-from', expr: 'Array[(globalThis, "from")]([1, 2])' },
+  { id: 'symbol-iter', expr: '[...[9][(globalThis, Symbol.iterator)]()]' },
+  { id: 'instance-at', expr: '[5, 6][(globalThis, "at")](1)' },
+  { id: 'nested-paren-prefix', expr: '[[3]][((globalThis), "flat")]()' },
+  { id: 'double-global-prefix', expr: '[[4]][(globalThis, globalThis, "flat")]()' },
+  // the discarded prefix global buried in a `+`-concat / template FOLD (not just the outer sequence): the skip
+  // must descend the fold, else the `globalThis -> _globalThis` rewrite strands against the eliminated key
+  { id: 'binary-fold-prefix', expr: '[[8]][(globalThis, "fl") + "at"]()' },
+  // eslint-disable-next-line no-template-curly-in-string -- intentional template-literal in the GENERATED code
+  { id: 'template-fold-prefix', expr: '[[8]][`fl${ (globalThis, "") }at`]()' },
+];
+function * generateDiscardedKeyPrefixProxy() {
+  for (const shape of DKP_SHAPES) {
+    yield { ...snippet(`discarded-key-prefix/${ shape.id }`, shape.expr), strip: false };
+  }
+}
+
+// --- Nested side-effect buried UNDER a proxy hop in an SE-tail receiver ---
+// `(log.push(1), (log.push(2), globalThis).self).Array.prototype.flat...`: the receiver collapses onto the
+// pure root, so EVERY buried effect must re-emit - the outer prefix AND the one BELOW the `.self` hop. an
+// outer-sequence-only harvest dropped the hop-buried push, so `effects` desyncs ([1] instead of [1, 2]).
+// self / window are aliased to globalThis self-restoringly so the hop is executable in Node
+const NSH_SHAPES = [
+  { id: 'instance-flat', tail: '(log.push(2), globalThis).self', call: r => `${ r }.Array.prototype.flat.call([1, [2]], 1)` },
+  { id: 'static-of', tail: '(log.push(2), globalThis).window', call: r => `${ r }.Array.of(7)` },
+  { id: 'instance-flatMap', tail: '(log.push(2), globalThis).self.window', call: r => `${ r }.Array.prototype.flatMap.call([1, 2], n => [n])` },
+  // a side effect buried in a `+`-concat / template HOP key (`globalThis[(log.push(2), 'se') + 'lf']`): the
+  // dropped hop must harvest it through the fold, not just an outer sequence prefix
+  { id: 'concat-key-hop', tail: 'globalThis[(log.push(2), "se") + "lf"]', call: r => `${ r }.Array.prototype.flat.call([1, [2]], 1)` },
+  // eslint-disable-next-line no-template-curly-in-string -- intentional template-literal in the GENERATED code
+  { id: 'template-key-hop', tail: 'globalThis[`s${ (log.push(2), "e") }lf`]', call: r => `${ r }.Array.prototype.flatMap.call([1, 2], n => [n])` },
+];
+function * generateNestedSeHopReceiver() {
+  for (const shape of NSH_SHAPES) {
+    const inner = shape.call(`(log.push(1), ${ shape.tail })`);
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ inner }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`nested-se-hop/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- Buried side-effect in a `+` / template fold of a computed key ---
+// an effect buried in a `+`-concat or template fold of a computed key (`X[(log.push('k'), 'fr') + 'om']`),
+// unlike a top-level sequence prefix, was invisible to the fold-blind SE harvest: the key folds to a static
+// name and the member collapses to a polyfill, silently dropping the buried effect on BOTH emitters. the
+// `effects` log makes the drop a value divergence (native runs it, a fold-blind emitter does not). distinct
+// dispatch / fold shape, SE in either `+` operand
+const BFK_SHAPES = [
+  { id: 'static-concat-left', expr: 'Array[(log.push("s"), "fr") + "om"]([1, 2])' },
+  { id: 'static-concat-right', expr: 'Array["fr" + (log.push("r"), "om")]([8])' },
+  { id: 'instance-concat', expr: '[3, 4][(log.push("i"), "a") + "t"](0)' },
+  // eslint-disable-next-line no-template-curly-in-string -- the `${}` is literal template-literal syntax in the GENERATED snippet code, not a mis-quoted source template
+  { id: 'static-template', expr: 'Object[`ent${ (log.push("t"), "r") }ies`]({ x: 1 })' },
+];
+function * generateBuriedFoldKeySE() {
+  for (const shape of BFK_SHAPES) {
+    yield { ...snippet(`buried-fold-key-se/${ shape.id }`, shape.expr), strip: false };
+  }
+}
+
+// --- Static-collapse receiver SE order: chain-root call before hop-key ---
+// a static dispatch discards the whole receiver and re-emits its SE as a sequence prefix. they must run in
+// source-eval order: the chain-root CALL (the deepest object) BEFORE the shallower computed hop-key. a
+// harvest that appended the call LAST reversed `(call, key)` to `(key, call)` on BOTH emitters - a consistent
+// error only the NATIVE comparison catches (the `effects` log records the order). `self`/`window` are absent
+// in Node, so the host aliases `globalThis.self` to globalThis self-restoringly (try/finally, no leak)
+const SCO_SHAPES = [
+  { id: 'call-before-key-of', inner: '(() => { log.push("call"); return globalThis; })()[(log.push("key"), "self")].Array.of(1)' },
+  { id: 'call-before-key-from', inner: '(() => { log.push("c"); return globalThis; })()[(log.push("k"), "self")].Array.from([1])' },
+  { id: 'key-only', inner: 'globalThis[(log.push("k2"), "self")].Array.of(2)' },
+  // NESTED sequence in the hop-key: parsers that keep a `ParenthesizedExpression` between the comma levels
+  // need a per-level unwrap to fold past the inner `(k4, 'self')`. a bare tail-peel stops at the inner paren
+  // and leaves the hop raw - the `effects` log pins that BOTH buried increments still run, in source order
+  { id: 'nested-seq-key', inner: 'globalThis[(log.push("k3"), (log.push("k4"), "self"))].Array.of(3)' },
+];
+function * generateStaticCollapseSEOrder() {
+  for (const shape of SCO_SHAPES) {
+    const body = '(() => { const s = globalThis.self; globalThis.self = globalThis; '
+      + `try { return ${ shape.inner }; } finally { globalThis.self = s; } })()`;
+    yield { ...snippet(`static-collapse-se-order/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- `.name` memo on a proxy chain-root-call receiver: inner resolution ---
+// a `.name` (MaybeFunction get) on `(call).hop.Ctor` memoizes `(call, _Ctor)`, harvesting the call as a RAW
+// source prefix. the call's BODY must resolve EXACTLY as the natural visitor would (whole-receiver collapse
+// leaves it visitor-rewritten, the compose substitutes through it) - not a bare-identifier re-emit. shapes a
+// bare-identifier re-emit mis-handled: a proxy-global MEMBER chain return (`globalThis.self`) and a polyfillable
+// member inside the body (`[1].flat()`). the `.name` value + the `log` SE order are the three-way oracle
+const NCR_SHAPES = [
+  { id: 'member-chain-return', expr: '(() => { log.push("m"); return globalThis.self; })().window.Map.name' },
+  { id: 'polyfillable-inside', expr: '(() => { [1].flat(); log.push("p"); return globalThis; })().self.Set.name' },
+  { id: 'bare-control', expr: '(() => { log.push("c"); return globalThis; })().self.WeakMap.name' },
+];
+function * generateNameChainRootCallInner() {
+  for (const shape of NCR_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`name-chain-root-call-inner/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- OPTIONAL `.name` on a proxy chain-root-CALL receiver: receiver-SE runs ONCE ---
+// `(call)?.self.Ctor.name` memoizes the call in the `?.` null-guard (`_ref = call`), which RUNS its
+// receiver-SE. the body must NOT re-emit that SE - it double-ran the call on BOTH emitters (native `[1]`,
+// transpiled `[1,1]`). a computed key-SE folds into the non-null branch (runs once, after the guard). the
+// `.name` value + the `log` order are the three-way oracle; the call always returns non-null so `?.` passes
+const ONC_SHAPES = [
+  { id: 'bare-root', expr: '(() => { log.push(1); return globalThis; })()?.self.Map.name' },
+  { id: 'deep-hop', expr: '(() => { log.push(1); return globalThis; })()?.self.window.Set.name' },
+  { id: 'key-se', expr: '(() => { log.push(1); return globalThis; })()?.self[(log.push(2), "WeakMap")].name' },
+];
+function * generateOptionalNameChainRootCall() {
+  for (const shape of ONC_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`optional-name-chain-root-call/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- Optional proxy-global chain rooted in a PURE call: receiver-WRAP vs receiver-LESS collapse ---
+// a PURE chain-root call under an optional `?.` (`(() => globalThis)()?.self.X`) is KEPT in the null-guard, NOT
+// inlined away. a receiver-WRAPPING polyfill (instance method / `instance`-kind `.name` get) keeps the call +
+// rewrites its inner global + rebinds the tail off `_ref` (the buggy emit collapsed to a ponyfill `_self`,
+// diverging the import-set); a receiver-LESS collapse (ctor on the proxy-global / called static method) drops
+// the subsumed call (mis-detecting it as kept CRASHED unplugin's compose). self-restoring host so native runs
+const OPC_SHAPES = [
+  { id: 'wrap-instance', expr: '(() => globalThis)()?.self.Array.prototype.flat.call([1, [2]]).join(",")' },
+  { id: 'wrap-get', expr: '(() => globalThis)()?.self.Map.name' },
+  { id: 'deep-wrap', expr: '(() => globalThis)()?.self.window.Array.prototype.flat.call([1, [2]]).join(",")' },
+  { id: 'collapse-ctor', expr: 'new ((() => globalThis)()?.self.Set)([1, 1]).size' },
+  { id: 'collapse-static', expr: '(() => globalThis)()?.self.Object.fromEntries([["a", 1]]).a' },
+  // SE-bearing chain-root call: a receiver-LESS collapse drops the call's RETURN but must PRESERVE its SE,
+  // re-emitting it as a sequence prefix (`(log.push(7), _Set)`) - the SE-bail keeps the inner global live too
+  { id: 'se-collapse-ctor', expr: 'new ((() => { log.push(7); return globalThis; })()?.self.Set)([1, 1]).size' },
+  { id: 'se-collapse-static', expr: '(() => { log.push(8); return globalThis; })()?.self.Object.fromEntries([["a", 1]]).a' },
+  // SECOND optional anywhere flips rebind -> vestigial COLLAPSE (drops the call): on a proxy hop or on the
+  // leaf. the optional-count keys on the `?.` FLAG (babel types every chain member OptionalMemberExpression);
+  // mis-counting kept the call live AND collapsed the receiver -> orphaned inner global -> unplugin crash
+  { id: 'multi-opt-hop-collapse', expr: '(() => globalThis)()?.self?.Map.name' },
+  { id: 'multi-opt-leaf-collapse', expr: '(() => globalThis)()?.self.WeakMap?.name' },
+  // LEAF decides collapse-vs-rebind: a polyfilled ctor's prototype method INVOKED at the leaf routes through
+  // `_Map.prototype.has` and COLLAPSES (drops the call); a wrapper leaf above it (`.name`) keeps the chain and
+  // REBINDS. mis-deciding at the static (which can't see the leaf) crashed unplugin on the collapse form
+  { id: 'proto-method-collapse', expr: '(() => globalThis)()?.self.Map.prototype.has.call(new Map([[1, 2]]), 1)' },
+  { id: 'proto-wrapper-rebind', expr: '(() => globalThis)()?.self.Set.prototype.add.name' },
+  // a [Symbol.iterator] leaf is also a receiver-wrapping helper (_getIteratorMethod) -> REBIND off a
+  // ctor-prototype receiver; its kept-call inner global must rewrite (was raw in the symbol-iter path)
+  { id: 'proto-symbol-iter-rebind', expr: 'typeof (() => globalThis)()?.self.Map.prototype[Symbol.iterator]' },
+];
+function * generateOptionalProxyPureCall() {
+  for (const shape of OPC_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`optional-proxy-pure-call/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- Symbol-iterator proxy-hop receiver collapse ---
+// the receiver of `[Symbol.iterator]` is KEPT as the polyfill argument; a proxy-global hop in it must
+// collapse to the proxy ROOT identically on both emitters (a kept leaf hop diverged: babel `_self` / dead
+// `_globalThis.self.window`, unplugin compile-CRASH). `self`/`window` are absent in Node, so the host
+// aliases them to globalThis self-restoringly; the observed value is `=== globalThis[Symbol.iterator]` (the
+// global's iterator method, undefined either way) - the regression surfaces as the unplugin transform crash
+const SIR_SHAPES = [
+  { id: 'single', expr: 'globalThis.self[Symbol.iterator]' },
+  { id: 'deep', expr: 'globalThis.self.window[Symbol.iterator]' },
+  { id: 'optional', expr: 'globalThis?.self[Symbol.iterator]' },
+  { id: 'paren', expr: '(globalThis.self)[Symbol.iterator]' },
+  // SEQUENCE receiver with a proxy tail: the tail hop collapses to the root, the prefix SE re-emits via the
+  // collapse sequence. unplugin CRASHED here (tail rewrite double-composed); the transformCrash oracle locks it
+  { id: 'seq', expr: '(log.push(1), globalThis.self)[Symbol.iterator]' },
+  { id: 'seq-deep', expr: '(log.push(1), globalThis.self.window)[Symbol.iterator]' },
+  { id: 'seq-multi', expr: '(log.push(1), log.push(2), globalThis.self)[Symbol.iterator]' },
+];
+function * generateSymbolIterProxyReceiver() {
+  for (const shape of SIR_SHAPES) {
+    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
+      + `try { return ${ shape.expr } === globalThis[Symbol.iterator]; } finally { globalThis.self = s; globalThis.window = w; } })()`;
+    yield { ...snippet(`symbol-iter-proxy-receiver/${ shape.id }`, body), strip: false };
+  }
+}
+
+// --- Single-key synth-swap param-default with a sequence-prefixed / fallback-logical MEMBER receiver ---
+// a single-key synth-swap param-default whose receiver is a proxy-global member behind a sequence prefix
+// (`(pre, globalThis.Array)`) or a fallback-logical (`(pre, globalThis.Array) || Set`). the synth literal
+// SUPPLANTS the receiver value, so the WHOLE left operand must be skip-marked: a spine/tail-only skip
+// leaves the prefix's DROPPED globals visible, orphaning a `globalThis -> _globalThis` rewrite into the
+// dead span (an unplugin text-composition crash that aborts the file) or leaking a dead import. only a
+// REAL harvested SE prefix (`log.push`) survives ahead of the literal; a pure prefix is dropped whole.
+// runs in Node (no `.self`); full-env (the param-default synth-swap is not stripped). `of` -> Array.of
+const SSR_PREFIXES = [
+  { id: 'pure', pre: 'globalThis.notThere' },
+  { id: 'se', pre: 'log.push("r")' },
+];
+const SSR_RECVS = [
+  { id: 'member', wrap: s => s },
+  { id: 'logical', wrap: s => `${ s } || Set` },
+];
+
+function * generateSynthSwapSeqReceiver() {
+  for (const pre of SSR_PREFIXES) {
+    for (const recv of SSR_RECVS) {
+      const name = `synth-swap-seq-receiver/${ pre.id }/${ recv.id }`;
+      const body = `(() => { function g({ of } = ${ recv.wrap(`(${ pre.pre }, globalThis.Array)`) }) { return typeof of; } return g(); })()`;
+      yield { ...snippet(name, body), strip: false };
+    }
+  }
+}
+
+// --- Nested-proxy mirror with a MIXED polyfillable / non-polyfillable key set (W19-H2) ---
+// a nested-proxy destructure off a proxy / diverging / logical receiver where one inner key is
+// polyfillable (`Array.of`/`Array.from`) and a sibling is NOT (`Array.isArray` is an ES5 static the
+// pure ctor omits; `Math.floor` is never polyfilled). the mirror must PARTIAL-mirror: the polyfillable
+// leaf becomes its pure import, the non-polyfillable leaf is PASSED THROUGH to the receiver's live native
+// value. an all-or-nothing bail would strand the polyfill; re-polyfilling the intermediate ctor in the
+// passthrough (`_globalThis.Array.isArray` -> `_Array.isArray`) returns undefined where native is a
+// function - so the passthrough must read natively. `cond` selects the proxy branch in Node; full-env
+const NMM_RECVS = [
+  { id: 'plain', src: 'globalThis' },
+  { id: 'diverging', src: 'cond ? globalThis : nul' },
+  { id: 'logical', src: 'globalThis || nul' },
+  // a proxy alias with NO pure import (`global`/`window`) stays BARE in the passthrough (`global.Array
+  // .isArray`, not `_globalThis...`): the missing pure entry must fall back to the receiver's own name, not
+  // an empty base. `global` is defined in Node so the value-oracle runs it (a broken base is a syntax error)
+  { id: 'proxy-global', src: 'global' },
+];
+const NMM_PATS = [
+  { id: 'inner-mixed', lhs: '{ Array: { of, isArray } }', observe: '[typeof of, typeof isArray]' },
+  { id: 'sibling-mixed', lhs: '{ Array: { from }, Math: { floor } }', observe: '[typeof from, typeof floor]' },
+  { id: 'ctor-shorthand', lhs: '{ Array: { from }, Set }', observe: '[typeof from, typeof Set]' },
+];
+
+function * generateNestedMirrorMixed() {
+  for (const recv of NMM_RECVS) {
+    for (const pat of NMM_PATS) {
+      const name = `nested-mirror-mixed/${ recv.id }/${ pat.id }`;
+      const body = `(() => { function g(${ pat.lhs } = ${ recv.src }) { return ${ pat.observe }; } return g(); })()`;
+      yield { ...snippet(name, body), strip: false };
+    }
+  }
+}
+
+// --- Receiver-copy global substitution across receiver NODE shapes ---
+// a sole nested-instance binding (`const { y: { at: m } } = { y: [<recv>] }`) INLINES the receiver text
+// into the instance polyfill's argument (`_at([<recv>])`); every global nested in that copy must be
+// substituted to its pure import, exactly as babel re-traverses its own clone. the copy descends per
+// receiver NODE shape, and a global buried in a COMPUTED property VALUE is the sibling the combinatorial
+// grammar never built - its nested-instance receivers are only bare array literals / idents. a missed
+// substitution leaves a raw `globalThis`, which (deleted in the stripped worker) becomes a hard throw, so
+// `strip: true`; the `ctor-value` shape keeps a still-present constructor so its leg is import-parity.
+// observe `typeof m`: the binding init evaluates the copied receiver, so a raw global surfaces there
+const RC_SHAPES = [
+  { id: 'computed-key-value', recv: '[{ ["k"]: globalThis }]' },
+  { id: 'noncomputed-key-value', recv: '[{ k: globalThis }]' },
+  { id: 'member-chain-root', recv: '[globalThis.Array.prototype]' },
+  { id: 'conditional-branch', recv: '[cond ? globalThis : globalThis]' },
+  { id: 'binary-operand', recv: '[globalThis.Array.length + 1]' },
+  { id: 'computed-member-key', recv: '[({})[globalThis.Array ? "x" : "y"]]' },
+  { id: 'ctor-value', recv: '[{ ["k"]: Set }]' },
+];
+const RC_METHODS = ['at', 'flat', 'includes'];
+function * generateReceiverCopyShape() {
+  for (const shape of RC_SHAPES) {
+    for (const method of RC_METHODS) {
+      const body = `(() => { const { y: { ${ method }: m } } = { y: ${ shape.recv } }; return typeof m; })()`;
+      yield { ...snippet(`receiver-copy-shape/${ shape.id }/${ method }`, body), strip: true };
+    }
+  }
+}
+
+// --- Full-consume destructure whose collapsed init carries a discardable side effect ---
+// a full-consume proxy-global destructure collapses to synth bindings and DROPS the init value, but a
+// side effect in the dropped position must still be rescued: the SE prefix of a collapsed `||` / `??` LEFT
+// operand (RHS dead) and the effectful argument of a peeled identity IIFE - the positions the harvest is
+// narrower than the collapse. `log.push` pins the effect: a collapse that dropped it shows in BOTH the
+// 3-way `effects` and the observed `log.length`. these are exactly the shapes a manual probe flagged
+// (full-consume `||` LEFT-SE, cascade identity-IIFE-SE-arg) and the PGS family - a bare SequenceExpression
+// receiver - does not reach. full-env: the value is `typeof`, the binding resolves to a present global
+const FCSE_INITS = [
+  { id: 'or-left-se', init: '(log.push("r"), globalThis) || Object' },
+  { id: 'nullish-left-se', init: '(log.push("r"), globalThis) ?? Object' },
+  { id: 'iife-se-arg', init: '((g) => g)((log.push("r"), globalThis))' },
+];
+const FCSE_PATTERNS = [
+  { id: 'single', lhs: '{ Array: { from } }', obs: '[typeof from, log.length]', names: 'from' },
+  { id: 'multi', lhs: '{ Array: A, Object: O }', obs: '[typeof A, typeof O, log.length]', names: 'A, O' },
+];
+const FCSE_HOSTS = [
+  { id: 'decl', build: (lhs, init, obs) => `(() => { const ${ lhs } = ${ init }; return ${ obs }; })()` },
+  { id: 'assign', build: (lhs, init, obs, names) => `(() => { let ${ names }; (${ lhs } = ${ init }); return ${ obs }; })()` },
+];
+function * generateFullConsumeSeRescue() {
+  for (const init of FCSE_INITS) {
+    for (const host of FCSE_HOSTS) {
+      for (const pat of FCSE_PATTERNS) {
+        const body = host.build(pat.lhs, init.init, pat.obs, pat.names);
+        yield { ...snippet(`full-consume-se/${ init.id }/${ host.id }/${ pat.id }`, body), strip: false };
+      }
+    }
+  }
+}
+
+// --- Identity-IIFE peel: param REBOUND before return -> receiver is NOT the global ---
+// the peel lifts the call arg (`(arg => arg)(Array)` -> `Array`) ONLY when the param flows unchanged
+// to `return arg`. a rebind that RUNS - direct, pattern-LHS, sequence, or a write inside a nested
+// closure that is invoked (IIFE / `.call` / `new` / for-of / callback) - makes `return arg` yield the
+// reassigned value, so `{ from } = ...` reads off the wrong object and native THROWS. an over-resolve
+// substitutes `_Array$from` and wrongly succeeds: a THROW divergence from native, caught three-way.
+// these `throws:true` cases keep strip:false (nothing injected). the `never-invoked` closure is the
+// boundary - a DISCARDED function statement provably does not run, so native `Result === Array` and the
+// peel RESOLVES (strip:true - the injected `_Array$from` must stand alone in the stripped realm, the
+// exact case that broke on old engines when the peel wrongly bailed)
+const IIFE_REBIND_BODIES = [
+  { id: 'direct', body: 'arg = "x"; return arg;' },
+  { id: 'pattern', body: '[arg] = ["x"]; return arg;' },
+  { id: 'seq', body: '(0, arg = "x"); return arg;' },
+  { id: 'iife-closure', body: '(() => { arg = "x"; })(); return arg;' },
+  { id: 'call-invoke', body: '(() => { arg = "x"; }).call(); return arg;' },
+  { id: 'for-of', body: '(() => { for (arg of ["x"]) { /* rebinds */ } })(); return arg;' },
+  { id: 'new-expr', body: 'new (function () { arg = "x"; })(); return arg;' },
+  { id: 'never-invoked', body: '() => { arg = "x"; }; return arg;', resolves: true },
+];
+function * generateIdentityIifeRebind() {
+  for (const rebind of IIFE_REBIND_BODIES) {
+    const body = `(() => { const { from } = (arg => { ${ rebind.body } })(Array); return String(from([1, 2])); })()`;
+    yield { ...snippet(`iife-rebind/${ rebind.id }`, body), strip: !!rebind.resolves };
+  }
+}
+
+// --- Symbol.iterator alias fold: `obj[iterator]` where `iterator` resolves to Symbol.iterator ---
+// direct, bare-constructor destructure, and proxy-global destructure all bind `iterator` to
+// Symbol.iterator, so `[x][iterator]` is an iterator-method access and folds to `_getIteratorMethod(x)`.
+// a MISSED fold leaves `[x][Symbol.iterator]` reading natively: in the STRIPPED realm the array's
+// iterator is not on the prototype (pure doesn't patch it), so `typeof` is `undefined` there while the
+// full-env reference is `function` - the divergence the strip oracle catches. all three must fold in
+// BOTH emitters (bare/proxy previously folded only in babel via its early pattern-flatten)
+const SYMBOL_ITER_ALIAS = [
+  { id: 'direct', pre: '', key: 'Symbol.iterator' },
+  { id: 'bare', pre: 'const { iterator } = Symbol;', key: 'iterator' },
+  { id: 'proxy', pre: 'const { iterator } = globalThis.Symbol;', key: 'iterator' },
+  { id: 'renamed', pre: 'const { iterator: it } = Symbol;', key: 'it' },
+];
+function * generateSymbolIteratorAliasFold() {
+  for (const c of SYMBOL_ITER_ALIAS) {
+    const body = `(() => { ${ c.pre } return typeof [10, 20][${ c.key }]; })()`;
+    yield { ...snippet(`symbol-iter-alias/${ c.id }`, body), strip: true };
+  }
+  // SHADOW: a NESTED same-name binding off a non-Symbol object must NOT fold (the injector's
+  // name-keyed alias info is flat). native reads `[x][5]` -> undefined; an over-fold would call
+  // `_getIteratorMethod` (a function) -> a THREE-WAY value divergence from native. strip:false
+  // (the outer alias injects an unused import; the observed inner read is native, nothing stands alone)
+  const shadow = '(() => { const { iterator } = Symbol; const f = () => { const { iterator } = { iterator: 5 }; return typeof [10, 20][iterator]; }; return f(); })()';
+  yield { ...snippet('symbol-iter-alias/shadow', shadow), strip: false };
+}
+
+// --- Proxy-global flatten leaf sharing a declaration with a side-effect-computed-key sibling ---
+// a proxy-global flatten leaf (`{ Array: { from } } = globalThis`) and an SE-computed-key sibling
+// (`{ [(SE, 'of')]: of } = Array`) live in ONE VariableDeclaration. the flatten owns the whole-
+// declaration render, so the SE-key extraction has to bake its value->sentinel rename into the residual
+// slice. a missed bake floated the rename and swapped extract<->sentinel: the polyfill bound a throwaway
+// (`_unused = _Array$of`) and the real `of` stayed native - `undefined` in the stripped realm where the
+// native static is gone (strip:true catches it). both declarator orders exercise the same claim path.
+const FLATTEN_SEKEY = [
+  { id: 'flatten-first', decl: "const { Array: { from } } = globalThis, { [(log.push('k'), 'of')]: of } = Array;" },
+  { id: 'sekey-first', decl: "const { [(log.push('k'), 'of')]: of } = Array, { Array: { from } } = globalThis;" },
+];
+function * generateFlattenSeKeySibling() {
+  for (const c of FLATTEN_SEKEY) {
+    const body = `(() => { ${ c.decl } return [typeof from, typeof of]; })()`;
+    yield { ...snippet(`flatten-sekey/${ c.id }`, body), strip: true };
+  }
+}
+
+// --- Array-wrapper proxy-global ctor-alias member ---
+// `const [{ Array: A }] = [globalThis]` binds A to globalThis.Array through an ArrayPattern wrapper;
+// the member off the alias (`A.from(...)`) must resolve like the un-wrapped `{ Array: A } = globalThis`.
+// a missed trace kept the native static (`A.from` undefined in the stripped realm -> a throw). a global
+// WITH a whole-ctor pure entry (`Symbol` / `Map`) is flatten-extracted whole (`const M = _Map`) - its
+// member must STILL narrow to its own import (registered-alias hint; the flatten empties the pattern
+// before the member visit, so the hint is the only path). map-groupby locks the separate-static case
+// (`_Map.groupBy` is undefined - an un-narrowed member read regresses to native `undefined` full-env)
+const AW_CTOR_ALIAS = [
+  { id: 'array-from', pre: 'const [{ Array: A }] = [globalThis];', obs: 'String(A.from([1, 2, 3]))', strip: true },
+  { id: 'array-from-sibling', pre: 'const [{ Array: A }, tail] = [globalThis, 0];', obs: 'String(A.from([4, 5])) + tail', strip: true },
+  { id: 'array-nested', pre: 'const [[{ Array: A }]] = [[globalThis]];', obs: 'String(A.from([6]))', strip: true },
+  { id: 'symbol-iterator', pre: 'const [{ Symbol: S }] = [globalThis];', obs: 'typeof S.iterator', strip: false },
+  { id: 'map-groupby', pre: 'const [{ Map: M }] = [globalThis];', obs: 'typeof M.groupBy', strip: false },
+  { id: 'map-groupby-shadow', pre: 'const [{ Map: M }] = [{ Map: { groupBy: () => "U" } }];', obs: 'String(M.groupBy([1], x => x))', strip: false },
+];
+function * generateArrayWrapperCtorAlias() {
+  for (const c of AW_CTOR_ALIAS) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`aw-ctor-alias/${ c.id }`, body), strip: c.strip };
+  }
+}
+
+// --- Nested-object destructure of an instance method off a side-effect-free member receiver ---
+// `const { y: { at } } = { y: Array.prototype }` binds an instance method whose receiver is a member.
+// when `at` is the SOLE binding + the init is pure, the residual is eliminated and the extraction
+// (`const at = _at(Array.prototype)`) is the receiver's ONLY read - a member getter fires exactly once,
+// like native (the getter case counts reads to prove single-read). a surviving-residual sibling or an
+// assignment host would double-read the receiver, so those legitimately stay native (strip:false).
+// a getter-backed receiver that counts its reads, so the observed count proves single vs double read
+const NI_GETTER = 'let n = 0; const h = { get g() { n++; return Array.prototype; } };';
+const NESTED_INSTANCE = [
+  { id: 'member-sole', pre: 'const { y: { at } } = { y: Array.prototype };', obs: 'typeof at', strip: true },
+  { id: 'array-index-sole', pre: 'const { y: { at } } = { y: [1, 2, 3] };', obs: 'typeof at', strip: true },
+  { id: 'getter-read-once', pre: `${ NI_GETTER } const { y: { at } } = { y: h.g };`, obs: '[typeof at, n]', strip: true },
+  { id: 'multi-binding-native', pre: `${ NI_GETTER } const { y: { at }, z } = { y: h.g, z: 1 };`, obs: '[typeof at, n, z]', strip: false },
+];
+function * generateNestedInstanceReceiver() {
+  for (const c of NESTED_INSTANCE) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`nested-instance/${ c.id }`, body), strip: c.strip };
+  }
+}
+
+// --- Param-default instance synth ---
+// `function f({ at } = R)` with a typed instance receiver R synths the DEFAULT itself
+// (`= { at: _atMaybeArray(R) }`) - caller-correct by construction: the synth only evaluates when the
+// caller omits the arg, so a passed value destructures natively (caller-wins is the load-bearing
+// invariant). the receiver is read INSIDE the synth (getter fires once, exactly when the native
+// default would - the getter case counts reads across a no-arg call AND an arg call). a member
+// receiver with 2+ pattern entries would double-read, so it stays native (member-multi case).
+const PD_GETTER = 'let n = 0; const h = { get g() { n++; return Array.prototype; } };';
+const PD_INSTANCE = [
+  { id: 'member-noarg', pre: 'function f({ at } = Array.prototype) { return at; }', obs: 'typeof f()', strip: true },
+  { id: 'caller-wins', pre: 'function f({ at } = Array.prototype) { return at; }', obs: '[typeof f(), f({ at: "C" }), typeof f({}).x]', strip: false },
+  { id: 'literal', pre: 'function f({ at } = [10, 20]) { return at; }', obs: '[typeof f(), f().call([7, 8], -1)]', strip: true },
+  { id: 'identifier-multi', pre: 'const a = [1, 2]; function f({ at, flat } = a) { return [typeof at, typeof flat]; }', obs: 'f()', strip: true },
+  { id: 'member-multi-native', pre: 'function f({ at, flat } = Array.prototype) { return [typeof at, typeof flat]; }', obs: 'f()', strip: false },
+  { id: 'getter-read-count', pre: `${ PD_GETTER } function f({ at } = h.g) { return at; }`, obs: '[typeof f(), n, f({ at: 1 }), n]', strip: false },
+  // an OPTIONAL link may be `undefined` at runtime - native then THROWS destructuring it, while a synth
+  // default is always defined; both emitters must bail to native (throw-parity locked by the null root)
+  { id: 'optional-member-native', pre: 'const h = { x: Array.prototype }; function f({ at } = h?.x) { return at; }', obs: 'typeof f()', strip: false },
+  { id: 'optional-null-throw',
+    pre: 'const h = null; function f({ at } = h?.x) { return at; } let out; try { out = typeof f(); } catch (e) { out = "T:" + e.constructor.name; }',
+    obs: 'out', strip: false },
+  // a string-literal key is NOT replayable by the synth-literal renderers - synthing would drop the
+  // key from the rebuilt literal and lose the binding; the gate keeps it native in both emitters
+  { id: 'string-key-native', pre: 'function f({ "at": x } = Array.prototype) { return x; }', obs: 'typeof f()', strip: false },
+];
+function * generateParamDefaultInstance() {
+  for (const c of PD_INSTANCE) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`param-default-instance/${ c.id }`, body), strip: c.strip };
+  }
+}
+
+// --- Assignment-form ctor-alias: a REASSIGNED alias must keep the user's value ---
+// `let M; ({ Map: M } = globalThis); M = user` - the alias name is a rebindable user binding;
+// a member read after the reassignment must see the USER value (native last-write-wins), never a
+// blind hint-narrowed polyfill. babel's hint-only fallback (no scope binding after the cascade
+// mutation) used to trust the user-alias hint past the write, narrowing `M.groupBy` over the
+// user's own method - a runtime divergence from native AND from the text emitter.
+const ASSIGN_ALIAS_REASSIGN = [
+  { id: 'flat', decl: 'let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" };' },
+  { id: 'array-wrapped', decl: 'let M; [{ Map: M }] = [globalThis]; M = { groupBy: () => "U" };' },
+];
+function * generateAssignAliasReassign() {
+  for (const c of ASSIGN_ALIAS_REASSIGN) {
+    const body = `(() => { ${ c.decl } return String(M.groupBy([1], x => x)); })()`;
+    yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
+  }
+  // CLEAN (single, unconditionally-placed write): the registered trusted write lets a separate-static
+  // member read narrow (`M.groupBy` -> `_Map$groupBy`) in BOTH emitters - without it the cascade's
+  // whole-swap (`M = _Map`) strands the read on the bare pure ctor (`undefined` vs native `function`)
+  const CLEAN = [
+    { id: 'clean-flat', decl: 'let M; ({ Map: M } = globalThis);' },
+    { id: 'clean-array-wrapped', decl: 'let M; [{ Map: M }] = [globalThis];' },
+  ];
+  for (const c of CLEAN) {
+    const body = `(() => { ${ c.decl } return typeof M.groupBy; })()`;
+    yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
+  }
+  // a write inside a NESTED function may never run - registration must refuse it, keeping the
+  // not-yet-called read native (it THROWS on the undefined binding, exactly like untranspiled code)
+  const crossFn = '(() => { let M; function w() { ({ Map: M } = globalThis); } void w; '
+    + 'try { return typeof M.groupBy; } catch (e) { return "T:" + e.constructor.name; } })()';
+  yield { ...snippet('assign-alias-reassign/cross-fn-refused', crossFn), strip: false };
+  // a REFUSED registration keeps the value swap (polyfill provision in write order) and leaves
+  // member reads RAW - exact in ORDER and FLOW on every path: untaken throws on the undefined
+  // binding exactly like untranspiled code, a reassigned alias keeps the user's value. trusted
+  // writes narrow STATICALLY only for uses textually after the write; an earlier use (a
+  // hoisted-var read, an earlier-defined closure body) stays raw too - a static narrow there
+  // would un-throw a call that runs before the write. the raw member's TAKEN path reads the
+  // swapped pure ctor's surface (modern-engine reflection canon) - not native-lockable here,
+  // so observables stick to order / throws / user-value flows
+  const REFUSED_NATIVE = [
+    { id: 'conditional-untaken-throw',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(false), (() => { let x; if (1) ({ Map: x } = globalThis); return typeof x; })()]; })()' },
+    { id: 'var-in-if-untaken-throw',
+      code: '(() => { function t(c) { if (c) { var { Map: M } = globalThis; } '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(false), typeof t]; })()' },
+    { id: 'cross-fn-value',
+      code: '(() => { let M; function w() { ({ Map: M } = globalThis); } '
+        + 'function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(), (w(), typeof M)]; })()' },
+    { id: 'duplicate-writes-value',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Map: M } = globalThis); return typeof M; })()' },
+    { id: 'use-before-closure',
+      code: '(() => { let M; const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + '({ Map: M } = globalThis); return f(); })()' },
+    // raw exactness on the natively-observable paths of every refused form
+    { id: 'refused-conditional-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'refused-var-in-if-untaken',
+      code: '(() => { function t(c) { if (c) { var { Map: M } = globalThis; } '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'refused-cross-fn-uncalled',
+      code: '(() => { let M; function w() { ({ Map: M } = globalThis); } '
+        + 'function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(), typeof w]; })()' },
+    { id: 'refused-reassigned-this-binding',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { tag: "U", groupBy() { return this.tag; } }; '
+        + 'return M.groupBy(); })()' },
+    { id: 'refused-optional-read-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); return typeof M?.groupBy; } '
+        + 'return t(false); })()' },
+    { id: 'refused-optional-call-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'return typeof M?.groupBy?.([1], x => x); } return t(false); })()' },
+    // before-visit forms: the use is textually earlier than its alias write / declaration
+    { id: 'before-closure-trusted-raw',
+      code: '(() => { let M; const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); ({ Map: M } = globalThis); return [before, f()]; })()' },
+    { id: 'before-same-scope-trusted-raw',
+      code: '(() => { let M; let before; try { before = typeof M.groupBy; } catch (e) { before = "T"; } '
+        + '({ Map: M } = globalThis); return [before, typeof M.groupBy]; })()' },
+    { id: 'before-closure-refused-conditional',
+      code: '(() => { let M; const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); if (globalThis.Math) ({ Map: M } = globalThis); return [before, f()]; })()' },
+    { id: 'before-closure-decl-raw',
+      code: '(() => { const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); var { Map: M } = globalThis; return [before, f()]; })()' },
+    { id: 'before-decl-hoisted-use',
+      code: '(() => { function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } '
+        + 'const before = t(); var { Map: M } = globalThis; return [before, t()]; })()' },
+    { id: 'before-closure-decl-conditional-var',
+      code: '(() => { const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); if (globalThis.Math) { var { Map: M } = globalThis; } return [before, f()]; })()' },
+    // an INSTANCE-method key off a refused alias stays raw on the untaken path
+    { id: 'refused-instance-key-untaken-throw',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return String(M.getOrInsert); } catch (e) { return "T"; } } return t(false); })()' },
+    // distinct same-name bindings in separate scopes: the PER-BINDING registry keeps them
+    // independent - the clean binding narrows statically, the refused one stays raw
+    { id: 'same-name-bindings-collision',
+      code: '(() => { function a() { let M; ({ Map: M } = globalThis); return typeof M.groupBy; } '
+        + 'function b(c) { let M; if (c) ({ Map: M } = globalThis); try { return typeof M.groupBy; } catch (e) { return "T"; } } '
+        + 'return [a(), b(true), b(false)]; })()' },
+    // ONE binding written from TWO different globals: a dirty binding - member reads stay raw
+    // (its trust was refused), user-value flows and the value kind stay exact
+    { id: 'same-name-different-ctors-value',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Promise: M } = globalThis); '
+        + 'M = { try: () => "U" }; return [typeof M, M.try()]; })()' },
+    // a write under a conditional EXPRESSION container (ternary branch / logical operand /
+    // expression-body arrow) runs on one path even though its statement placement is
+    // unconditional - flow-trust refused, member reads stay raw; TEST-position, sequence
+    // and call-argument writes evaluate whenever the statement runs and keep the static narrow
+    { id: 'ternary-branch-write-both-paths',
+      code: '(() => { function t(c) { let M; c ? ({ Map: M } = globalThis) : 0; '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    { id: 'logical-and-write-both-paths',
+      code: '(() => { function t(c) { let M; c && ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    { id: 'logical-or-write-both-paths',
+      code: '(() => { function t(c) { let M; c || ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    { id: 'expression-body-arrow-write',
+      code: '(() => { let M; const w = () => ({ Map: M } = globalThis); '
+        + 'function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(), (w(), t())]; })()' },
+    { id: 'ternary-test-position-write-trusted',
+      code: '(() => { let M; (({ Map: M } = globalThis) ? 1 : 2); return typeof M.groupBy; })()' },
+    { id: 'sequence-write-trusted',
+      code: '(() => { let n = 0; let M; (n++, { Map: M } = globalThis); return [typeof M.groupBy, n]; })()' },
+    { id: 'call-argument-write-trusted',
+      code: '(() => { let M; String(({ Map: M } = globalThis)); return typeof M.groupBy; })()' },
+    // duplicate `var`: a bare same-name redeclaration writes no value (babel records a phantom
+    // violation; the binding may anchor on the bare declarator while the redeclaration carries
+    // the global) - the narrow must survive both orders, and a redeclaration WITH init stays a
+    // real write (user value wins)
+    { id: 'var-redecl-bare-after',
+      code: '(() => { var { Map: M } = globalThis; var M; return typeof M.groupBy; })()' },
+    { id: 'var-redecl-bare-before',
+      code: '(() => { var M; var { Map: M } = globalThis; return typeof M.groupBy; })()' },
+    { id: 'var-redecl-with-init-user-wins',
+      code: '(() => { var { Map: M } = globalThis; var M = { groupBy: () => "U" }; return M.groupBy(); })()' },
+    { id: 'var-redecl-before-conditional-raw',
+      code: '(() => { function t(c) { var M; if (c) { var { Map: M } = globalThis; } '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    // a conditional redeclaration SUPERSEDED by an unconditional one: the later decl dominates
+    // every use after it, so the narrow follows it; user writes after the decl still win
+    { id: 'var-redecl-conditional-then-unconditional',
+      code: '(() => { if (globalThis.Math) { var { Promise: M } = globalThis; } '
+        + 'var { Map: M } = globalThis; return typeof M.groupBy; })()' },
+    { id: 'var-redecl-decl-then-user-write-wins',
+      code: '(() => { var { Map: M } = globalThis; M = { groupBy: () => "U" }; return M.groupBy(); })()' },
+    // a same-named LOCAL alias in another function must not shadow a DIRECT global use: the
+    // registration's existence is scope-bound, so the top-level read keeps its global narrow
+    { id: 'local-alias-not-shadowing-direct-global',
+      code: '(() => { function f(c) { let Map; if (c) ({ Map } = globalThis); '
+        + 'try { return typeof Map.groupBy; } catch (e) { return "T"; } } return [f(false), typeof globalThis.Map.groupBy]; })()' },
+    // a class static block is a var-scope owner: a decl alias placed directly in it is
+    // unconditional relative to the block and narrows inside; the binding never leaks outside
+    { id: 'static-block-alias-narrows-inside',
+      code: '(() => { let out; class C { static { var { Map: M } = globalThis; out = typeof M.groupBy; } } '
+        + 'void C; return out; })()' },
+    // `key in alias` reflection over a REFUSED alias stays a live check: the untaken path
+    // throws, a user value reflects its own surface
+    { id: 'in-refused-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return "groupBy" in M; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'in-refused-reassigned-user',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { groupBy: 1 }; return ["groupBy" in M, "x" in M]; })()' },
+    { id: 'in-multi-ctor-user-reassigned',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Promise: M } = globalThis); '
+        + 'M = { try: 1 }; return ["try" in M, "rand" in M]; })()' },
+    { id: 'in-unresolvable-key-raw',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return "rand" in M; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    // destructure FROM a refused alias stays raw: untaken throws on the destructure exactly
+    // like untranspiled code, a user value reads its own member; caller args always win for a
+    // param DEFAULT
+    { id: 'destructure-from-refused-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { const { groupBy } = M; return typeof groupBy; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'destructure-from-refused-renamed-assignment',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); let g; '
+        + 'try { ({ groupBy: g } = M); return typeof g; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'destructure-from-refused-user-reassigned',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" }; '
+        + 'const { groupBy } = M; return groupBy(); })()' },
+    { id: 'destructure-from-multi-ctor-user-value',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Promise: M } = globalThis); '
+        + 'M = { try: () => "U" }; const { try: tr } = M; return tr(); })()' },
+    { id: 'param-default-from-refused-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'function f({ groupBy } = M) { return typeof groupBy; } '
+        + 'try { return f(); } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'param-default-from-refused-caller-wins',
+      code: '(() => { let M; ({ Map: M } = globalThis); function f({ groupBy } = M) { return groupBy; } '
+        + 'return [typeof f(), f({ groupBy: "C" })]; })()' },
+    { id: 'param-default-from-refused-user-reassigned',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" }; '
+        + 'function f({ groupBy } = M) { return groupBy(); } return f(); })()' },
+    // extraction whose use runs BEFORE the trusted write (an earlier-defined closure) stays
+    // raw - a pre-write read throws exactly like the untranspiled destructure; the dominance
+    // gate keeps every static channel (hint, lazy write resolution, flat-static plan) off it
+    { id: 'extraction-before-closure-guarded',
+      code: '(() => { let M; const f = () => { try { const { groupBy } = M; return typeof groupBy; } '
+        + 'catch (e) { return "T"; } }; const before = f(); ({ Map: M } = globalThis); return [before, f()]; })()' },
+    { id: 'extraction-same-scope-before-write',
+      code: '(() => { let M; let before; try { const { groupBy } = M; before = typeof groupBy; } '
+        + 'catch (e) { before = "T"; } ({ Map: M } = globalThis); const { groupBy } = M; return [before, typeof groupBy]; })()' },
+    // an SE-bearing init on a refused-alias destructure stays raw - order-exact: the SE runs
+    // once, in native init-first order, even when the destructure read throws
+    { id: 'extraction-seq-init-se-sole',
+      code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { const { groupBy } = (n++, M); return [typeof groupBy, n]; } catch (e) { return ["T", n]; } } '
+        + 'return [t(true), t(false)]; })()' },
+    { id: 'extraction-seq-init-se-sole-assignment',
+      code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); let g; '
+        + 'try { ({ groupBy: g } = (n++, M)); return [typeof g, n]; } catch (e) { return ["T", n]; } } '
+        + 'return [t(true), t(false)]; })()' },
+    { id: 'extraction-seq-init-se-multi-order',
+      code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { const { rand, other } = (n++, M); return [typeof rand, typeof other, n]; } catch (e) { return ["T", n]; } } '
+        + 'return [t(true), t(false)]; })()' },
+  ];
+  for (const c of REFUSED_NATIVE) yield { ...snippet(`assign-alias-reassign/${ c.id }`, c.code), strip: false };
+}
+
+// --- Conditional-receiver destructure mirror grammar ---
+// the receiver is a runtime-selected ternary / `&&` / `||` carrying a global-PROXY operand beside a
+// USER-object (or short-circuit) operand. each snippet exercises BOTH runtime selections; the bug
+// classes surface in the three-way (native == babel == unplugin):
+//   - MIRRORABLE pattern (single / multi key): the proxy operand becomes a synth literal binding the
+//     polyfill, the user branch stays native. forcing the polyfill onto the user branch is a VALUE
+//     divergence (the user branch returns a sentinel a real Array.from never produces); dropping a
+//     `&&` short-circuit is a THROW divergence. stripped-valid (the polyfill is an imported binding)
+//   - a RESOLVABLE computed key (string literal / const binding) mirrors exactly like a static key:
+//     the synth literal carries the resolved key, so it joins the mirrorable set above
+//   - UN-MIRRORABLE pattern (rest) on a shape WITH a user branch (ternary / `||`): the synth literal
+//     can't carry the unknown rest keys, so the receiver stays NATIVE (an inline default would
+//     corrupt the user branch's legitimate `undefined`). the user branch here LACKS the static, and
+//     the observe is `typeof from` - a default-synth that wrongly fires the polyfill on that branch
+//     reads `function` instead of native `undefined`, caught full-env (the proxy branch is native
+//     too, so full-env only)
+//   - UN-MIRRORABLE pattern on `&&` (proxy-only value): the sound inline default fires only when the
+//     global static is absent, so it stays stripped-valid
+const CM_USER = '{ Array: { from: () => "U", of: () => "U" } }';
+const CM_USER_NOSTATIC = '{ Array: {} }';
+const CM_PATTERNS = [
+  { id: 'single', lhs: '{ Array: { from } }', obs: 'String(from([1, 2]))', mirror: true },
+  { id: 'multi', lhs: '{ Array: { from, of } }', obs: 'String(from([1])) + "/" + String(of(9))', mirror: true },
+  { id: 'rest', lhs: '{ Array: { from, ...rest } }', obs: 'String(from([1, 2]))', mirror: false },
+  { id: 'computed', lhs: '{ Array: { ["from"]: from } }', obs: 'String(from([1, 2]))', mirror: true },
+];
+const CM_SHAPES = [
+  { id: 'ternary', recv: 'sel ? globalThis : U', sels: ['true', 'false'], hasUser: true },
+  { id: 'logical-or', recv: 'sel || globalThis', sels: ['U', '0'], hasUser: true },
+  { id: 'logical-and', recv: 'sel && globalThis', sels: ['1', '0'], hasUser: false },
+];
+
+function * generateConditionalMirror() {
+  for (const shape of CM_SHAPES) {
+    for (const pat of CM_PATTERNS) {
+      const bails = !pat.mirror && shape.hasUser;
+      const user = bails ? CM_USER_NOSTATIC : CM_USER;
+      const obs = bails ? 'typeof from' : pat.obs;
+      const pick = `sel => { try { const ${ pat.lhs } = ${ shape.recv }; return ${ obs }; } catch { return "THROW"; } }`;
+      const body = `(() => { const U = ${ user }; const pick = ${ pick }; return [pick(${ shape.sels[0] }), pick(${ shape.sels[1] })]; })()`;
+      yield { ...snippet(`conditional-mirror/${ shape.id }/${ pat.id }`, body), strip: !bails };
+    }
+  }
+}
+
+// --- Chain grammar (MULTI-hop; single calls are generateGrammar's job) ---
+// the generative core for the optional-chain / chained / inner-poly-chain families: a RECEIVER
+// followed by 2-3 HOPS, under an OPTIONALITY pattern. this is the most entangled area (babel
+// chain-combined AST emit vs unplugin threaded-receiver text), so the cross-product of receiver x
+// hop-shape x optionality is high-signal for the runtime three-way (native == babel == unplugin),
+// including short-circuit (null receiver) and side-effect-once (`se` receiver). strip-armed: the
+// only non-poly hops here are foundational primitives (`slice` / `map`) the stripper never removes,
+// so no native hop survives benignly and a missed poly-hop injection still throws under strip.
+// each receiver carries a `type` (mirrors the main grammar) so only type-valid chains are emitted.
+// `null` is type-agnostic: it short-circuits before any hop, so it pairs with chains of any type
+const C_RECEIVERS = [
+  { id: 'live', src: 'arr', type: 'array' },
+  { id: 'lit', src: '[3, [1, 2]]', type: 'array' },
+  { id: 'null', src: 'nul', type: null },
+  { id: 'se', src: '(log.push("e"), arr)', type: 'array' },
+  // static-call result feeding a multi-hop instance chain (return-narrow -> chained dispatch + receiver-memo)
+  { id: 'static-call', src: 'Array.from([3, [1, 2]])', type: 'array' },
+  { id: 'str-lit', src: '"abcde"', type: 'string' },
+  { id: 'str-se', src: '(log.push("e"), "abcde")', type: 'string' },
+];
+// hop: { n: method, a: args, poly }. only a poly (polyfilled-instance) hop takes call-optional `?.()`.
+// `type` gates the chain to a receiver type; a non-poly hop is a native method valid on that type
+const C_CHAINS = [
+  { id: 'flat-at', type: 'array', hops: [{ n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
+  { id: 'slice-flat', type: 'array', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }] },
+  { id: 'flatMap-flat', type: 'array', hops: [{ n: 'flatMap', a: 'x => [x]', poly: true }, { n: 'flat', a: '', poly: true }] },
+  { id: 'flat-map', type: 'array', hops: [{ n: 'flat', a: '', poly: true }, { n: 'map', a: 'x => x' }] },
+  { id: 'slice-flat-at', type: 'array', hops: [{ n: 'slice', a: '' }, { n: 'flat', a: '', poly: true }, { n: 'at', a: '0', poly: true }] },
+  // string-method chains (the receiver-memo + optional-deopt path on a non-array type)
+  { id: 'padStart-at', type: 'string', hops: [{ n: 'padStart', a: '8, "0"', poly: true }, { n: 'at', a: '0', poly: true }] },
+  { id: 'trimEnd-padEnd', type: 'string', hops: [{ n: 'trimEnd', a: '', poly: true }, { n: 'padEnd', a: '8, "x"', poly: true }] },
+  { id: 'slice-padStart', type: 'string', hops: [{ n: 'slice', a: '1' }, { n: 'padStart', a: '8, "0"', poly: true }] },
+];
+// per-hop optionality: `member` -> `?.method`, `call` -> `method?.(` (poly hops only)
+const C_OPT = [
+  { id: 'dot', at: () => ({}) },
+  { id: 'member', at: () => ({ member: true }) },
+  { id: 'call', at: h => h.poly ? { call: true } : {} },
+  { id: 'first-opt', at: (h, i) => i === 0 ? { member: true } : {} },
+  { id: 'member-call', at: h => h.poly ? { member: true, call: true } : { member: true } },
+];
+function renderChain(src, hops, opt) {
+  let out = src;
+  hops.forEach((h, i) => {
+    const o = opt.at(h, i);
+    out += `${ o.member ? '?.' : '.' }${ h.n }${ o.call ? '?.' : '' }(${ h.a })`;
+  });
+  return out;
+}
+function * generateChains() {
+  for (const recv of C_RECEIVERS) {
+    for (const chain of C_CHAINS) {
+      // type-agnostic null receiver pairs with any chain (short-circuits before the first hop)
+      if (recv.type !== null && recv.type !== chain.type) continue;
+      for (const opt of C_OPT) {
+        yield { ...snippet(`chain/${ recv.id }/${ chain.id }/${ opt.id }`, renderChain(recv.src, chain.hops, opt)), strip: true };
+      }
+    }
+  }
+}
+
+// --- `in`-expression grammar (KEY in OBJECT) ---
+// exercises `planInExpression` (symbol / fold / noop, + SE-harvest) - a decision path distinct from
+// method calls. every key-kind x object-kind yields a boolean, so the runtime three-way checks the
+// babel/unplugin parity of the in-rewrite directly. full-env only: `in` reads the prototype, and
+// pure mode never patches it, so a stripped realm would flip the result for a benign reason.
+const IN_KEYS = [
+  { id: 'instance', src: '"flat"' },
+  { id: 'static', src: '"from"' },
+  { id: 'symbol', src: 'Symbol.iterator' },
+  { id: 'nonpoly', src: '"foo"' },
+  { id: 'se', src: '(log.push("k"), "flat")' },
+];
+const IN_OBJS = [
+  { id: 'array', src: 'arr' },
+  { id: 'array-lit', src: '[]' },
+  { id: 'static', src: 'Array' },
+  { id: 'proxy', src: 'globalThis' },
+];
+function * generateIn() {
+  for (const key of IN_KEYS) {
+    for (const obj of IN_OBJS) {
+      yield snippet(`in/${ key.id }/${ obj.id }`, `${ key.src } in ${ obj.src }`);
+    }
+  }
+}
+
+// --- Mutated-static grammar (usage-pure MUST bail, keeping the user's monkey-patch) ---
+// the corpus is otherwise non-mutating (a global write leaks across a shard's sequential imports). these
+// snippets stay isolated by SELF-RESTORING in a `finally`, so the realm is clean the instant the IIFE
+// returns - the only mutation window is the synchronous IIFE body. each patches a static to a sentinel
+// (`() => "P"`), USES it, restores. usage-pure must DETECT the mutation (collectMutatedStaticMembers) and
+// bail substitution, so the call keeps the patch: native == bailed-output == "P". a plugin that wrongly
+// injected the pure static would return a real value (!= "P") -> runtime mismatch, AND carry an import the
+// other side lacks -> import mismatch. full-env only (mutation, not a strip target)
+const M_STATICS = [
+  { recv: 'Array', key: 'from', use: 'Array.from([1, 2])' },
+  { recv: 'Array', key: 'of', use: 'Array.of(1, 2)' },
+  { recv: 'Object', key: 'fromEntries', use: 'Object.fromEntries([["a", 1]])' },
+  { recv: 'Object', key: 'hasOwn', use: 'Object.hasOwn({ a: 1 }, "a")' },
+  { recv: 'Number', key: 'isInteger', use: 'Number.isInteger(3)' },
+];
+const M_MUTATORS = [
+  { id: 'assign', patch: s => `${ s.recv }.${ s.key } = () => "P";` },
+  { id: 'defineprop', patch: s => `Object.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
+  { id: 'reflect', patch: s => `Reflect.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
+];
+function * generateMutatedStatic() {
+  for (const s of M_STATICS) {
+    for (const mut of M_MUTATORS) {
+      const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ mut.patch(s) } return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
+      yield { ...snippet(`mutated-static/${ mut.id }/${ s.recv }.${ s.key }`, body), strip: false };
+    }
+  }
+}
+
+// the bail is per-KEY: mutate ONE static, USE a DIFFERENT static of the same constructor - the used one
+// must STILL inject (a regression to a whole-constructor bail would drop that import on one emitter only)
+const M_SIBLINGS = [
+  { recv: 'Array', mut: 'of', useKey: 'from', use: 'Array.from([1, 2])' },
+  { recv: 'Array', mut: 'from', useKey: 'of', use: 'Array.of(1, 2)' },
+  { recv: 'Object', mut: 'hasOwn', useKey: 'fromEntries', use: 'Object.fromEntries([["a", 1]])' },
+];
+function * generateMutatedSibling() {
+  for (const s of M_SIBLINGS) {
+    const body = `(() => { const _o = ${ s.recv }.${ s.mut }; try { ${ s.recv }.${ s.mut } = () => "P"; return ${ s.use }; } finally { ${ s.recv }.${ s.mut } = _o; } })()`;
+    yield { ...snippet(`mutated-sibling/${ s.recv }/mut-${ s.mut }-use-${ s.useKey }`, body), strip: false };
+  }
+}
+
+// the mutated static is consumed via DESTRUCTURE extraction (`const { from } = Array`) - a different
+// consumption path that must also consult the mutation set and bail (keep the patch), not lift the pure
+// static into a `const from = _Array$from` that would ignore the user's monkey-patch
+const M_DESTRUCTURE = [
+  { recv: 'Array', key: 'from', use: 'from([1])' },
+  { recv: 'Object', key: 'fromEntries', use: 'fromEntries([["a", 1]])' },
+];
+function * generateMutatedDestructure() {
+  for (const s of M_DESTRUCTURE) {
+    const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ s.recv }.${ s.key } = () => "P"; const { ${ s.key } } = ${ s.recv }; return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
+    yield { ...snippet(`mutated-destructure/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// the mutated static is the chain ROOT: `Array.from = patch; Array.from([1]).flat()`. the static bails
+// (mutation), but the static-call's return type still narrows to Array, so the TRAILING instance method
+// must still inject - the bail decision and the return-type narrow are orthogonal, and both emitters must
+// agree on emitting the instance helper while leaving the mutated static alone (patch returns an array so
+// the chain stays runnable)
+const M_NARROW = [
+  { recv: 'Array', key: 'from', patch: '() => [9, [8]]', use: 'Array.from([1]).flat()' },
+  { recv: 'Array', key: 'of', patch: '() => [3, [1]]', use: 'Array.of(1).at(0)' },
+];
+function * generateMutatedNarrowChain() {
+  for (const s of M_NARROW) {
+    const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ s.recv }.${ s.key } = ${ s.patch }; return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
+    yield { ...snippet(`mutated-narrow-chain/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// the patched static is reached through a const-aliased COMPUTED key (`const _k = "from";
+// recv[_k] = ...`); the resolver must follow the const binding to the same slot. patch AND restore
+// go through the SAME computed key, so the slot is only ever touched via the shape under test - a
+// dotted restore would mark it on its own and mask whether the computed-key detection is what bailed
+function * generateMutatedComputedKey() {
+  for (const s of M_STATICS) {
+    const body = `(() => { const _k = "${ s.key }"; const _o = ${ s.recv }[_k]; try { ${ s.recv }[_k] = () => "P"; return ${ s.use }; } finally { ${ s.recv }[_k] = _o; } })()`;
+    yield { ...snippet(`mutated-computed-key/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// the patch arrives through a wrapper-fronted namespace (`(0, Object).assign(recv, { key: ... })`,
+// a common minified shape) that still resolves to the global Object; restore via a computed key so
+// neither touch is a plain dotted write the binding-blind path could detect on its own
+function * generateMutatedWrapperAssign() {
+  for (const s of M_STATICS) {
+    const body = `(() => { const _k = "${ s.key }"; const _o = ${ s.recv }[_k]; try { (0, Object).assign(${ s.recv }, { ${ s.key }: () => "P" }); return ${ s.use }; } finally { ${ s.recv }[_k] = _o; } })()`;
+    yield { ...snippet(`mutated-wrapper-assign/${ s.recv }.${ s.key }`, body), strip: false };
+  }
+}
+
+// the patched static is reached through a COMPUTED key that is a folded LITERAL - a string concat
+// (`recv["fr" + "om"]`) or a single-quasi template (`recv[`from`]`) - which the bail pre-walk must
+// normalize to the static name before it can mark the slot. patch AND restore go through the SAME key
+// expression, so the slot is touched only when that key shape resolves; a dotted restore would mark it
+// on its own and mask whether the folded-key detection is what bailed. the defineProperty variant passes
+// the single-quasi template as the property-name argument (restore through the same defineProperty shape)
+const M_LITERAL_KEYS = [
+  { id: 'concat', key: s => `["${ s.key[0] }" + "${ s.key.slice(1) }"]` },
+  { id: 'template', key: s => `[\`${ s.key }\`]` },
+];
+function * generateMutatedLiteralKey() {
+  for (const s of M_STATICS) {
+    for (const k of M_LITERAL_KEYS) {
+      const key = k.key(s);
+      const body = `(() => { const _o = ${ s.recv }${ key }; try { ${ s.recv }${ key } = () => "P"; return ${ s.use }; } finally { ${ s.recv }${ key } = _o; } })()`;
+      yield { ...snippet(`mutated-literal-key/${ k.id }/${ s.recv }.${ s.key }`, body), strip: false };
+    }
+    // the template property-name argument under BOTH define-property namespaces (the key resolves the
+    // same way, but each namespace is a distinct mutation-detection callee - both must bail)
+    for (const ns of ['Object', 'Reflect']) {
+      function dp(a) { return `${ ns }.defineProperty(${ s.recv }, \`${ s.key }\`, { value: ${ a }, configurable: true, writable: true })`; }
+      const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ dp('() => "P"') }; return ${ s.use }; } finally { ${ dp('_o') }; } })()`;
+      yield { ...snippet(`mutated-literal-key/defineprop-template-${ ns.toLowerCase() }/${ s.recv }.${ s.key }`, body), strip: false };
+    }
+  }
+}
+
+// the static's receiver is SHADOWED by a function-scoped `var` (hoisted file-wide), so the call resolves
+// to the LOCAL object, not the global - usage-pure must bail and keep it. unlike the mutated-static family
+// this needs no restore: the IIFE scopes the `var`, so nothing leaks across the shard's sequential imports.
+// the local object returns a sentinel ("P") a real pure static never produces; a wrongly-injected pure
+// static reads a real value != "P" (and carries an import the bailed side lacks). the `hoist` form puts the
+// use in a nested function that closes over the function-scoped binding, called after assignment - so the
+// shadow is the var-hoist scope, not a block-local. reuses the canonical M_STATICS set (the local object is
+// derived from its key). full-env (the shadow is a binding decision, not a strip target)
+function * generateVarShadowedStatic() {
+  for (const s of M_STATICS) {
+    const local = `{ ${ s.key }: () => "P" }`;
+    yield { ...snippet(`var-shadowed-static/direct/${ s.recv }.${ s.key }`,
+      `(() => { var ${ s.recv } = ${ local }; return ${ s.use }; })()`), strip: false };
+    yield { ...snippet(`var-shadowed-static/hoist/${ s.recv }.${ s.key }`,
+      `(() => { function g() { return ${ s.use }; } var ${ s.recv } = ${ local }; return g(); })()`), strip: false };
+  }
+}
+
+// --- Side-effect ORDER through nested-instance body-extract ---
+// distinct side-effecting siblings (`log.push("x")` / `"z"`) flank the body-extracted binding; the
+// receiver is constant (memoize), an identifier (re-reference), or itself side-effecting (bail). every
+// shape must keep source order x -> z and run each effect ONCE. the receiver memo / re-ref / bail decision
+// must not pull a sibling effect out of order or duplicate it - `effects` is compared 3-way (native ==
+// babel == unplugin), so any reorder / drop / double-eval surfaces. the `log.push` siblings are themselves
+// polyfilled, so this also exercises SE-order with polyfilled siblings around the extracted receiver
+const SE_LAYOUTS = [
+  { id: 'before', lhs: '{ a, b: { flat: m } }', rhs: '{ a: log.push("x"), b: $R }', obs: '[a, typeof m]' },
+  { id: 'after', lhs: '{ b: { flat: m }, c }', rhs: '{ b: $R, c: log.push("z") }', obs: '[c, typeof m]' },
+  { id: 'flank', lhs: '{ a, b: { flat: m }, c }', rhs: '{ a: log.push("x"), b: $R, c: log.push("z") }', obs: '[a, c, typeof m]' },
+];
+const SE_RECVS = [
+  { id: 'const', src: '[1, 2, 3]', strip: true },
+  { id: 'ident', src: 'arr', strip: true },
+  { id: 'se', src: '[log.push("y"), 1]', strip: false },
+];
+function * generateSeOrder() {
+  for (const layout of SE_LAYOUTS) {
+    for (const recv of SE_RECVS) {
+      const body = `(() => { const ${ layout.lhs } = ${ layout.rhs.replace('$R', recv.src) }; return ${ layout.obs }; })()`;
+      yield { ...snippet(`se-order/${ layout.id }/${ recv.id }`, body), strip: recv.strip };
+    }
+  }
+}
+
+// --- Optional short-circuit must SKIP a downstream call-ARGUMENT side effect ---
+// `nul?.at(log.push("m"))`: the null receiver short-circuits BEFORE the argument runs, so `effects` stays
+// empty; a live receiver runs it exactly ONCE. the argument is itself polyfilled (`log.push`), so the
+// optional deopt must keep it INSIDE the short-circuited call - hoisting or pre-evaluating the arg would
+// fire `log.push` on the null path. compared 3-way via `effects`
+const ARG_SE_RECVS = [
+  { id: 'null', src: 'nul' },
+  { id: 'live', src: 'arr' },
+];
+const ARG_SE_CHAINS = [
+  { id: 'at', tail: '?.at(log.push("m"))' },
+  { id: 'flat-at', tail: '?.flat()?.at(log.push("m"))' },
+  { id: 'includes', tail: '?.includes(log.push("m"))' },
+];
+function * generateOptionalArgSe() {
+  for (const recv of ARG_SE_RECVS) {
+    for (const chain of ARG_SE_CHAINS) {
+      yield { ...snippet(`optional-arg-se/${ chain.id }/${ recv.id }`, `${ recv.src }${ chain.tail }`), strip: false };
+    }
+  }
+}
+
+// --- Async static (`Array.fromAsync`) strip-armed via top-level await ---
+// `Array.fromAsync` sits in the strip set yet no snippet exercised it (a DEAD strip entry): a dropped
+// es.array.from-async injection passes the full-env three-way (native present) but throws in the stripped
+// worker. observed through top-level await (the harness imports the module, so the await resolves), so the
+// strip oracle arms. the return-narrow variants feed the awaited Array into a trailing strip-target
+// instance method, exercising the awaited-Promise -> Array narrow plus a chained poly in one snippet
+const ASYNC_STATICS = [
+  { id: 'plain', expr: 'await Array.fromAsync([1, 2])' },
+  { id: 'return-narrow-flat', expr: '(await Array.fromAsync([[1], [2]])).flat()' },
+  { id: 'return-narrow-at', expr: '(await Array.fromAsync([1, 2])).at(-1)' },
+  { id: 'from-iterable', expr: 'await Array.fromAsync(new Set([1, 2]))' },
+  { id: 'promise-elements', expr: 'await Array.fromAsync([Promise.resolve(1), Promise.resolve(2)])' },
+];
+function * generateAsyncStatic() {
+  for (const s of ASYNC_STATICS) {
+    yield { ...snippet(`async-static/${ s.id }`, s.expr), strip: true };
+  }
+}
+
+// --- Set-ops + Iterator-helper receivers crossed with the context axis ---
+// the most behaviorally-distinct pure families (new-Set ops, Iterator helpers via `.values()`) existed
+// only as flat full-env one-offs, never dropped into the syntactic-position axis (stmt / param-default /
+// class-field / ternary / loop-body / ts-param-prop). each expression folds to a serializable value. Set
+// ops are strip-armed: each op is reimplemented on the pure Set, so a missed `new Set` -> pure rewrite
+// throws once the native op is deleted in the worker. Iterator helpers stay full-env - the pure iterator
+// inherits the native %IteratorPrototype% helpers (not a strippable leaf, see strip-builtins.mjs)
+const COLLECTION_RECVS = [
+  { id: 'set-union', expr: '[...new Set([1, 2]).union(new Set([2, 3]))].sort()', strip: true },
+  { id: 'set-intersection', expr: '[...new Set([1, 2, 3]).intersection(new Set([2, 3]))].sort()', strip: true },
+  { id: 'set-difference', expr: '[...new Set([1, 2, 3]).difference(new Set([2]))].sort()', strip: true },
+  { id: 'set-symmetric', expr: '[...new Set([1, 2]).symmetricDifference(new Set([2, 3]))].sort()', strip: true },
+  { id: 'set-isSubsetOf', expr: 'new Set([1, 2]).isSubsetOf(new Set([1, 2, 3]))', strip: true },
+  { id: 'set-isSupersetOf', expr: 'new Set([1, 2, 3]).isSupersetOf(new Set([1, 2]))', strip: true },
+  { id: 'set-isDisjointFrom', expr: 'new Set([1]).isDisjointFrom(new Set([2]))', strip: true },
+  { id: 'iter-filter', expr: '[1, 2, 3, 4].values().filter(x => x % 2 === 0).toArray()', strip: false },
+  { id: 'iter-map-take', expr: '[1, 2, 3].values().map(x => x * 2).take(2).toArray()', strip: false },
+  { id: 'iter-drop', expr: '[1, 2, 3, 4].values().drop(2).toArray()', strip: false },
+  { id: 'iter-opt', expr: '[1, 2, 3].values()?.map(x => x * 2)?.toArray()', strip: false },
+];
+function * generateCollectionReceivers() {
+  for (const ctx of G_CONTEXTS) {
+    for (const recv of COLLECTION_RECVS) {
+      yield { ...snippet(`collection-receiver/${ ctx.id }/${ recv.id }`, ctx.tpl(recv.expr)), ts: ctx.ts, strip: recv.strip };
+    }
+  }
+}
+
+// --- for-of ITERABLE position: a polyfilled array-/string-returning call as the for-of iterable ---
+// the polyfilled call sits in the for-of iterable slot (distinct from loop-body, which holds the hole in
+// the BODY) - a position the universal context axis can't carry, since only an iterable result is valid
+// there (a boolean / number hole would throw). restricted to array-/string-returning receivers; observe
+// the last yielded element. strip-armed (the array / string methods are strip targets)
+const FOROF_RECVS = [
+  { id: 'array-flat', expr: '[3, [1, 2]].flat()' },
+  { id: 'array-toSorted', expr: '[3, 1, 2].toSorted()' },
+  { id: 'static-from', expr: 'Array.from([1, 2])' },
+  { id: 'proxy-from', expr: 'globalThis.Array.from([1, 2])' },
+  { id: 'string-padStart', expr: '"5".padStart(3, "0")' },
+];
+function * generateForOfIterable() {
+  for (const r of FOROF_RECVS) {
+    yield { ...snippet(`for-of-iterable/${ r.id }`, `(() => { let p; for (const x of ${ r.expr }) p = x; return p; })()`), strip: true };
+  }
+}
+
+// expression families (one valid + observable snippet each), weighted to fragile areas
+const EXPR_FAMILIES = {
+  'optional-chain': [
+    'arr?.flat?.()',
+    'nul?.flat()',
+    'nul?.flat?.()',
+    '(nul ?? arr).flat()',
+    '(arr?.slice()).flat()',
+    '(log.push("e"), arr)?.flat()',
+  ],
+  chained: [
+    'arr.slice()?.flat().at(0)',
+    'arr?.slice()?.flat()?.at(-1)',
+  ],
+  // two polyfillable instance calls separated by optional hops - the chain-combine path, the
+  // most entangled B area (babel chain-combined emit vs unplugin threaded receiver)
+  'inner-poly-chain': [
+    'arr.flat?.().at(0)',
+    'arr?.flat?.().at(0)',
+    'arr?.slice()?.flatMap(x => [x])?.flat()',
+    '[[1], [2]].flat()?.includes(1)',
+    'arr.slice().flat?.().at(-1)',
+    '(log.push("e"), arr).flat?.().at(0)',
+  ],
+  'proxy-global': [
+    'globalThis.Array.from("ab")',
+    'globalThis?.Array.from([1, 2])',
+    '(globalThis).Array.from([1])',
+    '(log.push("e"), globalThis).Array.from([1])',
+  ],
+  static: [
+    'Array.from("ab")',
+    'Object.assign({}, { a: 1 })',
+  ],
+  // key-kind x object-kind combinations live in `generateIn`; this family keeps only the
+  // SE-bearing key shape (a sequence-expression LHS the grammar doesn't enumerate)
+  'in-expr': [
+    '(log.push("e"), "flat") in []',
+  ],
+  'symbol-iterator': [
+    '[...arr]',
+    '[...arr].length',
+    'Array.from(arr[Symbol.iterator]())',
+    '(() => { const it = arr[Symbol.iterator](); return it.next().value; })()',
+  ],
+  destructure: [
+    '(() => { const [first] = arr; return first; })()',
+  ],
+  // receiver-SE must evaluate BEFORE argument-SE (native order); the log records the sequence so
+  // a reorder shows as ['a','r'] instead of ['r','a']
+  'se-ordering': [
+    '(log.push("r"), arr).includes((log.push("a"), 3))',
+    '(log.push("r"), arr).at((log.push("a"), 0))',
+    '(log.push("r"), arr).flat((log.push("a"), 1))',
+    'arr.includes((log.push("a"), 3))',
+    '(log.push("r"), arr)?.includes((log.push("a"), 3))',
+  ],
+  'nested-se': [
+    '((log.push("a"), log.push("b")), arr).flat()',
+    '(log.push("a"), (log.push("b"), arr)).flat()',
+    '(log.push("a"), arr).slice().flat()',
+  ],
+  // static-FALLBACK receiver-only swap (member name NOT a known static, e.g. `.noSuchStatic`): the
+  // receiver swaps to the pure ctor and its SE must be prepended. an IIFE / member-chain receiver's SE
+  // was undercounted to 0 (a narrow emit-side recompute) and DROPPED in BOTH plugins - the build-time
+  // receiver-effect count fixes the split. `log` records the receiver eval so a drop shows as length 0
+  'static-fallback-receiver-se': [
+    '(() => { const r = (() => { log.push("r"); return Promise; })().noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = globalThis[(log.push("r"), "Promise")].noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = (log.push("r"), Promise).noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = (() => (() => { log.push("r"); return Promise; })())().noSuchStatic; return [typeof r, log.length]; })()',
+    '(() => { const r = (() => { log.push("r"); return Promise; })()[(log.push("k"), "noSuchStatic")]; return [typeof r, log.join("|")]; })()',
+  ],
+  // optional CALL on a non-static member of a polyfilled global, with a trailing polyfilled method.
+  // the `?.` guards the (undefined) member, so the whole chain short-circuits to undefined. deopting
+  // the guard (as if the member were a real static) calls a missing static and throws - a three-way
+  // divergence (native returns undefined, the deopt throws). a BARE receiver is required: a
+  // side-effecting receiver bails objName resolution, so it never reaches the buggy global deopt.
+  // the proxy-global roots (`globalThis.Map`) additionally lock the import-set: the single-trailing
+  // form must drop the dead `_globalThis` from the method-call guard, and the MULTI-trailing form
+  // (combined-chain path) must collapse `globalThis.Map` to the pure ctor `_Map` rather than keep
+  // `_globalThis.Map` - both keep babel and unplugin's import sets aligned (else a parity divergence)
+  'optional-call-nonstatic-global-trailing-poly': [
+    '(() => Promise.noSuchStatic?.().includes(0))()',
+    '(() => Promise.noSuchStatic?.().flat().at(0))()',
+    '(() => Symbol.noSuchStatic?.().includes(0))()',
+    '(() => globalThis.Map.notAMethod?.().at(0))()',
+    '(() => globalThis.Map.notAMethod?.().flat().at(0))()',
+    // a proxy-global reached through an ALIAS binding still collapses `g.Map` to `_Map` (the binding
+    // follows to globalThis); native `g.Map` is the real Map so this stays a clean native==polyfill case
+    '(() => { const g = globalThis; return g.Map.notAMethod?.().flat().at(0); })()',
+    // nested-forwarder chains (`globalThis.self.Map` -> `_Map`) are locked by a transpiler fixture, not
+    // here: `globalThis.self` is undefined in Node so the NATIVE expression throws (realm-specific), which
+    // is not a babel/unplugin divergence - the native-vs-polyfill oracle would false-positive on it
+  ],
+  'computed-symbol': [
+    'arr[Symbol.iterator]?.().next().value',
+    'arr[Symbol["iterator"]]().next().value',
+    'arr[Symbol[(log.push("k"), "iterator")]]().next().value',
+    'Symbol["iterator"] in arr',
+  ],
+  // IIFE-rooted proxy-global chain producing a static/well-known value (`(() => globalThis)().Symbol.iterator`,
+  // `.Promise.resolve`, `.Array.from`): the chain folds to the pure import but the IIFE setup must survive
+  // (theme-D harvest), and the inner globalThis must keep its own polyfill without overlapping the outer
+  // collapse (theme-E - a bare-polyfilled receiver ctor like Symbol/Promise crashed unplugin's text queue).
+  // intermediate hops use `.globalThis.` (Node-valid; `self`/`window` don't exist in the native oracle,
+  // those hop spellings are covered by transpiler fixtures instead)
+  'iife-proxy-static-se': [
+    '(() => { const it = (() => { log.push("r"); return globalThis; })().Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+    '(() => { const p = (() => { log.push("r"); return globalThis; })().Promise.resolve(7); return [typeof p.then, log.length]; })()',
+    '(() => { const a = (() => { log.push("r"); return globalThis; })().Array.from([1, 2]); return [a.join(","), log.length]; })()',
+    '(() => { const m = arr[(() => { log.push("r"); return globalThis; })().Symbol.iterator]; return [typeof m, log.length]; })()',
+    '(() => { const has = (() => { log.push("r"); return globalThis; })().Symbol.iterator in arr; return [has, log.length]; })()',
+    '(() => { const it = (() => { log.push("r"); return globalThis; })().globalThis.Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+    '(() => { const p = (() => { log.push("r"); return globalThis; })().globalThis.Promise.resolve(7); return [typeof p.then, log.length]; })()',
+    '(() => { let a; const it = (a = (() => { log.push("r"); return globalThis; })()).Symbol.iterator; return [it === Symbol.iterator, a === globalThis, log.length]; })()',
+    '(() => { const it = (() => (() => { log.push("r"); return globalThis; })())().Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+    '(() => { const p = (() => { log.push("r"); return globalThis; })()?.Promise.resolve(7); return [typeof p.then, log.length]; })()',
+    '(() => { const it = (() => globalThis)().globalThis.Symbol.iterator; return [it === Symbol.iterator, log.length]; })()',
+  ],
+  // string-key `in` FOLD with an SE-bearing RHS chain: the fold discards the RHS, so a chain-root
+  // IIFE / inline call / buried chain-assignment must be harvested at detection and re-prepended -
+  // and the rescued source must keep its inner rewrites (`globalThis -> _globalThis`) + imports.
+  // the sequence case additionally locks the prefix-before-chain-root SE order
+  'in-fold-rhs-se': [
+    '(() => { const r = "from" in (() => { log.push("r"); return globalThis; })().Array; return [r, log.length]; })()',
+    '(() => { const r = "resolve" in (() => { log.push("r"); return Promise; })(); return [r, log.length]; })()',
+    '(() => { let a; const r = "from" in (a = (() => { log.push("r"); return globalThis; })()).Array; return [r, a === globalThis, log.length]; })()',
+    '(() => { const r = "from" in (log.push("s"), (() => { log.push("r"); return globalThis; })().Array); return [r, log.join("|")]; })()',
+  ],
+  'deep-proxy': [
+    'globalThis.globalThis.Array.from([1, 2])',
+    'globalThis?.Array?.from?.([1, 2])',
+    'globalThis["Array"].from([1, 2])',
+    '(globalThis ?? {}).Array.from([1, 2])',
+    'globalThis.Array.from(globalThis.Array.of(1, 2))',
+  ],
+  'destructure-edge': [
+    // a missing-able ctor's unresolvable leaf re-anchors the residual to the ctor binding (`{ noSuchStatic }
+    // = _Map`) instead of reading native off the proxy root. for a SINGLE ctor this fires even with zero
+    // extraction (the re-anchored read IS the output). for a MULTI-ctor declarator it generalizes per-prop
+    // PROVIDED at least one sibling consumes (a poly leaf / global alias - babel's usage-driven flatten
+    // dispatch needs it); an all-anchored multi-ctor pattern with no consuming sibling stays native-residual
+    '(() => { const { Map: { noSuchStatic } } = globalThis; return typeof noSuchStatic; })()',
+    '(() => { const { Map: { groupBy, noSuchStatic } } = globalThis; return [typeof groupBy, typeof noSuchStatic]; })()',
+    '(() => { const { Map: { noSuchStatic }, Promise: p } = globalThis; return [typeof noSuchStatic, typeof p]; })()',
+    '(() => { const { Array: { from }, Map: { customZ } } = globalThis; return [typeof from, typeof customZ]; })()',
+    '(() => { const { Set: { union }, Map: { customZ } } = globalThis; return [typeof union, typeof customZ]; })()',
+    // the anchor survives an ArrayPattern wrapper and a logical receiver (distinct flatten code paths)
+    '(() => { const [{ Array: { from }, Map: { customZ } }] = [globalThis]; return [typeof from, typeof customZ]; })()',
+    '(() => { const { Array: { from }, Map: { customZ } } = globalThis ?? {}; return [typeof from, typeof customZ]; })()',
+    '(() => { let n; ({ Map: { noSuchStatic: n } } = globalThis); return typeof n; })()',
+    '(() => { const { from = null } = Array; return typeof from; })()',
+    '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
+    '(() => { const { ["from"]: f } = Array; return typeof f; })()',
+    // a side-effecting computed key in a CATCH param rides the catch extraction: the binding
+    // takes the dispatcher, the key survives in the residual (effect once), a user default is
+    // dead ("polyfill always wins") and rest still gathers the remaining props
+    '(() => { try { throw [1, 2]; } catch ({ [(log.push("k"), "at")]: v }) { return typeof v; } })()',
+    '(() => { try { throw [[1]]; } catch ({ [(log.push("k"), "flat")]: v, message }) { return [typeof v, typeof message]; } })()',
+    '(() => { try { throw [1]; } catch ({ [(log.push("k"), "includes")]: v = (log.push("dead"), 7) }) { return typeof v; } })()',
+    '(() => { try { throw { a: 1, b: 2 }; } catch ({ [(log.push("k"), "flatMap")]: v, ...rest }) { return [typeof v, Object.keys(rest).join(",")]; } })()',
+    // a memo-bearing sibling claims the whole-declaration render; the SE-key pair's trailing
+    // polyfill declarator must bake into the claimed render (key effect once, in source order)
+    // regardless of which declarator slot hosts the SE key (last / first / middle / loop header)
+    '(() => { const a = [1, 2], b = [[3]]; const { at } = (() => { log.push("r"); return a; })(), '
+      + '{ [(log.push("k"), "flat")]: f } = b; return [typeof at, typeof f, log.join("|")]; })()',
+    '(() => { const a = [1, 2], b = [[3]]; const { [(log.push("k"), "includes")]: i } = b, '
+      + '{ at } = (() => { log.push("r"); return a; })(); return [typeof i, typeof at, log.join("|")]; })()',
+    '(() => { const a = [1], b = [[2]], c = { tail: 9 }; const { at } = (() => { log.push("r"); return a; })(), '
+      + '{ [(log.push("k"), "flat")]: f } = b, { tail } = c; return [typeof at, typeof f, tail, log.join("|")]; })()',
+    '(() => { const a = [1], b = [[2]]; let out; for (const { at } = (() => { log.push("r"); return a; })(), '
+      + '{ [(log.push("k"), "flat")]: f } = b; !out;) { out = [typeof at, typeof f]; } return [out, log.join("|")]; })()',
+    // SE-bearing chain-root call in a flattenable init: the flatten harvests the discarded call
+    // and re-emits it ahead of the extraction (setup runs once, polyfill still wins); the no-SE
+    // twin flattens clean. covers the IIFE leaf, a member hop, and the proxy-global-receiver host
+    '(() => { const [{ from }] = [(() => { log.push("r"); return Array; })()]; return [typeof from, log.length]; })()',
+    '(() => { const [{ from }] = [(() => Array)()]; return [typeof from, log.length]; })()',
+    '(() => { const [{ from }] = [(() => { log.push("r"); return globalThis; })().Array]; return [typeof from, log.length]; })()',
+    '(() => { const [{ Array: { from } }] = [(() => { log.push("r"); return globalThis; })()]; return [typeof from, log.length]; })()',
+    '(() => { const { Array: { from } } = (() => { log.push("r"); return globalThis; })(); return [typeof from, log.length]; })()',
+    // SE-bearing IIFE in branchy / assignment-form destructure inits: the per-branch and
+    // assignment-destructure machinery must keep the setup intact too
+    '(() => { const { from } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof from, log.length]; })()',
+    '(() => { const { from } = (() => { log.push("r"); return Array; })() ?? Array; return [typeof from, log.length]; })()',
+    '(() => { let from; ({ from } = (() => { log.push("r"); return Array; })()); return [typeof from, log.length]; })()',
+    '(() => { const { from } = (log.push("s"), (() => Array)()); return [typeof from, log.join("|")]; })()',
+    // conditional init with an inline-call branch: the taken branch synths to the polyfill and an
+    // SE-bearing call is rescued (runs once, on its own branch only); the untaken branch must NOT run.
+    // the first-operand (taken-IIFE) form is the branchy-group case above; here the IIFE is the SECOND operand
+    '(() => { const { from } = cond ? Array : (() => { log.push("r"); return Array; })(); return [typeof from, log.length]; })()',
+    '(() => { const { from } = cond ? (() => { log.push("a"); return Array; })() : (() => { log.push("b"); return Array; })(); return [typeof from, log.join("|")]; })()',
+    '(() => { const { from } = (() => (cond ? Array : Iterator))(); return [typeof from, log.length]; })()',
+    // logical forms with an inline-call side: `&&` synths the call branch (rescued), `||` / `??`
+    // lift the init statement whole; a renamed / computed-literal key flows through the same synth
+    '(() => { const { from } = cond && (() => { log.push("r"); return Array; })(); return [typeof from, log.length]; })()',
+    '(() => { const { from } = (() => { log.push("r"); return Array; })() || Iterator; return [typeof from, log.length]; })()',
+    '(() => { const { from: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
+    '(() => { const { ["from"]: f } = cond ? (() => { log.push("r"); return Array; })() : Array; return [typeof f, log.length]; })()',
+    // a SE-bearing synth-swap receiver with an UNRESOLVED sibling key (`isArray` has no pure entry)
+    // forces the receiver to be MEMOIZED (run once, the sibling reads the memo) instead of rescued
+    // AND re-read. `log.length` pins effect-once; import parity + the 3-way value pin that both
+    // emitters resolve `from` and read `isArray` identically (a clone of the discarded `|| Set` that
+    // re-substituted to a pure ctor on one side only would leak a dead import). covers the flat
+    // member, buried prefix, `||` fallback, and per-branch conditional registration sites
+    '(() => { function g({ from, isArray } = (() => { log.push("r"); return globalThis; })().Array) { return [typeof from, typeof isArray, log.length]; } return g(); })()',
+    '(() => { function g({ from, isArray } = (log.push("r"), globalThis).Array) { return [typeof from, typeof isArray, log.length]; } return g(); })()',
+    '(() => { function g({ from, isArray } = (() => { log.push("r"); return globalThis; })().Array || Set) { return [typeof from, typeof isArray, log.length]; } return g(); })()',
+    '(() => { function g(c, { from, isArray } = c ? (() => { log.push("r"); return globalThis; })().Array : Set) '
+      + '{ return [typeof from, typeof isArray, log.length]; } return g(true); })()',
+    '(() => { function g({ from, isArray } = cond && (() => { log.push("r"); return globalThis; })().Array) '
+      + '{ return [typeof from, typeof isArray, log.length]; } return g(); })()',
+    // assignment-destructure hosts beyond the expression statement: for-init, call-arg and
+    // arrow-body positions, plus the nested / array-wrapper parameter DEFAULT. the param
+    // emission is the LEAF inline default, so a caller-passed value keeps winning - exercised
+    // below with an explicit custom-argument call
+    '(() => { let f; for (({ Array: { from: f } } = globalThis), 0; false;) {} return typeof f; })()',
+    '(() => { let f; const id = x => x; id(({ Array: { from: f } } = globalThis)); return typeof f; })()',
+    '(() => { let f; const g = () => ({ Array: { from: f } } = globalThis); g(); return typeof f; })()',
+    '(() => { function g([{ of }] = [Array]) { return typeof of; } return g(); })()',
+    '(() => { function g({ Array: { from } } = globalThis) { return from; } return g({ Array: { from: "custom" } }); })()',
+    '(() => { function g({ Array: { from: renamed } } = globalThis) { return renamed; } return g({ Array: { from: "custom" } }); })()',
+    '(() => { function g({ Array: { from, ...rest } } = globalThis) { return [typeof from, typeof rest]; } return g(); })()',
+    // an ABSENT leaf in a caller-supplied object stays undefined exactly as native - the
+    // synthesized default fires only for the no-argument call
+    '(() => { function g({ Array: { from } } = globalThis) { return typeof from; } return g({ Array: {} }); })()',
+    '(() => { function g({ Array: { from } } = globalThis) { return typeof from; } return g({ Array: "str" }); })()',
+    // a DECLARED function's params stay verbatim when no sound emission exists (rest sibling
+    // blocks the synth default): caller-supplied values pass through natively
+    '(() => { function g({ from, ...rest } = Array) { return [from, Object.keys(rest).length]; } return g({ from: "custom", x: 1 }); })()',
+    '(() => { function g({ from: alias, dup = alias } = Array) { return [typeof alias, typeof dup]; } return g(); })()',
+    // synth-default soundness limit: a top-level REST cannot be mirrored into the literal (it must keep
+    // collecting the real receiver's extra enumerable keys), so a rest pattern stays verbatim. (a non-poly
+    // nested sibling like `Set.union` IS mirrored to the pure polyfill `_Set.union` per W19-H2, matching
+    // usage-pure's own `globalThis.Set.union` resolution - it diverges from native's `undefined` static, so
+    // it is fixture-locked rather than tested here as a native-match)
+    '(() => { Array.tmpDiffX = 1; function g({ Array: { from, ...rest } } = globalThis) { return rest.tmpDiffX; } const r = g(); delete Array.tmpDiffX; return r; })()',
+    // full-mirror limits: an effectful default and a pattern-valued leaf stay verbatim - the
+    // effect must run on the no-arg call; the leaf reads the native function's own props
+    '(() => { const fxLog = []; function g({ Array: { from } } = (fxLog.push(1), globalThis)) { return [typeof from, fxLog.length]; } return g(); })()',
+    '(() => { function g({ Array: { of: { name } } } = globalThis) { return name; } return g(); })()',
+    // synth-default edges: duplicate destructure keys share one mirrored literal key; a
+    // computed hop stays verbatim; a string leaf key normalizes; the IIFE form synths too
+    '(() => { function g({ Array: { from, from: dup } } = globalThis) { return [typeof from, typeof dup]; } return g(); })()',
+    '(() => { const r = (({ of, "of": alias } = Array) => [typeof of, typeof alias])(); return r; })()',
+    '(() => { let c = true; const { from, from: g } = c ? Array : Array; return [typeof from, typeof g]; })()',
+    // defaulted destructure bindings fold member x default: an unknown member keeps the
+    // generic dispatch (runtime picks the flavor); a statically absent member takes the default
+    '(() => { const { a = [] } = JSON.parse(String.fromCharCode(123, 34, 97, 34, 58, 34, 104, 105, 34, 125)); return a.at(0); })()',
+    '(() => { const [b = "xy"] = []; return b.at(-1); })()',
+    '(() => { const { c = [7, 8] } = {}; return c.at(-1); })()',
+    '(() => { const [d = 0] = ["hi"]; return d.at(-1); })()',
+    '(() => { const { g = "s" } = { get g() { return [9]; } }; return g.at(0); })()',
+    '(() => { const [n = "x"] = [null]; return [n, typeof n]; })()',
+    // per-key presence independence and reassignment-to-undefined parity
+    '(() => { const { a = "", b = 0 } = { a: [1], get b() { return "s"; } }; return [a.at(0), b]; })()',
+    '(() => { let x = "str"; x = undefined; try { return x.at(0); } catch (e) { return "throw"; } })()',
+    // inline-array spread args expand positionally for the per-branch synth
+    '(() => { let c = true; return ((x, { from }) => typeof from)(...[1, c ? Array : Iterator]); })()',
+    // IIFE caller-arg wins over a non-receiver wrapper default (polyfill rides the live arg)
+    '(() => (({ from } = []) => from([7]))(Array))()',
+    // const-captured alias: an upstream reassignment AFTER the capture must not drop super statics
+    '(() => { let G = globalThis; const B = G.Array; G = null; class C extends B { static m() { return super.of(3); } } return C.m()[0]; })()',
+    // single-element array wrapper with inner rest keeps the residual (rest collects remaining keys)
+    '(() => { const [{ from, ...rest }] = [Array]; return [typeof from, typeof rest]; })()',
+    // for-init host: the polyfill rides a sibling declarator in the loop header
+    '(() => { for (const [{ of, ...r }] = [Array]; ; ) { return [of(9)[0], "of" in r]; } })()',
+    '(() => { for (let i = 0, [{ of, ...r }] = [Array]; i < 1; i++) { return [of(i)[0], "of" in r]; } })()',
+    // spread position edges: receiver before / after the inline-array expansion, empty spread
+    '(() => { let c = true; return (({ from }, x) => typeof from)(c ? Array : Iterator, ...[1]); })()',
+    '(() => { let c = true; return ((x, { of }) => typeof of)(...[], 1, c ? Array : Iterator); })()',
+    // in-loop upstream reassignment must keep the conservative native path (dominance blocks)
+    '(() => { let G = globalThis; const out = []; for (let i = 0; i < 2; i++) { const B = G.Array; '
+      + 'class C extends B { static m() { return typeof super.of; } } out.push(C.m()); G = { Array: function () { return 1; } }; } return out; })()',
+    // SE-buried proxy root: the prefix runs exactly once and the static substitutes
+    '(() => { let n = 0; const m = (n++, globalThis).Map.groupBy(["ab", "c"], s => s.length); return [m.get(1)[0], n]; })()',
+    // alias-mutation canonicalization: the user patch through the alias wins over the polyfill
+    // (the original static is RESTORED so the shared runtime stays clean for other cases;
+    // the mutation marks Array.of, so the restore read stays native too)
+    '(() => { const A2 = Array; const orig = A2.of; A2.of = function () { return "patched"; }; const out = A2.of(1); A2.of = orig; return out; })()',
+    // a reassigned alias: reads of EVERY reachable canonical stay native (mutation honored,
+    // original restored for runtime hygiene)
+    '(() => { let R = Array; R = Map; const orig = R.of; R.of = function () { return "patched"; }; const out = [Map.of === R.of, typeof Array.of]; R.of = orig; return out; })()',
+    // logical-assignment alias value: the mutation through it stays on the NATIVE constructor
+    '(() => { let L = null; L ||= Map; const orig = L.of; L.of = function () { return "lp"; }; const out = [Map.of === L.of]; L.of = orig; return out; })()',
+    // ternary alias value: the mutation through it stays on the NATIVE live branch
+    '(() => { const T = 1 ? Map : Iterator; const orig = T.of; T.of = function () { return "tp"; }; const out = [Map.of === T.of]; T.of = orig; return out; })()',
+    // IIFE-returned ctor alias: the mutation through it stays on the NATIVE constructor
+    '(() => { const F = (() => Map)(); const orig = F.of; F.of = function () { return "fp"; }; const out = [Map.of === F.of]; F.of = orig; return out; })()',
+    // bound-fn-returned and static-object-member aliases keep mutations on the NATIVE ctor
+    '(() => { const fb = () => Map; const Fb = fb(); const orig = Fb.of; Fb.of = function () { return "bf"; }; const out = [Map.of === Fb.of]; Fb.of = orig; return out; })()',
+    '(() => { const NSo = { M: Map }; const Mo = NSo.M; const orig = Mo.of; Mo.of = function () { return "so"; }; const out = [Map.of === Mo.of]; Mo.of = orig; return out; })()',
+    // class-static-field alias keeps the mutation on the NATIVE constructor
+    '(() => { class NSf { static M = Map; } const Mf = NSf.M; const orig = Mf.of; '
+      + 'Mf.of = function () { return "cs"; }; const out = [Map.of === Mf.of]; Mf.of = orig; return out; })()',
+    // duplicate container keys: the mutation lands on the LAST (live) value
+    '(() => { const ND = { M: Array, M: Iterator }; const Md = ND.M; const orig = Md.from; '
+      + 'Md.from = function () { return "dk"; }; const out = [Iterator.from === Md.from, typeof Array.from]; Md.from = orig; return out; })()',
+    // assign-source computed static key: the patch wins over substitution
+    '(() => { const orig = Array.of; Object.assign(Array, { ["of"]: function () { return "ac"; } }); '
+      + 'const out = Array.of(1); Array.of = orig; return out; })()',
+    // delete through an alias suppresses the in-check fold (restored for runtime hygiene)
+    '(() => { const A = Array; const orig = A.of; delete A.of; const out = "of" in Array; A.of = orig; return out; })()',
+    // SE-wrapped proxy-member destructure init: effect exactly once, polyfill binds
+    '(() => { let n = 0; const { from } = (n++, globalThis.Array); return [from([3])[0], n]; })()',
+    // a shadowed bound-fn alias: the mutation through the INNER twin keeps outer reads native
+    '(() => { const fs = () => Map; const out = (function () { const fs2 = () => Iterator; const T = fs2(); '
+      + 'const orig = T.from; T.from = function () { return "sh"; }; const r = [Iterator.from === T.from]; T.from = orig; return r; })(); return out; })()',
+    // an IIFE-returned extends target resolves its super statics like the target itself
+    '(() => { class Fi extends (() => globalThis.Array)() { static m() { return super.of(6); } } return Fi.m()[0]; })()',
+    // an SE-buried extends target resolves its super statics (effect runs once at class-def)
+    '(() => { let n = 0; class Ce extends (n++, globalThis).Array { static m() { return super.of(5); } } return [Ce.m()[0], n]; })()',
+    // a mid-sequence destructure assignment splits and polyfills like a standalone statement
+    '(() => { let from; (({ from } = Array), 0); return [from([7, 8]).at(-1), typeof from]; })()',
+    // SE-static receiver: dropped effect-free prefix, preserved SE prefix, value intact
+    '(() => { const calls = []; const r = (calls.push("a"), Iterator, Array).from([7, 8]); '
+      + 'return [r.at(-1), calls.length]; })()',
+    // inner-key SE + hop-key SE run in native order around the inner CALL
+    '(() => { const calls = []; const a1 = () => calls.push("a1"); const a2 = () => calls.push("a2"); '
+      + 'const arr = { flat() { calls.push("f"); return [7, 8]; } }; '
+      + 'const r = arr[(a1(), "flat")]?.()[(a2(), "map")](v => v * 2)?.at(0); return [r, calls.join("-")]; })()',
+    // an SE prefix on a poly hop key runs exactly once, in source order
+    '(() => { const calls = []; const r = [[1], [2]].flat?.()[(calls.push("k"), "map")](v => v[0])?.at(0); '
+      + 'return [r, calls.length]; })()',
+    // an inner instance polyfill (ref-bake) combined with a droppable bare-constructor
+    // tail across sibling declarators keeps every effect exactly once, in order
+    '(() => { const calls = []; const eff = v => calls.push(v); '
+      + 'const { from } = (eff([1].at(0)), (eff(2), Array)), { of: o8 } = (eff(3), Array); '
+      + 'return [from([5]).length, o8(6).length, calls.join()]; })()',
+    // a destructuring-assignment VALUE is the RHS proxy object, not the hop member -
+    // the value-used host must keep it intact
+    '(() => { let x; const v = ({ Map: { x } } = globalThis); return [v === globalThis, typeof x]; })()',
+    // a single-key proxy-hop destructure reads a patched static through the routed
+    // constructor (the original key state is restored for runtime hygiene)
+    '(() => { const orig = Iterator.dispose; Iterator.dispose = () => 41; '
+      + 'const { Iterator: { dispose: read } } = globalThis; const r = read(); '
+      + 'if (orig === undefined) delete Iterator.dispose; else Iterator.dispose = orig; return [r]; })()',
+    // a braceless case-consequent hosts the deferred destructure SE (the drain's
+    // consequent-array branch); the effect lands before the extraction, once
+    '(() => { const calls = []; switch (calls.push(1)) { case 1: const { of: o9 } = (calls.push(2), globalThis.Array); return [typeof o9, o9(7).length, calls.length]; } })()',
+    // a lifted SE prefix keeps its effect; the dead proxy-member tail drops
+    '(() => { const calls = []; const { of: o3 } = (calls.push(1), globalThis.Array); '
+      + 'return [typeof o3, o3(7).length, calls.length]; })()',
+    // a rest sibling excludes the consumed string-literal key (quoted sentinel)
+    '(() => { const { "Array": { from: f8 }, ...others } = globalThis; '
+      + 'return ["Array" in others, typeof f8, f8([3]).length]; })()',
+    // a string-literal outer key flattens like the identifier form
+    '(() => { const { "Array": { from } } = globalThis; return [from([8, 9]).at(0)]; })()',
+    // an all-non-poly optional hop tail short-circuits through its own tokens
+    '(() => { const o = { cA(v) { return { cB(w) { return [v, w]; } }; } }; '
+      + 'const r = [[1]].flat?.()?.[0] && o.cA?.(1)?.cB(2)?.at(1); return [r]; })()',
+    // a guarded non-poly optional computed hop stays syntactically valid and runs in order
+    '(() => { const calls = []; const o = { customY(v) { calls.push("y"); return [v]; } }; '
+      + 'const r = [[o]].flat?.()?.[(calls.push("k"), "at")](0)?.[0].customY(3); return [r[0], calls.join("-")]; })()',
+    // optional-hop key SE replays once through the folded guard too
+    '(() => { const calls = []; const r = [[5]].flat?.()?.[(calls.push("o"), "map")](v => v[0])?.at(0); '
+      + 'return [r, calls.length]; })()',
+    // a DYNAMIC-keyed call hop threads as a non-poly hop (raw text re-emitted)
+    '(() => { const k = "map"; const r = [[3], [4]].flat?.()[k](v => v + 1)?.at(-1); return [r]; })()',
+    // static-string-keyed call hop threads through the combined optional chain
+    '(() => { const r = [[1], [2]].flat?.()["map"](v => v * 10)?.at(0); return [r]; })()',
+    // healed compose-overlap shapes hold their runtime values
+    '(() => { const a = { b: { c: () => [5, 6] } }; return [a?.b.c().at(0)]; })()',
+    '(() => { const obj = { "a?.b": [9] }; return [obj?.["a?.b"].includes(9)]; })()',
+    // a buried SE on a synth-swap receiver spine survives the literal swap
+    '(() => { const calls = []; const eff = () => calls.push(1); '
+      + 'function f({ from } = (eff(), globalThis).Array) { return typeof from; } '
+      + 'return [f(), calls.length]; })()',
+    // an optional delete pairs with reads on one routed object
+    '(() => { Map.customOptKey = 3; const had = "customOptKey" in Map; delete Map?.customOptKey; '
+      + 'return [had, "customOptKey" in Map]; })()',
+    // for-init flatten sibling: every shape (rest / 2-instance) keeps its polyfill
+    '(() => { const out = []; for (const { Array: { from } } = globalThis, { at, ...rest } = [4, 5]; out.length < 1; ) '
+      + 'out.push([from([6]).at(0), at.call([7, 8], -1), "concat" in rest]); return out; })()',
+    // a split product's alias keeps the typed dispatch downstream
+    '(() => { let from; ("x", ({ from } = Array), 0); return [from([5, 6]).at(1)]; })()',
+    // a nested-sequence-slot destructure splits through the fixpoint
+    '(() => { let of2; ((0, ({ of: of2 } = Array)), 1); return [of2(9).at(0)]; })()',
+    // assignment-destructure alias narrows the receiver type for the typed instance variant
+    '(() => { let from; ({ from } = Array); return [from([5, 6]).at(0), from("ab").at(1)]; })()',
+    // a prototype patch and the instances reading it live on ONE (routed) constructor
+    '(() => { Map.prototype.customX = Map.prototype.customX || function () { return "mp"; }; '
+      + 'const r = new Map().customX(); delete Map.prototype.customX; return [r]; })()',
+    // a polyfillable-key or-shim stays DEAD: the key's entry is imported up front, the guard
+    // finds it present on the routed constructor, and reads serve the implementation
+    '(() => { Iterator.from ||= function () { return "dead"; }; return [Iterator.from([4].values()).next().value]; })()',
+    '(() => { Promise.allSettled = Promise.allSettled || function () { return "dead"; }; return [typeof Promise.allSettled]; })()',
+    '(() => { if (typeof Object.groupBy != "function") Object.groupBy = function () { return "dead"; }; '
+      + 'return [Object.groupBy([5], x => x)[5].length]; })()',
+    // third-party shim patterns: present-key guards keep the live implementation, a
+    // missing-key or-shim assigns and serves the shim through the same routed object
+    '(() => { if (!Array.from) Array.from = function () { return "dead"; }; return [Array.from([3])[0], typeof Array.from]; })()',
+    '(() => { Map.customShimKey = Map.customShimKey || function () { return "served"; }; '
+      + 'const r = Map.customShimKey(); delete Map.customShimKey; return [r]; })()',
+    // method-aware routing precision: the patched key reads the patch, a CLEAN key on the
+    // same constructor keeps its polyfilled receiver-less import
+    '(() => { const orig = Iterator.from; Iterator.from = function () { return "mk"; }; '
+      + 'const a = Iterator.from(0); const b = typeof [1].values().drop(0).toArray; Iterator.from = orig; return [a, b]; })()',
+    // mutated-static routing: the patch and the read share the constructor object (native
+    // or injected), so the patched value flows through reads, destructures and in-checks
+    '(() => { const orig = Iterator.from; Iterator.from = function () { return "rt"; }; '
+      + 'const a = Iterator.from(0); const { from } = Iterator; const b = from(0); '
+      + 'const c = "from" in Iterator; Iterator.from = orig; return [a, b, c]; })()',
+    // a pattern HOLE shifts nothing: the slot still pairs positionally for the mutation set
+    '(() => { const orig = Iterator.from; let A = Array; [, A] = [0, Iterator]; '
+      + 'A.from = function () { return "hs"; }; const out = [Iterator.from === A.from]; Iterator.from = orig; return out; })()',
+    // a REASSIGNED alias reaching a proxy global keys the chain mutation under the ctor leaf
+    '(() => { const orig = Array.of; let h; h = (() => false)() ? null : globalThis; '
+      + 'h.Array.of = function () { return "tp"; }; const out = [Array.of(3)]; Array.of = orig; return out; })()',
+    // alias-of-proxy chain mutation: the patch through `const g = globalThis` wins over reads
+    '(() => { const orig = Array.of; const gp = globalThis; gp.Array.of = function () { return "ga"; }; '
+      + 'const out = [Array.of(2)]; Array.of = orig; return out; })()',
+    // a proxy-chain mutation (SE-buried root included) keeps the patch winning over reads
+    '(() => { const orig = Array.of; let n = 0; (n++, globalThis).Array.of = function () { return "pc"; }; '
+      + 'const out = [Array.of(1), n]; Array.of = orig; return out; })()',
+    // the in-check fold keeps the receiver's SE prefix evaluating
+    '(() => { let n = 0; const has = "groupBy" in (n++, globalThis).Map; return [has, n]; })()',
+    // synth-literal receiver with an SE prefix: effect once, unpolyfilled key reads through
+    '(() => { let n = 0; const r = (({ from, other }) => [typeof from, other])((n++, globalThis.Array)); return [r[0], r[1], n]; })()',
+    // an SE wrapping a PARTIAL member chain stays structurally intact (both effects, in order)
+    '(() => { const log = []; const { from, formatRangeToParts } = ((log.push(2), (log.push(1), globalThis).globalThis)).Array; '
+      + 'return [typeof from, log.join("")]; })()',
+    // a partial-consume residual with an SE-buried proxy-hop root must keep the effect
+    '(() => { let n = 0; const { from, formatRangeToParts } = (n++, globalThis).globalThis.Array; return [typeof from, typeof formatRangeToParts, n]; })()',
+    // gate agreement across prop shapes: defaults, aliases and computed keys all lift once
+    '(() => { let n = 0; const { from = 0, ["of"]: o } = (n++, globalThis.Array); return [from([7])[0], o(8)[0], n]; })()',
+    // SE prefix lifts once for a fully-consumed multi-prop destructure with a proxy tail
+    '(() => { let n = 0; const { from, of } = (n++, globalThis.Array); return [from([3])[0], of(4)[0], n]; })()',
+    // sibling statics through a shared static-object wrapper both resolve
+    '(() => { const w = { a: Array, b: Promise }; const { a: { of }, b: { resolve } } = w; return [of(5)[0], typeof resolve]; })()',
+    // a bound capitalized arg preempts (alias resolution), a shadowed constructor name keeps
+    // its caller value - both paths must match native byte-for-byte
+    '(() => { const A = Array; return (({ of } = Iterator) => typeof of)(A); })()',
+    '(() => { const Iterator = { of: function () { return "shadow"; } }; return (({ of } = Array) => of(1))(Iterator); })()',
+    // an unclassifiable live arg keeps native priority while the default-path polyfills
+    '(() => { const v = { of: function () { return "caller"; } }; return (({ of } = Array) => of(1))(v); })()',
+    '(() => (({ of } = Array) => of(5))(undefined))()',
+    // synth-swap keeps the SE prefix of a wrapped live arg (effect runs exactly once)
+    '(() => { let n = 0; const r = (({ from }) => from([5]))((n++, Array)); return [r[0], n]; })()',
+    // cross-function capture: a top-level reassignment before the call must keep super native
+    '(() => { let G = globalThis; function make() { const B = G.Array; class C extends B { static m() { return super.of(1); } } return C.m(); } '
+      + 'G = { Array: { of: function () { return "custom"; } } }; return make(); })()',
+    // aliased key + rest under a single-element array wrapper extracts and keeps rest exclusion
+    '(() => { const [{ from: f, ...r }] = [Array]; return [f([8])[0], "from" in r]; })()',
+    // assignment-form array wrap + rest flows through the rest-aware cascade on both plugins
+    '(() => { let from, rest, x; [{ from, ...rest }, x] = [Array, 1]; return [typeof from, x]; })()',
+    '(() => { let from, rest; [{ from, ...rest }] = [Array]; return [from([6])[0], "from" in rest]; })()',
+    '(() => { let from, rest, n = 0; [{ from, ...rest }] = (n++, [Array]); return [from([4])[0], n]; })()',
+    '(() => { let from, rest; [{ Array: { from, ...rest } }] = [globalThis]; return [from([2])[0], "from" in rest]; })()',
+    // duplicate HOP keys merge their subtrees - both read the same receiver property
+    '(() => { function g({ Array: { from }, Array: { of } } = globalThis) { return [typeof from, typeof of]; } return g(); })()',
+    '(() => { function g({ Array: { from }, Array: { from: f2, of } } = globalThis) { return [typeof from, typeof f2, typeof of]; } return g(); })()',
+    '(() => { function g({ ["Array"]: { from } } = globalThis) { return typeof from; } return g(); })()',
+    '(() => { function g({ Array: { "from": f } } = globalThis) { return typeof f; } return g(); })()',
+    '(() => (function ({ Array: { of } } = globalThis) { return typeof of; })())()',
+    // an unpolyfilled SE computed key beside a polyfilled one: the synth literal reads the
+    // receiver by the STATIC name - the key's prefix effect runs exactly once
+    '(() => { let c = 0; const r = (({ from, [(c++, "custom")]: x } = Array) => [typeof from, x, c])(); return r; })()',
+    // flat-entries edges: a numeric key falls back soundly; a per-branch literal re-reads the
+    // unpolyfilled sibling through the branch receiver; a dynamic computed key runs once; a
+    // pure SE-free call branch folds to its literal
+    '(() => { const r = (({ from, 0: zero } = Array) => [typeof from, zero])(); return r; })()',
+    '(() => { let cond = true; const r = (({ from, custom } = cond ? Array : Iterator) => [typeof from, custom])(); return r; })()',
+    '(() => { let n = 0; const k = () => (n++, "from"); const r = (({ of, [k()]: x } = Array) => [typeof of, typeof x, n])(); return r; })()',
+    '(() => { let cond = true; const r = (({ from } = cond ? (() => Array)() : Iterator) => typeof from)(); return r; })()',
+    // multi-key call branches: all-polyfilled keys rescue the call once ahead of the literal;
+    // an unresolved key reads the memoized call result - the call runs exactly once either way
+    '(() => { let cond = true, c = 0; const { from, of } = cond ? (() => { c++; return Array; })() : Array; return [typeof from, typeof of, c]; })()',
+    '(() => { let cond = true, c = 0; const { from, custom } = cond ? (() => { c++; return Array; })() : Array; return [typeof from, custom, c]; })()',
+    '(() => { let cond = false, c = 0; const { from, custom } = cond ? (() => { c++; return Array; })() : Array; return [typeof from, custom, c]; })()',
+    '(() => { let cond = true, c = 0; const r = (({ from, custom } = cond ? (() => { c++; return Array; })() : Array) => [typeof from, custom, c])(); return r; })()',
+    // nested conditional with two memoized call leaves: only the taken branch's call runs,
+    // exactly once; the all-plain path runs none
+    '(() => { let a = true, b = false, c = 0; const { from, custom } = a ? (() => (c++, Array))() : (b ? (() => (c++, Iterator))() : Array); return [typeof from, custom, c]; })()',
+    '(() => { let a = false, b = true, c = 0; const { from, custom } = a ? (() => (c++, Array))() : (b ? (() => (c++, Iterator))() : Array); return [typeof from, custom, c]; })()',
+    '(() => { let a = false, b = false, c = 0; const { from, custom } = a ? (() => (c++, Array))() : (b ? (() => (c++, Iterator))() : Array); return [typeof from, c]; })()',
+    '(() => { let _ref = "user", a = true; const { from, custom } = a ? (() => Array)() : Array; return [typeof from, custom, _ref]; })()',
+    // full-tree mirror + fallback-logical collapse: sibling branches both mirror; the kept
+    // effect prefix runs once on the no-arg call; logical defaults collapse left
+    '(() => { function g({ Array: { from }, Object: { assign } } = globalThis) { return [typeof from, typeof assign]; } return g(); })()',
+    '(() => { const fxq = []; function g({ Array: { of } } = (fxq.push(1), globalThis)) { return [typeof of, fxq.length]; } return [g(), fxq.length]; })()',
+    '(() => { function g({ from } = Array || Iterator) { return typeof from; } return g(); })()',
+    '(() => { function g({ from, custom } = Array || Iterator) { return [typeof from, custom]; } return g(); })()',
+    '(() => { function g({ of } = Array ?? Iterator) { return typeof of; } return g(); })()',
+    // logical roots of the mirror and the flatten: pure forms collapse (left for || / ??,
+    // right for &&); an effectful operand keeps running - natively or in the residual
+    '(() => { function g({ Array: { from } } = globalThis || self) { return typeof from; } return g(); })()',
+    '(() => { let m = 1, c = 0; function g({ Array: { of } } = (c++, m) && globalThis) { return [typeof of, c]; } return [g(), c]; })()',
+    '(() => { let m = 1, c = 0; const { Array: { from } } = (c++, m) && globalThis; return [typeof from, c]; })()',
+    '(() => { let c = 0; const { Array: { of } } = (c++, globalThis) || self; return [typeof of, c]; })()',
+    '(() => { let c = 0; const { Array: { from } } = globalThis || (c++, self); return [typeof from, c]; })()',
+    // host-shape edges of the precise mirror: multi-declarator keeps the sibling and the
+    // effect; the assignment-form cascade keeps the whole RHS statement
+    '(() => { let c = 0, m = 1; const a = 2, { Array: { of } } = (c++, m) && globalThis; return [typeof of, a, c]; })()',
+    '(() => { let from, c = 0, m = 1; ({ Array: { from } } = (c++, m) && globalThis); return [typeof from, c]; })()',
+    '(() => { let c = 0, m = 1; for (const { Array: { of } } = (c++, m) && globalThis; false;) {} return c; })()',
+    '(() => { const { Array: { of } } = globalThis || self; return typeof of; })()',
+    '(() => { let m = 0; function g({ Array: { from } } = m && globalThis) { return from; } try { g(); return "no-throw"; } catch (e) { return "throw"; } })()',
+    // mixed / chained logical roots: the mirror lands in either subtree; selection semantics
+    // stay native on the kept paths
+    '(() => { let m = 1; function g({ Array: { from } } = (m && globalThis) || self) { return typeof from; } return g(); })()',
+    '(() => { let m = 0; function g({ Array: { from } } = (m && globalThis) || globalThis) { return typeof from; } return g(); })()',
+    // BOTH reachable leaves of a guarded fallback unfold; an unmirrorable leaf stays native
+    '(() => { let m = 1; function g({ Array: { of } } = (m && globalThis) || globalThis) { return typeof of; } return g(); })()',
+    '(() => { const alt = { Array: { from: "alt" } }; let m = 0; function g({ Array: { from } } = (m && globalThis) || alt) { return from; } return g(); })()',
+    // the flatten must NOT discard a guarded init: the falsy path's native TypeError survives
+    // (the mirror swaps only the right operand); a guarded fallback in a declarator unfolds
+    '(() => { let m = 0; try { const { Array: { from } } = m && globalThis; return typeof from; } catch (e) { return "throw"; } })()',
+    '(() => { let m = 1; const { Array: { from } } = m && globalThis; return typeof from; })()',
+    '(() => { let m = 0; const { Array: { of } } = (m && globalThis) || globalThis; return typeof of; })()',
+    // ternary inits: a pure proxy-alias ternary flattens; an effectful test keeps running
+    // once; a guarded branch keeps its native selection
+    '(() => { let c = true; const { Array: { from } } = c ? globalThis : globalThis; return typeof from; })()',
+    '(() => { let log = [], c = false; const { Array: { of } } = (log.push(1), c) ? globalThis : globalThis; return [typeof of, log.length]; })()',
+    '(() => { let c = true; function g({ Array: { from } } = c ? globalThis : globalThis) { return typeof from; } return g(); })()',
+    '(() => { let c = false, m = 0; try { const { Array: { from } } = c ? globalThis : m && globalThis; return typeof from; } catch (e) { return "throw"; } })()',
+    // transparent IIFE inits: the call stays (body effects + selection native); a guarded
+    // return keeps its falsy throw; identity / pure / SE-body shapes flatten with rescue
+    '(() => { let m = 1; const { Array: { from } } = (() => m && globalThis)(); return typeof from; })()',
+    '(() => { let m = 0; try { const { Array: { from } } = (() => m && globalThis)(); return typeof from; } catch (e) { return "throw"; } })()',
+    '(() => { let c = 0; const { Array: { of } } = (() => { c++; return globalThis; })(); return [typeof of, c]; })()',
+    '(() => { const { Array: { from } } = (g => g)(globalThis); return typeof from; })()',
+    '(() => { function g({ Array: { of } } = (() => globalThis)()) { return typeof of; } return g(); })()',
+    // IIFE composition: an effectful identity ARGUMENT runs exactly once (not discardable);
+    // nested transparent IIFEs flatten; an IIFE leaf inside a fallback mirrors in place
+    '(() => { let c = 0; const { Array: { from } } = (g => g)((c++, globalThis)); return [typeof from, c]; })()',
+    '(() => { const { Array: { of } } = (() => (() => globalThis)())(); return typeof of; })()',
+    '(() => { let m = 0; const { Array: { from } } = (m && globalThis) || (() => globalThis)(); return typeof from; })()',
+    '(() => { let c = false; const { Array: { of } } = (() => c ? globalThis : globalThis)(); return typeof of; })()',
+    // chain-assignment inits: the binding captures the NATIVE value (never a mirrored
+    // literal); a guarded RHS keeps the falsy-path TypeError; a pure fallback flattens
+    '(() => { let w; const { Array: { from } } = w = globalThis || globalThis; return [typeof from, w === globalThis]; })()',
+    '(() => { let w, m = 1; const { Array: { of } } = w = m && globalThis; return [typeof of, w === globalThis]; })()',
+    '(() => { let w, m = 0; try { const { Array: { from } } = w = m && globalThis; return typeof from; } catch (e) { return ["throw", w === 0]; } })()',
+    // assignment-form fallback RHS: pure shapes are discarded, an IIFE keeps one native call;
+    // an array element with a fallback flattens
+    '(() => { let from; ({ Array: { from } } = globalThis || globalThis); return typeof from; })()',
+    '(() => { let of, c = 0; ({ Array: { of } } = (() => { c++; return globalThis; })()); return [typeof of, c]; })()',
+    '(() => { const [{ Array: { from } }] = [globalThis || globalThis]; return typeof from; })()',
+    '(() => { function g({ Array: { of } } = globalThis || self || window) { return typeof of; } return g(); })()',
+    '(() => { class K { m({ JSON: { stringify } } = globalThis) { return typeof stringify; } } return new K().m(); })()',
+    // the call-site scan: a non-exported function whose every call leaves the default gets the
+    // lossy emission back (nothing exists to lose); a real-arg caller and an escaping alias bail
+    '(() => { function g({ from, ...rest } = Array) { return [typeof from, Object.keys(rest).length]; } return [g(), g(undefined)]; })()',
+    '(() => { function g({ from } = Array) { return from; } return g({ from: "custom" }); })()',
+    '(() => { function g({ from } = Array) { return typeof from; } const alias = g; return alias(); })()',
+    // const-alias wrapper: the IIFE's setup runs at the ALIAS declaration, not in the discarded
+    // read - the harvest must not re-emit it (a deref-escaped call once double-ran, log.length 2)
+    '(() => { const wrapper = [(() => { log.push("r"); return Array; })()]; const [{ from }] = wrapper; return [typeof from, log.length]; })()',
+    '(() => { const w1 = [(() => { log.push("r"); return Array; })()]; const w2 = w1; const [{ of }] = w2; return [typeof of, log.length]; })()',
+    // a chain-assignment in the discarded init is rescued WHOLE: the binding captures, the
+    // setup runs once, and the binding still gets the polyfill - for the array-leaf form too
+    '(() => { let a; const [{ from }] = [(a = globalThis).Array]; return [typeof from, a === globalThis, log.length]; })()',
+    '(() => { let a; const { Array: { of } } = (a = globalThis); return [typeof of, a === globalThis, log.length]; })()',
+    '(() => { let a; const [{ from }] = [(a = (() => { log.push("r"); return Array; })())]; return [typeof from, typeof a, log.length]; })()',
+    '(() => { let a; const [{ from }] = [(a = (() => { log.push("r"); return globalThis; })()).Array]; return [typeof from, a === globalThis, log.length]; })()',
+    '(() => { let a = null; const [{ of }] = [(a ??= globalThis).Array]; return [typeof of, a === globalThis, log.length]; })()',
+    // an ArrayPattern-wrapper whose leaf is a const-ALIAS of the constructor (`const A = Array; [A]`):
+    // the leaf must be canonicalized back to Array, else `from` drops (babel usage-pure dropped while
+    // unplugin rescued -> divergence). a 2-hop alias and an object-nested alias under the wrapper too
+    '(() => { const A = Array; const [{ from }] = [A]; return JSON.stringify(from([1, 2])); })()',
+    '(() => { const A = Array, B = A; const [{ of }] = [B]; return JSON.stringify(of(3, 4)); })()',
+    '(() => { const A = Array; const [{ x: { from } }] = [{ x: A }]; return JSON.stringify(from([5, 6])); })()',
+    // const-alias leaf canonicalization holds across more shapes: a pure OBJECT-nested destructure (the
+    // sibling resolver, no array wrapper), an alias of a PROXY member, a `let` alias (no reassignment),
+    // and a HOLE before the wrapper element. a non-global alias (`A = f`) must NOT polyfill
+    '(() => { const A = Array; const { x: { from } } = { x: A }; return JSON.stringify(from([1, 2])); })()',
+    '(() => { const A = globalThis.Array; const [{ of }] = [A]; return JSON.stringify(of(7, 8)); })()',
+    '(() => { let A = Array; const [{ from }] = [A]; return JSON.stringify(from([1, 2])); })()',
+    '(() => { const A = Array; const [, { of }] = [0, A]; return JSON.stringify(of(9)); })()',
+    '(() => { function f() {} const A = f; const [{ from }] = [A]; return typeof from; })()',
+  ],
+  // side-effecting computed destructure key across different patterns - all must preserve the
+  // effect (run once) and not crash. each is the shape that the static rewrite bails on
+  'destructure-se-key': [
+    '(() => { const { [(log.push("e"), "from")]: f } = Array; return [typeof f, log.length]; })()',
+    '(() => { const { [(log.push("e"), "from")]: f } = globalThis.Array; return [typeof f, log.length]; })()',
+    '(() => { const { x: { [(log.push("e"), "from")]: f } } = { x: Array }; return [typeof f, log.length]; })()',
+    '(() => { const g = ({ [(log.push("e"), "from")]: f } = Array) => typeof f; return [g(), log.length]; })()',
+    '(() => { const { [(log.push("e"), "fromEntries")]: f } = Object; return [typeof f, log.length]; })()',
+    // a dead default carrying its OWN polyfillable call must be dropped (not run, not imported); an array-
+    // pattern wrapper. both once mishandled the in-place lift (crash / double-run); the residual is uniform
+    '(() => { const { [(log.push("e"), "from")]: f = (log.push("d"), 9) } = Array; return [typeof f, log.join(",")]; })()',
+    '(() => { const [{ [(log.push("e"), "from")]: f }] = [Array]; return [typeof f, log.length]; })()',
+    // `...rest` sibling: the key must stay in the residual for exclusion AND its effect run once (a lift
+    // would double-run); aliased+default; a non-SE static sibling; assignment-target form
+    '(() => { const { [(log.push("e"), "from")]: f, ...rest } = Array; return [typeof f, log.length, JSON.stringify(rest)]; })()',
+    '(() => { const { [(log.push("e"), "from")]: f = 9 } = Array; return [typeof f, log.length]; })()',
+    '(() => { const { of, [(log.push("e"), "from")]: f } = Array; return [typeof of, typeof f, log.length]; })()',
+    '(() => { let f; ({ [(log.push("e"), "from")]: f } = Array); return [typeof f, log.length]; })()',
+    '(() => { const { [(log.push("e"), "flat")]: m, ...rest } = arr; return [typeof m, log.length]; })()',
+    // a side-effecting RECEIVER alongside the key effect (receiver runs first, then the key); a multi-
+    // declarator with one SE-key sibling; a TEMPLATE-literal key; a polyfilled SE-key next to a non-
+    // polyfilled one (`isArray` stays native here, but its effect must still run, in order)
+    '(() => { const { [(log.push("k"), "from")]: f } = (log.push("r"), Array); return [typeof f, log.join(",")]; })()',
+    '(() => { const z = 1, { [(log.push("e"), "from")]: f } = Array; return [z, typeof f, log.length]; })()',
+    '(() => { const { [(log.push("e"), `from`)]: f } = Array; return [typeof f, log.length]; })()',
+    '(() => { const { [(log.push("e"), "from")]: f, [(log.push("o"), "isArray")]: g } = Array; return [typeof f, typeof g, log.join(",")]; })()',
+    // an INSTANCE-method SE-key with a non-Identifier (literal) receiver: the polyfill can\'t safely re-
+    // reference the receiver, so it stays native - but the key effect must STILL run (babel once dropped
+    // it by falling through to a receiver-discarding extraction)
+    '(() => { const { [(log.push("e"), "flat")]: m } = [1, [2]]; return [typeof m, log.length]; })()',
+    // an instance-method SE-key in a MULTI-declarator (Identifier receiver): the polyfill binds as a
+    // trailing sibling declarator (a preceding statement could TDZ-fault an in-declaration receiver), the
+    // effect runs once. once bailed to native by the planner
+    '(() => { const z = 1, { [(log.push("e"), "flat")]: m } = arr; return [z, JSON.stringify(m.call(arr)), log.length]; })()',
+  ],
+  // multi-level nesting + static/instance combinations of side-effecting computed keys. each level's
+  // effect must run in source order and every binding must survive. a static leaf is polyfilled; a NESTED
+  // instance leaf is polyfilled too WHEN its receiver resolves to a bare Identifier (`_flatMaybeArray(arr)`,
+  // resolved by walking the RHS along the nesting key), else it stays native (a literal / member receiver
+  // can't be referenced twice without double-evaluating). the static+instance sibling shape once crashed
+  // unplugin; nested+rest / nested+for-init once double-ran / crashed (lift in a place that can't lift)
+  'destructure-se-key-nested': [
+    '(() => { const { a: { [(log.push("e"), "from")]: f } } = { a: Array }; return [typeof f, log.length]; })()',
+    '(() => { const { a: { b: { c: { [(log.push("e"), "from")]: f } } } } = { a: { b: { c: Array } } }; return [typeof f, log.length]; })()',
+    '(() => { const { a: { [(log.push("e1"), "from")]: f, [(log.push("e2"), "of")]: g } } = { a: Array }; return [typeof f, typeof g, log.join(",")]; })()',
+    '(() => { const { x: { [(log.push("s"), "from")]: f }, y: { [(log.push("i"), "flat")]: m } } = { x: Array, y: arr }; return [typeof f, typeof m, log.join(",")]; })()',
+    '(() => { const { a: { b: { [(log.push("e"), "flat")]: m } } } = { a: { b: arr } }; return [typeof m, log.length]; })()',
+    '(() => { const { a: { [(log.push("s"), "from")]: f }, b: { [(log.push("o"), "of")]: g } } = { a: Array, b: Array }; return [typeof f, typeof g, log.join(",")]; })()',
+    '(() => { const { x: { [(log.push("e"), "from")]: f, ...rest } } = { x: Array }; return [typeof f, log.length, typeof rest]; })()',
+    '(() => { let n = 0, t; for (const { x: { [(log.push("e"), "from")]: f } } = { x: Array }; n < 1; n++) t = typeof f; return [t, log.length]; })()',
+    '(() => { const { p: { q: { [(log.push("s"), "from")]: f } }, r: { [(log.push("i"), "flat")]: m } } = { p: { q: Array }, r: arr }; return [typeof f, typeof m, log + ""]; })()',
+    // a nested instance method with an IDENTIFIER receiver polyfills - verify the extracted polyfill works
+    // (`m.call(arr)`), not just that a binding exists; a LITERAL receiver still bails to native consistently
+    '(() => { const { y: { [(log.push("i"), "flat")]: m } } = { y: arr }; return [JSON.stringify(m.call(arr)), log.length]; })()',
+    '(() => { const { y: { [(log.push("i"), "flat")]: m } } = { y: [5, [6]] }; return [typeof m, log.length]; })()',
+  ],
+  // nested INSTANCE method destructure WITHOUT a side-effect key. polyfills when the receiver resolves to
+  // a bare Identifier (`_flatMaybeArray(arr)`, receiver walked from the RHS along the nesting key); a
+  // side-effect-free LITERAL receiver ALSO polyfills - re-referencing it yields a fresh value of the same
+  // type, so `_m`'s native-vs-polyfill pick is identical. a MEMBER (`o.arr` - getter) receiver bails to
+  // native (re-referencing would re-fire the getter). verify the extracted (unbound) method works via
+  // `m.call(...)`. the static+instance mix extracts both (pure binding order may differ - the 3-way runtime
+  // + import-set parity hold regardless)
+  'destructure-nested-instance': [
+    '(() => { const { y: { flat: m } } = { y: arr }; return JSON.stringify(m.call(arr)); })()',
+    '(() => { const { y: { flat: m } } = { y: [7, [8]] }; return JSON.stringify(m.call([3, [4]])); })()',
+    '(() => { const o = { arr: [1, [2]] }; const { y: { flat: m } } = { y: o.arr }; return typeof m; })()',
+    '(() => { const { a: { b: { flat: m } } } = { a: { b: arr } }; return JSON.stringify(m.call(arr)); })()',
+    // re-referenceable literal receivers in more shapes: parens-wrapped, array-wrapped, and an
+    // assignment host - all polyfill (re-referencing a side-effect-free literal is safe)
+    '(() => { const { y: { flat: m } } = { y: ([1, [2]]) }; return JSON.stringify(m.call([3, [4]])); })()',
+    '(() => { const [{ flat: m }] = [[1, [2]]]; return JSON.stringify(m.call([3, [4]])); })()',
+    '(() => { let m; ({ y: { flat: m } } = { y: [5, [6]] }); return JSON.stringify(m.call([3, [4]])); })()',
+    // a non-array literal receiver type (string method); a CONSTANT template is a string constant so it
+    // polyfills (StringLiteral parity), but an INTERPOLATED template bails (re-running x's coercion)
+    '(() => { const { y: { padStart: m } } = { y: "ab" }; return m.call("cd", 4, "x"); })()',
+    '(() => { const { y: { padStart: m } } = { y: `ab` }; return m.call("cd", 4, "x"); })()',
+    // eslint-disable-next-line no-template-curly-in-string -- snippets carry template-literal SOURCE as a string
+    '(() => { const x = "z"; const { y: { padStart: m } } = { y: `a${ x }` }; return typeof m; })()',
+    '(() => { const { x: { from: f }, y: { flat: m } } = { x: Array, y: arr }; return [typeof f, JSON.stringify(m.call(arr))]; })()',
+    // a for-init declarator AND a multi-declarator both route the instance binding to a TRAILING sibling
+    // declarator in the same declaration (a preceding statement is impossible in a loop header / unsafe
+    // when the receiver is bound earlier in the same declaration). the in-declaration-receiver case
+    // (`const r = arr, { ... } = r`) is safe via the trailing sibling - no TDZ. babel once threw
+    // "Duplicate declaration" on the for-init; the multi-declarator once bailed to native (unplugin) /
+    // diverged (babel). verify the extracted method actually works (`m.call`)
+    '(() => { let o = true, b; for (const { y: { flat: m } } = { y: arr }; o; o = false) b = m; return JSON.stringify(b.call(arr)); })()',
+    '(() => { const z = 1, { y: { flat: m } } = { y: arr }; return [z, JSON.stringify(m.call(arr))]; })()',
+    '(() => { const r = arr, { y: { flat: m } } = { y: r }; return JSON.stringify(m.call(r)); })()',
+    // for-init combined with a multi-declarator; two destructure declarators in one declaration (static +
+    // instance) - both polyfill, the instance via its sibling
+    '(() => { let o = true, b; for (const z = 1, { y: { flat: m } } = { y: arr }; o; o = false) b = m; return JSON.stringify(b.call(arr)); })()',
+    '(() => { const { a: { from: f } } = { a: Array }, { y: { flat: m } } = { y: arr }; return [typeof f, JSON.stringify(m.call(arr))]; })()',
+    // an ArrayPattern wrapper around the nested instance: the receiver resolver walks array INDICES too
+    // (`[0]`), not just object keys, so `[{ y: { flat } }] = [{ y: arr }]` polyfills - including a hole
+    // before the element (index tracked, not assumed 0)
+    '(() => { const [{ y: { flat: m } }] = [{ y: arr }]; return JSON.stringify(m.call(arr)); })()',
+    '(() => { const [, { y: { flat: m } }] = [0, { y: arr }]; return JSON.stringify(m.call(arr)); })()',
+    // a parenthesized RHS object literal AND a parenthesized receiver value: parens are transparent, so
+    // both must resolve the receiver THROUGH them (babel folds parens into node `extra`; estree keeps a
+    // `ParenthesizedExpression`). `resolveNestedReceiverNode` peels via `unwrapExpressionChain` - without
+    // it babel polyfilled while unplugin bailed (import-set divergence)
+    '(() => { const { y: { flat: m } } = ({ y: arr }); return JSON.stringify(m.call(arr)); })()',
+    '(() => { const { y: { flat: m } } = { y: (arr) }; return JSON.stringify(m.call(arr)); })()',
+    // a DOUBLY-array wrapper and a destructuring-ASSIGNMENT host (statement context, incl. array-wrapped):
+    // both polyfill. the array case walks two array indices; the assignment has no declaration to extract a
+    // `const` into, so the polyfill appends `m = _flatMaybeArray(recv)` AFTER the statement - the destructure
+    // assigns m natively first (undefined where the method is absent), then this overwrite makes it win
+    '(() => { const [[{ flat: m }]] = [[arr]]; return JSON.stringify(m.call(arr)); })()',
+    '(() => { let m; ({ y: { flat: m } } = { y: arr }); return JSON.stringify(m.call(arr)); })()',
+    '(() => { let m; ([{ y: { flat: m } }] = [{ y: arr }]); return JSON.stringify(m.call(arr)); })()',
+    // assignment-overwrite edges: a top-level SIBLING binding survives the destructure; TWO nested instances
+    // each get their own overwrite (independent bindings - the two emit in different orders across plugins,
+    // but that is runtime-equivalent); a multi-element array mixes a static + an instance sibling
+    '(() => { let m, z; ({ y: { flat: m }, z } = { y: arr, z: 9 }); return [z, JSON.stringify(m.call(arr))]; })()',
+    '(() => { const a2 = [3, [4]]; let m, n; ({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 }); return [JSON.stringify(m.call(arr)), JSON.stringify(n.call(a2))]; })()',
+    '(() => { const [{ from: f }, { flat: m }] = [Array, arr]; return [typeof f, JSON.stringify(m.call(arr))]; })()',
+    // KNOWN consistent bails (both leave native - regression guard against a future divergence): an array
+    // spread (shifts the static index, not statically resolvable), an EXPRESSION-context assignment (no
+    // statement to append the overwrite after, and the `(... = R)` value would need preserving), and a
+    // non-Identifier (member) binding target (`o.m` - can't be safely re-bound by the overwrite)
+    '(() => { const base = [{ y: arr }]; const [{ y: { flat: m } }] = [...base]; return JSON.stringify(m.call(arr)); })()',
+    '(() => { let m, z; z = ({ y: { flat: m } } = { y: arr }); return [typeof m, typeof z]; })()',
+    '(() => { const o = {}; ({ y: { flat: o.m } } = { y: arr }); return JSON.stringify(o.m.call(arr)); })()',
+  ],
+  // side effect in a computed MEMBER key (`recv[(eff(), "method")](args)`) - here the SE IS
+  // captured (member-access has an effects channel), so it must survive in BOTH emitters
+  'member-se-key': [
+    '[1, [2]][(log.push("e"), "flat")]()',
+    'Array[(log.push("e"), "from")]([1, 2])',
+    '[3, 1, 2][(log.push("e"), "at")](0)',
+    'Object[(log.push("e"), "fromEntries")]([["a", 1]])',
+  ],
+  // string receivers exercise the String Maybe-variant path (distinct from Array)
+  'string-receiver': [
+    '"abc".at(0)',
+    '"a-b-c".replaceAll("-", "_")',
+    '"5".padStart(3, "0")',
+    '"abcd".at(-1)',
+    '"hello".includes("ell")',
+  ],
+  // `new` constructor polyfills (Set / Map / WeakSet) - distinct emit from call/member
+  'new-expr': [
+    'new Set([1, 2, 1]).size',
+    '[...new Set([3, 1, 2])]',
+    '[...new Map([["a", 1]])]',
+    'new WeakSet().has({})',
+  ],
+  'static-more': [
+    'Object.groupBy([1, 2, 3, 4], x => (x % 2 ? "odd" : "even"))',
+    'Array.of(1, 2, 3)',
+    'structuredClone([1, [2]])',
+    'Math.trunc(4.7)',
+  ],
+  // async statics resolved via top-level await in the snippet module
+  'async-static': [
+    'await Promise.all([1, 2])',
+    'await Promise.allSettled([1, 2]).then(a => a.map(x => x.value))',
+    'await Promise.any([Promise.resolve(5)])',
+  ],
+  // global referenced as a VALUE (not called) - the reference itself is rewritten to the import
+  'global-value': [
+    'typeof Map',
+    'typeof structuredClone',
+    '(() => { const M = Set; return new M([1, 2, 1]).size; })()',
+  ],
+  // iterator helpers: `.map`/`.filter`/`.take` on an Iterator (NOT Array) - exercises return-type
+  // inference (`.values()` -> Iterator) to decide the receiver is polyfillable
+  'iterator-helper': [
+    '[...[1, 2, 3].values().map(x => x * 2)]',
+    '[1, 2, 3, 4].values().filter(x => x % 2 === 0).toArray()',
+    '[1, 2, 3].values().take(2).toArray()',
+    '[1, 2, 3].values().drop(1).toArray()',
+  ],
+  // optional + computed + SE intersections (where the most fragile composition lives)
+  'optional-mixed': [
+    'arr?.["flat"]?.()',
+    'arr?.slice()?.at?.(0)',
+    '(log.push("e"), arr)?.["flat"]?.()',
+    'nul?.["flat"]?.()',
+  ],
+  // newer Array instance methods - distinct polyfill entries + Maybe-variant shapes
+  'array-new-methods': [
+    '[3, 1, 2].toSorted()',
+    '[1, 2, 3].toReversed()',
+    '[1, 2, 3].with(0, 9)',
+    '[1, 2, 3].findLast(x => x < 3)',
+  ],
+  // Set methods (esnext) - observed order-independently so the documented order choice is moot
+  'collection-methods': [
+    '[...new Set([1, 2]).union(new Set([2, 3]))].sort()',
+    '[...new Set([1, 2, 3]).intersection(new Set([2, 3]))].sort()',
+    '[...new Set([1, 2, 3]).difference(new Set([2]))].sort()',
+  ],
+  'number-math-static': [
+    'Number.isInteger(5)',
+    'Number.parseInt("42px", 10)',
+    'Math.clz32(1)',
+    'Math.hypot(3, 4)',
+  ],
+  // regex instance methods - matchAll spreads an iterator, replaceAll takes a global regex
+  'regex-methods': [
+    '[..."a1b2".matchAll(/\\d/g)].map(m => m[0])',
+    '"a-b-c".replaceAll(/-/g, "_")',
+  ],
+  // minifier-style sequences: multiple polyfills packed into one comma / var-declarator list
+  'minifier-sequence': [
+    '(log.push("a"), [1, [2]].flat(), arr.at(-1))',
+    '(() => { let a = [1, 2].flat(), b = [3, 4].at(0); return [a, b]; })()',
+    '(() => { let x; x = "ab".at(0), x += [1].flat()[0]; return x; })()',
+  ],
+  // class contexts: method body, static method, field initializer
+  'class-context': [
+    '(() => { class C { m() { return [1, [2]].flat(); } } return new C().m(); })()',
+    '(() => { class C { static s() { return Array.from([1, 2]); } } return C.s(); })()',
+    '(() => { class C { f = [3, 1, 2].at(0); } return new C().f; })()',
+  ],
+  // default params (synth-swap area): polyfill in a default, and the static-destructure default
+  'default-param': [
+    '(() => { function f(x = [1, 2].flat()) { return x; } return f(); })()',
+    '(() => { const f = (a = "x".at(0)) => a; return f(); })()',
+    '(() => { function f({ of } = Array) { return typeof of; } return f(); })()',
+  ],
+  // computed key that is dynamic (ternary / concat) - resolved by folding, else bailed
+  'dynamic-key': [
+    'arr[cond ? "flat" : "at"]()',
+    'arr[("fl" + "at")]()',
+    'arr[("a" + "t")](0)',
+  ],
+  // spread into a polyfilled call's arguments
+  'spread-args': [
+    'Array.of(...[1, 2, 3])',
+    '[1, 2].flat(...[1])',
+    '"abc".at(...[0])',
+  ],
+  // polyfill on the RHS of a logical/nullish assignment (short-circuit + assignment target)
+  'logical-assignment': [
+    '(() => { let a; a ??= [1, [2]].flat(); return a; })()',
+    '(() => { let a = 0; a ||= Array.from([1, 2]); return a; })()',
+    '(() => { let a = 1; a &&= [3, 1, 2].at(0); return a; })()',
+    '(() => { const o = {}; o.x ??= "ab".at(0); return o.x; })()',
+  ],
+  // polyfill sitting in a value position: object / array literal, ternary branch
+  'literal-context': [
+    '({ a: [1, [2]].flat(), b: Array.from([3]) })',
+    '[[1].flat()[0], "x".at(0)]',
+    '(cond ? [1, [2]].flat() : [3].at(0))',
+  ],
+  // polyfill inside control-flow statements (try / catch / labeled loop / switch)
+  'control-flow': [
+    '(() => { try { return [1, [2]].flat(); } finally { } })()',
+    '(() => { try { null.x; } catch { return [3, 1, 2].at(0); } })()',
+    '(() => { let r; outer: for (let i = 0; i < 1; i++) { r = [1, 2].flat(); break outer; } return r; })()',
+    '(() => { let r; switch (1) { case 1: r = "ab".at(1); } return r; })()',
+  ],
+  'generator-yield': [
+    '(() => { function* g() { yield* [1, [2]].flat(); } return [...g()]; })()',
+    '(() => { function* g() { yield [1].flat()[0]; } return [...g()]; })()',
+  ],
+  // polyfill in a destructure DEFAULT (scoping-sensitive, like a parameter default)
+  'destructure-default': [
+    '(() => { const [a = [1, [2]].flat()] = []; return a; })()',
+    '(() => { const { x = Array.from([1, 2]) } = {}; return x; })()',
+    '(() => { const [a = "ab".at(0)] = [undefined]; return a; })()',
+    '(() => { const { y = [3, 1].at(0) } = { y: undefined }; return y; })()',
+  ],
+  // polyfill in loop contexts: for-of iterable, while/do condition, for-of body
+  'loop-context': [
+    '(() => { const out = []; for (const x of [1, [2]].flat()) out.push(x); return out; })()',
+    '(() => { let n = 0; while ([1, 2, 3].at(n) !== undefined && n < 2) n++; return n; })()',
+    '(() => { let r; do { r = [9, 8].at(0); } while (false); return r; })()',
+    '(() => { const out = []; for (const x of arr) out.push([x].flat()[0]); return out.length; })()',
+  ],
+  // polyfill nested inside a callback (a fresh function scope)
+  'callback-arg': [
+    '[[1], [2, 3]].map(a => a.at(0))',
+    '[1, 2, 3].filter(x => [x].flat().length > 0)',
+  ],
+  // polyfill result spread into an array / object literal
+  'spread-literal': [
+    '[...[1, [2]].flat(), 9]',
+    '[...Array.from([1, 2]), 3]',
+    '({ ...Object.fromEntries([["a", 1]]), b: 2 })',
+  ],
+  // polyfill inside a getter body (object literal + class)
+  'accessor-context': [
+    '(() => { const o = { get v() { return [1, [2]].flat(); } }; return o.v; })()',
+    '(() => { class C { get v() { return [3, 1].at(0); } } return new C().v; })()',
+  ],
+  // polyfill in a for-loop init / condition clause (header-position memo)
+  'for-clause': [
+    '(() => { let s = 0; for (let i = [1, 2].at(0); i <= 2; i++) s += i; return s; })()',
+    '(() => { const out = []; for (let i = 0; i < [1, 2].flat().length; i++) out.push(i); return out; })()',
+  ],
+  // polyfill in a catch binding / finally block
+  'try-catch-binding': [
+    '(() => { try { throw [1, [2]]; } catch (e) { return e.flat(); } })()',
+    '(() => { let r; try { r = 1; } finally { r = [3, 1].at(0); } return r; })()',
+  ],
+  // polyfill inside a labeled (non-loop) block
+  'labeled-block': [
+    '(() => { let r; block: { r = [1, [2]].flat(); break block; } return r; })()',
+  ],
+  // polyfill result passed to a constructor
+  'new-args': [
+    'new Set([1, 2].flat()).size',
+    '[...new Set(Array.from([1, 1, 2]))].sort()',
+  ],
+  // sparse-array receiver and a receiver reached through coercion (`.toString()` -> String)
+  'sparse-and-coerce': [
+    '[1, , 3].flat()',
+    '(5).toString().at(0)',
+    '"5".repeat(2).at(0)',
+  ],
+  // polyfill behind a short-circuit operator (only the taken branch runs)
+  'short-circuit': [
+    '(false || [1, [2]].flat())',
+    '(true && "x".at(0))',
+    '(nul ?? Array.from([1, 2]))',
+  ],
+  // polyfill as a unary operand (typeof / void / negation)
+  'unary-operand': [
+    '(typeof [1, 2].flat())',
+    '(void "x".at(0))',
+    '(-[1].flat().length)',
+  ],
+  // polyfill in a class static block / private field
+  'class-private-static': [
+    '(() => { class C { static v; static { C.v = [1, [2]].flat(); } } return C.v; })()',
+    '(() => { class C { #x = [1, [2]].flat(); get() { return this.#x; } } return new C().get(); })()',
+  ],
+  // polyfill in a NESTED destructure default (default-of-a-default)
+  'nested-destructure-default': [
+    '(() => { const { a: { b = [1, [2]].flat() } = {} } = {}; return b; })()',
+  ],
+  // polyfill off a call result (JSON.parse -> array)
+  'call-result-chain': [
+    'JSON.parse("[1, [2]]").flat()',
+  ],
+  // polyfill inside async iteration: async generator + for-await, and an async callback
+  'async-iter': [
+    'await (async () => { async function* g() { yield* [1, [2]].flat(); } const out = []; for await (const x of g()) out.push(x); return out; })()',
+    'await Promise.all([[1], [2, 3]].map(async a => a.at(0)))',
+  ],
+  // polyfill inside a tagged template / template-literal interpolation
+  /* eslint-disable no-template-curly-in-string -- snippets carry template-literal SOURCE as a string */
+  'tagged-template': [
+    'String.raw`a${[1].flat()[0]}b`',
+    '`${[1, 2].flat().length}`',
+  ],
+  /* eslint-enable no-template-curly-in-string -- restore the rule after the tagged-template family */
+  // polyfill as a computed property key / computed method name
+  'computed-member-name': [
+    '({ [[1].at(0)]: "v" })',
+    '(() => { class C { [["m"].at(0)]() { return [1, [2]].flat(); } } return new C().m(); })()',
+  ],
+  // BigInt-valued receiver elements flowing through the polyfill (serialization edge)
+  'bigint-receiver': [
+    '[1n, 2n, 3n].at(1)',
+    '[10n, 20n].flat()',
+  ],
+  // polyfill in an object param-default, and a polyfill on a rest-destructure binding
+  'param-object-rest': [
+    '(() => { function f({ x } = { x: [1, [2]].flat() }) { return x; } return f(); })()',
+    '(() => { const [, ...rest] = [1, 2, 3]; return rest.at(0); })()',
+  ],
+  // polyfill in a switch discriminant, a for-in body, and a setter body
+  'misc-statement-context': [
+    '(() => { switch ([1, 2].at(1)) { case 2: return "two"; default: return "?"; } })()',
+    '(() => { const out = []; for (const k in { a: 1, b: 2 }) out.push([k].at(0)); return out; })()',
+    '(() => { const o = { set v(x) { this._ = [x, [x]].flat(); }, _: null }; o.v = 1; return o._; })()',
+  ],
+};
+
+// TypeScript inputs - exercise TS-wrapper handling (cast / non-null / satisfies / type-args), where
+// babel (path-based) and oxc (node-based) diverge most. yielded with `ts: true`; the runner
+// transforms them as `.ts` and strips TS before the runtime comparison
+const TS_FAMILIES = {
+  'ts-wrapper': [
+    '(arr as number[]).flat()',
+    'arr!.flat()',
+    '(arr satisfies number[]).flat()',
+    '(arr as any)?.flat?.()',
+    '(log.push("e"), arr as number[]).flat()',
+    'arr[("flat" as string)]()',
+    '[1, 2].flat!()',
+    'Array.from<number>([1, 2])',
+    '(arr as number[])[("at" as string)](0)',
+  ],
+  // a polyfilled `key in obj` fold whose obj (or key) carries SE behind a TS wrapper: the fold must still
+  // run the assignment / sequence SE and pull its import. babel's identity `unwrap` once dropped the
+  // TS-wrapped SE (emitting a bare `true`) while unplugin's TS-peeling unwrap rescued it (divergence) -
+  // the shared planner now peels TS via `unwrapRuntimeExpr` for both operands
+  'ts-in-expression': [
+    '(() => { let y; const r = "groupBy" in ((y = Map) as any); return [r, typeof y]; })()',
+    '(() => { let n = 0; const r = "flat" in ((n++, []) as any); return [r, n]; })()',
+    '(() => { let y; const r = ("groupBy" as string) in (y = Map)!; return [r, typeof y]; })()',
+  ],
+  // the destructure-SE-key bug-class WITH a TS cast on the key / receiver
+  'ts-destructure': [
+    '(() => { const { [(log.push("e") as any, "from")]: f } = Array; return [typeof f, log.length]; })()',
+    '(() => { const { from } = (Array as typeof Array); return typeof from; })()',
+    '(() => { const { [("from" as string)]: f } = Array; return typeof f; })()',
+  ],
+  'ts-generic-cast': [
+    'new Map<string, number>([["a", 1]]).size',
+    '(globalThis as any).Array.from([1, 2])',
+    'Array.from<number>([1, 2]).at(0)',
+    '([1, 2] as number[]).at!(-1)',
+  ],
+  // TS runtime constructs - enum / namespace have real runtime emit; `enum Map` shadows the global
+  // and must NOT be polyfilled as the constructor. (a braceless TS declaration in a switch CASE
+  // shadows the whole switch block scope too, but `@babel/plugin-transform-typescript` cannot lower
+  // that shape - "Unexpected enum parent SwitchCase" - so it has no runnable native baseline here and
+  // is locked by `audit-switch-case-ts-runtime-binding-shadow` as a text/parity fixture instead)
+  'ts-runtime-construct': [
+    '(() => { enum E { A = 1, B = 2 } return [E.A, [E.B]].flat(); })()',
+    '(() => { enum Map { A } return typeof Map.A; })()',
+    '(() => { namespace N { export const v = [3, [1]]; } return N.v.flat?.(); })()',
+    '(() => { const enum E { A = 5 } return [E.A, 1].flat?.(); })()',
+  ],
+  // cast forms: `as const`, angle-bracket cast (`<T>x`, valid in .ts not .tsx)
+  'ts-cast-forms': [
+    '([1, 2] as const).at(0)',
+    '("abc" as const).at(0)',
+    '(<number[]>arr).flat()',
+  ],
+  // polyfill in a TS parameter-property default: the memoize ref must hoist ABOVE the class, not into
+  // the constructor body (a body var is invisible to the param default, which evaluates in the param
+  // scope). cover the modifiers, multiple params, and a chained (nested-memoize) default
+  'ts-param-property': [
+    '(() => { class C { constructor(public x = [1, [2]].flat()) {} } return new C().x; })()',
+    '(() => { class C { constructor(readonly x = [3, 1, 2].at(0)) {} } return new C().x; })()',
+    '(() => { class C { constructor(private x = [5, 6].at(-1)) { this.y = x; } } return new C().y; })()',
+    '(() => { class C { constructor(public a = [1].flat(), public b = [3, 1].at(0)) {} } return [new C().a, new C().b]; })()',
+    '(() => { class C { constructor(public x = [1, [2]].flat().at(0)) {} } return new C().x; })()',
+  ],
+  'ts-nonnull-chain': [
+    'arr!.flat!().at!(0)',
+    '(arr as number[])!.flat()',
+  ],
+  // polyfill in a TS destructure default (default + cast / non-null / type-arg)
+  'ts-destructure-default': [
+    '(() => { const [a = ([1, [2]] as number[][]).flat()] = []; return a; })()',
+    '(() => { const { x = Array.from<number>([1, 2]) } = {}; return x; })()',
+    '(() => { const [a = "ab".at!(0)] = [undefined]; return a; })()',
+  ],
+  // optional / generic-constrained / typed params carrying a polyfill
+  'ts-param-shapes': [
+    '(() => { function f(x?: number[]) { return x?.flat?.() ?? []; } return f([1, [2]]); })()',
+    '(() => { function f<T extends unknown[]>(x: T) { return x.at?.(0); } return f([3, 1, 2]); })()',
+    '(() => { function f(x: number[] = [1, 2].flat()) { return x; } return f(); })()',
+  ],
+  'ts-satisfies-misc': [
+    '([1, 2] satisfies number[]).at(0)',
+    '(arr satisfies unknown[]).flat()',
+  ],
+  // string enum (runtime emit) and an abstract class whose concrete subclass runs the polyfill
+  'ts-enum-abstract': [
+    '(() => { enum E { A = "x", B = "y" } return [E.A, E.B].at(0); })()',
+    '(() => { abstract class A { m() { return [1, [2]].flat(); } } class B extends A {} return new B().m(); })()',
+  ],
+  // readonly-array and tuple type assertions on a polyfilled receiver
+  'ts-readonly-tuple': [
+    '(arr as readonly number[]).at(0)',
+    '([1, 2] as [number, number]).at(0)',
+  ],
+  // definite-assignment (`let x!: T`) and a user type-guard gating the polyfill
+  'ts-definite-guard': [
+    '(() => { let x!: number[]; x = [1, [2]]; return x.flat(); })()',
+    '(() => { function isArr(v: unknown): v is number[] { return Array.isArray(v); } return isArr(arr) ? arr.flat() : []; })()',
+  ],
+  // cast on a call result, overloaded function impl, class implementing an interface
+  'ts-call-cast': [
+    '(Array.from([1, [2]]) as number[][]).flat()',
+  ],
+  'ts-overload': [
+    '(() => { function f(x: number): number[]; function f(x) { return [x, [x]].flat(); } return f(1); })()',
+  ],
+  'ts-implements': [
+    '(() => { interface I { m(): number[]; } class C implements I { m() { return [1, [2]].flat(); } } return new C().m(); })()',
+  ],
+  // async arrow with a typed param default + return type, and an async fn with a typed local
+  'ts-async': [
+    'await (async (x: number[] = [1, 2].flat()): Promise<number[]> => x)()',
+    'await (async () => { const xs: number[] = [1, [2]].flat(); return xs; })()',
+  ],
+  // cast inside an array spread, and a `typeof` type annotation on a polyfilled binding
+  'ts-spread-typeof': [
+    '[...(arr as number[])].at(0)',
+    '(() => { const x: typeof arr = [1, [2]]; return x.flat(); })()',
+  ],
+  // TS cast in a switch discriminant, and an enum member as a computed key with a polyfilled value
+  'ts-misc-context': [
+    '(() => { switch ((arr as number[]).at(0)) { case 3: return "x"; default: return "?"; } })()',
+    '(() => { enum E { A } const o = { [E.A]: [1, [2]].flat() }; return o[E.A]; })()',
+  ],
+  // legacy decorators on class / method / field / accessor, polyfill in the decorated member
+  'ts-decorator': [
+    '(() => { function dec(c) { return c; } @dec class C { m() { return [1, [2]].flat(); } } return new C().m(); })()',
+    '(() => { function log(t, k, d) { return d; } class C { @log m() { return [3, 1, 2].at(0); } } return new C().m(); })()',
+    '(() => { function obs(t, k) {} class C { @obs x = [1, [2]].flat(); } return new C().x; })()',
+    '(() => { function dec(t, k, d) { return d; } class C { @dec get v() { return [3, 1].at(0); } } return new C().v; })()',
+  ],
+  // polyfill in distinct decorator positions: a decorator-factory argument, a parameter decorator
+  // combined with a parameter-property default (re-tests the param-default ref scope under decoration)
+  'ts-decorator-position': [
+    '(() => { function validate(v) { return function(c) { c.tag = v; return c; }; } @validate([1, 2].at(1)) class C {} return C.tag; })()',
+    '(() => { function inject() { return function(t, k, i) {}; } class C { constructor(@inject() public x = [1, [2]].flat()) {} } return new C().x; })()',
+  ],
+};
+
+// EXPR families whose every snippet is a PROVABLE-injection case (a strip-target builtin that MUST be
+// replaced) get the stripped-realm oracle, re-arming the only leg that catches a SHARED (both-plugins-
+// agree) missed injection - import parity and the full-env three-way both pass when both sides miss
+// identically. left full-env: families with a deliberate bail / null-receiver / dynamic-key where a
+// native call legitimately survives, and families whose target is not in the strip set (their strip run
+// would be vacuous anyway). within a marked family, a non-strip-target snippet (e.g. structuredClone)
+// simply runs vacuously - its native is still present - which is harmless
+const STRIP_FAMILIES = new Set([
+  'string-receiver', 'static-more', 'array-new-methods', 'collection-methods',
+]);
+
+// ASI left-fusion: a destructure whose lifted side-effect re-roots its statement-overwrite on a hazard char
+// (`/re/` divides, `+x` / `-x` continue a binary) must not fuse into a `;`-less value-consuming prev statement.
+// the observable returns the prev binding `a` (corrupted by a fused `i++ + x`) plus the polyfilled method's
+// type; a fused `i++ / re` throws (`re` undefined). babel inserts via AST (immune), so a missing unplugin guard
+// diverges by value or throw. covers the two statement-overwrite sites the corpus's IIFE-braced hosts cannot reach
+const D_ASI_FUSION = [
+  { id: 'flatten-regex', body: 'let i = 0; const a = i++\nconst { Array: { from } } = (/re/.test("a"), globalThis); return [a, typeof from];' },
+  { id: 'flatten-plus', body: 'let i = 0; const a = i++\nconst { Object: { fromEntries } } = (+(7), globalThis); return [a, typeof fromEntries];' },
+  { id: 'cascade-minus', body: 'let i = 0, m; const a = i++\n({ Map: { groupBy: m } } = (-(3), globalThis)); return [a, typeof m];' },
+];
+function * generateAsiFusion() {
+  for (const c of D_ASI_FUSION) yield { ...snippet(`asi-fusion/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+}
+
+// bare get-iterator paren-lookup with an OPTIONAL receiver and a computed-key side effect
+// (`(recv?.[(eff(), Symbol.iterator)])()`): native short-circuits the `?.` before evaluating the key, so the
+// key SE must NOT run on a nullish receiver - it counts the SE and asserts the throw. the `_getIterator` call
+// stays unconditional (throws on null like native). a missing unplugin guard runs the SE eagerly -> `ran`
+// diverges from babel. `present` is the positive control (SE runs once, iterator obtained on a non-null receiver).
+// `proxy-hop`: a proxy-global hop receiver (`globalThis[(eff(), 'self')]`) collapses to the root pure import,
+// dropping the `.self` hop - but the hop's OWN side effect must survive. with a following computed
+// iterator-key SE the receiver is peeled, and a lost droppedSe re-route drops the hop SE (`hop` diverges from
+// native/unplugin). the call throws (the root is not iterable); the body swallows it and returns the SE
+// counts, so the comparison is on order-preserving SE execution, not the throw message
+const D_GETITERATOR_SE = [
+  { id: 'nullish', body: 'let ran = 0; const k = () => (ran++, Symbol.iterator); const arr = null; try { (arr?.[(k(), Symbol.iterator)])(); } catch (e) {} return ran;' },
+  { id: 'present', body: 'let ran = 0; const k = () => (ran++, Symbol.iterator); const arr = [1, 2]; const it = (arr?.[(k(), Symbol.iterator)])(); return [ran, typeof it.next];' },
+  { id: 'proxy-hop', body: 'let hop = 0, key = 0; try { globalThis[(hop++, "self")][(key++, Symbol.iterator)](); } catch (e) {} return [hop, key];' },
+  // OPTIONAL proxy-hop: the receiver keeps the `(droppedSe, _root)` sequence (the null-guard memoize replays
+  // the hop SE) - a route that mis-classified this as non-optional would fold droppedSe into a bare root and
+  // the suppress/guard would DROP it. globalThis is never null so both SE run; asserts the hop SE survives
+  { id: 'proxy-hop-optional', body: 'let hop = 0, key = 0; try { (globalThis?.[(hop++, "self")][(key++, Symbol.iterator)])(); } catch (e) {} return [hop, key];' },
+];
+function * generateGetIteratorKeySE() {
+  for (const c of D_GETITERATOR_SE) yield { ...snippet(`getiterator-key-se/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+}
+
+// TS leading-`this` param (`function f(this: T, x): R`): the resolver must DROP the leading this-param
+// before matching call args to the signature (dropLeadingThisParam / argIndexForParam), else the real
+// first arg maps to `this`, a generic return loses its array narrow, and `.at` degrades to the generic
+// import. babel (path-based) and oxc (node-based) shape the this-param differently, so a one-sided drop
+// surfaces as an import divergence. strip-armed: the narrowed `.at` must also stand alone builtin-stripped
+const D_TS_LEADING_THIS = [
+  // generic return inferred from the real arg - the this-param must be skipped for `x: T[]` to bind to it
+  '(() => { function pick<T>(this: unknown, x: T[]): T[] { return x; } return pick([3, [1, 2]]).at(0); })()',
+  // this-param + TWO real args: a correct drop maps a->number, b->T[]; a wrong drop shifts the arg index
+  '(() => { function pick<T>(this: { z: 1 }, a: number, b: T[]): T[] { return b; } return pick(0, [3, [1, 2]]).at(0); })()',
+  // method form (object-literal shorthand) carrying a this-param on a generic signature
+  '(() => { const o = { pick<T>(this: any, x: T[]): T[] { return x; } }; return o.pick([3, [1, 2]]).at(0); })()',
+];
+function * generateTsLeadingThis() {
+  for (const [i, expr] of D_TS_LEADING_THIS.entries()) {
+    yield { ...snippet(`ts-leading-this/${ i }`, expr), ts: true, strip: true };
+  }
+}
+
+export function * generate() {
+  yield * generateAsiFusion();
+  yield * generateGetIteratorKeySE();
+  yield * generateGrammar();
+  yield * generateTsLeadingThis();
+  yield * generateDestructure();
+  yield * generateDestructureAlias();
+  yield * generateFallbackArg();
+  yield * generateProxyGlobalSEReceiver();
+  yield * generateProxyHopCtor();
+  yield * generateDiscardedKeyPrefixProxy();
+  yield * generateNestedSeHopReceiver();
+  yield * generateBuriedFoldKeySE();
+  yield * generateStaticCollapseSEOrder();
+  yield * generateNameChainRootCallInner();
+  yield * generateOptionalNameChainRootCall();
+  yield * generateOptionalProxyPureCall();
+  yield * generateSymbolIterProxyReceiver();
+  yield * generateSynthSwapSeqReceiver();
+  yield * generateNestedMirrorMixed();
+  yield * generateReceiverCopyShape();
+  yield * generateFullConsumeSeRescue();
+  yield * generateIdentityIifeRebind();
+  yield * generateSymbolIteratorAliasFold();
+  yield * generateFlattenSeKeySibling();
+  yield * generateArrayWrapperCtorAlias();
+  yield * generateNestedInstanceReceiver();
+  yield * generateParamDefaultInstance();
+  yield * generateAssignAliasReassign();
+  yield * generateConditionalMirror();
+  yield * generateChains();
+  yield * generateIn();
+  yield * generateMutatedStatic();
+  yield * generateMutatedSibling();
+  yield * generateMutatedDestructure();
+  yield * generateMutatedNarrowChain();
+  yield * generateMutatedComputedKey();
+  yield * generateMutatedWrapperAssign();
+  yield * generateMutatedLiteralKey();
+  yield * generateVarShadowedStatic();
+  yield * generateSeOrder();
+  yield * generateOptionalArgSe();
+  yield * generateAsyncStatic();
+  yield * generateCollectionReceivers();
+  yield * generateForOfIterable();
+  for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
+    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), strip: STRIP_FAMILIES.has(family) };
+  }
+  for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
+    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true };
+  }
+}

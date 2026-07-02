@@ -1,3 +1,4 @@
+// @types: proposals/map-upsert
 'use strict';
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
@@ -20,5 +21,5 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     var value = callbackfn(key);
     set(this, key, value);
     return value;
-  }
+  },
 });

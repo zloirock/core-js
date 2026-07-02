@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/full/symbol';
+import Symbol from '@core-js/pure/full/symbol';
 
 QUnit.test('Symbol.isWellKnownSymbol', assert => {
   const { isWellKnownSymbol } = Symbol;
@@ -8,8 +8,8 @@ QUnit.test('Symbol.isWellKnownSymbol', assert => {
 
   assert.true(isWellKnownSymbol(Symbol.iterator), 'well-known-1');
   assert.true(isWellKnownSymbol(Object(Symbol.iterator)), 'well-known-2, boxed');
-  assert.true(isWellKnownSymbol(Symbol.patternMatch), 'well-known-3');
-  assert.true(isWellKnownSymbol(Object(Symbol.patternMatch)), 'well-known-4, boxed');
+  assert.true(isWellKnownSymbol(Symbol.customMatcher), 'well-known-3');
+  assert.true(isWellKnownSymbol(Object(Symbol.customMatcher)), 'well-known-4, boxed');
   const symbol = Symbol('Symbol.isWellKnownSymbol test');
   assert.false(isWellKnownSymbol(symbol), 'non-well-known');
   assert.false(isWellKnownSymbol(Object(symbol)), 'non-well-known, boxed');

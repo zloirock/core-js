@@ -1,6 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-
-if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
+QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   const { setFromBase64 } = Uint8Array.prototype;
   assert.isFunction(setFromBase64);
   assert.arity(setFromBase64, 1);

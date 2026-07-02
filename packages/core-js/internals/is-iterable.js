@@ -5,7 +5,5 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var ITERATOR = wellKnownSymbol('iterator');
 
 module.exports = function (it) {
-  return it[ITERATOR] !== undefined
-    || it['@@iterator'] !== undefined
-    || classof(it) === 'Arguments';
+  return it[ITERATOR] !== undefined || classof(it) === 'Arguments';
 };

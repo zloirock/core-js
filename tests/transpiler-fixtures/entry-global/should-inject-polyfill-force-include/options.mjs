@@ -1,0 +1,10 @@
+export default {
+  plugins: [
+    ['@core-js', {
+      method: 'entry-global',
+      version: '4.0',
+      targets: { chrome: 135 },
+      shouldInjectPolyfill: () => true,
+    }],
+  ],
+};

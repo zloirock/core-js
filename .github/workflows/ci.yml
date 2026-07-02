@@ -21,6 +21,17 @@ jobs:
       - run: pip install codespell
       - run: npx run-s lint-raw codespell
 
+  type-definitions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm run prepare-monorepo
+      - run: npx run-s build-types types-coverage test-type-definitions-ci
+
   karma:
     runs-on: windows-2022
     env:
@@ -29,7 +40,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          node-version: ^24.18
+          node-version: 26.0.0
           cache: npm
       - uses: actions/cache@v6
         with:
@@ -52,14 +63,12 @@ jobs:
       - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-bun
 
-  promises-and-observables:
+  promises:
     strategy:
       matrix:
         node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
+          - ^22.22.2
+          - ^24.15
           - 25
           - 26
     runs-on: ubuntu-latest
@@ -70,7 +79,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npx run-s test-promises test-observables
+      - run: npm run test-promises
 
   tests:
     strategy:
@@ -80,18 +89,16 @@ jobs:
           - windows-latest
           - macos-latest
         node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
+          - ^22.22.2
+          - ^24.15
           - 25
           - 26
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
+      - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder test-transpiling

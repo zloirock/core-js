@@ -1,8 +1,8 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
+import { GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', assert => {
+QUnit.test('%TypedArrayPrototype%.keys', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { keys } = TypedArray.prototype;
@@ -34,7 +34,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', assert => {
   }
 });
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', assert => {
+QUnit.test('%TypedArrayPrototype%.values', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { values } = TypedArray.prototype;
@@ -66,7 +66,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', assert => {
   }
 });
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', assert => {
+QUnit.test('%TypedArrayPrototype%.entries', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { entries } = TypedArray.prototype;
@@ -98,7 +98,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', assert => {
   }
 });
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', assert => {
+QUnit.test('%TypedArrayPrototype%.@@iterator', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     assert.isIterable(TypedArray.prototype, `${ name } is iterable`);

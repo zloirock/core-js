@@ -1,0 +1,15 @@
+import _Array$of from "@core-js/pure/actual/array/of";
+// negative case: the sibling default reads an OUTER binding (`dflt = seed`), NOT the polyfilled
+// binding, so there is no param-scope read of `of` to strand. body-extract proceeds normally:
+// `of` relocates to a body `let` and its slot becomes `of: _unused`, confirming read-detection
+// is name-targeted, not a blanket bail. non-exported, all call sites visible, so emission enabled.
+const seed = [0];
+function g({
+  of: _unused,
+  dflt = seed,
+  ...rest
+} = Array) {
+  let of = _Array$of;
+  return [of, dflt, rest];
+}
+g();

@@ -1,3 +1,4 @@
+// @types: proposals/object-values-entries
 'use strict';
 var $ = require('../internals/export');
 var $entries = require('../internals/object-to-array').entries;
@@ -7,5 +8,5 @@ var $entries = require('../internals/object-to-array').entries;
 $({ target: 'Object', stat: true }, {
   entries: function entries(O) {
     return $entries(O);
-  }
+  },
 });

@@ -1,0 +1,13 @@
+Reflect.apply(fn, ctx, args);
+Reflect.construct(Foo, args);
+Reflect.defineProperty(obj, 'x', {});
+Reflect.deleteProperty(obj, 'x');
+Reflect.get(obj, 'x');
+Reflect.getOwnPropertyDescriptor(obj, 'x');
+Reflect.getPrototypeOf(obj);
+Reflect.has(obj, 'x');
+Reflect.isExtensible(obj);
+Reflect.ownKeys(obj);
+Reflect.preventExtensions(obj);
+Reflect.set(obj, 'x', 1);
+Reflect.setPrototypeOf(obj, proto);

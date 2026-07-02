@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/full/symbol';
+import Symbol from '@core-js/pure/full/symbol';
 
 QUnit.test('Symbol.isRegisteredSymbol', assert => {
   const { isRegisteredSymbol } = Symbol;

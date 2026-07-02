@@ -1,0 +1,146 @@
+// pure path/AST helpers for destructure-receiver classification. depend only on shared
+// helpers from polyfill-provider, no file-scope state - callers pass paths / nodes directly
+import {
+  isReceiverShapedNode,
+  findIifeArgForParam,
+  peelParenAndTSParentPath,
+  unwrapSafeSequenceTail,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  isClassifiableReceiverArg,
+  isExpandedClassifiableReceiver,
+} from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  canTransformDestructuring as sharedCanTransformDestructuring,
+  resolvableArgSupersedesDeadDefault,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
+
+// intermediate slots permitted on the walk from an inner Property up to a destructure host.
+// AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) - proxy-global
+// receivers are always defined so the default never fires; ArrayPattern allowed for
+// single-element wrappers (`[{...}] = [globalThis]`) - walker drops the whole declaration
+// and the wrapper / its array literal init together
+const NESTED_PATTERN_INTERMEDIATES = new Set([
+  'ObjectPattern',
+  'Property',
+  'AssignmentPattern',
+  'ArrayPattern',
+]);
+
+// declaration walker passes through one extra `VariableDeclarator` slot before reaching
+// the terminus VariableDeclaration. AssignmentExpression hosts have no analogous
+// intermediate (the outer ObjectPattern sits directly on `.left`), so the assignment
+// walker uses the bare INTERMEDIATES set
+function isDeclarationWalkIntermediate(type) {
+  return NESTED_PATTERN_INTERMEDIATES.has(type) || type === 'VariableDeclarator';
+}
+
+// walk Property/ObjectPattern pairs up to the enclosing VariableDeclaration. 2-level
+// nest is 5 hops, every additional alias-hop adds 2. returns the declaration's path
+// or null when the chain leaves the allowed-types set
+export function walkUpNestedDestructureToDeclaration(startPath) {
+  let current = startPath;
+  while (current && current.node?.type !== 'VariableDeclaration') {
+    if (!isDeclarationWalkIntermediate(current.node?.type)) return null;
+    current = current.parentPath;
+  }
+  return current;
+}
+
+// walk up the nested-destructure chain to the outer ObjectPattern, then to the host
+// (AssignmentExpression). returns the host path or null. mirror of
+// `walkUpNestedDestructureToDeclaration` but terminating at AssignmentExpression
+export function walkUpNestedDestructureToAssignment(startPath) {
+  let current = startPath;
+  while (current && current.node?.type !== 'AssignmentExpression') {
+    if (!NESTED_PATTERN_INTERMEDIATES.has(current.node?.type)) return null;
+    current = current.parentPath;
+  }
+  return current;
+}
+
+// gate `metaPath` for destructure rewrite: skip Property-of-Property nesting (handled by
+// the nested-proxy flatten path), accept CatchClause (treated as variable-decl with
+// generated ref), and apply the shared shape filter on the parent declarator/assignment.
+// ESTree-specific: assignment-target form must sit inside ExpressionStatement (oxc keeps
+// ParenthesizedExpression around `({p} = R)`, peel before checking)
+export function canTransformDestructuring(metaPath) {
+  const objectPattern = metaPath.parent;
+  if (!objectPattern) return false;
+  const declaratorPath = metaPath.parentPath?.parentPath;
+  if (!declaratorPath?.node) return false;
+  if (declaratorPath.node.type === 'Property') return false;
+  // catch ({ includes }) {} - treat like a variable declarator with generated ref
+  if (declaratorPath.node.type === 'CatchClause') return true;
+  if (!sharedCanTransformDestructuring({
+    parentType: declaratorPath.node.type,
+    parentInit: declaratorPath.node.init,
+  })) return false;
+  if (declaratorPath.node.type === 'AssignmentExpression') {
+    // walk past Paren AND TS expression wrappers to the host. without TS peel
+    // `({from} = Array) as any;` would parse as ExpressionStatement > TSAsExpression >
+    // AssignmentExpression and the destructure rewrite silently bails
+    const host = peelParenAndTSParentPath(declaratorPath);
+    if (host?.node?.type !== 'ExpressionStatement') return false;
+  }
+  return true;
+}
+
+// find the call-arg node a bare-ObjectPattern IIFE param resolves to. `findIifeArgForParam`
+// itself gates on `FN_NODE_TYPES` (ArrowFunctionExpression / FunctionExpression) and returns
+// null for foreign wrapper types - no separate type guard needed here. expands inline-array
+// spreads (`...[R]`) via `resolveCallArgument`; non-literal spread returns null (static
+// index unknown). SE-tail peel (`(0, (1, R))` -> `R`) so nested + flat SequenceExpression
+// args classify identically. internal-only - no external callers, kept un-exported
+function detectIifeArgReceiver(wrapperPath, objectPattern) {
+  const arg = findIifeArgForParam(wrapperPath, objectPattern);
+  return arg ? unwrapSafeSequenceTail(arg) : arg;
+}
+
+// receiver node to swap; null means inline-default fallback. handles
+// `function({p} = R)` (AssignmentPattern.right) and arrow IIFE `(({p}) => body)(R)`
+// (call-arg node, expanding inline-array spreads).
+// mirrors babel-plugin's `findTargetPath` and the resolution-layer choice: a classifiable
+// bare-Identifier caller-arg wins first; then a RESOLVABLE non-Identifier arg (proxy-global
+// member, inline-resolvable call) wins over a polyfill-DEAD-END default via
+// `resolvableArgSupersedesDeadDefault`; otherwise the wrapper-default stays the synth target
+export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter, resolvePure = null) {
+  if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
+  const wrapper = wrapperPath?.node;
+  if (wrapper?.type === 'AssignmentPattern' && wrapper.left === objectPattern) {
+    // peel parens / TS wrappers / SE-tail through `unwrapSafeSequenceTail` (alternates
+    // wrapper peel and SE-tail extraction internally) so all shapes reach the inner
+    // receiver:
+    //   `function f({from} = (Array))`            - parens
+    //   `function f({from} = Array as any)`       - TS cast
+    //   `function f({from} = (0, Array))`         - SE tail (minified)
+    //   `function f({from} = (logCall(), Array))` - SE tail with side-effecting prefix
+    // SE peel is unconditional - synth replaces only the tail node, prefix runs at
+    // runtime as written. caller's `({from: customFn})` beats the synth (default fires
+    // only when caller-arg is undefined), preserving caller-passed values
+    const peeled = unwrapSafeSequenceTail(wrapper.right);
+    // IIFE caller-arg consult comes FIRST (mirroring the meta layer's order, babel-twin
+    // contract): a classifiable live arg wins regardless of the wrapper-default's shape -
+    // gating on the default first bailed `(({ from } = []) => ...)(Array)` to a native-first
+    // inline default even though the live receiver was statically known
+    const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
+    if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
+    // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
+    // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
+    if (resolvableArgSupersedesDeadDefault({
+      argNode: argReceiver, defaultNode: peeled, objectPattern, scope, adapter, path: wrapperPath, resolvePure,
+    })) return argReceiver;
+    // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
+    // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out
+    const fallbackCollapse = peeled?.type === 'LogicalExpression' && peeled.operator !== '&&'
+      && isReceiverShapedNode(unwrapSafeSequenceTail(peeled.left));
+    if (!fallbackCollapse && !isReceiverShapedNode(peeled)) return null;
+    return peeled;
+  }
+  // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
+  // receiver (bare Identifier OR proxy-global MemberExpression like `globalThis.Map`).
+  // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
+  // succeeds, otherwise destructure-emitter falls through to inline-default
+  const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
+  return isExpandedClassifiableReceiver({ node: argReceiver }) ? argReceiver : null;
+}

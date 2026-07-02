@@ -1,0 +1,1 @@
+weakMap.getOrInsert(key, value);

@@ -1,13 +1,13 @@
 'use strict';
 var SetHelpers = require('../internals/set-helpers');
-var iterate = require('../internals/set-iterate');
 
 var Set = SetHelpers.Set;
 var add = SetHelpers.add;
+var forEach = SetHelpers.forEach;
 
 module.exports = function (set) {
   var result = new Set();
-  iterate(set, function (it) {
+  forEach(set, function (it) {
     add(result, it);
   });
   return result;

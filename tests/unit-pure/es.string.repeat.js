@@ -1,6 +1,4 @@
-import { STRICT } from '../helpers/constants.js';
-
-import repeat from 'core-js-pure/es/string/repeat';
+import repeat from '@core-js/pure/es/string/repeat';
 
 QUnit.test('String#repeat', assert => {
   assert.isFunction(repeat);
@@ -14,8 +12,6 @@ QUnit.test('String#repeat', assert => {
     assert.throws(() => repeat(Symbol('repeat test')), 'throws on symbol context');
   }
 
-  if (STRICT) {
-    assert.throws(() => repeat(null, 1), TypeError);
-    assert.throws(() => repeat(undefined, 1), TypeError);
-  }
+  assert.throws(() => repeat(null, 1), TypeError);
+  assert.throws(() => repeat(undefined, 1), TypeError);
 });

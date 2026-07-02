@@ -1,56 +1,7 @@
 import { cpus } from 'node:os';
 
 const ignore = {
-  root: [
-    // TODO: temporarily, to avoid issues with v4 refactoring
-    '@babel/core',
-    '@babel/plugin-transform-arrow-functions',
-    '@babel/plugin-transform-block-scoped-functions',
-    '@babel/plugin-transform-block-scoping',
-    '@babel/plugin-transform-classes',
-    '@babel/plugin-transform-class-properties',
-    '@babel/plugin-transform-class-static-block',
-    '@babel/plugin-transform-computed-properties',
-    '@babel/plugin-transform-destructuring',
-    '@babel/plugin-transform-duplicate-named-capturing-groups-regex',
-    '@babel/plugin-transform-explicit-resource-management',
-    '@babel/plugin-transform-exponentiation-operator',
-    '@babel/plugin-transform-for-of',
-    '@babel/plugin-transform-literals',
-    '@babel/plugin-transform-logical-assignment-operators',
-    '@babel/plugin-transform-member-expression-literals',
-    '@babel/plugin-transform-modules-commonjs',
-    '@babel/plugin-transform-new-target',
-    '@babel/plugin-transform-nullish-coalescing-operator',
-    '@babel/plugin-transform-numeric-separator',
-    '@babel/plugin-transform-object-rest-spread',
-    '@babel/plugin-transform-object-super',
-    '@babel/plugin-transform-optional-catch-binding',
-    '@babel/plugin-transform-optional-chaining',
-    '@babel/plugin-transform-parameters',
-    '@babel/plugin-transform-private-methods',
-    '@babel/plugin-transform-private-property-in-object',
-    '@babel/plugin-transform-property-literals',
-    '@babel/plugin-transform-regenerator',
-    '@babel/plugin-transform-regexp-modifiers',
-    '@babel/plugin-transform-reserved-words',
-    '@babel/plugin-transform-shorthand-properties',
-    '@babel/plugin-transform-spread',
-    '@babel/plugin-transform-template-literals',
-    '@babel/plugin-transform-unicode-regex',
-  ],
-  'core-js-builder': [
-    'mkdirp',
-    'webpack',
-  ],
-  'scripts/bundle-tests': [
-    // TODO: temporarily, to avoid issues with v4 refactoring
-    '@babel/core',
-  ],
-  'tests/observables': [
-    '@babel/cli',
-    'moon-unit',
-  ],
+  'tests/babel-plugin-v7': '*',
 };
 
 const pkgs = await glob([
@@ -61,15 +12,18 @@ const pkgs = await glob([
 
 async function checkPackage(path) {
   const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
-  if (!dependencies && !devDependencies) return;
+  if (ignore[name] === '*' || (!dependencies && !devDependencies)) return;
 
-  const exclude = ignore[name];
+  const exclude = [...ignore[name] ?? []];
+  for (const dep of [...Object.keys(dependencies ?? {}), ...Object.keys(devDependencies ?? {})]) {
+    if (dep.startsWith('@core-js/')) exclude.push(dep);
+  }
 
   const { stdout } = await $({ verbose: false })`updates \
     --json \
     --file ${ path } \
     --timeout 60000 \
-    --exclude ${ Array.isArray(exclude) ? exclude.join(',') : '' } \
+    --exclude ${ exclude.join(',') } \
   `;
 
   const results = JSON.parse(stdout)?.results?.npm;

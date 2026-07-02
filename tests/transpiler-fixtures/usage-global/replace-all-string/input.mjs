@@ -1,0 +1,1 @@
+"str".replaceAll("a", "b");

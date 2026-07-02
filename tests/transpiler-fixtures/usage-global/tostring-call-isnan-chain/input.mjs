@@ -1,0 +1,1 @@
+isNaN(x).toString();

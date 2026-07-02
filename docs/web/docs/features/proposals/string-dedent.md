@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-dedent)
 
 ## Modules
-[`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
+[`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.string.dedent.js)
 
 ## Built-ins signatures
 ```ts
@@ -17,6 +17,9 @@ class String {
 core-js/proposals/string-dedent
 core-js(-pure)/full/string/dedent
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-dedent`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-dedent.d.ts)
 
 ## Example
 ```js

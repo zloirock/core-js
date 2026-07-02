@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 const { setPrototypeOf, create } = Object;
@@ -14,11 +14,11 @@ QUnit.test('Promise', assert => {
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
-    if (STRICT) assert.same(this, undefined, 'correct executor context');
+    assert.same(this, undefined, 'correct executor context');
   });
 });
 
-if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
+QUnit.test('Promise operations order', assert => {
   let $resolve, $resolve2;
   assert.expect(1);
   const EXPECTED_ORDER = 'DEHAFGBC';
@@ -120,7 +120,7 @@ QUnit.test('Promise#@@toStringTag', assert => {
   assert.same(String(new Promise(() => { /* empty */ })), '[object Promise]', 'correct stringification');
 });
 
-if (PROTO) QUnit.test('Promise subclassing', assert => {
+QUnit.test('Promise subclassing', assert => {
   function SubPromise(executor) {
     const self = new Promise(executor);
     setPrototypeOf(self, SubPromise.prototype);

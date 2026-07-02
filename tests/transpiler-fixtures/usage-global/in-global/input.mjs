@@ -1,0 +1,1 @@
+'Promise' in globalThis;

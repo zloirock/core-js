@@ -1,0 +1,21 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.set.constructor";
+import "core-js/modules/es.set.species";
+import "core-js/modules/es.set.difference";
+import "core-js/modules/es.set.intersection";
+import "core-js/modules/es.set.is-disjoint-from";
+import "core-js/modules/es.set.is-subset-of";
+import "core-js/modules/es.set.is-superset-of";
+import "core-js/modules/es.set.symmetric-difference";
+import "core-js/modules/es.set.union";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.function.metadata";
+import "core-js/modules/esnext.symbol.metadata";
+import "core-js/modules/web.dom-collections.iterator";
+// decorated class with a class-field `items = new Set([1, 2, 3])`: the initializer
+// expression is still scanned and `new Set(...)` is polyfilled.
+@decorator
+class C {
+  items = new Set([1, 2, 3]);
+}
