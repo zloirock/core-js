@@ -9,21 +9,20 @@
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
 import {
-  paramsHaveInvisibleCallers,
+  dropDeadSequenceTail,
   hasRestSiblingExcept,
   isBindingPosition,
+  isDirectiveStatement,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isNonReferencePosition,
+  isRestProperty,
   isSynthSimpleObjectPattern,
   isTransparentDestructureWrapper,
+  mayHaveSideEffects,
   nestedMirrorOwnsMixedPattern,
   objectPatternPropNeedsReceiverRewrite,
-  synthSwapPropKey,
-  mayHaveSideEffects,
-  dropDeadSequenceTail,
-  isDirectiveStatement,
-  isRestProperty,
+  paramsHaveInvisibleCallers,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
   peelToExpressionStatement,
@@ -31,6 +30,7 @@ import {
   resolveFallbackReceiverPath,
   sequenceKeyPrefix,
   sequenceKeyStaticName,
+  synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
@@ -44,8 +44,11 @@ import {
   planArrayWrappedStaticExtract,
   canTransformDestructuring as sharedCanTransformDestructuring,
   isConstantLiteralReceiver,
+  isInnerDestructureDefault,
   isReReferenceableReceiver,
   nestedAssignmentStatementOf,
+  paramDefaultInstanceSynthAllowed,
+  refineParamDefaultInstancePure,
   conditionalDestructureLeftUntouchedWarning,
   fallbackDestructureHasPolyfillableBranch,
   planSideEffectKeyStrategy,
@@ -54,7 +57,10 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { globalProxyMemberName, peelProxyGlobalObject } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  globalProxyMemberName, maybeRegisterAssignmentAliasWrite,
+  peelProxyGlobalObject, registerCtorAliasExtractions, registerDeclAliasIfSound,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   planDestructureEmission,
@@ -254,6 +260,8 @@ export default function createDestructureEmitter({
   injectPureImport,
   isDisabled,
   resolvePropertyObjectType,
+  resolveNodeType = null,
+  toHint = null,
   resolvedType,
   skippedNodes,
   synthSwap,
@@ -385,7 +393,14 @@ export default function createDestructureEmitter({
   // `{key = default}` shapes. the user's default becomes dead code under synth-swap
   // (polyfill id is always defined) but stays syntactically intact in the output
   function handleParameterDestructure({ prop, kind, entry, hintName, meta = null }) {
-    if (kind === 'instance') return;
+    if (kind === 'instance') {
+      // an instance method destructured off a typed param DEFAULT (`function f({ at } = Array.prototype)`)
+      // synths the default itself - caller-correct (the synth only evaluates when the arg is omitted; a
+      // passed value destructures natively). the shared gate bounds the receiver (see its docstring);
+      // anything it rejects stays native - there is no receiver-less instance fallback
+      tryRegisterParamDefaultInstanceSynth({ prop, entry, hintName });
+      return;
+    }
     if (!isIdentifierPropValue(prop.node.value)) return;
     const objectPattern = prop.parentPath;
     // synth-swap fits any Identifier key - plain `{ of }` or a bare-Identifier computed key
@@ -451,6 +466,54 @@ export default function createDestructureEmitter({
       targetPath, objectPatternPath: objectPattern, key: synthSwapPropKey(prop.node), entry, hintName,
       callBranch: sePolicy.callBranch, rescueSe: sePolicy.rescueSe,
     });
+  }
+
+  // ctor-alias registration off a kind-global destructure property: a binding-less name (writing
+  // the global itself) registers trusted, an assignment host runs the checked write registration
+  // (the ASSIGNMENT path itself - the placement walk judges every edge up to the statement, so a
+  // conditional expression container refuses flow-trust), a declaration host runs the decl gate
+  function registerCtorAliasFromProperty(prop, hintName) {
+    const aliasLocal = patternBindingName(prop.node.value);
+    if (!aliasLocal) return;
+    const aliasHost = prop.parentPath?.parentPath;
+    const aliasBinding = adapter.getBinding(prop.scope, aliasLocal);
+    if (!aliasBinding?.node) injector.registerGlobalAlias(aliasLocal, hintName, { trusted: true });
+    else if (aliasHost?.isAssignmentExpression()) {
+      maybeRegisterAssignmentAliasWrite({
+        injector, binding: aliasBinding,
+        localName: aliasLocal, hint: hintName, assignNode: aliasHost.node, stmtPath: aliasHost,
+      });
+    } else {
+      registerDeclAliasIfSound({
+        injector, kind: aliasHost?.parentPath?.node?.kind, localName: aliasLocal, hint: hintName,
+        stmtPath: aliasHost?.parentPath, bindingNode: aliasBinding.node ?? null, binding: aliasBinding,
+      });
+    }
+  }
+
+  // register an instance param-default synth: the default expression becomes the synth target and
+  // apply() renders `{ at: _atMaybeArray(<receiver>) }` in its place (buildSynthLiteral's instance
+  // entry). only the DIRECT param default qualifies - an inner default carries `{}`-style filler,
+  // not the receiver - and the shared gate bounds the receiver's shape / read count / global safety
+  function tryRegisterParamDefaultInstanceSynth({ prop, entry, hintName }) {
+    const objectPattern = prop.parentPath;
+    const wrapper = objectPattern.parentPath;
+    if (!wrapper?.isAssignmentPattern() || isInnerDestructureDefault(wrapper)) return false;
+    let rightPath = wrapper.get('right');
+    while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(rightPath.node?.type)) rightPath = rightPath.get('expression');
+    if (!paramDefaultInstanceSynthAllowed({
+      objectPatternNode: objectPattern.node, receiverNode: rightPath.node,
+      scope: prop.scope, adapter, path: prop, resolvePure,
+    })) return false;
+    const use = refineParamDefaultInstancePure({
+      pureResult: { entry, hintName }, key: prop.node.key.name ?? prop.node.key.value,
+      receiverPath: rightPath, resolveNodeType, toHint, resolvePure, path: prop,
+    });
+    synthSwap.registerPolyfill({
+      targetPath: rightPath, objectPatternPath: objectPattern, key: synthSwapPropKey(prop.node),
+      entry: use.entry, hintName: use.hintName, instance: true,
+    });
+    return true;
   }
 
   // body-extract fallback when synth-swap can't fire (computed-key sibling / non-Identifier
@@ -609,9 +672,9 @@ export default function createDestructureEmitter({
           value = t.callExpression(t.cloneNode(injectPureImport('get-iterator-method', 'getIteratorMethod')),
             [flattenSynthReceiver(assignPath.node.right, plan)]);
         } else {
-          // see `renderDeclaratorFlattenPlan` for the global-vs-static alias split
-          if (e.kind === 'global') injector.registerGlobalAlias(e.localName, e.hint);
-          else injector.registerBodyExtractAlias(e.localName, e.entry, assignPath.scope.getBinding(e.localName));
+          // a ctor alias (kind global) was already trust-registered by the plan gate - a re-register
+          // here would erase its write span; statics keep the body-extract alias
+          if (e.kind !== 'global') injector.registerBodyExtractAlias(e.localName, e.entry, assignPath.scope.getBinding(e.localName));
           value = injectPureImport(e.entry, e.hint);
         }
         assigns.push(buildPolyfillAssignmentStatement(t.identifier(e.localName), value));
@@ -762,7 +825,7 @@ export default function createDestructureEmitter({
   // gates, so plan resolution matches the per-leaf detection pipeline. `declaratorNode` is
   // a real VariableDeclarator or the cascade's synthetic `{ id, init }` assignment host
   function buildFlattenPlan({ declaratorNode, scope, path }) {
-    return buildNestedDestructurePlan({
+    const plan = buildNestedDestructurePlan({
       declarator: declaratorNode,
       scope,
       adapter,
@@ -770,6 +833,11 @@ export default function createDestructureEmitter({
       resolvePure: meta => resolvePure(meta),
       resolveGlobalPolyfill: resolveGlobalPure,
       isDisabledProp: isDisabled,
+    });
+    // ctor-alias extractions register through the checked trust path here (a refused registration
+    // only withholds the member-narrow hint; the value swap stays - see the helper docstring)
+    return registerCtorAliasExtractions({
+      plan, declarator: declaratorNode, scope, adapter, injector, path,
     });
   }
 
@@ -884,8 +952,9 @@ export default function createDestructureEmitter({
           init = t.callExpression(t.cloneNode(injectPureImport('get-iterator-method', 'getIteratorMethod')),
             [flattenSynthReceiver(declarator.node.init, plan)]);
         } else {
-          if (e.kind === 'global') injector.registerGlobalAlias(e.localName, e.hint);
-          else injector.registerBodyExtractAlias(e.localName, e.entry, declarator.scope.getBinding(e.localName));
+          // a ctor alias (kind global) was already trust-registered by the plan gate; statics keep
+          // the body-extract alias
+          if (e.kind !== 'global') injector.registerBodyExtractAlias(e.localName, e.entry, declarator.scope.getBinding(e.localName));
           init = t.cloneNode(injectPureImport(e.entry, e.hint));
         }
         extracted.push(t.variableDeclarator(t.identifier(e.localName), init));
@@ -1113,8 +1182,14 @@ export default function createDestructureEmitter({
       // TypeError on ie:11. static method (`{ [(eff(), 'from')]: from } = Array`): body-extract alias so
       // post-rewrite narrowing resolves the extracted local. both bind the local to the pure import
       // (`const P = _Promise` / `const from = _Array$from`) and keep the SE-key as a `_unused` residual
-      if (kind === 'global') injector.registerGlobalAlias(valueNode.name, hintName);
-      else injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
+      if (kind === 'global') {
+        // a refused registration (conditional `var` decl) only withholds the member-narrow hint;
+        // the SE-key extraction itself stays (value-correct, and the key effect runs in place)
+        registerDeclAliasIfSound({
+          injector, kind: declaration.node.kind, localName: valueNode.name, hint: hintName, stmtPath: declaration,
+          binding: adapter.getBinding(prop.scope, valueNode.name),
+        });
+      } else injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
       polyfillValue = t.cloneNode(injectPureImport(entry, hintName));
     }
     // dead residual: this leaf is the declaration's only binding and the init has no effect to preserve, so
@@ -1212,7 +1287,11 @@ export default function createDestructureEmitter({
     // nested-receiver path `objectNode` is a bare node (no path); the SE-computed-key path resolves the
     // declarator init, which `resolveNestedReceiverNode` also reaches - either way it gates memo / re-ref
     const objectNode = kind === 'instance'
-      ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop)) : null;
+      ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true) : null;
+    // an instance receiver that resolves to NOTHING (a call, an interpolated template, an unmatched hop) is
+    // unextractable - leave native. the planner's `receiverIsSafe` short-circuit used to catch this, but the
+    // `eliminateResidual` relaxation (which admits a side-effect-free member) no longer does, so guard here
+    if (kind === 'instance' && !objectNode) return true;
     // the declarator hosting this leaf + whether it is the declaration's only binding and its init is pure -
     // lets the planner drop a dead residual / memoize a duplicated constant-literal receiver
     const declarator = declaration.node.declarations.find(d => d.start <= prop.node.start && prop.node.end <= d.end);
@@ -1329,6 +1408,12 @@ export default function createDestructureEmitter({
       return;
     }
     if (!canTransformDestructuring(prop)) return;
+    // ctor alias (kind global): trust-register the hint. a REFUSED registration (conditional /
+    // cross-fn write, dirty binding, conditional `var` decl) only withholds the member-narrow hint;
+    // the value swap below still runs - it is value-correct on every path (the polyfill lands
+    // exactly when the native write would run), and dropping it would strip the polyfill from
+    // conditional forms (`while (c) var { Promise } = globalThis`)
+    if (kind === 'global') registerCtorAliasFromProperty(prop, hintName);
     // export + rest of a static: polyfill it like the nested-proxy export+rest path - the
     // consumed key renames to `_unused` (a named export, as the nested path also emits) and the
     // extracted static binds via the new `const <local> = _Polyfill`. skipping here would leave
@@ -1355,13 +1440,6 @@ export default function createDestructureEmitter({
       }
     } else {
       value = injectPureImport(entry, hintName);
-    }
-    // proxy-global alias (`{ Symbol: S = default } = globalThis`): AST mutation below
-    // rewrites init to `_Symbol === void 0 ? default : _Symbol` - `resolveBindingToGlobal`
-    // can't walk that ConditionalExpression, so register S -> 'Symbol' up front
-    if (kind === 'global') {
-      const localName = patternBindingName(prop.node.value);
-      if (localName) injector.registerGlobalAlias(localName, hintName);
     }
     // body-extract alias for static methods: AST mutation rewrites the destructure value
     // to `_unused` (rest sibling) or removes the prop entirely, leaving the new
@@ -1459,11 +1537,11 @@ export default function createDestructureEmitter({
 
   // resolve the destructure init (VariableDeclarator.init / AssignmentExpression.right) -
   // memoize non-identifier init when other properties remain to avoid double evaluation
-  function resolveDestructuringObject(path, typeOfReceiver) {
+  function resolveDestructuringObject(path, typeOfReceiver, allowSeFreeMember = false) {
     const parent = path.parentPath.parentPath;
     const initKey = parent.isVariableDeclarator() ? 'init'
       : parent.isAssignmentExpression() ? 'right' : null;
-    if (!initKey) return resolveNestedReceiverNode(path);
+    if (!initKey) return resolveNestedReceiverNode(path, { allowSeFreeMember });
     const objectNode = parent.node[initKey];
     if (!objectNode) return null;
     if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
@@ -1502,8 +1580,10 @@ export default function createDestructureEmitter({
       // a memoized proxy-global-member receiver (`_ref = _globalThis.Array`) is registered as a global
       // alias for its ctor so SIBLING statics destructured off `_ref` re-polyfill - a `[Symbol.iterator]`
       // key has no instance type, so the resolvedType channel above doesn't carry the ctor, and the
-      // inserted `_ref` is not scope-registered, leaving `from` native otherwise (undefined on ie:11)
-      if (proxyCtor) injector.registerGlobalAlias(ref.name, proxyCtor);
+      // inserted `_ref` is not scope-registered, leaving `from` native otherwise (undefined on ie:11).
+      // `trusted`: `_ref` is plugin-generated (user code cannot rebind it), so the adapter's hint-only
+      // fallback may trust it even without a scope binding
+      if (proxyCtor) injector.registerGlobalAlias(ref.name, proxyCtor, { trusted: true });
       parent.node[initKey] = cloned;
       return ref;
     }

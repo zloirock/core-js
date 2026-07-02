@@ -45,7 +45,10 @@ import {
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isPolyfillAliasBinding, isSymbolDestructureAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  aliasSpanDominatesUse, assignmentAliasWriteTrusted, hasCtorAliasCandidateShapes, isPolyfillAliasBinding,
+  isSymbolDestructureAliasBinding, registerAliasPrePassSite,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
 // --- isReferenced ---
@@ -285,6 +288,49 @@ export function collectMutationPrePass(ast, adapter) {
   return { mutated };
 }
 
+// early ctor-alias registration (estree side) - see the babel twin in the plugin's initFile:
+// pre-register every destructure-of-global site through the shared trust gates so a member use
+// textually BEFORE its alias write still reads a complete table when visited
+export function collectAliasPrePass({ ast, adapter, injector, isKnownGlobal, isDisabled }) {
+  if (!hasCtorAliasCandidateShapes(ast)) return;
+  const siteVisitors = {
+    AssignmentExpression(path) {
+      const { node } = path;
+      if (node.operator !== '=' || isDisabled(node)
+        || (node.left.type !== 'ObjectPattern' && node.left.type !== 'ArrayPattern')) return;
+      registerAliasPrePassSite({
+        pattern: node.left, init: node.right, assignNode: node,
+        scope: path.scope, adapter, injector, path, isKnownGlobal,
+      });
+    },
+    VariableDeclarator(path) {
+      const { node } = path;
+      if (!node.init || isDisabled(node)
+        || (node.id.type !== 'ObjectPattern' && node.id.type !== 'ArrayPattern')) return;
+      registerAliasPrePassSite({
+        pattern: node.id, init: node.init, declKind: path.parent.kind,
+        scope: path.scope, adapter, injector, path, isKnownGlobal,
+      });
+    },
+  };
+  // estree-toolkit omits `decorators` from the DEFINED class / member visitor keys, so an alias
+  // write inside a `@decorator(...)` expression escapes the traverse (babel's Program traverse
+  // reaches it natively and the emitters would diverge) - dispatch the same site visitors over
+  // decorator subtrees, mirroring the mutation pre-pass
+  function visitDecoratorSites(path) { walkDecorators(path, siteVisitors); }
+  traverse(ast, {
+    $: { scope: true },
+    ...siteVisitors,
+    ClassDeclaration: visitDecoratorSites,
+    ClassExpression: visitDecoratorSites,
+    MethodDefinition: visitDecoratorSites,
+    PropertyDefinition: visitDecoratorSites,
+    AccessorProperty: visitDecoratorSites,
+    TSAbstractPropertyDefinition: visitDecoratorSites,
+    TSAbstractAccessorProperty: visitDecoratorSites,
+  });
+}
+
 export function createEstreeAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
   const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
@@ -315,7 +361,11 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // lost (babel hoists the var natively, so the two pipelines diverge here). surface a synthetic
       // binding off the declarator + its reassignment sites so alias resolution reads its `.init`
       // and the resolver's reassignment guard fires for a REASSIGNED nested-block var
-      if (!b) return synthVarHoistBinding(path, name);
+      if (!b) {
+        const synth = synthVarHoistBinding(path, name);
+        if (!synth) return null;
+        return synth;
+      }
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
       // raw module source at this interface is deliberate - not a leak, just the minimum
@@ -329,11 +379,11 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // too. `info.source === null` is a destructure-alias from `registerGlobalAlias`; the shared
       // predicate identifies the real alias binding (init resolves to the destructured global, any
       // declaration kind) and rejects user-declared shadows of the same name
-      const info = getInjector()?.getBindingInfo?.(name) ?? null;
+      // binding-first: the per-binding registry is exact - see the babel twin
+      const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node) ?? null;
+      const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null) ?? null;
       const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
       const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
-      const isAliasBindingShape = isPolyfillAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() });
-      const polyfillHint = info && (isAliasBindingShape || isImportBinding) ? info.hint : null;
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
       // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
       // same-named namespace/declare-global var twin as a violation. recompute from the AST via the
@@ -353,6 +403,16 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         : b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
           : b.kind === 'let' || b.kind === 'const' ? collectScopeLetReassignments(b.path, name)
             : b.constantViolations;
+      // the shared alias guard reads the RECOMPUTED violations (an assignment-form alias matches them
+      // against its registered write span; the raw estree list carries phantoms) - so it runs after them
+      // a VERIFIED identity hit needs no live shape verification - see the babel twin
+      const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
+        info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(),
+      });
+      // guarded registration = flow-trust refused: the member read stays native. the dominance
+      // gate keeps a use textually BEFORE its trusted write / declaration native too
+      const polyfillHint = info && !info.aliasGuarded && (isAliasBindingShape || isImportBinding)
+        && aliasSpanDominatesUse({ info, useStart: path?.node?.start ?? null }) ? info.hint : null;
       // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
       // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding
@@ -366,7 +426,23 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         importSource,
         polyfillHint,
         aliasSymbolSource,
+        aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
       };
+    },
+    // lazy lookup for the resolver's assignment-form alias branch (mirror of the babel adapter):
+    // raw estree violations are PATHS onto the written Identifier - climb to the enclosing
+    // AssignmentExpression, then run the shared trust predicate
+    findTrustedAliasWrite(scope, name) {
+      const b = scope?.getBinding?.(name);
+      if (!b || b.path?.node?.type !== 'VariableDeclarator' || b.path.node.init) return null;
+      let assignPath = b.constantViolations?.[0];
+      while (assignPath && assignPath.node?.type !== 'AssignmentExpression') assignPath = assignPath.parentPath;
+      const assignNode = assignPath?.node;
+      if (!assignNode) return null;
+      // the ASSIGNMENT path itself: the placement walk judges every edge up to the statement,
+      // so a conditional expression container between them refuses flow-trust
+      return assignmentAliasWriteTrusted({ binding: b, assignNode, stmtPath: assignPath })
+        ? assignNode : null;
     },
     getBindingNodeType(scope, name, path = null) {
       const nativeBinding = scope?.getBinding?.(name);
@@ -805,8 +881,11 @@ export function createUsageVisitors({
         // (`doStuff(Object, function({entries}) {...})`) don't get misclassified as IIFEs
         const site = findIifeCallSite(parent, objectPattern.node);
         if (!site) return null;
+        // a no-arg IIFE (`(function ({ at }) {})()`) leaves `initNode` undefined -> fall through to
+        // the typeless (`object: null`) meta, matching babel: usage-global over-injects every method
+        // named by the key, usage-pure can't resolve the receiver and bails. bailing here instead
+        // dropped the global injection (import-set divergence vs babel)
         initNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
-        if (!initNode) return null;
       }
     }
 
