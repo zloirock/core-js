@@ -212,34 +212,108 @@ export default class ImportInjectorState {
     return this.#importInfoByName.get(name) ?? null;
   }
 
-  // local-name -> global-name for user destructure aliases (`{Symbol: S} = globalThis` -> S).
-  // babel AST mutation rewrites the destructure binding so `resolveBindingToGlobal` can't
-  // walk the resulting shape (ConditionalExpression for defaulted form); unplugin doesn't
-  // mutate, keeps the table empty
+  // BLIND alias registrations, name-keyed: a plugin-minted `_ref` receiver memo (unique name,
+  // user code cannot rebind it) and a BINDING-LESS global write (`({ Map } = globalThis)` writes
+  // the global itself - no user binding whose flow could contradict the hint). everything with a
+  // user binding lives in `#bindingAliases`
   #globalAliases = new Map();
 
-  // last-write-wins: only called from babel-plugin's destructure-emitter, which fires per
-  // proxy-global destructure site. user code that destructures the same alias name twice
-  // from a proxy global in different scopes is rare; flat-map is sufficient because babel's
-  // own scope.getBinding handles real shadowing - the alias map only carries hint info.
-  // also reserves the name in usedNames so uniqueName can't reuse it - defensive: scope
-  // binding already blocks inner reuse, but this catches anyone querying isNameTaken
-  // through the State surface directly (rootScope may not see inner destructure bindings)
-  registerGlobalAlias(name, globalName) {
-    this.#globalAliases.set(name, globalName);
+  // PER-BINDING alias registrations, keyed by the binding's declarator NODE: the registration
+  // belongs to one binding, so same-name aliases in sibling scopes never collide (no flat-table
+  // merge / degrade). `write` / `declSpan` ({ start, end }) record the trusted source span for
+  // the use-position dominance gate and the violation-span shape check; `guarded: true` marks a
+  // registration whose flow-trust was REFUSED (conditional / cross-fn / dirty write, conditional
+  // `var` decl) - its binding's member reads stay native
+  #bindingAliases = new WeakMap();
+
+  // name -> binding-entry list: the fallback view for use sites that cannot resolve their
+  // binding (babel scope-tracker lag after `replaceWith`) or hit a REPLACED declarator (the
+  // flatten rewrites `const { Map: M } = g` in place). only an UNAMBIGUOUS name (exactly one
+  // registered binding) may serve those lookups - a collision declines and the use stays native
+  #aliasEntriesByName = new Map();
+
+  registerGlobalAlias(name, globalName, {
+    bindingNode = null, trusted = false, write = null, guarded = false, declSpan = null, scopeSpan = null,
+    verified = false,
+  } = {}) {
     this.usedNames.add(name);
+    if (!bindingNode) {
+      // a BLIND registration claims "no user binding exists for this name" - refuse it when the
+      // name already has per-binding registrations (the caller's binding lookup merely LAGGED
+      // behind an AST mutation; trusting the hint would narrow over a flow a per-binding
+      // registration may have refused)
+      if (this.#aliasEntriesByName.get(name)?.length) return;
+      this.#globalAliases.set(name, { hint: globalName, trusted: true });
+      return;
+    }
+    const entry = { hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified };
+    const existing = this.#bindingAliases.get(bindingNode);
+    if (existing) {
+      // same binding judged by more than one path (plan gate + standalone site): keep the
+      // strongest judgment - a trusted/write registration wins over a refused one
+      if ((existing.trusted || existing.write) && guarded) return;
+      Object.assign(existing, entry);
+      return;
+    }
+    this.#bindingAliases.set(bindingNode, entry);
+    let list = this.#aliasEntriesByName.get(name);
+    if (!list) this.#aliasEntriesByName.set(name, list = []);
+    list.push(entry);
   }
 
   // unified lookup for the adapter's `getBinding`. pure imports carry `{ hint, source, entry }`;
   // aliases carry `{ hint, source: null, entry: null }` (synthetic bindings with no standalone
   // import). callers read whichever fields they need and don't branch on kind. `entry` enables
   // canonical-path lookups (return-type narrowing through alias chains) without coupling to
-  // the UID hint shape
-  getBindingInfo(name) {
+  // the UID hint shape.
+  // the NAME view resolves: a blind entry, else the UNIQUE per-binding entry (the scope-lag /
+  // replaced-declarator fallback). an ambiguous name disambiguates POSITIONALLY when the caller
+  // passes a use anchor: a use belongs to the entry whose hosting scope span contains it -
+  // exactly one containing entry resolves, anything else declines and the use stays native
+  getBindingInfo(name, useStart = null) {
     const pure = this.#importInfoByName.get(name);
     if (pure) return { hint: pure.hint, source: pure.source, entry: pure.entry };
-    const alias = this.#globalAliases.get(name);
-    return alias ? { hint: alias, source: null, entry: null } : null;
+    const blind = this.#globalAliases.get(name);
+    if (blind) return { hint: blind.hint, source: null, entry: null, aliasTrusted: true };
+    const list = this.#aliasEntriesByName.get(name);
+    if (!list?.length) return null;
+    let alias = null;
+    if (useStart !== null) {
+      // positional: a use belongs to an entry only when the entry's hosting scope contains it -
+      // a sole entry from ANOTHER function must not serve an outside use
+      const containing = list.filter(e => e.scopeSpan
+        && e.scopeSpan.start <= useStart && useStart <= e.scopeSpan.end);
+      if (containing.length === 1) [alias] = containing;
+    } else if (list.length === 1) [alias] = list;
+    if (!alias) return null;
+    return {
+      hint: alias.hint, source: null, entry: null,
+      aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
+      aliasDeclSpan: alias.declSpan,
+    };
+  }
+
+  // existence view for `hasBinding`-style probes: presence is not trust, so ambiguity is fine -
+  // but presence IS scope-bound: a per-binding registration exists only where its hosting scope
+  // contains the use (a same-named local alias in another function must not make a DIRECT
+  // global use look locally bound). blind and import entries are file-wide
+  hasAliasName(name, useStart = null) {
+    if (this.#importInfoByName.has(name) || this.#globalAliases.has(name)) return true;
+    const list = this.#aliasEntriesByName.get(name);
+    if (!list?.length) return false;
+    if (useStart === null) return true;
+    return list.some(e => e.scopeSpan && e.scopeSpan.start <= useStart && useStart <= e.scopeSpan.end);
+  }
+
+  // the BINDING view: exact per-binding lookup for use sites that resolved their binding
+  getBindingAliasInfo(bindingNode) {
+    const alias = bindingNode ? this.#bindingAliases.get(bindingNode) : null;
+    if (!alias) return null;
+    return {
+      hint: alias.hint, source: null, entry: null,
+      aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
+      aliasDeclSpan: alias.declSpan, aliasVerified: alias.verified,
+    };
   }
 
   seedReservedNames(names) {
@@ -304,6 +378,14 @@ export default class ImportInjectorState {
   captureImportInfoByName() { return new Map(this.#importInfoByName); }
   rehydrateImportInfoByName(captured) {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
+  }
+
+  // symmetric handoff for `#globalAliases`: pre registers ctor aliases (decl flatten, checked
+  // assignment writes); post needs the same table so alias member reads keep narrowing on the
+  // re-parsed source - without it the alias hint (and its trusted write span) is fresh-empty
+  captureGlobalAliases() { return new Map(this.#globalAliases); }
+  rehydrateGlobalAliases(captured) {
+    if (captured) for (const [name, alias] of captured) this.#globalAliases.set(name, alias);
   }
 
   // symmetric handoff for `#reassignedBindings`: pre populates the Map via
