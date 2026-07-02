@@ -5121,6 +5121,25 @@ runBoth('for-of nested array-rest binding resolves to Array',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
+// an object-rest nested under an inner ARRAY pattern inside an OBJECT-pattern variable binding
+// (`const { x: [{ ...rest }] } = obj`) is an Object - the object-binding rest walk must recurse the
+// other pattern kind too, else it falls through to the keyPath logic and leaves `rest` null
+runBoth('object-binding rest under nested array pattern resolves to Object',
+  'declare const obj: any;\nconst { x: [{ ...rest }] } = obj;\nrest.z;',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'z');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Object' });
+  });
+
+// control: an ARRAY-rest nested under an inner array in an object-binding (`const { x: [...rest] } = obj`)
+// is an Array - the symmetric recursion classifies both directions, not just object-rests
+runBoth('object-binding array-rest under nested array pattern resolves to Array',
+  'declare const obj: any;\nconst { x: [...rest] } = obj;\nrest.z;',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'z');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
 // a wide primitive does NOT extend a narrower literal of the same family, so the conditional takes
 // the FALSE branch across every literal family (not just `number extends 1`)
 for (const [variant, src] of [
