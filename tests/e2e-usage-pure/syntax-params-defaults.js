@@ -348,3 +348,52 @@ QUnit.test('params: fallback SE receiver with unresolved sibling memoizes the le
   assert.true(result[1]);
   assert.same(calls, 1);
 });
+
+// --- Instance param-default synth: `{ at } = Array.prototype` -> `= { at: _atMaybeArray(Array.prototype) }` ---
+
+QUnit.test('params: instance param-default no-arg binds the polyfill, caller receiver overrides it', assert => {
+  function fn({ at } = Array.prototype) {
+    return at;
+  }
+  // no-arg call: the synth default fires and the bound method reads through the receiver
+  assert.same(typeof fn(), 'function');
+  assert.same(fn().call([7, 8, 9], -1), 9);
+  // caller-passed receiver: its own `at` wins over the synth default
+  const custom = { at: () => 'CALLER' };
+  assert.same(fn(custom)(), 'CALLER');
+  // caller object WITHOUT the method: native undefined, the default must not leak in
+  assert.same(typeof fn({}), 'undefined');
+});
+
+QUnit.test('params: instance param-default getter receiver reads once on default, zero on arg', assert => {
+  let reads = 0;
+  const host = {};
+  // defineProperty getter, not literal accessor syntax - the pure suite forbids ES5 accessors
+  Object.defineProperty(host, 'g', { get() {
+    reads++;
+    return Array.prototype;
+  } });
+  function fn({ flat } = host.g) {
+    return flat;
+  }
+  assert.same(typeof fn(), 'function');
+  assert.same(reads, 1);
+  fn({ flat: 1 });
+  assert.same(reads, 1);
+});
+
+QUnit.test('params: instance param-default literal receiver keeps value semantics', assert => {
+  function fn({ includes } = [4, 5, 6]) {
+    return includes;
+  }
+  assert.same(fn().call([1, 2], 2), true);
+  assert.same(fn().call([1, 2], 3), false);
+});
+
+QUnit.test('params: instance multi-key member receiver stays native (double-read protection)', assert => {
+  function fn({ at, flat } = Array.prototype) {
+    return [at, flat];
+  }
+  const viaCaller = fn({ at: 'A', flat: 'F' });
+  assert.deepEqual(viaCaller, ['A', 'F']);
+});

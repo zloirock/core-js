@@ -174,7 +174,9 @@ export default function createSynthSwapEmitter({
   // same node and emit a parallel `_Receiver` import that gets dropped post-swap).
   // metadata is keyed on the receiver NODE (not path) so apply() locates the receiver
   // by walking the program - survives sibling-plugin moves that orphan the original path
-  function registerPolyfill({ targetPath, objectPatternPath, key, entry, hintName, callBranch = false, rescueSe = null }) {
+  function registerPolyfill({
+    targetPath, objectPatternPath, key, entry, hintName, callBranch = false, rescueSe = null, instance = false,
+  }) {
     const receiver = targetPath.node;
     // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
     // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
@@ -215,7 +217,7 @@ export default function createSynthSwapEmitter({
       };
       synthSwapByReceiver.set(receiver, pending);
     }
-    pending.polyfills.set(key, { entry, hintName });
+    pending.polyfills.set(key, { entry, hintName, instance });
   }
 
   // ConditionalExpression / LogicalExpression in destructure-receiver position
@@ -420,10 +422,17 @@ export default function createSynthSwapEmitter({
     }
 
     // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
-    // only renders the entries as AST. injectPureImport already returns a fresh clone
+    // only renders the entries as AST. injectPureImport already returns a fresh clone.
+    // an INSTANCE polyfill entry (a typed param-default receiver) binds the method to the
+    // receiver's value: `at: _atMaybeArray(<receiver>)` - the receiver read happens inside the
+    // synth literal, so it only evaluates when the default fires (caller-correct); the shared
+    // registration gate bounds member receivers to a single entry so that read stays single
     const properties = [];
     for (const { keyNode, computed, seName, polyfill } of buildFlatSynthEntries(objectPatternNode, polyfills)) {
-      const value = polyfill ? injectPureImport(polyfill.entry, polyfill.hintName)
+      const value = polyfill
+        ? polyfill.instance
+          ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(getReceiverRef())])
+          : injectPureImport(polyfill.entry, polyfill.hintName)
         : seName !== null ? t.memberExpression(t.cloneNode(getReceiverRef()), t.stringLiteral(seName), true)
         : t.memberExpression(t.cloneNode(getReceiverRef()), t.cloneNode(keyNode), computed);
       const synthKey = seName !== null ? t.stringLiteral(seName) : t.cloneNode(keyNode);
@@ -445,7 +454,11 @@ export default function createSynthSwapEmitter({
       enter(path) {
         const pending = synthSwapByReceiver.get(path.node);
         if (!pending || pending.applied) return;
-        if ((!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression')
+        // an INSTANCE param-default registration additionally admits `this` / constant-literal
+        // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
+        const hasInstanceEntry = [...pending.polyfills.values()].some(p => p.instance);
+        if ((!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression'
+          && !hasInstanceEntry)
           || pending.objectPatternNode?.type !== 'ObjectPattern') return;
         // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
         // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation

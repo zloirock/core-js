@@ -1067,6 +1067,33 @@ function checkSnapshotDeepCopy() {
 }
 checkSnapshotDeepCopy();
 
+// ctor-alias registrations (decl hints + checked assignment writes) must survive the pre->post
+// snapshot handoff: without the carry, post's re-parse loses the alias hint AND its trusted write
+// span, so member reads through the alias stop narrowing on the second pass
+function checkSnapshotCarriesGlobalAliases() {
+  const ms = new MagicString('');
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
+  // BLIND (binding-less) entries ride the snapshot; PER-BINDING entries intentionally do not -
+  // their work completes in the pass that registered them (post re-parses transformed text
+  // where nothing alias-shaped remains), and their spans would be stale against the new offsets
+  const declNode = { type: 'VariableDeclarator' };
+  inj.registerGlobalAlias('M', 'Map', {
+    bindingNode: declNode, write: { start: 10, end: 40 }, scopeSpan: { start: 0, end: 100 }, verified: true,
+  });
+  inj.registerGlobalAlias('S', 'Symbol');
+  const snap = inj.snapshot();
+  inj.registerGlobalAlias('L', 'Set');
+  const post = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  post.applySnapshot ? post.applySnapshot(snap) : post.rehydrateGlobalAliases(snap.globalAliases);
+  check('snapshot/blind alias carried', post.getBindingInfo('S')?.hint, 'Symbol');
+  check('snapshot/per-binding entry NOT carried', post.getBindingInfo('M'), null);
+  check('snapshot/aliases isolated', snap.globalAliases.has('L'), false);
+  // the live injector still resolves both views
+  check('live/binding view', inj.getBindingAliasInfo(declNode)?.aliasWrite?.start, 10);
+  check('live/name view unique fallback', inj.getBindingInfo('M', 50)?.hint, 'Map');
+}
+checkSnapshotCarriesGlobalAliases();
+
 // adoptOrphanRefs must not duplicate refs that pre already flushed; otherwise post
 // would emit a second `var _ref;` on top of pre's
 function checkAdoptOrphanRespectsFlushed() {
@@ -4407,6 +4434,26 @@ function checkPhantomViolationFilter() {
   check('scrubbed wrapper exposes constant from filtered violations', scrubbed.constant, true);
 }
 checkPhantomViolationFilter();
+
+// a REFUSED alias's member reads stay RAW across passes: pre+post must not re-detect the
+// pre-transformed swap (`M = _Map`) into a narrow on the later pass
+async function checkRefusedAliasRawPassIdempotent() {
+  const src = 'function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+    + 'try { return typeof M.groupBy; } catch (e) { return "T"; } }\n'
+    + 'function u(c) { let P; if (c) ({ Promise: P } = globalThis); return P.try(() => 1); }\n'
+    + 'export const r = [t(true), t(false)];\n';
+  const plugins = unplugin.rollup({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, phase: 'pre+post' });
+  let code = src;
+  for (const p of plugins) {
+    const transform = typeof p.transform === 'function' ? p.transform : p.transform?.handler;
+    const out = await transform.call({ error(e) { throw new Error(e); } }, code, '/x/probe.mjs');
+    if (out?.code) code = out.code;
+  }
+  check('refused alias member stays raw across pre+post', /M\.groupBy/.test(code), true);
+  check('refused alias callee stays raw across pre+post', /P\.try\(/.test(code), true);
+  check('no static narrow leaks for the refused alias', /_Map\$groupBy|_Promise\$try/.test(code), false);
+}
+await checkRefusedAliasRawPassIdempotent();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;

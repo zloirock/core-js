@@ -548,7 +548,7 @@ const VAR_SCOPE_OWNER_TYPES = new Set([
   'TSModuleBlock',
 ]);
 
-function isVarScopeBoundary(type) {
+export function isVarScopeBoundary(type) {
   return VAR_SCOPE_OWNER_TYPES.has(type);
 }
 
@@ -1396,6 +1396,13 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
       if (prop.value.type === 'AssignmentPattern') out.push(prop.value.right);
       if (paired) out.push(paired);
+      // a destructure from a RECEIVER (`({ Promise: M } = globalThis)`): the slot's reaching
+      // value is the receiver's member - synthesize it so the reaching resolution sees
+      // `globalThis.Promise` exactly like the identifier-assignment form (`M = globalThis.Promise`).
+      // an unresolvable receiver just fails downstream resolution, same as no value
+      else if (key !== null && isReceiverShapedNode(rhs)) {
+        out.push({ type: 'MemberExpression', object: rhs, property: { type: 'Identifier', name: key }, computed: false });
+      }
     }
   }
   return out;
