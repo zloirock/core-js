@@ -3,8 +3,9 @@
 //   2) `const h = () => Promise; h()` - one hop with pure body, inlines and rewrites
 //   3) block body with prefix statement (`calls++; return Promise`) - inlines but the
 //      receiver call must remain observable so the side effect runs
-//   4) sequence-expression body `(calls++, Promise)` - bails to keep side effect via
-//      the original call (safe miss preferred over unsafe SE-tail unwrap)
+//   4) sequence-expression body `(calls++, Promise)` - classifies through the sequence TAIL
+//      and rewrites like the block-with-prefix shape; the original call re-emits ahead so
+//      the side effect still runs exactly once
 const g = () => Map;
 const f = g;
 const out1 = f().has(1);
