@@ -8,26 +8,25 @@
 // public surface: `applyDestructuringTransforms`, `applySynthSwaps`, `handleDestructuringPure`,
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation)
 import {
-  isReceiverShapedNode,
   buildFlatSynthEntries,
-  paramsHaveInvisibleCallers,
+  collectFoldedReceiverSideEffects,
+  computedKeysAllBound,
+  dropDeadSequenceTail,
   FUNCTION_LIKE_NODE_TYPES,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
   isBindingPosition,
   isFunctionParamDestructureParent,
-  isMemberWriteHost,
-  computedKeysAllBound,
-  dropDeadSequenceTail,
   isIdentifierPropValue,
+  isMemberWriteHost,
   isNonReferencePosition,
+  isReceiverShapedNode,
   isSynthSimpleObjectPattern,
-  collectFoldedReceiverSideEffects,
-  nestedMirrorOwnsMixedPattern,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
-  synthSwapPropKey,
+  nestedMirrorOwnsMixedPattern,
   objectPatternPropNeedsReceiverRewrite,
+  paramsHaveInvisibleCallers,
   peelFallbackBranchInner,
   peelNestedSequenceExpressions,
   peelParenAndTSParentPath,
@@ -35,6 +34,8 @@ import {
   propBindingIdentifier,
   resolveFallbackReceiver,
   sequenceKeyPrefix,
+  synthSwapPropKey,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapParens,
   walkPatternIdentifiers,
@@ -43,6 +44,9 @@ import {
   globalProxyMemberName,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
+  maybeRegisterAssignmentAliasWrite,
+  registerCtorAliasExtractions,
+  registerDeclAliasIfSound,
   memberKeyName,
   POSSIBLE_GLOBAL_OBJECTS,
   symbolKeyToEntry,
@@ -79,12 +83,15 @@ import {
   outerDestructureReceiver,
   planArrayWrappedStaticExtract,
   isConstantLiteralReceiver,
+  isInnerDestructureDefault,
   isReReferenceableReceiver,
   isViableBranchForKey,
   nestedAssignmentStatementOf,
   conditionalDestructureLeftUntouchedWarning,
   fallbackDestructureHasPolyfillableBranch,
+  paramDefaultInstanceSynthAllowed,
   planSideEffectKeyStrategy,
+  refineParamDefaultInstancePure,
   qualifiesForParamBodyExtract,
   resolveNestedReceiverNode,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -183,6 +190,8 @@ export function createDestructureEmitter({
   isDisabled,
   nodeSrc,
   resolveGlobalPolyfill,
+  resolveNodeType = null,
+  toHint = null,
   resolvePure,
   resolveReceiverSource,
   scopeTracker,
@@ -727,9 +736,12 @@ export function createDestructureEmitter({
     // preservedInitSrc (everything spliced before it shifts its start in the baked text)
     const remapped = [];
     // the trailing init target (when present) sits at the end of preservedSrc; its dstStart
-    // equals preservedSrc.length minus the verbatim init length. preservedInitSrc is always
-    // set alongside a non-null preservedSrc (the early return above guarantees we're past that)
-    const initTarget = slot.residualTargets.find(t => t.dstStart === slot.preservedSrc.length - slot.preservedInitSrc.length);
+    // equals preservedSrc.length minus the verbatim init length. a rewriteDeclarator slot always
+    // sets preservedInitSrc alongside a non-null preservedSrc, but a full-preserve sibling that
+    // acquired a residual target after the fact (an SE-key value->sentinel bake) has none - it
+    // carries no trailing init slot, so no target can be the init target (offset -1 never matches)
+    const initTargetOffset = slot.preservedInitSrc ? slot.preservedSrc.length - slot.preservedInitSrc.length : -1;
+    const initTarget = slot.residualTargets.find(t => t.dstStart === initTargetOffset);
     let initDelta = 0;
     for (const target of slot.residualTargets) {
       const base = target.srcStart - target.dstStart;
@@ -1279,9 +1291,14 @@ export function createDestructureEmitter({
   // cache contract: it plans its synthetic host first, the render-time re-entry reads the
   // same cached plan
   function planDeclarator(declarator, scope, usePath = null) {
-    return buildNestedDestructurePlan({
+    const plan = buildNestedDestructurePlan({
       declarator, scope, adapter: estreeAdapter, path: usePath,
       resolvePure, resolveGlobalPolyfill, isDisabledProp: isDisabled,
+    });
+    // ctor-alias extractions register through the checked trust path here (a refused registration
+    // only withholds the member-narrow hint; the value swap stays - see the helper docstring)
+    return registerCtorAliasExtractions({
+      plan, declarator, scope, adapter: estreeAdapter, injector, path: usePath,
     });
   }
 
@@ -1400,8 +1417,11 @@ export function createDestructureEmitter({
     // register the body-extract alias so receiver-narrowing through this binding
     // (`xs = from('hi'); xs.at(0)`) finds the polyfill entry path. matches babel's
     // body-extract paths so multi-method narrowing works on extracted `from` / `of`
-    // / etc. (without it, `at` / `includes` fall to generic `_at` / `_includes`)
-    injector.registerBodyExtractAlias(e.localName, e.entry, scope?.getBinding(e.localName));
+    // / etc. (without it, `at` / `includes` fall to generic `_at` / `_includes`).
+    // a CTOR alias (kind global) must NOT register here: the entry-first `getBindingInfo`
+    // lookup would shadow its GLOBAL-alias registration (member reads through the alias
+    // hint - the babel split registers these via `registerGlobalAlias` only)
+    if (e.kind !== 'global') injector.registerBodyExtractAlias(e.localName, e.entry, scope?.getBinding(e.localName));
     return { decl: `${ e.localName } = ${ binding }` };
   }
 
@@ -1936,6 +1956,39 @@ export function createDestructureEmitter({
     });
   }
 
+  // register an instance param-default synth: the default expression becomes the synth target and
+  // `applySynthSwaps` renders `{ at: _atMaybeArray(<receiver>) }` in its place. only the DIRECT param
+  // default qualifies - an inner default carries `{}`-style filler, not the receiver - and the shared
+  // gate bounds the receiver's shape / read count / global safety. the incoming entry resolved off the
+  // TYPELESS meta (a generic helper, `_at`); typing the default here refines it to the receiver-narrowed
+  // variant (`_atMaybeArray`) - the precision the top-level declarator form gets through the resolver's
+  // receiver walk. pure-only by construction: detection stays untyped so usage-global keeps its over-inject
+  function tryRegisterParamDefaultInstanceSynthPure(pureResult, metaPath, propNode) {
+    const objectPattern = metaPath.parent;
+    const wrapperPath = metaPath.parentPath?.parentPath;
+    if (wrapperPath?.node?.type !== 'AssignmentPattern' || isInnerDestructureDefault(wrapperPath)) return false;
+    let receiver = wrapperPath.node.right;
+    while (receiver && TRANSPARENT_EXPR_WRAPPER_TYPES.has(receiver.type)) receiver = receiver.expression;
+    if (!paramDefaultInstanceSynthAllowed({
+      objectPatternNode: objectPattern, receiverNode: receiver,
+      scope: metaPath.scope, adapter: estreeAdapter, path: metaPath, resolvePure,
+    })) return false;
+    const use = refineParamDefaultInstancePure({
+      pureResult, key: propNode.key.name ?? propNode.key.value,
+      receiverPath: wrapperPath.get('right'), resolveNodeType, toHint, resolvePure, path: metaPath,
+    });
+    const binding = injectPureImport(use.entry, use.hintName);
+    skipReplacedReceiver(receiver);
+    let pending = pendingSynthSwaps.get(receiver);
+    if (!pending) {
+      pending = { receiver, objectPattern, polyfills: new Map(), callBranch: false, rescueSe: null, leftSe: null,
+        scope: metaPath.scope, path: metaPath };
+      pendingSynthSwaps.set(receiver, pending);
+    }
+    pending.polyfills.set(synthSwapPropKey(propNode), { binding, instance: true });
+    return true;
+  }
+
   // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
   // Identifier receiver; otherwise inline-default `{p = _polyfill}`.
   // a body-extracted param keeps its receiver as the DEFAULT (`function ({...rest} = R)`),
@@ -2042,8 +2095,15 @@ export function createDestructureEmitter({
     const pureResult = resolvePure(meta, metaPath);
     if (!pureResult) return false;
     const isForInit = hostNode?.type === 'ForStatement' && hostNode.init === declaration;
-    // top-level: `declarator.init`; nested: the receiver walked from the RHS along the nesting keys
-    const receiverNode = resolveNestedReceiverNode(metaPath);
+    // top-level: `declarator.init`; nested: the receiver walked from the RHS along the nesting keys.
+    // `allowSeFreeMember`: a member receiver is sound here because the planner only extracts when the
+    // residual is eliminated (single read); a surviving residual / for-init leaves it native. the
+    // double-read assignment overwrite (tryNestedAssignmentInstanceOverwrite) keeps the default
+    const receiverNode = resolveNestedReceiverNode(metaPath, { allowSeFreeMember: true });
+    // an instance receiver that resolves to NOTHING (a call, an interpolated template, an unmatched hop) is
+    // unextractable - leave native. the planner's `receiverIsSafe` short-circuit used to catch this, but the
+    // `eliminateResidual` relaxation (which admits a side-effect-free member) no longer does, so guard here
+    if (pureResult.kind === 'instance' && !receiverNode) return false;
     // the declarator hosting this leaf, plus whether it is the WHOLE declaration's only binding and whether
     // its init carries no side effect - the planner needs these to drop a dead residual / memoize the receiver
     const declarator = declaration.declarations.find(d => d.start <= propNode.start && propNode.end <= d.end);
@@ -2132,6 +2192,16 @@ export function createDestructureEmitter({
       flattenIdx = flattenEntry ? declaration.declarations.findIndex(
         d => d.start <= propNode.start && propNode.end <= d.end) : -1;
       if (!flattenEntry || flattenIdx === -1) return false;
+      // the flatten renders this declarator's residual from a verbatim source slice, so the
+      // value->sentinel rename above must bake INTO that slice as a residual target - otherwise it
+      // floats as a standalone overwrite that mis-composes against the flatten's whole-declaration
+      // render, landing the sentinel on the extracted binding (`_unused = _poly`) and leaving the
+      // real binding native in the residual (`{ [se]: g } = R`). the target drains the queued rename
+      const slot = flattenEntry.perDecl[flattenIdx];
+      const declStart = declaration.declarations[flattenIdx].start;
+      (slot.residualTargets ??= []).push({
+        srcStart: propNode.value.start, srcEnd: propNode.value.end, dstStart: propNode.value.start - declStart,
+      });
     }
     function emit(copyExpr, hoist = '') {
       if (plan.siblingDeclarator) {
@@ -2240,7 +2310,15 @@ export function createDestructureEmitter({
     }
     const isAssign = value.type === 'AssignmentPattern';
     const pureResult = resolvePure(meta, metaPath);
-    if (!pureResult || pureResult.kind === 'instance') return;
+    if (!pureResult) return;
+    if (pureResult.kind === 'instance') {
+      // an instance method destructured off a typed param DEFAULT (`function f({ at } = Array.prototype)`)
+      // synths the default itself - caller-correct (the synth only evaluates when the arg is omitted; a
+      // passed value destructures natively). the shared gate bounds the receiver (see its docstring);
+      // anything it rejects stays native - there is no receiver-less instance fallback
+      tryRegisterParamDefaultInstanceSynthPure(pureResult, metaPath, propNode);
+      return;
+    }
     const objectPattern = metaPath.parent;
     const receiver = isSynthSimpleObjectPattern(objectPattern, { allowSideEffectComputedKeys: true })
       && computedKeysAllBound(objectPattern, metaPath.scope)
@@ -2616,7 +2694,6 @@ export function createDestructureEmitter({
       });
       if (!referenced) return;
     }
-    const { kind, binding } = resolveDestructureEntry({ isSymbolIterator, isSymbolKeyPassthrough, pureResult });
     const isAssignment = !isCatchClause && declaratorPath?.node?.type === 'AssignmentExpression';
     // peel Paren / TS wrappers up to the enclosing ExpressionStatement so transforms.add's
     // range owns the statement's trailing `;` (otherwise leftover `;` produces `from = _X;;`)
@@ -2625,6 +2702,28 @@ export function createDestructureEmitter({
     const initNode = isCatchClause ? null
         : isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
 
+    // ctor alias: trust-register the hint. a REFUSED registration (conditional / cross-fn write,
+    // dirty binding, conditional `var` decl) only withholds the member-narrow hint; the value swap
+    // below still runs - value-correct on every path (the polyfill lands exactly when the native
+    // write would), and dropping it would strip the polyfill from conditional forms
+    if (pureResult?.kind === 'global' && !isSymbolIterator && !isSymbolKeyPassthrough) {
+      const aliasBinding = estreeAdapter.getBinding(metaPath.scope, localName, metaPath);
+      // binding-less alias name (writing the global itself): trusted - no user binding to contradict
+      if (!aliasBinding?.node) injector.registerGlobalAlias(localName, pureResult.hintName, { trusted: true });
+      else if (isAssignment) {
+        maybeRegisterAssignmentAliasWrite({
+          injector, binding: aliasBinding,
+          // the ASSIGNMENT path itself - see the babel twin: edge-judged placement walk
+          localName, hint: pureResult.hintName, assignNode: declaratorPath.node, stmtPath: declaratorPath,
+        });
+      } else {
+        registerDeclAliasIfSound({
+          injector, kind: declPath?.node?.kind, localName, hint: pureResult.hintName, stmtPath: declPath,
+          bindingNode: aliasBinding?.node ?? null, binding: aliasBinding,
+        });
+      }
+    }
+    const { kind, binding } = resolveDestructureEntry({ isSymbolIterator, isSymbolKeyPassthrough, pureResult });
     if (!pendingDestructuring.has(objectPattern)) {
       const initSrc = isCatchClause ? injector.generateLocalRef() : initNode ? nodeSrc(initNode) : null;
       pendingDestructuring.set(objectPattern, {
@@ -3135,7 +3234,8 @@ export function createDestructureEmitter({
   // (some transforms queued, others lost). recovery semantics intentional: catch-and-continue
   // would silently produce inconsistent output, hard fail surfaces the bug to the user
   function applySynthSwaps() {
-    for (const [, { receiver, objectPattern, polyfills, callBranch, rescueSe, leftSe: leftSePlan, scope, path }] of pendingSynthSwaps) {
+    for (const [, pendingSwap] of pendingSynthSwaps) {
+      const { receiver, objectPattern, polyfills, callBranch, rescueSe, leftSe: leftSePlan, scope, path } = pendingSwap;
       const ctx = scope ? { scope, adapter: estreeAdapter, path } : null;
       if (objectPattern?.type !== 'ObjectPattern') continue;
       // safe-SE peel too: `cond ? (0, Array) : Iterator` registers the branch with the SE as
@@ -3149,8 +3249,12 @@ export function createDestructureEmitter({
       // -> `applySynthSwaps` round-trip stays in sync. for member-chain shapes, unpolyfilled
       // keys still re-read through the chain (`window.Array.other`) - each `${ src }.${ key }`
       // reference re-evaluates the receiver expression. typical pattern is all-polyfilled
-      // keys (no re-read needed); accept the side-effect re-evaluation trade-off
-      if (!isReceiverShapedNode(inner) && inner?.type !== 'LogicalExpression' && !isCallShape(inner)) continue;
+      // keys (no re-read needed); accept the side-effect re-evaluation trade-off.
+      // an INSTANCE param-default registration additionally admits `this` / constant-literal
+      // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
+      const hasInstanceEntry = [...polyfills.values()].some(p => typeof p !== 'string' && p?.instance);
+      if (!isReceiverShapedNode(inner) && inner?.type !== 'LogicalExpression' && !isCallShape(inner)
+        && !hasInstanceEntry) continue;
       // a fallback-logical receiver reads through its peeled LEFT branch (babel-twin contract):
       // the left decides the value under short-circuit; the dead right global stays unreferenced
       const readReceiver = inner.type === 'LogicalExpression'
@@ -3185,7 +3289,12 @@ export function createDestructureEmitter({
         const access = seName !== null ? `[${ JSON.stringify(seName) }]`
           : computed ? `[${ nodeSrc(keyNode) }]` : `.${ keyNode.name }`;
         entries.push(polyfill
-          ? `${ keySrc }: ${ polyfill }`
+          ? typeof polyfill === 'string'
+            ? `${ keySrc }: ${ polyfill }`
+            // instance entry: bind the method to the receiver's value - the read happens inside the
+            // synth literal, so it only evaluates when the default fires (caller-correct); the
+            // registration gate bounds member receivers to a single entry so that read stays single
+            : `${ keySrc }: ${ polyfill.binding }(${ getReceiverSrc() })`
           : `${ keySrc }: ${ getReceiverSrc() }${ access }`);
       }
       // overwrite the INNER (peeled) range so outer TS / paren / chain wrappers survive
