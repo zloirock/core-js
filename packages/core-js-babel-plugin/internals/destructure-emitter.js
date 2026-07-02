@@ -56,6 +56,7 @@ import {
   resolveNestedReceiverNode,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import { discardRescueNodes, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
 import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite,
@@ -1010,7 +1011,7 @@ export default function createDestructureEmitter({
     // their own substitutions; the original init subtree stays skipped with the declarator
     if (patternEmpties && plan.discardSe) {
       const last = extracted.at(-1);
-      last.init = t.sequenceExpression([t.cloneNode(plan.discardSe), last.init]);
+      last.init = t.sequenceExpression([...plan.discardSe.map(node => t.cloneNode(node)), last.init]);
     }
     // seed skippedNodes for the subtree about to be orphaned so scheduled visitor re-entries
     // short-circuit. for-init+SE preserves the init (under a sink id), so its inner
@@ -1625,7 +1626,20 @@ export default function createDestructureEmitter({
       const decls = declaration.node.declarations;
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
-      const sink = t.variableDeclarator(ref, t.cloneDeep(parent.node.init));
+      // a verbatim sink of a MULTI-hop proxy receiver reads an undefined intermediate hop
+      // off-browser (`sf()[(c++, 'self')].Map` keeps the raw `.self` - ie:11 / Node throw).
+      // the sink value is discarded (dummy binding), so re-emit ONLY the harvested side
+      // effects, in source-eval order - the same drop decision the synth-swap emitters make
+      const initLeaf = unwrapRuntimeExpr(parent.node.init);
+      let sinkInit = null;
+      if (shouldDropRescueReceiver(initLeaf)) {
+        const rescue = discardRescueNodes({ node: initLeaf, scope: parent.scope, adapter, path: parent });
+        if (rescue.length) {
+          sinkInit = rescue.length === 1 ? t.cloneDeep(rescue[0])
+            : t.sequenceExpression(rescue.map(node => t.cloneDeep(node)));
+        }
+      }
+      const sink = t.variableDeclarator(ref, sinkInit ?? t.cloneDeep(parent.node.init));
       decls[idx] = t.variableDeclarator(localBinding, value);
       const firstExtraction = decls.findIndex(d => forInitExtractionDecls.has(d));
       decls.splice(firstExtraction === -1 ? idx : firstExtraction, 0, sink);

@@ -135,6 +135,31 @@ export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path 
   return { rootName, droppedSe: collectFoldedReceiverSideEffects(hop, [], rescue) };
 }
 
+// whole-swap plan for a DISCARDED call/IIFE-rooted proxy receiver whose LEAF is a pure global
+// ctor (`(f()).self.Symbol` consumed by a fully-extracted destructure): the value is discarded,
+// so the leaf swaps to its pure ctor and every side effect the dropped navigation carried (an
+// SE-bearing chain-root call, a computed hop-key effect) re-emits ahead - `(f(), c++, _Symbol)`.
+// the root-collapse twin (`planCallRootedProxyReceiver` below) BAILS on a pure-ctor leaf because
+// a LIVE receiver's leaf is whole-swapped elsewhere; a discarded receiver has no elsewhere, so
+// this plan IS that swap. babel needs no explicit call site - its lifted residual re-enters the
+// natural member detection, which routes through the same shared pieces; the text emitter
+// substitutes enter-time and renders this plan
+export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path, resolvePure }) {
+  if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
+  // the leaf key resolves through the full canonical fold (SE-sequence tail / concat / template),
+  // NOT the bare static extractor: a bare check bails on `<call>.self[(c++, 'Map')]` and strands
+  // the raw `.self` hop (off-engine throw). the swap discards the key too, so a computed key's own
+  // effects join the harvest AFTER the navigation's (object evaluates before its key)
+  const leafName = resolveKey({ node: receiver.property, computed: receiver.computed, scope, adapter, path });
+  const leafPure = leafName ? resolvePure({ kind: 'global', name: leafName }) : null;
+  if (!leafPure || leafPure.kind === 'instance') return null;
+  const nav = resolveCallRootedProxyCollapse({ receiver, scope, adapter, path });
+  if (!nav) return null;
+  const harvestedSE = nav.droppedSe;
+  if (receiver.computed) collectFoldedReceiverSideEffects(receiver.property, harvestedSE);
+  return { leafPure, harvestedSE };
+}
+
 // substrate-neutral proxy-global receiver collapse DECISION. the three emitter collapsers (babel
 // `collapseProxyGlobalReceiver`, unplugin `resolveProxyGlobalChainSrc` / `substituteProxyGlobalRoot`)
 // re-implemented this same decision (drop redundant `.self`/`.window` hops, swap the root to its pure import
@@ -229,27 +254,17 @@ function proxyGlobalChainRootName({ node, scope, adapter, path }) {
   return name && POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null;
 }
 
-// outermost chain-assignment buried under a member chain (`(a = IIFE()).Array`, `(a = X).self.Y`).
-// a fold that discards the chain must rescue the assignment WHOLE - it both updates the binding and
-// re-runs everything inside it (including an SE-bearing call root), so the caller harvests it
-// INSTEAD of probing the chain-root call (harvesting both would double-run the setup)
-export function findBuriedChainAssignment(node) {
-  let cur = node;
-  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    cur = unwrapTransparentSeq(cur.object);
-    if (cur?.type === 'AssignmentExpression') return cur;
-  }
-  return null;
-}
-
-// observable node a DISCARD would silently drop: a chain-assignment (direct or buried under
-// member hops - rescued WHOLE, see above), else an SE-bearing chain-root call. the destructure
-// flatten consults this for the init it is about to discard; callers re-emit the returned node
-// ahead of the extraction or bail the discard. NOT for the `in` fold, whose planner rescues a
-// DIRECT assignment RHS itself - routing it through here would double-rescue
-export function discardRescueNode({ node, scope, adapter, path }) {
-  return (node.type === 'AssignmentExpression' ? node : findBuriedChainAssignment(node))
-    ?? seBearingChainRootCall({ node, scope, adapter, path });
+// observable nodes a DISCARD would silently drop, in source-eval order: chain-assignments
+// (direct or buried under member hops - rescued WHOLE, the structural walk pushes them without
+// descending), an SE-bearing chain-root call (interleaved at its true position via the rescue
+// channel), and every effect buried in a computed member KEY the discard folds away
+// (`globalThis[(c++, 'self')]` - a chain-assignment/root-call-only probe dropped the key effect).
+// the destructure flatten consults this for the init it is about to discard; callers re-emit the
+// returned nodes ahead of the extraction or keep the init verbatim. NOT for the `in` fold, whose
+// planner rescues a DIRECT assignment RHS itself - routing it through here would double-rescue
+export function discardRescueNodes({ node, scope, adapter, path }) {
+  const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
+  return collectFoldedReceiverSideEffects(node, [], rootCall ? new Set([rootCall]) : null);
 }
 
 // ordered side effects a fallback-logical synth-collapse (`{from} = LEFT || Set`) must re-emit ahead

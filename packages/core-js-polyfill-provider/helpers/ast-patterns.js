@@ -1913,24 +1913,12 @@ export function peelParenAndTSParentPath(startPath) {
   return path;
 }
 
-// destructure-host slot specifically for nested-proxy flatten (`{Array:{from}} = G` ->
-// `from = _Array$from`). narrower than `destructureReceiverSlot`: AssignmentExpression
-// is accepted ONLY when the surrounding context is an ExpressionStatement (value is
-// discarded - safe to replace whole statement with direct assignment). AssignmentPattern
-// excluded - inline-default would pick native first on modern engines, contradicting
-// usage-pure's polyfill-always contract. transparent wrappers (parens / TS casts /
-// chain / SE-tail) between AE and ExpressionStatement walked via the shared peeler
-export function flattenableHostSlot(parent, parentPath) {
-  if (parent?.type === 'VariableDeclarator') return 'init';
-  if (parent?.type !== 'AssignmentExpression') return null;
-  const ctx = peelTransparentExprWrappers(parentPath);
-  return ctx?.node?.type === 'ExpressionStatement' ? 'right' : null;
-}
-
-// like `flattenableHostSlot('right')` but returns the {ExpressionStatement path,
-// SE-prefix exprs} pair the cascade emitter needs: SE-tail peel collects leading
-// expressions so they can be re-emitted as side-effect siblings, and the resolved
-// ExpressionStatement path is the host whose slot the cascade rewrites
+// statement-hosted assignment-destructure resolver: returns the {ExpressionStatement path,
+// SE-prefix exprs} pair the cascade emitter needs. AssignmentExpression is accepted ONLY
+// when the surrounding context is an ExpressionStatement (value is discarded - safe to
+// replace the whole statement); the SE-tail peel collects leading expressions so they can
+// be re-emitted as side-effect siblings, and the resolved ExpressionStatement path is the
+// host whose slot the cascade rewrites
 export function peelToExpressionStatement(startPath) {
   const sequencePrefix = [];
   const ctx = peelTransparentExprWrappers(startPath, exprs => {
