@@ -89,6 +89,7 @@ export default class ImportInjector extends ImportInjectorState {
     this.rehydrateSuffixState(snap.suffixState);
     this.rehydrateImportInfoByName(snap.importInfoByName);
     this.rehydrateReassignedBindings(snap.reassignedBindings);
+    this.rehydrateGlobalAliases(snap.globalAliases);
   }
 
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
@@ -111,6 +112,7 @@ export default class ImportInjector extends ImportInjectorState {
       suffixState: this.captureSuffixState(),
       importInfoByName: this.captureImportInfoByName(),
       reassignedBindings: this.captureReassignedBindings(),
+      globalAliases: this.captureGlobalAliases(),
     };
   }
 

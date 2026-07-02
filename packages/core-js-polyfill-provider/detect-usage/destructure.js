@@ -425,14 +425,16 @@ export function planSideEffectKeyStrategy({
   receiverIsConstantLiteral = false, soleBindingInDeclaration = false, initIsPure = false, propKeyIsPure = true,
 }) {
   const instance = polyfillKind === 'instance';
-  // an instance polyfill re-references the receiver beside the residual; bail unless it is safe to read
-  // twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`)
-  if (instance && !receiverIsSafe) return null;
   const siblingDeclarator = !!(isForInit || (isMultiDeclarator && instance));
   // dead residual: nothing left to bind, no init effect to preserve, AND the key carries no side effect
   // (`{ [(eff(), 'k')]: f }` keeps the key in place so the effect still runs - dropping it would lose `eff()`).
   // a sibling-declarator host (for-init / multi-declarator) shares its declaration, so the slot can't drop
   const eliminateResidual = soleBindingInDeclaration && initIsPure && propKeyIsPure && !siblingDeclarator;
+  // an instance polyfill re-references the receiver beside the SURVIVING residual; bail unless it is safe to
+  // read twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`). when the residual is
+  // ELIMINATED the extraction (`const m = _m(recv)`) is the receiver's ONLY read, so a member receiver's getter
+  // fires exactly once - same as native - and is sound to extract (`const { y: { at } } = { y: Array.prototype }`)
+  if (instance && !receiverIsSafe && !eliminateResidual) return null;
   return {
     instance,
     siblingDeclarator,
@@ -488,6 +490,65 @@ export function qualifiesForParamBodyExtract({ propPath, localId }) {
   if (paramListReadsName(fnPath.node.params, localId.name)) return null;
   if (functionScopeBindsVarOrFunction(fnPath.node, localId.name)) return null;
   return { fnPath };
+}
+
+// gate for the param-default INSTANCE synth (`function f({ at } = Array.prototype)` -> default replaced
+// by `{ at: _atMaybeArray(Array.prototype) }`). the synth is caller-correct by construction (the default
+// only evaluates when the caller omits the arg; passed values destructure natively), so the gates are
+// about the RECEIVER re-emitted inside the synth literal:
+//   - pattern: plain non-computed Identifier / string keys binding Identifiers (a prop default is dead
+//     code under polyfill-always-wins, so `{ at = x }` is accepted); rest changes what the synth would
+//     have to carry -> bail
+//   - re-referenceable receiver (Identifier / this / constant literal): any entry count - each synth
+//     entry's read matches native value semantics
+//   - side-effect-free MEMBER receiver (`Array.prototype`, `h.g`): single-property pattern only - the
+//     synth reads it once, exactly when the native default would (a getter fires once); a second entry
+//     (another polyfill or a passthrough `R.other`) would double-read it
+//   - the receiver must contain NO unbound identifier that resolves to a pure global (or names a proxy
+//     global): the synth re-emits it VERBATIM after the natural visitor is gone, so a rewritable global
+//     inside would leak raw (`Iterator.prototype` -> a bare `Iterator`, a ReferenceError off-engine)
+export function paramDefaultInstanceSynthAllowed({ objectPatternNode, receiverNode, scope, adapter, path, resolvePure }) {
+  if (!receiverNode || !objectPatternNode?.properties?.length) return false;
+  for (const prop of objectPatternNode.properties) {
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return false;
+    // Identifier keys only - the synth-literal renderers replay a plain Identifier key
+    // (`isReplayableSynthKey`); a string-literal key would be DROPPED from the rebuilt literal,
+    // losing the binding (and stranding the import), so it must stay native here
+    if (prop.computed || prop.key?.type !== 'Identifier') return false;
+    if (!propBindingIdentifier(prop.value)) return false;
+  }
+  function unboundPureGlobal(name) {
+    if (adapter.hasBinding(scope, name, path)) return false;
+    return POSSIBLE_GLOBAL_OBJECTS.has(name) || !!resolvePure({ kind: 'global', name });
+  }
+  if (receiverNode.type === 'ThisExpression') return true;
+  if (receiverNode.type === 'Identifier') return !unboundPureGlobal(receiverNode.name);
+  if (isConstantLiteralNode(receiverNode)) return true;
+  if (receiverNode.type !== 'MemberExpression' && receiverNode.type !== 'OptionalMemberExpression') return false;
+  if (objectPatternNode.properties.length !== 1 || mayHaveSideEffects(receiverNode)) return false;
+  // walk the chain: literal / plain keys only, Identifier / this root, root not a rewritable global.
+  // an OPTIONAL link bails: `host?.x` may be `undefined` at runtime - native then THROWS destructuring
+  // it, while the synth literal is always defined (and hands `undefined` to the helper) - a throw-
+  // semantics divergence the always-wins contract cannot cover (ambiguous receiver bails to native)
+  let cur = receiverNode;
+  while (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
+    if (cur.type === 'OptionalMemberExpression' || cur.optional) return false;
+    if (cur.computed && !adapter.isStringLiteral(cur.property)) return false;
+    cur = cur.object;
+  }
+  if (cur.type === 'ThisExpression') return true;
+  return cur.type === 'Identifier' && !unboundPureGlobal(cur.name);
+}
+
+// refine a param-default instance entry by TYPING the default receiver: the incoming result resolved
+// off the typeless meta (a generic receiver-dispatching helper, `_at`); the receiver's type narrows it
+// to the receiver-specific variant (`_atMaybeArray`) - the same precision the top-level declarator form
+// gets through the resolver's receiver walk. pure-only by construction (detection stays untyped so
+// usage-global keeps its sound over-inject); a failed typing keeps the generic (still correct)
+export function refineParamDefaultInstancePure({ pureResult, key, receiverPath, resolveNodeType, toHint, resolvePure, path }) {
+  const hint = toHint?.(resolveNodeType?.(receiverPath));
+  const refined = hint ? resolvePure({ kind: 'property', object: hint, key, placement: 'prototype' }, path) : null;
+  return refined?.kind === 'instance' ? refined : pureResult;
 }
 
 // a receiver SAFE TO REFERENCE TWICE: the residual destructure reads it, and the extracted instance
@@ -561,13 +622,17 @@ export function isConstantLiteralReceiver(node) {
 // safe to reference twice (see `isReReferenceableReceiver`); a member / call receiver, a computed or
 // non-literal nesting key, a non-matching RHS hop (incl. a spread that shifts array indices), or a missing
 // key / hole bails to null.
+// `allowSeFreeMember` opens the receiver to a side-effect-free MEMBER (`Array.prototype`): a member read is
+// pure to `mayHaveSideEffects`, but a getter would re-fire on a SECOND read - so callers pass it ONLY when
+// the receiver is read exactly ONCE (an `eliminateResidual` extraction), where the getter fires once like
+// native. the double-read assignment-overwrite consumer keeps the default (members stay safe-bailed).
 // AST-agnostic and path-API-agnostic: both babel and estree paths expose `.parentPath` / `.node`, the
 // field names match, and the only divergent node type (object property: babel `ObjectProperty` / estree
 // `Property`) is accepted both ways - so ONE implementation serves both emitters. `unwrapExpressionChain`
 // peels transparent wrappers (parens / TS casts) off the RHS and each value, so a parenthesized object
 // literal or value (`= ({ y: arr })` / `{ y: (arr) }`) resolves the same way - babel folds parens into
 // node `extra`, estree keeps a `ParenthesizedExpression`, and without peeling the two would diverge
-export function resolveNestedReceiverNode(leafPath) {
+export function resolveNestedReceiverNode(leafPath, { allowSeFreeMember = false } = {}) {
   const segs = [];
   let pattern = leafPath.parentPath;
   while (pattern?.node?.type === 'ObjectPattern' || pattern?.node?.type === 'ArrayPattern') {
@@ -610,7 +675,13 @@ export function resolveNestedReceiverNode(leafPath) {
         node = unwrapExpressionChain(element);
       }
     }
-    return isReReferenceableReceiver(node) ? node : null;
+    if (isReReferenceableReceiver(node)) return node;
+    // a side-effect-free member (`Array.prototype`, `obj.props`) is sound for a single-read extraction:
+    // its getter (if any) fires once, matching native. computed-key / call members carry effects and are
+    // rejected by `mayHaveSideEffects`
+    if (allowSeFreeMember && (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
+      && !mayHaveSideEffects(node)) return node;
+    return null;
   }
   return null;
 }

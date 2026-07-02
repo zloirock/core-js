@@ -1,12 +1,15 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { subsume } from './subsumption.js';
 import {
+  FUNCTION_LIKE_NODE_TYPES,
+  isVarScopeBoundary,
   memberKeyName,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
   SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
   unwrapRuntimeExpr,
+  walkAstChildren,
 } from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
@@ -108,19 +111,291 @@ function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
     return aliasInitResolvesToGlobal(node.left, scope, adapter, injector)
       || aliasInitResolvesToGlobal(node.right, scope, adapter, injector);
   }
+  // an array-wrapped alias (`const [{ Map: M }] = [globalThis]`) leaves an ArrayExpression init; an
+  // element resolving to a global keeps the guard's established bar (receiver-is-global, key-blind).
+  // needed post-consumption: babel's flatten empties the pattern slot before the member visit, so this
+  // stale init is the only walkable evidence that the registered alias is THIS binding, not a shadow
+  if (node.type === 'ArrayExpression') {
+    return node.elements.some(el => el && el.type !== 'SpreadElement'
+      && aliasInitResolvesToGlobal(el, scope, adapter, injector));
+  }
   return false;
+}
+
+// a bare same-name redeclaration (`var { Map: M } = g; var M;`) writes NO value, yet babel
+// records its declarator as a constantViolation - a phantom for every value-flow consumer
+// (the estree side's recomputed walk records only write shapes, so the emitters diverge).
+// filter it so the alias binding-shape guard and the trust predicates see real writes only
+export function withoutValuelessDeclarationViolations(violations) {
+  if (!violations?.length) return violations;
+  const filtered = violations.filter(v => {
+    const node = v?.node ?? v;
+    return !(node?.type === 'VariableDeclarator' && !node.init);
+  });
+  return filtered.length === violations.length ? violations : filtered;
 }
 
 // shared shadow guard for a `registerGlobalAlias` destructure-alias (`info.source === null`): the binding
 // must be an un-reassigned VariableDeclarator whose init resolves to the destructured global. used by both
 // plugin adapters (babel mutates the init in place, unplugin keeps the source init) so a proxy-global alias
 // re-polyfills its member reads regardless of declaration kind - a const-only gate dropped `let` / for-init
-// aliases. callers pass their parser-specific binding (`.path.node` declarator + `.constantViolations`)
+// aliases. callers pass their parser-specific binding (`.path.node` declarator + `.constantViolations`).
+// an ASSIGNMENT-form alias (`let M; ({ Map: M } = globalThis)`) is accepted only through its REGISTERED
+// trusted write (`info.aliasWrite`, recorded when the registration verified cleanliness + unconditional
+// placement with the binding alive): the init-less declarator carries the global in that single write,
+// so every violation must fall inside its span - any OTHER write makes the value flow-dependent -> native
 export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector }) {
-  return info?.source === null
-    && binding?.path?.node?.type === 'VariableDeclarator'
-    && !binding.constantViolations?.length
-    && aliasInitResolvesToGlobal(binding.path.node.init, scope, adapter, injector);
+  if (info?.source !== null || binding?.path?.node?.type !== 'VariableDeclarator') return false;
+  const { init } = binding.path.node;
+  const violations = binding.constantViolations ?? [];
+  if (init) return !violations.length && aliasInitResolvesToGlobal(init, scope, adapter, injector);
+  // duplicate-var SPLIT ANCHOR (`var M; var { Map: M } = g;`): the binding hangs off the bare
+  // declarator while the value-writing same-name redeclaration carries the global - accept
+  // exactly one writing declarator, alias-shaped (same key-blind receiver-is-global bar as the
+  // init arm), with no other real writes
+  if (!info.aliasWrite && violations.length === 1) {
+    const write = violations[0]?.node ?? violations[0];
+    if (write?.type === 'VariableDeclarator') {
+      return !!write.init && aliasInitResolvesToGlobal(write.init, scope, adapter, injector);
+    }
+  }
+  if (!info.aliasWrite || !violations.length) return false;
+  return violations.every(v => {
+    const node = v?.node ?? v;
+    return node?.start >= info.aliasWrite.start && node?.end <= info.aliasWrite.end;
+  });
+}
+
+// registration-time gate for an ASSIGNMENT-form ctor alias (`let M; ({ Map: M } = globalThis)`): register
+// the alias hint ONLY when, with the binding still alive, the write is provably the binding's sole value
+// source on every path reaching later reads:
+//   - the declarator is init-less (an initialized `var M = x; ({ Map: M } = globalThis)` has a second
+//     value source - flow-dependent)
+//   - every recorded write falls inside THIS assignment's span (cleanliness)
+//   - the host statement's placement is unconditional (a conditional write - `if (c) ({Map:M} = gt)` -
+//     leaves the native undefined on the untaken path; narrowing a later member read would un-throw it)
+// a rejected registration keeps the destructure swap itself (value-correct in write order) but leaves
+// member reads native. the recorded write span is what `isPolyfillAliasBinding` matches violations against
+export function maybeRegisterAssignmentAliasWrite({ injector, binding, localName, hint, assignNode, stmtPath }) {
+  const bindingNode = binding?.node ?? binding?.path?.node ?? null;
+  const scopeSpan = enclosingFunctionSpan(stmtPath);
+  if (!assignmentAliasWriteTrusted({ binding, assignNode, stmtPath })) {
+    // refused flow-trust: register the binding as GUARDED - its member reads stay native
+    injector.registerGlobalAlias(localName, hint, { bindingNode, guarded: true, scopeSpan });
+    return false;
+  }
+  // `verified`: the trust predicate examined the binding's COMPLETE original write set - a
+  // use-site identity hit may skip the live shape check (any later violation is our own swap).
+  // decl-form registrations stay UNVERIFIED: their gate judges placement only, so a same-name
+  // redeclaration write must still be caught live
+  injector.registerGlobalAlias(localName, hint, {
+    bindingNode, write: { start: assignNode.start, end: assignNode.end }, scopeSpan, verified: true,
+  });
+  return true;
+}
+
+// the trust predicate behind the checked registration AND the resolver's lazy write lookup: the
+// binding must be an init-less declarator whose EVERY write falls inside THIS assignment (sole value
+// source), placed unconditionally in the binding's own function/module scope (a nested-function or
+// control-guarded write may never run - see `unconditionalStatementPlacement`). accepts either an
+// adapter-normalized binding (`.node`) or a raw scope binding (`.path.node`)
+export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath }) {
+  const declarator = binding?.node ?? binding?.path?.node;
+  if (declarator?.type !== 'VariableDeclarator' || declarator.init) return false;
+  const violations = binding.constantViolations ?? [];
+  if (!violations.length || !violations.every(v => {
+    const node = v?.node ?? v;
+    return node?.start >= assignNode.start && node?.end <= assignNode.end;
+  })) return false;
+  return unconditionalStatementPlacement(stmtPath, declarator);
+}
+
+// plan-level trust registration for ctor-alias extractions (`kind: 'global'`): run the checked
+// registration once per plan (assignment host -> single trusted write; declaration host -> `var`-
+// placement rule; a BINDING-LESS name - `({ Promise } = globalThis)` writing the global itself -
+// registers trusted, there is no user binding whose writes could contradict the hint). a REFUSED
+// registration only withholds the member-narrow HINT: the value swap itself stays - it is value-
+// correct on every path (the polyfill lands exactly when the native write would run), and dropping
+// it would strip the polyfill from conditional forms (`while (c) var { Promise } = globalThis`).
+// registrations happen HERE (render sites must not re-register - a plain re-register would erase a
+// trusted write span); `aliasGated` makes the cached-plan re-entry a no-op
+export function registerCtorAliasExtractions({ plan, declarator, scope, adapter, injector, path }) {
+  if (!plan || plan.aliasGated) return plan;
+  plan.aliasGated = true;
+  const isAssignmentHost = declarator?.type !== 'VariableDeclarator';
+  for (const node of plan.outerProps) {
+    for (const e of node.extractions ?? []) {
+      if (e.kind !== 'global') continue;
+      const binding = adapter.getBinding(scope, e.localName, path);
+      if (!binding?.node && !binding?.path) {
+        injector.registerGlobalAlias(e.localName, e.hint, { trusted: true });
+      } else if (isAssignmentHost) {
+        maybeRegisterAssignmentAliasWrite({
+          injector, binding, localName: e.localName, hint: e.hint,
+          assignNode: { start: declarator.id.start, end: declarator.init.end }, stmtPath: path,
+        });
+      } else {
+        registerDeclAliasIfSound({
+          injector, kind: binding?.kind, localName: e.localName, hint: e.hint, stmtPath: path,
+          bindingNode: binding?.node ?? binding?.path?.node ?? null, binding,
+        });
+      }
+    }
+  }
+  return plan;
+}
+
+// enumerate TOP-LEVEL `{ GlobalCtor: local }` pairs of a destructure whose source resolves to a
+// proxy global - the registerable ctor-alias surface. nested pattern values, defaults and computed
+// keys are not ctor aliases (their value is not the global member on every path), so they don't
+// register; the array-wrapped form walks one ObjectPattern level under an ArrayPattern
+function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
+  if (!init || !aliasInitResolvesToGlobal(unwrapInitForResolution(init), scope, adapter, injector)) return [];
+  const pairs = [];
+  function collectFromObjectPattern(pat) {
+    for (const prop of pat.properties ?? []) {
+      if ((prop.type !== 'Property' && prop.type !== 'ObjectProperty') || prop.computed) continue;
+      const key = prop.key?.name ?? (typeof prop.key?.value === 'string' ? prop.key.value : null);
+      if (key && prop.value?.type === 'Identifier') pairs.push({ localName: prop.value.name, hint: key });
+    }
+  }
+  if (pattern?.type === 'ObjectPattern') collectFromObjectPattern(pattern);
+  else if (pattern?.type === 'ArrayPattern') {
+    for (const el of pattern.elements ?? []) if (el?.type === 'ObjectPattern') collectFromObjectPattern(el);
+  }
+  return pairs;
+}
+
+// pre-pass registration of one destructure-of-global site (assignment or declaration form),
+// through the SAME trust gates the render-time registration used - but BEFORE any member visit,
+// so a use textually earlier than its write (a hoisted-var read, an earlier-defined closure)
+// still resolves the alias table instead of silently missing a registration that happens later
+// in visit order. `isKnownGlobal` keeps the table's bar: only resolvable global ctor keys register
+export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, scope, adapter, injector, path, isKnownGlobal }) {
+  for (const { localName, hint } of collectCtorAliasPairs({ pattern, init, scope, adapter, injector })) {
+    if (!isKnownGlobal(hint)) continue;
+    const binding = adapter.getBinding(scope, localName, path);
+    if (!binding?.node && !binding?.path) {
+      injector.registerGlobalAlias(localName, hint, { trusted: true });
+    } else if (assignNode) {
+      maybeRegisterAssignmentAliasWrite({ injector, binding, localName, hint, assignNode, stmtPath: path });
+    } else {
+      registerDeclAliasIfSound({
+        injector, kind: declKind, localName, hint, stmtPath: path,
+        bindingNode: binding?.node ?? binding?.path?.node ?? null, binding,
+      });
+    }
+  }
+}
+
+// cheap scope-less gate for the alias pre-pass: does the file contain any destructure whose
+// source COULD be a proxy global (assignment with a pattern LHS, or an initialized declarator
+// with a pattern id)? most files have neither and skip the scoped traverse entirely
+export function hasCtorAliasCandidateShapes(programNode) {
+  let found = false;
+  const work = [programNode];
+  while (work.length && !found) {
+    const node = work.pop();
+    if (!node || typeof node !== 'object') continue;
+    if (node.type === 'AssignmentExpression' && node.operator === '='
+      && (node.left?.type === 'ObjectPattern' || node.left?.type === 'ArrayPattern')) found = true;
+    else if (node.type === 'VariableDeclarator' && node.init
+      && (node.id?.type === 'ObjectPattern' || node.id?.type === 'ArrayPattern')) found = true;
+    else walkAstChildren(node, child => work.push(child));
+  }
+  return found;
+}
+
+// a statement placement that provably executes whenever its enclosing function (or module body) runs:
+// only plain blocks between the statement and the function/program boundary. any control structure on
+// the way (if / loops / try / switch / labeled bodies) makes execution path-dependent -> false.
+// the walk starts at the statement's PARENT (the statement node itself - ExpressionStatement /
+// VariableDeclaration - is not judged)
+const STATEMENT_HOST_TYPES = new Set(['ExpressionStatement', 'VariableDeclaration']);
+function unconditionalStatementPlacement(stmtPath, withinNode = null) {
+  // callers pass paths at different depths (a declarator, the assignment, its statement) -
+  // normalize by climbing to the hosting statement first, judging every EDGE on the way: a
+  // conditional expression container (`c ? ({ Map: M } = g) : 0`, `c && ({ Map: M } = g)`) or a
+  // function boundary (an expression-body arrow `() => ({ Map: M } = g)`) makes the write run on
+  // one branch / an unknown call even though the statement placement itself is unconditional.
+  // sequence / call-argument / object- and array-literal / await positions evaluate whenever the
+  // statement runs, so they pass through; then judge the statement's ancestors
+  let stmt = stmtPath;
+  while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) {
+    const parent = stmt.parentPath;
+    const parentType = parent?.node?.type;
+    if (parentType && !STATEMENT_HOST_TYPES.has(parentType)) {
+      if (FUNCTION_LIKE_NODE_TYPES.has(parentType)) return false;
+      if (parentType === 'ConditionalExpression' && parent.node.test !== stmt.node) return false;
+      if (parentType === 'LogicalExpression' && parent.node.left !== stmt.node) return false;
+    }
+    stmt = parent;
+  }
+  for (let cur = stmt?.parentPath; cur; cur = cur.parentPath) {
+    const type = cur.node?.type;
+    // terminate on any VAR-SCOPE OWNER (function-likes, class static block, TS namespace body,
+    // program): a statement placed directly in one executes whenever that unit runs
+    if (isVarScopeBoundary(type)) {
+      // `withinNode` (the alias declarator) must live in THIS terminator's span - else the
+      // statement sits in a nested function relative to the binding and may never execute
+      return !withinNode || type === 'Program'
+        || (withinNode.start >= cur.node.start && withinNode.end <= cur.node.end);
+    }
+    if (type !== 'BlockStatement') return false;
+  }
+  return false;
+}
+
+// registration gate for a DECLARATION-form ctor alias: a hoisted `var` alias declared under a
+// conditional (`if (c) { var { Map: M } = globalThis }`) binds everywhere but assigns on one path -
+// a member narrow through the hint would un-throw the untaken path, so it stays native. `let` /
+// `const` are block-scoped (an out-of-block use never resolves the binding), so only `var` pays
+// the placement walk
+// a TRUSTED write / declaration supports a STATIC narrow only for a use textually AFTER its
+// span end: a hoisted-var read or an earlier-defined closure body runs pre-assignment, and a
+// static narrow there would un-throw it - those uses stay NATIVE. textually-later uses keep the
+// static narrow (the locked decl canon: a later closure hoisted above its own definition and
+// called pre-write is the accepted TDZ-class edge). callers without a use position keep the
+// registration-only behavior
+// span of the function (or program) hosting the registration statement: the name-fallback view
+// disambiguates same-name entries positionally - a use belongs to an entry whose hosting scope
+// contains it. spans, not scope objects: the fallback runs exactly when the live scope is
+// unavailable (babel scope-tracker lag after `replaceWith`)
+export function enclosingFunctionSpan(stmtPath) {
+  for (let cur = stmtPath; cur; cur = cur.parentPath) {
+    if (isVarScopeBoundary(cur.node?.type)) {
+      return { start: cur.node.start, end: cur.node.end };
+    }
+  }
+  return null;
+}
+
+export function aliasSpanDominatesUse({ info, useStart }) {
+  const span = info?.aliasWrite ?? info?.aliasDeclSpan;
+  return !span || useStart === null || useStart > span.end;
+}
+
+export function registerDeclAliasIfSound({ injector, kind, localName, hint, stmtPath, bindingNode = null, binding = null }) {
+  let stmt = stmtPath;
+  while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) stmt = stmt.parentPath;
+  const declSpan = stmt?.node ? { start: stmt.node.start, end: stmt.node.end } : null;
+  const scopeSpan = enclosingFunctionSpan(stmtPath);
+  if (kind === 'var' && !unconditionalStatementPlacement(stmtPath)) {
+    // refused flow-trust (conditional hoisted `var`): the binding's member reads stay native
+    injector.registerGlobalAlias(localName, hint, { bindingNode, guarded: true, scopeSpan });
+    return false;
+  }
+  // `verified`: the registration examined the binding's COMPLETE original write set - no real
+  // write beyond the registering declaration itself (a same-name redeclaration write / a later
+  // assignment refuses). a verified entry may serve the scope-lag NAME fallback: any violation
+  // appearing after registration is our own swap, and the declSpan dominance gate still applies
+  const violations = withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [];
+  const verified = violations.every(violation => {
+    const node = violation?.node ?? violation;
+    return node === bindingNode || (declSpan && node?.start >= declSpan.start && node?.end <= declSpan.end);
+  });
+  injector.registerGlobalAlias(localName, hint, { bindingNode, declSpan, scopeSpan, verified });
+  return true;
 }
 
 // does the destructure RHS resolve to the Symbol constructor SPECIFICALLY? `aliasInitResolvesToGlobal`

@@ -25,6 +25,7 @@ import {
   sequencePrefixWithSideEffects,
   singleQuasiString,
   singleReturnBodyExpression,
+  spreadAtOrBefore,
   synthSwapPropKey,
   SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
@@ -310,7 +311,17 @@ function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = 
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
   const hint = binding?.polyfillHint;
-  if (hint && (CAPITALISED_IDENT.test(hint) || POSSIBLE_GLOBAL_OBJECTS.has(hint))) return hint;
+  if (hint && (CAPITALISED_IDENT.test(hint) || POSSIBLE_GLOBAL_OBJECTS.has(hint))) {
+    // pure only - the hint drives a receiver-dropping rewrite, so it must be flow-sound at THIS use;
+    // global / entry modes inject side-effect imports and stay sound regardless (over-inject-safe).
+    // an `aliasWrite` hint was verified flow-sound at REGISTRATION (single clean write, unconditional
+    // same-scope placement), matching the decl canon (which likewise narrows closure uses without an
+    // execution-order proof); a hoisted-var alias declarator must additionally DOMINATE the use
+    // (`if (c) { var { Map: M } = globalThis } M.groupBy` binds everywhere but assigns on one path)
+    const hintFlowSound = adapter.method !== 'usage-pure' || binding.aliasWrite || !binding.node
+      || varInitDominatesUsage({ declaratorNode: binding.node, usagePath: path, kind: binding.kind });
+    if (hintFlowSound) return hint;
+  }
   const bindingType = adapter.getBindingNodeType(scope, name, path);
   // imports without a polyfillHint don't map to a known global (their binding could point at
   // any user-imported value); param / catch / class name fall through to the final null
@@ -338,6 +349,26 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // resolving it. `usageNode` anchors the dominance at THIS hop's read site for a multi-hop alias
   // (`let a = Array; const b = a; a = Map; b.from()` - `a = Map` is after `const b = a`, so it does not
   // kill the value `b` captured). the bail returns early, before the `.node.init/.id` deref below
+  // assignment-form ctor alias (`let M; ({ Map: M } = globalThis); M.groupBy`): the binding's single
+  // TRUSTED write (adapter-verified: clean, unconditionally placed in the binding's own scope) carries
+  // the destructured global - resolve `name` through the write's own pattern, symmetric to the
+  // declarator-init branches below. runs BEFORE the reassignment bail: the sole trusted write IS the
+  // value source, not a flow hazard. works pre-registration too (a closure body visited before the
+  // write's statement still resolves, matching the decl canon's static pattern walk)
+  if (!binding.node?.init && binding.node?.id?.type === 'Identifier' && adapter.findTrustedAliasWrite) {
+    const write = adapter.findTrustedAliasWrite(scope, name);
+    // pure only + the use must sit textually AFTER the write: a hoisted-var read or an
+    // earlier-defined closure body runs pre-assignment, and a static narrow there would
+    // un-throw it (mirrors the registration-table dominance gate)
+    if (write && (adapter.method !== 'usage-pure' || (path?.node?.start ?? 0) > write.end)) {
+      const alias = write.left?.type === 'ObjectPattern'
+        ? resolveProxyGlobalDestructureAlias({ pattern: write.left, init: write.right, name, scope, adapter, seen, path, usageNode })
+        : write.left?.type === 'ArrayPattern'
+          ? resolveArrayWrappedProxyGlobalAlias({ pattern: write.left, init: write.right, name, scope, adapter, seen, path, usageNode })
+          : null;
+      if (alias) return alias;
+    }
+  }
   if (isReassignedBeyondDeclarator(binding) && reassignBailApplies({ binding, adapter, path, usageNode })) return null;
   // a function-scoped `var` whose assignment is conditional (`if (c) { var M = globalThis }`)
   // holds the global only on paths through that branch. usage-pure rewrites `M.Array.from` to a
@@ -361,6 +392,14 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // (`{ Symbol } = globalThis`) is the only exception - aliases to the property key
   if (pattern?.type === 'ObjectPattern' && init) {
     const alias = resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path, usageNode });
+    if (alias) return alias;
+  }
+  // an array-wrapped proxy-global alias (`const [{ Array: A }] = [globalThis]`) nests the alias
+  // ObjectPattern inside an ArrayPattern, paired positionally to a proxy-global init element. peel
+  // the wrapper to that (ObjectPattern, init) pair and resolve like the flat ObjectPattern form -
+  // else the member off the alias (`A.from`) never resolves, so pure keeps the native static
+  if (pattern?.type === 'ArrayPattern' && init) {
+    const alias = resolveArrayWrappedProxyGlobalAlias({ pattern, init, name, scope, adapter, seen, path, usageNode });
     if (alias) return alias;
   }
   // a destructure that binds `name` to an element / value which is ITSELF a global
@@ -417,6 +456,30 @@ function resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapte
   const receiver = resolveObjectName({ objectNode: init, scope, adapter, seen, path, usageNode: init });
   if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
   return walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode });
+}
+
+// descend array-wrapper layers pairing each pattern element to its init element positionally: an
+// ObjectPattern slot resolves via the flat proxy-global alias path, a nested ArrayPattern recurses.
+// `const [{ Array: A }] = [globalThis]` (and deeper `[[{ Array: A }]] = [[globalThis]]`) resolve `A`
+// to its property key just like the un-wrapped `{ Array: A } = globalThis`. a spread at/before the
+// slot breaks positional pairing, so that slot is skipped
+function resolveArrayWrappedProxyGlobalAlias({ pattern, init, name, scope, adapter, seen, path, usageNode = null }) {
+  if (pattern?.type !== 'ArrayPattern' || init?.type !== 'ArrayExpression') return null;
+  for (let i = 0; i < pattern.elements.length; i++) {
+    const raw = pattern.elements[i];
+    const slot = raw?.type === 'AssignmentPattern' ? raw.left : raw;
+    if (!slot || spreadAtOrBefore(init.elements, i)) continue;
+    const paired = init.elements[i];
+    if (!paired) continue;
+    if (slot.type === 'ObjectPattern') {
+      const alias = resolveProxyGlobalDestructureAlias({ pattern: slot, init: paired, name, scope, adapter, seen, path, usageNode });
+      if (alias) return alias;
+    } else if (slot.type === 'ArrayPattern') {
+      const alias = resolveArrayWrappedProxyGlobalAlias({ pattern: slot, init: paired, name, scope, adapter, seen, path, usageNode });
+      if (alias) return alias;
+    }
+  }
+  return null;
 }
 
 function walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode = null }) {

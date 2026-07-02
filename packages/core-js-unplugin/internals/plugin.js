@@ -48,7 +48,7 @@ import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js
 import {
   pathContainedBy,
   withoutPhantomDeclarationViolations,
-  collectMutationPrePass,
+  collectAliasPrePass, collectMutationPrePass,
   createEstreeAdapter,
   createUsageVisitors,
   createSyntaxVisitors,
@@ -270,8 +270,15 @@ export default function createPlugin(options) {
   // `options.method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
   const estreeAdapter = createEstreeAdapter(() => currentInjector, options.method, () => currentMutatedStatics);
   const typeResolvers = createResolveNodeType(nodeType, types, {
-    getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
-    getPolyfillBindingHint: (scope, name) => currentInjector?.getBindingInfo?.(name)?.hint ?? null,
+    // guarded alias hints must not feed the type channel - see the babel twin
+    getPolyfillBindingEntry: (scope, name) => {
+      const info = currentInjector?.getBindingInfo?.(name);
+      return info && !info.aliasGuarded ? info.entry : null;
+    },
+    getPolyfillBindingHint: (scope, name) => {
+      const info = currentInjector?.getBindingInfo?.(name);
+      return info && !info.aliasGuarded ? info.hint : null;
+    },
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
     // a monkey-patched static no longer returns its known type - drop the static-call return narrow
     // to generic so a patched `Array.from(x).at(0)` isn't type-locked to `_atMaybeArray`
@@ -630,6 +637,11 @@ export default function createPlugin(options) {
           resolvePure: resolvePureUnfiltered,
           injectPureImport: (entry, hint) => injector.trackReferencedName(injectPureImport(entry, hint)),
         });
+        // early ctor-alias registration (visit-order independence) - see the babel twin
+        collectAliasPrePass({
+          ast, adapter: estreeAdapter, injector, isDisabled,
+          isKnownGlobal: name => !!resolvePure({ kind: 'global', name }, null),
+        });
       }
 
       function finalize() {
@@ -858,6 +870,8 @@ export default function createPlugin(options) {
           isDisabled,
           nodeSrc,
           resolveGlobalPolyfill,
+          resolveNodeType: typeResolvers.resolveNodeType,
+          toHint: typeResolvers.toHint,
           resolvePure,
           resolveReceiverSource,
           scopeTracker,
@@ -929,6 +943,19 @@ export default function createPlugin(options) {
           collapseProxyHopRoot(rootPath);
         }
 
+        // write-position bails for a property member usage: update / for-x targets, any
+        // AssignmentExpression LHS - including compound (`obj.at += X`; the read could be
+        // polyfilled, but the write would hit the const polyfill binding - bail to keep both
+        // halves consistent) - and the shared write-only destructure contexts (default-pattern
+        // `{a: obj.at = 1}`, array-pattern `[obj.at] = src`, and the assignment-target shape
+        // parsers emit as ArrayExpression: `[super.from] = src` would otherwise rewrite to a
+        // frozen import binding and throw "Assignment to constant variable" at runtime)
+        function memberWritePositionBails(node, parent, metaPath) {
+          return isUpdateTarget(parent) || isForXWriteTarget(metaPath)
+            || (parent?.type === 'AssignmentExpression' && parent.left === node)
+            || isMemberWriteOnlyContext(node, parent, metaPath.parentPath?.parent);
+        }
+
         function usagePureCallback(meta, metaPath) {
           // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
@@ -960,18 +987,7 @@ export default function createPlugin(options) {
               return handleDestructuringPure(meta, metaPath, node);
             }
             if (node.type !== 'MemberExpression') return;
-            if (isUpdateTarget(parent)) return;
-            if (isForXWriteTarget(metaPath)) return;
-            // any AssignmentExpression LHS - including compound (`obj.at += X`, `obj.at ||= X`).
-            // compound reads the LHS too, so the read could be polyfilled, but the write would
-            // hit the const polyfill binding. bail conservatively to keep both halves consistent
-            if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-            // shared write-context check: covers default-pattern destructure (`{a: obj.at = 1}`),
-            // array-pattern destructure (`[obj.at] = src`), AND the assignment-target shape
-            // parsers emit as ArrayExpression (`[super.from] = src`). without this gate,
-            // `[super.from] = [...]` would rewrite `super.from` to the polyfill import (a frozen
-            // binding), causing "Assignment to constant variable" at runtime
-            if (isMemberWriteOnlyContext(node, parent, metaPath.parentPath?.parent)) return;
+            if (memberWritePositionBails(node, parent, metaPath)) return;
             // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
             // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
             if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;

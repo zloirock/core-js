@@ -35,7 +35,10 @@ import {
   resolveCallArgument,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isPolyfillAliasBinding, isSymbolDestructureAliasBinding } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding,
+  withoutValuelessDeclarationViolations,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -129,10 +132,16 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       // excludes `declare X` (ambient - runtime supplied externally; polyfill should fire)
       const anchor = path ?? scope.path ?? null;
       if (anchor && findTSRuntimeBindingInPath(anchor, name)) return true;
-      // plugin-managed pure-import alias / user destructure aliases
-      return !!getInjector()?.getBindingInfo(name);
+      // plugin-managed pure-import alias / user destructure aliases: presence only - trust and
+      // disambiguation happen at the `getBinding` lookup; scope-bound so a same-named local
+      // alias in ANOTHER function doesn't shadow a direct global use here
+      return !!getInjector()?.hasAliasName?.(name, path?.node?.start ?? null);
     },
-    getBinding(scope, name) {
+    getBinding(scope, name, path = null) {
+      // use anchor for the trusted-span dominance gate: a use textually BEFORE its alias write /
+      // declaration must not narrow statically (it runs pre-assignment); callers without a path
+      // keep the registration-only behavior
+      const useStart = path?.node?.start ?? null;
       // `polyfillHint` lets `resolveBindingToGlobal` walk back to the source global through:
       // (a) injector's pure-import table - `_Symbol` / `_globalThis` after in-place AST
       // rewrite; (b) globalAlias table - user destructure aliases (`{Symbol: S} = globalThis`
@@ -146,8 +155,12 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       // otherwise pick up `polyfillHint='Promise'` cross-shadow, and downstream
       // `resolveBindingToGlobal` would dispatch `super.try` on `class extends MyPromise`
       // as the Promise polyfill - silently miswiring user code
-      const info = getInjector()?.getBindingInfo(name) ?? null;
       const b = scope.getBinding(name);
+      // binding-first: the per-binding registry is exact (same-name aliases in sibling scopes
+      // never collide); the NAME view serves the scope-lag fallback below and the
+      // replaced-declarator re-anchor, disambiguated positionally by the use anchor
+      const identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node) ?? null : null;
+      const info = identityInfo ?? getInjector()?.getBindingInfo(name, useStart) ?? null;
       if (b) {
         const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
         const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
@@ -155,18 +168,63 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // actual scope binding IS that import. `info.source === null` is a destructure-alias from
         // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
         // to the destructured global, any declaration kind) and rejects user-declared shadows
-        const isAliasBindingShape = isPolyfillAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() });
-        const polyfillHint = info && (isAliasBindingShape || isImportBinding) ? info.hint : null;
+        const constantViolations = withoutValuelessDeclarationViolations(b.constantViolations);
+        // a VERIFIED identity hit needs no live shape verification: the registration judged the
+        // binding's COMPLETE original write set at pre-pass time, and any violation appearing
+        // since is our own mutation (the value swap), not user flow. decl-form entries stay
+        // live-checked (their gate judged placement only - a redeclaration write must be caught)
+        const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
+          info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(),
+        });
+        // a GUARDED registration means flow-trust was REFUSED - the hint must never drive a
+        // direct narrow (babel's mutated `var M = _Map` declarator is indistinguishable from a
+        // clean alias here); the member read stays native. the dominance gate keeps a use
+        // textually BEFORE its trusted write / declaration native too
+        const polyfillHint = info && !info.aliasGuarded && (isAliasBindingShape || isImportBinding)
+          && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
         // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it
         // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module
         // source so `bindingSymbolKey` can fold `obj[iterator]`. the shadow gate rejects a nested
         // same-name binding whose RHS is not Symbol (the name-keyed injector info is flat)
         const aliasSymbolSource = isSymbolDestructureAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() })
           ? info.source : null;
-        return { node: b.path.node, kind: b.kind, constantViolations: b.constantViolations, importSource, polyfillHint, aliasSymbolSource };
+        return {
+          node: b.path.node, kind: b.kind, constantViolations, importSource,
+          polyfillHint, aliasSymbolSource, aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
+        };
       }
       if (!info) return null;
-      return { node: null, constantViolations: null, importSource: info.source, polyfillHint: info.hint };
+      // hint-only fallback (no scope binding - babel scope-tracker lag after `replaceWith`): trust the
+      // hint only for a real pure import (`_Map`), a TRUSTED alias (a plugin-minted `_ref` memo /
+      // a binding-less global write - nothing user-rebindable), or a checked assignment-form write.
+      // a plain USER-binding alias here is a binding whose writes we cannot see without a scope
+      // binding - it would pick up the hint past a reassignment and narrow the member over the
+      // user's own value. usage-pure bails on any reassignment, so the blind user-alias hint bails too
+      // a VERIFIED registration (complete original write set examined at pre-pass) may serve
+      // the lag fallback too - the declSpan/write dominance gate below still bounds the use
+      const blindTrusted = info.source !== null || info.aliasTrusted || !!info.aliasWrite || !!info.aliasVerified;
+      return {
+        node: null, constantViolations: null, importSource: info.source,
+        polyfillHint: blindTrusted && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null,
+        aliasWrite: info.aliasWrite ?? null,
+      };
+    },
+    // lazy lookup for the resolver's assignment-form alias branch: the single TRUSTED write
+    // (clean, unconditionally placed in the binding's own scope) of an init-less binding, as its
+    // AssignmentExpression node - or null. computed on demand (only init-less Identifier-pattern
+    // bindings reach the resolver branch), so ordinary getBinding calls pay nothing
+    findTrustedAliasWrite(scope, name) {
+      const b = scope.getBinding(name);
+      if (!b || b.path.node?.type !== 'VariableDeclarator' || b.path.node.init) return null;
+      const violations = withoutValuelessDeclarationViolations(b.constantViolations);
+      const first = violations?.[0];
+      const assignPath = first?.isAssignmentExpression?.() ? first : first?.findParent?.(pp => pp.isAssignmentExpression());
+      const assignNode = assignPath?.node;
+      if (!assignNode) return null;
+      // the ASSIGNMENT path itself: the placement walk judges every edge up to the statement,
+      // so a conditional expression container between them refuses flow-trust
+      return assignmentAliasWriteTrusted({ binding: { ...b, constantViolations: violations }, assignNode, stmtPath: assignPath })
+        ? assignNode : null;
     },
     getBindingNodeType(scope, name) {
       // `?.path` defense - virtual bindings (plugin-injected pure imports before scope.crawl)
