@@ -28,7 +28,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { discardRescueNode } from './members.js';
+import { discardRescueNodes } from './members.js';
 import { isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName } from './resolve.js';
 import {
   destructureRightIsReceiver, fallbackInitWhollyDiscardable, isUndefinedNode, resolveBranchProxyName, walkStaticReceiverChain,
@@ -407,9 +407,10 @@ export function buildNestedDestructurePlan({
     // span guard: `peelArrayWrapperPair` may have DEREFERENCED a const-alias wrapper
     // (`const w = [(IIFE)()]; [{x}] = w`) whose init lives OUTSIDE the discarded slot - its
     // setup already runs at the alias declaration, so harvesting it would double-run
-    const probed = init ? discardRescueNode({ node: initBeforeCollapse, scope, adapter, path }) : null;
-    const discardSe = probed && declarator.init
-      && probed.start >= declarator.init.start && probed.end <= declarator.init.end ? probed : null;
+    const probed = init ? discardRescueNodes({ node: initBeforeCollapse, scope, adapter, path }) : [];
+    const inSlot = declarator.init
+      ? probed.filter(n => n.start >= declarator.init.start && n.end <= declarator.init.end) : [];
+    const discardSe = inSlot.length ? inSlot : null;
     const receiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
     if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
       // single-key proxy-hop ANCHOR: `{ K: <pattern> } = <proxy>` on a value-discarded host

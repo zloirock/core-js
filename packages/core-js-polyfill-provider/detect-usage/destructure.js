@@ -5,7 +5,6 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
-  collectFoldedReceiverSideEffects,
   findArrayWrappedDestructureHost,
   propBindingIdentifier,
   staticStringKey,
@@ -19,7 +18,6 @@ import {
   functionScopeBindsVarOrFunction,
   paramListReadsName,
   destructureReceiverSlot,
-  flattenableHostSlot,
   getFallbackBranchSlots,
   isChainAssignment,
   isTransparentDestructureWrapper,
@@ -35,7 +33,7 @@ import {
 import { isUsableFallbackReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
-import { collectFallbackCollapseLeftSe, discardRescueNode, seBearingChainRootCall } from './members.js';
+import { collectFallbackCollapseLeftSe, discardRescueNodes, seBearingChainRootCall } from './members.js';
 import {
   isCallShape,
   isStaticPlacement,
@@ -197,8 +195,7 @@ export function classifyCallBranchForSynth({ inner, scope, adapter, path }) {
   // `collectFoldedReceiverSideEffects` descends the entire receiver (the spine-only prefix walk on
   // `.object` missed computed keys, dropping the effect from the param-default synth)
   if ((inner?.type === 'MemberExpression' || inner?.type === 'OptionalMemberExpression')
-    && (collectFoldedReceiverSideEffects(inner).length
-      || discardRescueNode({ node: inner, scope, adapter, path }))) {
+    && discardRescueNodes({ node: inner, scope, adapter, path }).length) {
     return { callBranch: true, rescueSe: inner };
   }
   // a fallback-logical receiver (`(eff(), Array) || Set`, `IIFE().Array || Set`) whose resolved LEFT
@@ -1163,7 +1160,7 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
   // IDENTIFICATION uses the broad host predicate: an assignment-destructure in for-init / call-arg
   // / arrow-body position and a parameter DEFAULT (AssignmentPattern) all carry a real receiver
   // that usage-global must inject for. the pure flatten re-checks its own narrow host shape at
-  // emit (`flattenableHostSlot`) - identification gated on the EMIT predicate dropped the import
+  // emit - identification gated on the EMIT predicate dropped the import
   const slot = destructureReceiverSlot(host?.node);
   if (!slot) return null;
   const slotNode = host.node[slot];
@@ -1188,44 +1185,6 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
     // instead would silently lose the polyfill
     const resolved = resolveObjectName({ objectNode: leaf, scope: host.scope, adapter, path: host });
     return resolved && isStaticPlacement(resolved) ? resolved : null;
-  }
-  return null;
-}
-
-// observable node under the init slot a pure flatten would DISCARD: a chain-assignment (rescued
-// WHOLE - it updates a binding and may contain an SE-bearing call) or an SE-bearing chain-root
-// call. walks the same pattern-wrapper / Property-hop / array-layer descent the classification
-// resolvers walk, then probes the effective leaf. the pure emitters re-emit the returned node
-// ahead of the extraction (`const from = ((a = _globalThis), _Array$from)`) so the setup survives
-// the discard in native order; usage-global never discards, so it has no use for this.
-// depth cap shares the resolvers' walk bound - a deeper chain bails to null (no harvest,
-// callers keep their conservative path)
-export function flattenDiscardRescue(innerObjectPattern, adapter) {
-  let pattern = innerObjectPattern;
-  let allIndices = [];
-  for (let depth = 0; depth < STATIC_WALK_DEPTH; depth++) {
-    const { parent, indices } = peelDestructureWrappers(pattern);
-    allIndices = [...indices, ...allIndices];
-    const slot = flattenableHostSlot(parent?.node, parent);
-    if (slot) {
-      const slotNode = parent.node[slot];
-      if (!slotNode) return null;
-      // NO scope/adapter for the descent: a const-alias wrapper (`const w = [(IIFE)()]; [{x}] = w`)
-      // dereferences to an init that lives OUTSIDE the discarded slot - its setup already runs at
-      // the alias declaration, so harvesting it would double-run. only nodes physically inside the
-      // slot text are candidates; the span guard backs this up against any other escape
-      const descended = allIndices.length
-        ? descendArrayWrapperInit(slotNode, allIndices)
-        : slotNode;
-      if (!descended) return null;
-      const leaf = unwrapExpressionChain(descended);
-      if (!leaf) return null;
-      const rescue = discardRescueNode({ node: leaf, scope: parent.scope, adapter, path: parent });
-      return rescue && rescue.start >= slotNode.start && rescue.end <= slotNode.end ? rescue : null;
-    }
-    const parentType = parent?.node?.type;
-    if (parentType !== 'Property' && parentType !== 'ObjectProperty') return null;
-    pattern = parent.parentPath;
   }
   return null;
 }
