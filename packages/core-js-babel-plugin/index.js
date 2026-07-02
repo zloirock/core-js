@@ -22,7 +22,9 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
-import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  createClassHelpers, hasCtorAliasCandidateShapes, registerAliasPrePassSite, remapInheritedStaticMeta,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -147,8 +149,16 @@ export default function plugin(api, options) {
   // `registerGlobalAlias`, no standalone entry path) so the proxy-global recognizer reaches
   // `extends g.Array<...>` after the in-place `globalThis` -> `_globalThis` rewrite
   const typeResolvers = createResolveNodeType(node => node?.type, t, {
-    getPolyfillBindingEntry(scope, name) { return injector?.getBindingInfo?.(name)?.entry ?? null; },
-    getPolyfillBindingHint(scope, name) { return injector?.getBindingInfo?.(name)?.hint ?? null; },
+    // a GUARDED alias registration (refused flow-trust) must not feed the type channel: its
+    // hint would narrow member types over a flow the registration explicitly refused to trust
+    getPolyfillBindingEntry(scope, name) {
+      const info = injector?.getBindingInfo?.(name);
+      return info && !info.aliasGuarded ? info.entry : null;
+    },
+    getPolyfillBindingHint(scope, name) {
+      const info = injector?.getBindingInfo?.(name);
+      return info && !info.aliasGuarded ? info.hint : null;
+    },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
     // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
     // traversal, after init, so the deferred reference is safe
@@ -917,6 +927,8 @@ export default function plugin(api, options) {
           injectPureImport,
           isDisabled,
           resolvePropertyObjectType,
+          resolveNodeType,
+          toHint,
           skippedNodes,
           synthSwap,
           t,
@@ -982,6 +994,35 @@ export default function plugin(api, options) {
           // a duplicate (scan-before-enrich, mirroring unplugin). pure-only: it pins pure entries
           if (method === 'usage-pure') {
             enrichMutatedStatics({ mutatedStatics, resolvePure: resolvePureUnfiltered, injectPureImport });
+            // early ctor-alias registration (visit-order independence): a member use textually
+            // BEFORE its alias write (a hoisted-var read, an earlier-defined closure body) is
+            // visited before the destructure emitter would register the alias - pre-register every
+            // destructure-of-global site through the same trust gates, so the guarded/static narrow
+            // decision reads a complete table on every visit. runs on the post-split AST so
+            // minifier-collapsed shapes register like their split forms
+            if (hasCtorAliasCandidateShapes(path.node)) {
+              function isKnownGlobal(name) { return !!resolvePure({ kind: 'global', name }, path); }
+              path.traverse({
+                AssignmentExpression(p) {
+                  const { node } = p;
+                  if (node.operator !== '=' || isDisabled(node)
+                    || (node.left.type !== 'ObjectPattern' && node.left.type !== 'ArrayPattern')) return;
+                  registerAliasPrePassSite({
+                    pattern: node.left, init: node.right, assignNode: node,
+                    scope: p.scope, adapter, injector, path: p, isKnownGlobal,
+                  });
+                },
+                VariableDeclarator(p) {
+                  const { node } = p;
+                  if (!node.init || isDisabled(node)
+                    || (node.id.type !== 'ObjectPattern' && node.id.type !== 'ArrayPattern')) return;
+                  registerAliasPrePassSite({
+                    pattern: node.id, init: node.init, declKind: p.parent.kind,
+                    scope: p.scope, adapter, injector, path: p, isKnownGlobal,
+                  });
+                },
+              });
+            }
           }
         }
       }

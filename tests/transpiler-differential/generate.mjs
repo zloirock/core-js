@@ -665,6 +665,324 @@ function * generateSymbolIteratorAliasFold() {
   yield { ...snippet('symbol-iter-alias/shadow', shadow), strip: false };
 }
 
+// --- Proxy-global flatten leaf sharing a declaration with a side-effect-computed-key sibling ---
+// a proxy-global flatten leaf (`{ Array: { from } } = globalThis`) and an SE-computed-key sibling
+// (`{ [(SE, 'of')]: of } = Array`) live in ONE VariableDeclaration. the flatten owns the whole-
+// declaration render, so the SE-key extraction has to bake its value->sentinel rename into the residual
+// slice. a missed bake floated the rename and swapped extract<->sentinel: the polyfill bound a throwaway
+// (`_unused = _Array$of`) and the real `of` stayed native - `undefined` in the stripped realm where the
+// native static is gone (strip:true catches it). both declarator orders exercise the same claim path.
+const FLATTEN_SEKEY = [
+  { id: 'flatten-first', decl: "const { Array: { from } } = globalThis, { [(log.push('k'), 'of')]: of } = Array;" },
+  { id: 'sekey-first', decl: "const { [(log.push('k'), 'of')]: of } = Array, { Array: { from } } = globalThis;" },
+];
+function * generateFlattenSeKeySibling() {
+  for (const c of FLATTEN_SEKEY) {
+    const body = `(() => { ${ c.decl } return [typeof from, typeof of]; })()`;
+    yield { ...snippet(`flatten-sekey/${ c.id }`, body), strip: true };
+  }
+}
+
+// --- Array-wrapper proxy-global ctor-alias member ---
+// `const [{ Array: A }] = [globalThis]` binds A to globalThis.Array through an ArrayPattern wrapper;
+// the member off the alias (`A.from(...)`) must resolve like the un-wrapped `{ Array: A } = globalThis`.
+// a missed trace kept the native static (`A.from` undefined in the stripped realm -> a throw). a global
+// WITH a whole-ctor pure entry (`Symbol` / `Map`) is flatten-extracted whole (`const M = _Map`) - its
+// member must STILL narrow to its own import (registered-alias hint; the flatten empties the pattern
+// before the member visit, so the hint is the only path). map-groupby locks the separate-static case
+// (`_Map.groupBy` is undefined - an un-narrowed member read regresses to native `undefined` full-env)
+const AW_CTOR_ALIAS = [
+  { id: 'array-from', pre: 'const [{ Array: A }] = [globalThis];', obs: 'String(A.from([1, 2, 3]))', strip: true },
+  { id: 'array-from-sibling', pre: 'const [{ Array: A }, tail] = [globalThis, 0];', obs: 'String(A.from([4, 5])) + tail', strip: true },
+  { id: 'array-nested', pre: 'const [[{ Array: A }]] = [[globalThis]];', obs: 'String(A.from([6]))', strip: true },
+  { id: 'symbol-iterator', pre: 'const [{ Symbol: S }] = [globalThis];', obs: 'typeof S.iterator', strip: false },
+  { id: 'map-groupby', pre: 'const [{ Map: M }] = [globalThis];', obs: 'typeof M.groupBy', strip: false },
+  { id: 'map-groupby-shadow', pre: 'const [{ Map: M }] = [{ Map: { groupBy: () => "U" } }];', obs: 'String(M.groupBy([1], x => x))', strip: false },
+];
+function * generateArrayWrapperCtorAlias() {
+  for (const c of AW_CTOR_ALIAS) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`aw-ctor-alias/${ c.id }`, body), strip: c.strip };
+  }
+}
+
+// --- Nested-object destructure of an instance method off a side-effect-free member receiver ---
+// `const { y: { at } } = { y: Array.prototype }` binds an instance method whose receiver is a member.
+// when `at` is the SOLE binding + the init is pure, the residual is eliminated and the extraction
+// (`const at = _at(Array.prototype)`) is the receiver's ONLY read - a member getter fires exactly once,
+// like native (the getter case counts reads to prove single-read). a surviving-residual sibling or an
+// assignment host would double-read the receiver, so those legitimately stay native (strip:false).
+// a getter-backed receiver that counts its reads, so the observed count proves single vs double read
+const NI_GETTER = 'let n = 0; const h = { get g() { n++; return Array.prototype; } };';
+const NESTED_INSTANCE = [
+  { id: 'member-sole', pre: 'const { y: { at } } = { y: Array.prototype };', obs: 'typeof at', strip: true },
+  { id: 'array-index-sole', pre: 'const { y: { at } } = { y: [1, 2, 3] };', obs: 'typeof at', strip: true },
+  { id: 'getter-read-once', pre: `${ NI_GETTER } const { y: { at } } = { y: h.g };`, obs: '[typeof at, n]', strip: true },
+  { id: 'multi-binding-native', pre: `${ NI_GETTER } const { y: { at }, z } = { y: h.g, z: 1 };`, obs: '[typeof at, n, z]', strip: false },
+];
+function * generateNestedInstanceReceiver() {
+  for (const c of NESTED_INSTANCE) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`nested-instance/${ c.id }`, body), strip: c.strip };
+  }
+}
+
+// --- Param-default instance synth ---
+// `function f({ at } = R)` with a typed instance receiver R synths the DEFAULT itself
+// (`= { at: _atMaybeArray(R) }`) - caller-correct by construction: the synth only evaluates when the
+// caller omits the arg, so a passed value destructures natively (caller-wins is the load-bearing
+// invariant). the receiver is read INSIDE the synth (getter fires once, exactly when the native
+// default would - the getter case counts reads across a no-arg call AND an arg call). a member
+// receiver with 2+ pattern entries would double-read, so it stays native (member-multi case).
+const PD_GETTER = 'let n = 0; const h = { get g() { n++; return Array.prototype; } };';
+const PD_INSTANCE = [
+  { id: 'member-noarg', pre: 'function f({ at } = Array.prototype) { return at; }', obs: 'typeof f()', strip: true },
+  { id: 'caller-wins', pre: 'function f({ at } = Array.prototype) { return at; }', obs: '[typeof f(), f({ at: "C" }), typeof f({}).x]', strip: false },
+  { id: 'literal', pre: 'function f({ at } = [10, 20]) { return at; }', obs: '[typeof f(), f().call([7, 8], -1)]', strip: true },
+  { id: 'identifier-multi', pre: 'const a = [1, 2]; function f({ at, flat } = a) { return [typeof at, typeof flat]; }', obs: 'f()', strip: true },
+  { id: 'member-multi-native', pre: 'function f({ at, flat } = Array.prototype) { return [typeof at, typeof flat]; }', obs: 'f()', strip: false },
+  { id: 'getter-read-count', pre: `${ PD_GETTER } function f({ at } = h.g) { return at; }`, obs: '[typeof f(), n, f({ at: 1 }), n]', strip: false },
+  // an OPTIONAL link may be `undefined` at runtime - native then THROWS destructuring it, while a synth
+  // default is always defined; both emitters must bail to native (throw-parity locked by the null root)
+  { id: 'optional-member-native', pre: 'const h = { x: Array.prototype }; function f({ at } = h?.x) { return at; }', obs: 'typeof f()', strip: false },
+  { id: 'optional-null-throw',
+    pre: 'const h = null; function f({ at } = h?.x) { return at; } let out; try { out = typeof f(); } catch (e) { out = "T:" + e.constructor.name; }',
+    obs: 'out', strip: false },
+  // a string-literal key is NOT replayable by the synth-literal renderers - synthing would drop the
+  // key from the rebuilt literal and lose the binding; the gate keeps it native in both emitters
+  { id: 'string-key-native', pre: 'function f({ "at": x } = Array.prototype) { return x; }', obs: 'typeof f()', strip: false },
+];
+function * generateParamDefaultInstance() {
+  for (const c of PD_INSTANCE) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`param-default-instance/${ c.id }`, body), strip: c.strip };
+  }
+}
+
+// --- Assignment-form ctor-alias: a REASSIGNED alias must keep the user's value ---
+// `let M; ({ Map: M } = globalThis); M = user` - the alias name is a rebindable user binding;
+// a member read after the reassignment must see the USER value (native last-write-wins), never a
+// blind hint-narrowed polyfill. babel's hint-only fallback (no scope binding after the cascade
+// mutation) used to trust the user-alias hint past the write, narrowing `M.groupBy` over the
+// user's own method - a runtime divergence from native AND from the text emitter.
+const ASSIGN_ALIAS_REASSIGN = [
+  { id: 'flat', decl: 'let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" };' },
+  { id: 'array-wrapped', decl: 'let M; [{ Map: M }] = [globalThis]; M = { groupBy: () => "U" };' },
+];
+function * generateAssignAliasReassign() {
+  for (const c of ASSIGN_ALIAS_REASSIGN) {
+    const body = `(() => { ${ c.decl } return String(M.groupBy([1], x => x)); })()`;
+    yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
+  }
+  // CLEAN (single, unconditionally-placed write): the registered trusted write lets a separate-static
+  // member read narrow (`M.groupBy` -> `_Map$groupBy`) in BOTH emitters - without it the cascade's
+  // whole-swap (`M = _Map`) strands the read on the bare pure ctor (`undefined` vs native `function`)
+  const CLEAN = [
+    { id: 'clean-flat', decl: 'let M; ({ Map: M } = globalThis);' },
+    { id: 'clean-array-wrapped', decl: 'let M; [{ Map: M }] = [globalThis];' },
+  ];
+  for (const c of CLEAN) {
+    const body = `(() => { ${ c.decl } return typeof M.groupBy; })()`;
+    yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
+  }
+  // a write inside a NESTED function may never run - registration must refuse it, keeping the
+  // not-yet-called read native (it THROWS on the undefined binding, exactly like untranspiled code)
+  const crossFn = '(() => { let M; function w() { ({ Map: M } = globalThis); } void w; '
+    + 'try { return typeof M.groupBy; } catch (e) { return "T:" + e.constructor.name; } })()';
+  yield { ...snippet('assign-alias-reassign/cross-fn-refused', crossFn), strip: false };
+  // a REFUSED registration keeps the value swap (polyfill provision in write order) and leaves
+  // member reads RAW - exact in ORDER and FLOW on every path: untaken throws on the undefined
+  // binding exactly like untranspiled code, a reassigned alias keeps the user's value. trusted
+  // writes narrow STATICALLY only for uses textually after the write; an earlier use (a
+  // hoisted-var read, an earlier-defined closure body) stays raw too - a static narrow there
+  // would un-throw a call that runs before the write. the raw member's TAKEN path reads the
+  // swapped pure ctor's surface (modern-engine reflection canon) - not native-lockable here,
+  // so observables stick to order / throws / user-value flows
+  const REFUSED_NATIVE = [
+    { id: 'conditional-untaken-throw',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(false), (() => { let x; if (1) ({ Map: x } = globalThis); return typeof x; })()]; })()' },
+    { id: 'var-in-if-untaken-throw',
+      code: '(() => { function t(c) { if (c) { var { Map: M } = globalThis; } '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(false), typeof t]; })()' },
+    { id: 'cross-fn-value',
+      code: '(() => { let M; function w() { ({ Map: M } = globalThis); } '
+        + 'function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(), (w(), typeof M)]; })()' },
+    { id: 'duplicate-writes-value',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Map: M } = globalThis); return typeof M; })()' },
+    { id: 'use-before-closure',
+      code: '(() => { let M; const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + '({ Map: M } = globalThis); return f(); })()' },
+    // raw exactness on the natively-observable paths of every refused form
+    { id: 'refused-conditional-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'refused-var-in-if-untaken',
+      code: '(() => { function t(c) { if (c) { var { Map: M } = globalThis; } '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'refused-cross-fn-uncalled',
+      code: '(() => { let M; function w() { ({ Map: M } = globalThis); } '
+        + 'function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(), typeof w]; })()' },
+    { id: 'refused-reassigned-this-binding',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { tag: "U", groupBy() { return this.tag; } }; '
+        + 'return M.groupBy(); })()' },
+    { id: 'refused-optional-read-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); return typeof M?.groupBy; } '
+        + 'return t(false); })()' },
+    { id: 'refused-optional-call-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'return typeof M?.groupBy?.([1], x => x); } return t(false); })()' },
+    // before-visit forms: the use is textually earlier than its alias write / declaration
+    { id: 'before-closure-trusted-raw',
+      code: '(() => { let M; const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); ({ Map: M } = globalThis); return [before, f()]; })()' },
+    { id: 'before-same-scope-trusted-raw',
+      code: '(() => { let M; let before; try { before = typeof M.groupBy; } catch (e) { before = "T"; } '
+        + '({ Map: M } = globalThis); return [before, typeof M.groupBy]; })()' },
+    { id: 'before-closure-refused-conditional',
+      code: '(() => { let M; const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); if (globalThis.Math) ({ Map: M } = globalThis); return [before, f()]; })()' },
+    { id: 'before-closure-decl-raw',
+      code: '(() => { const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); var { Map: M } = globalThis; return [before, f()]; })()' },
+    { id: 'before-decl-hoisted-use',
+      code: '(() => { function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } '
+        + 'const before = t(); var { Map: M } = globalThis; return [before, t()]; })()' },
+    { id: 'before-closure-decl-conditional-var',
+      code: '(() => { const f = () => { try { return typeof M.groupBy; } catch (e) { return "T"; } }; '
+        + 'const before = f(); if (globalThis.Math) { var { Map: M } = globalThis; } return [before, f()]; })()' },
+    // an INSTANCE-method key off a refused alias stays raw on the untaken path
+    { id: 'refused-instance-key-untaken-throw',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return String(M.getOrInsert); } catch (e) { return "T"; } } return t(false); })()' },
+    // distinct same-name bindings in separate scopes: the PER-BINDING registry keeps them
+    // independent - the clean binding narrows statically, the refused one stays raw
+    { id: 'same-name-bindings-collision',
+      code: '(() => { function a() { let M; ({ Map: M } = globalThis); return typeof M.groupBy; } '
+        + 'function b(c) { let M; if (c) ({ Map: M } = globalThis); try { return typeof M.groupBy; } catch (e) { return "T"; } } '
+        + 'return [a(), b(true), b(false)]; })()' },
+    // ONE binding written from TWO different globals: a dirty binding - member reads stay raw
+    // (its trust was refused), user-value flows and the value kind stay exact
+    { id: 'same-name-different-ctors-value',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Promise: M } = globalThis); '
+        + 'M = { try: () => "U" }; return [typeof M, M.try()]; })()' },
+    // a write under a conditional EXPRESSION container (ternary branch / logical operand /
+    // expression-body arrow) runs on one path even though its statement placement is
+    // unconditional - flow-trust refused, member reads stay raw; TEST-position, sequence
+    // and call-argument writes evaluate whenever the statement runs and keep the static narrow
+    { id: 'ternary-branch-write-both-paths',
+      code: '(() => { function t(c) { let M; c ? ({ Map: M } = globalThis) : 0; '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    { id: 'logical-and-write-both-paths',
+      code: '(() => { function t(c) { let M; c && ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    { id: 'logical-or-write-both-paths',
+      code: '(() => { function t(c) { let M; c || ({ Map: M } = globalThis); '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    { id: 'expression-body-arrow-write',
+      code: '(() => { let M; const w = () => ({ Map: M } = globalThis); '
+        + 'function t() { try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(), (w(), t())]; })()' },
+    { id: 'ternary-test-position-write-trusted',
+      code: '(() => { let M; (({ Map: M } = globalThis) ? 1 : 2); return typeof M.groupBy; })()' },
+    { id: 'sequence-write-trusted',
+      code: '(() => { let n = 0; let M; (n++, { Map: M } = globalThis); return [typeof M.groupBy, n]; })()' },
+    { id: 'call-argument-write-trusted',
+      code: '(() => { let M; String(({ Map: M } = globalThis)); return typeof M.groupBy; })()' },
+    // duplicate `var`: a bare same-name redeclaration writes no value (babel records a phantom
+    // violation; the binding may anchor on the bare declarator while the redeclaration carries
+    // the global) - the narrow must survive both orders, and a redeclaration WITH init stays a
+    // real write (user value wins)
+    { id: 'var-redecl-bare-after',
+      code: '(() => { var { Map: M } = globalThis; var M; return typeof M.groupBy; })()' },
+    { id: 'var-redecl-bare-before',
+      code: '(() => { var M; var { Map: M } = globalThis; return typeof M.groupBy; })()' },
+    { id: 'var-redecl-with-init-user-wins',
+      code: '(() => { var { Map: M } = globalThis; var M = { groupBy: () => "U" }; return M.groupBy(); })()' },
+    { id: 'var-redecl-before-conditional-raw',
+      code: '(() => { function t(c) { var M; if (c) { var { Map: M } = globalThis; } '
+        + 'try { return typeof M.groupBy; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    // a conditional redeclaration SUPERSEDED by an unconditional one: the later decl dominates
+    // every use after it, so the narrow follows it; user writes after the decl still win
+    { id: 'var-redecl-conditional-then-unconditional',
+      code: '(() => { if (globalThis.Math) { var { Promise: M } = globalThis; } '
+        + 'var { Map: M } = globalThis; return typeof M.groupBy; })()' },
+    { id: 'var-redecl-decl-then-user-write-wins',
+      code: '(() => { var { Map: M } = globalThis; M = { groupBy: () => "U" }; return M.groupBy(); })()' },
+    // a same-named LOCAL alias in another function must not shadow a DIRECT global use: the
+    // registration's existence is scope-bound, so the top-level read keeps its global narrow
+    { id: 'local-alias-not-shadowing-direct-global',
+      code: '(() => { function f(c) { let Map; if (c) ({ Map } = globalThis); '
+        + 'try { return typeof Map.groupBy; } catch (e) { return "T"; } } return [f(false), typeof globalThis.Map.groupBy]; })()' },
+    // a class static block is a var-scope owner: a decl alias placed directly in it is
+    // unconditional relative to the block and narrows inside; the binding never leaks outside
+    { id: 'static-block-alias-narrows-inside',
+      code: '(() => { let out; class C { static { var { Map: M } = globalThis; out = typeof M.groupBy; } } '
+        + 'void C; return out; })()' },
+    // `key in alias` reflection over a REFUSED alias stays a live check: the untaken path
+    // throws, a user value reflects its own surface
+    { id: 'in-refused-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return "groupBy" in M; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'in-refused-reassigned-user',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { groupBy: 1 }; return ["groupBy" in M, "x" in M]; })()' },
+    { id: 'in-multi-ctor-user-reassigned',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Promise: M } = globalThis); '
+        + 'M = { try: 1 }; return ["try" in M, "rand" in M]; })()' },
+    { id: 'in-unresolvable-key-raw',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { return "rand" in M; } catch (e) { return "T"; } } return [t(true), t(false)]; })()' },
+    // destructure FROM a refused alias stays raw: untaken throws on the destructure exactly
+    // like untranspiled code, a user value reads its own member; caller args always win for a
+    // param DEFAULT
+    { id: 'destructure-from-refused-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { const { groupBy } = M; return typeof groupBy; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'destructure-from-refused-renamed-assignment',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); let g; '
+        + 'try { ({ groupBy: g } = M); return typeof g; } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'destructure-from-refused-user-reassigned',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" }; '
+        + 'const { groupBy } = M; return groupBy(); })()' },
+    { id: 'destructure-from-multi-ctor-user-value',
+      code: '(() => { let M; ({ Map: M } = globalThis); ({ Promise: M } = globalThis); '
+        + 'M = { try: () => "U" }; const { try: tr } = M; return tr(); })()' },
+    { id: 'param-default-from-refused-untaken',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'function f({ groupBy } = M) { return typeof groupBy; } '
+        + 'try { return f(); } catch (e) { return "T"; } } return t(false); })()' },
+    { id: 'param-default-from-refused-caller-wins',
+      code: '(() => { let M; ({ Map: M } = globalThis); function f({ groupBy } = M) { return groupBy; } '
+        + 'return [typeof f(), f({ groupBy: "C" })]; })()' },
+    { id: 'param-default-from-refused-user-reassigned',
+      code: '(() => { let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" }; '
+        + 'function f({ groupBy } = M) { return groupBy(); } return f(); })()' },
+    // extraction whose use runs BEFORE the trusted write (an earlier-defined closure) stays
+    // raw - a pre-write read throws exactly like the untranspiled destructure; the dominance
+    // gate keeps every static channel (hint, lazy write resolution, flat-static plan) off it
+    { id: 'extraction-before-closure-guarded',
+      code: '(() => { let M; const f = () => { try { const { groupBy } = M; return typeof groupBy; } '
+        + 'catch (e) { return "T"; } }; const before = f(); ({ Map: M } = globalThis); return [before, f()]; })()' },
+    { id: 'extraction-same-scope-before-write',
+      code: '(() => { let M; let before; try { const { groupBy } = M; before = typeof groupBy; } '
+        + 'catch (e) { before = "T"; } ({ Map: M } = globalThis); const { groupBy } = M; return [before, typeof groupBy]; })()' },
+    // an SE-bearing init on a refused-alias destructure stays raw - order-exact: the SE runs
+    // once, in native init-first order, even when the destructure read throws
+    { id: 'extraction-seq-init-se-sole',
+      code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { const { groupBy } = (n++, M); return [typeof groupBy, n]; } catch (e) { return ["T", n]; } } '
+        + 'return [t(true), t(false)]; })()' },
+    { id: 'extraction-seq-init-se-sole-assignment',
+      code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); let g; '
+        + 'try { ({ groupBy: g } = (n++, M)); return [typeof g, n]; } catch (e) { return ["T", n]; } } '
+        + 'return [t(true), t(false)]; })()' },
+    { id: 'extraction-seq-init-se-multi-order',
+      code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'try { const { rand, other } = (n++, M); return [typeof rand, typeof other, n]; } catch (e) { return ["T", n]; } } '
+        + 'return [t(true), t(false)]; })()' },
+  ];
+  for (const c of REFUSED_NATIVE) yield { ...snippet(`assign-alias-reassign/${ c.id }`, c.code), strip: false };
+}
+
 // --- Conditional-receiver destructure mirror grammar ---
 // the receiver is a runtime-selected ternary / `&&` / `||` carrying a global-PROXY operand beside a
 // USER-object (or short-circuit) operand. each snippet exercises BOTH runtime selections; the bug
@@ -2224,6 +2542,11 @@ export function * generate() {
   yield * generateFullConsumeSeRescue();
   yield * generateIdentityIifeRebind();
   yield * generateSymbolIteratorAliasFold();
+  yield * generateFlattenSeKeySibling();
+  yield * generateArrayWrapperCtorAlias();
+  yield * generateNestedInstanceReceiver();
+  yield * generateParamDefaultInstance();
+  yield * generateAssignAliasReassign();
   yield * generateConditionalMirror();
   yield * generateChains();
   yield * generateIn();
