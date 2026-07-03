@@ -43,10 +43,7 @@ import {
   outerDestructureReceiver,
   planArrayWrappedStaticExtract,
   canTransformDestructuring as sharedCanTransformDestructuring,
-  isConstantLiteralReceiver,
   isInnerDestructureDefault,
-  isSeFreeMemberReceiver,
-  isReReferenceableReceiver,
   nestedAssignmentStatementOf,
   paramDefaultInstanceSynthAllowed,
   refineParamDefaultInstancePure,
@@ -55,6 +52,7 @@ import {
   planSideEffectKeyStrategy,
   qualifiesForParamBodyExtract,
   resolveNestedReceiverNode,
+  collectEnclosingObjectPatterns,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { discardRescueNodes, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
@@ -1319,9 +1317,7 @@ export default function createDestructureEmitter({
       polyfillKind: kind,
       isForInit,
       isMultiDeclarator: declaration.node.declarations.length > 1,
-      receiverIsSafe: isReReferenceableReceiver(objectNode),
-      receiverIsConstantLiteral: isConstantLiteralReceiver(objectNode),
-      receiverIsSeFreeMember: isSeFreeMemberReceiver(objectNode),
+      receiverNode: objectNode,
       soleBindingInDeclaration: declaration.node.declarations.length === 1 && bindingCount === 1,
       initIsPure: !!declarator && !mayHaveSideEffects(declarator.init),
       propKeyIsPure: !(prop.node.computed && sequenceKeyPrefix(prop.node.key)),
@@ -1342,6 +1338,12 @@ export default function createDestructureEmitter({
   // so we leave the code intact and warn - runtime correctness depends on which branch
   // fires and on native availability
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
+    // claim the whole enclosing pattern chain up front (before any branch can bail) - the
+    // synth-swap proxy-hop collapse keys its defer on the ROOT pattern; an unclaimed pattern
+    // collapses there like a non-destructure receiver
+    for (const pattern of collectEnclosingObjectPatterns(prop.parentPath)) {
+      synthSwap.claimDestructurePattern(pattern);
+    }
     // snapshot the original binding count BEFORE any sibling prop's emission below mutates the pattern,
     // so a later instance prop's `soleBindingInDeclaration` reflects the source, not the shrunken pattern
     originalBindingCount(prop);
@@ -1547,11 +1549,11 @@ export default function createDestructureEmitter({
 
   // resolve the destructure init (VariableDeclarator.init / AssignmentExpression.right) -
   // memoize non-identifier init when other properties remain to avoid double evaluation
-  function resolveDestructuringObject(path, typeOfReceiver, allowSeFreeMember = false) {
+  function resolveDestructuringObject(path, typeOfReceiver, allowSeFreeSingleRead = false) {
     const parent = path.parentPath.parentPath;
     const initKey = parent.isVariableDeclarator() ? 'init'
       : parent.isAssignmentExpression() ? 'right' : null;
-    if (!initKey) return resolveNestedReceiverNode(path, { allowSeFreeMember });
+    if (!initKey) return resolveNestedReceiverNode(path, { allowSeFreeSingleRead });
     const objectNode = parent.node[initKey];
     if (!objectNode) return null;
     if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
