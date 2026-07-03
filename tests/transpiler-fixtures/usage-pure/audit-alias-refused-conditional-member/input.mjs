@@ -1,6 +1,7 @@
 // a REFUSED ctor-alias registration (conditional write / conditional hoisted `var` decl) keeps
-// the value swap and leaves member reads RAW: the untaken path throws on the undefined binding
-// exactly like untranspiled code; an instance-method key stays in the raw residual too
+// the value swap, and a member read of a known separate static gets the RUNTIME ctor guard:
+// the taken path reads the pure static, the untaken path falls to the raw read and throws on
+// the undefined binding exactly like untranspiled code; an instance-method key stays raw
 function viaWrite(c) {
   let M;
   if (c) ({ Map: M } = globalThis);
