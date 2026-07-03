@@ -64,6 +64,19 @@ export default function createSynthSwapEmitter({
   // identity through their transform; replacing the receiver node breaks the lookup at flush
   const synthSwapByReceiver = new WeakMap();
 
+  // ObjectPatterns CLAIMED by the destructure pipeline (a resolvable prop reached
+  // `handleObjectPropertyResult`). the proxy-hop collapse defers only to a pattern something
+  // actually OWNS - an unclaimed pattern (`const { zzz } = globalThis['self'].Array`, no
+  // polyfillable prop) has no owner to collapse the hop, so deferring strands a raw
+  // `_globalThis['self']...` (undefined off-engine); it collapses in place like a
+  // non-destructure receiver. pattern props visit before the init, so the claim always
+  // precedes the init-time hop-climb
+  const claimedDestructurePatterns = new WeakSet();
+
+  function claimDestructurePattern(patternNode) {
+    claimedDestructurePatterns.add(patternNode);
+  }
+
   // peel runtime-transparent expression wrappers (TS `as` / `satisfies` / `!` / ... and
   // `ParenthesizedExpression` for `createParenthesizedExpressions: true`) so synth-target
   // detection lands on the meaningful inner node. default parser tracks parens via the
@@ -359,18 +372,20 @@ export default function createSynthSwapEmitter({
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
     if (!maximalProxyGlobalHop(recPath.node, aliasCtx, true)) return false;
     // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
-    // (named props feed a synth literal `{ from: _Array$from }`); collapsing here too double-injects a dead
-    // `_globalThis`, even when the source sits under value carriers (`{from} = (se, chain) || Set`). climb
-    // the carriers to the binding context and skip an OBJECT-pattern target. an ARRAY pattern binds by
-    // index / iteration, NEVER a named static the emitter could synth-swap, so the emitter never owns it -
-    // collapse the hop HERE (else a residual `_globalThis.self.Array` reads an undefined hop off-engine). a
-    // plain default VALUE (`{ x = chain }`, target Identifier) is not a source. mirrors the unplugin gate
+    // it CLAIMED (named props feed a synth literal `{ from: _Array$from }`); collapsing here too
+    // double-injects a dead `_globalThis`, even when the source sits under value carriers (`{from} =
+    // (se, chain) || Set`). climb the carriers to the binding context and skip a CLAIMED OBJECT-pattern
+    // target. an UNCLAIMED pattern (`const { zzz } = ...`, no polyfillable prop) has no owner - deferring
+    // strands a raw `_globalThis.self.X` (undefined off-engine), so it collapses HERE like a
+    // non-destructure receiver. an ARRAY pattern binds by index / iteration, NEVER a named static the
+    // emitter could synth-swap, so the emitter never owns it - collapse the hop HERE too. a plain default
+    // VALUE (`{ x = chain }`, target Identifier) is not a source. mirrors the unplugin gate
     let ctxPath = recPath.parentPath;
     while (PROXY_HOP_VALUE_CARRIERS.has(ctxPath?.node?.type)) ctxPath = ctxPath.parentPath;
     const ctx = ctxPath?.node;
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
-    if (target?.type === 'ObjectPattern') return false;
+    if (target?.type === 'ObjectPattern' && claimedDestructurePatterns.has(target)) return false;
     // a mutation TARGET (`globalThis.{self,window}.Map = fn` / `delete ...` / `...++`, the canonical
     // `isMemberWriteHost` covers `=` / update / `delete` / destructuring / wrappers) collapses through a pure-ctor
     // leaf - the leaf is the write slot, not a read whole-swap. unplugin's natural visitor resolves a hop that
@@ -524,5 +539,8 @@ export default function createSynthSwapEmitter({
     });
   }
 
-  return { apply, collapseProxyGlobalReceiver, collapseProxyHopRoot, findTargetPath, registerPolyfill, tryRegisterPerBranchSynth };
+  return {
+    apply, claimDestructurePattern, collapseProxyGlobalReceiver, collapseProxyHopRoot,
+    findTargetPath, registerPolyfill, tryRegisterPerBranchSynth,
+  };
 }
