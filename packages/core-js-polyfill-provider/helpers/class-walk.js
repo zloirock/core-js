@@ -10,6 +10,7 @@ import {
   staticMemberKeyName,
   unwrapRuntimeExpr,
   walkAstChildren,
+  walkPatternIdentifiers,
 } from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
@@ -180,8 +181,10 @@ export function maybeRegisterAssignmentAliasWrite({ injector, binding, localName
   const bindingNode = binding?.node ?? binding?.path?.node ?? null;
   const scopeSpan = enclosingFunctionSpan(stmtPath);
   if (!assignmentAliasWriteTrusted({ binding, assignNode, stmtPath })) {
-    // refused flow-trust: register the binding as GUARDED - its member reads stay native
-    injector.registerGlobalAlias(localName, hint, { bindingNode, guarded: true, scopeSpan });
+    // refused flow-trust: register the binding as GUARDED - its member reads get the runtime
+    // ctor guard instead of a static narrow (the guard self-corrects on any actual flow).
+    // `srcPos` keys the multi-write merge: the LAST write's hint drives the guard
+    injector.registerGlobalAlias(localName, hint, { bindingNode, guarded: true, scopeSpan, srcPos: assignNode.start });
     return false;
   }
   // `verified`: the trust predicate examined the binding's COMPLETE original write set - a
@@ -380,9 +383,40 @@ export function registerDeclAliasIfSound({ injector, kind, localName, hint, stmt
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) stmt = stmt.parentPath;
   const declSpan = stmt?.node ? { start: stmt.node.start, end: stmt.node.end } : null;
   const scopeSpan = enclosingFunctionSpan(stmtPath);
+  // the scope binding may resolve a use to a DIFFERENT declarator of the same `var` slot than
+  // the registering one: a redeclaration merges into ONE runtime binding, but estree block-scopes
+  // the inner `var` (registration sees it) while the read resolves the outer - and babel the
+  // reverse. key the entry under EVERY same-name `var` declarator of the enclosing var scope
+  const extraBindingNodes = [binding?.path?.node ?? binding?.node ?? null];
+  if (kind === 'var') {
+    let owner = stmtPath;
+    while (owner && !isVarScopeBoundary(owner.node?.type)) owner = owner.parentPath;
+    if (owner?.node) {
+      (function collect(node) {
+        if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+        if (node !== owner.node && isVarScopeBoundary(node.type)) return;
+        if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+          for (const d of node.declarations) {
+            let binds = false;
+            walkPatternIdentifiers(d.id, id => { if (id.name === localName) binds = true; });
+            if (binds) extraBindingNodes.push(d);
+          }
+        }
+        for (const key of Object.keys(node)) {
+          const value = node[key];
+          if (Array.isArray(value)) for (const item of value) collect(item);
+          else collect(value);
+        }
+      })(owner.node);
+    }
+  }
   if (kind === 'var' && !unconditionalStatementPlacement(stmtPath)) {
-    // refused flow-trust (conditional hoisted `var`): the binding's member reads stay native
-    injector.registerGlobalAlias(localName, hint, { bindingNode, guarded: true, scopeSpan });
+    // refused flow-trust (conditional hoisted `var`): the member reads get the runtime ctor
+    // guard. `srcPos` keys the multi-write merge positionally, same as the assignment form -
+    // a MIXED decl+assignment dirty binding then deterministically guards on the LAST source
+    injector.registerGlobalAlias(localName, hint, {
+      bindingNode, guarded: true, scopeSpan, declSpan, extraBindingNodes, srcPos: declSpan?.start ?? null,
+    });
     return false;
   }
   // `verified`: the registration examined the binding's COMPLETE original write set - no real
@@ -394,7 +428,7 @@ export function registerDeclAliasIfSound({ injector, kind, localName, hint, stmt
     const node = violation?.node ?? violation;
     return node === bindingNode || (declSpan && node?.start >= declSpan.start && node?.end <= declSpan.end);
   });
-  injector.registerGlobalAlias(localName, hint, { bindingNode, declSpan, scopeSpan, verified });
+  injector.registerGlobalAlias(localName, hint, { bindingNode, declSpan, scopeSpan, verified, extraBindingNodes });
   return true;
 }
 

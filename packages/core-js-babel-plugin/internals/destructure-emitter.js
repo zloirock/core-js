@@ -45,6 +45,7 @@ import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   isConstantLiteralReceiver,
   isInnerDestructureDefault,
+  isSeFreeMemberReceiver,
   isReReferenceableReceiver,
   nestedAssignmentStatementOf,
   paramDefaultInstanceSynthAllowed,
@@ -1153,8 +1154,15 @@ export default function createDestructureEmitter({
       if (!ref) {
         ref = generateLocalRef(residualDecl.scope);
         bodyExtractReceiverRefs.set(objectNode, ref);
-        residualDecl.insertBefore(t.variableDeclaration(residualDecl.node.kind,
-          [t.variableDeclarator(t.cloneNode(ref), t.cloneNode(objectNode))]));
+        const memoDeclarator = t.variableDeclarator(t.cloneNode(ref), t.cloneNode(objectNode));
+        if (plan.siblingDeclarator) {
+          // sibling host (multi-declarator / for-init): the memo joins the declaration as a PRECEDING
+          // declarator at the source slot - a statement insert would hoist the receiver read above
+          // earlier sibling inits (an observable getter reorder) or has no slot in a for-head
+          const declaratorPath = prop.findParent(pp => pp.isVariableDeclarator());
+          memoDeclarators.add(memoDeclarator);
+          declaratorPath.insertBefore(memoDeclarator);
+        } else residualDecl.insertBefore(t.variableDeclaration(residualDecl.node.kind, [memoDeclarator]));
         // bodyless host: the hoist wrapped the body in a block; re-point to the residual (block's last statement)
         if (residualDecl.isBlockStatement()) residualDecl = residualDecl.get('body').at(-1);
         // swap the receiver in the surviving residual for `_ref`, located by identity in the declaration
@@ -1313,6 +1321,7 @@ export default function createDestructureEmitter({
       isMultiDeclarator: declaration.node.declarations.length > 1,
       receiverIsSafe: isReReferenceableReceiver(objectNode),
       receiverIsConstantLiteral: isConstantLiteralReceiver(objectNode),
+      receiverIsSeFreeMember: isSeFreeMemberReceiver(objectNode),
       soleBindingInDeclaration: declaration.node.declarations.length === 1 && bindingCount === 1,
       initIsPure: !!declarator && !mayHaveSideEffects(declarator.init),
       propKeyIsPure: !(prop.node.computed && sequenceKeyPrefix(prop.node.key)),

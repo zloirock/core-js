@@ -364,7 +364,11 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       if (!b) {
         const synth = synthVarHoistBinding(path, name);
         if (!synth) return null;
-        return synth;
+        // the synthetic binding skips the hint machinery below (no `.path`); still surface the
+        // registry's guard hint for it - IDENTITY view only, like the native-binding path (a
+        // hoisted-var alias registers per-declarator in the pre-pass, so identity reaches it)
+        const synthIdentity = getInjector()?.getBindingAliasInfo?.(synth.node) ?? null;
+        return { ...synth, guardedAliasHint: synthIdentity?.hint ?? null };
       }
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
@@ -427,6 +431,13 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         polyfillHint,
         aliasSymbolSource,
         aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
+        // the hint of a registration whose static narrow did NOT apply at this use - a REFUSED
+        // (guarded) registration or a use textually before its trusted write (dominance).
+        // IDENTITY view only: a resolved binding with no per-binding entry is provably a
+        // USER binding (a shadow), which must not pick up the alias's guard. drives the
+        // RUNTIME ctor guard on member reads of known separate statics - the guard compares
+        // the live value against the swapped ctor, so it self-corrects on any actual flow
+        guardedAliasHint: identityInfo && !polyfillHint ? identityInfo.hint : null,
       };
     },
     // lazy lookup for the resolver's assignment-form alias branch (mirror of the babel adapter):

@@ -133,6 +133,14 @@ export function createValueOps({
       ?? resolveComputedKeyName(property, path.scope);
   }
 
+  // a resolved type whose runtime value can never be falsy: any non-primitive (object / array /
+  // function) or a symbol. `unknown` stays a primitive-kind resolution, so imprecise resolutions
+  // never fold; `document.all` (HTMLAllCollection) is the one falsy object - never fold it
+  function isAlwaysTruthyType(resolved) {
+    if (resolved.primitive) return resolved.type === 'symbol';
+    return !/^htmlallcollection$/i.test(resolved.constructor ?? '');
+  }
+
   // `op === '??'` ('??' / '??='): left contributes only when non-nullish - if left is
   // statically null/undefined primitive, right is the only runtime value. similarly for
   // `||`/`||=`: literal-null/undefined left always falls through to right. without this
@@ -142,6 +150,15 @@ export function createValueOps({
     const right = resolveNodeType(rightPath);
     if (left && right && (op === '??' || op === '??=' || op === '||' || op === '||=')
         && isNullableOrNever(left)) return right;
+    // an ALWAYS-TRUTHY left decides `A || B` / `A ?? B` statically: the value is always A, so
+    // the two-operand union injected entries NEITHER operand is (`{ map } = Array.prototype ||
+    // {}` pulled the Iterator variant). `&&` is NOT folded to its right yet: dropping the left's
+    // type de-resolves methods on it, routing the destructure into the no-polyfill path whose
+    // proxy-hop collapse diverges between emitters - fold it after that path is unified. `?:`
+    // keeps its union - the ternary test is independent of the branch values
+    if (left && (op === '||' || op === '||=' || op === '??' || op === '??=') && isAlwaysTruthyType(left)) {
+      return left;
+    }
     // ternary: a statically-nullable branch folds away for polyfill purposes - the
     // surviving branch's instance helpers are Maybe-dispatched, and a null receiver
     // throws the same TypeError transformed or not. mirrors the cross-return nullable
