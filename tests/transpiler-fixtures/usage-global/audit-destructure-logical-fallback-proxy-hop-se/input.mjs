@@ -1,8 +1,8 @@
 // usage-global counterpart: detection must resolve each array-method polyfill THROUGH the logical-wrapped
 // SE proxy operand and inject the side-effect import, keeping the source verbatim (no collapse in the global
-// flavor). a regression-guard that a `X || fallback` / `X && fallback` wrapper does not hide the destructured
-// method from the usage detector. the short-circuited `||` right line is the exception by design: the
-// always-truthy object left decides the value, so nothing off the dead right needs injection.
+// flavor). a regression-guard that a logical wrapper does not hide the destructured
+// method from the usage detector. statically-dead operands are the exception by design: an always-truthy
+// left decides the value, so the short-circuited `||` RIGHT and the always-`{}` `&&` result inject nothing.
 // lines vary by OPERATOR and OPERAND position exactly as the pure counterpart.
 let c = 0;
 const { flat } = (c++, globalThis.self).Array.prototype || {};
