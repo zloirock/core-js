@@ -1,4 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
@@ -11,14 +12,14 @@ function viaTernary(c) {
   c ? {
     Map: M
   } = _globalThis : 0;
-  return typeof M.groupBy;
+  return typeof (M === _Map ? _Map$groupBy : M.groupBy);
 }
 function viaLogical(c) {
   let P;
   c && ({
     Promise: P
   } = _globalThis);
-  return typeof P.try;
+  return typeof (P === _Promise ? _Promise$try : P.try);
 }
 let S;
 const w = () => ({
