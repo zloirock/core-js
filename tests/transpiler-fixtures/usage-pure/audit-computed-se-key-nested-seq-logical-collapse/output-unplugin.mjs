@@ -1,3 +1,7 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _globalThis from "@core-js/pure/actual/global-this";
 // A destructure receiver that roots in a nested sequence AND carries a SIDE-EFFECTING computed proxy hop
 // (`(c++, (d++, globalThis))[(e++, 'self')].Array.prototype`) must collapse the whole navigation: drop the
 // `[...]` hop, harvest its key effect in source order, and rewrite the bare root to the pure global. the
@@ -11,8 +15,8 @@
 // there), `&&` narrows to the RIGHT `{}`, so that line has nothing to polyfill and stays a passthrough
 // (root swap only, hop key effect in place). each line binds a DISTINCT method; counters prove key SE order.
 let a = 0, b = 0, c = 0, d = 0, e = 0, x;
-const { flat } = (c++, (d++, globalThis))[(e++, 'self')].Array.prototype || {};
-const { findLast } = (c++, globalThis)[(e++, 'self')].Array.prototype && {};
-const { includes } = (a++, (b++, globalThis))[(c++, 'self')].Array.prototype;
-({ at: x } = (c++, globalThis)[(e++, 'self')].Array.prototype);
+const flat = _flatMaybeArray((c++, d++, e++, _globalThis).Array.prototype || {});
+const { findLast } = (c++, _globalThis)[(e++, 'self')].Array.prototype && {};
+const includes = _includesMaybeArray((a++, b++, c++, _globalThis).Array.prototype);
+x = _atMaybeArray((c++, e++, _globalThis).Array.prototype);
 export { flat, findLast, includes, x, a, b, c, d, e };
