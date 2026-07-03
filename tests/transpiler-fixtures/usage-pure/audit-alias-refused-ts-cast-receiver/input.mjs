@@ -1,5 +1,6 @@
-// TS wrappers around a refused-alias receiver are transparent: the cast / non-null peels to the
-// bare identifier and the member read stays raw exactly like the unwrapped form
+// TS wrappers around a refused-alias receiver are transparent: the cast / non-null peels to
+// the bare identifier and the member read behaves exactly like the unwrapped form - the
+// runtime ctor guard applies where the bare form guards, raw where it stays raw
 function viaCast(c: boolean) {
   let M: any;
   if (c) ({ Map: M } = globalThis);

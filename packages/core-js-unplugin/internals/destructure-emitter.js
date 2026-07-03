@@ -84,6 +84,7 @@ import {
   planArrayWrappedStaticExtract,
   isConstantLiteralReceiver,
   isInnerDestructureDefault,
+  isSeFreeMemberReceiver,
   isReReferenceableReceiver,
   isViableBranchForKey,
   nestedAssignmentStatementOf,
@@ -324,6 +325,10 @@ export function createDestructureEmitter({
   // `emit(text)` routes the copy to its branch-specific sink (trailing sibling / flatten slot /
   // standalone insert / assignment overwrite)
   const pendingReceiverCopies = [];
+  // deferred SE-free MEMBER receiver memos (side-effect-key extraction): the receiver stays VISIBLE so
+  // the natural visitor's rewrites bake into the memo init at flush; the residual and every extract
+  // then read the shared `_ref` (a getter fires exactly once, like the native single read)
+  const pendingReceiverMemos = [];
   // bodyless-control statement node -> the polyfill statements that must share its `{ }` block. a bodyless
   // control body (`if (c) STMT;`) holds ONE statement, so anything emitted beside the residual must join it in
   // a block - else a preceding extract's residual escapes the guard (its key SE runs unconditionally), a
@@ -2108,9 +2113,9 @@ export function createDestructureEmitter({
     if (!pureResult) return false;
     const isForInit = hostNode?.type === 'ForStatement' && hostNode.init === declaration;
     // top-level: `declarator.init`; nested: the receiver walked from the RHS along the nesting keys.
-    // `allowSeFreeMember`: a member receiver is sound here because the planner only extracts when the
-    // residual is eliminated (single read); a surviving residual / for-init leaves it native. the
-    // double-read assignment overwrite (tryNestedAssignmentInstanceOverwrite) keeps the default
+    // `allowSeFreeMember`: a member receiver is sound here because the planner either extracts on an
+    // eliminated residual (single read) or MEMOIZES it beside a surviving residual (`_ref` read once);
+    // the double-read assignment overwrite (tryNestedAssignmentInstanceOverwrite) keeps the default
     const receiverNode = resolveNestedReceiverNode(metaPath, { allowSeFreeMember: true });
     // an instance receiver that resolves to NOTHING (a call, an interpolated template, an unmatched hop) is
     // unextractable - leave native. the planner's `receiverIsSafe` short-circuit used to catch this, but the
@@ -2144,6 +2149,7 @@ export function createDestructureEmitter({
       isMultiDeclarator: declaration.declarations.length > 1,
       receiverIsSafe: isReReferenceableReceiver(receiverNode),
       receiverIsConstantLiteral: isConstantLiteralReceiver(receiverNode),
+      receiverIsSeFreeMember: isSeFreeMemberReceiver(receiverNode),
       soleBindingInDeclaration: declaration.declarations.length === 1 && bindingCount === 1,
       initIsPure: !!declarator && !mayHaveSideEffects(declarator.init),
       propKeyIsPure: !(propNode.computed && sequenceKeyPrefix(propNode.key)),
@@ -2242,7 +2248,7 @@ export function createDestructureEmitter({
     }
     if (!plan.instance) {
       emit(binding);  // static: the bare binding, no receiver
-    } else if (plan.memoizeReceiver && !isFlattenClaimed) {
+    } else if (plan.memoizeReceiver && !isFlattenClaimed && isConstantLiteralReceiver(receiverNode)) {
       // standalone constant-literal receiver: capture it into a single `_ref` hoisted BEFORE the residual,
       // dedups so the surviving residual keeps no duplicate AND, for a side-effecting key, reads the
       // receiver ONCE before the key SE (the pre-key value, matching native). sibling leaves of the same
@@ -2259,6 +2265,30 @@ export function createDestructureEmitter({
         hoist = `${ declaration.kind } ${ refName } = ${ nodeSrc(receiverNode) };\n`;
       }
       emit(`${ binding }(${ refName })`, hoist);
+    } else if (plan.memoizeReceiver && !isFlattenClaimed) {
+      // SE-free MEMBER receiver: the residual and the extract read a shared `_ref` so a getter fires
+      // exactly once. deferred to flush - the receiver stays VISIBLE and its polyfill rewrites
+      // (`Promise.prototype` -> `_Promise.prototype`) bake into the memo init via the composed drain.
+      // a sibling-declarator host takes the memo as a PRECEDING declarator at the source slot (no TDZ,
+      // no statement slot needed in a for-head); the extraction trails like every sibling-host emit
+      let refName = bodyExtractReceiverRefs.get(receiverNode);
+      const firstUse = refName === undefined;
+      if (firstUse) {
+        refName = injector.generateLocalRef();
+        bodyExtractReceiverRefs.set(receiverNode, refName);
+      }
+      const extract = `${ binding }(${ refName })`;
+      if (plan.siblingDeclarator) {
+        emit(extract);
+        if (firstUse) pendingReceiverMemos.push({ receiverNode, refName, commaSlotStart: declarator.start });
+      } else {
+        pendingReceiverMemos.push({
+          receiverNode, refName,
+          emitExtract: firstUse
+            ? text => emit(extract, `${ declaration.kind } ${ refName } = ${ text };\n`)
+            : () => emit(extract),
+        });
+      }
     } else {
       // DUPLICATED instance receiver: keep it VISIBLE for the natural visitor, defer the copy to flush
       // where `composedRangeSrc` bakes the full scope-aware substitution (globals / instance / static,
@@ -3351,6 +3381,22 @@ export function createDestructureEmitter({
     // then let each leaf's `emit` route its copy. ordered before the byStatement rebuild and the
     // trailing / flatten / bodyless-assign drains so a re-add folds into the residual render and a
     // routed copy lands in those still-pending lists
+    // deferred MEMBER receiver memos: compose the receiver ONCE per range (drains its queued rewrites),
+    // overwrite the surviving residual's receiver with the shared `_ref`, and route the memo to its host
+    // slot - a preceding-statement hoist (standalone) or a preceding comma declarator (sibling host)
+    const composedReceiverMemoText = new Map();
+    for (const memo of pendingReceiverMemos) {
+      const key = `${ memo.receiverNode.start }:${ memo.receiverNode.end }`;
+      let text = composedReceiverMemoText.get(key);
+      if (text === undefined) {
+        text = composedRangeSrc(memo.receiverNode);
+        composedReceiverMemoText.set(key, text);
+        transforms.add(memo.receiverNode.start, memo.receiverNode.end, memo.refName);
+      }
+      if (memo.commaSlotStart !== undefined) transforms.insert(memo.commaSlotStart, `${ memo.refName } = ${ text }, `);
+      else memo.emitExtract(text);
+    }
+    pendingReceiverMemos.length = 0;
     const composedReceiverCopyText = new Map();
     for (const { receiverNode, emit } of pendingReceiverCopies) {
       const key = `${ receiverNode.start }:${ receiverNode.end }`;

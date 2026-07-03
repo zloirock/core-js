@@ -185,7 +185,7 @@ export const instanceProperties = {
     length: 'number',
   },
   Document: {
-    all: 'HTMLCollection',
+    all: 'HTMLAllCollection',
     body: 'Element',
     childNodes: 'NodeList',
     children: 'HTMLCollection',

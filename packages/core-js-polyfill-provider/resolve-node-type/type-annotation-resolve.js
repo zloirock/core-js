@@ -15,7 +15,7 @@
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
 import { $Object, $Primitive, literalNodeValue } from './base.js';
-import { isMethodShapeMember, isUnionType, readonlyCollectionBase, typeRefSegments } from './ast-shapes.js';
+import { isMethodShapeMember, isOpenKeywordAnnotation, isUnionType, readonlyCollectionBase, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -166,9 +166,12 @@ export function createTypeAnnotationResolve({
         : null;
     }
     // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
-    // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
+    // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners.
+    // a wide-open keyword arg (`NoInfer<unknown>`, `Partial<any>`) stays NULL like the bare
+    // keyword: the value can be anything (array / primitive / function), so the Object
+    // fallback would suppress generic-instance emission instead of routing through it
     if (STRUCTURE_PRESERVING_WRAPPERS.has(name)) {
-      const resolved = resolveArg(firstArg(), new $Object('Object'));
+      const resolved = resolveArg(firstArg(), isOpenKeywordAnnotation(firstArg()) ? null : new $Object('Object'));
       // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
       // infer check picks the FALSE branch. `readonlyCollectionBase` can't see this at the AST level when
       // the collection is behind a type-param (`Readonly<T>`), so key off the resolved constructor here.
@@ -219,8 +222,9 @@ export function createTypeAnnotationResolve({
       // downstream fall back to generic-instance emission
       case 'PropertyKey':
         return null;
-      // transparent wrappers resolving type parameter. Flow: $Exact
-      case 'NoInfer':
+      // transparent wrapper resolving its type parameter (Flow's exact-object marker).
+      // the TS transparent wrappers (`NoInfer` et al.) never reach this switch - the
+      // structure-preserving branch above owns them
       case '$Exact':
         return resolveArg(firstArg(), null);
       // resolve type parameter, strip nullable/never. Flow: $NonMaybeType
