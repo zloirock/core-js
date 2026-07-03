@@ -5984,9 +5984,9 @@ for (const [form, code] of [
 }
 
 // --- Logical always-truthy operand fold ---
-// an always-truthy left decides `A || B` / `A ?? B` statically (value is always A); a falsy-able
-// primitive left keeps the two-operand union, `&&` is intentionally NOT folded to its right, and
-// the statically-nullish left fold (`null || B` -> B) stays
+// an always-truthy left decides a logical statically: `A || B` / `A ?? B` is always A, `A && B`
+// is always B; a falsy-able primitive left keeps the two-operand union, and the
+// statically-nullish left fold (`null || B` -> B) stays
 
 runBoth('logical fold: array || object -> array', 'const x = [1] || {};', (adapter, prog, lbl) => {
   const decl = adapter.pickPath(prog, 'VariableDeclarator');
@@ -6019,10 +6019,22 @@ runBoth('logical no-fold: falsy-able string left keeps the union', 'const x = "s
   check(lbl, type?.type !== 'string', true);
 });
 
-runBoth('logical no-fold: && keeps the union', 'const x = [1] && "s";', (adapter, prog, lbl) => {
+runBoth('logical fold: always-truthy && narrows to right', 'const x = [1] && "s";', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'string' });
+});
+
+runBoth('logical no-fold: falsy-able && left keeps the union', 'const x = "s" && [1];', (adapter, prog, lbl) => {
   const decl = adapter.pickPath(prog, 'VariableDeclarator');
   const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
   check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+});
+
+runBoth('logical no-fold: document.all && keeps the union', 'const x = document.all && [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  check(lbl, type?.constructor !== 'Array', true);
 });
 
 runBoth('logical no-fold: document.all left keeps the union', 'const x = document.all || [1];', (adapter, prog, lbl) => {

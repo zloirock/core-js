@@ -1,5 +1,4 @@
 import "core-js/modules/es.array.at";
-import "core-js/modules/es.array.find-last";
 import "core-js/modules/es.array.flat";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.species";
@@ -10,9 +9,9 @@ import "core-js/modules/web.self";
 // SE-bearing computed-key proxy operand and inject the side-effect import, keeping the source verbatim (no
 // collapse in the global flavor). the multi-type methods (includes, at) on a bare declarator / assignment
 // inject ONLY the array module (not the string module) - the receiver-type inference resolves through the SE
-// computed key to a single concrete Array.prototype. the logical hosts (||, &&) carry ARRAY-ONLY methods
-// (flat, findLast): a logical's receiver is a union, on which a multi-type method would over-inject the other
-// variant, so array-only methods inject only their array module while still exercising the verbatim path.
+// computed key to a single concrete Array.prototype. the logical hosts carry ARRAY-ONLY methods (flat, findLast):
+// an always-truthy left decides a logical statically - `||` narrows to the LEFT (flat still injected), `&&`
+// narrows to the RIGHT `{}` (findLast unreachable - its module is NOT injected), source kept verbatim.
 let a = 0,
   b = 0,
   c = 0,
