@@ -5983,4 +5983,97 @@ for (const [form, code] of [
   runBoth(`default-value ref escapes the binding for form: ${ form }`, code, dropAtReceiver);
 }
 
+// --- Logical always-truthy operand fold ---
+// an always-truthy left decides `A || B` / `A ?? B` statically (value is always A); a falsy-able
+// primitive left keeps the two-operand union, `&&` is intentionally NOT folded to its right, and
+// the statically-nullish left fold (`null || B` -> B) stays
+
+runBoth('logical fold: array || object -> array', 'const x = [1] || {};', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, kind: 'object', ctor: 'Array' });
+});
+
+runBoth('logical fold: object || array -> object', 'const x = ({ a: 1 }) || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  if (!type) return fail(lbl, 'got null type');
+  check(lbl, type.constructor !== 'Array' && type.primitive === false, true);
+});
+
+runBoth('logical fold: array ?? object -> array', 'const x = [1] ?? {};', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, kind: 'object', ctor: 'Array' });
+});
+
+runBoth('logical fold: symbol || array -> symbol', 'const x = Symbol("s") || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: true, kind: 'symbol' });
+});
+
+runBoth('logical no-fold: falsy-able string left keeps the union', 'const x = "s" || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  check(lbl, type?.type !== 'string', true);
+});
+
+runBoth('logical no-fold: && keeps the union', 'const x = [1] && "s";', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+});
+
+runBoth('logical no-fold: document.all left keeps the union', 'const x = document.all || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+  // HTMLAllCollection is the ONE falsy object - the always-truthy fold must not narrow it, so
+  // the two-operand union stays (commonType of unrelated constructors resolves to null/generic)
+  check(lbl, type?.constructor !== 'HTMLAllCollection', true);
+});
+
+runBoth('logical fold: nullish left still falls to right', 'const x = null || [1];', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+    { primitive: false, kind: 'object', ctor: 'Array' });
+});
+
+// --- Structure-preserving wrapper x wide-keyword args ---
+// `NoInfer<unknown>` / `Partial<any>` / `Readonly<object>` resolve NULL like the bare keyword
+// (generic-instance emission), NOT the Object fallback (which suppressed `.at` / `.includes`);
+// the Object fallback stays for closed type-literal inners, and concrete args keep their narrow
+
+runBoth('wrapper wide-keyword: NoInfer<unknown> -> null', 'declare const v: NoInfer<unknown>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  const resolver = adapter.makeResolver();
+  check(lbl, resolver.resolveNodeType(decl.get('id')) === null, true);
+});
+
+runBoth('wrapper wide-keyword: Partial<any> -> null', 'declare const v: Partial<any>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  check(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')) === null, true);
+});
+
+runBoth('wrapper wide-keyword mirrors the bare keyword: Readonly<object>', 'declare const v: Readonly<object>; declare const b: object;', (adapter, prog, lbl) => {
+  const resolver = adapter.makeResolver();
+  const wrapped = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'v');
+  const bare = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'b');
+  if (!wrapped || !bare) return fail(lbl, 'declarators not found');
+  const w = resolver.resolveNodeType(wrapped.get('id'));
+  const bt = resolver.resolveNodeType(bare.get('id'));
+  if (!w || !bt) return fail(lbl, `null resolution: wrapped=${ !!w } bare=${ !!bt }`);
+  check(lbl, w.constructor === bt.constructor && w.primitive === bt.primitive, true);
+});
+
+runBoth('wrapper literal inner keeps Object fallback', 'declare const v: Partial<{ a: 1 }>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Object' });
+});
+
+runBoth('wrapper concrete arg keeps the narrow', 'declare const v: NoInfer<number[]>; v;', (adapter, prog, lbl) => {
+  const decl = adapter.pickPath(prog, 'VariableDeclarator');
+  checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+});
+
 finish();
