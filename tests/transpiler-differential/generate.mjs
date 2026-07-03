@@ -150,6 +150,29 @@ const D_PATTERNS = [
   // read. the stripped leg is the seed-bug oracle: a bail leaves the binding native ('undefined')
   { id: 'se-key-member', recv: 'Array.prototype', lhs: '{ [(log.push("k"), "flat")]: m, other }', names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
   { id: 'se-key-member-sole', recv: 'Array.prototype', lhs: '{ [(log.push("k"), "at")]: a }', names: ['a'], observe: 'typeof a', strip: true },
+  // SE-key off a side-effect-free BRANCHING receiver (ternary / logical): the receiver is memoized into a
+  // `_ref` read once (branch selects once, like the native single read) and the instance polyfill extracts
+  // off the memo - the import-set leg is the seed-bug oracle for an emitter that declines the shape
+  { id: 'se-key-ternary',
+    recv: '1 ? Array.prototype : []', lhs: '{ [(log.push("k"), "findLast")]: m, other }',
+    names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
+  { id: 'se-key-logical',
+    recv: 'Array.prototype || []', lhs: '{ [(log.push("k"), "flatMap")]: m, other }',
+    names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
+  // whole-init memo: a top-level receiver with its OWN effects (call / SE-bearing ternary) memoizes the
+  // whole init at the source slot - the `log` entries pin call-once + key-order; a decliner shows in the
+  // import-set leg, a double-evaluation in the effects log
+  { id: 'se-key-call',
+    recv: '(() => { log.push("call"); return Array.prototype; })()', lhs: '{ [(log.push("k"), "flat")]: m, other }',
+    names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
+  { id: 'se-key-se-ternary',
+    recv: '(log.push("se"), 1) ? Array.prototype : []', lhs: '{ [(log.push("k"), "at")]: m, other }',
+    names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
+  // a resolvable SE-free TAIL under an impure sequence prefix: hoisting the tail alone would reorder,
+  // so the memo must capture the WHOLE init - a decliner drops the provision (import-set leg)
+  { id: 'se-key-seq-se-tail',
+    recv: '(log.push("pre"), 1 ? Array.prototype : [])', lhs: '{ [(log.push("k"), "findLast")]: m, other }',
+    names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
 ];
 const D_HOSTS = [
   { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
@@ -160,6 +183,11 @@ const D_HOSTS = [
   // declaration); `if (1)` / `while (0)` run the body once so the binding is assigned. without the block a
   // do-while body holding two statements is unparsable and an `if` residual escapes the guard - both surface
   // as a transform crash / runtime mismatch here, so these are the durable backstop for the block-wrap
+  // flatten-claimed sibling: a nested-proxy flatten declarator shares the declaration, so every
+  // pattern's artifacts must route through the flatten's slot render (either declarator order is
+  // exercised by the pattern list itself - the flatten declarator here is always first)
+  { id: 'decl-flatten-sibling', strip: true,
+    build: p => `(() => { var { Array: { from: xfrom } } = globalThis, ${ p.lhs } = ${ p.recv }; return [typeof xfrom, ${ p.observe }]; })()` },
   { id: 'bodyless-if', strip: true, build: p => `(() => { if (1) var ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
   { id: 'bodyless-do-while', strip: true, build: p => `(() => { do var ${ p.lhs } = ${ p.recv }; while (0); return ${ p.observe }; })()` },
 ];

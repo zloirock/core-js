@@ -5,6 +5,8 @@
 // the nested `))`, emitting unbalanced parens - an unparsable build-break; the unified reconstruction spans
 // the whole navigation and harvests every prefix recursively. lines vary by OPERATOR, nesting DEPTH and hop
 // count, each binding a DISTINCT method; the trailing counters prove the buried effects run in source order.
+// the `&&` line is the statically-dead exception: its always-truthy left narrows the value to the `{}`
+// right - nothing to polyfill, so it stays a passthrough (root swap only, hops kept, effects in place).
 let a = 0, b = 0, c = 0, d = 0;
 const { flat } = (c++, (d++, globalThis.self)).window.Array.prototype || {};
 const { at } = (c++, (d++, globalThis.self)).window.Array.prototype && {};
