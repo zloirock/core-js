@@ -150,14 +150,13 @@ export function createValueOps({
     const right = resolveNodeType(rightPath);
     if (left && right && (op === '??' || op === '??=' || op === '||' || op === '||=')
         && isNullableOrNever(left)) return right;
-    // an ALWAYS-TRUTHY left decides `A || B` / `A ?? B` statically: the value is always A, so
-    // the two-operand union injected entries NEITHER operand is (`{ map } = Array.prototype ||
-    // {}` pulled the Iterator variant). `&&` is NOT folded to its right yet: dropping the left's
-    // type de-resolves methods on it, routing the destructure into the no-polyfill path whose
-    // proxy-hop collapse diverges between emitters - fold it after that path is unified. `?:`
-    // keeps its union - the ternary test is independent of the branch values
-    if (left && (op === '||' || op === '||=' || op === '??' || op === '??=') && isAlwaysTruthyType(left)) {
-      return left;
+    // an ALWAYS-TRUTHY left decides a logical statically: `A || B` / `A ?? B` is always A,
+    // `A && B` is always B - so the two-operand union injected entries the runtime value never
+    // has (`{ map } = Array.prototype || {}` pulled the Iterator variant). `?:` keeps its
+    // union - the ternary test is independent of the branch values
+    if (left && isAlwaysTruthyType(left)) {
+      if (op === '||' || op === '||=' || op === '??' || op === '??=') return left;
+      if (op === '&&' || op === '&&=') return right;
     }
     // ternary: a statically-nullable branch folds away for polyfill purposes - the
     // surviving branch's instance helpers are Maybe-dispatched, and a null receiver
