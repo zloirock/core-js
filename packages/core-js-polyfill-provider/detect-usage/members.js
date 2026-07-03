@@ -447,6 +447,39 @@ function buildMemberMeta({ node, scope, adapter, path }) {
 // `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the
 // StaticBlock body, missing local enum/namespace shadows. babel's scope tracker does
 // anchor at StaticBlock so it works without path - the threaded form is a no-op for it
+// decision plan for the RUNTIME ctor guard - single-sourced so both emitters render the same
+// judgment. `parent` is the emitter-peeled semantic parent (each substrate peels its own
+// wrappers). returns: null = not a guard read (fall through to normal dispatch); { bail: true }
+// = handled, intentionally RAW (an optional-CALL form, whose short-circuit the callee slot
+// cannot reproduce, or a synthesized guard-only meta with no resolvable static); else the
+// render inputs - the unwrapped receiver identifier, the static's pure entry, callee-ness
+// (the raw branch then binds `this`), and the ctor comparator (the swapped pure binding, or
+// its raw global name when the ctor does not polyfill for the targets)
+export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure }) {
+  if (memberNode.type !== 'MemberExpression' && memberNode.type !== 'OptionalMemberExpression') return null;
+  const recvIdent = unwrapTransparentSeq(memberNode.object);
+  if (recvIdent?.type !== 'Identifier') return null;
+  const staticPure = resolvePure({
+    kind: 'property', object: meta.guardedAliasHint, key: meta.key, placement: 'static',
+  }, path);
+  if (staticPure?.kind !== 'static') return meta.guardOnly ? { bail: true } : null;
+  const isCallee = (parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
+    && parent.callee === memberNode;
+  // estree marks optionality with `optional: true` (no Optional* node types) - check both encodings
+  if (isCallee && (parent.type === 'OptionalCallExpression' || parent.optional
+    || memberNode.type === 'OptionalMemberExpression' || memberNode.optional)) {
+    return { bail: true };
+  }
+  const ctorPure = resolvePure({ kind: 'global', name: meta.guardedAliasHint }, path);
+  return {
+    recvIdent,
+    staticPure,
+    isCallee,
+    ctorPure: ctorPure && ctorPure.kind !== 'instance' ? ctorPure : null,
+    ctorName: meta.guardedAliasHint,
+  };
+}
+
 export function handleMemberExpressionNode({ node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta }) {
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
@@ -514,6 +547,36 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
   // UNMARKED - the identifier machinery substitutes the CONSTRUCTOR itself, so the patch and
   // every read share the injected object (pure only; usage-global overlays the global slot)
   if (meta?.object && meta.placement === 'static' && adapter.isMutatedStatic?.(meta.object, meta.key)) return null;
+  // a receiver binding whose ctor-alias hint could not drive a STATIC narrow (a REFUSED
+  // registration, or a use textually before its trusted write): the member read of a known
+  // separate static gets a RUNTIME ctor guard instead - `(M === _Map ? _Map$groupBy : M.groupBy)`.
+  // the guard compares the LIVE value against the swapped ctor, so it is exact under any flow:
+  // the taken alias path reads the pure static, a user value (or an ambiguous multi-write) falls
+  // to the raw read, and an unassigned binding throws exactly like native
+  {
+    const recvIdent = unwrapTransparentSeq(node.object);
+    // the receiver resolved to NOTHING (`meta` null / `object` null) or merely ECHOED the local
+    // binding's own name (`object === recvIdent.name` - an unresolvable local): only those reads
+    // are guard candidates; a receiver resolved to a real global keeps its normal dispatch
+    const unresolvedReceiver = !meta || !meta.object || meta.object === recvIdent?.name;
+    if (unresolvedReceiver && recvIdent?.type === 'Identifier') {
+      const guardedHint = adapter.getBinding(scope, recvIdent.name, path)?.guardedAliasHint;
+      // a SIDE-EFFECTING computed key stays raw: the guard's consequent replaces the whole
+      // member and would skip the key's effect on the taken path (native always evaluates it)
+      if (guardedHint && !meta?.sideEffects?.length) {
+        // an OPTIONAL member on an unknown receiver builds no meta at all - synthesize a
+        // guard-only one so the pure callbacks still see the read (they render and return).
+        // `bailOnSideEffectKey` keeps the same raw canon for the synthesized shape
+        const key = meta?.key ?? resolveKey({
+          node: node.property, computed: node.computed, scope, adapter, path, bailOnSideEffectKey: true,
+        });
+        if (key && meta) meta.guardedAliasHint = guardedHint;
+        else if (key) {
+          return { kind: 'property', object: null, key, placement: 'static', guardedAliasHint: guardedHint, guardOnly: true };
+        }
+      }
+    }
+  }
   // only mark when we actually resolved a receiver: meta.object === null means
   // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
   // and the receiver identifier-visitor may still need to polyfill it as a standalone global

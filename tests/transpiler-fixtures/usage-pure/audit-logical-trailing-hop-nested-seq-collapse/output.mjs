@@ -1,8 +1,8 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
 // A `{ method } = X || fallback` destructure whose operand X is a proxy-global chain wrapped in NESTED
 // sequences AND carrying a TRAILING redundant hop (`(c++, (d++, globalThis.self)).window.Array.prototype`)
 // must collapse the whole proxy navigation to the root with its buried side effects in source order. the
@@ -16,6 +16,6 @@ let a = 0,
   d = 0;
 const flat = _flatMaybeArray((c++, d++, _globalThis).Array.prototype || {});
 const at = _at((c++, d++, _globalThis).Array.prototype && {});
-const includes = _includes((a++, b++, c++, _globalThis).Array.prototype || {});
+const includes = _includesMaybeArray((a++, b++, c++, _globalThis).Array.prototype || {});
 const map = _mapMaybeArray((d++, _globalThis).Array.prototype || {});
 export { flat, at, includes, map, a, b, c, d };

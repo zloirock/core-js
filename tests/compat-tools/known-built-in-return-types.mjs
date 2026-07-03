@@ -27,6 +27,7 @@ const VALID_TYPES = new Set([
   'DocumentFragment',
   'Element',
   'Error',
+  'HTMLAllCollection',
   'HTMLCollection',
   'FinalizationRegistry',
   'Function',
@@ -116,6 +117,8 @@ deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.toArray, { type:
 deepEqual(knownBuiltInReturnTypes.instanceMethods.String.matchAll, { type: 'Iterator', element: { type: 'Array', element: { type: 'string' } } });
 // instance property
 deepEqual(knownBuiltInReturnTypes.instanceProperties.URL.searchParams, { type: 'URLSearchParams' });
+// document.all is the ONE falsy object - the always-truthy logical fold keys on this exact type
+deepEqual(knownBuiltInReturnTypes.instanceProperties.Document.all, { type: 'HTMLAllCollection' });
 // type guard
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Array.isArray, { type: 'Array' });
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number' });
