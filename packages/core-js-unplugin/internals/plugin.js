@@ -38,7 +38,10 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { isAliasProxyHopChain, resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  isAliasProxyHopChain, resolveKey as sharedResolveKey,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
+import { planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
@@ -956,6 +959,27 @@ export default function createPlugin(options) {
             || isMemberWriteOnlyContext(node, parent, metaPath.parentPath?.parent);
         }
 
+        // runtime ctor guard render: the DECISION is the shared provider plan; this only
+        // composes the text - `(M === _Map ? _Map$groupBy : M.groupBy)`, a callee raw branch
+        // binding `this` via `.bind(M)`. the member subtree is skip-marked so the natural
+        // visitors never queue a competing transform into the overwritten span
+        function emitGuardedStaticNarrow(meta, metaPath, parent) {
+          const memberNode = metaPath.node;
+          const plan = planGuardedStaticNarrow({ memberNode, parent, meta, path: metaPath, resolvePure });
+          if (!plan) return false;
+          if (plan.bail) return true;
+          const ctorRef = plan.ctorPure
+            ? injectPureImport(plan.ctorPure.entry, plan.ctorPure.hintName)
+            : plan.ctorName;
+          const staticBinding = injectPureImport(plan.staticPure.entry, plan.staticPure.hintName);
+          const memberSrc = code.slice(memberNode.start, memberNode.end);
+          const rawBranch = plan.isCallee ? `${ memberSrc }.bind(${ plan.recvIdent.name })` : memberSrc;
+          walkAstNodes({ root: memberNode, visit: n => skippedNodes.add(n) });
+          transforms.add(memberNode.start, memberNode.end,
+            `(${ plan.recvIdent.name } === ${ ctorRef } ? ${ staticBinding } : ${ rawBranch })`);
+          return true;
+        }
+
         function usagePureCallback(meta, metaPath) {
           // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
@@ -980,6 +1004,8 @@ export default function createPlugin(options) {
 
           // parent is already unwrapped past parens/chain/TS above
           if (isDeleteTarget(parent)) return;
+
+          if (meta.guardedAliasHint && emitGuardedStaticNarrow(meta, metaPath, parent)) return;
 
           let inheritedStatic = false;
           if (meta.kind === 'property') {

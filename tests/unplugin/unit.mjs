@@ -4449,9 +4449,13 @@ async function checkRefusedAliasRawPassIdempotent() {
     const out = await transform.call({ error(e) { throw new Error(e); } }, code, '/x/probe.mjs');
     if (out?.code) code = out.code;
   }
-  check('refused alias member stays raw across pre+post', /M\.groupBy/.test(code), true);
-  check('refused alias callee stays raw across pre+post', /P\.try\(/.test(code), true);
-  check('no static narrow leaks for the refused alias', /_Map\$groupBy|_Promise\$try/.test(code), false);
+  // the refused reads get the RUNTIME ctor guard whose raw branch keeps the original member
+  // (a callee keeps `this` via `.bind`); the second pass must not re-guard the guard's own
+  // raw branch - exactly one guard per read survives pre+post
+  check('refused alias guard keeps the raw member branch', /M\.groupBy/.test(code), true);
+  check('refused alias callee guard binds the raw branch', /P\.try\.bind\(P\)/.test(code), true);
+  check('member guard emitted exactly once across pre+post', code.split('M === _Map ?').length - 1, 1);
+  check('callee guard emitted exactly once across pre+post', code.split('P === _Promise ?').length - 1, 1);
 }
 await checkRefusedAliasRawPassIdempotent();
 
