@@ -419,7 +419,8 @@ export function chooseFallbackReceiverNode({ argNode, defaultNode, objectPattern
 // a strategy enum, only this keep-in-place plan or a bail.)
 export function planSideEffectKeyStrategy({
   polyfillKind, isForInit, isMultiDeclarator, receiverIsSafe,
-  receiverIsConstantLiteral = false, soleBindingInDeclaration = false, initIsPure = false, propKeyIsPure = true,
+  receiverIsConstantLiteral = false, receiverIsSeFreeMember = false,
+  soleBindingInDeclaration = false, initIsPure = false, propKeyIsPure = true,
 }) {
   const instance = polyfillKind === 'instance';
   const siblingDeclarator = !!(isForInit || (isMultiDeclarator && instance));
@@ -427,23 +428,28 @@ export function planSideEffectKeyStrategy({
   // (`{ [(eff(), 'k')]: f }` keeps the key in place so the effect still runs - dropping it would lose `eff()`).
   // a sibling-declarator host (for-init / multi-declarator) shares its declaration, so the slot can't drop
   const eliminateResidual = soleBindingInDeclaration && initIsPure && propKeyIsPure && !siblingDeclarator;
+  // memoize the receiver into a shared `_ref` read once by both the residual and the extract:
+  //   - a CONSTANT array / object literal, so the surviving residual doesn't keep a duplicate of the
+  //     (possibly large) literal beside the extract. only the standalone-insert shape (a sibling-
+  //     declarator host's preceding `const _ref` would TDZ against the same-declaration receiver or
+  //     has no statement slot in a for-head); the duplicate path stays safe for a constant either way.
+  //   - a side-effect-free MEMBER (`holder.p`): a getter must fire exactly ONCE (like the native
+  //     single read), so the duplicate path is UNSOUND and the memo is the only extraction shape.
+  //     sibling-declarator hosts memoize too - the memo joins the declaration as a PRECEDING
+  //     declarator at the source slot (`var _ref = holder.p, { ... } = _ref, m = _m(_ref)`), so
+  //     there is no TDZ and the for-head needs no statement slot. gated on a side-effect-free WHOLE
+  //     init: the memo hoists the receiver read ABOVE the init expression, so a NESTED receiver
+  //     placed after an effectful slot (`{ q: se(), p: holder.p }`) would observably reorder
+  // a side-effecting computed key is NOT captured by the memo: it stays in the kept key and runs once
+  const memoizeReceiver = instance && !eliminateResidual
+    && ((receiverIsConstantLiteral && !siblingDeclarator) || (receiverIsSeFreeMember && initIsPure));
   // an instance polyfill re-references the receiver beside the SURVIVING residual; bail unless it is safe to
-  // read twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`). when the residual is
-  // ELIMINATED the extraction (`const m = _m(recv)`) is the receiver's ONLY read, so a member receiver's getter
-  // fires exactly once - same as native - and is sound to extract (`const { y: { at } } = { y: Array.prototype }`)
-  if (instance && !receiverIsSafe && !eliminateResidual) return null;
-  return {
-    instance,
-    siblingDeclarator,
-    eliminateResidual,
-    // memoize a constant-literal receiver into a shared `_ref` so the surviving residual doesn't keep a
-    // duplicate of the (possibly large) literal beside the extract. only the standalone-insert shape (a
-    // sibling-declarator host's preceding `const _ref` would TDZ against the same-declaration receiver or
-    // has no statement slot in a for-head). a side-effecting computed key is NOT captured: the instance
-    // extraction re-references the receiver and is emitted BEFORE the residual (the receiver, being re-
-    // referenceable, reads the same pre-key value either way - the residual's key effect still runs once)
-    memoizeReceiver: instance && receiverIsConstantLiteral && !eliminateResidual && !siblingDeclarator,
-  };
+  // read twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`) or the memo above
+  // makes the second read a `_ref` read. when the residual is ELIMINATED the extraction (`const m =
+  // _m(recv)`) is the receiver's ONLY read, so a member receiver's getter fires exactly once - same as
+  // native - and is sound to extract (`const { y: { at } } = { y: Array.prototype }`)
+  if (instance && !receiverIsSafe && !eliminateResidual && !memoizeReceiver) return null;
+  return { instance, siblingDeclarator, eliminateResidual, memoizeReceiver };
 }
 
 // debug-warn message for a conditional-destructure (`{ k } = cond ? A : B` / `= A || B`) whose polyfill
@@ -573,6 +579,15 @@ export function isReReferenceableReceiver(node) {
   if (node.type === 'Identifier' || node.type === 'ThisExpression') return true;
   if (node.type === 'TemplateLiteral') return node.expressions.length === 0;
   return REFERENCEABLE_LITERAL_TYPES.has(node.type) && !mayHaveSideEffects(node);
+}
+
+// a side-effect-free MEMBER receiver (`Array.prototype`, `holder.p`): reading it carries no
+// call/assignment effect, but a getter would re-fire on a SECOND read - so it can never be
+// re-referenced, only MEMOIZED (`_ref = holder.p` read once, both the residual and the
+// extraction read `_ref`). drives the memoize arm of the side-effect-key plan
+export function isSeFreeMemberReceiver(node) {
+  return !!node && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+    && !mayHaveSideEffects(node);
 }
 
 // a node built ONLY from literal values (numbers / strings / booleans / null / bigint / regexp / constant

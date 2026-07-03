@@ -32,8 +32,10 @@ import {
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
+  findFunctionScopeVarDeclaratorInPath,
   resolveCallArgument,
   unwrapSafeSequenceTail,
+  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding,
@@ -155,7 +157,16 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       // otherwise pick up `polyfillHint='Promise'` cross-shadow, and downstream
       // `resolveBindingToGlobal` would dispatch `super.try` on `class extends MyPromise`
       // as the Promise polyfill - silently miswiring user code
-      const b = scope.getBinding(name);
+      // scope-lag recovery: babel drops a binding from its registry after the destructure-
+      // assignment alias rewrite while the declaration survives in the AST; rebuild it so the
+      // per-binding registry (identity route) stays reachable. adopted ONLY on an identity hit:
+      // a plugin-minted memo (`_ref`) has no per-binding entry and must keep the hint-only
+      // BLIND fallback below - a rebuilt binding would strand it on the shape/dominance gates
+      let b = scope.getBinding(name);
+      if (!b && path) {
+        const rebuilt = rebuildLaggedScopeBinding(path, name);
+        if (rebuilt && getInjector()?.getBindingAliasInfo?.(rebuilt.path.node)) b = rebuilt;
+      }
       // binding-first: the per-binding registry is exact (same-name aliases in sibling scopes
       // never collide); the NAME view serves the scope-lag fallback below and the
       // replaced-declarator re-anchor, disambiguated positionally by the use anchor
@@ -191,6 +202,16 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         return {
           node: b.path.node, kind: b.kind, constantViolations, importSource,
           polyfillHint, aliasSymbolSource, aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
+          // the hint of a registration whose static narrow did NOT apply at this use - a REFUSED
+          // (guarded) registration or a use textually before its trusted write (dominance).
+          // IDENTITY view first: a resolved binding with no per-binding entry is provably a
+          // USER binding (a shadow), which must not pick up the alias's guard. EXCEPTION: the
+          // plugin's own decl-form swap REPLACES the declarator node (identity dies with it,
+          // positions cloned) - the replacement still sits INSIDE the registration's declSpan,
+          // where no user shadow can live, so declSpan containment recovers the hint. drives
+          // the RUNTIME ctor guard; the guard reads the live value, so it self-corrects
+          guardedAliasHint: (identityInfo ?? replacedDeclSlotInfo(b.path.node, info)) && !polyfillHint
+            ? (identityInfo ?? info).hint : null,
         };
       }
       if (!info) return null;
@@ -203,10 +224,14 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       // a VERIFIED registration (complete original write set examined at pre-pass) may serve
       // the lag fallback too - the declSpan/write dominance gate below still bounds the use
       const blindTrusted = info.source !== null || info.aliasTrusted || !!info.aliasWrite || !!info.aliasVerified;
+      const blindHint = blindTrusted && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
       return {
         node: null, constantViolations: null, importSource: info.source,
-        polyfillHint: blindTrusted && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null,
+        polyfillHint: blindHint,
         aliasWrite: info.aliasWrite ?? null,
+        // no scope binding at all - a user shadow would HAVE one, so the positional name view
+        // safely serves the runtime-guard hint when the static narrow did not apply
+        guardedAliasHint: !blindHint ? info.hint ?? null : null,
       };
     },
     // lazy lookup for the resolver's assignment-form alias branch: the single TRUSTED write
@@ -239,6 +264,115 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
 }
 
 // no-tracking adapter for detect-entry's `require('core-js/...')` literal check
+// babel drops a binding from its scope registry after the destructure-assignment alias rewrite
+// (`({ Map: M } = globalThis)` -> `M = _Map`): the declaration survives in the AST while
+// `scope.getBinding` turns null, so the resolver's reassignment follow silently degrades to
+// generic (the estree side, resolving on the pristine AST, keeps the narrow - a parity gap).
+// rebuild the minimal binding shape the resolver reads ({ path, identifier, scope, kind,
+// constantViolations }) from the AST: locate the nearest enclosing scope owner declaring
+// `name`, then collect the binding's write paths across the whole owner subtree (nested-
+// function writes included - the flow's own deferral and straight-line gates position them).
+// a function / class / catch scope that redeclares `name` is SKIPPED whole (its writes belong
+// to the shadow binding, not ours); a sibling block-level redeclaration still bails to null -
+// the write set would be ambiguous, and null keeps the pre-recovery generic behavior
+// the positional twin of the identity view for a REPLACED declarator: our decl-form swap
+// replaces the declarator node (identity dies, positions cloned), but the replacement stays
+// inside the registration's declaration span - a place no user shadow can occupy
+function replacedDeclSlotInfo(bindingNode, info) {
+  const span = info?.aliasDeclSpan;
+  return span && bindingNode?.start >= span.start && bindingNode?.end <= span.end ? info : null;
+}
+
+export function rebuildLaggedScopeBinding(path, name) {
+  // hoisted `var` (any nesting depth, pattern-aware): the canonical var-scope walker - the
+  // same lookup the estree side's synthetic var-hoist binding uses, so the recovery shapes
+  // stay in lockstep across substrates
+  let declaratorNode = findFunctionScopeVarDeclaratorInPath(path, name);
+  let ownerPath = null;
+  if (declaratorNode) {
+    // the walker climbs var-scope owners, so the declarator may live in an OUTER scope -
+    // the owner must be the one CONTAINING it, not merely the nearest function-like
+    for (let p = path.parentPath; p && !ownerPath; p = p.parentPath) {
+      if ((p.isProgram() || p.isFunction() || p.isStaticBlock())
+        && p.node.start <= declaratorNode.start && declaratorNode.end <= p.node.end) ownerPath = p;
+    }
+  } else {
+    // block-scoped `let` / `const`: by definition body-level of an enclosing block, so a flat
+    // per-block scan suffices - no descent
+    for (let p = path.parentPath; p && !declaratorNode; p = p.parentPath) {
+      const body = p.isProgram() || p.isBlockStatement() || p.isStaticBlock() ? p.node.body : null;
+      if (!body) continue;
+      for (const stmt of body) {
+        const decl = stmt?.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
+        if (decl?.type !== 'VariableDeclaration') continue;
+        for (const d of decl.declarations) {
+          let binds = d.id?.type === 'Identifier' && d.id.name === name;
+          if (!binds) walkPatternIdentifiers(d.id, id => { if (id.name === name) binds = true; });
+          if (binds) {
+            declaratorNode = d;
+            break;
+          }
+        }
+        if (declaratorNode) break;
+      }
+      if (declaratorNode) ownerPath = p;
+    }
+  }
+  if (!declaratorNode || !ownerPath) return null;
+  let declaratorPath = null;
+  const violations = [];
+  let shadowed = false;
+  ownerPath.traverse({
+    VariableDeclarator(dp) {
+      if (dp.node === declaratorNode) {
+        declaratorPath = dp;
+        return;
+      }
+      // reached only for redeclarations OUTSIDE skipped function/catch shadows: a sibling
+      // block-level redecl - ambiguous write attribution, bail the whole recovery
+      walkPatternIdentifiers(dp.node.id, id => { if (id.name === name) shadowed = true; });
+      if (shadowed) dp.stop();
+    },
+    'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassDeclaration|ClassExpression|CatchClause'(fp) {
+      // an own-scope redeclaration (id / param / catch param / a body-level declarator) makes the
+      // subtree's writes belong to the SHADOW binding - skip the subtree, keep walking siblings
+      let declaresOwn = fp.node.id?.name === name || fp.node.param?.name === name;
+      if (!declaresOwn) {
+        for (const param of fp.node.params ?? []) {
+          walkPatternIdentifiers(param, id => { if (id.name === name) declaresOwn = true; });
+        }
+      }
+      if (!declaresOwn && (fp.isFunction() || fp.isCatchClause())) {
+        fp.traverse({
+          VariableDeclarator(dp) {
+            walkPatternIdentifiers(dp.node.id, id => { if (id.name === name) declaresOwn = true; });
+            if (declaresOwn) dp.stop();
+          },
+        });
+      }
+      if (declaresOwn) fp.skip();
+    },
+    AssignmentExpression(ap) {
+      let writes = false;
+      if (ap.node.left?.type === 'Identifier') writes = ap.node.left.name === name;
+      else walkPatternIdentifiers(ap.node.left, id => { if (id.name === name) writes = true; });
+      if (writes) violations.push(ap);
+    },
+    UpdateExpression(up) {
+      if (up.node.argument?.type === 'Identifier' && up.node.argument.name === name) violations.push(up);
+    },
+  });
+  if (shadowed || !declaratorPath) return null;
+  return {
+    path: declaratorPath,
+    identifier: declaratorNode.id,
+    scope: ownerPath.scope,
+    kind: declaratorPath.parentPath?.node?.kind ?? 'let',
+    constantViolations: violations,
+    referenced: true,
+  };
+}
+
 export const babelAdapter = createBabelAdapter();
 
 // babel visitor key for nodes whose `typeAnnotation` / `returnType` / params need walking:

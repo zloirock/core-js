@@ -234,7 +234,7 @@ export default class ImportInjectorState {
 
   registerGlobalAlias(name, globalName, {
     bindingNode = null, trusted = false, write = null, guarded = false, declSpan = null, scopeSpan = null,
-    verified = false,
+    verified = false, srcPos = null, extraBindingNodes = null,
   } = {}) {
     this.usedNames.add(name);
     if (!bindingNode) {
@@ -246,16 +246,32 @@ export default class ImportInjectorState {
       this.#globalAliases.set(name, { hint: globalName, trusted: true });
       return;
     }
-    const entry = { hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified };
-    const existing = this.#bindingAliases.get(bindingNode);
+    const entry = { hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified, srcPos };
+    // ONE runtime slot may register through SEVERAL nodes (a `var` redeclaration's declarators,
+    // an assignment-form write's binding vs a decl-form's pattern declarator): resolve the
+    // existing entry across every candidate key so the judgments MERGE into one entry instead
+    // of stacking same-name siblings that poison the positional name view with ambiguity
+    const candidateNodes = [bindingNode, ...extraBindingNodes ?? []].filter(Boolean);
+    let existing = null;
+    for (const node of candidateNodes) {
+      existing = this.#bindingAliases.get(node);
+      if (existing) break;
+    }
     if (existing) {
+      // key every candidate to the surviving entry so later lookups converge by identity
+      for (const node of candidateNodes) this.#bindingAliases.set(node, existing);
       // same binding judged by more than one path (plan gate + standalone site): keep the
       // strongest judgment - a trusted/write registration wins over a refused one
       if ((existing.trusted || existing.write) && guarded) return;
+      // two GUARDED judgments with source positions (a dirty multi-write binding registered
+      // once per write): keep the LATER write deterministically - the substrates register in
+      // their own traversal order, and the runtime ctor guard keys on the LAST swap's hint
+      if (existing.guarded && guarded && existing.srcPos !== null && srcPos !== null
+        && srcPos < existing.srcPos) return;
       Object.assign(existing, entry);
       return;
     }
-    this.#bindingAliases.set(bindingNode, entry);
+    for (const node of candidateNodes) this.#bindingAliases.set(node, entry);
     let list = this.#aliasEntriesByName.get(name);
     if (!list) this.#aliasEntriesByName.set(name, list = []);
     list.push(entry);
