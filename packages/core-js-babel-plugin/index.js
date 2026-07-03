@@ -40,7 +40,7 @@ import {
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { resolveSymbolIteratorEntry } from '@core-js/polyfill-provider/detect-usage/members';
+import { planGuardedStaticNarrow, resolveSymbolIteratorEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
@@ -51,6 +51,7 @@ import {
   createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
+  rebuildLaggedScopeBinding,
   USAGE_VISITORS_IS_HANDLED,
   USAGE_VISITORS_RESET,
 } from './internals/detect-usage.js';
@@ -160,6 +161,12 @@ export default function plugin(api, options) {
       return info && !info.aliasGuarded ? info.hint : null;
     },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
+    // babel loses a binding from its scope registry after the destructure-assignment alias
+    // rewrite while the declaration survives in the AST; without the recovery the resolver's
+    // reassignment follow degrades to generic where the estree side keeps the narrow
+    getScopeBinding(scope, name, path = null) {
+      return scope?.getBinding(name) ?? (path ? rebuildLaggedScopeBinding(path, name) : null);
+    },
     // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
     // traversal, after init, so the deferred reference is safe
     isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
@@ -562,6 +569,42 @@ export default function plugin(api, options) {
         if (type) resolvedType.set(callParent.node, type);
       }
 
+      // runtime ctor guard render: the DECISION (static entry, callee-ness, optional-call
+      // bail, ctor comparator) is the shared provider plan; this only builds the AST -
+      // `(M === _Map ? _Map$groupBy : M.groupBy)`, a callee raw branch binding `this` via
+      // `.bind(M)`. the raw branch is skip-marked whole: the re-queued traversal must neither
+      // re-enter this handler nor run the normal static substitution on it (the raw member is
+      // the guard's live fallback - a narrow would corrupt the untaken flow)
+      const guardedNarrowRendered = new WeakSet();
+      function emitGuardedStaticNarrow(meta, path) {
+        const memberNode = path.node;
+        if (guardedNarrowRendered.has(memberNode)) return true;
+        const plan = planGuardedStaticNarrow({
+          memberNode, parent: unwrapTSExpressionParent(path).parentPath?.node, meta, path, resolvePure,
+        });
+        if (!plan) return false;
+        if (plan.bail) return true;
+        const ctorRef = plan.ctorPure
+          ? injectPureImport(plan.ctorPure.entry, plan.ctorPure.hintName)
+          : t.identifier(plan.ctorName);
+        const staticBinding = injectPureImport(plan.staticPure.entry, plan.staticPure.hintName);
+        const rawBranch = plan.isCallee
+          ? t.callExpression(t.memberExpression(t.cloneNode(memberNode), t.identifier('bind')), [t.cloneNode(plan.recvIdent)])
+          : memberNode;
+        guardedNarrowRendered.add(memberNode);
+        const guard = t.conditionalExpression(
+          t.binaryExpression('===', t.cloneNode(plan.recvIdent), t.cloneNode(ctorRef)),
+          t.cloneNode(staticBinding),
+          rawBranch,
+        );
+        t.traverseFast(rawBranch, n => {
+          skippedNodes.add(n);
+          if (n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression') guardedNarrowRendered.add(n);
+        });
+        path.replaceWith(guard);
+        return true;
+      }
+
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
         // JSX tag reaches here via ReferencedIdentifier; a JSX slot cannot host a renamed
@@ -572,6 +615,8 @@ export default function plugin(api, options) {
 
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
         if (isDeleteTarget(unwrapTSExpressionParent(path).parentPath?.node)) return;
+
+        if (meta.guardedAliasHint && emitGuardedStaticNarrow(meta, path)) return;
 
         let inheritedStatic = false;
         if (meta.kind === 'property') {

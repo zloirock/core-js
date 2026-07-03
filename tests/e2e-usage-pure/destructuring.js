@@ -2151,6 +2151,43 @@ QUnit.test('destructuring: nested partial consume keeps the hop-key effect once'
   assert.same(c, 1);
 });
 
+// an SE-key destructure off a side-effect-free MEMBER receiver with a surviving residual: the
+// receiver memoizes, so a getter fires exactly once (like the native single read), the key effect
+// runs exactly once after it, and the extracted binding is the polyfill dispatcher
+QUnit.test('destructuring: SE-key off a member receiver memoizes - getter and key effect fire once', assert => {
+  const eff = [];
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter receiver IS the case under test
+    get p() {
+      eff.push('get');
+      return [1, [2]];
+    },
+  };
+  const { [(eff.push('key'), 'flat')]: m, other } = holder.p;
+  assert.deepEqual(m.call([1, [2]]), [1, 2]);
+  assert.same(typeof other, 'undefined');
+  assert.deepEqual(eff, ['get', 'key']);
+});
+
+// the multi-declarator twin: the memo joins the declaration at the source slot, so an earlier
+// sibling's init effect still runs BEFORE the receiver read
+QUnit.test('destructuring: SE-key member memo keeps sibling-init order in a multi-declarator host', assert => {
+  const eff = [];
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter receiver IS the case under test
+    get p() {
+      eff.push('get');
+      return [1, [2]];
+    },
+  };
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the multi-declarator host IS the case under test
+  const x = (eff.push('first'), 1), { [(eff.push('key'), 'at')]: a2, rest } = holder.p;
+  assert.same(typeof a2, 'function');
+  assert.same(typeof rest, 'undefined');
+  assert.same(x, 1);
+  assert.deepEqual(eff, ['first', 'get', 'key']);
+});
+
 // a for-init destructure off a call-rooted multi-hop receiver: the loop-header sink must carry
 // only the harvested effects (chain-root call + hop-key effect), each exactly once - a verbatim
 // sink kept the raw proxy hop and threw off-browser. fail-before throws in Node
@@ -2202,6 +2239,82 @@ QUnit.test('destructuring: conditional ctor alias member stays raw on the untake
     return typeof M?.groupBy;
   }
   assert.same(probe(false), 'undefined');
+});
+
+// the TAKEN path of a REFUSED alias reads the pure static through the RUNTIME ctor guard
+// (`M === _Map ? _Map$groupBy : M.groupBy`), so the member works instead of `undefined`
+QUnit.test('destructuring: refused alias taken path reads the pure static via the runtime guard', assert => {
+  function taken(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    return M.groupBy;
+  }
+  const groupBy = taken(true);
+  assert.same(typeof groupBy, 'function');
+  assert.same(groupBy([1, 2, 3], it => it % 2).get(1).length, 2);
+});
+
+// the same guard through a use textually BEFORE the alias write: called after the write, the
+// closure reads the pure static; called before, the guard's raw branch matches untranspiled code
+QUnit.test('destructuring: pre-write closure reads the guarded static after the alias write', assert => {
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  let P;
+  function reader() {
+    return typeof P?.allSettled;
+  }
+  assert.same(reader(), 'undefined');
+  ({ Promise: P } = globalThis);
+  assert.same(reader(), 'function');
+});
+
+// a SIDE-EFFECTING computed key through a refused alias stays raw entirely: the guard's
+// consequent would skip the key effect the native evaluation always runs - so the effect
+// fires exactly once and the read keeps native surface semantics
+QUnit.test('destructuring: refused alias SE-computed key stays raw with the effect intact', assert => {
+  let K;
+  let c = 0;
+  function cond() {
+    return true;
+  }
+  if (cond()) ({ Map: K } = globalThis);
+  // eslint-disable-next-line no-sequences -- the computed-key sequence IS the case under test
+  const read = typeof K[c++, 'groupBy'];
+  assert.same(c, 1);
+  assert.same(typeof read, 'string');
+});
+
+// a MIXED dirty binding (conditional hoisted `var` + assignment-form write): the guard keys the
+// LAST source write's ctor deterministically, so the matching runtime path reads the pure static
+QUnit.test('destructuring: mixed-form dirty alias guards on the last write', assert => {
+  function rev(c, d) {
+    // eslint-disable-next-line block-scoped-var -- writes the hoisted var below
+    if (c) ({ Promise: out } = globalThis);
+    if (d) {
+      // eslint-disable-next-line no-var -- the conditional hoisted `var` IS the form under test
+      var { Map: out } = globalThis;
+    }
+    try {
+      // eslint-disable-next-line block-scoped-var -- reads the hoisted var
+      return typeof out.groupBy;
+    } catch {
+      return 'T';
+    }
+  }
+  assert.same(rev(false, true), 'function');
+  assert.same(rev(false, false), 'T');
+});
+
+// the guard's raw branch preserves a USER value exactly: when the conditional flow binds the
+// user's own object instead of the alias, the ctor comparison fails and the user's member wins
+QUnit.test('destructuring: refused alias guard lets a user value win at runtime', assert => {
+  function pick(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    else M = { groupBy: () => 'USER' };
+    return M.groupBy([1], it => it);
+  }
+  assert.same(pick(false), 'USER');
+  assert.same(typeof pick(true), 'object');
 });
 
 // a use textually BEFORE its alias write (an earlier-defined closure body) stays raw: called
