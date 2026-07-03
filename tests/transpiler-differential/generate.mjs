@@ -145,6 +145,11 @@ const D_PATTERNS = [
   { id: 'nested-instance-lit', recv: '{ y: [3, [1, 2]] }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
   { id: 'nested-instance-ident', recv: '{ y: arr }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
   { id: 'nested-instance-sibling', recv: '{ a: log.push("e"), y: [3, [1, 2]] }', lhs: '{ a, y: { flat: m } }', names: ['a', 'm'], observe: '[a, typeof m]', strip: true },
+  // SE-key off a side-effect-free MEMBER receiver: a surviving residual memoizes the receiver
+  // (`_ref` read once - getter-safe) and the polyfill lands; a sole binding extracts off the single
+  // read. the stripped leg is the seed-bug oracle: a bail leaves the binding native ('undefined')
+  { id: 'se-key-member', recv: 'Array.prototype', lhs: '{ [(log.push("k"), "flat")]: m, other }', names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
+  { id: 'se-key-member-sole', recv: 'Array.prototype', lhs: '{ [(log.push("k"), "at")]: a }', names: ['a'], observe: 'typeof a', strip: true },
 ];
 const D_HOSTS = [
   { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },

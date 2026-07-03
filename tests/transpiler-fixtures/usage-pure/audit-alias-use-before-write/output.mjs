@@ -7,9 +7,9 @@ import _Promise$try from "@core-js/pure/actual/promise/try";
 // a call that runs before the write; uses textually after keep the static narrow (the locked
 // decl canon)
 let M;
-const early = () => typeof M.groupBy;
+const early = () => typeof (M === _Map ? _Map$groupBy : M.groupBy);
 M = _Map;
 export const r = [early(), typeof _Map$groupBy];
-const hoisted = () => typeof P.try;
+const hoisted = () => typeof (P === _Promise ? _Promise$try : P.try);
 var P = _Promise;
 export const q = [hoisted(), typeof _Promise$try];
