@@ -418,8 +418,7 @@ export function chooseFallbackReceiverNode({ argNode, defaultNode, objectPattern
 // nested-sequence keys / array-wrappers. The residual is the single, robust path - so there is no longer
 // a strategy enum, only this keep-in-place plan or a bail.)
 export function planSideEffectKeyStrategy({
-  polyfillKind, isForInit, isMultiDeclarator, receiverIsSafe,
-  receiverIsConstantLiteral = false, receiverIsSeFreeMember = false,
+  polyfillKind, isForInit, isMultiDeclarator, receiverNode = null, receiverIsWholeInit = false,
   soleBindingInDeclaration = false, initIsPure = false, propKeyIsPure = true,
 }) {
   const instance = polyfillKind === 'instance';
@@ -433,16 +432,24 @@ export function planSideEffectKeyStrategy({
   //     (possibly large) literal beside the extract. only the standalone-insert shape (a sibling-
   //     declarator host's preceding `const _ref` would TDZ against the same-declaration receiver or
   //     has no statement slot in a for-head); the duplicate path stays safe for a constant either way.
-  //   - a side-effect-free MEMBER (`holder.p`): a getter must fire exactly ONCE (like the native
-  //     single read), so the duplicate path is UNSOUND and the memo is the only extraction shape.
-  //     sibling-declarator hosts memoize too - the memo joins the declaration as a PRECEDING
-  //     declarator at the source slot (`var _ref = holder.p, { ... } = _ref, m = _m(_ref)`), so
-  //     there is no TDZ and the for-head needs no statement slot. gated on a side-effect-free WHOLE
-  //     init: the memo hoists the receiver read ABOVE the init expression, so a NESTED receiver
-  //     placed after an effectful slot (`{ q: se(), p: holder.p }`) would observably reorder
-  // a side-effecting computed key is NOT captured by the memo: it stays in the kept key and runs once
+  //   - a side-effect-free MEMBER (`holder.p`) or BRANCHING (`c ? [7] : []`, `a || b`) receiver: a
+  //     getter must fire exactly ONCE (like the native single read) and a branch must not re-select,
+  //     so the duplicate path is UNSOUND and the memo is the only extraction shape. sibling-declarator
+  //     hosts memoize too - the memo joins the declaration as a PRECEDING declarator at the source
+  //     slot (`var _ref = holder.p, { ... } = _ref, m = _m(_ref)`), so there is no TDZ and the
+  //     for-head needs no statement slot. gated on a side-effect-free WHOLE init: the memo hoists the
+  //     receiver read ABOVE the init expression, so a NESTED receiver placed after an effectful slot
+  //     (`{ q: se(), p: holder.p }`) would observably reorder
+  //   - the WHOLE INIT of a top-level multi-prop pattern (`receiverIsWholeInit`, any expression -
+  //     call / SE-bearing ternary / sequence): the memo evaluates exactly where the init did, so
+  //     every buried effect runs once in source order regardless of the receiver's own effects
+  // a side-effecting computed key is NOT captured by the memo: it stays in the kept key and runs once.
+  // receiver classification lives HERE (from the raw node) so both emitters decide identically
+  const receiverIsSafe = isReReferenceableReceiver(receiverNode);
   const memoizeReceiver = instance && !eliminateResidual
-    && ((receiverIsConstantLiteral && !siblingDeclarator) || (receiverIsSeFreeMember && initIsPure));
+    && ((isConstantLiteralReceiver(receiverNode) && !siblingDeclarator)
+      || ((isSeFreeMemberReceiver(receiverNode) || isSeFreeBranchingReceiver(receiverNode)) && initIsPure)
+      || receiverIsWholeInit);
   // an instance polyfill re-references the receiver beside the SURVIVING residual; bail unless it is safe to
   // read twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`) or the memo above
   // makes the second read a `_ref` read. when the residual is ELIMINATED the extraction (`const m =
@@ -590,6 +597,34 @@ export function isSeFreeMemberReceiver(node) {
     && !mayHaveSideEffects(node);
 }
 
+// intermediate slots on the walk from an inner destructure prop up to its host - both AST flavors
+// (babel `ObjectProperty` / estree `Property`); `VariableDeclarator` passes through so a declaration
+// host terminates the walk at its declaration like the assignment / param hosts do at theirs
+const NESTED_PATTERN_WALK_TYPES = new Set([
+  'ObjectPattern', 'ObjectProperty', 'Property', 'AssignmentPattern', 'ArrayPattern', 'VariableDeclarator',
+]);
+
+// every enclosing ObjectPattern from an inner prop path up to the destructure host - used to CLAIM
+// patterns for the proxy-hop-collapse defer, which keys on the ROOT pattern, so a nested prop must
+// claim the whole chain. path-API-agnostic (`.parentPath` / `.node` on both emitters)
+export function collectEnclosingObjectPatterns(startPath) {
+  const patterns = [];
+  for (let p = startPath; p && NESTED_PATTERN_WALK_TYPES.has(p.node?.type); p = p.parentPath) {
+    if (p.node.type === 'ObjectPattern') patterns.push(p.node);
+  }
+  return patterns;
+}
+
+// a side-effect-free BRANCHING receiver (`cond ? [7, 8] : []`, `a || b`, `x ?? y`): like an SE-free
+// member it carries no call/assignment effect, but its value is not stable across reads (branch
+// re-selection, operand getters), so it can never be re-referenced - only MEMOIZED (`_ref` read
+// once). instance extraction off it stays value-correct on every branch via the Maybe-dispatch
+// helpers - the same dispatch that makes a plain union receiver sound
+export function isSeFreeBranchingReceiver(node) {
+  return !!node && (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression')
+    && !mayHaveSideEffects(node);
+}
+
 // a node built ONLY from literal values (numbers / strings / booleans / null / bigint / regexp / constant
 // template, signed numeric, and array / object literals nesting the same). unlike `isReReferenceableReceiver`
 // this rejects ANY identifier or member - so the node references no binding and no polyfillable global, can't
@@ -634,17 +669,18 @@ export function isConstantLiteralReceiver(node) {
 // safe to reference twice (see `isReReferenceableReceiver`); a member / call receiver, a computed or
 // non-literal nesting key, a non-matching RHS hop (incl. a spread that shifts array indices), or a missing
 // key / hole bails to null.
-// `allowSeFreeMember` opens the receiver to a side-effect-free MEMBER (`Array.prototype`): a member read is
-// pure to `mayHaveSideEffects`, but a getter would re-fire on a SECOND read - so callers pass it ONLY when
-// the receiver is read exactly ONCE (an `eliminateResidual` extraction), where the getter fires once like
-// native. the double-read assignment-overwrite consumer keeps the default (members stay safe-bailed).
+// `allowSeFreeSingleRead` opens the receiver to a side-effect-free MEMBER (`Array.prototype`) or
+// BRANCHING (`c ? [7] : []`, `a || b`) node: reading either is pure to `mayHaveSideEffects`, but a getter
+// would re-fire (and a branch re-select) on a SECOND read - so callers pass it ONLY when the receiver is
+// read exactly ONCE (an `eliminateResidual` extraction or the memoized `_ref` channel), where it fires
+// once like native. the double-read assignment-overwrite consumer keeps the default (both stay safe-bailed).
 // AST-agnostic and path-API-agnostic: both babel and estree paths expose `.parentPath` / `.node`, the
 // field names match, and the only divergent node type (object property: babel `ObjectProperty` / estree
 // `Property`) is accepted both ways - so ONE implementation serves both emitters. `unwrapExpressionChain`
 // peels transparent wrappers (parens / TS casts) off the RHS and each value, so a parenthesized object
 // literal or value (`= ({ y: arr })` / `{ y: (arr) }`) resolves the same way - babel folds parens into
 // node `extra`, estree keeps a `ParenthesizedExpression`, and without peeling the two would diverge
-export function resolveNestedReceiverNode(leafPath, { allowSeFreeMember = false } = {}) {
+export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = false } = {}) {
   const segs = [];
   let pattern = leafPath.parentPath;
   while (pattern?.node?.type === 'ObjectPattern' || pattern?.node?.type === 'ArrayPattern') {
@@ -688,11 +724,11 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeMember = false 
       }
     }
     if (isReReferenceableReceiver(node)) return node;
-    // a side-effect-free member (`Array.prototype`, `obj.props`) is sound for a single-read extraction:
-    // its getter (if any) fires once, matching native. computed-key / call members carry effects and are
-    // rejected by `mayHaveSideEffects`
-    if (allowSeFreeMember && (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
-      && !mayHaveSideEffects(node)) return node;
+    // a side-effect-free member (`Array.prototype`, `obj.props`) or branching (`c ? [7] : []`, `a || b`)
+    // receiver is sound for a single-read extraction: its getter (if any) fires once and its branch
+    // selects once, matching native. computed-key / call receivers carry effects and are rejected by
+    // `mayHaveSideEffects`
+    if (allowSeFreeSingleRead && (isSeFreeMemberReceiver(node) || isSeFreeBranchingReceiver(node))) return node;
     return null;
   }
   return null;
