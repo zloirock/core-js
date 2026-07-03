@@ -1,18 +1,21 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _at from "@core-js/pure/actual/instance/at";
 // A `{ method } = X || fallback` destructure whose operand X is a SE-wrapped proxy-global chain keeps each
 // logical operand live; the single-member collapse misses the logical wrapper, so a raw `globalThis.self`
 // (undefined off-engine) survived inside the wrapped operand on babel while the other emitter collapsed it.
 // lines vary by OPERATOR and OPERAND position and each binds a DISTINCT method so the rewritten helper
-// identifies the triggering line: proxy as `||` left, proxy as `&&` left, proxy as short-circuited `||`
-// right (the always-truthy object left decides the value, so the extraction declines and the DEAD right
-// operand stays verbatim on both emitters - it never evaluates), real-object left (control - no proxy).
+// identifies the triggering line: proxy as `||` left, proxy as `&&` left (the always-truthy left narrows
+// the value to the `{}` right - nothing to polyfill, the line stays a verbatim passthrough), proxy as
+// short-circuited `||` right (the always-truthy object left decides the value, so the extraction declines
+// and the DEAD right operand stays verbatim on both emitters - it never evaluates), real-object left
+// (control - no proxy).
 // the trailing counter proves the live-operand side effects run in source order.
 let c = 0;
 const flat = _flatMaybeArray((c++, _globalThis).Array.prototype || {});
-const at = _at((c++, _globalThis).Array.prototype && {});
+const {
+  at
+} = (c++, _globalThis.self).Array.prototype && {};
 const {
   includes
 } = {} || (c++, _globalThis.self).Array.prototype;
