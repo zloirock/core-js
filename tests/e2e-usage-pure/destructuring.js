@@ -2366,3 +2366,116 @@ QUnit.test('destructuring: extraction from a conditional ctor alias stays raw', 
   }
   assert.same(viaParam(false), 'CALLER');
 });
+
+// an UNCLAIMED destructure (no polyfillable prop) over a proxy-hop receiver collapses the hop
+// like a non-destructure receiver: in Node `self` is undefined, so an uncollapsed
+// `_globalThis['self'].Array` would throw before the destructure runs
+QUnit.test('destructuring: unclaimed pattern collapses a proxy-hop receiver', assert => {
+  // eslint-disable-next-line dot-notation -- the computed literal hop key is the form under test
+  const { noSuchArrayProto } = globalThis['self'].Array.prototype;
+  assert.same(typeof noSuchArrayProto, 'undefined');
+  let viaAssign;
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  ({ viaAssign } = globalThis.self.Reflect);
+  assert.same(typeof viaAssign, 'undefined');
+});
+
+// a side-effecting computed hop key is harvested by the collapse: the effect runs exactly once
+// and the destructure still reads through the collapsed root
+QUnit.test('destructuring: unclaimed collapse harvests the hop key effect once', assert => {
+  let keyEffects = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence hop key is the form under test
+  const { noSuchIteratorProto } = globalThis[(keyEffects++, 'self')].Iterator.prototype;
+  assert.same(typeof noSuchIteratorProto, 'undefined');
+  assert.same(keyEffects, 1);
+});
+
+// a side-effect-key destructure off a side-effect-free BRANCHING receiver (ternary / logical)
+// memoizes the receiver - the branch selects once, the key effect fires once, the extracted
+// binding is the polyfilled method; a diverging user-object branch keeps its own value via the
+// runtime dispatch
+QUnit.test('destructuring: SE-key off a branching receiver memoizes and extracts', assert => {
+  let keyRuns = 0;
+  const arr = [7, 8];
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the surviving sibling prop is the form under test
+  const { [(keyRuns++, 'at')]: viaTernary, more1 } = arr.length ? arr : [];
+  assert.same(viaTernary.call([5, 6], -1), 6);
+  assert.same(typeof more1, 'undefined');
+  assert.same(keyRuns, 1);
+  let orKeyRuns = 0;
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the surviving sibling prop is the form under test
+  const { [(orKeyRuns++, 'flat')]: viaLogical, more2 } = arr || [];
+  assert.deepEqual(viaLogical.call([1, [2]]), [1, 2]);
+  assert.same(typeof more2, 'undefined');
+  assert.same(orKeyRuns, 1);
+});
+
+QUnit.test('destructuring: branching receiver memo keeps a diverging branch value-correct', assert => {
+  let keyRuns = 0;
+  function pick(c) {
+    const { [(keyRuns++, 'flatMap')]: fm } = c ? [5] : { flatMap: undefined };
+    return typeof fm;
+  }
+  assert.same(pick(true), 'function');
+  assert.same(pick(false), 'undefined');
+  assert.same(keyRuns, 2);
+});
+
+// the memoize channel takes the WHOLE INIT of a top-level multi-prop pattern when the receiver
+// resolves to no single-read-safe node: the memo evaluates exactly where the init did, so a call
+// receiver runs once and every buried effect keeps source order (init before the key effect)
+QUnit.test('destructuring: SE-key off an effectful whole-init receiver memoizes once', assert => {
+  const eff = [];
+  function make() {
+    eff.push('call');
+    return [7, 8];
+  }
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the surviving sibling prop is the form under test
+  const { [(eff.push('key'), 'at')]: viaCall, more3 } = make();
+  assert.same(viaCall.call([5, 6], -1), 6);
+  assert.same(typeof more3, 'undefined');
+  assert.deepEqual(eff, ['call', 'key']);
+  let seqEff = 0;
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- the surviving sibling prop is the form under test
+  const { [(seqEff++, 'flat')]: viaSeqTernary, more4 } = (seqEff += 10, seqEff > 0 ? [1, [2]] : []);
+  assert.deepEqual(viaSeqTernary.call([1, [2]]), [1, 2]);
+  assert.same(typeof more4, 'undefined');
+  assert.same(seqEff, 11);
+});
+
+// a proxy-hop member receiver of a side-effect-key destructure collapses INSIDE the memo: in
+// Node `self` is undefined, so an uncollapsed `_globalThis['self'].Array.prototype` memo would
+// throw before the extract runs
+QUnit.test('destructuring: SE-key memo collapses a proxy-hop receiver', assert => {
+  let keyRuns = 0;
+  // eslint-disable-next-line dot-notation -- the computed literal hop key is the form under test
+  const { [(keyRuns++, 'at')]: viaHop, more5 } = globalThis['self'].Array.prototype;
+  assert.same(viaHop.call([5, 6], -1), 6);
+  assert.same(typeof more5, 'undefined');
+  assert.same(keyRuns, 1);
+  let seqRuns = 0;
+  const { [(seqRuns++, 'flat')]: viaSeqHop, more6 } = (seqRuns += 10, globalThis.self.Array.prototype);
+  assert.deepEqual(viaSeqHop.call([1, [2]]), [1, 2]);
+  assert.same(typeof more6, 'undefined');
+  assert.same(seqRuns, 11);
+});
+
+// a flatten-claimed declaration (nested-proxy flatten declarator sharing it) routes a sibling
+// SE-key instance destructure through the flatten's slot render: values bind, the key effect
+// runs once, and both declarator orders work
+QUnit.test('destructuring: SE-key sibling of a flatten-claimed declaration', assert => {
+  let keyRuns = 0;
+  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line, es/no-nonstandard-array-prototype-properties -- the multi-declarator `var` sharing the flatten declarator is the form under test
+  var { Array: { from: flatFrom } } = globalThis, { [(keyRuns++, 'at')]: atPair, more7 } = Array.prototype;
+  assert.same(typeof flatFrom, 'function');
+  assert.same(atPair.call([5, 6], -1), 6);
+  assert.same(typeof more7, 'undefined');
+  assert.same(keyRuns, 1);
+  let revRuns = 0;
+  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line, es/no-nonstandard-array-prototype-properties -- the multi-declarator `var` sharing the flatten declarator is the form under test
+  var { [(revRuns++, 'flat')]: flatPair, more8 } = Array.prototype, { Array: { of: flatOf } } = globalThis;
+  assert.deepEqual(flatPair.call([1, [2]]), [1, 2]);
+  assert.same(typeof flatOf, 'function');
+  assert.same(typeof more8, 'undefined');
+  assert.same(revRuns, 1);
+});

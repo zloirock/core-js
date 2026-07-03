@@ -2,9 +2,11 @@
 // logical operand live; the single-member collapse misses the logical wrapper, so a raw `globalThis.self`
 // (undefined off-engine) survived inside the wrapped operand on babel while the other emitter collapsed it.
 // lines vary by OPERATOR and OPERAND position and each binds a DISTINCT method so the rewritten helper
-// identifies the triggering line: proxy as `||` left, proxy as `&&` left, proxy as short-circuited `||`
-// right (the always-truthy object left decides the value, so the extraction declines and the DEAD right
-// operand stays verbatim on both emitters - it never evaluates), real-object left (control - no proxy).
+// identifies the triggering line: proxy as `||` left, proxy as `&&` left (the always-truthy left narrows
+// the value to the `{}` right - nothing to polyfill, the line stays a verbatim passthrough), proxy as
+// short-circuited `||` right (the always-truthy object left decides the value, so the extraction declines
+// and the DEAD right operand stays verbatim on both emitters - it never evaluates), real-object left
+// (control - no proxy).
 // the trailing counter proves the live-operand side effects run in source order.
 let c = 0;
 const { flat } = (c++, globalThis.self).Array.prototype || {};
