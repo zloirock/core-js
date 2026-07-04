@@ -352,6 +352,14 @@ export const data = {
     rhino: '1.7.14',
     safari: '10.1',
   },
+  'es.reflect.namespace': {
+    chrome: '49',
+    edge: '12',
+    firefox: '42',
+    hermes: '0.7',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
   'es.reflect.apply': {
     chrome: '49',
     edge: '15',
