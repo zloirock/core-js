@@ -783,6 +783,7 @@ export const KNOWN_BUNDLERS = new Set([
   'farm',
   'rolldown',
   'rollup',
+  'rsbuild',
   'rspack',
   'unloader',
   'vite',
@@ -792,12 +793,14 @@ export const KNOWN_BUNDLERS = new Set([
 // dynamic `import()` chunk-loader contract: bundlers in this set implement `import(...)`
 // as `Promise.all([...])` of chunk fetches, so the resolved value is itself a Promise.all
 // result rather than a bare module promise. detect-syntax adds `es.promise.all` polyfill
-// only for these bundlers. rspack mirrors webpack semantics by design; farm + unloader
-// share the same Promise.all chunk envelope (per their upstream loader runtime).
-// rolldown / vite / rollup return a bare module Promise for dynamic import and do NOT
-// need the extra polyfill. unknown bundler value already drops to `false` upstream
+// only for these bundlers. rspack mirrors webpack semantics by design, and rsbuild builds
+// on rspack (same chunk runtime); farm + unloader share the same Promise.all chunk envelope
+// (per their upstream loader runtime). rolldown / vite / rollup return a bare module Promise
+// for dynamic import and do NOT need the extra polyfill. unknown bundler value already
+// drops to `false` upstream
 const CHUNK_LOADER_BUNDLERS = new Set([
   'farm',
+  'rsbuild',
   'rspack',
   'unloader',
   'webpack',
