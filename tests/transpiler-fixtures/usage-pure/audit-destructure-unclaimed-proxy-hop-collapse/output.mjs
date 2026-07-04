@@ -3,6 +3,7 @@ import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Reflect from "@core-js/pure/actual/reflect/namespace";
 // an UNCLAIMED object-pattern destructure (no polyfillable prop) has no owner in the
 // destructure pipeline, so its proxy-hop receiver collapses in place exactly like a
 // non-destructure receiver - deferring would strand a raw `_globalThis['self']...`
@@ -25,7 +26,7 @@ export const r3 = typeof qq3;
 let qq4;
 ({
   qq4
-} = _globalThis.Reflect);
+} = _Reflect);
 export const r4 = typeof qq4;
 // parameter default host
 function pf({

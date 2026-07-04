@@ -2476,6 +2476,14 @@ export const features = {
     template: $namespace,
     name: 'Reflect',
   },
+  // the namespace VALUE only: `es.reflect.namespace` defines the object itself and carries its
+  // own compat data (ES2015) - a bare `Reflect` reference / feature-detect must pull neither the
+  // method modules nor the much younger `@@toStringTag`
+  'reflect/namespace': {
+    modules: ['es.reflect.namespace'],
+    template: $namespace,
+    name: 'Reflect',
+  },
   'reflect/apply': {
     modules: ['es.reflect.apply'],
     template: $static,

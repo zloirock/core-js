@@ -41,6 +41,7 @@ import "core-js/modules/es.object.prevent-extensions";
 import "core-js/modules/es.object.seal";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.object.values";
+import "core-js/modules/es.reflect.namespace";
 import "core-js/modules/es.reflect.apply";
 import "core-js/modules/es.reflect.construct";
 import "core-js/modules/es.reflect.define-property";

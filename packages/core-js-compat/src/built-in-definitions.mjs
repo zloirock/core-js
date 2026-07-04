@@ -38,6 +38,7 @@ export const globals = {
   Promise: 'promise/constructor',
   RangeError: ErrorConstructor,
   ReferenceError: ErrorConstructor,
+  Reflect: 'reflect/namespace',
   RegExp: { global: 'regexp/constructor' },
   Set: 'set/constructor',
   SuppressedError: 'suppressed-error/constructor',

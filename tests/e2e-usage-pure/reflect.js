@@ -62,3 +62,18 @@ QUnit.test('Reflect.ownKeys', assert => {
   assert.true(keys.includes('a'));
   assert.true(keys.includes(s));
 });
+
+// the namespace VALUE swaps to the pure namespace object: feature-detect stays truthy and an
+// ESCAPED value exposes a method through the shared container that a member-wise import
+// defined on it. no `Object.prototype.toString` brand assertion: pure does not patch it, and
+// the namespace-existence entry deliberately carries no `@@toStringTag`
+QUnit.test('Reflect namespace value', assert => {
+  assert.same(globalThis.Reflect ? 'yes' : 'no', 'yes');
+  const escaped = Reflect;
+  assert.same(typeof escaped, 'object');
+  function pick(o, k) {
+    return typeof o[k];
+  }
+  Reflect.ownKeys({ q: 1 });
+  assert.same(pick(escaped, 'ownKeys'), 'function');
+});
