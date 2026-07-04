@@ -260,3 +260,63 @@ QUnit.test('class: non-poly static super + trailing instance polys combines', as
   }
   assert.same(D.build(), undefined);
 });
+
+// `this.X?.()` in a static method of a subclass of Array is an inherited-static read: the
+// polyfilled static is always defined, so the optional call deoptimizes to the injected
+// static with `this` as receiver, and the TRAILING instance polys wrap its result. live
+// oracle for the chain-combine handoff - a combine that keeps the raw method-GET drops the
+// static injection (undefined on engines without native `Array.from`)
+QUnit.test('class: optional inherited static with two trailing instance polyfills', assert => {
+  class C extends Array {
+    static make() {
+      return this.from?.([[1], [2]]).flat().at(-1);
+    }
+  }
+  assert.same(C.make(), 2);
+});
+
+// an OWN static shadowing the inherited name must keep dispatching to the user's method
+// through the optional call - the polyfill machinery owns only the trailing instance methods
+QUnit.test('class: optional call of own static shadowing an inherited name', assert => {
+  class C extends Array {
+    static from(x) {
+      return [9].concat(x);
+    }
+    static make() {
+      return this.from?.([1, 2]).flat().at(0);
+    }
+  }
+  assert.same(C.make(), 9);
+});
+
+// an SE-prefixed computed key folding to an inherited static deopts the optional call: the
+// key effect must run EXACTLY once ahead of the injected static (the overlapping-rewrite shape
+// this locks against ran it twice and emitted unparsable text in the text emitter)
+QUnit.test('class: SE-computed-key optional inherited static runs the key effect once', assert => {
+  let effects = 0;
+  class C extends Array {
+    static make() {
+      // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized SE-prefixed key IS the case under test
+      return this[(effects++, 'from')]?.([[1], [2]]).flat().at(-1);
+    }
+  }
+  assert.same(C.make(), 2);
+  assert.same(effects, 1);
+});
+
+// an OWN static shadowing the inherited name keeps the optional guard, so native short-circuit
+// semantics survive a rebound `this`: the detached call must yield undefined, not throw on the
+// missing method (the deopted shape called it unconditionally)
+QUnit.test('class: shadowed inherited static keeps short-circuit under rebound this', assert => {
+  class C extends Array {
+    static from(x) {
+      return [9, ...x];
+    }
+    static make() {
+      return this.from?.([1, 2]).flat().at(0);
+    }
+  }
+  assert.same(C.make(), 9);
+  const detached = C.make;
+  assert.same(detached.call({}), undefined);
+});
