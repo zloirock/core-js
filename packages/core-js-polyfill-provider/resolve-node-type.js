@@ -1216,6 +1216,7 @@ function createResolveNodeType(babelNodeType, t, {
     findProgramPath,
     getDeclaratorBindingName,
     staticPairFromPolyfillEntry,
+    namespaceFromPolyfillBinding,
     lookupNested,
     KNOWN_STATIC_METHOD_RETURN_TYPES,
   });
@@ -1492,6 +1493,20 @@ function createResolveNodeType(babelNodeType, t, {
     // call-return inference reads garbage
     if (!hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
     return { constructor, method: kebabToCamel(segments.at(-1)) };
+  }
+
+  // post-rewrite VALUE alias of a whole namespace / constructor (`_Math` from 'math/namespace',
+  // `_Map` from 'map/constructor'): the import binding's entry path names the global it
+  // carries, so member reads off the swapped value (`_Math.max(...)`) keep resolving in the
+  // known-static analyses exactly like the original (`Math.max(...)`)
+  function namespaceFromPolyfillBinding(scope, name) {
+    const entry = getPolyfillBindingEntry(scope, name);
+    if (!entry) return null;
+    const segments = entry.split('/');
+    if (segments.length !== 2) return null;
+    const [head, tail] = segments;
+    if (tail !== 'namespace' && tail !== 'index' && tail !== 'constructor') return null;
+    return entryToGlobalHint(head);
   }
 
   // `resolveCallReturnType` + `resolveCallReturnTypeFromAnnotation` +

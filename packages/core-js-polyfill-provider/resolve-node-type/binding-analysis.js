@@ -89,6 +89,7 @@ export function createBindingAnalysis({
   findProgramPath,
   getDeclaratorBindingName,
   staticPairFromPolyfillEntry,
+  namespaceFromPolyfillBinding,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
 }) {
@@ -232,6 +233,13 @@ export function createBindingAnalysis({
       if (callee.computed) return null;
       if (callee.property?.type !== 'Identifier') return null;
       if (callee.object?.type === 'Identifier') {
+        // post-rewrite namespace / constructor VALUE alias first (`_Math.max(...)` after the
+        // value swap): the polyfill-import registry names the global the binding carries. it
+        // is consulted before the scope lookup - scope registration of a freshly injected
+        // import can lag behind the AST substitution (babel); user bindings are unknown to
+        // the registry and fall through to the shadow bail exactly as before
+        const aliased = namespaceFromPolyfillBinding(scope, callee.object.name);
+        if (aliased) return { constructor: aliased, method: callee.property.name };
         if (scope?.getBinding?.(callee.object.name)) return null;
         return { constructor: callee.object.name, method: callee.property.name };
       }
