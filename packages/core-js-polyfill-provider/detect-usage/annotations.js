@@ -9,7 +9,7 @@
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import { getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { maximalProxyGlobalPrefix, unwrapTransparentSeq } from './resolve.js';
+import { maximalProxyGlobalPrefix, resolveKey, unwrapTransparentSeq } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
 // louder than silent skip). runtime-carrying wrappers (TSAsExpression, ...) stay out
@@ -265,23 +265,35 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 // raw scope index misses. extractCheck/replaceInstanceLike pass it through their
 // `skipOptional` callback hop; legacy callers without a path-aware adapter still work
 // because the third argument is optional on `hasBinding`
-export function isPolyfillableOptional({ node, scope, adapter, resolve, path, resolveSuperStatic, mutatedSet }) {
+export function isPolyfillableOptional({
+  node, scope, adapter, resolve, path, resolveSuperStatic, mutatedSet, isShadowedByClassOwnMember,
+}) {
   // an optional CALL (`Array.from?.(...)`) carries the polyfillable target on its `callee`, not
   // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
   // a non-member callee (`foo?.()`) leaves `.object` undefined and falls through to false
   const member = node.type === 'OptionalCallExpression' || node.type === 'CallExpression' ? node.callee : node;
   const obj = unwrapRuntimeExpr(unwrapTransparentSeq(member.object));
   // static key of the optional callee: Identifier (`Array.from`), static-string computed key
-  // (`Array["from"]`, single-quasi `Array[`from`]`), or null for a dynamic key (`Array[k]`). a
-  // static-string key resolves to the same static as the dotted form, so the callee is equally
-  // always-defined post-rewrite; a dynamic key stays unresolved (the static visitor never collapses it)
-  const memberKey = memberKeyName(member);
+  // (`Array["from"]`, single-quasi `Array[`from`]`), or - through the canonical fold - an
+  // SE-prefixed / concat / alias-bound computed key (`Array[(n++, "from")]`); each resolves to
+  // the same static as the dotted form, so the callee is equally always-defined post-rewrite
+  // (the key text, incl. its SE, stays in place - the deopt only drops the dead `?.`, and the
+  // static substitution re-emits the harvested key effects). a genuinely dynamic key stays
+  // unresolved (the static visitor never collapses it) and keeps its guard
+  const memberKey = memberKeyName(member)
+    ?? (member.computed ? resolveKey({ node: member.property, computed: true, scope, adapter, path }) : null);
   // `super.from?.()` / `this.from?.()` in a static method is an inherited static resolving to the
   // same always-defined polyfill as the bare form (`_Array$from`), so the `?.` deopts just like
   // `Array.from?.()`. resolveSuperStatic (wired with a path inside the static method) resolves it to
   // its static meta; without it (legacy callers) supers fall through to false (no deopt). this keeps
   // the deopt off the generic optional-chain path, which would crash composing the static call-split
   if ((obj?.type === 'Super' || obj?.type === 'ThisExpression') && resolveSuperStatic && path) {
+    // an OWN static shadows the inherited name for `this.X` (super skips own statics): the
+    // dispatch target is the user's method, no always-defined polyfill backs the read, so the
+    // `?.` keeps its guard - the generic optional path then renders the same guarded shape it
+    // does for any non-polyfillable inner
+    if (obj.type === 'ThisExpression' && memberKey
+      && isShadowedByClassOwnMember?.(path, memberKey)) return false;
     const meta = memberKey ? resolveSuperStatic(path, memberKey) : null;
     // a monkey-patched inherited static keeps its `?.` for the same reason as the bare form below
     if (meta && isMutatedStaticMeta(meta, mutatedSet)) return false;
