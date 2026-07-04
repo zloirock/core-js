@@ -7,7 +7,9 @@
 // resolver hooks).
 import {
   collectFoldedReceiverSideEffects,
+  isMutatedStaticMeta,
   isReusableReceiver,
+  isThisReceiver,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   peelMemoizeWrappers,
@@ -54,12 +56,16 @@ function isPlainMemberHopChain(outerObject, innerCall) {
   return cur === innerCall;
 }
 
-// the polyfill fallback for a static-context `super.X` resolving to an inherited STATIC, or null.
-// resolvers are injected (they close over the per-file injector); module-level so the emitter
-// factory stays under its statement budget
-function inheritedStaticFallback(superCalleePath, methodName, resolveStaticInherited, resolveFallback) {
+// the polyfill fallback for a static-context `super.X` / `this.X` resolving to an inherited
+// STATIC, or null. a user-MUTATED static returns null too: the standalone path bails polyfilling
+// there (the patch owns the slot), so a combine bail would strand the trailing polys as
+// overlapping standalones over the shared guard - the combine keeps ownership and the raw
+// method-GET honors the patch at runtime. resolvers are injected (they close over the per-file
+// injector); module-level so the emitter factory stays under its statement budget
+function inheritedStaticFallback(superCalleePath, methodName, resolveStaticInherited, resolveFallback, mutatedSet) {
   const meta = resolveStaticInherited(superCalleePath, methodName);
-  return meta ? resolveFallback(meta, superCalleePath).result : null;
+  if (!meta || isMutatedStaticMeta(meta, mutatedSet)) return null;
+  return resolveFallback(meta, superCalleePath).result;
 }
 
 // rebuild a substituted SE-tail receiver: the verbatim leading effects, then an already-injected pure
@@ -206,6 +212,7 @@ export function createPolyfillEmitter({
   injectPureImport,
   isEntryNeeded,
   isInStaticContext,
+  isShadowedByClassOwnMember,
   mutatedStatics,
   NEEDS_GUARD_PARENS,
   enclosingExpressionStatementPath,
@@ -329,6 +336,7 @@ export function createPolyfillEmitter({
       return isPolyfillableOptional({
         node: n, scope, adapter: estreeAdapter, resolve: resolveBuiltIn,
         path: metaPath, resolveSuperStatic: resolveStaticInheritedMember, mutatedSet: mutatedStatics,
+        isShadowedByClassOwnMember,
       });
     }
 
@@ -1371,16 +1379,23 @@ export function createPolyfillEmitter({
     // this is exactly what lets the combine subsume `super.flat?.().map().at()` into ONE guard instead
     // of falling to overlapping standalones (the "could not locate inner needle" crash)
     const isSuper = callee.object?.type === 'Super';
-    // a super method is taken over by the combine (memoized as the method-GET `super.X`, called with
-    // `this`) UNLESS it resolves to a polyfillable inherited STATIC: that one the standalone path
-    // DEOPTIMIZES (always-defined -> no guard, `_Array$of.call(this)`), and keeping it there preserves
-    // deopt parity. consult the canonical static-inheritance resolver, NOT the coarse enclosing-method
-    // static-ness: a static-context super to the parent's OWN static (`super.custom`, no core-js
-    // polyfill) resolves to no meta, so it must be combined like an instance super - bailing it left
-    // >=2 trailing instance polys as overlapping standalones (the "could not locate inner needle"
-    // crash). only `super.of` / `super.from` (a needed inherited-static fallback) keeps bailing
-    if (isSuper && isInStaticContext(currentPath) && inheritedStaticFallback(
-      currentPath.get('callee'), innerMethodName, resolveStaticInheritedMember, resolvePureOrGlobalFallback,
+    // a super / static-context-this method is taken over by the combine (memoized as the method-GET,
+    // called with `this`) UNLESS it resolves to a polyfillable inherited STATIC: that one the
+    // standalone path DEOPTIMIZES (always-defined -> no guard, `_Array$of.call(this)`), and keeping
+    // it there preserves deopt parity. `this.X?.()` in a static method resolves through the same
+    // inherited-static machinery as `super.X?.()` (`this` in static context is the constructor), so
+    // both share this bail. consult the canonical static-inheritance resolver, NOT the coarse
+    // enclosing-method static-ness: a static-context lookup of the parent's OWN static
+    // (`super.custom`, no core-js polyfill) resolves to no meta, so it must be combined like an
+    // instance super - bailing it left >=2 trailing instance polys as overlapping standalones (the
+    // "could not locate inner needle" crash). an own-static SHADOW (`static from() {}` +
+    // `this.from?.()`) must keep combining too: the standalone path shadow-bails polyfilling
+    // entirely, so a bail here would strand the trailing polys the same way
+    const inheritedStaticHost = (isSuper || isThisReceiver(callee.object))
+      && isInStaticContext(currentPath)
+      && !(!isSuper && isShadowedByClassOwnMember?.(currentPath.get('callee'), innerMethodName));
+    if (inheritedStaticHost && inheritedStaticFallback(
+      currentPath.get('callee'), innerMethodName, resolveStaticInheritedMember, resolvePureOrGlobalFallback, mutatedStatics,
     )) return null;
     const effectiveResult = isSuper ? null : result;
     // non-poly inner (effectiveResult null): the standalone path already handles a single trailing poly,
