@@ -77,7 +77,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 `core-js` provides plugins for automatic polyfill injection that analyze your code and add only the polyfills needed for your target environments:
 - [`@core-js/babel-plugin`](#corejs-babel-plugin) - for projects using Babel
-- [`@core-js/unplugin`](#corejs-unplugin) - for Vite, Webpack, Rollup, Rolldown, esbuild, Rspack, Farm, and Bun (no Babel required)
+- [`@core-js/unplugin`](#corejs-unplugin) - for Vite, Webpack, Rollup, Rolldown, esbuild, Rspack, Rsbuild, Farm, and Bun (no Babel required)
 
 ## `@core-js/babel-plugin`
 
@@ -196,7 +196,7 @@ arr.includes(x);
 
 ## `@core-js/unplugin`
 
-[`@core-js/unplugin`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-unplugin) is a universal plugin for automatic injection of `core-js` polyfills that works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, **Rspack**, **Farm**, and **Bun** via [unplugin](https://github.com/unjs/unplugin). An alternative to `@core-js/babel-plugin` for projects that don't use Babel.
+[`@core-js/unplugin`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-unplugin) is a universal plugin for automatic injection of `core-js` polyfills that works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, **Rspack**, **Rsbuild**, **Farm**, and **Bun** via [unplugin](https://github.com/unjs/unplugin). An alternative to `@core-js/babel-plugin` for projects that don't use Babel.
 
 It supports the same three methods (`entry-global`, `usage-global`, `usage-pure`), the same options, and the same disable comments as `@core-js/babel-plugin`. Uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for fast parsing with native TypeScript support.
 
@@ -272,6 +272,21 @@ module.exports = {
     targets: { chrome: 80 },
   })],
 };
+```
+
+### Rsbuild
+```ts
+// rsbuild.config.ts
+import { defineConfig } from '@rsbuild/core';
+import coreJS from '@core-js/unplugin/rsbuild';
+
+export default defineConfig({
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: 'node_modules',
+    targets: { chrome: 80 },
+  })],
+});
 ```
 
 ### Farm
