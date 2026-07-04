@@ -1,4 +1,4 @@
-import { vite, webpack, rollup, esbuild, rspack, rolldown, farm, bun, shouldTransform } from '@core-js/unplugin';
+import { vite, webpack, rollup, esbuild, rspack, rsbuild, rolldown, farm, bun, shouldTransform } from '@core-js/unplugin';
 import type { Options, Method, Mode, Targets } from '@core-js/unplugin';
 
 // shouldTransform is the identifier-filter exposed for consumer pre-filtering
@@ -42,6 +42,7 @@ import webpackPlugin from '@core-js/unplugin/webpack';
 import rollupPlugin from '@core-js/unplugin/rollup';
 import esbuildPlugin from '@core-js/unplugin/esbuild';
 import rspackPlugin from '@core-js/unplugin/rspack';
+import rsbuildPlugin from '@core-js/unplugin/rsbuild';
 import rolldownPlugin from '@core-js/unplugin/rolldown';
 import farmPlugin from '@core-js/unplugin/farm';
 import bunPlugin from '@core-js/unplugin/bun';
@@ -52,6 +53,7 @@ webpack;
 rollup;
 esbuild;
 rspack;
+rsbuild;
 rolldown;
 farm;
 bun;
@@ -130,6 +132,7 @@ webpack({ method: 'usage-global' });
 rollup({ method: 'usage-global' });
 esbuild({ method: 'usage-global' });
 rspack({ method: 'usage-global' });
+rsbuild({ method: 'usage-global' });
 rolldown({ method: 'usage-global' });
 farm({ method: 'usage-global' });
 bun({ method: 'usage-global' });
@@ -140,6 +143,7 @@ webpackPlugin({ method: 'usage-pure' });
 rollupPlugin({ method: 'entry-global' });
 esbuildPlugin({ method: 'usage-global' });
 rspackPlugin({ method: 'usage-global' });
+rsbuildPlugin({ method: 'usage-global' });
 rolldownPlugin({ method: 'usage-global' });
 farmPlugin({ method: 'usage-global' });
 bunPlugin({ method: 'usage-global' });

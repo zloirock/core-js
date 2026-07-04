@@ -73,6 +73,7 @@ export declare const webpack: BundlerPlugin<any>;
 export declare const rollup: BundlerPlugin<any>;
 export declare const esbuild: BundlerPlugin<any>;
 export declare const rspack: BundlerPlugin<any>;
+export declare const rsbuild: BundlerPlugin<any>;
 export declare const rolldown: BundlerPlugin<any>;
 export declare const farm: BundlerPlugin<any>;
 export declare const bun: BundlerPlugin<any>;
@@ -91,6 +92,7 @@ interface UnpluginInstance {
   rollup: BundlerPlugin<any>;
   esbuild: BundlerPlugin<any>;
   rspack: BundlerPlugin<any>;
+  rsbuild: BundlerPlugin<any>;
   rolldown: BundlerPlugin<any>;
   farm: BundlerPlugin<any>;
   bun: BundlerPlugin<any>;
