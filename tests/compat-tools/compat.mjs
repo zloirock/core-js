@@ -14,6 +14,7 @@ deepEqual(compat({
 }), {
   list: [
     'es.object.to-string',
+    'es.reflect.namespace',
     'es.reflect.apply',
     'es.reflect.construct',
     'es.reflect.define-property',
@@ -37,6 +38,7 @@ deepEqual(compat({
   ],
   targets: {
     'es.object.to-string': { firefox: '27' },
+    'es.reflect.namespace': { firefox: '27' },
     'es.reflect.apply': { firefox: '27' },
     'es.reflect.construct': { firefox: '27' },
     'es.reflect.define-property': { firefox: '27' },
