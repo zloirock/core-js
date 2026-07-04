@@ -55,7 +55,11 @@ import {
   collectEnclosingObjectPatterns,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
-import { discardRescueNodes, shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  computedPropKeyHostsMachinery,
+  discardRescueNodes,
+  shouldDropRescueReceiver,
+} from '@core-js/polyfill-provider/detect-usage/members';
 import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite,
@@ -1496,13 +1500,17 @@ export default function createDestructureEmitter({
       const key = p.key?.name ?? p.key?.value ?? null;
       return key !== null && !!resolvePure({ kind: 'property', object: null, key, placement: null }, path);
     });
-    // computed keys host the symbol / SE-key machinery - keep their unconditional
-    // extraction. otherwise extraction needs a rewrite-bound prop AND a pattern-level
+    // computed keys hosting the symbol / SE-key / resolvable-fold machinery keep their
+    // unconditional extraction; a machinery-less computed key (string spelling of a symbol,
+    // unresolvable dynamic key) is a plain in-place read the unplugin twin never restructures
+    // for. otherwise extraction needs a rewrite-bound prop AND a pattern-level
     // reason: a rest sibling (the `_unused` sentinel preserves its exclusion) or a
     // default on the resolved key (the guarded `_ref`-read rewrite); a plain resolved
     // prop matters only when the body actually reads it. plain `{ code = 1 }` /
     // rest-only patterns destructure in place
-    if (!param.properties.some(p => p.computed)) {
+    if (!param.properties.some(p => computedPropKeyHostsMachinery({
+      propNode: p, scope: path.scope, adapter, path, resolvePure,
+    }))) {
       if (!resolvableProps.length) return;
       // the per-prop "needs a `_ref`-bound rewrite" rule is the shared predicate (rest / computed /
       // default-valued prop) - the same one unplugin's catch gate uses. computed is already routed out
