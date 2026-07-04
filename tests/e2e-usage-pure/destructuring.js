@@ -2465,14 +2465,14 @@ QUnit.test('destructuring: SE-key memo collapses a proxy-hop receiver', assert =
 // runs once, and both declarator orders work
 QUnit.test('destructuring: SE-key sibling of a flatten-claimed declaration', assert => {
   let keyRuns = 0;
-  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line, es/no-nonstandard-array-prototype-properties -- the multi-declarator `var` sharing the flatten declarator is the form under test
+  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line, es/no-nonstandard-array-prototype-properties -- the form under test
   var { Array: { from: flatFrom } } = globalThis, { [(keyRuns++, 'at')]: atPair, more7 } = Array.prototype;
   assert.same(typeof flatFrom, 'function');
   assert.same(atPair.call([5, 6], -1), 6);
   assert.same(typeof more7, 'undefined');
   assert.same(keyRuns, 1);
   let revRuns = 0;
-  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line, es/no-nonstandard-array-prototype-properties -- the multi-declarator `var` sharing the flatten declarator is the form under test
+  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line, es/no-nonstandard-array-prototype-properties -- the form under test
   var { [(revRuns++, 'flat')]: flatPair, more8 } = Array.prototype, { Array: { of: flatOf } } = globalThis;
   assert.deepEqual(flatPair.call([1, [2]]), [1, 2]);
   assert.same(typeof flatOf, 'function');

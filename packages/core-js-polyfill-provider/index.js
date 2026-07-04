@@ -269,6 +269,14 @@ export function createPolyfillContext({
 
 export const resolve = createMetaResolver(builtInDefinitions);
 
+// whether `key` is <object>'s OWN static in the definitions. such a static's module defines /
+// patches the receiver global itself (directly or through its compat dependency chain), so
+// injecting it guarantees the receiver exists at runtime; a generic-hint resolution
+// (`Promise.name` -> Function.prototype.name) carries no such guarantee
+export function hasOwnStaticDefinition(object, key) {
+  return hasOwn(builtInDefinitions.statics, object) && hasOwn(builtInDefinitions.statics[object], key);
+}
+
 // `<entry head>` -> `<global name>`. one pass over pure-bearing entries in
 // `built-in-definitions`; per-class kebab heads in `*.pure.dependencies` make each
 // head unique to one global, so first hit wins. multi-segment entries are method /
