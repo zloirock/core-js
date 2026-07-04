@@ -22,7 +22,12 @@ import {
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
-import { resolveSymbolIteratorEntry } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import {
+  computedPropKeyHostsMachinery,
+  isSourcedSymbolIteratorMeta,
+  resolveSymbolIteratorEntry,
+  tagSymbolSourcedMeta,
+} from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import {
   isTypeAnnotationNodeType,
   walkTypeAnnotationGlobals,
@@ -762,5 +767,62 @@ runBoth('resolveKey/side-effect-free sequence key not bailed', '({ [(0, "from")]
   const seq = adapter.pickPath(prog, 'SequenceExpression').node;
   check(`${ lbl }/keeps tail under flag`, resolveKey({ node: seq, computed: true, adapter: keyAdapter, bailOnSideEffectKey: true }), 'from');
 });
+
+// --- tagSymbolSourcedPropMeta / computedPropKeyHostsMachinery (symbol-key provenance) ---
+
+// a folded 'Symbol.X' key is tagged symbolSourced ONLY when the source is a real well-known-
+// symbol reference; string spellings (literal / template / `+`-concat) stay untagged so
+// symbol-routed consumers leave them as plain property reads
+const provenanceAdapter = {
+  isStringLiteral(n) { return n.type === 'StringLiteral' || (n.type === 'Literal' && typeof n.value === 'string'); },
+  getStringValue(n) { return n.value; },
+  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
+  method: 'usage-pure',
+};
+// babel exposes destructure props as ObjectProperty, oxc as Property
+function pickProp(adapter, prog) {
+  return adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+}
+const PROVENANCE_CASES = [
+  ['real symbol ref', 'const { [Symbol.iterator]: it } = arr;', true],
+  ['SE-prefixed real symbol ref', 'const { [(eff(), Symbol.iterator)]: it } = arr;', true],
+  ['string literal spelling', "const { ['Symbol.iterator']: it } = arr;", false],
+  ['template spelling', 'const { [`Symbol.iterator`]: it } = arr;', false],
+  ['concat spelling', "const { ['Symbol.' + 'iterator']: it } = arr;", false],
+];
+for (const [name, code, expected] of PROVENANCE_CASES) {
+  runBoth(`tagSymbolSourcedMeta/${ name }`, code, (adapter, prog, lbl) => {
+    const prop = pickProp(adapter, prog);
+    const meta = tagSymbolSourcedMeta({
+      meta: { kind: 'property', object: null, key: 'Symbol.iterator', placement: null },
+      keyNode: prop.node.key, computed: prop.node.computed,
+      scope: prop.scope, adapter: provenanceAdapter, path: prop,
+    });
+    check(lbl, !!meta.symbolSourced, expected);
+    // the consumer-side predicate mirrors the tag: provenance + the iterator key
+    check(`${ lbl }/consumer predicate`, isSourcedSymbolIteratorMeta(meta), expected);
+  });
+}
+
+// machinery gate: real symbol / resolvable fold (incl. through an SE prefix) restructure a
+// catch pattern; a string spelling of a symbol or an unresolvable fold hosts nothing and the
+// pattern stays verbatim (key evaluation, incl. its SE, runs in place exactly once)
+const MACHINERY_CASES = [
+  ['real symbol ref', 'const { [Symbol.iterator]: it } = arr;', () => null, true],
+  ['string spelling of a symbol', "const { ['Symbol.iterator']: it } = arr;", () => null, false],
+  ['SE-prefixed resolvable key', "const { [(eff(), 'at')]: it } = arr;", () => ({ kind: 'instance' }), true],
+  ['SE-prefixed unresolvable key', "const { [(eff(), 'zzz')]: it } = arr;", () => null, false],
+  ['resolvable fold', "const { ['a' + 't']: it } = arr;", () => ({ kind: 'instance' }), true],
+  ['unresolvable fold', "const { ['some.key']: it } = arr;", () => null, false],
+  ['non-computed key', 'const { at: it } = arr;', () => ({ kind: 'instance' }), false],
+];
+for (const [name, code, resolvePure, expected] of MACHINERY_CASES) {
+  runBoth(`computedPropKeyHostsMachinery/${ name }`, code, (adapter, prog, lbl) => {
+    const prop = pickProp(adapter, prog);
+    check(lbl, computedPropKeyHostsMachinery({
+      propNode: prop.node, scope: prop.scope, adapter: provenanceAdapter, path: prop, resolvePure,
+    }), expected);
+  });
+}
 
 finish();
