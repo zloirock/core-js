@@ -6,8 +6,12 @@
 //   - `super.X` / `this.X` in static context (inherited-static lookup)
 //   - `cond ? Array : Iterator` destructure (per-branch fallback)
 // also handles `class extends Array { foo() { this.at(0) } }` shadow check
-import { isForXWriteTarget, isThisReceiver, isTSTypeOnlyIdentifierPath } from '../helpers/ast-patterns.js';
-import { symbolKeyToEntry } from '../helpers/class-walk.js';
+import {
+  isForXWriteTarget, isMemberWriteHost, isThisReceiver, isTSTypeOnlyIdentifierPath,
+  memberKeyName, peelParenAndTSParentPath,
+} from '../helpers/ast-patterns.js';
+import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
+import { hasOwnStaticDefinition } from '../index.js';
 
 // bail when the usage is syntactically present but carries no runtime read - polyfilling
 // would be pure over-injection. covers: plugin's disable marker, TS type-only contexts,
@@ -45,6 +49,33 @@ export function createUsageGlobalCallback({
   // unrecognized property on a known global (`Map.foo`): the bare constructor still needs
   // polyfilling so the read/write target exists at runtime (a polyfilled `Symbol` yields
   // `undefined` for `.metadata` instead of throwing). no-op for non-static / receiver-less metas
+  // a hop-member VALUE meta (`globalThis.Reflect` inside `globalThis.Reflect.ownKeys(...)`) is
+  // subsumed when the enclosing member READ is the hop global's OWN static: that static's module
+  // defines / patches the receiver global itself (directly or through its compat dependency
+  // chain), so its injection covers the receiver and the VALUE entry beside it is pure
+  // over-injection (`globalThis.Reflect.ownKeys` pulled every es.reflect.* module). the meta
+  // keeps firing when:
+  //   - the outer key is NOT the global's own static: a generic-hint resolution
+  //     (`self.Promise.name` -> es.function.name) or a `.prototype` chain (folded into ONE
+  //     prototype-placement meta) carries NO receiver guarantee - this hop meta is its only
+  //     carrier, exactly like the bare root's `{global}` meta
+  //   - the outer member is a WRITE host (write positions bail before the callback - this is
+  //     the mutated-static constructor injection)
+  //   - the outer key is dynamic (any member may be read off the value)
+  //   - the key is itself a proxy-global hop (`globalThis.self`): its entry (`web.self`) backs
+  //     the hop READ, which no outer member resolution carries
+  function subsumedByOuterMemberRead(meta, path) {
+    if (meta.kind !== 'property' || meta.placement !== 'static') return false;
+    if (!POSSIBLE_GLOBAL_OBJECTS.has(meta.object) || POSSIBLE_GLOBAL_OBJECTS.has(meta.key)) return false;
+    const outer = peelParenAndTSParentPath(path);
+    const outerNode = outer?.node;
+    if (outerNode?.type !== 'MemberExpression' && outerNode?.type !== 'OptionalMemberExpression') return false;
+    if (outerNode.object !== path.node) return false;
+    const outerKey = memberKeyName(outerNode);
+    if (!outerKey || isMemberWriteHost(outer)) return false;
+    return hasOwnStaticDefinition(meta.key, outerKey);
+  }
+
   function injectBaseConstructor(meta, path) {
     if (meta.kind !== 'property' || meta.placement !== 'static' || !meta.object) return;
     // skip call-shape filters: this pass injects the constructor because a static member is read,
@@ -55,6 +86,7 @@ export function createUsageGlobalCallback({
 
   function dispatch(meta, path) {
     if (shouldSkipUsageDispatch(meta, path, isDisabled)) return;
+    if (subsumedByOuterMemberRead(meta, path)) return;
     if (meta.kind === 'in') {
       // Symbol-sourced LHS (`Symbol.iterator in obj`) routes through the symbol-in entry table
       // for the dedicated polyfill (`is-iterable` etc.); bare-string LHS (`'from' in Array`)
@@ -72,7 +104,16 @@ export function createUsageGlobalCallback({
     if (deps) {
       let injected = 0;
       for (const entry of deps) injected += injectModulesForModeEntry(entry);
-      if (injected) return;
+      if (injected) {
+        // a static resolved through a GENERIC hint (`Promise.name` -> es.function.name) injects
+        // nothing that guarantees the RECEIVER global - unlike the global's own static, whose
+        // module defines it. inject the base constructor alongside, else the receiver read
+        // itself throws on engines lacking the global (a globals-table miss no-ops, so universal
+        // receivers like `Math` stay clean)
+        if (meta.kind === 'property' && meta.placement === 'static' && meta.object
+          && !hasOwnStaticDefinition(meta.object, meta.key)) injectBaseConstructor(meta, path);
+        return;
+      }
       // deps resolved but mode-filtered to nothing: a RECOGNIZED static OUT of the current layer
       // (`Symbol.metadata` / `Map.from` at mode=actual). fall through to the base-constructor branch
     }

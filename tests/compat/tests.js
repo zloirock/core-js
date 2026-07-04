@@ -548,6 +548,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.reflect.is-extensible': function () {
     return Reflect.isExtensible;
   },
+  'es.reflect.namespace': function () {
+    return typeof Reflect == 'object';
+  },
   'es.reflect.own-keys': function () {
     return Reflect.ownKeys;
   },

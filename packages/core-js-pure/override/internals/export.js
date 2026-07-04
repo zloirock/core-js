@@ -25,6 +25,19 @@ var wrapConstructor = function (NativeConstructor) {
   return Wrapper;
 };
 
+// copy own properties (by reference, non-enumerable) with a guard against poisoned getters.
+// serves both the namespace-copy export (a fresh object exposing the native's properties
+// without exposing the native) and the previous-container merge on re-export
+var copyOwnProperties = function (from, to) {
+  var names = Object.getOwnPropertyNames(from);
+  for (var i = 0; i < names.length; i++) {
+    try {
+      createNonEnumerableProperty(to, names[i], from[names[i]]);
+    } catch (error) { /* empty */ }
+  }
+  return to;
+};
+
 /*
   options.target         - name of the target object
   options.global         - target is the global object
@@ -38,6 +51,7 @@ var wrapConstructor = function (NativeConstructor) {
   options.sham           - add a flag to not completely full polyfills
   options.enumerable     - export as enumerable property
   options.dontCallGetSet - prevent calling a getter on target
+  options.namespace      - the exported value is a namespace object
   options.name           - the .name of the function if it does not match the key
 */
 module.exports = function (options, source) {
@@ -65,7 +79,7 @@ module.exports = function (options, source) {
     // export native or implementation
     var baseResultProperty = USE_NATIVE ? nativeProperty : source[key];
 
-    if (!FORCED && !PROTO && typeof target[key] == typeof baseResultProperty) return;
+    if (!FORCED && !PROTO && !options.namespace && typeof target[key] == typeof baseResultProperty) return;
 
     // make static versions of prototype methods
     var resultProperty = PROTO && isCallable(baseResultProperty) ? uncurryThis(baseResultProperty)
@@ -73,6 +87,9 @@ module.exports = function (options, source) {
       : options.bind && USE_NATIVE ? baseResultProperty.bind(globalThis)
       // wrap global constructors for prevent changes in this version
       : options.wrap && USE_NATIVE ? wrapConstructor(baseResultProperty)
+      // expose a copy of a native namespace object (see `options.namespace` above) - the
+      // module-passed `source[key]` object IS the namespace container it exports
+      : options.namespace && USE_NATIVE ? copyOwnProperties(baseResultProperty, source[key])
       // default case
       : baseResultProperty;
 
@@ -85,14 +102,7 @@ module.exports = function (options, source) {
 
     createNonEnumerableProperty(target, key, resultProperty);
 
-    if (previous && typeof previous == 'object') {
-      var names = Object.getOwnPropertyNames(previous);
-      for (var i = 0; i < names.length; i++) {
-        try {
-          createNonEnumerableProperty(resultProperty, names[i], previous[names[i]]);
-        } catch (error) { /* empty */ }
-      }
-    }
+    if (previous && typeof previous == 'object') copyOwnProperties(previous, resultProperty);
 
     if (PROTO) {
       var VIRTUAL_PROTOTYPE = TARGET + 'Prototype';
