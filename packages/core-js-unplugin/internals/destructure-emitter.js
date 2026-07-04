@@ -68,6 +68,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   collectFallbackCollapseLeftSe,
+  isSourcedSymbolIteratorMeta,
   planCallRootDiscardedProxySwap,
   planProxyReceiver,
   resolveCallRootedProxyCollapse,
@@ -2655,7 +2656,7 @@ export function createDestructureEmitter({
     // fallback / iterator-method form, the same predicate babel applies before dispatching a
     // prop into its destructure pipeline (here every pattern prop routes in, resolved or not).
     // the proxy-hop collapse keys its defer on the ROOT pattern
-    if (meta.fromFallback || (propNode.computed && meta.key === 'Symbol.iterator') || resolvePure(meta, metaPath)) {
+    if (meta.fromFallback || isSourcedSymbolIteratorMeta(meta) || resolvePure(meta, metaPath)) {
       for (const pattern of collectEnclosingObjectPatterns(metaPath.parentPath)) {
         claimedDestructurePatterns.add(pattern);
       }
@@ -2747,7 +2748,9 @@ export function createDestructureEmitter({
     // `Symbol.iterator` key earlier would suppress the standalone Symbol-Identifier visitor
     // from emitting `_Symbol$iterator`, dropping the polyfill entirely
     if (value && !propBindingIdentifier(value)) return;
-    const isSymbolIterator = propNode.computed && meta.key === 'Symbol.iterator';
+    // symbol provenance gate: a string-spelled `['Symbol.iterator']` key is a plain property
+    // read - it must not extract through get-iterator-method
+    const isSymbolIterator = isSourcedSymbolIteratorMeta(meta);
     if (isSymbolIterator) {
       const patternProps = metaPath.parent?.properties;
       const hasRest = patternProps?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
@@ -2764,7 +2767,7 @@ export function createDestructureEmitter({
     // key-text substitution (`Symbol.X` -> `_Symbol$X`); the synthetic entry here exists only
     // to trigger the extraction and reserve the prop's slot in the rebuilt pattern
     const isSymbolKeyPassthrough = !pureResult && !isSymbolIterator && patternHasRest
-      && propNode.computed && typeof meta.key === 'string' && symbolKeyToEntry(meta.key)
+      && meta.symbolSourced && typeof meta.key === 'string' && symbolKeyToEntry(meta.key)
       && metaPath.parentPath?.parentPath?.node?.type === 'CatchClause';
     if (!pureResult && !isSymbolIterator && !isSymbolKeyPassthrough) return;
 

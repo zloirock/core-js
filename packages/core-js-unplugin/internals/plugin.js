@@ -41,7 +41,7 @@ import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider
 import {
   isAliasProxyHopChain, resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
+import { isSourcedSymbolIteratorMeta, planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
@@ -1034,7 +1034,9 @@ export default function createPlugin(options) {
               if (isMutatedStaticMeta(meta, mutatedStatics)) return;
             }
             if (isTaggedTemplateTag(parent, node, meta.placement)) return;
-            if (meta.key === 'Symbol.iterator') return handleSymbolIterator({
+            // provenance gate: a string-spelled key (`arr['Symbol.iterator']`) is a plain
+            // property read and stays raw
+            if (isSourcedSymbolIteratorMeta(meta)) return handleSymbolIterator({
               node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
               symbolReceiverProxyRoot: meta.symbolReceiverProxyRoot,
             });
