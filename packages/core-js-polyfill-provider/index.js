@@ -297,7 +297,7 @@ function buildEntryHintIndex(definitions) {
     if (!Array.isArray(deps)) continue;
     for (const dep of deps) {
       if (typeof dep !== 'string') continue;
-      const [head] = dep.split('/');
+      const [head] = dep.split('/', 1);
       if (head && !index.has(head)) index.set(head, name);
     }
   }
