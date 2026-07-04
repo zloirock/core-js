@@ -93,8 +93,10 @@ export function createUsageGlobalCallback({
       // falls through to the standard meta resolver which reaches the static polyfill at the
       // resolved receiver (es.array.from). symmetric with usage-pure's handleInExpression which
       // folds the same shape to `true` - in usage-global a side-effect import is enough since
-      // post-polyfill the runtime check naturally yields true
-      const symbolEntry = symbolKeyToEntry(meta.key);
+      // post-polyfill the runtime check naturally yields true.
+      // gated on the producer's provenance flag: a string spelling (`'Symbol.iterator' in Array`)
+      // checks a plain string prop no symbol module defines - injecting it is pure over-injection
+      const symbolEntry = meta.symbolSourced ? symbolKeyToEntry(meta.key) : null;
       if (symbolEntry) {
         injectModulesForModeEntry(symbolEntry);
         return;

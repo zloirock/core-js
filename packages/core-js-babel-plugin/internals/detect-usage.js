@@ -16,7 +16,7 @@ import {
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
+import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   createMutationSiteHandler,
   hasMutationCandidateShapes,
@@ -518,6 +518,15 @@ export function createUsageVisitors({
     }
   }
 
+  // destructure-prop emit funnel: every prop meta gets its computed `Symbol.X` key provenance
+  // checked once here, so a string spelling of the key stays untagged and the symbol-routed
+  // emit paths leave it as a plain property read
+  function emitPropUsage(meta, path) {
+    onUsage(tagSymbolSourcedMeta({
+      meta, keyNode: path.node.key, computed: path.node.computed, scope: path.scope, adapter, path,
+    }), path);
+  }
+
   // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
   // N-deep: resolve the outer key chain to an effective receiver, emit meta accordingly
   function emitNestedDestructureMeta(path, outerProp) {
@@ -531,7 +540,7 @@ export function createUsageVisitors({
     // fall to the instance dispatcher. the prop stays raw and the receiver routes through
     // the identifier machinery, so the patch and the read share one object
     if (receiverKey !== null && adapter.isMutatedStatic?.(receiverKey, innerKey)) return;
-    onUsage(receiverKey !== null
+    emitPropUsage(receiverKey !== null
       ? { kind: 'property', object: receiverKey, key: innerKey, placement: 'static' }
       : { kind: 'property', object: null, key: innerKey, placement: null }, path);
   }
@@ -545,7 +554,7 @@ export function createUsageVisitors({
       initPath = parent.get('init');
       if (!initPath?.node) {
         const key = resolveKey(path.get('key'), path.node.computed);
-        if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
+        if (key) emitPropUsage({ kind: 'property', object: null, key, placement: null }, path);
         return;
       }
     } else if (parent.isAssignmentExpression()) {
@@ -572,7 +581,7 @@ export function createUsageVisitors({
         argNode, defaultNode: parent.node.right, objectPattern: parent.node.left, scope: parent.scope, adapter, path, resolvePure,
       });
       const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
-      if (meta) onUsage(meta, path);
+      if (meta) emitPropUsage(meta, path);
       return;
     } else if (parent.isAssignmentPattern() && parent.parentPath?.isObjectProperty()
       && parent.node.left === objectPattern.node) {
@@ -599,7 +608,7 @@ export function createUsageVisitors({
       const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
       // mutated static: no meta at all (a typeless meta would dispatch the instance helper)
       if (constructor && adapter.isMutatedStatic?.(constructor, key)) return;
-      onUsage(constructor
+      emitPropUsage(constructor
         ? { kind: 'property', object: constructor, key, placement: 'static' }
         : { kind: 'property', object: null, key, placement: null }, path);
       return;
@@ -610,7 +619,7 @@ export function createUsageVisitors({
       || parent.isCatchClause()) {
       // for-of / catch: unknown receiver, emit typeless meta
       const key = resolveKey(path.get('key'), path.node.computed);
-      if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
+      if (key) emitPropUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;
     } else if (parent.isFunction()) {
       // IIFE: `(({from}) => {})(Array)` / `!function({from}) {}(Array)`. shared
@@ -625,7 +634,7 @@ export function createUsageVisitors({
       if (!key) return;
       const argNode = resolveCallArgument(site.callPath.node.arguments, site.paramIndex);
       const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path });
-      if (meta) onUsage(meta, path);
+      if (meta) emitPropUsage(meta, path);
       return;
     } else return;
     if (!initPath?.node) return;
@@ -644,7 +653,7 @@ export function createUsageVisitors({
       const objectHint = toHint?.(cachedInitType);
       if (objectHint) meta = { ...meta, object: objectHint, placement: 'prototype' };
     }
-    onUsage(meta, path);
+    emitPropUsage(meta, path);
   }
 
   function handleBinaryExpression(path) {
