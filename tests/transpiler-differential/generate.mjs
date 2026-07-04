@@ -1663,6 +1663,25 @@ const EXPR_FAMILIES = {
     '(() => (({ from } = []) => from([7]))(Array))()',
     // const-captured alias: an upstream reassignment AFTER the capture must not drop super statics
     '(() => { let G = globalThis; const B = G.Array; G = null; class C extends B { static m() { return super.of(3); } } return C.m()[0]; })()',
+    // optional inherited static via `this` in a static method with TWO trailing instance polys:
+    // the always-defined polyfill deopts the guard and keeps the injected static as the inner
+    // (a chain-combine keeping the raw method-GET drops the injection - stripped-realm divergence)
+    '(() => { class Ci extends Array { static m() { return this.from?.([[1], [2]]).flat().at(-1); } } return Ci.m(); })()',
+    '(() => { class Cs extends Array { static m() { return super.of?.(1, 2).flat().at(0); } } return Cs.m(); })()',
+    // an OWN static shadowing the inherited name dispatches to the user method through the guard
+    '(() => { class Co extends Array { static from(x) { return [9].concat(x); } static m() { return this.from?.([1, 2]).flat().at(0); } } return Co.m(); })()',
+    // an SE-prefixed computed key folding to an inherited / bare-global static deopts the
+    // optional with the effect running ONCE ahead of the injected static (the text emitter
+    // previously emitted overlapping rewrites - unparsable output - or left the callee raw)
+    '(() => { let n = 0; class Ck extends Array { static m() { return this[(n++, "from")]?.([[1], [2]]).flat().at(-1); } } return [Ck.m(), n]; })()',
+    '(() => { let n = 0; return [Array[(n++, "of")]?.(1, 2).flat().at(0), n]; })()',
+    // a shadowed inherited static keeps the guard, so a rebound `this` short-circuits like native
+    '(() => { class Cd extends Array { static from(x) { return [9]; } static m() { return this.from?.([1]).at(0); } } '
+      + 'const f = Cd.m; try { return f.call({}); } catch (e) { return "throw"; } })()',
+    // a PATCHED inherited static through the optional this-call keeps the patch (no deopt to the
+    // pure static; the combine keeps the guard so the trailing polys compose - crashed before)
+    '(() => { const orig = Array.from; Array.from = function () { return [8, [9]]; }; '
+      + 'class Cm extends Array { static m() { return this.from?.([1, 2]).flat().at(-1); } } const out = Cm.m(); Array.from = orig; return out; })()',
     // single-element array wrapper with inner rest keeps the residual (rest collects remaining keys)
     '(() => { const [{ from, ...rest }] = [Array]; return [typeof from, typeof rest]; })()',
     // for-init host: the polyfill rides a sibling declarator in the loop header
