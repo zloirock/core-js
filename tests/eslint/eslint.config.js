@@ -801,7 +801,7 @@ const base = {
   // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
   // prefer simple conditions first in logical expressions
-  'unicorn/prefer-simple-condition-first': ERROR,
+  // 'unicorn/prefer-simple-condition-first': ERROR,
   // enforce combining multiple `Array#push`, `Element#classList.{ add, remove }()` or `importScripts` into one call
   'unicorn/prefer-single-call': ERROR,
   // prefer `String#split()` with a limit
