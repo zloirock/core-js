@@ -83,8 +83,10 @@ function hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }) {
     if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression') return false;
     const meta = buildMemberMeta({ node: parentPath.node, scope, adapter, path: parentPath });
     // a `[Symbol.iterator]` leaf is also a receiver-WRAPPING helper (`_getIteratorMethod(recv)`) but
-    // `resolveMeta` does not classify the computed symbol key, so match it by key
-    if (meta && (meta.key === 'Symbol.iterator' || resolveMeta(meta, parentPath)?.kind === 'instance')) return true;
+    // `resolveMeta` does not classify the computed symbol key, so match it by key - gated on the
+    // symbol provenance so a string-spelled `['Symbol.iterator']` (kept raw) doesn't count as a wrapper
+    if (meta && (isSourcedSymbolIteratorMeta(meta)
+      || resolveMeta(meta, parentPath)?.kind === 'instance')) return true;
     parentPath = parentPath.parentPath;
   }
   return false;
@@ -429,6 +431,11 @@ function buildMemberMeta({ node, scope, adapter, path }) {
       collectChainRootCallEffect({ node: classifyTarget, sideEffects, scope, adapter, path });
     }
   }
+  // a computed key that FOLDS to a `Symbol.X` string may come from a real symbol reference
+  // (member / alias / destructured slot - the shapes `resolveComputedSymbolKey` doesn't chase)
+  // or from a mere string spelling ('Symbol.iterator' literal / template / `+`-concat). tag the
+  // provenance so symbol-routed consumers don't rewrite a plain string-keyed property access
+  tagSymbolSourcedMeta({ meta, keyNode: computedKeyNode, computed: node.computed, scope, adapter, path });
   // record where the receiver-SE ends (everything collected above: parens/sequence + chain-collapse +
   // inline-call root) so the emit-side receiver/key split uses the SAME boundary the build collected,
   // not a narrower recompute that undercounts a member-chain / inline-call receiver to 0
@@ -528,8 +535,9 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // re-emit side effects in source eval order: receiver first, then computed-key
     // (`(recv(), arr)[Symbol[(key(), 'iterator')]]`). the emit replays the receiver-SE by either
     // peeling + prepending (non-optional) or via the null-guard memoize (optional - where the
-    // suppress path drops this prefix and folds only the key-SE), so collect both here in order
-    const meta = { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
+    // suppress path drops this prefix and folds only the key-SE), so collect both here in order.
+    // `asSymbolRef` proved the key is a real well-known-symbol reference - carry the provenance
+    const meta = { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype', symbolSourced: true };
     const sideEffects = [];
     // a collapsed proxy receiver carries its OWN SE in `droppedSe` (embedded in `(droppedSe, _root)`), so
     // the receiver SE must NOT also enter meta.sideEffects (would double-run). otherwise collect it here
@@ -672,6 +680,55 @@ function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
     node: entry.init, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
   });
   return false;
+}
+
+// folded `Symbol.X` string whose SOURCE is a real well-known-symbol reference, not a string
+// spelling. sequence-tail peel so an SE-prefixed key (`[(eff(), Symbol.iterator)]`) classifies
+// by its tail. the `in`-producers deliberately do NOT route through this: there the check GATES
+// meta production with its own nested-dot rule, and a peel would fold an SE-carrying LHS whose
+// effects that branch has no channel to preserve (the string-branch keeps them in place)
+function symbolSourcedFoldedKey({ key, keyNode, scope, adapter, path }) {
+  return typeof key === 'string' && key.startsWith('Symbol.')
+    && isSymbolSourcedKey({ node: peelReceiverSequenceTail(keyNode), scope, adapter, path });
+}
+
+// tag a meta whose computed key folded to `Symbol.X` with symbol provenance - the same contract
+// the `in`-meta producers follow: consumers gate symbol-routed dispatch (`get-iterator-method`
+// extraction, catch-passthrough) on `meta.symbolSourced`, so a string spelling of the key stays
+// a plain property read with native semantics. the single tagger behind the member-meta builder
+// and both emitters' destructure funnels
+export function tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }) {
+  if (meta?.kind === 'property' && computed
+    && symbolSourcedFoldedKey({ key: meta.key, keyNode, scope, adapter, path })) {
+    meta.symbolSourced = true;
+  }
+  return meta;
+}
+
+// the iterator-form consumer gate: a meta keyed `Symbol.iterator` routes through the
+// iterator-method machinery ONLY with real-symbol provenance - a string-spelled key stays raw
+export function isSourcedSymbolIteratorMeta(meta) {
+  return !!meta.symbolSourced && meta.key === 'Symbol.iterator';
+}
+
+// a computed destructure-prop key "hosts machinery" when the rewrite pipeline has work bound
+// to it: a real well-known-symbol reference (iterator-method / catch-passthrough handling) or a
+// fold to a pure-resolvable name (incl. through an SE prefix - the fold peels to the tail, and
+// the extraction shape keeps the effect running exactly once). a plain string spelling
+// ('Symbol.iterator' literal), an unresolvable fold, or a dynamic key hosts nothing - the
+// pattern can stay verbatim, key evaluation stays in place. drives the babel emitter's
+// pattern-level CatchClause extraction gate; the text emitter reaches the same per-prop
+// decision through its claim flow (resolved / symbol-provenance / passthrough), so the two
+// restructure the same patterns
+export function computedPropKeyHostsMachinery({ propNode, scope, adapter, path, resolvePure }) {
+  if (!propNode.computed) return false;
+  const key = resolveKey({ node: propNode.key, computed: true, scope, adapter, path });
+  if (!key) return false;
+  if (key.startsWith('Symbol.')) {
+    return symbolKeyToEntry(key) !== null
+      && symbolSourcedFoldedKey({ key, keyNode: propNode.key, scope, adapter, path });
+  }
+  return !!resolvePure({ kind: 'property', object: null, key, placement: null }, path);
 }
 
 // Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
