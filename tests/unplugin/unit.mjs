@@ -1857,7 +1857,7 @@ function checkFormatParseErrorHelpMessageAttachesWithoutLocation() {
     },
     code: 'x,',
   });
-  const [head, tail] = msg.split('\n');
+  const [head, tail] = msg.split('\n', 2);
   check('formatParseErrorMessage/help-only head',
     head.startsWith('[core-js] could not parse /help-only.mjs: Unexpected token'), true);
   check('formatParseErrorMessage/help-only tail equals helpMessage', tail, 'try removing the trailing comma');
