@@ -40,7 +40,9 @@ import {
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { planGuardedStaticNarrow, resolveSymbolIteratorEntry } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry,
+} from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
@@ -668,7 +670,9 @@ export default function plugin(api, options) {
             // (the patch lives on the namespace, not the prototype chain) - keep the bail
             if (inheritedStatic && isMutatedStaticMeta(meta, mutatedStatics)) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
-            if (meta.key === 'Symbol.iterator') {
+            // provenance gate: a string-spelled key (`arr['Symbol.iterator']`) is a plain
+            // property read and stays raw
+            if (isSourcedSymbolIteratorMeta(meta)) {
               return handleSymbolIterator(path, meta.sideEffects, meta.receiverEffectCount, meta.symbolReceiverProxyRoot);
             }
           }
@@ -721,8 +725,9 @@ export default function plugin(api, options) {
           return;
         }
         if (!result) {
-          // [Symbol.iterator] in destructuring: resolve returns null, use getIteratorMethod
-          if (path.isObjectProperty() && path.node.computed && meta.key === 'Symbol.iterator') {
+          // [Symbol.iterator] in destructuring: resolve returns null, use getIteratorMethod.
+          // gated on symbol provenance - a string-spelled key stays a plain property read
+          if (path.isObjectProperty() && isSourcedSymbolIteratorMeta(meta)) {
             destructureEmit.handleObjectPropertyResult({
               prop: path, meta, kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod',
             });
