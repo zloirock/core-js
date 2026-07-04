@@ -568,11 +568,14 @@ export function resolveSuperImportName(injector, superMeta) {
 
 // remap inherited-static meta while preserving the computed-key sideEffects channel
 // (`super[(fn(),'X')]` would otherwise lose `fn()` evaluation on static-dispatch retarget)
+// and the symbol-key provenance (`this[Symbol.iterator]` in a static block keeps routing
+// through the iterator-method helper after the static-dispatch retarget)
 export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) {
   if (!inheritedMeta) return null;
-  const remapped = resolveSuperImportName(injector, inheritedMeta);
-  return remapped && originalMeta?.sideEffects?.length
-    ? { ...remapped, sideEffects: originalMeta.sideEffects } : remapped;
+  let remapped = resolveSuperImportName(injector, inheritedMeta);
+  if (remapped && originalMeta?.sideEffects?.length) remapped = { ...remapped, sideEffects: originalMeta.sideEffects };
+  if (remapped && originalMeta?.symbolSourced) remapped = { ...remapped, symbolSourced: true };
+  return remapped;
 }
 
 // `super.X` in a static method -> static meta on the parent class. peel parens + TS casts
