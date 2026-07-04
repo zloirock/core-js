@@ -16,6 +16,6 @@
     "marked-alert": "^2.1.2",
     "marked-gfm-heading-id": "^4.1.4",
     "sass": "^1.101.0",
-    "vite": "^8.1.0"
+    "vite": "^8.1.3"
   }
 }

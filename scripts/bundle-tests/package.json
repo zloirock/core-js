@@ -4,7 +4,7 @@
     "@babel/core": "^8.0.1",
     "@slowcheetah/qunitjs-1": "^1.23.1",
     "babel-loader": "^10.1.1",
-    "webpack": "^5.108.1",
+    "webpack": "^5.108.3",
     "webpack-cli": "^7.1.0"
   }
 }

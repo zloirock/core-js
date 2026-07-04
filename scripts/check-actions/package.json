@@ -1,6 +1,6 @@
 {
   "name": "scripts/check-actions",
   "devDependencies": {
-    "actions-up": "^1.14.3"
+    "actions-up": "^1.16.0"
   }
 }
