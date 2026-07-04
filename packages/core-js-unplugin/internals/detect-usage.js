@@ -21,7 +21,7 @@ import {
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
+import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   collectFunctionScopeVarReassignments,
@@ -992,7 +992,12 @@ export function createUsageVisitors({
   function propertyVisitor(path) {
     if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
     const meta = buildDestructuringMeta(path.node, path.parentPath);
-    if (meta) onUsage(meta, path);
+    // a computed key folding to `Symbol.X` gets its provenance checked ONCE at this funnel
+    // (every destructure meta flows through here) - string spellings stay untagged so the
+    // symbol-routed emit paths leave them as plain property reads
+    if (meta) onUsage(tagSymbolSourcedMeta({
+      meta, keyNode: path.node.key, computed: path.node.computed, scope: path.scope, adapter, path,
+    }), path);
   }
 
   // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`). shared between
