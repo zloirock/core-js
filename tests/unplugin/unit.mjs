@@ -3179,12 +3179,12 @@ function checkFindOuterGuardRefTieBreak() {
 checkFindOuterGuardRefTieBreak();
 
 // --- bundler adapter named exports ---
-// supported bundlers per package.json description + exports map: 8 adapters with both
+// supported bundlers per package.json description + exports map: 9 adapters with both
 // named export AND `./<name>` sub-entry. unloader is upstream-exposed but core-js does
 // not target it (no sub-entry, no docs, no test wiring) — intentionally not exported
 async function checkBundlerAdapterExports() {
   const exported = await import('../../packages/core-js-unplugin/index.js');
-  for (const name of ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rolldown', 'farm', 'bun']) {
+  for (const name of ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rsbuild', 'rolldown', 'farm', 'bun']) {
     check(`adapter export '${ name }' is callable`, typeof exported[name], 'function');
   }
   check('unloader: not exported (upstream-only, core-js does not target)', exported.unloader, undefined);
@@ -4001,6 +4001,7 @@ function checkChunkLoaderBundler() {
   // chunk-loader bundlers: dynamic import wraps in Promise.all([chunks])
   check('chunk-loader/webpack', isChunkLoaderBundler('webpack'), true);
   check('chunk-loader/rspack', isChunkLoaderBundler('rspack'), true);
+  check('chunk-loader/rsbuild', isChunkLoaderBundler('rsbuild'), true);
   check('chunk-loader/farm', isChunkLoaderBundler('farm'), true);
   check('chunk-loader/unloader', isChunkLoaderBundler('unloader'), true);
   // roll-family / esbuild / native: dynamic import returns bare module Promise
