@@ -114,6 +114,7 @@ export const { webpack } = unplugin;
 export const { rollup } = unplugin;
 export const { esbuild } = unplugin;
 export const { rspack } = unplugin;
+export const { rsbuild } = unplugin;
 export const { rolldown } = unplugin;
 export const { farm } = unplugin;
 export const { bun } = unplugin;
