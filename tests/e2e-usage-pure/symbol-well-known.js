@@ -135,3 +135,23 @@ QUnit.test('Symbol: pure-ctor destructure harvests a proxy-hop-key effect exactl
   assert.notSame(iterator, undefined);
   assert.same(count, 1);
 });
+
+// a computed key that merely SPELLS 'Symbol.iterator' as a string is a plain property read,
+// NOT the well-known symbol - it must not route through the iterator-method helper. live
+// runtime oracle: fail-before compiled the call to a get-iterator helper that returns an
+// object where native semantics throw a TypeError (undefined is not a function)
+QUnit.test('Symbol.iterator: string-spelled key stays a plain property read', assert => {
+  /* eslint-disable no-useless-concat, no-useless-computed-key -- string spellings under test */
+  /* eslint-disable es/no-nonstandard-array-prototype-properties -- string spellings under test */
+  const arr = [1, 2];
+  assert.same(arr['Symbol.iterator'], undefined);
+  assert.same(arr[`Symbol.${ 'iterator' }`], undefined);
+  const stringKey = 'Symbol.' + 'iterator';
+  assert.same(arr[stringKey], undefined);
+  assert.throws(() => arr['Symbol.iterator'](), TypeError);
+  const { ['Symbol.iterator']: extracted } = arr;
+  assert.same(extracted, undefined);
+  assert.false('Symbol.iterator' in arr);
+  /* eslint-enable no-useless-concat, no-useless-computed-key -- end of string-spelling block */
+  /* eslint-enable es/no-nonstandard-array-prototype-properties -- end of string-spelling block */
+});
