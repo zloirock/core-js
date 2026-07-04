@@ -6,6 +6,7 @@
     "@farmfe/core": "^1.7.11",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rsbuild/core": "^2.1.4",
     "@rspack/core": "^2.1.2",
     "esbuild": "^0.28.1",
     "rolldown": "^1.1.4",
