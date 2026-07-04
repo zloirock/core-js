@@ -187,6 +187,39 @@ const builders = {
     return webpackLikeBundle(rspack, input, pluginFor('rspack')(pluginOpts(method, phase)));
   },
 
+  // rsbuild drives rspack: same chunk-loader semantics, plugin passed through unplugin's
+  // rsbuild adapter. environments-based config keeps the output a single node-loadable file
+  async rsbuild(input, method, phase) {
+    const { createRsbuild } = await import('@rsbuild/core');
+    return withTmpDir(async dir => {
+      const rsbuild = await createRsbuild({
+        cwd: testDir,
+        rsbuildConfig: {
+          mode: 'production',
+          logLevel: 'error',
+          source: { entry: { index: input } },
+          plugins: [pluginFor('rsbuild')(pluginOpts(method, phase))],
+          output: {
+            target: 'node',
+            distPath: { root: dir },
+            filenameHash: false,
+            minify: false,
+            sourceMap: false,
+          },
+          performance: { chunkSplit: { strategy: 'all-in-one' } },
+          tools: {
+            rspack: {
+              output: { module: true, library: { type: 'module' } },
+              experiments: { outputModule: true },
+            },
+          },
+        },
+      });
+      await rsbuild.build();
+      return { code: await readFile(join(dir, 'index.js'), 'utf8') };
+    });
+  },
+
   async rolldown(input, method, phase) {
     const { build } = await import('rolldown');
     return withTmpDir(async dir => {
