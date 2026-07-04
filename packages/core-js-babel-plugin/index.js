@@ -249,10 +249,11 @@ export default function plugin(api, options) {
   // below, after this top-level helper. captured by closure so `super.from?.()` resolves its
   // inherited static for the optional-chain deopt check (set in initFile before traversal)
   let resolveSuperStaticFn = null;
+  let isShadowedByClassOwnMemberFn = null;
   function skipPolyfillableOptional(node, scope, path) {
     return isPolyfillableOptional({
       node, scope, path, adapter, resolve: resolveBuiltIn, resolveSuperStatic: resolveSuperStaticFn,
-      mutatedSet: mutatedStatics,
+      mutatedSet: mutatedStatics, isShadowedByClassOwnMember: isShadowedByClassOwnMemberFn,
     });
   }
 
@@ -381,8 +382,10 @@ export default function plugin(api, options) {
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
       } = createClassHelpers({ t, adapter, resolveKey: sharedResolveKey, getInjector: () => injector });
-      // wire the forward reference so the top-level optional-chain deopt check can resolve supers
+      // wire the forward references so the top-level optional-chain deopt check can resolve
+      // supers and reject own-static shadows of `this.X`
       resolveSuperStaticFn = resolveStaticInheritedMember;
+      isShadowedByClassOwnMemberFn = isShadowedByClassOwnMember;
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
