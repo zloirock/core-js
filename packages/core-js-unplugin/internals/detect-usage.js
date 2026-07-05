@@ -17,6 +17,7 @@ import {
   hasMutationCandidateShapes,
 } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import {
+  collectDestructureUnionCandidates,
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
@@ -982,7 +983,10 @@ export function createUsageVisitors({
     const meta = handleBinaryIn({
       node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path,
     });
-    if (meta) onUsage(meta, path);
+    if (!meta) return;
+    onUsage(meta, path);
+    // usage-global reachable union targets of a reassigned `in` key / receiver alias
+    for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
   }
 
   // Property visitor is shared: top-level destructure bindings and decorator-arg patterns
@@ -995,9 +999,17 @@ export function createUsageVisitors({
     // a computed key folding to `Symbol.X` gets its provenance checked ONCE at this funnel
     // (every destructure meta flows through here) - string spellings stay untagged so the
     // symbol-routed emit paths leave them as plain property reads
-    if (meta) onUsage(tagSymbolSourcedMeta({
-      meta, keyNode: path.node.key, computed: path.node.computed, scope: path.scope, adapter, path,
-    }), path);
+    if (!meta) return;
+    // capture the key slots BEFORE dispatch, mirroring babel: a pure emit may restructure the
+    // property, so the union pass must not re-read the possibly-detached node
+    const { key: keyNode, computed } = path.node;
+    const { scope } = path;
+    onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
+    // usage-global reachable receiver / key union: each extra destructure target earns a
+    // side-effect import beside the primary, mirroring the member funnel
+    for (const extra of collectDestructureUnionCandidates({
+      meta, keyNode, computed, scope, adapter, path,
+    })) onUsage(extra, path);
   }
 
   // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`). shared between
