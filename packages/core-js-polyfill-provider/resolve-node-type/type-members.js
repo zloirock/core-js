@@ -558,6 +558,13 @@ export function createTypeMembers({
       const unwrapped = peelTSParenthesized(unwrapTypeAnnotation(node));
       return applySubst(unwrapped, subst);
     }
+    // an optional property (`a?: T`) admits undefined even on a present receiver; the
+    // signature's own `optional` flag would otherwise be dropped when only the annotation
+    // is returned. a synthetic TSOptionalType wrapper carries the possibility to the
+    // annotation resolvers, which mark the resolved type for the logical truthy-fold gate
+    function withOptional(annotation, member) {
+      return member.optional && annotation ? { type: 'TSOptionalType', typeAnnotation: annotation } : annotation;
+    }
     // conditional types route through dedicated helper: extracts the branch-pick logic
     // (AST equality > structural Type Object eval > infer-pattern fallback > undecidable
     // union fold) into one place. without the extraction, findTypeMember exceeds the
@@ -599,7 +606,7 @@ export function createTypeMembers({
         // the first hit halts the walk and over-emits the generic polyfill family
         case 'TSPropertySignature':
           if (!keyMatchesName(member.key, key) || !member.typeAnnotation) break;
-          return withSubst(member.typeAnnotation);
+          return withOptional(withSubst(member.typeAnnotation), member);
         // getter: read the return; setter: continue iteration to a paired getter;
         // plain method: expose the full signature (see returnMemberMethodNode)
         case 'TSMethodSignature':
@@ -615,7 +622,7 @@ export function createTypeMembers({
           // paired getter. plain property / method value: return the value annotation
           if (member.kind === 'get') return withSubst(functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value)));
           if (member.kind === 'set') break;
-          return withSubst(member.value);
+          return withOptional(withSubst(member.value), member);
         case 'ClassProperty':         // flow
         case 'PropertyDefinition':    // babel TS / ESTree spec
         case 'ClassAccessorProperty': // babel decoratorAutoAccessors plugin
@@ -626,7 +633,7 @@ export function createTypeMembers({
           // over-emit the generic Maybe polyfill family. keep parser-shape list in sync with
           // `createClassMemberShape.isPropertyMember` in `class-member-shapes.js`
           if (!member.computed && keyMatchesName(member.key, key) && member.typeAnnotation) {
-            return withSubst(member.typeAnnotation);
+            return withOptional(withSubst(member.typeAnnotation), member);
           }
           break;
         // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
