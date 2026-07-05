@@ -24,6 +24,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
+  findFunctionScopeVarInPath,
   findIifeArgForParam,
   findIifeCallSite,
   findTSRuntimeBindingInPath,
@@ -135,6 +136,12 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       // excludes `declare X` (ambient - runtime supplied externally; polyfill should fire)
       const anchor = path ?? scope.path ?? null;
       if (anchor && findTSRuntimeBindingInPath(anchor, name)) return true;
+      // sloppy Annex-B block-level function (`{ function Array() {} }` in a script) hoists a
+      // var-binding to the enclosing function / script scope which babel's tracker keeps
+      // block-scoped - an OUTSIDE use would read the polyfill while the runtime reads the
+      // user function (wrong value in pure). the walk also recovers nested-block `var`
+      // declarations. mirrors the unplugin adapter and the resolver-side binding adapter
+      if (anchor && findFunctionScopeVarInPath(anchor, name)) return true;
       // plugin-managed pure-import alias / user destructure aliases: presence only - trust and
       // disambiguation happen at the `getBinding` lookup; scope-bound so a same-named local
       // alias in ANOTHER function doesn't shadow a direct global use here
