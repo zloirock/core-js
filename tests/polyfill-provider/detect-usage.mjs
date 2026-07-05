@@ -15,6 +15,8 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 import {
   bindsModuleDefault,
+  collectDestructureUnionCandidates,
+  collectMemberUnionCandidates,
   isStaticPlacement,
   isTransparentWrapper,
   resolveKey,
@@ -824,5 +826,68 @@ for (const [name, code, resolvePure, expected] of MACHINERY_CASES) {
     }), expected);
   });
 }
+
+// --- collectMemberUnionCandidates (usage-global reachable-key union) ---
+
+// an UNRESOLVED receiver still unions its reachable keys as typeless prototype metas; a static
+// receiver keeps static-placement extras; no reassignment yields no extras. cross-parser so the
+// binding-violation enumeration agrees between babel and estree scopes
+const unionAdapter = {
+  ...provenanceAdapter,
+  method: 'usage-global',
+  getBinding(scope, name) { return scope?.getBinding?.(name); },
+};
+function unionExtras(adapter, prog, receiverIsStatic) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
+  return collectMemberUnionCandidates({
+    objectNode: member.node.object, computedKeyNode: member.node.property,
+    primaryObject: receiverIsStatic ? 'Array' : null, primaryKey: 'at',
+    scope: member.scope, adapter: unionAdapter, path: member,
+  });
+}
+runBoth('collectMemberUnionCandidates/unresolved receiver unions reachable key',
+  'let k = "at"; if (c) k = "flat"; const arr = [1]; arr[k];', (adapter, prog, lbl) => {
+    const extras = unionExtras(adapter, prog, false);
+    checkDeep(lbl, extras, [{ kind: 'property', object: null, key: 'flat', placement: 'prototype', receiverHint: null }]);
+  });
+runBoth('collectMemberUnionCandidates/static receiver keeps static extras',
+  'let k = "at"; if (c) k = "flat"; Array[k];', (adapter, prog, lbl) => {
+    const extras = unionExtras(adapter, prog, true);
+    checkDeep(lbl, extras, [{ kind: 'property', object: 'Array', key: 'flat', placement: 'static', receiverHint: 'function' }]);
+  });
+runBoth('collectMemberUnionCandidates/no reassignment yields no extras',
+  'const k = "at"; const arr = [1]; arr[k];', (adapter, prog, lbl) => {
+    checkDeep(lbl, unionExtras(adapter, prog, false), []);
+  });
+
+// the destructure twin anchors at the ObjectProperty: the declarator host supplies the receiver
+// alias, the prop key supplies the key alias; a non-global method or a fallback meta yields none
+function destructureExtras(adapter, prog, meta, method = 'usage-global') {
+  const prop = pickProp(adapter, prog);
+  return collectDestructureUnionCandidates({
+    meta, keyNode: prop.node.key, computed: prop.node.computed,
+    scope: prop.scope, adapter: { ...unionAdapter, method }, path: prop,
+  });
+}
+runBoth('collectDestructureUnionCandidates/reassigned key on unresolved receiver',
+  'let k = "at"; if (c) k = "flat"; const arr = [1]; const { [k]: v } = arr;', (adapter, prog, lbl) => {
+    checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'at', placement: null }),
+      [{ kind: 'property', object: null, key: 'flat', placement: 'prototype', receiverHint: null }]);
+  });
+runBoth('collectDestructureUnionCandidates/receiver alias reaching a constructor',
+  'var M = [1]; if (c) M = Iterator; const { from } = M;', (adapter, prog, lbl) => {
+    checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'from', placement: null }),
+      [{ kind: 'property', object: 'Iterator', key: 'from', placement: 'static', receiverHint: null }]);
+  });
+runBoth('collectDestructureUnionCandidates/usage-pure yields none',
+  'let k = "at"; if (c) k = "flat"; const arr = [1]; const { [k]: v } = arr;', (adapter, prog, lbl) => {
+    checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'at', placement: null }, 'usage-pure'), []);
+  });
+
+// the `in`-branch and prototype-branch ATTACH sites are exercised through the fixture pipeline
+// (real emitter adapters): their PRIMARY key resolution needs the full binding-wrapper contract
+// (reaching-value walk) a minimal test adapter cannot supply, so a unit here would only fake it.
+// the enumeration primitive itself is unit-locked above; the attach wiring is locked by the
+// union fixtures' import-sets
 
 finish();
