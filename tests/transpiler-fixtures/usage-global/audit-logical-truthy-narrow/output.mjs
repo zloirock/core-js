@@ -1,11 +1,8 @@
-import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.map";
 import "core-js/modules/es.array.species";
-import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/esnext.iterator.includes";
 // an ALWAYS-TRUTHY left operand decides a logical statically: `A || B` / `A ?? B` narrows to
 // the left type, `A && B` narrows to the RIGHT - instead of the two-operand union, which
 // injected entries the runtime value never has (the Iterator variant for an Array/plain-object
