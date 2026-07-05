@@ -207,8 +207,20 @@ export function createTypeFolding({
   }
 
   // merge two types into a common type: returns null if outer types differ,
-  // strips inner if outer types match but inner types disagree
+  // strips inner if outer types match but inner types disagree.
+  // marker propagation over the (possibly rebuilt / identity-returned) result, so every
+  // merge caller gets it for free instead of re-marking by hand: a merged value may be
+  // EITHER input at runtime, so mayBeNullish propagates from either side (may-union),
+  // while readonly requires BOTH (a readonly | mutable merge is not readonly-certain)
   function commonType(existing, incoming) {
+    let merged = commonTypeInner(existing, incoming);
+    if (!merged) return merged;
+    if (existing?.mayBeNullish || incoming.mayBeNullish) merged = merged.mark('mayBeNullish');
+    if (existing && existing.readonly && incoming.readonly) merged = merged.mark('readonly');
+    return merged;
+  }
+
+  function commonTypeInner(existing, incoming) {
     if (!existing) return incoming;
     if (!typesEqual(existing, incoming)) return null;
     // two primitives of the same family with distinct literal stamps fold to a literal UNION (`'a' | 'b'`):
@@ -222,8 +234,7 @@ export function createTypeFolding({
       const merged = new $Primitive(existing.type);
       const existingHasLiteral = existing.literal !== undefined || existing.literalUnion;
       const incomingHasLiteral = incoming.literal !== undefined || incoming.literalUnion;
-      if (existingHasLiteral && incomingHasLiteral) merged.literalUnion = true;
-      return merged;
+      return existingHasLiteral && incomingHasLiteral ? merged.mark('literalUnion') : merged;
     }
     if (innersEqual(existing.inner, incoming.inner)) return existing;
     return new $Object(existing.constructor);
@@ -258,9 +269,22 @@ export function createTypeFolding({
     return result ?? skipped;
   }
 
-  // fold union members: unresolvable -> bail, nullable/never -> skip, rest -> fold
+  // fold union members: unresolvable -> bail, nullable/never -> skip, rest -> fold.
+  // a SKIPped null / undefined arm still exists at runtime, so the folded value shape is
+  // marked mayBeNullish - receiver narrowing ignores the marker (nullish receivers throw
+  // either way), the logical truthy-fold must not (`T | null` is not always-truthy).
+  // a dropped `never` arm carries no runtime value and does not mark
   function foldUnionTypes(types, resolve) {
-    return foldTypes(types, resolve, r => !r ? 0 : isNullableOrNever(r) ? 1 : 2);
+    let droppedNullish = false;
+    const result = foldTypes(types, resolve, r => {
+      if (!r) return 0;
+      if (isNullableOrNever(r)) {
+        if (r.type !== 'never') droppedNullish = true;
+        return 1;
+      }
+      return 2;
+    });
+    return droppedNullish && result && !isNullableOrNever(result) ? result.mark('mayBeNullish') : result;
   }
 
   // a "weak" intersection constituent carries no useful instance-method narrow: null / unresolvable,
@@ -297,13 +321,16 @@ export function createTypeFolding({
     return safeInnerType(resolved);
   }
 
-  // collapse a resolved inner-Type to null when it is nullable / never / falsy. used at
-  // `new $Object(ctor, inner)` build sites where carrying a nullable inner would mis-narrow
-  // downstream member dispatch (a `Promise<null>` shape leaks the `null` into element-narrow
-  // queries that expect a useful inner). single source of truth so the three legitimate
-  // build sites (HKT apply, array-as-type, generator return-type) can't drift in subtlety
+  // collapse a resolved inner-Type to null when it is nullable / never / falsy - or not a
+  // Type at all: a cyclic type-param default (`Self<T = T[]>`) leaks the raw default
+  // ANNOTATION through the subst map as a "resolved" value (the G-WRONGMAYBE-DEFAULT-LEAK
+  // class), and an AST node in the inner slot poisons every downstream reader (innersEqual /
+  // toHint / markers). used at `new $Object(ctor, inner)` build sites where carrying a
+  // nullable inner would mis-narrow downstream member dispatch (a `Promise<null>` shape
+  // leaks the `null` into element-narrow queries that expect a useful inner). single source
+  // of truth so the build sites (HKT apply, array-as-type, generator return-type) can't drift
   function safeInnerType(inner) {
-    return inner && !isNullableOrNever(inner) ? inner : null;
+    return inner && typeof inner.primitive === 'boolean' && !isNullableOrNever(inner) ? inner : null;
   }
 
   // cluster-private: `foldTypes` (generic fold engine; only `foldUnionTypes` /
