@@ -12,6 +12,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
+  collectDestructureUnionCandidates,
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
@@ -522,9 +523,16 @@ export function createUsageVisitors({
   // checked once here, so a string spelling of the key stays untagged and the symbol-routed
   // emit paths leave it as a plain property read
   function emitPropUsage(meta, path) {
-    onUsage(tagSymbolSourcedMeta({
-      meta, keyNode: path.node.key, computed: path.node.computed, scope: path.scope, adapter, path,
-    }), path);
+    // capture the key slots BEFORE dispatch: a usage-pure emit may REPLACE the ObjectProperty
+    // (extraction / rewrite), detaching `path.node` for the union pass below
+    const { key: keyNode, computed } = path.node;
+    const { scope } = path;
+    onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
+    // usage-global reachable receiver / key union: each extra destructure target earns a
+    // side-effect import beside the primary, mirroring the member funnel
+    for (const extra of collectDestructureUnionCandidates({
+      meta, keyNode, computed, scope, adapter, path,
+    })) onUsage(extra, path);
   }
 
   // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
@@ -660,7 +668,10 @@ export function createUsageVisitors({
     const meta = handleBinaryIn({
       node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path,
     });
-    if (meta) onUsage(meta, path);
+    if (!meta) return;
+    onUsage(meta, path);
+    // usage-global reachable union targets of a reassigned `in` key / receiver alias
+    for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
   }
 
   // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it

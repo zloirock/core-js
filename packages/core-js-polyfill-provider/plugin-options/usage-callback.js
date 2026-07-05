@@ -26,13 +26,16 @@ function shouldSkipUsageDispatch(meta, path, isDisabled) {
 // `super.X(...)` / `this.X(...)` in a static method of `extends KnownGlobal { ... }`:
 // regular MemberExpression resolution produces `{object: null, placement: 'prototype'}` which
 // never matches `Array.from` etc. retry with a synthetic static meta against the parent class.
-// covers both Super and ThisExpression-in-static-context via `isInheritedStaticLookup`
+// covers both Super and ThisExpression-in-static-context via `isInheritedStaticLookup`.
+// the key comes from the META, not re-read off the member: a reachable-union EXTRA
+// (`this[k]` with a reassigned `k`) carries its own alternative key, which a node re-read
+// would collapse back to the primary and drop the alternative's static injection
 function tryResolveSuperStaticMeta({ meta, path, resolveStaticInheritedMember, isInheritedStaticLookup }) {
   if (!resolveStaticInheritedMember || !isInheritedStaticLookup) return null;
   if (meta.kind !== 'property' || meta.placement !== 'prototype' || meta.object !== null) return null;
   if (path?.node?.type !== 'MemberExpression' && path?.node?.type !== 'OptionalMemberExpression') return null;
   if (!isInheritedStaticLookup(path)) return null;
-  return resolveStaticInheritedMember(path);
+  return resolveStaticInheritedMember(path, meta.key ?? null);
 }
 
 export function createUsageGlobalCallback({
