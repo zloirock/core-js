@@ -147,7 +147,7 @@ function pureImportName(kind, name, importEntry) {
 export function createPolyfillResolver(options, {
   typeResolvers, astPredicates, getBabelTargets,
 } = {}) {
-  const { resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject } = typeResolvers;
+  const { resolvePropertyObjectType, resolveGuardHints, resolvePropertyUnionHints, toHint, isString, isObject } = typeResolvers;
   const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
   const {
     method, mode, version, package: pkg, additionalPackages,
@@ -181,10 +181,18 @@ export function createPolyfillResolver(options, {
       if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype', receiverHint: undefined };
       return descHasTypeHints(desc) ? null : meta;
     }
-    if (isMemberLike(path) && descHasTypeHints(desc)) {
-      const hints = resolveGuardHints(path.get('object'));
-      // `receiverHint: undefined` placed between meta and hints so guard-emitted hint can override
-      if (hints) return { ...meta, receiverHint: undefined, ...hints };
+    if (descHasTypeHints(desc)) {
+      // a cross-family union receiver (`number[] | string`) resolves to no single Type but
+      // to an exact hint SET - inject only the union's variants, not every variant of the
+      // method. shares `resolvePropertyObjectType`'s input domain (member-like AND
+      // destructure property), and is more precise than guard hints, so consulted first
+      const unionHints = resolvePropertyUnionHints(path);
+      if (unionHints) return { ...meta, receiverHint: undefined, includedHints: unionHints, excludedHints: undefined };
+      if (isMemberLike(path)) {
+        const hints = resolveGuardHints(path.get('object'));
+        // `receiverHint: undefined` placed between meta and hints so guard-emitted hint can override
+        if (hints) return { ...meta, receiverHint: undefined, ...hints };
+      }
     }
     return meta;
   }
