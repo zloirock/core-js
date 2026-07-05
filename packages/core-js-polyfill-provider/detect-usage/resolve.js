@@ -662,6 +662,13 @@ export function collectMemberUnionCandidates(options) {
     aliasNode: objectNode, primary: primaryObject, scope, adapter, path,
     resolve: rhs => resolveObjectName({ objectNode: rhs, scope, adapter, path }),
   });
+  // an UNRESOLVED receiver (a local instance, an unclassifiable expression) still dispatches every
+  // reachable KEY at runtime, so it enumerates as the typeless receiver itself - each union key then
+  // earns the same typeless prototype-placement meta the primary key gets (`let k = 'at'; if (c)
+  // k = 'flat'; arr[k]` reaches both es.array.at and es.array.flat). without the null entry the
+  // cross product is empty and the reachable alternative silently drops (under-injection). the
+  // resolved values, when the receiver alias ALSO varies, keep their own static extras beside it
+  if (primaryObject === null) objects.unshift(null);
   const keys = reachableAliasValues({
     aliasNode: computedKeyNode, primary: primaryKey, scope, adapter, path,
     resolve: rhs => resolveKey({ node: rhs, computed: true, scope, adapter, path }),
@@ -669,12 +676,33 @@ export function collectMemberUnionCandidates(options) {
   const extras = [];
   for (const object of objects) for (const key of keys) {
     if ((object === primaryObject && key === primaryKey) || key === 'prototype') continue;
-    const placement = isStaticPlacement(object) ? 'static' : 'prototype';
+    const placement = object !== null && isStaticPlacement(object) ? 'static' : 'prototype';
     // mirror the primary meta's receiver-type gate so a union key that is an instance method on
     // the constructor (`Array[K]` with K reaching 'concat') bails instead of over-injecting
     extras.push({ kind: 'property', object, key, placement, receiverHint: staticReceiverHint(placement, object) });
   }
   return extras;
+}
+
+// destructure twin of the member union: `const { [k]: v } = recv` reads the same reachable
+// receiver x key targets a member access does, so each earns its side-effect import too. `path`
+// is the ObjectProperty the funnels anchor at - the receiver alias comes from the declarator /
+// assignment host when one exists (other hosts - for-x, catch, params, nested patterns - carry
+// no reassignable receiver alias in reach and enumerate keys only); a per-branch fallback meta
+// keeps its own mirror machinery and is excluded here
+export function collectDestructureUnionCandidates({ meta, keyNode, computed, scope, adapter, path }) {
+  if (!meta || meta.kind !== 'property' || meta.fromFallback) return [];
+  if (adapter.method !== 'usage-global') return [];
+  const host = path?.parentPath?.parentPath?.node;
+  const hostInitNode = host?.type === 'VariableDeclarator' ? host.init
+    : host?.type === 'AssignmentExpression' ? host.right : null;
+  return collectMemberUnionCandidates({
+    objectNode: hostInitNode,
+    computedKeyNode: computed ? keyNode : null,
+    primaryObject: meta.object ?? null,
+    primaryKey: meta.key,
+    scope, adapter, path,
+  });
 }
 
 // resolve a call-expression callee to a function-like node (arrow / fn-expr) suitable
