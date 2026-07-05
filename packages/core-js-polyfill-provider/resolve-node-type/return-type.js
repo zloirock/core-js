@@ -259,6 +259,7 @@ export function createReturnType({
     // of the implicit `undefined` literal that would otherwise wrap as `Promise<undefined>`
     let result = null;
     let nullableFallback = null;
+    let droppedNullish = false;
     for (const returnPath of collectReturnPaths(body)) {
       const arg = returnPath.get('argument');
       const isBareReturn = !arg.node;
@@ -267,15 +268,23 @@ export function createReturnType({
       // skip bare `return;` (implicit undefined, common in `catch { return; }`
       // bail-outs) and `never`-typed returns (consistent with how
       // resolveConditionalBranches handles never branches)
-      if (isBareReturn || type.type === 'never') continue;
+      if (isBareReturn || type.type === 'never') {
+        droppedNullish ||= isBareReturn;
+        continue;
+      }
       if (isNullableOrNever(type)) {
         nullableFallback ??= type;
+        droppedNullish = true;
         continue;
       }
       const merged = commonType(result, type);
       if (result && !merged) return null;
       result = merged;
     }
+    // a dropped nullable / bare-return arm still returns at runtime, so the fold survivor
+    // is not always-truthy: mark it so an enclosing logical fold keeps the two-operand
+    // union (`f() ?? 'x'` may yield 'x'). mirrors foldUnionTypes / the `?:` branch fold
+    if (result && droppedNullish) result = result.mark('mayBeNullish');
     return result ?? nullableFallback ?? new $Primitive('undefined');
   }
 

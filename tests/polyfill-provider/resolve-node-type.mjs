@@ -2597,6 +2597,37 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('base: $Object constructor', arr.constructor, 'Array');
   check('base: $Object inner === passed inner', arr.inner, inner);
 
+  // mark: returns a marked CLONE (cached originals must stay untouched), preserves the
+  // identity fields, the prototype `primitive` flag and previously set markers. the
+  // prototype slots are the marker registry: unmarked instances read the `false` default,
+  // and a name outside the registry throws instead of minting a dead field
+  check('base: unmarked instance reads the false prototype default', arr.mayBeNullish, false);
+  const marked = arr.mark('mayBeNullish');
+  check('base: mark sets the marker on the clone', marked.mayBeNullish, true);
+  check('base: mark leaves the original unmarked', arr.mayBeNullish, false);
+  check('base: mark clone is a new object', marked === arr, false);
+  try {
+    arr.mark('maybeNullish');
+    fail('base: mark rejects a name outside the registry', 'did not throw');
+  } catch (error) {
+    check('base: mark rejects a name outside the registry', error.constructor, TypeError);
+  }
+  try {
+    arr.mark('clone');
+    fail('base: mark rejects a non-marker prototype slot', 'did not throw');
+  } catch (error) {
+    check('base: mark rejects a non-marker prototype slot', error.constructor, TypeError);
+  }
+  check('base: mark clone keeps constructor', marked.constructor, 'Array');
+  check('base: mark clone keeps inner identity', marked.inner, inner);
+  check('base: mark clone keeps prototype primitive flag', marked.primitive, false);
+  check('base: mark no-ops on an already-marked type', marked.mark('mayBeNullish'), marked);
+  check('base: second marker stacks on the first', marked.mark('readonly').mayBeNullish, true);
+  check('base: clone carries existing markers', marked.clone().mayBeNullish, true);
+  const markedPrim = new $Primitive('string', 's').mark('literalUnion');
+  check('base: $Primitive mark keeps literal', markedPrim.literal, 's');
+  check('base: $Primitive mark keeps primitive flag', markedPrim.primitive, true);
+
   // primitiveTypeOf: $Primitive('bigint') -> 'bigint'
   check('base: primitiveTypeOf bigint primitive', primitiveTypeOf(new $Primitive('bigint')), 'bigint');
   // primitiveTypeOf: $Object('Number') unwraps via UNBOXED_PRIMITIVES table -> 'number'
@@ -6050,6 +6081,497 @@ runBoth('logical fold: nullish left still falls to right', 'const x = null || [1
   checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
     { primitive: false, kind: 'object', ctor: 'Array' });
 });
+
+// a nullish-STRIPPED union left (`r: number[] | null`) is NOT always truthy at runtime:
+// `??` / `||` yield the RIGHT operand on the nullish path, so the fold must keep the
+// two-operand union (heterogeneous operands -> null / generic dispatch). `&&` keeps its
+// right-fold - a nullish left short-circuits to a nullish RESULT, which throws the same
+// TypeError transformed or not. a same-family right still narrows via commonType, and a
+// `?:` with a statically-null branch marks its survivor the same way for an enclosing fold
+
+runBoth('logical no-fold: nullable-union left ?? foreign right keeps the union',
+  'function f(r: number[] | null) { const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: nullable-union left || foreign right keeps the union',
+  'function f(r: number[] | null) { const x = r || "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: nullable-union left && still narrows to right',
+  'function f(r: number[] | null) { const x = r && "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+runBoth('logical fold: nullable-union left with same-family right keeps the narrow',
+  'function f(r: number[] | null) { const x = r ?? []; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: undefined-arm union left ?? keeps the union',
+  'function f(r: string[] | undefined) { const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// the readonly re-tag must QUALIFY the union-folded result, not rebuild it from the identity
+// fields - a rebuild drops the mayBeNullish strip and re-arms the truthy fold
+runBoth('logical no-fold: Readonly-wrapped nullable union keeps the union',
+  'function f(r: Readonly<number[] | null>) { const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: Readonly-wrapped nullable union keeps readonly Array narrow',
+  'function f(r: Readonly<number[] | null>) { const x = r; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
+// every fold that drops a statically-nullish arm marks its survivor - the dropped arm may
+// still be the runtime value, so an enclosing `??` / `||` must not fold to the survivor's
+// shape. sibling folds of the union fold: cross-return body fold, guard narrowing whose
+// guard keeps null at runtime (`typeof x === 'object'`), undecided conditional types
+
+runBoth('logical no-fold: cross-return nullable fold marks the call result',
+  'function f(c) { if (!c) return null; return [1, 2]; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: bare-return arm marks the call result',
+  'function f(c) { if (c) return [1, 2]; return; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: clean cross-return fold keeps the Array narrow',
+  'function f(c) { if (c) return [1]; return [2, 3]; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: typeof-object guard keeps null at runtime, narrow is marked',
+  'function f(r: number[] | null) { if (typeof r === "object") { const x = r ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: positive instanceof rules null out, narrow stays precise',
+  'function f(r: number[] | null) { if (r instanceof Array) { const x = r ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: undecided conditional type with a nullable branch is marked',
+  'declare function pick<T>(x: T): T extends string ? number[] : null; function f(o: unknown) { const x = pick(o) ?? "s"; }',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('merge: readonly survives a both-readonly union merge',
+  'function f(r: Readonly<number[]> | Readonly<string[]>) { const x = r; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
+// marker propagation paths: through the async Promise wrap + await unwrap, through the
+// element-type merge in either union-arm order, and through the `&&` right-fold
+
+runBoth('logical no-fold: awaited nullable cross-return keeps the union',
+  'async function f(c) { if (!c) return null; return [1, 2]; } async function g(c) { const x = (await f(c)) ?? "s"; }',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: nullable-element marker survives merge, marked arm first',
+  'function f(a: (number[] | null)[] | number[][]) { const x = a[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: nullable-element marker survives merge, marked arm second',
+  'function f(a: number[][] | (number[] | null)[]) { const x = a[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: clean element access still folds under ??',
+  'function f(a: number[][]) { const x = a[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: && right-fold carries the marker into an enclosing ??',
+  'function f(arr: string[], r: number[] | null) { const x = (arr && r) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// nullish-admitting wrappers: a tuple optional slot ([T?]) admits undefined, so the
+// resolved element is marked - `??` on it must not fold, while the bare receiver keeps
+// the Array narrow (throw parity) and a required slot still folds
+
+runBoth('logical no-fold: tuple optional slot admits undefined',
+  'function f(t: [number[]?]) { const x = t[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: tuple optional slot keeps the Array narrow on the bare receiver',
+  'function f(t: [number[]?]) { const x = t[0]; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical fold: required tuple slot still folds under ??',
+  'function f(t: [number[]]) { const x = t[0] ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// optional-chain short-circuit and optional members admit undefined without throwing, so
+// their results are marked; plain access on the same shapes keeps the narrow (throw parity)
+
+runBoth('logical no-fold: optional hop over a nullable receiver marks the member result',
+  'function f(o: { a: number[] } | null) { const x = o?.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: chain continuation inherits the short-circuit possibility',
+  'function f(o: { a: { b: number[] } } | null) { const x = o?.a.b ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: plain member access on a non-nullable receiver still folds',
+  'function f(o: { a: number[] }) { const x = o.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: optional property admits undefined on a present receiver',
+  'interface I { a?: number[] } function f(i: I) { const x = i.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: optional property keeps the Array narrow on the bare receiver',
+  'interface I { a?: number[] } function f(i: I) { const x = i.a; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical fold: required property still folds',
+  'interface I { a: number[] } function f(i: I) { const x = i.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: optional call marks the method return',
+  'interface I { m?(): number[] } function f(i: I) { const x = i.m?.() ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: required method call still folds',
+  'interface I { m(): number[] } function f(i: I) { const x = i.m() ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical no-fold: destructured optional property carries the marker',
+  'interface I { a?: number[] } function f(i: I) { const { a } = i; const x = a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// union-of-hints side channel: a cross-family union receiver resolves to no single Type,
+// but resolveUnionReceiverHints returns its exact hint SET for the injection layer.
+// contract: consulted only after Type resolution failed; a same-family input may return
+// a single-hint set (harmless - never reached through enhanceMeta)
+
+function checkHintSet(lbl, hints, expected) {
+  check(lbl, hints ? [...hints].sort().join(',') : null, expected);
+}
+
+runBoth('union hints: mixed-family union annotation yields the exact hint set',
+  'function f(r: number[] | string) { r.includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: nullable arm contributes nothing',
+  'function f(r: number[] | string | null) { r.includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: cross-family ternary receiver',
+  'function f(c: boolean, a: number[], s: string) { (c ? a : s).includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: nullable-union left under || yields both operand hints',
+  'function f(r: number[] | null) { (r || "f").includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: an unresolvable arm bails the whole set',
+  'function f(c: boolean, r: number[] | string) { (c ? r : g()).includes("x"); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: non-union annotation yields null',
+  'function f(a: number[]) { a.includes(1); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    check(lbl, hints, null);
+  });
+
+// the destructure shape shares the input domain: `const { includes } = x` derives the
+// hint set off the pattern's direct init (or the pattern annotation)
+
+runBoth('union hints: destructure property off a union-typed init',
+  'function f(r: number[] | string) { const { includes } = r; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: destructure property off a cross-family ternary init',
+  'function f(c: boolean, a: number[], s: string) { const { includes } = c ? a : s; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    checkHintSet(lbl, hints, 'array,string');
+  });
+
+runBoth('union hints: destructure off a single-family init yields null',
+  'function f(a: number[]) { const { includes } = a; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: a primitive arm contributes its own hint',
+  'function f(n: number, arr: number[]) { (n ?? arr).at(0); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,number');
+  });
+
+runBoth('union hints: a class-annotated arm resolves into the object family',
+  'class Foo { at(i: number) { return i; } } function f(x: Foo | null, arr: number[]) { (x ?? arr).at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,object');
+  });
+
+runBoth('union hints: a family outside the hint-dispatch domain contributes nothing',
+  'function f(m: Map<string, number>, arr: number[]) { (m ?? arr).at(0); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array');
+  });
+
+runBoth('union hints: an unresolvable object-literal-typed arm bails the set',
+  'function f(o: { a: number }, arr: number[]) { (o ?? arr).includes(1); }', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: a param-default destructure is NOT an authoritative receiver',
+  'function f(r: number[] | string) { function g({ includes } = r) { return includes; } g(); }',
+  (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty') ?? adapter.pickPath(prog, 'Property');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    check(lbl, hints, null);
+  });
+
+runBoth('union hints: a guard-narrowed arm resolves precisely inside the branch',
+  'function f(r: number[] | string, arr: number[]) { if (typeof r !== "string") { (r ?? arr).includes(1); } }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array');
+  });
+
+runBoth('union hints: a DOM-collection arm collapses into the domcollection family',
+  'function f(c: boolean, nl: NodeList, arr: number[]) { (c ? nl : arr).forEach(x => x); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'forEach');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(member);
+    checkHintSet(lbl, hints, 'array,domcollection');
+  });
+
+runBoth('union hints: a nested destructure stays conservative (null)',
+  'function f(x: { a: number[] | string }) { const { a: { includes } } = x; }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'ObjectProperty', p => p.node.value?.type !== 'ObjectPattern')
+      ?? adapter.pickPath(prog, 'Property', p => p.node.value?.type !== 'ObjectPattern');
+    const hints = adapter.makeResolver().resolvePropertyUnionHints(prop);
+    check(lbl, hints, null);
+  });
+
+// marker propagation through value-flow channels: object-literal field init, sequence
+// tail and assignment value all carry the nullish-strip marker to the logical gate
+
+runBoth('logical no-fold: object-literal field with a nullable init',
+  'function f(r: number[] | null) { const o = { a: r }; const x = o.a ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: sequence tail carries the marker',
+  'function f(r: number[] | null, e: number) { const x = (e, r) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: assignment value carries the marker',
+  'function f(r: number[] | null) { let y: unknown; const x = (y = r) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// class fields: the optional flag (`a?: T`) marks the field value through the class-member
+// channel (a distinct route from interface members), required fields keep the fold
+
+runBoth('logical no-fold: optional class field admits undefined via this',
+  'class C { a?: number[]; m() { const x = this.a ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: optional class field keeps Array narrow on the bare receiver',
+  'class C { a?: number[]; m() { const x = this.a; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('logical fold: required class field still folds',
+  'class C { a: number[] = []; m() { const x = this.a ?? "s"; } }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// built-in methods whose spec return admits undefined / null (`find` / `at` / `pop` /
+// `exec` / ...) carry `nullable: true` in known-built-in-return-types: the element narrow
+// is marked and must not truthy-fold, while container-returning methods still fold
+
+runBoth('logical no-fold: Array#find result admits undefined',
+  'function f(a: number[][]) { const x = a.find(v => v.length > 0) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical no-fold: Array#pop result admits undefined',
+  'function f(a: number[][]) { const x = a.pop() ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: Array#filter returns the container and still folds',
+  'function f(a: number[][]) { const x = a.filter(v => v) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+runBoth('receiver narrow: Array#find result keeps the element narrow on the bare receiver',
+  'function f(a: number[][]) { const x = a.find(v => v.length > 0); }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// the shared per-node resolution cache must serve BOTH consumer contexts of one binding:
+// the receiver narrow reads the marked type's Array family (marker ignored, throw parity),
+// the logical gate reads the marker - neither context may poison the other
+runBoth('dual use: one binding narrows as receiver and stays unfolded as logical left',
+  'function f(r: number[] | null) { const a = r; const x = r ?? "s"; }', (adapter, prog, lbl) => {
+    const resolver = adapter.makeResolver();
+    const declA = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'a');
+    const typeA = resolver.resolveNodeType(declA.get('init'));
+    checkType(`${ lbl } (receiver family)`, typeA, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (marker present)`, typeA?.mayBeNullish, true);
+    const declX = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const typeX = resolver.resolveNodeType(declX.get('init'));
+    check(`${ lbl } (logical no-fold)`, typeX?.constructor !== 'Array' && typeX?.type !== 'string', true);
+  });
+
+runBoth('ternary nullable branch marks the survivor for an enclosing logical',
+  'function f(c: boolean, a: number[]) { const x = (c ? a : null) ?? "s"; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('ternary nullable branch alone keeps the receiver narrow',
+  'function f(c: boolean, a: number[]) { const x = c ? a : null; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
 
 // --- Structure-preserving wrapper x wide-keyword args ---
 // `NoInfer<unknown>` / `Partial<any>` / `Readonly<object>` resolve NULL like the bare keyword

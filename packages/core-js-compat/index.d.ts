@@ -19,7 +19,7 @@ type CompatData = {
 type ReturnTypeDirective = 'element' | 'inherit';
 
 type ReturnTypeHint = {
-  /** the value's type name (`Array`, `string`, `Promise`, ...) */
+  /** the value's type name (`Array`, `string`, `Promise`, ...), or a directive wrapped in object form to carry qualifiers */
   type: string,
   /** container element type, or a resolution directive */
   element?: ReturnTypeHint | ReturnTypeDirective,
@@ -29,6 +29,8 @@ type ReturnTypeHint = {
   mutatesArgument?: readonly number[],
   /** zero-based index of the argument the method returns unchanged (e.g. `Object.freeze` -> `0`) */
   returnsArgument?: number,
+  /** the spec return admits `undefined` / `null` (`Array#find`, `RegExp#exec`, `Object.getOwnPropertyDescriptor`, ...) */
+  nullable?: true,
 };
 
 /** a method / property return hint, or a bare resolution directive (`Array#at` -> `element`) */

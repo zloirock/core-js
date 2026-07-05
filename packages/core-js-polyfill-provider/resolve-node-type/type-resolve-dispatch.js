@@ -31,6 +31,7 @@ export function createTypeResolveDispatch({
   resolveKnownContainerType,
   resolveUserDefinedType,
   resolveNamedType,
+  isNullableOrNever,
   safeInnerType,
   tupleAsArrayType,
   foldUnionTypes,
@@ -104,9 +105,17 @@ export function createTypeResolveDispatch({
     return substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
   }
 
-  // transparent wrapper: TSOptionalType / TSParenthesizedType / NullableTypeAnnotation
+  // transparent wrapper: TSParenthesizedType
   function substTransparentWrapperAsType(node, typeParamMap, scope, depth, seen) {
     return substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
+  }
+
+  // nullish-admitting wrappers: Flow `?T` admits null | undefined, a tuple optional slot
+  // (`[T?]`) admits undefined - mirror of the plain annotation-resolve case: the inner
+  // shape resolves for receiver narrowing, the mayBeNullish marker gates the truthy fold
+  function substNullishWrapperAsType(node, typeParamMap, scope, depth, seen) {
+    const inner = substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
+    return inner && !isNullableOrNever(inner) ? inner.mark('mayBeNullish') : inner;
   }
 
   // union / intersection fold-as-Type
@@ -133,9 +142,9 @@ export function createTypeResolveDispatch({
     UnionTypeAnnotation: substUnionAsType,
     TSIntersectionType: substIntersectionAsType,
     IntersectionTypeAnnotation: substIntersectionAsType,
-    TSOptionalType: substTransparentWrapperAsType,
+    TSOptionalType: substNullishWrapperAsType,
     TSParenthesizedType: substTransparentWrapperAsType,
-    NullableTypeAnnotation: substTransparentWrapperAsType,
+    NullableTypeAnnotation: substNullishWrapperAsType,
     TSTypeOperator: substTypeOperatorAsType,
     TSConditionalType: evaluateConditionalType,
     TSArrayType: substArrayAsType,
