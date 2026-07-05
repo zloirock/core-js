@@ -24,6 +24,7 @@ export function createTypeAnnotationResolve({
   t,
   babelNodeType,
   evaluateConditionalType,
+  isNullableOrNever,
   isLiteralOf,
   KNOWN_CONSTRUCTORS,
   CONSTRUCTOR_ALIASES,
@@ -175,10 +176,12 @@ export function createTypeAnnotationResolve({
       // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
       // infer check picks the FALSE branch. `readonlyCollectionBase` can't see this at the AST level when
       // the collection is behind a type-param (`Readonly<T>`), so key off the resolved constructor here.
-      // only `Readonly` implies readonly (Partial / Pick / ... do not)
-      return name === 'Readonly' && resolved && !resolved.primitive && !resolved.readonly
+      // only `Readonly` implies readonly (Partial / Pick / ... do not). marker-set, not a rebuild:
+      // `Readonly<T[] | null>` resolves through the union fold, so the result may already carry
+      // mayBeNullish - reconstructing from the identity fields would drop it
+      return name === 'Readonly' && resolved && !resolved.primitive
         && (resolved.constructor === 'Array' || resolved.constructor === 'Set' || resolved.constructor === 'Map')
-        ? new $Object(resolved.constructor, resolved.inner, true) : resolved;
+        ? resolved.mark('readonly') : resolved;
     }
     switch (name) {
       // structurally new shape from their type parameter - collapse to Object
@@ -449,14 +452,13 @@ export function createTypeAnnotationResolve({
   // tag readonly-collection forms with `.readonly` so a conditional-infer check can distinguish a
   // readonly collection from its mutable form after resolution drops the syntactic readonly-ness -
   // recovers the FALSE branch for readonly checks behind an alias / type-param / `Readonly<X>`
-  // indirection, where the AST-level check no longer sees the readonly keyword. idempotent (skips an
-  // already-tagged result); readonlyCollectionBase is null for every non-readonly form so mutable
-  // collections are never tagged (over-fire-safe)
+  // indirection, where the AST-level check no longer sees the readonly keyword. idempotent (mark
+  // no-ops on an already-tagged result); readonlyCollectionBase is null for every non-readonly form
+  // so mutable collections are never tagged (over-fire-safe). marker-set, not a rebuild: the inner
+  // resolution may have union-folded (`Readonly<T[] | null>`) and already carry mayBeNullish
   function resolveTypeAnnotation(node, scope, depth = 0, seen = null) {
     const result = resolveTypeAnnotationInner(node, scope, depth, seen);
-    if (result && !result.primitive && !result.readonly && readonlyCollectionBase(node)) {
-      return new $Object(result.constructor, result.inner, true);
-    }
+    if (result && !result.primitive && readonlyCollectionBase(node)) return result.mark('readonly');
     return result;
   }
 
@@ -554,11 +556,18 @@ export function createTypeAnnotationResolve({
         if (!segments) return null;
         return resolveNamedType({ name: segments.join('.'), node, scope, depth, seen });
       }
-      // transparent wrappers - unwrap and resolve the inner type
-      case 'TSOptionalType':
+      // transparent wrapper - unwrap and resolve the inner type
       case 'TSParenthesizedType':
-      case 'NullableTypeAnnotation':
         return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
+      // nullish-admitting wrappers: Flow `?T` admits null | undefined, a tuple optional
+      // slot (`[T?]`) admits undefined. the inner value shape resolves for receiver
+      // narrowing, but the runtime value may still be nullish, so the result is marked
+      // like a stripped union arm (the logical truthy-fold must not collapse on it)
+      case 'TSOptionalType':
+      case 'NullableTypeAnnotation': {
+        const inner = resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
+        return inner && !isNullableOrNever(inner) ? inner.mark('mayBeNullish') : inner;
+      }
       // TS type operator: `readonly T[]`, `unique symbol` - but NOT `keyof T`
       case 'TSTypeOperator':
         return node.operator === 'keyof' ? null : resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);

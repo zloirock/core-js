@@ -1,6 +1,6 @@
 // shared primitives for resolve-node-type: type classes + hint sets. hoisted out to keep
 // the factory file focused on the resolver itself
-const { assign, create, entries, keys } = Object;
+const { assign, create, entries, getPrototypeOf, keys } = Object;
 
 // shared recursion budget for all resolvers - alias chains, runtime walks, guard traversals.
 // 64 is comfortably above realistic TS type / alias chain depth (typical: 5-10; pathological
@@ -123,6 +123,46 @@ export function argIndexForParam(params, rawIndex) {
   return rawIndex - (hasLeadingThisParam(params) ? 1 : 0);
 }
 
+// --- Type classes ---
+//
+// markers QUALIFY a type without changing its family identity. equality / merging
+// (typesEqual / innersEqual / commonType) compare the identity fields only and ignore
+// markers; each marker is consulted exclusively by its dedicated gate, and is set ONLY
+// via `.mark()`. the prototype slots below are the marker REGISTRY: a `false` slot both
+// documents the marker and backs unmarked instances (an instance carries a marker as an
+// own prop only once set), and `.mark()` accepts nothing outside these slots - a typo'd
+// name throws instead of silently minting a dead field
+const TypePrototype = {
+  // readonly collection form (`ReadonlyArray<T>` / `readonly T[]` / `Readonly<X>`):
+  // resolution collapses all of them to the mutable constructor, the marker lets a
+  // conditional-infer check still pick the FALSE branch for readonly probes
+  readonly: false,
+  // a fold DROPPED a statically null / undefined arm (union fold, nullable ternary-branch
+  // fold): sound for RECEIVER narrowing (a nullish receiver throws the same TypeError
+  // transformed or not), unsound for TRUTHINESS - the runtime value may still be nullish,
+  // so the logical truthy-fold must not collapse `A || B` / `A ?? B` to A's shape
+  mayBeNullish: false,
+  // same-family literal stamps merged (`'a' | 'b'`): still one family for member dispatch,
+  // but a conditional check against a literal stays undecidable, so the branch-picker
+  // folds both branches
+  literalUnion: false,
+  // own-prop copy on the same prototype: `instanceof`, the prototype `primitive` flag and
+  // every marker survive
+  clone() {
+    return assign(create(getPrototypeOf(this)), this);
+  },
+  // set a marker on a CLONE, no-op when already set: fold / resolve inputs may come from
+  // resolver caches, so qualification never mutates in place - an in-place write would
+  // poison every later reader of the cached type
+  mark(marker) {
+    if (TypePrototype[marker] !== false) throw new TypeError(`Unknown type marker: ${ marker }`);
+    if (this[marker]) return this;
+    const marked = this.clone();
+    marked[marker] = true;
+    return marked;
+  },
+};
+
 export function $Primitive(type, literal) {
   this.type = type;
   this.constructor = null;
@@ -135,19 +175,16 @@ export function $Primitive(type, literal) {
   this.literal = literal;
 }
 
+$Primitive.prototype = create(TypePrototype);
 $Primitive.prototype.primitive = true;
 
-export function $Object(constructor, inner, readonly) {
+export function $Object(constructor, inner) {
   this.type = 'object';
   this.constructor = constructor;
   this.inner = inner ?? null;
-  // readonly-collection marker (`ReadonlyArray` / `readonly T[]` / `ReadonlySet` / `ReadonlyMap` /
-  // `Readonly<collection>`): the syntactic readonly-ness is otherwise dropped at resolution (all
-  // resolve to the mutable Array/Set/Map constructor), so a conditional-infer check can no longer tell
-  // a readonly collection from its mutable form once it is behind an alias / type-param indirection
-  if (readonly) this.readonly = true;
 }
 
+$Object.prototype = create(TypePrototype);
 $Object.prototype.primitive = false;
 
 // a bigint literal cross-parser: babel emits `BigIntLiteral`; oxc/estree emit a `Literal` whose
@@ -302,7 +339,7 @@ export function nodePathInScope(targetNode, scope, types) {
 }
 
 // intrinsic TS string transformers (`Uppercase<S>` / `Capitalize<S>` / ...)
-export const INTRINSIC_STRING_TRANSFORMERS = Object.assign(Object.create(null), {
+export const INTRINSIC_STRING_TRANSFORMERS = assign(create(null), {
   Uppercase: s => s.toUpperCase(),
   Lowercase: s => s.toLowerCase(),
   Capitalize: s => s.charAt(0).toUpperCase() + s.slice(1),

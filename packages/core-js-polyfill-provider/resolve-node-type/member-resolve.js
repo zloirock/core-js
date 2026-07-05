@@ -52,6 +52,7 @@ export function createMemberResolve({
   foldUnionTypes,
   followTypeAliasChain,
   applySubst,
+  isNullableOrNever,
   isNullableOrNeverAnnotation,
   commonType,
   narrowDiscriminatedUnion,
@@ -541,7 +542,49 @@ export function createMemberResolve({
 
   // --- Runtime dispatch (receiver-aware MemberExpression) ---
 
+  // can any `?.` hop in this member spine short-circuit? walks DOWN the object / callee
+  // links: a `?.` hop whose receiver may be nullish (marked / nullable / unresolvable)
+  // makes the WHOLE enclosing chain result possibly-undefined. babel encodes hops as
+  // dedicated Optional* node types, ESTree as plain member / call hops with `optional`
+  // flags - both carry `optional: true` on the `?.` hop itself, so the same walk serves
+  // both. ChainExpression (an ESTree wrapper an inner spine link may carry) passes
+  // through - babel cannot represent the paren boundary distinctly, so both parsers
+  // over-mark the parenthesized `(o?.a).b` form identically (degrade-safe)
+  function chainMayShortCircuit(path) {
+    for (let cur = path; cur;) {
+      const type = cur.node?.type;
+      if (type === 'ChainExpression') {
+        cur = cur.get('expression');
+        continue;
+      }
+      if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression'
+        && type !== 'CallExpression' && type !== 'OptionalCallExpression') return false;
+      const next = type === 'CallExpression' || type === 'OptionalCallExpression' ? cur.get('callee') : cur.get('object');
+      if (cur.node.optional === true) {
+        const receiver = resolveNodeType(next);
+        if (!receiver || receiver.mayBeNullish || isNullableOrNever(receiver)) return true;
+      }
+      cur = next;
+    }
+    return false;
+  }
+
+  // an optional chain short-circuits to undefined instead of throwing, so a member / call
+  // result inside one may be undefined at runtime whenever some `?.` hop's receiver may
+  // be nullish. plain (non-chain) access on a nullish receiver throws transformed or not,
+  // so it stays unmarked (throw parity keeps the receiver narrow sound)
   function resolveFromMemberExpression(path, callPath) {
+    const result = resolveFromMemberExpressionInner(path, callPath);
+    if (!result || result.mayBeNullish) return result;
+    // an optional CALL (`o.m?.()`) short-circuits on a nullish member VALUE (an optional
+    // method) - a possibility the receiver spine below the member cannot see, so the
+    // `?.()` flag marks the return directly (a required member under `?.()` over-marks,
+    // which only degrades a logical fold to generic - safe)
+    if (callPath?.node.optional === true) return result.mark('mayBeNullish');
+    return chainMayShortCircuit(path) ? result.mark('mayBeNullish') : result;
+  }
+
+  function resolveFromMemberExpressionInner(path, callPath) {
     const name = resolveMemberPropertyName(path);
     // empty-string keys (`obj[""]`) are valid static names - only a NULL result means the
     // key is dynamic (a truthiness guard dropped them into the index-signature branch)

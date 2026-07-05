@@ -417,12 +417,18 @@ export function createTypeExpansion({
 
   // to Foo for member-dispatch (TS narrowing strips null/undefined from value-position
   // unions; conditional type fold does the same for member-lookup purposes). when both
-  // branches strip out, return null (caller falls through to generic dispatch)
+  // branches strip out, return null (caller falls through to generic dispatch).
+  // an undecided conditional may take EITHER branch at runtime, so a stripped nullable
+  // branch marks the survivor for the logical truthy-fold gate (`T extends X ? A : null`
+  // under `??` must not fold to A's shape); a stripped `never` branch carries no value
   function resolveConditionalBranches(trueBranch, falseBranch) {
     const trueViable = trueBranch && !isNullableOrNever(trueBranch) ? trueBranch : null;
     const falseViable = falseBranch && !isNullableOrNever(falseBranch) ? falseBranch : null;
     if (trueViable && falseViable) return commonType(trueViable, falseViable);
-    return trueViable ?? falseViable;
+    const survivor = trueViable ?? falseViable;
+    const dropped = trueViable ? falseBranch : trueBranch;
+    return survivor && dropped && isNullableOrNever(dropped) && dropped.type !== 'never'
+      ? survivor.mark('mayBeNullish') : survivor;
   }
 
   // pre-fold structural evaluation of `T extends U ? trueType : falseType`. returns:

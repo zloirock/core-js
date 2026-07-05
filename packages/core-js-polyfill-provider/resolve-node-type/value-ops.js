@@ -153,20 +153,30 @@ export function createValueOps({
     // an ALWAYS-TRUTHY left decides a logical statically: `A || B` / `A ?? B` is always A,
     // `A && B` is always B - so the two-operand union injected entries the runtime value never
     // has (`{ map } = Array.prototype || {}` pulled the Iterator variant). `?:` keeps its
-    // union - the ternary test is independent of the branch values
+    // union - the ternary test is independent of the branch values.
+    // a mayBeNullish left (a nullish-STRIPPED resolution, e.g. `r: number[] | null`) is NOT
+    // always truthy at runtime: on the nullish path `A || B` / `A ?? B` yields the RIGHT
+    // operand, so folding to left would emit a type-specific Maybe for a receiver the runtime
+    // never guarantees (ie:11 TypeError). `&&` keeps its right-fold even then - a nullish
+    // left short-circuits to a nullish RESULT, which throws the same TypeError transformed
+    // or not (same rationale as the `?:` nullable-branch fold below)
     if (left && isAlwaysTruthyType(left)) {
-      if (op === '||' || op === '||=' || op === '??' || op === '??=') return left;
+      if ((op === '||' || op === '||=' || op === '??' || op === '??=') && !left.mayBeNullish) return left;
       if (op === '&&' || op === '&&=') return right;
     }
     // ternary: a statically-nullable branch folds away for polyfill purposes - the
     // surviving branch's instance helpers are Maybe-dispatched, and a null receiver
     // throws the same TypeError transformed or not. mirrors the cross-return nullable
-    // fold in return-type, so `c ? arr : null` narrows like `if (c) return arr; return null`
+    // fold in return-type, so `c ? arr : null` narrows like `if (c) return arr; return null`.
+    // the folded value may still be nullish at runtime, so the survivor is marked for
+    // an enclosing logical fold (`(c ? arr : null) ?? 'x'` must not fold to Array)
     if (left && right && op === '?:') {
-      if (isNullableOrNever(left)) return right;
-      if (isNullableOrNever(right)) return left;
+      if (isNullableOrNever(left)) return right.mark('mayBeNullish');
+      if (isNullableOrNever(right)) return left.mark('mayBeNullish');
     }
-    return left && right ? commonType(left, right) : null;
+    if (!left || !right) return null;
+    // commonType propagates mayBeNullish from either operand to the merged result
+    return commonType(left, right);
   }
 
   // recognise the destructuring-default desugar shape: positive `_ref === void 0 ? D : _ref`

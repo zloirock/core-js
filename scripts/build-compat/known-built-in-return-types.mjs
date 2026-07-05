@@ -28,6 +28,9 @@ function normalizeHint(hint) {
   // identity, e.g. Object.freeze -> 0). lets the resolver keep the argument's concrete type
   // instead of the declared `type`. passed through unchanged - no inner hint
   if (hint.returnsArgument !== undefined) result.returnsArgument = hint.returnsArgument;
+  // nullable: the spec return admits undefined / null (`find` / `at` / `pop` / `exec` / ...);
+  // the resolver marks the decoded type so the logical truthy-fold keeps the operand union
+  if (hint.nullable !== undefined) result.nullable = hint.nullable;
   return result;
 }
 
