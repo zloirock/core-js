@@ -21,6 +21,7 @@ import {
   PROMISE_SYNONYMS,
   SINGLE_ELEMENT_COLLECTIONS,
   STRUCTURE_PRESERVING_WRAPPERS,
+  TYPE_HINTS,
   TYPEOF_HINT_GROUPS,
   canonicalArrayIndex,
   intersectHintSets,
@@ -30,6 +31,7 @@ import {
 import {
   collectQualifiedSegments,
   isBareUndefinedIdentifier,
+  isUnionType,
   peelTSParenthesized,
   typeRefName,
   typeRefSegments,
@@ -1694,6 +1696,7 @@ function createResolveNodeType(babelNodeType, t, {
     evaluateConditionalType: (...args) => evaluateConditionalType(...args),
     t,
     babelNodeType,
+    isNullableOrNever,
     isLiteralOf,
     KNOWN_CONSTRUCTORS,
     CONSTRUCTOR_ALIASES,
@@ -1808,6 +1811,7 @@ function createResolveNodeType(babelNodeType, t, {
     findAnnotationGuard: path => findAnnotationGuard(path),
     getScopeBinding,
     isLiteralOf,
+    isNullableOrNever,
     unwrapTypeAnnotation,
     getTypeMembers,
     keyMatchesName,
@@ -1889,6 +1893,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveKnownContainerType,
     resolveUserDefinedType,
     resolveNamedType,
+    isNullableOrNever,
     safeInnerType,
     tupleAsArrayType,
     foldUnionTypes,
@@ -2140,6 +2145,86 @@ function createResolveNodeType(babelNodeType, t, {
   // `toHint`, `intersectHintSets`, `primitiveTypeOf` live in `resolve-node-type/base.js`
   // (closure-independent pure helpers); imported at the top of this module
 
+  // union-of-hints side channel for receivers whose Type resolution fails ONLY because the
+  // value is a cross-family union (`number[] | string` annotation, `c ? arr : str`,
+  // `a ?? s`): the single-Type model cannot represent the union, but the injection layer
+  // consumes a hint SET (meta.includedHints) and then injects exactly the union's variants
+  // instead of every variant of the method (an unknown receiver pulls e.g. the Iterator
+  // group of `includes` even though the static union provably excludes it). arm rules:
+  //   - a statically nullish arm contributes nothing (a nullish receiver throws either way)
+  //   - a resolved arm whose family is OUTSIDE the hint-dispatch domain (`Map` / `Set` /
+  //     `WeakRef` / ... - TYPE_HINTS is the domain) contributes nothing: their methods are
+  //     not hint-dispatched, so no variant could match anyway. class-annotated arms resolve
+  //     into the `object` family and contribute `object` (honest - the receiver IS one)
+  //   - an UNRESOLVED arm bails the whole set - the receiver may be anything (over-inject)
+  //
+  // input domain mirrors `resolvePropertyObjectType`: a member-like path (`x.includes`)
+  // derives off the object slot, a destructure ObjectProperty (`const { includes } = x`)
+  // off the pattern annotation / direct init. nested patterns and for-of stay null
+  // (conservative full set)
+  const UNION_HINTS_MAX_DEPTH = 8;
+  function resolvePropertyUnionHints(path) {
+    let hints = null;
+    if (isMemberLike(path)) {
+      hints = unionReceiverHints(resolveRuntimeExpression(path.get('object')), 0);
+    } else if (t.isObjectProperty(path.node)) {
+      const objectPattern = path.parentPath;
+      if (!t.isObjectPattern(objectPattern?.node)) return null;
+      if (objectPattern.node.typeAnnotation) {
+        const annotation = unwrapTypeAnnotation(objectPattern.node.typeAnnotation);
+        if (isUnionType(annotation)) hints = annotationUnionHints(annotation, objectPattern.scope);
+      } else {
+        const initPath = getPatternInit(objectPattern.parentPath);
+        if (initPath?.node) hints = unionReceiverHints(resolveRuntimeExpression(initPath), 0);
+      }
+    }
+    return hints?.size ? hints : null;
+  }
+
+  function unionReceiverHints(path, depth) {
+    if (depth > UNION_HINTS_MAX_DEPTH || !path?.node) return null;
+    const { type } = path.node;
+    if (type === 'LogicalExpression') return mergeArmHints([path.get('left'), path.get('right')], depth);
+    if (type === 'ConditionalExpression') return mergeArmHints([path.get('consequent'), path.get('alternate')], depth);
+    const info = findExpressionAnnotation(path);
+    const annotation = info && unwrapTypeAnnotation(info.annotation);
+    return isUnionType(annotation) ? annotationUnionHints(annotation, info.scope) : null;
+  }
+
+  function mergeArmHints(arms, depth) {
+    const merged = new Set();
+    for (const arm of arms) {
+      const armPath = resolveRuntimeExpression(arm);
+      const type = resolveNodeType(armPath);
+      if (type) {
+        if (isNullableOrNever(type)) continue;
+        const hint = toHint(type);
+        if (!hint) return null;
+        if (TYPE_HINTS.has(hint)) merged.add(hint);
+        continue;
+      }
+      const inner = unionReceiverHints(armPath, depth + 1);
+      if (!inner) return null;
+      for (const hint of inner) merged.add(hint);
+    }
+    return merged;
+  }
+
+  function annotationUnionHints(annotation, scope) {
+    const merged = new Set();
+    for (const arm of annotation.types) {
+      const unwrapped = unwrapTypeAnnotation(arm);
+      if (isNullableOrNeverAnnotation(unwrapped)) continue;
+      const resolved = resolveTypeAnnotation(unwrapped, scope);
+      if (!resolved) return null;
+      if (isNullableOrNever(resolved)) continue;
+      const hint = toHint(resolved);
+      if (!hint) return null;
+      if (TYPE_HINTS.has(hint)) merged.add(hint);
+    }
+    return merged;
+  }
+
   // collect type hints to include/exclude from typeof / instanceof guards when no annotation
   // returns { includedHints: Set } for positive typeof (whitelist, future-proof)
   // or { excludedHints: Set } for negative-only guards (blacklist)
@@ -2246,6 +2331,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveGuardHints,
     resolveNodeType,
     resolvePropertyObjectType,
+    resolvePropertyUnionHints,
     resolvedType,
     toHint,
   };

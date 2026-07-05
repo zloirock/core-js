@@ -54,11 +54,18 @@ const VALID_TYPES = new Set([
 function isValidHint(hint) {
   // resolution directives (only valid in instance method hints)
   if (hint === 'element' || hint === 'inherit') return true;
-  // normalized hint: always { type, element?, resolved?, mutatesArgument?, returnsArgument? }
+  // normalized hint: always { type, element?, resolved?, mutatesArgument?, returnsArgument?, nullable? }
   if (typeof hint !== 'object' || hint === null) return false;
-  if (!VALID_TYPES.has(hint.type)) return false;
-  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument', 'returnsArgument']);
+  // a directive may be wrapped in object form to carry qualifiers (`{ type: 'element',
+  // nullable: true }` - `find` / `at` / `pop` return element | undefined per spec);
+  // a wrapped directive carries no inner hint of its own
+  const isDirective = hint.type === 'element' || hint.type === 'inherit';
+  if (isDirective && (hint.element !== undefined || hint.resolved !== undefined)) return false;
+  if (!isDirective && !VALID_TYPES.has(hint.type)) return false;
+  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument', 'returnsArgument', 'nullable']);
   for (const key of Object.keys(hint)) if (!validKeys.has(key)) return false;
+  // nullable: the spec return admits undefined / null; only the `true` form is emitted
+  if ('nullable' in hint && hint.nullable !== true) return false;
   // mutatesArgument: list of zero-based arg indices a method mutates in place
   // (e.g. Object.assign -> [0] target). only meaningful for staticMethods entries
   if ('mutatesArgument' in hint) {
@@ -101,14 +108,18 @@ deepEqual(knownBuiltInReturnTypes.staticProperties.Symbol.iterator, { type: 'sym
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.keys, { type: 'Array', element: { type: 'string' } });
 // resolved hint
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.all, { type: 'Promise', resolved: { type: 'Array' } });
-// 'element' directive
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.at, 'element');
+// nullable 'element' directive (spec return is element | undefined); bare top-level
+// 'element' no longer occurs - every element-returning method admits undefined per spec
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.at, { type: 'element', nullable: true });
+// nullable typed hint (spec return admits undefined / null)
+deepEqual(knownBuiltInReturnTypes.staticMethods.Object.getOwnPropertyDescriptor, { type: 'Object', nullable: true });
+deepEqual(knownBuiltInReturnTypes.instanceProperties.Element.firstElementChild, { type: 'Element', nullable: true });
 // 'inherit' directive
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.filter, { type: 'Array', element: 'inherit' });
 // resolved 'inherit'
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.finally, { type: 'Promise', resolved: 'inherit' });
-// resolved 'element'
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.find, { type: 'Promise', resolved: 'element' });
+// resolved nullable 'element' (AsyncIterator#find resolves to element | undefined)
+deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.find, { type: 'Promise', resolved: { type: 'element', nullable: true } });
 // nested inherit
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.chunks, { type: 'Iterator', element: { type: 'Array', element: 'inherit' } });
 // nested resolved
