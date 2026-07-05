@@ -534,15 +534,21 @@ export function createClassFields({
   }
 
   // commonType-fold skipping nullable/never; collapse to null once union-incompatible so the
-  // polyfill dispatch routes to the safe generic variant
+  // polyfill dispatch routes to the safe generic variant. a skipped nullish candidate is an
+  // observed nullish WRITE - the field may hold it at runtime - so the fold survivor is
+  // marked for the logical truthy-fold gate; a `never` candidate carries no runtime value
   function foldNonNullableCommon(types) {
     let result = null;
+    let droppedNullish = false;
     for (const cand of types) {
-      if (isNullableOrNever(cand)) continue;
+      if (isNullableOrNever(cand)) {
+        droppedNullish ||= cand.type !== 'never';
+        continue;
+      }
       result = result === null ? cand : commonType(result, cand);
       if (result === null) break;
     }
-    return result;
+    return result && droppedNullish ? result.mark('mayBeNullish') : result;
   }
 
   // shared shape predicates for `<expr>.<field> = ...` / `<expr>.<field>++` writes -

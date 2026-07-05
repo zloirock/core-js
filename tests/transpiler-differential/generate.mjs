@@ -2570,11 +2570,71 @@ function * generateTsLeadingThis() {
   }
 }
 
+// Nullish-stripped union under a truthy fold: a union fold (TS `T[] | null` annotation, ternary with a
+// statically-null branch) drops the nullish arm, but the runtime value may still be nullish, so
+// `left ?? right` / `left || right` may yield the RIGHT operand - the always-truthy fold must not
+// collapse the pair to the left's shape. a wrong fold dispatches the array-Maybe helper, which on the
+// runtime STRING falls back to the receiver's own method - gone in the stripped realm -> TypeError,
+// while native returns the value: the stripped run is the distinguishing oracle (full-env masks it).
+// `&&` keeps its right-fold (a falsy left short-circuits to a nullish RESULT, throwing either way)
+const D_NULLABLE_TRUTHY_FOLD = [
+  // TS union param, runtime takes the nullish path: `??` / `||` must reach the string fallback
+  { id: 'ts-union-nullish', ts: true,
+    expr: '(() => { function f(r: number[] | null) { return (r ?? "abcde").at(1); } return f(null); })()' },
+  { id: 'ts-union-or', ts: true,
+    expr: '(() => { function f(r: number[] | null) { return (r || "abcde").at(2); } return f(null); })()' },
+  // ternary with a statically-null branch as the logical left - same strip, no TS needed
+  { id: 'ternary-null-nullish', ts: false,
+    expr: '((arr.length > 9 ? arr : null) ?? "abcde").at(1)' },
+  // runtime takes the LEFT path: the generic dispatch must handle the array side stripped, too
+  { id: 'ternary-null-left-path', ts: false,
+    expr: '((arr.length > 0 ? arr : null) ?? "abcde").at(0)' },
+  // `&&` control: the right-fold survives the marker, the string narrow stands alone stripped
+  { id: 'ternary-null-and', ts: false,
+    expr: '((arr.length > 0 ? arr : null) && "abcde").at(1)' },
+  // sibling folds of the union fold, each dropping a statically-nullish arm the runtime
+  // may still take: cross-return body fold (plain JS), typeof-object guard narrow (the
+  // guard keeps null at runtime), undecided conditional type with a nullable branch
+  { id: 'return-null-arm', ts: false,
+    expr: '(() => { function f(c) { if (!c) return null; return arr.slice(); } return (f(false) ?? "abcde").at(1); })()' },
+  { id: 'typeof-object-guard', ts: true,
+    expr: '(() => { function f(r: number[] | null) { if (typeof r === "object") return (r ?? "abcde").at(1); } return f(null); })()' },
+  // the argument must stay OPAQUE to the resolver (an unknown global member) - a concrete
+  // arg decides the conditional statically and skips the undecided-branch fold
+  { id: 'conditional-null-branch', ts: true,
+    expr: '(() => { function pick<T>(x: T): T extends string ? number[] : null '
+      + '{ return (typeof x === "string" ? arr.slice() : null) as any; } '
+      + 'return (pick(globalThis.__missing) ?? "abcde").at(1); })()' },
+  // a tuple optional slot admits undefined: the empty tuple's t[0] takes the string fallback
+  { id: 'tuple-optional-slot', ts: true,
+    expr: '(() => { const t: [number[]?] = []; return (t[0] ?? "abcde").at(1); })()' },
+  // optional-chain short-circuit and an optional property both admit undefined WITHOUT
+  // throwing, so `??` reaches the string fallback at runtime
+  { id: 'optional-chain-short-circuit', ts: true,
+    expr: '(() => { function f(o: { a: number[] } | null) { return (o?.a ?? "abcde").at(1); } return f(null); })()' },
+  { id: 'optional-property', ts: true,
+    expr: '(() => { function f(i: { a?: number[] }) { return (i.a ?? "abcde").at(1); } return f({}); })()' },
+  // Array#find returns element | undefined per spec: an unmatched predicate takes the
+  // string fallback at runtime
+  { id: 'spec-nullable-find-return', ts: true,
+    expr: '(() => { const a: number[][] = [[3]]; return (a.find(v => v.length > 9) ?? "abcde").at(1); })()' },
+  // union-annotated receiver: the exact hint-set injection must still cover BOTH runtime
+  // families stripped - an over-narrowed set (regression) drops one leg and throws
+  { id: 'union-annotation-receiver', ts: true,
+    expr: '(() => { function f(x: number[] | string) { return String(x.at(0)); } return f(arr.slice()) + f("xy"); })()' },
+];
+function * generateNullableTruthyFold() {
+  for (const c of D_NULLABLE_TRUTHY_FOLD) {
+    yield { ...snippet(`nullable-truthy-fold/${ c.id }`, c.expr), ts: c.ts, strip: true };
+  }
+}
+
 export function * generate() {
   yield * generateAsiFusion();
   yield * generateGetIteratorKeySE();
   yield * generateGrammar();
   yield * generateTsLeadingThis();
+  yield * generateNullableTruthyFold();
   yield * generateDestructure();
   yield * generateDestructureAlias();
   yield * generateFallbackArg();
