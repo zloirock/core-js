@@ -80,17 +80,26 @@ export function createNarrowByGuards({
     return matchesGuard(resolved, guard) === guard.positive;
   }
 
-  // filter candidate types by guards, return the unique surviving type or null
+  // filter candidate types by guards, return the unique surviving type or null.
+  // a nullish arm stays out of the member-narrow merge (null has no members), but when the
+  // guards do NOT rule it out (`typeof x === 'object'` keeps null at runtime) the value may
+  // still be nullish, so the survivor is marked for the logical truthy-fold gate; a guard
+  // that does rule it out (`typeof x === 'string'`, positive instanceof) keeps the narrow
+  // precise, and a dropped `never` arm carries no runtime value
   function narrowByGuards(candidates, guards) {
     let result = null;
+    let droppedNullish = false;
     for (const resolved of candidates) {
       if (!resolved) continue;
-      if (isNullableOrNever(resolved)) continue;
+      if (isNullableOrNever(resolved)) {
+        droppedNullish ||= resolved.type !== 'never' && guards.every(guard => guardKeeps(resolved, guard));
+        continue;
+      }
       if (!guards.every(guard => guardKeeps(resolved, guard))) continue;
       result = commonType(result, resolved);
       if (!result) return null;
     }
-    return result;
+    return result && droppedNullish ? result.mark('mayBeNullish') : result;
   }
 
   // shared probes over a binding's constantViolations list. all positional checks share the
