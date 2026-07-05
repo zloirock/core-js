@@ -374,6 +374,15 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     collectFoldedReceiverSideEffects(obj.object, protoCtorReceiverSE);
     if (protoCtorReceiverSE.length) meta.protoCtorReceiverSE = protoCtorReceiverSE;
   }
+  // a prototype-navigated read (`Array.prototype[k]`) unions its reachable keys like every other
+  // member: each alternative dispatches as a typeless prototype meta (over-inject-safe), with the
+  // primary pair excluded the usual way. the receiver axis does not apply - the ctor is fixed
+  if (meta) {
+    const protoExtras = collectMemberUnionCandidates({
+      objectNode: null, computedKeyNode, primaryObject: null, primaryKey: key, scope, adapter, path,
+    });
+    if (protoExtras.length) meta.extraCandidates = protoExtras;
+  }
   if (!meta) {
     // chain-assignment receiver `(a = Array).from(...)`: peel `=` chain so receiver
     // classification sees the rhs-most constructor (`Array`). don't push to sideEffects
@@ -828,6 +837,14 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
         // receiver substitutes through the identifier machinery and `in` evaluates live
         if (adapter.isMutatedStatic?.(objectName, resolvedLeft)) return null;
         const meta = { kind: 'in', key: resolvedLeft, object: objectName, placement };
+        // usage-global reachable union: a reassigned LHS key alias / RHS receiver alias reaches
+        // each candidate at runtime, and the `in` RESULT depends on the injected polyfill - each
+        // extra target earns its side-effect import (property-shaped extras inject identically)
+        const extraCandidates = collectMemberUnionCandidates({
+          objectNode: rightObject, computedKeyNode: node.left,
+          primaryObject: objectName, primaryKey: resolvedLeft, scope, adapter, path,
+        });
+        if (extraCandidates.length) meta.extraCandidates = extraCandidates;
         // usage-pure FOLDS this meta to `true`, discarding the RHS. the planner harvests the
         // discarded operand's STRUCTURAL effects (sequence prefixes + tails, computed keys, buried
         // assignments rescued WHOLE) off `node.right`. detection adds only the scope-aware bit the
