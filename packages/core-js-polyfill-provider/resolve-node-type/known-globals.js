@@ -46,16 +46,27 @@ export function createKnownGlobals({
   KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
   KNOWN_GLOBAL_METHOD_RETURN_TYPES,
 }) {
+  // decode a return-type hint. object form: `type` is itself a string hint, optional
+  // `element` / `resolved` inner hint, optional `nullable` - the spec return admits
+  // undefined / null (`find` / `at` / `pop` / `exec` / ...), so the decoded type is
+  // marked and the logical truthy-fold will not collapse on it
   function typeFromHint(hint, objectType) {
     if (typeof hint === 'string') {
       if (hint === 'element' || hint === 'inherit') return resolveInnerType(objectType);
       if (PRIMITIVES.has(hint)) return new $Primitive(hint);
       return new $Object(hint);
     }
-    if (PRIMITIVES.has(hint.type)) return new $Primitive(hint.type);
-    const innerHint = hint.element ?? hint.resolved ?? null;
-    const inner = innerHint ? typeFromHint(innerHint, objectType) : null;
-    return new $Object(hint.type, inner);
+    let base;
+    if (hint.type === 'element' || hint.type === 'inherit') {
+      base = resolveInnerType(objectType);
+    } else if (PRIMITIVES.has(hint.type)) {
+      base = new $Primitive(hint.type);
+    } else {
+      const innerHint = hint.element ?? hint.resolved ?? null;
+      const inner = innerHint ? typeFromHint(innerHint, objectType) : null;
+      base = new $Object(hint.type, inner);
+    }
+    return hint.nullable && base ? base.mark('mayBeNullish') : base;
   }
 
   // resolve the inner (element/resolved) type of a container

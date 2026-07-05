@@ -364,18 +364,23 @@ export function createClassObjectMember({
       }
       return null;
     }
-    // property access: foo.bar or foo.#bar
+    // property access: foo.bar or foo.#bar. an optional field (`a?: T`) admits undefined
+    // even when declared (it may never be assigned), so the resolved value shape is marked
+    // for the logical truthy-fold gate - mirror of findTypeMember's optional wrapper
     if (isPropertyMember(member.node)) {
+      function markFieldOptional(resolved) {
+        return resolved && member.node.optional ? resolved.mark('mayBeNullish') : resolved;
+      }
       if (member.node.typeAnnotation) {
         const inner = classSubstInner(member.node.typeAnnotation, classSubst);
         const resolved = resolveTypeAnnotation(inner, member.scope);
-        if (resolved) return resolved;
+        if (resolved) return markFieldOptional(resolved);
         // open keyword annotation (`any` / `unknown` / `object` / Flow mixed) lets the
         // RHS-write flow scan still pin a concrete runtime type
-        if (isOpenKeywordAnnotation(unwrapTypeAnnotation(inner))) return resolveClassFieldType(member);
+        if (isOpenKeywordAnnotation(unwrapTypeAnnotation(inner))) return markFieldOptional(resolveClassFieldType(member));
         return null;
       }
-      return resolveClassFieldType(member);
+      return markFieldOptional(resolveClassFieldType(member));
     }
     // method: getter returns its return type, regular method returns Function
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn, undefined, classSubst) : new $Object('Function');
