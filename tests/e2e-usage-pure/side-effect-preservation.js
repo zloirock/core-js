@@ -224,3 +224,50 @@ QUnit.test('side effect: bodyless for-of body destructure runs the key effect on
   // eslint-disable-next-line block-scoped-var -- `var` is function-scoped; reading the binding after the bodyless loop is the point
   assert.strictEqual(typeof pick, 'function', 'instance method re-extracted each iteration');
 });
+
+// a call-rooted fallback LEFT (`(() => globalThis)()[(key, 'self')].Array || Set`) discarded by
+// the param-default synth-collapse re-emits its effects in SOURCE order: the chain-root call
+// runs BEFORE the hop-key effect (object evaluates before its computed key) - an append-last
+// harvest reversed them on both emitters
+QUnit.test('fallback-collapse: root call runs before the hop-key effect', assert => {
+  const log = [];
+  function f({ from } = (() => {
+    log.push('call');
+    return globalThis;
+  })()[(log.push('key'), 'self')].Array || Set) {
+    return from;
+  }
+  const from = f();
+  assert.same(typeof from, 'function');
+  assert.deepEqual(log, ['call', 'key']);
+});
+
+// a paren-wrapped callee over a guarded refused-alias member keeps `this` on the raw branch
+// exactly like the bare form: the guard's untaken side reads the user's own method bound to
+// the user's receiver
+QUnit.test('refused-alias guard: paren-wrapped callee keeps this on the raw branch', assert => {
+  function via(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    M = {
+      groupBy() {
+        return this === M ? 'bound' : 'unbound';
+      },
+    };
+    return (M.groupBy)([1, 2]);
+  }
+  assert.same(via(false), 'bound');
+});
+
+// a call-rooted Symbol chain in a computed KEY (`arr[IIFE()[(key, 'Symbol')].iterator]`) collapses
+// to the iterator helper; the discarded receiver's effects re-emit in SOURCE order - the chain-root
+// call BEFORE the buried hop-key effect (a walk-then-append harvest reversed them on both emitters)
+QUnit.test('computed symbol key: root call runs before the hop-key effect', assert => {
+  const log = [];
+  const method = [1, 2][(() => {
+    log.push('call');
+    return globalThis;
+  })()[(log.push('key'), 'Symbol')].iterator];
+  assert.same(typeof method, 'function');
+  assert.deepEqual(log, ['call', 'key']);
+});
