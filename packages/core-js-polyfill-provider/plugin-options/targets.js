@@ -4,22 +4,9 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { patternToRegExp } from '../helpers/pattern-matching.js';
+import { patternToRegExp, safeErrorMessage } from '../helpers/pattern-matching.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
-
-// safe `.message ?? String(error)` extraction for diagnostic wrapping. adversarial
-// Proxy on the thrown payload can make `.message` access AND `String(error)`
-// re-throw - swallow secondary errors so the user's primary diagnostic still
-// renders with a readable wrapper. shared by `resolveTargets` and
-// `buildShouldInjectPolyfill` user-callback catch
-function safeErrorMessage(error) {
-  try {
-    return error?.message ?? String(error);
-  } catch {
-    return '<unreadable>';
-  }
-}
 
 export function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets }) {
   // wrap all upstream calls so errors surface with `[core-js]` prefix. without this,
