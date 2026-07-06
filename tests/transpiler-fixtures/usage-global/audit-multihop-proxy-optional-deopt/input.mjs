@@ -6,6 +6,7 @@
 // (`globalThis.self.foo?.x`) is NOT a proxy alias and KEEPS its guard - covered by the resolver tests, not
 // here. distinct instance method per line; both proxy-alias orderings (self.window / window.self) and a
 // triple hop.
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 const winLeaf = globalThis.self.window?.Array.prototype.flat.call([1, [2]]);
 const selfLeaf = globalThis.window.self?.Array.prototype.includes.call([1], 1);
 const deepHop = globalThis.self.window.self?.Array.prototype.at.call([3, 4], 0);

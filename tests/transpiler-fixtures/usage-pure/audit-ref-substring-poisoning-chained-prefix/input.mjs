@@ -5,3 +5,6 @@
 const a = arr.flat().at(-1);
 const b = arr.flat().at(-1).includes(1);
 const c = arr.flat().at(-1).includes(2).toString();
+const d = arr.flat().at(-2).includes(3).toString();
+const e = arr.flat().at(-3).includes(4).toString();
+const f = arr.flat().at(-4);
