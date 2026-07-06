@@ -347,16 +347,25 @@ export function isMemberAccessNode(node) {
 // ObjectPattern value, default, rest), and for-of/in heads - shapes that rebind a member without
 // appearing as a bare assignment LHS. one source for isDynamicComputedKeyWrite (computed-key alias
 // bail) and memberPathWriteViolations (discriminant-narrow invalidation) so the two stay in lockstep
-export function isMemberWriteHost(memberPath) {
-  if (!memberPath?.node) return false;
-  // climb transparent wrappers (TS `as`/`!`/`satisfies`, parens) so a wrapped write target -
-  // `(m as any) = v`, `(m) = v` - is recognized: the host's `.left`/`.argument` points at the
-  // wrapper node, not the bare member. inverse of `memberWriteTargetPath`'s downward peel; without
-  // it a cast on the LHS strands the write and a stale narrow survives (throws on ie:11)
-  let target = memberPath;
-  while (SKIPPABLE_WRAPPER_TYPES.has(target.parentPath?.node?.type) && target.parentPath.node.expression === target.node) {
+// climb transparent wrappers (TS `as`/`!`/`satisfies`, parens, chain) UP from `path` while the
+// wrapper's `.expression` is the climbed node: returns the path of the node that actually fills
+// its host's slot (`(m as any) = v` -> the cast path, whose parent is the AssignmentExpression).
+// the canonical upward climb - identity gates that compare a host's `.left`/`.tag`/`.argument`
+// slot against a member must compare against THIS node, not the original member
+export function climbTransparentWrapperPath(path) {
+  let target = path;
+  while (SKIPPABLE_WRAPPER_TYPES.has(target?.parentPath?.node?.type) && target.parentPath.node.expression === target.node) {
     target = target.parentPath;
   }
+  return target;
+}
+
+export function isMemberWriteHost(memberPath) {
+  if (!memberPath?.node) return false;
+  // wrapped write target - `(m as any) = v`, `(m) = v` - the host's `.left`/`.argument` points
+  // at the wrapper node, not the bare member. inverse of `memberWriteTargetPath`'s downward peel;
+  // without it a cast on the LHS strands the write and a stale narrow survives (throws on ie:11)
+  const target = climbTransparentWrapperPath(memberPath);
   const member = target.node;
   const host = target.parentPath?.node;
   if (!host) return false;
@@ -2028,11 +2037,14 @@ const WRITE_LEFT_SLOT_TYPES = new Set(['AssignmentPattern', ...FOR_X_STATEMENT_T
 // here. ESTree uses 'Property' for object-pattern slots; babel uses 'ObjectProperty'
 export function isMemberWriteOnlyContext(member, parent, grandparent) {
   if (!member || !parent) return false;
-  // oxc preserves `(obj.at) = X` as `AssignmentExpression{left: ParenthesizedExpression{
-  // expression: MemberExpression}}` - direct `parent` is the paren wrapper, not the
-  // AssignmentExpression. peel one paren-layer up so the LHS-context check fires through
-  // user-applied parens regardless of parser (babel strips them, oxc preserves)
-  if (parent.type === 'ParenthesizedExpression' && parent.expression === member && grandparent) {
+  // a transparent wrapper between the member and its write host: oxc keeps `(obj.at) = X`
+  // parens as real nodes, and TS casts (`(obj.at as any) = X`) survive in BOTH parsers' ASTs -
+  // climb so the LHS-slot identity checks below compare the node that fills the slot. a
+  // paren-only peel left the cast forms rewriting a write target into a polyfill call (an
+  // invalid assignment target). node-only callers see one wrapper level per grandparent
+  // window; path-holding callers pre-climb via `climbTransparentWrapperPath` instead
+  if ((parent.type === 'ParenthesizedExpression' || parent.type === 'ChainExpression'
+    || TS_EXPR_WRAPPERS.has(parent.type)) && parent.expression === member && grandparent) {
     return isMemberWriteOnlyContext(parent, grandparent, null);
   }
   // `=` AssignmentExpression: compound operators (`+=`, `||=`) read LHS first - excluded
@@ -3185,9 +3197,12 @@ export function computedKeysAllBound(objectPattern, scope) {
 // the receiver and break. static methods tagged as template are just odd user code
 // (`Array.of\`...\``) - the polyfill is a plain function and runs correctly regardless,
 // so we only skip the prototype case
+// the tag slot may hold a transparent wrapper over the member (`(arr.at)\`x\``,
+// `(arr.at as any)\`x\`` - oxc keeps the paren node, TS casts survive in both parsers):
+// unwrap it so the wrapped tag is recognized the same as the bare form
 export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
   && parent?.type === 'TaggedTemplateExpression'
-  && parent.tag === node;
+  && unwrapRuntimeExpr(parent.tag) === node;
 
 // structural match for MemberExpression chains rooted at Identifier / ThisExpression -
 // recognises the same receiver path written at different source positions. literal property
@@ -3239,6 +3254,15 @@ function collectForXWriteMembers(node, out) {
       return;
     case 'RestElement':
       collectForXWriteMembers(node.argument, out);
+      return;
+    // a transparent wrapper around a write slot: oxc keeps `for ((obj.at) of xs)` parens as
+    // real nodes, TS casts survive in both parsers - peel so the member inside is collected
+    case 'ParenthesizedExpression':
+    case 'ChainExpression':
+      collectForXWriteMembers(node.expression, out);
+      return;
+    default:
+      if (TS_EXPR_WRAPPERS.has(node.type)) collectForXWriteMembers(node.expression, out);
   }
 }
 

@@ -11,6 +11,7 @@ import {
   hasTopLevelESM,
   isDeleteTarget,
   isForXWriteTarget,
+  climbTransparentWrapperPath,
   isMemberWriteOnlyContext,
   isMutatedStaticMeta,
   isTaggedTemplateTag,
@@ -953,9 +954,13 @@ export default function createPlugin(options) {
         // parsers emit as ArrayExpression: `[super.from] = src` would otherwise rewrite to a
         // frozen import binding and throw "Assignment to constant variable" at runtime)
         function memberWritePositionBails(node, parent, metaPath) {
+          // the write host's `.left` points at the OUTERMOST transparent wrapper when the member
+          // is wrapped (`(obj.at as any) = fn`) - compare against the climbed anchor, and hand the
+          // write-only gate the anchor's own parent window so its slot identities line up
+          const anchor = climbTransparentWrapperPath(metaPath);
           return isUpdateTarget(parent) || isForXWriteTarget(metaPath)
-            || (parent?.type === 'AssignmentExpression' && parent.left === node)
-            || isMemberWriteOnlyContext(node, parent, metaPath.parentPath?.parent);
+            || (parent?.type === 'AssignmentExpression' && parent.left === anchor.node)
+            || isMemberWriteOnlyContext(anchor.node, anchor.parentPath?.node, anchor.parentPath?.parentPath?.node);
         }
 
         // runtime ctor guard render: the DECISION is the shared provider plan; this only
