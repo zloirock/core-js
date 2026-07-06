@@ -4148,6 +4148,69 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     ['const f = () => Map; function g() { const f = () => Iterator; const A = f(); A.from = 1; }', ['Iterator.from'], ['Map.from']],
     ['function f(Array) { Array.from = 1; }', [], ['Array.from']],
     ['export default class Array {} Array.from = 1;', [], ['Array.from']],
+    // namespace-veto provenance: a local Object / Reflect shadow silences only the BARE callee -
+    // a proxy-global chain (direct or aliased) names the REAL namespace regardless of the shadow,
+    // while a shadowed proxy ROOT is not the global at all
+    ['const Object = { defineProperty() {} }; Object.defineProperty(Array, "from", d);', [], ['Array.from']],
+    ['const Object = { defineProperty() {} }; globalThis.Object.defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const Object = shim; const g2 = globalThis; g2.Object.defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const Reflect = shim; globalThis.Reflect.set(Array, "from", f);', ['Array.from'], []],
+    ['const globalThis = { Object: shim }; globalThis.Object.defineProperty(Array, "from", d);', [], ['Array.from']],
+    // COMPUTED mutator callee keys resolve through the binding-aware key canon in BOTH stages
+    // (the cheap gate fires as a superset; a dynamic key stays unresolvable and silent)
+    ['Object["defineProperty"](Array, "from", d);', ['Array.from'], []],
+    ['const m = "defineProperty"; Object[m](Array, "from", d);', ['Array.from'], []],
+    ['Reflect["set"](Array, "from", f);', ['Array.from'], []],
+    ['Object["defineProperties"](Array, { from: { value: 1 } });', ['Array.from'], []],
+    ['Object["assign"](Array, { from: 1 });', ['Array.from'], []],
+    ['globalThis["Object"].defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['Object?.["defineProperty"]?.(Array, "from", d);', ['Array.from'], []],
+    ['Object[dyn](Array, "from", d);', [], ['Array.from']],
+    // destructure SELECTORS pair with the init: a prototype leaf off a non-literal source, a
+    // positional slot of an array-literal init, a keyed slot of an object-literal init -
+    // recursively through nested pattern / literal pairs
+    ['const { prototype: P } = Array; P.at = patch;', ['Array.prototype.at'], []],
+    ['let P4; ({ prototype: P4 } = Array); P4.at = patch;', ['Array.prototype.at'], []],
+    ['const [P2] = [Array.prototype]; P2.at = patch;', ['Array.prototype.at'], []],
+    ['const { p: P3 } = { p: Array.prototype }; P3.at = patch;', ['Array.prototype.at'], []],
+    ['const { p: { q: P5 } } = { p: { q: Array.prototype } }; P5.at = patch;', ['Array.prototype.at'], []],
+    ['const [, P6] = [0, Array.prototype]; P6.at = patch;', ['Array.prototype.at'], []],
+    ['const [{ q: P7 }] = [{ q: Array.prototype }]; P7.at = patch;', ['Array.prototype.at'], []],
+    // an ALIASED namespace, an EXTRACTED mutator binding and a DESTRUCTURED one (plain, renamed,
+    // off a proxy chain) name the same mutator through the read-side canons; a REASSIGNED
+    // extracted binding stays unresolved (documented limit - the const idiom is the channel)
+    ['const O = Object; O.defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const O = Object; O["defineProperty"](Array, "from", d);', ['Array.from'], []],
+    ['const dp = Object.defineProperty; dp(Array, "from", d);', ['Array.from'], []],
+    ['const { defineProperty } = Object; defineProperty(Array, "from", d);', ['Array.from'], []],
+    ['const { defineProperty: dp2 } = Object; dp2(Array, "from", d);', ['Array.from'], []],
+    ['const { defineProperty: dp3 } = globalThis.Object; dp3(Array, "from", d);', ['Array.from'], []],
+    ['const rs = Reflect.set; rs(Array, "from", f);', ['Array.from'], []],
+    ['let dp4; dp4 = Object.defineProperty; dp4(Array, "from", d);', [], ['Array.from']],
+    ['const [dp5] = [Object.defineProperty]; dp5(Array, "from", d);', ['Array.from'], []],
+    ['const dp6 = Object?.defineProperty; dp6(Array, "from", d);', ['Array.from'], []],
+    ['const dp7 = Object.defineProperty.bind(Object); dp7(Array, "from", d);', [], ['Array.from']],
+    // duplicate literal keys take the LAST (live) value - the selector mirrors the container canon
+    ['const { p: P8 } = { p: Array.prototype, p: String.prototype }; P8.padEnd = patch;',
+      ['String.prototype.padEnd'], ['Array.prototype.padEnd']],
+    // the detached-call idiom buries the mutator member behind a sequence tail; an optional bare
+    // extracted callee peels the same way. `Reflect.set` through an alias still redirects to the
+    // RECEIVER argument, so the target constructor stays unrecorded
+    ['(0, Object.defineProperty)(Array, "from", d);', ['Array.from'], []],
+    ['const O2 = Object; (0, O2.defineProperty)(Array, "from", d);', ['Array.from'], []],
+    ['const dp8 = Object.defineProperty; dp8?.(Array, "from", d);', ['Array.from'], []],
+    ['const R2 = Reflect; R2.set(Array, "from", f, receiver);', [], ['Array.from']],
+    // a DESTRUCTURED mutator source pairs to its selected literal - the whole-container follow
+    // would record a garbage key (`Array.s`) and miss the real one; the plain const alias keeps
+    // following to its literal init
+    ['const { s } = { s: { from: 1 } }; Object.assign(Array, s);', ['Array.from'], ['Array.s']],
+    ['const { d2 } = { d2: { from: { value: 1 } } }; Object.defineProperties(Array, d2);', ['Array.from'], []],
+    ['const src = { from: 1 }; Object.assign(Array, src);', ['Array.from'], []],
+    ['const src2 = { from: 1 }; const b2 = src2; Object.assign(Array, b2);', ['Array.from'], []],
+    ['const { T } = { T: Array }; T.from = 1;', ['Array.from'], []],
+    // boundary: a DESTRUCTURED alias feeding a pattern write is outside the alias fan in both
+    // eras (the slot union cannot type a container bound through another destructure)
+    ['const [arr2] = [[Map]]; let A2 = Array; [A2] = arr2; A2.groupBy = 1;', ['Array.groupBy'], ['Map.groupBy']],
   ];
   for (const [src, present, absent] of CASES) {
     const mutated = collectBoth(src);
