@@ -41,7 +41,7 @@ import {
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry,
+  isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry, SYMBOL_ITERATOR_PURE_RESULT, symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
@@ -359,8 +359,7 @@ export default function plugin(api, options) {
             else break;
           }
         }
-        const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
-        const id = injectPureImport(entry, hint);
+        const id = injectPureImport(entry, symbolIteratorHint(entry));
         // thread `meta.sideEffects` through to the replacement helpers. detect-usage
         // captures SE during dispatch (e.g. inline-call receiver `(() => arr)()[Symbol.iterator]()`
         // where the SE-bearing receiver is the MemberExpression object); without forwarding,
@@ -731,9 +730,7 @@ export default function plugin(api, options) {
           // [Symbol.iterator] in destructuring: resolve returns null, use getIteratorMethod.
           // gated on symbol provenance - a string-spelled key stays a plain property read
           if (path.isObjectProperty() && isSourcedSymbolIteratorMeta(meta)) {
-            destructureEmit.handleObjectPropertyResult({
-              prop: path, meta, kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod',
-            });
+            destructureEmit.handleObjectPropertyResult({ prop: path, meta, ...SYMBOL_ITERATOR_PURE_RESULT });
           }
           // an ALIAS-rooted proxy-hop chain whose leaf is NON-polyfilled (`const g = globalThis; new
           // g.self.Array(3)` / `g['self'].Array.isArray(...)`) has no leaf usage and no `kind:'global'`
@@ -979,6 +976,7 @@ export default function plugin(api, options) {
           injector,
           injectPureImport,
           isDisabled,
+          isEntryNeeded,
           resolvePropertyObjectType,
           resolveNodeType,
           toHint,
