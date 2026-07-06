@@ -42,6 +42,19 @@ export function isEntryPattern(pattern) {
   return typeof pattern === 'string' && !isModulePattern(pattern);
 }
 
+// safe `.message ?? String(error)` extraction for diagnostic wrapping. adversarial
+// Proxy on the thrown payload can make `.message` access AND `String(error)`
+// re-throw - swallow secondary errors so the primary diagnostic still renders with
+// a readable wrapper. shared by the provider's targets / user-callback catches and
+// the unplugin import-injector's append fallbacks
+export function safeErrorMessage(error) {
+  try {
+    return error?.message ?? String(error);
+  } catch {
+    return '<unreadable>';
+  }
+}
+
 // serialize a value for a diagnostic, shielding callers from `JSON.stringify` throws:
 // circular references, BigInt, and adversarial Proxy traps (`getOwnPropertyDescriptor`,
 // `ownKeys`) would all otherwise mask the primary type error being reported. fall back
