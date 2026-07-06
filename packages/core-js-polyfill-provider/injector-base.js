@@ -305,7 +305,7 @@ export default class ImportInjectorState {
     return {
       hint: alias.hint, source: null, entry: null,
       aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
-      aliasDeclSpan: alias.declSpan,
+      aliasDeclSpan: alias.declSpan, aliasVerified: alias.verified,
     };
   }
 

@@ -523,12 +523,6 @@ export default function createDestructureEmitter({
     return true;
   }
 
-  // body-extract fallback when synth-swap can't fire (computed-key sibling / non-Identifier
-  // shape / rest sibling): walk up to the enclosing function-like, ensure block body,
-  // prepend `const <local> = _polyfill;`. for rest siblings, replace the prop value with
-  // `_unused` sentinel so the destructure still consumes the key and rest exclusion
-  // survives; otherwise remove the prop entirely. preserves "polyfill always wins"
-  // guarantee at the cost of caller-passed `{from: customFrom}` being ignored
   // count leading directive-prologue ExpressionStatements (`'use strict'`, `'use asm'`) at the
   // start of a function body - inline-injected forms the parser didn't lift into `node.directives[]`.
   // delegates to the shared classifier so a sibling-plugin synth whose marker sits on the inner
@@ -540,6 +534,12 @@ export default function createDestructureEmitter({
     return count;
   }
 
+  // body-extract fallback when synth-swap can't fire (computed-key sibling / non-Identifier
+  // shape / rest sibling): walk up to the enclosing function-like, ensure block body,
+  // prepend `let <local> = _polyfill;`. for rest siblings, replace the prop value with
+  // `_unused` sentinel so the destructure still consumes the key and rest exclusion
+  // survives; otherwise remove the prop entirely. preserves "polyfill always wins"
+  // guarantee at the cost of caller-passed `{from: customFrom}` being ignored
   function tryBodyExtractFromParamDestructure(prop, entry, hintName) {
     const valueNode = propBindingIdentifier(prop.node.value);
     if (!valueNode) return false;
