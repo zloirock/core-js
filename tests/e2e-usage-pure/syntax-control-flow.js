@@ -291,3 +291,53 @@ QUnit.test('control-flow: while draining a polyfilled iterator runs once per ele
   assert.deepEqual(out, [10, 20, 30]);
   assert.same(pulls, 3);
 });
+
+// --- Switch case-block scope vs the outer alias ---
+// a case-level lexical rebind lives in the switch's SINGLE case-block env: case writes target
+// the inner binding, the outer alias stays intact and its static resolves to the polyfill.
+// a case write WITHOUT a shadow really retargets the outer alias - the dispatch must read the
+// live (patched) value, so an over-eager shadow halt would surface here as the polyfill result
+
+QUnit.test('switch: case-level let shadows the outer alias for every case', assert => {
+  const seen = [];
+  // eslint-disable-next-line prefer-const -- a `const` alias would not exercise the reassignment scan
+  let M = Array;
+  // eslint-disable-next-line sonarjs/no-small-switch -- the switch case-block scope IS the case under test
+  switch (seen.push('run')) {
+    case 1:
+      // eslint-disable-next-line no-case-declarations, no-shadow, no-useless-assignment -- the unbraced case-level shadow IS the case under test
+      let M = new Set();
+      M = null;
+      seen.push(typeof M);
+  }
+  assert.deepEqual(M.from([7, 8]), [7, 8]);
+  assert.deepEqual(seen, ['run', 'object']);
+});
+
+QUnit.test('switch: case write without a shadow retargets the outer alias', assert => {
+  let Q = Array;
+  // eslint-disable-next-line sonarjs/no-small-switch -- the case-position write IS the case under test
+  switch (1) {
+    case 1:
+      Q = { from: () => 'patched' };
+  }
+  assert.same(Q.from([1]), 'patched');
+});
+
+QUnit.test('switch: discriminant closure write retargets the outer alias', assert => {
+  let M = Array;
+  const seen = [];
+  function retarget() {
+    M = { from: () => 'patched' };
+    return 1;
+  }
+  // eslint-disable-next-line sonarjs/no-small-switch -- the discriminant-buried write IS the case under test
+  switch ((f => f())(retarget)) {
+    case 1:
+      // eslint-disable-next-line no-case-declarations, no-shadow, prefer-const -- the case-level shadow IS the case under test
+      let M = 0;
+      seen.push(M);
+  }
+  assert.same(M.from([1]), 'patched');
+  assert.deepEqual(seen, [0]);
+});
