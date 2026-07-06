@@ -11,6 +11,7 @@ import {
   synthVarHoistBinding,
   unwrapRuntimeExpr,
   varInitStaleByRedecl,
+  wrapScopeBindingLookup,
 } from './helpers/ast-patterns.js';
 import {
   $Object,
@@ -145,6 +146,10 @@ function createResolveNodeType(babelNodeType, t, {
   // correctly and keeps the raw lookup
   getScopeBinding = (scope, name, path = null) => scope?.getBinding(name, path ?? undefined),
 } = {}) {
+  // every type-layer binding lookup routes through this wrap: the violation list is merged with
+  // the canonical AST scan (the native scope models mis-attribute e.g. switch-DISCRIMINANT
+  // writes under a case-level shadow), and the per-binding cache keeps identity compares stable
+  getScopeBinding = wrapScopeBindingLookup(getScopeBinding);
   const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding);
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
@@ -638,6 +643,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveDesugarDefaultTernary,
     resolveBinaryOperatorType,
   } = createValueOps({
+    getScopeBinding,
     isLiteralOf,
     literalKeyValue,
     singleQuasiString,
@@ -852,6 +858,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `classSubstInner` / etc.) via closure; thunks for `substituteTypeParams` (forward-decl let)
   // and `resolveNodeType`
   const returnTypeCluster = createReturnType({
+    getScopeBinding,
     t,
     babelNodeType,
     unwrapTypeAnnotation,
@@ -1217,6 +1224,7 @@ function createResolveNodeType(babelNodeType, t, {
   // its `isReflectConstructCallee` feeds `class-context`'s service. service deps are
   // factory function decls (hoisted) + a known-static registry
   const bindingAnalysisCluster = createBindingAnalysis({
+    getScopeBinding,
     t,
     memoize,
     findProgramPath,
@@ -1305,6 +1313,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs. service deps from `binding-analysis` are already destructured; the rest are
   // factory function decls (hoisted) or pure imports
   const closureAnalysisCluster = createClosureAnalysis({
+    getScopeBinding,
     t,
     babelBindingAdapter,
     memoize,
@@ -1460,6 +1469,7 @@ function createResolveNodeType(babelNodeType, t, {
     narrowUnionByAssignmentLiteral,
     narrowDiscriminatedUnion,
   } = createDiscriminantNarrow({
+    getScopeBinding,
     t,
     peelNegation,
     pathKey,
@@ -1955,6 +1965,7 @@ function createResolveNodeType(babelNodeType, t, {
   // service deps span factory function decls + typeof-guards cluster outputs + late-bound
   // `type-subst` `applyAliasSubstDeep` (thunk). instantiated after typeof-guards above
   const narrowByGuardsCluster = createNarrowByGuards({
+    getScopeBinding,
     t,
     resolveTypeAnnotation,
     isNullableOrNever,

@@ -144,6 +144,9 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   // babel: violation IS the AE / VD. estree-toolkit: violation is LHS Identifier,
   // walk up through Property / ObjectPattern - depth scales with destructure nesting
   function violationToAssignment(v) {
+    // a canonically-recovered extra carries no parent chain - it can never serve as a narrow
+    // SOURCE (only as dirt); the positional gap-scan still sees it through `.node`
+    if (v.canonicalRecovered) return null;
     let p = v;
     for (let i = 0; i < MAX_DEPTH && p; i++) {
       const type = babelNodeType(p.node);
@@ -304,7 +307,8 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     if (!binding.constantViolations?.length) return null;
     // a reassignment in a deferred (non-IIFE) function runs at an unknown time - possibly before the
     // use even when textually later - so the positional narrow below cannot be trusted
-    if (binding.constantViolations.some(v => violationRunsDeferred(v, binding.scope))) return null;
+    // a recovered extra has no parent chain to prove it is NOT deferred - bail like one
+    if (binding.constantViolations.some(v => v.canonicalRecovered || violationRunsDeferred(v, binding.scope))) return null;
     if (!isInBindingVarScope(usagePath.scope, binding.scope)) return null;
     // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
     // use, so the positional "last assignment before use" is stale from iteration 2 - degrade to generic
