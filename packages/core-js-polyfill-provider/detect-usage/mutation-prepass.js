@@ -8,12 +8,13 @@
 // SCOPED per-site resolution runs only when it fires - files without monkey-patch shapes
 // (the overwhelming majority) pay nothing beyond the walk. The plugins own the scoped
 // traversal (each dialect collects sites with live paths) and feed `resolveMutationSite`.
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '../helpers/class-walk.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
   followConstLiteralAlias,
   unwrapRuntimeExpr,
   isMemberMutationContext,
   memberKeyName,
+  patternSlotValues,
   propertyKeyName,
   reassignmentValueNodes,
   TS_EXPR_WRAPPERS,
@@ -114,25 +115,14 @@ function peelToBareExpr(node) {
   return cur;
 }
 
-// the namespace NAME of a mutator callee (`Object` / `Reflect`). a bare `(0, Object).assign` peels to
-// `Object`; a proxy-global member chain - direct (`globalThis.Reflect.set`, `self.Object.assign`),
-// aliased (`const g = globalThis; g.Reflect.set`) or hopped (`globalThis.self.Reflect.set`) - names the
-// SAME global namespace, resolved through the canonical proxy-global member resolver (alias + hop aware)
+// the namespace NAME of a mutator callee (`Object` / `Reflect`) through the ONE read-side canon
+// for every namespace shape: a bare name (SHADOW-AWARE - a local `Object` binding resolves to its
+// init, not the global namespace, which subsumes a separate shadow veto), a const alias
+// (`const O = Object`), and proxy-global member chains - direct (`globalThis.Reflect.set`),
+// aliased (`const g = globalThis; g.Reflect.set`), hopped (`globalThis.self.Reflect.set`) or
+// computed (`globalThis["Object"]`). `(0, Object).assign` peels its sequence first
 function peeledNamespaceName(node, ctx) {
-  const cur = peelToBareExpr(node);
-  if (cur?.type === 'Identifier') return cur.name;
-  return globalProxyMemberName({ node: cur, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path });
-}
-
-// liberal namespace NAME for the cheap scope-less gate: a bare callee identifier, or the property of
-// ANY `<x>.Object` / `<x>.Reflect` member (the scoped stage verifies the receiver actually resolves to
-// a proxy global). lets an ALIASED namespace member (`g.Reflect.set`) fire the gate without a scope
-function namespaceNameForGate(node) {
-  const cur = peelToBareExpr(node);
-  if (cur?.type === 'Identifier') return cur.name;
-  if ((cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') && !cur.computed
-    && cur.property?.type === 'Identifier') return cur.property.name;
-  return null;
+  return resolveObjectName({ objectNode: peelToBareExpr(node), scope: ctx.scope, adapter: ctx.adapter, path: ctx.path });
 }
 
 // resolve a mutation-target key through the SAME binding-aware canon the read side uses, so a
@@ -229,17 +219,26 @@ export function hasMutationCandidateShapes(programNode) {
         // over the user monkey-patch (oxc folds the optional into ChainExpression, so it is unaffected).
         // a wrapper-fronted (`(0, Object).assign`) or proxy-global-member / aliased (`globalThis.Reflect`,
         // `g.Reflect`) namespace fires the gate here too; the scoped stage verifies the proxy receiver
-        const { callee } = node;
+        const callee = peelToBareExpr(node.callee);
         const isMember = callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression';
-        const ns = isMember && !callee.computed ? namespaceNameForGate(callee.object) : null;
-        const method = ns && callee.property?.type === 'Identifier' ? callee.property.name : null;
-        const reflectMutator = ns === 'Reflect' && REFLECT_MUTATORS.has(method);
-        if (((ns === 'Object' && OBJECT_MUTATORS.has(method)) || reflectMutator) && node.arguments?.[0]) {
+        const method = isMember && !callee.computed && callee.property?.type === 'Identifier' ? callee.property.name : null;
+        // SUPERSET triggers, verified by the scoped stage: any member callee that is COMPUTED
+        // (`Object[m]`, `O["defineProperty"]`) or carries a mutator-shaped NAME (a direct namespace,
+        // a proxy-global chain, or an ALIASED receiver `const O = Object; O.defineProperty(...)`),
+        // and any BARE identifier callee (an extracted / destructured mutator `dp(...)`). the
+        // capitalized-root filter on the ARGUMENT keeps the ubiquitous lowercase calls
+        // (`map.set(k, v)`, `cb(data)`) silent, preserving the gate's precision
+        const fires = isMember
+          ? (callee.computed || OBJECT_MUTATORS.has(method) || REFLECT_MUTATORS.has(method))
+          : callee?.type === 'Identifier';
+        if (fires && node.arguments?.[0]) {
           targets.push(node.arguments[0]);
+          // Reflect.set(target, key, value, RECEIVER): a receiver arg redirects the data-property
+          // write to the receiver, making IT the mutation host - flag both candidates
+          if (node.arguments[3] && (method === 'set' || method === null || callee.computed)) {
+            targets.push(node.arguments[3]);
+          }
         }
-        // Reflect.set(target, key, value, RECEIVER): a receiver arg redirects the data-property write
-        // to the receiver, making IT the mutation host - the cheap gate flags both candidates
-        if (reflectMutator && method === 'set' && node.arguments[3]) targets.push(node.arguments[3]);
         break;
       }
       default:
@@ -295,10 +294,37 @@ const REFLECT_MUTATORS = new Set([
   'set',
 ]);
 
+// the VariableDeclarator a name is bound by, adapter-agnostic. null for params / reassigned-only /
+// non-declarator bindings
+function bindingDeclarator(name, ctx) {
+  const { scope, adapter, path } = ctx;
+  if (!adapter.hasBinding(scope, name, path)) return null;
+  const binding = adapter.getBinding(scope, name, path);
+  const decl = binding?.path?.node ?? binding?.node;
+  return decl?.type === 'VariableDeclarator' ? decl : null;
+}
+
+// the literal init sub-node a destructured name selects (`const { s } = { s: {...} }` -> the inner
+// literal), via the canonical pattern / literal pairer
+function destructuredLiteralSource(node, ctx) {
+  const id = unwrapRuntimeExpr(node);
+  if (id?.type !== 'Identifier') return null;
+  const decl = bindingDeclarator(id.name, ctx);
+  if (!decl || decl.id?.type === 'Identifier') return null;
+  for (const value of patternSlotValues(decl.id, decl.init, id.name, { ...ctx, resolveKey })) {
+    const resolved = unwrapRuntimeExpr(value);
+    if (resolved?.type === 'ObjectExpression') return resolved;
+  }
+  return null;
+}
+
 function objectLiteralKeys(node, ctx) {
   // a variable source (`const src = { from: f }; Object.assign(Array, src)`) resolves to its const
-  // init, so a copied static key is recorded like an inline `Object.assign(Array, { from: f })`
-  const obj = followConstLiteralAlias(node, ctx);
+  // init, so a copied static key is recorded like an inline `Object.assign(Array, { from: f })`;
+  // a DESTRUCTURED source (`const { s } = { s: { from: f } }`) hides the literal behind a selector
+  // the const-alias follower cannot see - pair the pattern with its literal init
+  let obj = followConstLiteralAlias(node, ctx);
+  if (obj?.type !== 'ObjectExpression') obj = destructuredLiteralSource(node, ctx);
   if (obj?.type !== 'ObjectExpression') return [];
   const keys = [];
   for (const prop of obj.properties ?? []) {
@@ -310,16 +336,16 @@ function objectLiteralKeys(node, ctx) {
   return keys;
 }
 
-// `{ targetNode, keys, namespace }` entries for a mutation-shaped node; `namespace` names the
-// Object / Reflect callee whose own shadowing the resolver must veto (a local `Object` is not
-// the global namespace). delete / update / assignment classify from the HOST side with a
+// `{ targetNode, keys }` entries for a mutation-shaped node; the Object / Reflect callee name
+// resolves through the shadow-aware read canon, so a local `Object` twin classifies nothing.
+// delete / update / assignment classify from the HOST side with a
 // DOWNWARD wrapper peel - parent-side hops can't see through stacked wrappers
 // (`delete ((Map.groupBy))`, `delete (Map.groupBy as any)`), the peel depth is unbounded
 function memberMutationEntry(slot, ctx) {
   const member = unwrapRuntimeExpr(slot);
   if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return [];
   const key = mutationKeyName(member.property, member.computed, ctx);
-  return key !== null ? [{ targetNode: member.object, keys: [key], namespace: null }] : [];
+  return key !== null ? [{ targetNode: member.object, keys: [key] }] : [];
 }
 
 function classifyMutationSite(node, parent, grandparent, ctx) {
@@ -331,29 +357,43 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && isMemberMutationContext(node, parent, grandparent)) {
     const key = mutationKeyName(node.property, node.computed, ctx);
-    return key !== null ? [{ targetNode: node.object, keys: [key], namespace: null }] : [];
+    return key !== null ? [{ targetNode: node.object, keys: [key] }] : [];
   }
   if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return [];
-  const { callee } = node;
-  if ((callee?.type !== 'MemberExpression' && callee?.type !== 'OptionalMemberExpression')
-    || callee.computed) return [];
-  const namespace = peeledNamespaceName(callee.object, ctx);
+  // the detached-call idiom `(0, Object.defineProperty)(...)` buries the member behind a
+  // sequence tail - dispatch on the PEELED callee so wrapper / SE-tail shapes classify like
+  // their bare twins
+  const callee = peelToBareExpr(node.callee);
+  let namespace = null;
+  let method = null;
+  if (callee?.type === 'MemberExpression' || callee?.type === 'OptionalMemberExpression') {
+    namespace = peeledNamespaceName(callee.object, ctx);
+    // a computed mutator callee (`Object["defineProperty"]`, const-aliased `Object[m]`) resolves
+    // its method through the same binding-aware key canon the member side uses
+    method = callee.computed
+      ? mutationKeyName(callee.property, true, ctx)
+      : (callee.property?.type === 'Identifier' ? callee.property.name : null);
+  } else {
+    // an extracted (`const dp = Object.defineProperty; dp(...)`) or destructured
+    // (`const { defineProperty } = Object`) mutator names the same namespace method
+    const pair = bareCalleeStaticPair(callee, ctx);
+    if (pair) ({ namespace, method } = pair);
+  }
   if (!namespace) return [];
-  const method = callee.property?.type === 'Identifier' ? callee.property.name : null;
   const args = node.arguments ?? [];
   if (!args[0]) return [];
   if (namespace === 'Object') {
     if (method === 'defineProperty') {
       const key = mutationKeyName(args[1], true, ctx);
-      return key !== null ? [{ targetNode: args[0], keys: [key], namespace }] : [];
+      return key !== null ? [{ targetNode: args[0], keys: [key] }] : [];
     }
     if (method === 'defineProperties') {
       const keys = objectLiteralKeys(args[1], ctx);
-      return keys.length ? [{ targetNode: args[0], keys, namespace }] : [];
+      return keys.length ? [{ targetNode: args[0], keys }] : [];
     }
     if (method === 'assign') {
       const keys = args.slice(1).flatMap(arg => objectLiteralKeys(arg, ctx));
-      return keys.length ? [{ targetNode: args[0], keys, namespace }] : [];
+      return keys.length ? [{ targetNode: args[0], keys }] : [];
     }
     return [];
   }
@@ -362,19 +402,41 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
     // Reflect.set(target, key, value, RECEIVER): with a receiver the data property lands on the
     // receiver, not target, so the receiver is the mutation host; 3-arg / other mutators use target
     const host = method === 'set' && args[3] ? args[3] : args[0];
-    return key !== null ? [{ targetNode: host, keys: [key], namespace }] : [];
+    return key !== null ? [{ targetNode: host, keys: [key] }] : [];
   }
   return [];
 }
 
+// bare-identifier mutator callee -> its (namespace, method) pair: an extracted method binding
+// (`const dp = Object.defineProperty`) resolves its init member through the namespace canon; a
+// destructured one - renamed, positional over a literal, or straight off the namespace
+// (`const { defineProperty } = Object`, whose slot value the pairer synthesizes as the
+// `Object.defineProperty` member) - pairs through the canonical `patternSlotValues`. reassigned
+// bindings stay unresolved (the const idiom is the real-world channel; a let-union here would
+// re-implement the alias fan for a function value the canons cannot type)
+function bareCalleeStaticPair(callee, ctx) {
+  if (callee?.type !== 'Identifier') return null;
+  const decl = bindingDeclarator(callee.name, ctx);
+  if (!decl) return null;
+  const sources = decl.id?.type === 'Identifier'
+    ? [unwrapRuntimeExpr(decl.init)]
+    : patternSlotValues(decl.id, decl.init, callee.name, { ...ctx, resolveKey }).map(unwrapRuntimeExpr);
+  for (const member of sources) {
+    if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') continue;
+    const method = mutationKeyName(member.property, member.computed, ctx);
+    const namespace = method !== null ? peeledNamespaceName(member.object, ctx) : null;
+    if (namespace) return { namespace, method };
+  }
+  return null;
+}
+
 // --- the per-site collector callback (shared by both plugins' traversals) ---
-// classify the node as a mutation site, veto shadowed Object / Reflect namespaces, resolve
-// the receiver through the read-side canons and record every `name.key` pair
+// classify the node as a mutation site (namespace shadowing is subsumed by the name canon),
+// resolve the receiver through the read-side canons and record every `name.key` pair
 export function createMutationSiteHandler({ adapter, mutated }) {
   return function handleSite(path) {
     const ctx = { scope: path.scope, adapter, path };
-    for (const { targetNode, keys, namespace } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
-      if (namespaceIsShadowed(namespace, { scope: path.scope, adapter, path })) continue;
+    for (const { targetNode, keys } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
       const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
       for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
     }
@@ -529,6 +591,16 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     // `{Map:M}` selector. over-record stays the safe direction; the fan still runs for reassignment unions
     const direct = resolveObjectName({ objectNode: identNode, scope, adapter, path });
     if (direct) names.add(direct);
+    // a destructure declarator binds a SELECTED slot: the canonical pattern / literal pairer
+    // yields the slot's value union (nested patterns, holes, last-wins keys, spread bails), and
+    // a receiver-shaped source synthesizes the member (`const { prototype: P } = Array` ->
+    // `Array.prototype`), which the leaf resolver keys as the prototype pair
+    const decl = binding.path?.node ?? binding.node;
+    if (decl?.type === 'VariableDeclarator' && decl.id && decl.id.type !== 'Identifier') {
+      for (const slotValue of patternSlotValues(decl.id, decl.init, identNode.name, { scope, adapter, path, resolveKey })) {
+        visitAliasValues(slotValue, depth);
+      }
+    }
     const init = binding.path?.node?.init ?? binding.node?.init;
     visitAliasValues(init, depth);
     const reCtx = { scope, adapter, path, resolveKey };
@@ -582,9 +654,4 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     }
   }
   return { names: [...names] };
-}
-
-// `namespace` veto: a LOCAL binding named Object / Reflect is not the global namespace
-function namespaceIsShadowed(namespace, { scope, adapter, path }) {
-  return !!namespace && adapter.hasBinding(scope, namespace, path);
 }
