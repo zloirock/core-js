@@ -367,3 +367,53 @@ QUnit.test('mutated-statics: patched inherited static through optional this-call
     else delete Array.from;
   }
 });
+
+// a LOCAL Object shadow silences only the BARE mutator callee: a proxy-global chain still names
+// the REAL namespace, so a patch through it is recorded and the later read keeps the user patch
+// instead of routing to the receiver-less pure helper. Math.sumPrecise: patched by no sibling
+// test; both namespaces are shadowed locally, so EVERY mutator here (patch and restore) reaches
+// the real namespace only through the proxy-global chain - a bare dotted restore (or a `delete`)
+// would self-mark the slot and mask whether the proxy chain is the thing detected
+QUnit.test('mutated-statics: proxy-global mutator with a local namespace shadow keeps the patch', assert => {
+  const Object = { defineProperty() { return 'local-noop'; } };
+  const Reflect = { deleteProperty() { return 'local-noop'; } };
+  assert.same(Object.defineProperty(), 'local-noop');
+  assert.same(Reflect.deleteProperty(), 'local-noop');
+  const had = 'sumPrecise' in Math;
+  const original = Math.sumPrecise;
+  globalThis.Object.defineProperty(Math, 'sumPrecise', {
+    value: function patched() { return 'proxy-shadow-patched'; },
+    configurable: true,
+    writable: true,
+  });
+  try {
+    assert.same(Math.sumPrecise([1, 2]), 'proxy-shadow-patched');
+  } finally {
+    if (had) {
+      globalThis.Object.defineProperty(Math, 'sumPrecise', { value: original, configurable: true, writable: true });
+    } else globalThis.Reflect.deleteProperty(Math, 'sumPrecise');
+  }
+});
+
+// a COMPUTED const-aliased mutator callee (`Object[dp]` over `const dp = 'defineProperty'`) names
+// the same mutator as the dotted form, so the patch records and the read keeps it. Object.groupBy:
+// patched by no sibling test; the restore stays on the COMPUTED-callee channel - a bare `delete`
+// would self-mark the slot and mask whether the computed form is the thing detected
+QUnit.test('mutated-statics: computed mutator callee keeps the patch', assert => {
+  const dp = 'defineProperty';
+  const del = 'deleteProperty';
+  const had = 'groupBy' in Object;
+  const original = Object.groupBy;
+  Object[dp](Object, 'groupBy', {
+    value: function patched() { return 'computed-callee-patched'; },
+    configurable: true,
+    writable: true,
+  });
+  try {
+    assert.same(Object.groupBy([1], it => it), 'computed-callee-patched');
+  } finally {
+    if (had) {
+      Object[dp](Object, 'groupBy', { value: original, configurable: true, writable: true });
+    } else Reflect[del](Object, 'groupBy');
+  }
+});
