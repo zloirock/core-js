@@ -998,9 +998,10 @@ export function createPolyfillEmitter({
         // NON-optional + a following computed-key SE: route droppedSe through the SE channel (bare root) so
         // both emitters render flat (`droppedSe, keySE, _getIterator(_root)`) - else the leadingMemo needlessly
         // memoizes the single-use `(droppedSe, _root)` sequence. OPTIONAL keeps the sequence: its null-guard
-        // memoize replays droppedSe (a bare collapsed root has nothing for the guard to memoize). mirrors the
-        // babel-plugin proxy-hop route. conservative gate - any optional marker keeps the (runtime-safe) sequence
-        const isOptionalAccess = node.optional || node.object?.optional || parenLookupOnly;
+        // memoize replays droppedSe (a bare collapsed root has nothing for the guard to memoize). the optional
+        // verdict is PROVIDER-decided at detection (flag-based, any hop depth) so both emitters agree - an
+        // emitter-local `node.object?.optional` probe misses a `?.` two-plus hops below the symbol access
+        const isOptionalAccess = symbolReceiverProxyRoot.isOptionalAccess || parenLookupOnly;
         if (droppedSe.length && sideEffects?.length && !isOptionalAccess) {
           sideEffects = [...droppedSe, ...sideEffects];
           receiverEffectCount += droppedSe.length;
