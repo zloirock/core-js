@@ -17,9 +17,12 @@ const babelTraverse = _babelTraverse.default ?? _babelTraverse;
 export const babelAdapter = {
   name: 'babel',
   parseAndScope(code, sourceType = 'module', extraPlugins = []) {
+    // flow and typescript are mutually exclusive at the parser level - a flow scenario
+    // supplies its own plugin set instead of extending the typescript default
+    const plugins = extraPlugins.includes('flow') ? extraPlugins : ['typescript', ...extraPlugins];
     const ast = babelParse(code, {
       sourceType,
-      plugins: ['typescript', ...extraPlugins],
+      plugins,
       allowReturnOutsideFunction: true,
       allowAwaitOutsideFunction: true,
     });
