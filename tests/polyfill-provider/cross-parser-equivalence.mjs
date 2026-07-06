@@ -255,4 +255,26 @@ await runEquivalence('paren index-signature key - usage-global flavor',
   'interface M { [k: (number)]: string[] } declare const m: M; declare const s: string; m[s].at(0);',
   USAGE_GLOBAL_IE11);
 
+// anon-escape slot walks: babel strips runtime parens while oxc keeps ParenthesizedExpression, so a
+// paren / TS-cast between slot-read steps must not split the escape verdict (held read of the anon's
+// own slot) between the pipelines; destructure targets and untrackable slots are parser-symmetric locks
+const ANON_HELD = '{ data: ["x"], read() { return this.data.at(0); } }';
+await runEquivalence('anon escape: paren between slot-read steps',
+  `function f(sink) { const o = { a: { b: ${ ANON_HELD } } }; sink((o.a).b); } f(x => x);`, USAGE_PURE);
+await runEquivalence('anon escape: TS cast between slot-read steps',
+  `function f(sink) { const o = { a: { b: ${ ANON_HELD } } }; sink((o.a as any).b); } f(x => x);`, USAGE_PURE);
+await runEquivalence('anon escape: TS cast between member and call',
+  `function f(sink) { const o = { w: ${ ANON_HELD }, grab() { return this.w; } }; sink((o.grab as any)()); } f(x => x);`,
+  USAGE_PURE);
+await runEquivalence('anon escape: destructure target leaks',
+  `function f(sink) { const [g] = [${ ANON_HELD }]; sink(g); } f(x => x);`, USAGE_PURE);
+await runEquivalence('anon escape: dynamic computed key held read',
+  `function f(sink, dyn) { const o = { [dyn]: ${ ANON_HELD } }; sink(o[dyn]); } f(x => x, "k");`, USAGE_PURE);
+await runEquivalence('anon escape: member store then held slot read',
+  `function f(sink) { const holder = {}; holder.f = ${ ANON_HELD }; sink(holder.f); } f(x => x);`, USAGE_PURE);
+await runEquivalence('anon escape: paren between slot-read steps - usage-global flavor',
+  `function f(sink) { const o = { a: { b: ${ ANON_HELD } } }; sink((o.a).b); } f(x => x);`, USAGE_GLOBAL_IE11);
+await runEquivalence('anon escape: field write through a TS-cast slot read',
+  `const o = { a: ${ ANON_HELD } }; (o.a as any).data = 5; o.a.read();`, USAGE_PURE);
+
 finish();
