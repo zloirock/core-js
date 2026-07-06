@@ -8,8 +8,9 @@
 // bare declarator / assignment where the receiver is a single concrete Array.prototype - they prove the
 // inference (array variant only). the logical hosts carry ARRAY-ONLY methods (flat, findLast):
 // an always-truthy left decides a logical statically - `||` narrows to the LEFT (the collapse still fires
-// there), `&&` narrows to the RIGHT `{}`, so that line has nothing to polyfill and stays a passthrough
-// (root swap only, hop key effect in place). each line binds a DISTINCT method; counters prove key SE order.
+// there), `&&` narrows to the RIGHT `{}`, so that line has nothing to polyfill - yet its hop still
+// collapses with the key effect harvested in order (a raw `[...]` off the pure root reads undefined
+// off-engine). each line binds a DISTINCT method; counters prove key SE order.
 let a = 0, b = 0, c = 0, d = 0, e = 0, x;
 const { flat } = (c++, (d++, globalThis))[(e++, 'self')].Array.prototype || {};
 const { findLast } = (c++, globalThis)[(e++, 'self')].Array.prototype && {};

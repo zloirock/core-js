@@ -9,8 +9,8 @@ function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
   return tag;
 }
-const bareStatic = (eff('a'), _globalThis.self).Array;
-const nonGlobal = (eff('b'), _globalThis.self).customProp;
-const windowHop = (eff('c'), _globalThis.window).String;
-class Extended extends (eff('d'), _globalThis.self).Error {}
+const bareStatic = (eff('a'), _globalThis).Array;
+const nonGlobal = (eff('b'), _globalThis).customProp;
+const windowHop = (eff('c'), _globalThis).String;
+class Extended extends (eff('d'), _globalThis).Error {}
 export { bareStatic, nonGlobal, windowHop, Extended, log };

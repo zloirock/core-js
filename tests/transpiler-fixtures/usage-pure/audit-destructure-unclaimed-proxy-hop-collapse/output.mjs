@@ -53,5 +53,5 @@ export const r7 = [typeof values, typeof qq7];
 let se2 = 0;
 const {
   qq8
-} = (se2++, _globalThis)['self'].JSON;
+} = (se2++, _globalThis).JSON;
 export const r8 = [typeof qq8, se2];
