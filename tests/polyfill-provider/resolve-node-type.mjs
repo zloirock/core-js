@@ -5666,6 +5666,106 @@ for (const [variant, code] of [
   }
 }
 
+// --- own-this method extraction rebinds `this` -> the this-field narrow must die ---
+// a HELD read of a method-valued member (`const m = o.read` / `sink(o.read)` / `o.read.call(x)` /
+// a destructure / rest / object-spread / a value-exposing call argument) hands out a function whose
+// `this` rebinds at its later invocation - the emitted type-specific helper would then run against
+// an untracked receiver. covers the object-literal, nested-anon-slot, class-instance, class-static,
+// `new C().m` and `C.prototype.m` channels; a DIRECT call, a discarded read, a data-field hold, an
+// arrow-valued prop (lexical this) and a getter result keep the narrow
+for (const [variant, code] of [
+  ['var extraction then call', `const o = ${ ANON_ESC };\nconst m = o.read;\nm.call({ data: 42 });`],
+  ['destructure extraction', `const o = ${ ANON_ESC };\nconst { read } = o;\nread.call({ data: 42 });`],
+  ['rest destructure scoops methods', `const o = ${ ANON_ESC };\nconst { data, ...rest } = o;\nrest.read.call({ data: 42 });`],
+  ['direct .call with a foreign this', `const o = ${ ANON_ESC };\no.read.call({ data: 42 });`],
+  ['.bind to a foreign this', `const o = ${ ANON_ESC };\nconst m = o.read.bind({ data: 42 });\nm();`],
+  ['object-spread copy shares the method body', `const o = ${ ANON_ESC };\nconst o2 = { ...o, data: 42 };\no2.read();`],
+  ['returned method', `const o = ${ ANON_ESC };\nfunction g() { return o.read; }\ng().call({ data: 42 });`],
+  ['dynamic computed held read', `function f(sink, k) {\n  const o = ${ ANON_ESC };\n  sink(o[k]);\n}`],
+  ['value-exposing Object.values argument', `const o = ${ ANON_ESC };\nObject.values(o)[1].call({ data: 42 });`],
+  ['sequence-detached callee', `const o = ${ ANON_ESC };\n(0, o.read)();`],
+  ['nested anon slot method extraction', `const holder = { w: ${ ANON_ESC } };\nconst m = holder.w.read;\nm.call({ data: 42 });`],
+  ['inline literal method held', `function f(sink) {\n  sink((${ ANON_ESC }).read);\n}`],
+  ['inline array carrier element held', `function f(sink) {\n  sink([${ ANON_ESC }][0]);\n}`],
+  ['class instance method extraction', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'const c = new C();\nconst m = c.read;\nm.call({ data: 42 });'],
+  ['new-expression method extraction', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'const m = new C().read;\nm.call({ data: 42 });'],
+  ['class static method extraction', 'class C {\n  static data = ["x"];\n  static read() { return this.data.at(0); }\n}\n'
+    + 'const m = C.read;\nm.call({ data: 42 });'],
+  ['prototype method extraction', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'const m = C.prototype.read;\nm.call({ data: 42 });\nnew C().read();'],
+  ['subclass prototype extraction of an inherited method',
+    'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nclass D extends C {}\n'
+    + 'const m = D.prototype.read;\nm.call({ data: 42 });\nnew C().read();'],
+]) {
+  runBoth(`method extraction escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['inline carrier API call exposes elements', `function f(sink) {\n  [${ ANON_ESC }].map(x => sink(x));\n}`],
+  ['inline carrier valueOf aliases the carrier', `function f(sink) {\n  sink(({ w: ${ ANON_ESC } }).valueOf());\n}`],
+  ['setPrototypeOf PROTO slot inherits methods', `const o = ${ ANON_ESC };\nconst x = {};\nObject.setPrototypeOf(x, o);\nx.read();`],
+  ['Reflect.setPrototypeOf PROTO slot', `const o = ${ ANON_ESC };\nconst x = {};\nReflect.setPrototypeOf(x, o);\nx.read();`],
+  ['held freeze result method extraction', `const o = ${ ANON_ESC };\nconst p = Object.freeze(o);\nconst m = p.read;\nm.call({ data: 42 });`],
+  ['cast-wrapped arg at the unsafe PROTO slot', `const o = ${ ANON_ESC };\nconst x = {};\nObject.setPrototypeOf(x, o as any);\nx.read();`],
+  ['cast-wrapped held identity result', `const o = ${ ANON_ESC };\nconst p = Object.freeze(o as any);\np.data = 5;\no.read();`],
+  ['__proto__ property held method read', `const o = ${ ANON_ESC };\nconst x = { __proto__: o, data: "xy" };\nconst m = x.read;\nm.call({ data: 7 });`],
+  ['__proto__ property call through the heir', `const o = ${ ANON_ESC };\nconst x = { __proto__: o, data: "xy" };\nx.read();`],
+  ['optional member extraction', `const o = ${ ANON_ESC };\nconst m = o?.read;\nm.call({ data: 42 });`],
+  ['new-expression argument (Proxy target)', `const o = ${ ANON_ESC };\nconst p = new Proxy(o, {});\np.read.call({ data: 42 });`],
+  ['accessor descriptor extraction', 'const o = { data: ["x"], read() { return this.data.at(0); }, get size() { return this.data.at(1); } };\n'
+    + 'Object.getOwnPropertyDescriptor(o, "size").get.call({ data: 42 });'],
+  ['held super instance method read in a subclass',
+    'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nclass D extends C {\n  grab() { return super.read; }\n}\n'
+    + 'new D().grab().call({ data: 42 });\nnew C().read();'],
+  ['held super STATIC method read in a subclass',
+    'class C {\n  static data = ["x"];\n  static read() { return this.data.at(0); }\n}\nclass D extends C {\n  static grab() { return super.read; }\n}\n'
+    + 'D.grab().call({ data: 42 });\nC.read();'],
+  ['held seal result data write through the alias', `const o = ${ ANON_ESC };\nconst p = Object.seal(o);\np.data = 5;\no.read();`],
+  ['held setPrototypeOf result aliases the target', `const o = ${ ANON_ESC };\nconst p = Object.setPrototypeOf(o, null);\np.data = 5;\no.read();`],
+]) {
+  runBoth(`method extraction escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['direct method call', `const o = ${ ANON_ESC };\no.read();`],
+  ['cast-wrapped direct call', `const o = ${ ANON_ESC };\n(o.read as any)();`],
+  ['data-field value hold', `function f(sink) {\n  const o = ${ ANON_ESC };\n  sink(o.data);\n  o.read();\n}`],
+  ['discarded dynamic read', `function f(k) {\n  const o = ${ ANON_ESC };\n  o[k];\n  o.read();\n}`],
+  ['arrow-valued prop extraction (lexical this)',
+    'const o = { data: ["x"], read() { return this.data.at(0); }, pick: () => 1 };\nconst m = o.pick;\nm();\no.read();'],
+  ['getter result hold (the read invokes the getter)',
+    'function f(sink) {\n  const o = { data: ["x"], read() { return this.data.at(0); }, get size() { return 1; } };\n  sink(o.size);\n  o.read();\n}'],
+  ['JSON.stringify argument (functions are skipped)', `const o = ${ ANON_ESC };\nJSON.stringify(o);\no.read();`],
+  ['Object.keys argument (keys only)', `const o = ${ ANON_ESC };\nObject.keys(o);\no.read();`],
+  ['inline carrier own-API plain read', `function f() {\n  const n = [${ ANON_ESC }].length;\n  [${ ANON_ESC }][0].read();\n}`],
+  ['setPrototypeOf TARGET slot', `const o = ${ ANON_ESC };\nObject.setPrototypeOf(o, null);\no.read();`],
+  ['discarded freeze call', `const o = ${ ANON_ESC };\nObject.freeze(o);\no.read();`],
+  ['optional member direct call', `const o = ${ ANON_ESC };\no?.read();`],
+  ['super direct call in a subclass',
+    'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nclass D extends C {\n  grab() { return super.read(); }\n}\n'
+    + 'new D().grab();\nnew C().read();'],
+  ['super different-key read in a subclass',
+    'class C {\n  data = ["x"];\n  count = 1;\n  read() { return this.data.at(0); }\n}\nclass D extends C {\n  grab() { return super.count; }\n}\n'
+    + 'new D().grab();\nnew C().read();'],
+  ['bare prototype member deref', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\n'
+    + 'C.prototype.read;\nnew C().read();'],
+  ['class static direct call', 'class C {\n  static data = ["x"];\n  static read() { return this.data.at(0); }\n}\nC.read();'],
+  ['new-expression direct chain call', 'class C {\n  data = ["x"];\n  read() { return this.data.at(0); }\n}\nnew C().read();'],
+]) {
+  runBoth(`method extraction keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
 // the enum-as-computed-key shadow check uses the CONST-AGNOSTIC binding lookup, so a reassigned `let`
 // of the enum's name shadows it just like a `const` would - the key is the let's value, not the enum's
 runBoth('enum-as-computed-key is shadowed by a reassigned let of the same name',
