@@ -33,7 +33,7 @@ import {
 import { isUsableFallbackReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
-import { collectFallbackCollapseLeftSe, discardRescueNodes, seBearingChainRootCall, symbolSourcedFoldedKey } from './members.js';
+import { discardRescueNodes, seBearingChainRootCall, symbolSourcedFoldedKey } from './members.js';
 import {
   isCallShape,
   isStaticPlacement,
@@ -203,7 +203,7 @@ export function classifyCallBranchForSynth({ inner, scope, adapter, path }) {
   // but a mixed key set re-reads the collapsed left, so route through memoization there too. rescueSe
   // stays null - the leftSe plan (suppressed when memoizing) owns the all-resolved rescue
   if (inner?.type === 'LogicalExpression' && inner.operator !== '&&'
-    && collectFallbackCollapseLeftSe({ leftNode: inner.left, scope, adapter, path }).length) {
+    && discardRescueNodes({ node: inner.left, scope, adapter, path }).length) {
     return { callBranch: true, rescueSe: null };
   }
   return { callBranch: false, rescueSe: null };
