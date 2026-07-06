@@ -199,7 +199,9 @@ export function createTypeMembers({
     }
     // `InstanceType<typeof Cls>.x` / `ReturnType<typeof fn>.x` -> members of the pointed-to decl
     if (segments.length === 1 && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
-      const arg = getTypeArgs(objectType)?.params[0];
+      // peeled like the type-annotation-resolve twin: oxc keeps `ReturnType<(typeof f)>`
+      // arg as TSParenthesizedType where babel strips it
+      const arg = peelTSParenthesized(getTypeArgs(objectType)?.params[0]);
       if (!arg) return null;
       // `ReturnType<Fn>.x` where `Fn = () => T` (alias to function type, no typeof) -
       // follow the alias chain, extract return annotation, fold accumulated subst.
