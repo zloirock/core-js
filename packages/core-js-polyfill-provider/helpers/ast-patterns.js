@@ -819,6 +819,10 @@ function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
     const forHead = node.type === 'ForOfStatement' || node.type === 'ForInStatement' ? node.left
       : node.type === 'ForStatement' ? node.init : null;
     if (forHead?.type === 'VariableDeclaration' && forHead.kind !== 'var') return forHead.declarations.some(d => bindsName(d.id));
+    // a case-level lexical rebind (`case 1: let name`) lives in the switch's SINGLE case-block
+    // env, so writes in EVERY case target that inner binding - the whole switch halts. a rebind
+    // inside a BRACED case body is a plain BlockStatement child and halts there instead
+    if (node.type === 'SwitchStatement') return (node.cases ?? []).some(c => (c.consequent ?? []).some(stmtRebindsName));
     if (!RUNTIME_BLOCK_TYPES.has(node.type)) return false;
     return (node.body ?? []).some(stmtRebindsName);
   }
@@ -830,7 +834,12 @@ function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
   }
   function visit(node, atOwnerRoot) {
     if (!isASTNode(node)) return;
-    if (!atOwnerRoot && ((isVarScopeBoundary(node.type) && shadowsName(node)) || blockShadowsName(node))) return;
+    if (!atOwnerRoot && ((isVarScopeBoundary(node.type) && shadowsName(node)) || blockShadowsName(node))) {
+      // the switch DISCRIMINANT evaluates in the outer env before the case-block scope exists,
+      // so its writes target the outer binding even when a case-level lexical shadows the name
+      if (node.type === 'SwitchStatement') visit(node.discriminant, false);
+      return;
+    }
     if ((node.type === 'AssignmentExpression' && node.left?.type === 'Identifier' && node.left.name === name)
       || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)
       || (node.type === 'AssignmentExpression'
@@ -875,6 +884,58 @@ const LET_SCOPE_HOST_TYPES = new Set([
   'ForStatement',
   'SwitchStatement',
 ]);
+
+// merge canonically-recovered reassignments the native scope model missed into a binding's
+// violation list. the native trackers mis-scope some writes (babel places a switch DISCRIMINANT
+// inside the case-block scope, so a discriminant write of a name that a case-level lexical
+// shadows lands on the INNER binding; estree-toolkit drops cross-boundary let writes) - the
+// canonical AST scan is the source of truth for the SET. native entries stay PATHS (their
+// parent-chain carries deferred/captured precision); recovered extras are `{ node,
+// canonicalRecovered: true }` markers that path-dependent analyses treat conservatively
+// (possibly deferred, possibly captured, violating) while positional reads take `.node`.
+// dedupe by containment: a native entry may record the assignment itself or just its target
+// identifier, both sit inside the canonical node's range
+export function withCanonicalViolations(binding, name) {
+  const kind = binding?.kind;
+  if (!binding?.path || !name || (kind !== 'var' && kind !== 'let' && kind !== 'const')) return binding;
+  const canonical = kind === 'var'
+    ? collectFunctionScopeVarReassignments(binding.path, name)
+    : collectScopeLetReassignments(binding.path, name);
+  if (!canonical.length) return binding;
+  const known = (binding.constantViolations ?? []).map(violationNode).filter(Boolean);
+  // a position-less native violation is a PLUGIN-MINTED rewrite of this binding's write (an
+  // alias substitution): the canonical scan's memo may still hold the replaced original, so the
+  // set comparison is unsound there - the alias machinery already owns that binding's flow
+  if (known.some(k => k.start === undefined || k.start === null)) return binding;
+  const extras = canonical
+    // `var name = X` re-declarations are excluded: the type layer resolves redecl flow through
+    // its dedicated stale-redecl machinery (positional, per-block precise) - a conservative
+    // marker here would erase that precision. assignment-shaped writes stay
+    .filter(node => node.type !== 'VariableDeclarator')
+    .filter(node => node.start !== undefined && node.end !== undefined)
+    .filter(node => !known.some(k => k === node
+      || (k.start !== undefined && k.start >= node.start && k.end <= node.end)))
+    .map(node => ({ node, canonicalRecovered: true }));
+  if (!extras.length) return binding;
+  return { ...binding, constantViolations: [...binding.constantViolations ?? [], ...extras] };
+}
+
+// wrap a scope-binding lookup so every consumer sees the canonically-merged violation list.
+// the cache returns the SAME wrapped object per native binding - identity compares between
+// two lookups of the same binding keep holding
+export function wrapScopeBindingLookup(lookup) {
+  const cache = new WeakMap();
+  return (scope, name, path = null) => {
+    const binding = lookup(scope, name, path);
+    if (!binding) return binding;
+    let wrapped = cache.get(binding);
+    if (!wrapped) {
+      wrapped = withCanonicalViolations(binding, name) ?? binding;
+      cache.set(binding, wrapped);
+    }
+    return wrapped;
+  };
+}
 
 // cross-boundary `let` reassignment recovery: estree-toolkit omits a `let` reassignment from a
 // binding's constantViolations when the use sits in a nested closure (the outer-scope write is not
