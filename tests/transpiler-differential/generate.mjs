@@ -961,6 +961,22 @@ function * generateAssignAliasReassign() {
     // update-clause / body write (a pinned first-iteration substitution returns [2,2], not [2,1])
     // a for-UPDATE write runs 0+ times: the post-loop read must see the untouched key on a
     // zero-iteration loop (pinning the updated key returns [1,1], not [2,1])
+    // a case-level lexical rebind shadows the outer alias for the whole switch: the outer
+    // static keeps resolving (one emitter recorded a spurious violation and bailed - the
+    // import sets diverged)
+    { id: 'switch-case-shadow-outer-resolves',
+      code: '(() => { function f(cond, mk) { let M = Array; switch (cond) { case 1: let M = mk(); M = mk(); } '
+        + 'return M.from([1, 2]).length; } return f(0, () => 0); })()' },
+    // the switch DISCRIMINANT evaluates in the OUTER env: its write retargets the outer alias
+    // even when a case-level lexical shadows the name - the dispatch must read the live value
+    { id: 'switch-discriminant-write-bails',
+      code: '(() => { let D = Array; switch (D = { from: () => "patched" }) { default: let D = 0; } '
+        + 'return D.from([1]); })()' },
+    // a DISCRIMINANT-CLOSURE write may run and targets the outer alias: the scope model that
+    // attributes it to the case-level shadow resolved on one emitter only (import-set desync)
+    { id: 'switch-discriminant-closure-write-bails',
+      code: '(() => { let C = Array; switch ((f => f())(() => { C = { from: () => "patched" }; return 1; })) '
+        + '{ case 1: let C = 0; C += 1; } return C.from([1]); })()' },
     { id: 'loop-update-write-later-use',
       code: '(() => { let k = "from"; function r(n) { for (; n-- > 0; k = "of"); '
         + 'return Array[k]([5, 6]).length; } const a = r(0); k = "from"; return [a, r(2)].join("-"); })()' },

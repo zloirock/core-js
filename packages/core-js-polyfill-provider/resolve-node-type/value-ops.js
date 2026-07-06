@@ -94,6 +94,7 @@ export function unaryOperatorResultKind(operator, argKindOf) {
 }
 
 export function createValueOps({
+  getScopeBinding,
   isLiteralOf,
   literalKeyValue,
   singleQuasiString,
@@ -248,7 +249,7 @@ export function createValueOps({
   // bare global-`undefined` from a shadowed identifier
   function isBareUndefined(node, scope) {
     if (!isBareUndefinedIdentifier(node)) return false;
-    return !scope?.getBinding?.('undefined');
+    return !getScopeBinding(scope, 'undefined');
   }
 
   // `isLiteralOf(node, 'String')` routes through `babelNodeType` which normalises ESTree
