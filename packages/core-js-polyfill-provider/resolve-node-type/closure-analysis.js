@@ -24,11 +24,16 @@ import { createMemberWriteShape, memberWriteTargetPath } from './class-member-sh
 import {
   CLASS_FIELD_TYPES,
   VALUE_FLOW_ASSIGN_OPS,
+  classBodyHoldsSuperMethod,
+  classOwnThisMethodInfo,
   forEachPatternWriteMember,
   hasDeferredContextAncestor,
   isMemberAccessNode,
   isTSTypeOnlyIdentifierPath,
+  mergeOwnThisMethodInfo,
+  objectOwnThisMethodInfo,
   peelParenAndTSParentPath,
+  propertyKeyName,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
@@ -46,6 +51,7 @@ export function createClosureAnalysis({
   classBindingName,
   classBindingRefClassifier,
   buildProgramIndex,
+  methodReadLeaks,
   resolveNodeType,
 }) {
   // an anonymous object (no binding name) normally gets an EMPTY closure - a sound zero-external-write
@@ -122,11 +128,62 @@ export function createClosureAnalysis({
   // generic leak analysis over-approximates that safely. a non-pattern LHS shape can't be enumerated -> escape
   function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath }) {
     if (pattern?.type !== 'ObjectPattern' && pattern?.type !== 'ArrayPattern') return true;
+    if (patternBindsAnonMethod({ pattern, fieldPath, methodInfo: objectOwnThisMethodInfo(anchorPath?.node) })) return true;
     let leaks = false;
     walkPatternIdentifiers(pattern, (id, depth) => {
       if (!leaks) leaks = carrierBindingLeaks(scope, id.name, anchorPath, fieldPath.slice(depth));
     });
     return leaks;
+  }
+  // can the pattern BIND one of the anon's own-this methods? a key match at the anon's own level
+  // (`const { read } = { read() {...} }` / a deeper pattern following the slot path into the anon),
+  // a rest element that scoops the remaining props at that level, or an untrackable computed pattern
+  // key all extract a this-rebindable function - conservative escape, mirroring held method reads.
+  // levels below the anon index into FIELD values and cannot reach its methods
+  function patternBindsAnonMethod({ pattern, fieldPath, methodInfo, level = 0 }) {
+    if (!methodInfo) return false;
+    if (pattern?.type === 'ParenthesizedExpression') {
+      return patternBindsAnonMethod({ pattern: pattern.expression, fieldPath, methodInfo, level });
+    }
+    if (pattern?.type === 'AssignmentPattern') {
+      return patternBindsAnonMethod({ pattern: pattern.left, fieldPath, methodInfo, level });
+    }
+    if (pattern?.type === 'ObjectPattern') {
+      for (const p of pattern.properties ?? []) {
+        if (p.type === 'RestElement' || p.type === 'SpreadElement') {
+          if (level === fieldPath.length) return true;
+          continue;
+        }
+        const key = propertyKeyName(p);
+        if (level === fieldPath.length) {
+          // an untrackable pattern key could name any method; a resolvable key only a known one
+          if (key === null || key === undefined) {
+            if (methodInfo.methodKeys.size || methodInfo.unknownKey) return true;
+          } else if (methodInfo.methodKeys.has(key)) return true;
+          continue;
+        }
+        const step = fieldPath[level];
+        // descend only through the property that can read the anon's slot: an untrackable pattern
+        // key or the matching object-key step (array slots are read by index keys - conservative)
+        if ((key === null || key === undefined || step.index || key === step.key)
+          && patternBindsAnonMethod({ pattern: p.value, fieldPath, methodInfo, level: level + 1 })) return true;
+      }
+      return false;
+    }
+    if (pattern?.type === 'ArrayPattern') {
+      // the anon itself destructured as an array binds nothing method-shaped (iterator protocol)
+      if (level === fieldPath.length) return false;
+      for (const el of pattern.elements ?? []) {
+        if (!el) continue;
+        if (el.type === 'RestElement' || el.type === 'SpreadElement') {
+          if (patternBindsAnonMethod({ pattern: el.argument, fieldPath, methodInfo, level })) return true;
+        } else if (patternBindsAnonMethod({ pattern: el, fieldPath, methodInfo, level: level + 1 })) return true;
+      }
+      return false;
+    }
+    // an Identifier target binds a VALUE (carrier or the anon itself) - the depth-based leak
+    // analysis in the caller covers it
+    return false;
   }
   // `obj.f = [{...}]` stores the object into a member slot - it escapes iff the chain ROOT binding is
   // externally reachable. a LOCAL var (const / let / var) is reachable only when it leaks (export /
@@ -208,6 +265,36 @@ export function createClosureAnalysis({
         case 'NewExpression':
         case 'OptionalCallExpression':
           return !!parent.arguments?.some(arg => unwrapRuntimeExpr(arg) === valuePath.node);
+        // a member read on the tracked value: while slot steps remain it consumes the leading one
+        // (`[{...}][0]` extracts through the inline carrier - the read RESULT carries the anon on, and
+        // the next loop round decides held vs dereferenced); a dotted mismatch on an object-key step
+        // reads a DIFFERENT field. once the path is exhausted the read hits the ANON's own member: an
+        // own-this method read is sound only as a direct call - a held read hands out a this-rebindable
+        // function - while a plain data-field read stays local (the field VALUE escapes, not the anon)
+        case 'MemberExpression':
+        case 'OptionalMemberExpression': {
+          if (unwrapRuntimeExpr(parent.object) !== valuePath.node) return false;
+          if (fieldPath.length) {
+            const [step] = fieldPath;
+            if (!parent.computed) {
+              const key = getKeyName(parent.property);
+              // a dotted read on an ARRAY slot (`[{...}].map` / `.length`) or a MISMATCHED object
+              // key reads the carrier's own API / another field, not the anon's slot. a direct
+              // CALL of that member may expose or alias the elements out (`[{...}].map(sink)` /
+              // `({ w: {...} }).valueOf()`), so escape conservatively; a plain read stays local
+              if (step.index || key === null || key === undefined || String(key) !== step.key) {
+                const use = peelParenAndTSParentPath(parentPath)?.node;
+                return (use?.type === 'CallExpression' || use?.type === 'OptionalCallExpression')
+                  && unwrapRuntimeExpr(use.callee) === parent;
+              }
+            }
+            fieldPath.shift();
+            valuePath = parentPath;
+            continue;
+          }
+          const methodInfo = objectOwnThisMethodInfo(objectPath.node);
+          return !!methodInfo && methodReadLeaks(parent, parentPath, methodInfo);
+        }
         // the carrier is bound to a name (`const x = [...]` / `const o = { f: {...} }`) - escape iff the
         // binding leaks, OR (for a nested anon) a held read of the anon's own slot aliases it out.
         // a pattern id (`const [g] = [{...}]`) binds the matched values to TARGET vars - escape iff any
@@ -531,11 +618,26 @@ export function createClosureAnalysis({
     const closure = new Map();
     const constructorNames = getClassConstructorNames(classPath, programPath);
     if (constructorNames === null) return null;
+    // the instance narrow is shared with every descendant, so the extraction gate unions the
+    // own-this method sets across the hierarchy
+    let methodInfo = null;
+    for (const cls of desc.paths) methodInfo = mergeOwnThisMethodInfo(methodInfo, classOwnThisMethodInfo(cls.node, false));
+    // a HELD `super.<method>` read inside a subclass instance member extracts a base method with
+    // NO base-class reference the closure walk could classify - scan the hierarchy bodies directly
+    if (methodInfo) {
+      for (const cls of desc.paths) {
+        if (classBodyHoldsSuperMethod(cls.node, { instanceInfo: methodInfo })) return null;
+      }
+    }
     for (const name of constructorNames) {
       const entries = newExprByName.get(name);
       if (!entries) continue;
       for (const entry of entries) {
         if (entry.isLeakPosition) return null;
+        // `const m = new C().read` extracts an own-this method straight off the construction -
+        // the held function's `this` rebinds at its later invocation, so the narrow premise dies
+        if (methodInfo && entry.isMemberRecv && isMemberAccessNode(entry.wrapperPath.parentPath?.node)
+          && methodReadLeaks(entry.wrapperPath.parentPath.node, entry.wrapperPath.parentPath, methodInfo)) return null;
         const source = resolveInstanceBindingName(entry);
         // `bail: true` signals an unsafe shape (mixed-source assignment-init, paren-wrapped
         // declarator with non-Identifier id) that would silently let untracked values into
@@ -546,7 +648,7 @@ export function createClosureAnalysis({
         const binding = source.scope?.getBinding(source.name);
         if (!binding) return null;
         const sub = computeAliasClosureFromBinding({
-          rootBinding: binding, rootName: source.name, anchorPath: source.anchorPath,
+          rootBinding: binding, rootName: source.name, anchorPath: source.anchorPath, methodInfo,
         });
         if (sub === null) return null;
         for (const [b, k] of sub) closure.set(b, k);
@@ -554,7 +656,9 @@ export function createClosureAnalysis({
     }
     return closure;
   }
-
+  // `new C().<X>` member receiver: does the read hand out an own-this method? mirrors the
+  // binding-side gate - a resolvable non-method key stays local, a method key (or a dynamic read
+  // over a method-bearing class) is sound only as the callee of a direct call
   // cached wrapper of `collectClassInstanceClosure`. mirrors `objectAliasClosureCache`:
   // a class with N fields would otherwise re-walk the program N times during candidate
   // collection. cache by class node identity. distinguish `null` (cached as "leaked") from
@@ -581,10 +685,48 @@ export function createClosureAnalysis({
       const className = classBindingName(classPath);
       const binding = className ? classPath.scope?.getBinding(className) : null;
       if (!binding) return null;
+      // the `<Class>.prototype` hop exposes the class's OWN instance methods AND the inherited
+      // ones (`D.prototype.read` resolves through the prototype chain to the base's method), so
+      // the prototype gate unions the super chain's instance sets. an unresolvable / external
+      // base contributes nothing - its methods carry no narrowed bodies from this module's flow
+      let prototypeMethodInfo = classOwnThisMethodInfo(classPath.node, false);
+      // statics inherit through the constructor chain too - collect the ancestors' static sets
+      // for the static-`super` extraction scan below
+      let ancestorStaticInfo = null;
+      const seen = new Set([classPath.node]);
+      for (let curNode = classPath.node; curNode?.superClass;) {
+        const superName = extendsClauseName(curNode.superClass, classPath.scope);
+        const superNode = superName ? classNodeFromBindingName(superName, classPath.scope) : null;
+        if (!superNode || seen.has(superNode)) break;
+        seen.add(superNode);
+        prototypeMethodInfo = mergeOwnThisMethodInfo(prototypeMethodInfo, classOwnThisMethodInfo(superNode, false));
+        ancestorStaticInfo = mergeOwnThisMethodInfo(ancestorStaticInfo, classOwnThisMethodInfo(superNode, true));
+        curNode = superNode;
+      }
+      // a HELD `super.<staticMethod>` read in an own STATIC member extracts an ancestor's static
+      // with a rebindable `this` and no ancestor-binding reference to classify - scan directly
+      if (ancestorStaticInfo && classBodyHoldsSuperMethod(classPath.node, { staticInfo: ancestorStaticInfo })) {
+        return null;
+      }
       return computeAliasClosureFromBinding({
         rootBinding: binding, rootName: className, anchorPath, classifier: classBindingRefClassifier,
+        // static own-this methods extracted off the class value (`const m = C.make`) rebind `this`
+        // away from the constructor at their later invocation - gate like the object-literal flavor
+        methodInfo: classOwnThisMethodInfo(classPath.node, true),
+        prototypeMethodInfo,
       });
     });
+  }
+  // resolve a class-binding NAME to its class node: a ClassDeclaration binding or a declarator
+  // whose init is a class expression. null for anything else (external / unresolvable base)
+  function classNodeFromBindingName(name, scope) {
+    const node = scope?.getBinding?.(name)?.path?.node;
+    if (node?.type === 'ClassDeclaration') return node;
+    if (node?.type === 'VariableDeclarator') {
+      const init = unwrapRuntimeExpr(node.init);
+      if (init?.type === 'ClassExpression') return init;
+    }
+    return null;
   }
 
   // canonical root name for an Identifier's const-alias chain. `const Alias = Source`

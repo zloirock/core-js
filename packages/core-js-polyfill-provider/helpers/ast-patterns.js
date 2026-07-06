@@ -2047,6 +2047,148 @@ export function propertyKeyName(prop) {
   return staticStringKey(key);
 }
 
+// key spelling shared by the own-this method-extraction gates: private members keep a `#name`
+// spelling so a `c.#m` read matches the class-body declaration; everything else resolves via
+// the canonical property-key extractor. null = dynamic / unresolvable
+function ownThisMemberKeyName(member) {
+  const { key } = member;
+  if (key?.type === 'PrivateName') return `#${ key.id?.name }`;
+  if (key?.type === 'PrivateIdentifier') return `#${ key.name }`;
+  return propertyKeyName(member);
+}
+
+// member-READ twin of `ownThisMemberKeyName`: the key a member ACCESS reads, with the same
+// private spelling, dotted and static-string-computed forms via the canonical member-key
+// extractor. null = dynamic computed read
+export function memberReadKeyName(member) {
+  const prop = member?.property;
+  if (prop?.type === 'PrivateName') return `#${ prop.id?.name }`;
+  if (prop?.type === 'PrivateIdentifier') return `#${ prop.name }`;
+  return memberKeyName(member);
+}
+
+// own-`this` FUNCTION members of an object literal: methods and function-expression-valued
+// properties run with `this` = the call-site receiver, so a HELD read of such a member hands
+// out a this-rebindable function and breaks the this-field narrow premise. arrows are excluded
+// (lexical `this` - extraction cannot rebind). getters / setters cannot be read out as
+// functions by a plain member read (the read INVOKES them), but value-exposing calls
+// (descriptor extraction) still reach them - they only raise the `accessors` flag.
+// `unknownKey` marks a method behind a dynamic / numeric key: any held or dynamic read could
+// extract it, so key-precise gates degrade to conservative. null when the literal has no
+// own-this function members at all - the common data-only case stays zero-cost
+export function objectOwnThisMethodInfo(objectNode) {
+  if (objectNode?.type !== 'ObjectExpression') return null;
+  const methodKeys = new Set();
+  let unknownKey = false;
+  let accessors = false;
+  for (const prop of objectNode.properties ?? []) {
+    const { type } = prop;
+    let isMethod = false;
+    if (type === 'ObjectMethod') {
+      if (prop.kind === 'method') isMethod = true;
+      else accessors = true;
+    } else if (type === 'Property' || type === 'ObjectProperty') {
+      if (prop.kind === 'get' || prop.kind === 'set') accessors = true;
+      else isMethod = unwrapRuntimeExpr(prop.value)?.type === 'FunctionExpression';
+    }
+    if (!isMethod) continue;
+    const key = ownThisMemberKeyName(prop);
+    if (key === null || key === undefined) unknownKey = true;
+    else methodKeys.add(key);
+  }
+  return methodKeys.size || unknownKey || accessors ? { methodKeys, unknownKey, accessors } : null;
+}
+
+// class twin of `objectOwnThisMethodInfo`: `statics` picks the static side (`this` = the
+// constructor value, gating the static-field narrow) vs the instance side. same arrow /
+// accessor / dynamic-key policy; a `constructor` member never extracts as a rebindable method
+export function classOwnThisMethodInfo(classNode, statics) {
+  const methodKeys = new Set();
+  let unknownKey = false;
+  let accessors = false;
+  for (const member of classNode?.body?.body ?? []) {
+    const { type } = member;
+    if ((member.static === true) !== statics) continue;
+    let isMethod = false;
+    if (type === 'ClassMethod' || type === 'ClassPrivateMethod'
+      || type === 'MethodDefinition' || type === 'TSAbstractMethodDefinition') {
+      if (member.kind === 'get' || member.kind === 'set') {
+        accessors = true;
+        continue;
+      }
+      isMethod = member.kind !== 'constructor';
+    } else if (type === 'ClassProperty' || type === 'ClassPrivateProperty'
+      || type === 'PropertyDefinition' || type === 'ClassAccessorProperty') {
+      isMethod = unwrapRuntimeExpr(member.value)?.type === 'FunctionExpression';
+    }
+    if (!isMethod) continue;
+    const key = ownThisMemberKeyName(member);
+    if (key === null || key === undefined) unknownKey = true;
+    else methodKeys.add(key);
+  }
+  return methodKeys.size || unknownKey || accessors ? { methodKeys, unknownKey, accessors } : null;
+}
+
+// merge per-class extraction infos (a base class and its descendants share the instance
+// narrow, so the union of their own-this members gates it). null-safe on both sides
+export function mergeOwnThisMethodInfo(base, extra) {
+  if (!base) return extra;
+  if (!extra) return base;
+  const methodKeys = new Set(base.methodKeys);
+  for (const key of extra.methodKeys) methodKeys.add(key);
+  return {
+    methodKeys,
+    unknownKey: base.unknownKey || extra.unknownKey,
+    accessors: base.accessors || extra.accessors,
+  };
+}
+
+// could a member READ under `key` hit one of the info's own-this methods? the ONE key-match
+// rule every extraction gate shares: a DYNAMIC key could name any method (or the one hiding
+// behind an untrackable key); a RESOLVABLE key only a known method - a mismatched resolvable
+// key stays local even under `unknownKey`, else one computed-key method would poison every
+// sibling member read of the shape
+export function ownThisMethodKeyMatches(info, key) {
+  return key === null || key === undefined
+    ? !!(info.methodKeys.size || info.unknownKey)
+    : info.methodKeys.has(key);
+}
+
+// does any class-body member hold a `super.<method>` read? a held read extracts the base's
+// method with a rebindable `this` and NO base-class reference a closure walk could classify;
+// a direct `super.read()` call keeps `this` = the current instance (a tracked receiver) and a
+// discarded read holds nothing. static members read the SUPER CONSTRUCTOR's statics, instance
+// members its prototype - each side checks its own set. plain node walk (parent-tracked), so
+// both parser shapes traverse identically
+export function classBodyHoldsSuperMethod(classNode, { instanceInfo = null, staticInfo = null }) {
+  for (const member of classNode?.body?.body ?? []) {
+    const info = member.static === true ? staticInfo : instanceInfo;
+    if (info && nodeHoldsSuperMethodRead(member, classNode, info)) return true;
+  }
+  return false;
+}
+function nodeHoldsSuperMethodRead(node, parent, info) {
+  if (!node || typeof node.type !== 'string') return false;
+  if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+    && node.object?.type === 'Super' && ownThisMethodKeyMatches(info, memberReadKeyName(node))) {
+    const isDirectCall = (parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
+      && unwrapRuntimeExpr(parent.callee) === node;
+    const isDiscard = parent?.type === 'ExpressionStatement'
+      || (parent?.type === 'UnaryExpression' && parent.operator === 'void');
+    if (!isDirectCall && !isDiscard) return true;
+  }
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item.type === 'string' && nodeHoldsSuperMethodRead(item, node, info)) return true;
+      }
+    } else if (value && typeof value.type === 'string' && nodeHoldsSuperMethodRead(value, node, info)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // shape gate for the per-callback consultation against the mutated-static set the pre-pass built.
 // shared between babel-plugin and unplugin so the (object, key) string formation stays in
 // lockstep with the pre-pass that built the set - any divergence (different separator, case,
