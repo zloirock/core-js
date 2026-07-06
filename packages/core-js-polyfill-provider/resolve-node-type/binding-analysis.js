@@ -88,6 +88,7 @@ function isBindingDeclarationPath(p) {
 }
 
 export function createBindingAnalysis({
+  getScopeBinding,
   t,
   memoize,
   findProgramPath,
@@ -244,6 +245,8 @@ export function createBindingAnalysis({
         // the registry and fall through to the shadow bail exactly as before
         const aliased = namespaceFromPolyfillBinding(scope, callee.object.name);
         if (aliased) return { constructor: aliased, method: callee.property.name };
+        // RAW existence check on purpose: a user shadow must bail even when the funnel's
+        // twin filter would drop a namespace-local binding for a pathless lookup
         if (scope?.getBinding?.(callee.object.name)) return null;
         return { constructor: callee.object.name, method: callee.property.name };
       }
@@ -252,6 +255,7 @@ export function createBindingAnalysis({
         && callee.object.object?.type === 'Identifier'
         && callee.object.property?.type === 'Identifier'
         && POSSIBLE_GLOBAL_OBJECTS.has(callee.object.object.name)
+        // RAW existence check - same shadow-bail contract as the single-hop branch above
         && !scope?.getBinding?.(callee.object.object.name)) {
         return { constructor: callee.object.property.name, method: callee.property.name };
       }
@@ -381,7 +385,7 @@ export function createBindingAnalysis({
           // through to `'leak'`, disabling the narrow
           if (isBindingDeclarationPath(p)) return;
           if (isNonReferencePosition(p.parent, p.node)) return;
-          const binding = p.scope?.getBinding(p.node.name);
+          const binding = getScopeBinding(p.scope, p.node.name, p);
           if (!binding) return;
           pushByKey(identifierByBinding, binding, p);
         },
@@ -790,7 +794,7 @@ export function createBindingAnalysis({
         if (kind === 'trivial') continue;
         if (kind === 'alias') {
           const aliasName = parent.id.name;
-          const aliasBinding = refContext.scope?.getBinding(aliasName);
+          const aliasBinding = getScopeBinding(refContext.scope, aliasName, parent);
           if (!aliasBinding) return null;
           if (closure.has(aliasBinding)) continue;
           closure.set(aliasBinding, aliasName);

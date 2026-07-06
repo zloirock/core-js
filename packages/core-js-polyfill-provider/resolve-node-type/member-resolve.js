@@ -327,7 +327,7 @@ export function createMemberResolve({
   function resolveTypedMember(objectPath, name, callPath) {
     let annotation, scope;
     if (t.isIdentifier(objectPath.node)) {
-      const binding = objectPath.scope?.getBinding(objectPath.node.name);
+      const binding = getScopeBinding(objectPath.scope, objectPath.node.name, objectPath);
       if (!binding) return null;
       annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
       scope = binding.path.scope;
@@ -449,7 +449,7 @@ export function createMemberResolve({
       // is NOT that class: babel registers no value binding for the type-param, so getBinding would
       // wrongly return the outer class. bail so the caller resolves the type-param via its constraint
       if (findTypeParameter(typeName.name, scope)) return null;
-      const binding = scope?.getBinding(typeName.name);
+      const binding = getScopeBinding(scope, typeName.name);
       if (binding) return t.isClassDeclaration(binding.path.node) ? binding.path : null;
       // no value binding -> an ambient `declare class` (oxc binds it, babel doesn't); recover it
       // through the same scan the qualified branch uses so the element type stays parser-consistent
