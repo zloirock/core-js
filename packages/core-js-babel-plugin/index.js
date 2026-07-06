@@ -326,8 +326,10 @@ export default function plugin(api, options) {
             // through the SE channel (receiver-SE ahead of the key-SE) so the hoist preserves + orders it. the
             // OPTIONAL access uses 'suppress' (memoizes the whole receiver in the null-guard), which preserves
             // the inline sequence's droppedSe already - leave it the tighter inline form. with no key-SE there
-            // is no peel either, so keep the inline `_getIterator((droppedSe, _root))`
-            const isOptional = path.node.optional || path.isOptionalMemberExpression();
+            // is no peel either, so keep the inline `_getIterator((droppedSe, _root))`. the optional verdict is
+            // PROVIDER-decided at detection (flag-based, any hop depth) so both emitters agree - a babel-local
+            // node-TYPE probe promotes whole chains where estree flags only the introducing hop
+            const isOptional = symbolReceiverProxyRoot.isOptionalAccess;
             if (droppedSe.length && sideEffects?.length && !isOptional) {
               sideEffects = [...droppedSe.map(effect => t.cloneNode(effect)), ...sideEffects];
               receiverEffectCount += droppedSe.length;
