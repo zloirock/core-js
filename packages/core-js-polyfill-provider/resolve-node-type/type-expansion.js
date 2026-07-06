@@ -8,8 +8,7 @@
 // Public surface:
 //   mapped:      mappedTypeKeyName, mappedTypeConstraint, unwrapMappedTypePassthrough,
 //                expandMappedTypeMembers
-//   conditional: evaluateConditionalType, pickConditionalBranchVia, resolveInferElementPattern,
-//                resolveConditionalBranches, isUnconstrainedTypeReference
+//   conditional: evaluateConditionalType, pickConditionalBranchVia, isUnconstrainedTypeReference
 //   shared:     typeRefSegmentsEqual, dropMapKeys, trueBranchSubst
 //
 // Service object carries the cross-cluster helpers used by both groups. Several deps
@@ -872,8 +871,6 @@ export function createTypeExpansion({
     // conditional
     evaluateConditionalType,
     pickConditionalBranchVia,
-    resolveInferElementPattern,
-    resolveConditionalBranches,
     isUnconstrainedTypeReference,
     collectInferredNames,
     // shared
