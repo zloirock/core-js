@@ -957,6 +957,24 @@ function * generateAssignAliasReassign() {
     { id: 'computed-symbol-key-callroot-key-order',
       code: '(() => { const log = []; const m = [1, 2][(() => (log.push("call"), globalThis))()'
         + '[(log.push("key"), "Symbol")].iterator]; return [log.join("-"), typeof m]; })()' },
+    // a loop's TEST clause re-runs on the back-edge: the alias key must re-dispatch on the
+    // update-clause / body write (a pinned first-iteration substitution returns [2,2], not [2,1])
+    // a for-UPDATE write runs 0+ times: the post-loop read must see the untouched key on a
+    // zero-iteration loop (pinning the updated key returns [1,1], not [2,1])
+    { id: 'loop-update-write-later-use',
+      code: '(() => { let k = "from"; function r(n) { for (; n-- > 0; k = "of"); '
+        + 'return Array[k]([5, 6]).length; } const a = r(0); k = "from"; return [a, r(2)].join("-"); })()' },
+    { id: 'loop-test-alias-rerun',
+      code: '(() => { let k = "from"; const lens = []; '
+        + 'while (lens.push(Array[k]([7, 6]).length) < 2) k = "of"; return lens.join("-"); })()' },
+    // IIFE identity-peel: a param rebind hidden in an LHS pattern DEFAULT / an update-target
+    // computed key must bail the peel (the runtime receiver is the rebound value)
+    { id: 'iife-lhs-default-rebind',
+      code: '(() => { let x; const R = (arg => { ({ x = (arg = Promise) } = {}); return arg; })(Array); '
+        + 'const { from } = R; return typeof from; })()' },
+    { id: 'iife-update-key-rebind',
+      code: '(() => { const counts = { rebound: 0 }; const R = (arg => { counts[arg = "rebound"]++; return arg; })(Array); '
+        + 'const { of } = R; return typeof of; })()' },
     { id: 'refused-optional-read-untaken',
       code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); return typeof M?.groupBy; } '
         + 'return t(false); })()' },
