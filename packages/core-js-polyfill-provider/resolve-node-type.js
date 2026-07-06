@@ -519,6 +519,10 @@ function createResolveNodeType(babelNodeType, t, {
   function unwrapTypeAnnotation(node) {
     if (!node) return null;
     if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') return unwrapTypeAnnotation(node.typeAnnotation);
+    // parens are a semantic no-op in type position; oxc keeps `(X)` as TSParenthesizedType
+    // where babel strips it at parse - peeling HERE makes every unwrap-mediated `.type`
+    // dispatch across the resolver paren-safe on both parsers, instead of per-site peels
+    if (node.type === 'TSParenthesizedType') return unwrapTypeAnnotation(node.typeAnnotation);
     return node;
   }
   // peelTSParenthesized is imported from ast-shapes and shared with siblings that

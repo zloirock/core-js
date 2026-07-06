@@ -213,4 +213,46 @@ await runEquivalence(
   { parserPlugins: ['flow'] },
 );
 
+// --- parenthesized type-slot dispatch (oxc keeps `(X)` as TSParenthesizedType, babel
+// strips it at parse) - every raw `.type` dispatch on a type slot must peel, else the
+// unplugin side under/mis-narrows while babel narrows ---
+
+await runEquivalence('paren mapped constraint (keyof T)',
+  'type Copy<T> = { [K in (keyof T)]: T[K] }; declare const a: Copy<string[]>; a.at(0);', USAGE_PURE);
+await runEquivalence('paren mapped constraint (literal union)',
+  "type Pluck<V> = { [K in ('items' | 'name')]: V }; declare const a: Pluck<number[]>; a.items.at(0);", USAGE_PURE);
+await runEquivalence('paren mapped union MEMBER',
+  "type Pluck<V> = { [K in ('items') | 'name']: V }; declare const a: Pluck<number[]>; a.items.at(0);", USAGE_PURE);
+await runEquivalence('paren as-rename template',
+  'type Up<T> = { [K in keyof T as (Uppercase<K & string>)]: T[K] }; declare const a: Up<{ at: number[] }>; a.AT.at(0);',
+  USAGE_PURE);
+await runEquivalence('paren generic-container infer arg',
+  'type Elem<T> = T extends Array<(infer U)> ? U[] : never; declare const a: Elem<number[][]>; a.at(0).at(0);',
+  USAGE_PURE);
+await runEquivalence('paren keyof source must NOT defeat the passthrough capture guard',
+  'interface Src { t1: string } interface Other { t1: unknown; onlyInU: number[] } '
+    + 'type Cross<T, U> = { [K in keyof (T)]: U[K] }; declare const r: Cross<Src, Other>; r.onlyInU.at(0);',
+  USAGE_PURE);
+await runEquivalence('paren index-signature key type',
+  'interface M { [k: (number)]: string[] } declare const m: M; declare const s: string; m[s].at(0);', USAGE_PURE);
+await runEquivalence('paren ReturnType<(typeof f)> arg',
+  'declare function f(): string[]; type R = ReturnType<(typeof f)>; declare const r: R; r.at(0);', USAGE_PURE);
+await runEquivalence('paren discriminant literal member',
+  "type U = { kind: ('a'); v: number[] } | { kind: 'b'; v: string }; declare const u: U; if (u.kind === 'a') u.v.at(0);",
+  USAGE_PURE);
+await runEquivalence('paren alias body through the alias chain',
+  'type Inner = (number[]); type Outer = Inner; declare const o: Outer; o.at(0);', USAGE_PURE);
+await runEquivalence('paren callback param function type',
+  'interface Api { each(cb: ((x: string[]) => void)): void } declare const api: Api; api.each(x => x.at(0));',
+  USAGE_PURE);
+await runEquivalence('paren declared callable annotation',
+  'declare const make: ((() => number[])); make().at(0);', USAGE_PURE);
+await runEquivalence('paren Awaited<(Promise<T>)> arg',
+  'type A = Awaited<(Promise<number[]>)>; declare const a: A; a.at(0);', USAGE_PURE);
+await runEquivalence('paren mapped constraint - usage-global flavor',
+  'type Copy<T> = { [K in (keyof T)]: T[K] }; declare const a: Copy<string[]>; a.at(0);', USAGE_GLOBAL_IE11);
+await runEquivalence('paren index-signature key - usage-global flavor',
+  'interface M { [k: (number)]: string[] } declare const m: M; declare const s: string; m[s].at(0);',
+  USAGE_GLOBAL_IE11);
+
 finish();
