@@ -15,7 +15,9 @@
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
 import { $Object, $Primitive, literalNodeValue } from './base.js';
-import { isMethodShapeMember, isOpenKeywordAnnotation, isUnionType, readonlyCollectionBase, typeRefSegments } from './ast-shapes.js';
+import {
+  isMethodShapeMember, isOpenKeywordAnnotation, isUnionType, peelTSParenthesized, readonlyCollectionBase, typeRefSegments,
+} from './ast-shapes.js';
 import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -81,27 +83,18 @@ export function createTypeAnnotationResolve({
     return !candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object');
   }
 
-  // oxc preserves `(A | B)` as TSParenthesizedType around the union (babel strips during
-  // parsing). peel before pattern-matching on TSUnionType, otherwise paren-wrapped unions
-  // land in single-member fallback and lose distribution. inline loop (not the factory
-  // helper) keeps this cluster's service-object surface stable
-  function peelParens(node) {
-    while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
-    return node;
-  }
-
   function resolveExtractExclude({ first, second, scope, depth, keep, typeParamMap, seen }) {
     function resolve(node) {
       return resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
     }
     const target = resolve(second);
     if (!target) return null;
-    let unwrapped = peelParens(unwrapTypeAnnotation(first));
+    let unwrapped = peelTSParenthesized(unwrapTypeAnnotation(first));
     if (!unwrapped) return null;
     // capture subst so generic union members (`type Foo<T> = T | string`) keep their bindings.
     // alias targets may themselves be paren-wrapped (`type Mixed = (A | B)`); peel again
     const { node: aliasTarget, subst } = followTypeAliasChain(unwrapped, scope);
-    if (aliasTarget) unwrapped = peelParens(aliasTarget);
+    if (aliasTarget) unwrapped = peelTSParenthesized(aliasTarget);
     if (!unwrapped) return null;
     const types = isUnionType(unwrapped) ? unwrapped.types : [unwrapped];
     let result = null;
@@ -159,7 +152,10 @@ export function createTypeAnnotationResolve({
     const known = resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
     if (known) return known;
     function firstArg() {
-      return getTypeArgs(node)?.params[0];
+      // peeled: oxc keeps a parenthesized utility-type arg (`ReturnType<(typeof f)>`)
+      // as TSParenthesizedType where babel strips it - the `.type` dispatches on the
+      // consumers below must see the inner shape on both parsers
+      return peelTSParenthesized(getTypeArgs(node)?.params[0]);
     }
     function resolveArg(arg, fallback) {
       return arg
@@ -393,7 +389,7 @@ export function createTypeAnnotationResolve({
     // peel a parenthesized object operand once (`(T)['a']`, `([A,B])[0]`, `({[k:string]:V})[string]`):
     // both parsers keep `(T)` as TSParenthesizedType in type position, and the member / tuple /
     // index-sig helpers below would otherwise see the wrapper and bail to null
-    const objectType = peelParens(node.objectType);
+    const objectType = peelTSParenthesized(node.objectType);
     // T[number] - element type of array/tuple
     if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(objectType, scope, depth + 1);
     // T[string] - string index signature type
