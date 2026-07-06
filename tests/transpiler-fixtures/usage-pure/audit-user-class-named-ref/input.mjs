@@ -7,6 +7,6 @@ class _ref {
   }
 }
 const arr = [1, 2, 3];
-arr.at(0);
+getList().at(0);
 arr.flatMap(x => [x]);
 _ref.fromList(arr);

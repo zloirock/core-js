@@ -216,7 +216,8 @@ export function createMemberResolve({
   //      `parse(x: string): string[]`. matching by args keeps the precise type-specific helper
   //      (`_atMaybeString`) on a string value instead of the wrong `_atMaybeArray` (ie:11 throw)
   //   2. no arg-match (unresolvable args / no param accepts them) -> fold the resolved returns of all
-  //      matching overloads; convergent -> one type, divergent -> prefer the FIRST as a best-effort floor
+  //      matching overloads; convergent -> one type, divergent -> null (generic) - a type-specific
+  //      Maybe picked off one arm would throw on a foreign return
   function resolveMemberCallReturnFromAnnotation({ annotation, name, scope, resolve, depth, subst, callPath }) {
     const members = getTypeMembers({ objectType: annotation, scope, depth });
     if (!members) return null;

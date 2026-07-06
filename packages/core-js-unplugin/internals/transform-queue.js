@@ -620,9 +620,9 @@ export default class TransformQueue {
     if (!root) return false;
     const maxEnd = this.#maxEndByGuardedRoot.get(root);
     if (maxEnd === undefined || maxEnd < end) return false;
-    // extract drains #byGuardedRoot but not the maxEnd cache - defensive null-check
+    // `#removeEntry` drops the maxEnd entry exactly when the root's bucket empties, so a
+    // surviving maxEnd implies a non-empty bucket
     const list = this.#byGuardedRoot.get(root);
-    if (!list) return false;
     for (const t of list) {
       const tEnd = entryLogicalEnd(t);
       if (t.start <= start && tEnd >= end && (t.start < start || tEnd > end)) return true;
