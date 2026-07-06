@@ -33,7 +33,7 @@ import {
   receiverSideEffectsOnly,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { resolveSymbolIteratorEntry } from '@core-js/polyfill-provider/detect-usage/members';
+import { resolveSymbolIteratorEntry, symbolIteratorHint } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint, deoptionalizeNeedleAtPositions } from './transform-queue.js';
 import {
   isCallee,
@@ -977,7 +977,7 @@ export function createPolyfillEmitter({
     // must not take the direct-iterator form - so the plain-call test is the dialect-specific input
     const entry = resolveSymbolIteratorEntry(node, parent, isCallParent && parent.type === 'CallExpression');
     if (!isEntryNeeded(entry)) return;
-    const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
+    const binding = injectPureImport(entry, symbolIteratorHint(entry));
     // `(arr?.[Symbol.iterator])()`: parens terminate the chain, so native evaluates
     // `(undefined)()` on nullish receiver and throws TypeError. mark parenLookupOnly so the
     // bare `_getIterator(recv)` emit drops the `recv == null ? void 0 :` guard that would
