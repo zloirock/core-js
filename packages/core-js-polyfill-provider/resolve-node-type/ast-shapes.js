@@ -9,7 +9,7 @@
 // empirically per parser - change them only with care
 import { getTypeArgs, isDeferredContextStep } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
-import { PRIMITIVE_HINTS } from './base.js';
+import { literalNodeValue, PRIMITIVE_HINTS } from './base.js';
 
 // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
 // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
@@ -309,19 +309,20 @@ export function selectOverloadByArgKinds(overloads, getParams, argKinds) {
   return null;
 }
 
-// the literal VALUE of a literal NODE (a call arg or a TSLiteralType's `.literal`): babel StringLiteral /
-// NumericLiteral / BooleanLiteral or estree `Literal` (all carry a primitive `.value`); a wrapper
-// (UnaryMinus, Identifier, TemplateLiteral) yields undefined
-export function literalNodeValue(node) {
-  const t = node?.type;
-  const isLit = t === 'StringLiteral' || t === 'NumericLiteral' || t === 'BooleanLiteral' || t === 'Literal';
-  return isLit && typeof node.value !== 'object' ? node.value : undefined;
+// the literal VALUE of a literal NODE (a call arg or a TSLiteralType's `.literal`) for overload
+// discrimination, via the canonical cross-parser extractor (babel `BigIntLiteral` and an oxc bigint
+// `Literal` canonicalize to one BigInt value; `-N` negations resolve). a non-primitive `.value`
+// (estree regex `Literal`, `null`) cannot be spelled by a TSLiteralType param, so it does not
+// discriminate - yields undefined like any other non-literal shape
+function overloadLiteralValue(node) {
+  const value = literalNodeValue(node);
+  return value !== null && typeof value !== 'object' ? value : undefined;
 }
 
-// the literal value of a literal-typed param (`k: 'a'` / `k: 1` / `k: true`), or undefined
+// the literal value of a literal-typed param (`k: 'a'` / `k: 1` / `k: true` / `k: 1n`), or undefined
 export function paramLiteralValue(param) {
   const lit = param?.typeAnnotation?.typeAnnotation;
-  return lit?.type === 'TSLiteralType' ? literalNodeValue(lit.literal) : undefined;
+  return lit?.type === 'TSLiteralType' ? overloadLiteralValue(lit.literal) : undefined;
 }
 
 // TS overload selection by args, LITERAL-aware. a literal-discriminated overload (`get('a'): A; get('b'): B`,
@@ -332,7 +333,7 @@ export function paramLiteralValue(param) {
 // the kind from `resolveNodeType`. owning this extraction keeps the matcher's input contract in one place
 export function matchOverloadByArgs(overloads, getParams, argPaths, resolveNodeType) {
   if (overloads.length < 2) return null;
-  const argLiterals = argPaths.map(a => literalNodeValue(a.node));
+  const argLiterals = argPaths.map(a => overloadLiteralValue(a.node));
   const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
   if (argLiterals.some(v => v !== undefined)) {
     const byLiteral = overloads.find(ov => {

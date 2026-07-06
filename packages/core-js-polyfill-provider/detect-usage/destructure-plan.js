@@ -23,7 +23,6 @@ import {
   propBindingIdentifier,
   propertyKeyName,
   reassignmentBlocksGlobalResolve,
-  staticStringKey,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
@@ -142,15 +141,6 @@ function symbolIteratorLocalName(outerProp) {
   return propBindingIdentifier(outerProp.value)?.name ?? null;
 }
 
-// resolve a nested-flatten prop's key to its static name via the canonical property-key
-// resolver: non-computed Identifier AND string-literal keys (`{ "Array": {...} }`), computed
-// string / single-quasi literals. null for a dynamic computed key (`[k]`) - the flatten
-// bails the prop to verbatim
-function flattenKeyName(prop) {
-  if (prop.computed) return staticStringKey(prop.key);
-  return propertyKeyName(prop);
-}
-
 function hasExtractions(planNode) {
   return !!planNode.extractions?.length;
 }
@@ -164,7 +154,7 @@ function hasExtractions(planNode) {
 // `enhanceMeta`'s member-like check for instance resolutions
 export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure, isDisabled = null }) {
   if (isDisabled?.(prop)) return null;
-  const name = isPropertyNode(prop) ? flattenKeyName(prop) : null;
+  const name = isPropertyNode(prop) ? propertyKeyName(prop) : null;
   if (name === null) return null;
   const valueNode = propBindingIdentifier(prop.value);
   if (!valueNode) return null;
@@ -268,7 +258,7 @@ export function buildNestedDestructurePlan({
   function planOuterProp(outerProp) {
     const symbolPlanned = planSymbolIteratorProp(outerProp);
     if (symbolPlanned) return symbolPlanned;
-    const name = isPropertyNode(outerProp) ? flattenKeyName(outerProp) : null;
+    const name = isPropertyNode(outerProp) ? propertyKeyName(outerProp) : null;
     if (name === null) return { kind: 'verbatim', prop: outerProp };
     const value = peelInnerDefault(outerProp.value);
     if (value?.type === 'ObjectPattern') {
@@ -304,7 +294,7 @@ export function buildNestedDestructurePlan({
     // a `core-js-disable`d prop opts out of polyfilling: keep it on the native residual
     if (leafDisabled(planned.prop)) return planned;
     if (outerPattern.properties.some(p => p.type === 'RestElement')) return planned;
-    const name = isPropertyNode(planned.prop) ? flattenKeyName(planned.prop) : null;
+    const name = isPropertyNode(planned.prop) ? propertyKeyName(planned.prop) : null;
     if (name === null || POSSIBLE_GLOBAL_OBJECTS.has(name)) return planned;
     // a MUTATED ctor (`globalThis.Map = Shim` in-file) must read off the PATCHED native binding, not the
     // pure import - the user's replacement wins. mirror the single-ctor anchor's `anchorSlotMutated` bail
@@ -335,7 +325,7 @@ export function buildNestedDestructurePlan({
   // Identifier-valued outer props are NOT supported here - they would name a local binding
   // outside the static path, so static-object descent doesn't apply
   function planOuterPropStatic(outerProp, hostInit, walkPath) {
-    const name = isPropertyNode(outerProp) ? flattenKeyName(outerProp) : null;
+    const name = isPropertyNode(outerProp) ? propertyKeyName(outerProp) : null;
     if (name === null) return { kind: 'verbatim', prop: outerProp };
     const value = peelInnerDefault(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { kind: 'verbatim', prop: outerProp };
