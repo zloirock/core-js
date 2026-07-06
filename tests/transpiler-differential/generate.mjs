@@ -964,6 +964,16 @@ function * generateAssignAliasReassign() {
     // a case-level lexical rebind shadows the outer alias for the whole switch: the outer
     // static keeps resolving (one emitter recorded a spurious violation and bailed - the
     // import sets diverged)
+    // a transparent wrapper between a member and its WRITE / TAG host: the substituted forms
+    // are invalid LHS (parse error) or a silently-returning tag - the gates must climb wrappers
+    { id: 'wrapped-cast-write-target', ts: true,
+      code: '(() => { const a: number[] = [1, 2]; (a.at as any) = function () { return "own"; }; '
+        + 'return Object.prototype.hasOwnProperty.call(a, "at"); })()' },
+    // (wrapped TAG emission is fixture-locked only: a paren/cast tag preserves `this` like a
+    // callee, so the substituted and raw forms coincide at runtime on modern engines)
+    { id: 'wrapped-paren-forx-write',
+      code: '(() => { const f = []; let n = 0; for ((f.at) of [[9]]) n++; '
+        + 'return [n, typeof f.at]; })()' },
     { id: 'switch-case-shadow-outer-resolves',
       code: '(() => { function f(cond, mk) { let M = Array; switch (cond) { case 1: let M = mk(); M = mk(); } '
         + 'return M.from([1, 2]).length; } return f(0, () => 0); })()' },
