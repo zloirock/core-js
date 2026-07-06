@@ -456,6 +456,41 @@ runBoth('typeof guard hints: object spans group',
       hints?.includedHints?.size && hints.includedHints.size > 0);
   });
 
+// --- Scope-model quirk recovery: switch DISCRIMINANT writes under a case-level shadow ---
+// the discriminant evaluates in the OUTER env before the case-block scope exists, so a write
+// buried there targets the outer binding even when a case-level lexical shadows the name; the
+// native scope models attribute it to the inner binding and the canonical merge recovers it
+
+runBoth('canonical violations: discriminant closure write widens the outer narrow',
+  `function f(mk) {
+    let x = 'ab';
+    switch (mk(() => { x = [5]; })) {
+      case 1:
+        let x = 0;
+        mk(x);
+    }
+    return x;
+  }`, (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'x');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(ref), null);
+  });
+
+runBoth('canonical violations: case-level shadow alone keeps the outer narrow',
+  `function f(mk) {
+    let y = 'cd';
+    switch (mk(1)) {
+      case 1:
+        let y = 0;
+        mk(y);
+    }
+    return y;
+  }`, (adapter, prog, lbl) => {
+    const ref = pickReturnArg(adapter, prog, 'y');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
+  });
+
 // --- Member-access object-type resolution (`resolvePropertyObjectType`) ---
 
 runBoth('member object type: [].length -> Array',

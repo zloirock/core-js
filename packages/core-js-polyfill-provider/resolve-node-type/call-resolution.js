@@ -460,7 +460,7 @@ export function createCallResolution({
       return findExpressionAnnotation(path.get('expression'), depth + 1);
     }
     if (t.isIdentifier(path.node)) {
-      const binding = path.scope?.getBinding(path.node.name);
+      const binding = getScopeBinding(path.scope, path.node.name, path);
       if (!binding) return null;
       const annotation = findBindingAnnotation(binding.path);
       if (annotation) {
