@@ -1222,11 +1222,36 @@ const M_MUTATORS = [
   { id: 'assign', patch: s => `${ s.recv }.${ s.key } = () => "P";` },
   { id: 'defineprop', patch: s => `Object.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
   { id: 'reflect', patch: s => `Reflect.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });` },
+  // a COMPUTED mutator callee and a proxy-global mutator under a local namespace shadow are their own
+  // detection channels: patch AND restore stay on the SAME channel - a bare-assign restore would
+  // self-mark the key and mask whether the channel under test is the thing detected. the shadow
+  // prologue skips Object receivers (the READ would hit the local shadow at runtime)
+  { id: 'computed-defineprop',
+    patch: s => `Object["defineProperty"](${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
+    restore: s => `Object["defineProperty"](${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
+  { id: 'proxy-shadow-defineprop',
+    prologue: 'const Object = { defineProperty() { return 0; } }; void Object.defineProperty;',
+    skipObjectRecv: true,
+    patch: s => `globalThis.Object.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
+    restore: s => `globalThis.Object.defineProperty(${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
+  // an ALIASED namespace and an EXTRACTED mutator binding resolve through the same canons as the
+  // dotted callee - the patch and restore reuse the alias so the channel under test stays the
+  // only mutation channel in the snippet
+  { id: 'aliased-ns-defineprop',
+    prologue: 'const O = Object;',
+    patch: s => `O.defineProperty(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
+    restore: s => `O.defineProperty(${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
+  { id: 'extracted-defineprop',
+    prologue: 'const dp = Object.defineProperty;',
+    patch: s => `dp(${ s.recv }, "${ s.key }", { value: () => "P", writable: true, configurable: true });`,
+    restore: s => `dp(${ s.recv }, "${ s.key }", { value: _o, writable: true, configurable: true });` },
 ];
 function * generateMutatedStatic() {
   for (const s of M_STATICS) {
     for (const mut of M_MUTATORS) {
-      const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ mut.patch(s) } return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
+      if (mut.skipObjectRecv && s.recv === 'Object') continue;
+      const restore = mut.restore ? mut.restore(s) : `${ s.recv }.${ s.key } = _o;`;
+      const body = `(() => { ${ mut.prologue ?? '' } const _o = ${ s.recv }.${ s.key }; try { ${ mut.patch(s) } return ${ s.use }; } finally { ${ restore } } })()`;
       yield { ...snippet(`mutated-static/${ mut.id }/${ s.recv }.${ s.key }`, body), strip: false };
     }
   }
