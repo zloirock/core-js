@@ -1,3 +1,4 @@
+import { safeErrorMessage } from '@core-js/polyfill-provider/helpers/pattern-matching';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
@@ -5,17 +6,6 @@ import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
 function blockify(lines) {
   return `${ lines.join('\n') }\n`;
-}
-
-// guard against adversarial Proxy on a thrown payload making `.message` access (or even
-// `String(error)`) re-throw and corrupting the diagnostic. swallow secondary errors so
-// `appendRight`'s failure stays attributable
-function safeErrorMessage(error) {
-  try {
-    return error?.message ?? String(error);
-  } catch {
-    return '<unreadable>';
-  }
 }
 
 export default class ImportInjector extends ImportInjectorState {
@@ -217,7 +207,10 @@ export default class ImportInjector extends ImportInjectorState {
     // blank line between our injection and the next user line - trim it in that case
     let refsBlock = '';
     if (refs.length) {
-      const needsLead = needsRefLeadingNewlineAt(src, refPos);
+      // ref-block landing right after the trailing user import: without the separator an
+      // ASI-terminated (or even `;`-terminated) import fuses into `import x from "y"var _ref;`.
+      // blank-line trade-off accepted when the next char is already a terminator
+      const needsLead = needsLeadingNewlineAt(src, refPos);
       const nextIsTerminator = refPos < src.length && isLineTerminator(src[refPos]);
       const block = nextIsTerminator ? refs.join('\n') : blockify(refs);
       refsBlock = needsLead ? `\n${ block }` : block;
@@ -371,22 +364,6 @@ function skipShebang(src, pos) {
 // directive line. detection: pos is past file start and the previous char is not a line terminator
 function needsLeadingNewlineAt(src, pos) {
   return pos > 0 && !isLineTerminator(src[pos - 1]);
-}
-
-// ref-block emission lands at `refPos` (right after the trailing user import). when that
-// user import ends without `;` (ASI), refPos sits on whatever token came next - inserting
-// `var _ref;` here would fuse the prior statement into `import x from "y"var _ref;` and
-// crash the next parse pass. detection: prev char is not a line terminator (a `;` terminator
-// still needs the newline so the memo doesn't stick to the import line).
-// blank-line trade-off accepted: when next char is already `\n`, the inserted leading `\n`
-// produces a stylistic blank line BEFORE the block, but the terminator is still required -
-// removing it would let `import "y"<block>` fuse the import into our `var _ref` declaration
-function needsRefLeadingNewlineAt(src, pos) {
-  if (pos <= 0) return false;
-  // a leading `\n` puts the `var _ref;` memo on its own line. needed unless the prior char is
-  // already a line terminator (refPos sits at a newline). a `;` terminator still needs it - without
-  // the newline the memo sticks to the trailing import line (`import x from "y";var _ref;`)
-  return !isLineTerminator(src[pos - 1]);
 }
 
 // skip trailing whitespace + any chain of inline comments from `pos`, returning the position
