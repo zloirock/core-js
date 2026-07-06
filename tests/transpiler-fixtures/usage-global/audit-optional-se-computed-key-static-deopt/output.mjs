@@ -15,6 +15,7 @@ import "core-js/modules/es.string.iterator";
 // instance polyfills (the shape that previously left the callee raw or emitted overlapping
 // rewrites instead of the injected static). a static that resolves NO polyfill on the targets
 // (native-only `Array.isArray`) keeps its guard - the deopt premise is the injected binding
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 let viaThis = 0;
 let viaSuper = 0;
 let viaGlobal = 0;
