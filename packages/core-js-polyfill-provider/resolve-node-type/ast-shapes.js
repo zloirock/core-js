@@ -260,6 +260,8 @@ export function usageCrossesLoopBackEdgeReassign(t, usagePath, violationNodes, b
 export function violationInCapturedFunction(t, violations, stopPath) {
   if (!violations?.length) return false;
   return violations.some(v => {
+    // a canonically-recovered extra has no parent chain to prove it is NOT captured - assume it is
+    if (v.canonicalRecovered) return true;
     // guard `p?.node` (not just `p`): the parent chain can overshoot `stopPath` and reach a
     // detached / tree-root path with a null node, so terminate there - matches the canonical
     // `hasDeferredContextAncestor` / `violationRunsDeferred` walkers that share this predicate
