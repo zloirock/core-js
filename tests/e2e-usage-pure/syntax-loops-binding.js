@@ -258,3 +258,30 @@ QUnit.test('loop: chained withResolvers-driven steps resolve in order', assert =
     async();
   });
 });
+
+// --- Loop clause slots: once-per-entry slots resolve, re-run slots bail ---
+// a loop back-edge re-runs the test / update / for-x left slots, so an alias-keyed static
+// dispatch there BAILS to native dispatch (its emission is locked by transform fixtures; the
+// wrong-value pin is observable in the Node differential, and its native runtime is the
+// engine's own semantics - not asserted here). the ONCE-PER-ENTRY slots below must keep
+// resolving instead: the substituted pure static runs on every engine, and an over-widening
+// of the re-run detection would surface here as a raw native read on engines without it
+
+QUnit.test('loop: for-init computed static resolves and runs the polyfill', assert => {
+  let key = 'from';
+  const first = [];
+  for (let seeded = Array[key]([3, 4]); first.length < 2; key = 'of') first.push(seeded.length);
+  assert.deepEqual(first, [2, 2]);
+  assert.same(key, 'of');
+});
+
+QUnit.test('loop: for-of iterable slot resolves and runs the polyfill once', assert => {
+  let key = 'of';
+  const seen = [];
+  for (const x of Array[key](7, 8)) {
+    seen.push(x);
+    key = 'from';
+  }
+  assert.deepEqual(seen, [7, 8]);
+  assert.same(key, 'from');
+});
