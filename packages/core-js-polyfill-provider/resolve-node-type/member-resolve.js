@@ -480,9 +480,14 @@ export function createMemberResolve({
     // readable-value union below can't represent. narrowing then would mis-dispatch (e.g.
     // `_atMaybeArray` on a method that returns an array). bail to the generic helper (sound)
     if (members.some(m => isMethodShapeMember(m.type) && m.kind !== 'get')) return null;
-    const valueAnnotations = members
-      .map(m => m.typeAnnotation ?? m.returnType)
-      .filter(Boolean);
+    const valueAnnotations = [];
+    for (const m of members) {
+      const annotation = m.typeAnnotation ?? m.returnType;
+      // an untyped (implicit-any) member makes the union `any` - mirrors the annotation-side
+      // keyof-self fold: no surviving-member narrow is sound
+      if (!annotation) return null;
+      valueAnnotations.push(annotation);
+    }
     if (!valueAnnotations.length) return null;
     return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, param.scope));
   }
