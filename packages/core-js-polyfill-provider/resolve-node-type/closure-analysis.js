@@ -307,7 +307,7 @@ export function createClosureAnalysis({
           return destructureVarTargetLeaks({ pattern: parent.id, scope: parentPath.scope, anchorPath: objectPath, fieldPath });
         // `x = <carrier>` (locally rebinds x) / `obj.f = <carrier>` (member store) AND forwards the value.
         // a logical-assign (`x ||= ...` / `obj.f ??= ...`) stores the RHS by reference too - same routing;
-        // a coercing compound (`+=`, ...) is filtered by REF_STORING_ASSIGN_OPS and stays local.
+        // a coercing compound (`+=`, ...) is excluded from `VALUE_FLOW_ASSIGN_OPS` and stays local.
         // escape if the target leaks - x via the bound-path leak analysis, `obj.f` via its root binding -
         // OR the assignment's own value-position escapes (`return (x = [...])` / `f(obj.f = [...])`).
         // a destructuring LHS (`({ x: f } = { x: {...} })` / `[f] = [...]`) binds the matched values to
