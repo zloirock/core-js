@@ -607,7 +607,27 @@ export default function plugin(api, options) {
           skippedNodes.add(n);
           if (n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression') guardedNarrowRendered.add(n);
         });
-        path.replaceWith(guard);
+        // the generator prints the `expr<T>` instantiation slot without the parens its precedence
+        // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
+        // uninvoked; `tern as any<T>(x)` re-parses the type-argument list into a type) - walk the
+        // wrapper chain above the replaced member and parenthesize the slot-filling node; postfix
+        // `!` and existing parens already bind tighter than the argument list
+        let instantiationSlot = null;
+        for (let cur = path; cur.parentPath; cur = cur.parentPath) {
+          const parentType = cur.parentPath.node?.type;
+          if (parentType === 'TSInstantiationExpression') {
+            const slotType = cur.node.type;
+            if (slotType !== 'ParenthesizedExpression' && slotType !== 'TSNonNullExpression') instantiationSlot = cur;
+            break;
+          }
+          if (!TS_EXPR_WRAPPERS.has(parentType) && parentType !== 'ChainExpression'
+            && parentType !== 'ParenthesizedExpression') break;
+        }
+        if (instantiationSlot === path) path.replaceWith(t.parenthesizedExpression(guard));
+        else {
+          path.replaceWith(guard);
+          if (instantiationSlot) instantiationSlot.replaceWith(t.parenthesizedExpression(instantiationSlot.node));
+        }
         return true;
       }
 

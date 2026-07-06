@@ -7,6 +7,7 @@ import {
   proxyNavRootIsSequence,
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
+  unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
@@ -262,26 +263,16 @@ function proxyGlobalChainRootName({ node, scope, adapter, path }) {
 // descending), an SE-bearing chain-root call (interleaved at its true position via the rescue
 // channel), and every effect buried in a computed member KEY the discard folds away
 // (`globalThis[(c++, 'self')]` - a chain-assignment/root-call-only probe dropped the key effect).
-// the destructure flatten consults this for the init it is about to discard; callers re-emit the
-// returned nodes ahead of the extraction or keep the init verbatim. NOT for the `in` fold, whose
-// planner rescues a DIRECT assignment RHS itself - routing it through here would double-rescue
+// the root call evaluates at its true source position - BEFORE any hop-key effect above it
+// (`mk()[(eff(), 'self')].Array` runs mk THEN eff) - so it interleaves via the rescue channel,
+// never appends last. the destructure flatten consults this for the init it is about to discard,
+// and the fallback-logical synth-collapse (`{from} = LEFT || Set`) for the resolved LEFT it folds
+// away; callers re-emit the returned nodes ahead of the extraction / polyfill literal or keep the
+// init verbatim. NOT for the `in` fold, whose planner rescues a DIRECT assignment RHS itself -
+// routing it through here would double-rescue
 export function discardRescueNodes({ node, scope, adapter, path }) {
   const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
   return collectFoldedReceiverSideEffects(node, [], rootCall ? new Set([rootCall]) : null);
-}
-
-// ordered side effects a fallback-logical synth-collapse (`{from} = LEFT || Set`) must re-emit ahead
-// of the polyfill literal: the structural prefixes of the resolved LEFT operand (`(eff(), Array)` ->
-// `eff()`, plus the `+`-concat / template / computed-key fold-shapes the harvest already descends)
-// AND a SE-bearing call at the chain ROOT of a call-rooted left (`IIFE().Array` / `mk().Array` -> the
-// call), which the structural walk stops short of. the root call evaluates at its source position
-// (after any structural prefix), so it appends last. shared by both emitters so the rescue set and
-// its order cannot diverge between AST mutation and text compose
-export function collectFallbackCollapseLeftSe({ leftNode, scope, adapter, path }) {
-  const out = collectFoldedReceiverSideEffects(leftNode);
-  const rootCall = seBearingChainRootCall({ node: leftNode, scope, adapter, path });
-  if (rootCall && !out.includes(rootCall)) out.push(rootCall);
-  return out;
 }
 
 // a rescued synth-swap receiver whose VALUE is discarded but whose verbatim re-emit would read an
@@ -480,8 +471,12 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     kind: 'property', object: meta.guardedAliasHint, key: meta.key, placement: 'static',
   }, path);
   if (staticPure?.kind !== 'static') return meta.guardOnly ? { bail: true } : null;
+  // the callee slot may hold a this-PRESERVING wrapper over the member (`(M.groupBy as any)(...)`,
+  // `(M.groupBy)(...)` - oxc keeps the paren node, babel only marks `extra.parenthesized`): peel
+  // parens / TS / chain so the raw branch still binds `this`. sequences are NOT peeled - a
+  // `(0, M.groupBy)(...)` callee detaches `this` natively, so it must NOT classify as a callee
   const isCallee = (parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
-    && parent.callee === memberNode;
+    && unwrapRuntimeExpr(parent.callee) === memberNode;
   // estree marks optionality with `optional: true` (no Optional* node types) - check both encodings
   if (isCallee && (parent.type === 'OptionalCallExpression' || parent.optional
     || memberNode.type === 'OptionalMemberExpression' || memberNode.optional)) {
@@ -903,17 +898,21 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
   // `(c++, globalThis).self.Symbol.iterator`) is fully dropped when the eliminated `o[key]` rewrites to
   // `_getIteratorMethod(o)`; descend the whole chain receiver and harvest every buried effect at any hop
   // depth so they re-emit. only the chain form (`X.Symbol`, a member) drops it - a direct `(c++, Symbol)`
-  // keeps the whole key (SE survives there). the chain-root CALL is left to `collectChainRootCallEffect`
-  // (its purity is scope-aware), so no double-collect with the structural descent here
+  // keeps the whole key (SE survives there). an SE-bearing chain-root CALL (purity is scope-aware)
+  // interleaves via the rescue channel at its true source position - BEFORE the buried hop-key
+  // effects the descent collects (`mk()[(c++, 'Symbol')].iterator` runs mk THEN c++); a
+  // walk-then-append two-step would reverse that order.
   // peel transparent wrappers first: `(globalThis[(c++,'self')].Symbol).iterator` PARENTHESIZES the chain
   // receiver, so a raw `.type === MemberExpression` check would miss it and DROP the buried `c++` when the
   // whole `o[key]` rewrites to `_getIteratorMethod(o)`
   let symbolReceiver = prop.object;
   while (symbolReceiver && isTransparentWrapper(symbolReceiver)) symbolReceiver = symbolReceiver.expression;
   if (symbolReceiver?.type === 'MemberExpression' || symbolReceiver?.type === 'OptionalMemberExpression') {
-    collectFoldedReceiverSideEffects(symbolReceiver, sideEffects);
+    const rescue = seedChainRootCallRescue({ node: prop, scope, adapter, path });
+    collectFoldedReceiverSideEffects(symbolReceiver, sideEffects, rescue);
+  } else {
+    collectChainRootCallEffect({ node: prop, sideEffects, scope, adapter, path });
   }
-  collectChainRootCallEffect({ node: prop, sideEffects, scope, adapter, path });
   const keyNode = prop.computed
     ? unwrapParensCollectingEffects(prop.property, sideEffects) : prop.property;
   const name = resolveKey({ node: keyNode, computed: prop.computed, scope, adapter, path });
