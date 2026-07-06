@@ -6703,4 +6703,76 @@ runBoth('opaque arg through the same member chain stays opaque',
     check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
+// --- class-level type-param opaque instantiation (body-clobber guard) ---
+// a class instantiated with a type-arg the resolver can't type must resolve the
+// type-param-returning METHOD to null (generic downstream) - the method body's stub
+// return must not clobber the declared-but-opaque annotation (a `return null as any`
+// stub suppressed injection entirely; a `return [] as any` stub emitted an
+// array-specific Maybe on a foreign receiver). resolvable / omitted-default
+// instantiations keep their precision
+
+runBoth('class method: opaque alias arg resolves null, not the stub body',
+  'type Foo = { z: 1; }; class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder<Foo>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class method: opaque arg with a CONCRETE stub body still resolves null',
+  'type Foo = { z: 1; }; class Holder<T = string> { get(): T { return [] as any; } } '
+    + 'declare const h: Holder<Foo>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class method: undeclared ref arg resolves null',
+  'class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder<Undeclared>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class method: resolvable arg keeps precision',
+  'class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder<number[]>; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('class method: omitted arg legitimately binds the default',
+  'class Holder<T = string> { get(): T { return null as any; } } '
+    + 'declare const h: Holder; const out = h.get();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('class method: non-param return keeps body inference',
+  'class Holder<T = string> { list(): SomeAlias { return [1] as any; } } '
+    + 'declare const h: Holder<number>; const out = h.list();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('class getter: opaque arg resolves null',
+  'type Foo = { z: 1; }; class Holder<T = string> { get v(): T { return null as any; } } '
+    + 'declare const h: Holder<Foo>; const out = h.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('class property: opaque arg resolves null',
+  'type Foo = { z: 1; }; class Holder<T = string> { v: T; } '
+    + 'declare const h: Holder<Foo>; const out = h.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
 finish();
