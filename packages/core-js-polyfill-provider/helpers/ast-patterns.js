@@ -889,15 +889,33 @@ export function collectScopeLetReassignments(declaratorPath, name) {
   return scopeNode ? collectScopeReassignmentNodes(scopeNode, name, declaratorPath.node) : [];
 }
 
-// loop bodies re-run their contents each iteration; a loop's INIT / test / update run at most once
-// per entry, so a `for (var M = ...; ;)` init is not a re-run - only the body field is one
-const LOOP_BODY_FIELD = {
-  ForStatement: 'body',
-  ForInStatement: 'body',
-  ForOfStatement: 'body',
-  WhileStatement: 'body',
-  DoWhileStatement: 'body',
+// per-loop-field control-flow traits, single-sourced so the USE-side re-run walk and the
+// WRITE-side conditional-dominance walk cannot drift apart:
+//   rerun - the back-edge re-executes the field each iteration, so a use there can observe a
+//           textually-later write. a `for`'s TEST and UPDATE, a while/do-while TEST and a
+//           for-in/of LEFT (its pattern defaults / computed keys) all re-run; only the `for`
+//           INIT and the for-x RIGHT (the iterable) run once per entry.
+//   conditional - the field executes 0+ times, so a write there does NOT dominate a later use.
+//           the UPDATE runs only after a completed iteration; a TEST runs at least once when
+//           the loop is reached, so it dominates like straight-line code. the do-while BODY
+//           also runs at least once - kept conditional as the existing conservative direction
+//           (dominance denied -> global unions, over-inject-safe). for-x LEFT writes carry
+//           dynamic values, so dominance is never claimed for them through a separate gate
+const LOOP_FIELD_TRAITS = {
+  ForStatement: { body: { rerun: true, conditional: true }, test: { rerun: true }, update: { rerun: true, conditional: true } },
+  ForInStatement: { body: { rerun: true, conditional: true }, left: { rerun: true } },
+  ForOfStatement: { body: { rerun: true, conditional: true }, left: { rerun: true } },
+  WhileStatement: { body: { rerun: true, conditional: true }, test: { rerun: true } },
+  DoWhileStatement: { body: { rerun: true, conditional: true }, test: { rerun: true } },
 };
+
+function loopFieldsWithTrait(trait) {
+  return Object.fromEntries(Object.entries(LOOP_FIELD_TRAITS)
+    .map(([type, fields]) => [type, Object.keys(fields).filter(field => fields[field][trait])]));
+}
+
+const LOOP_RERUN_FIELDS = Object.fromEntries(Object.entries(loopFieldsWithTrait('rerun'))
+  .map(([type, fields]) => [type, new Set(fields)]));
 
 // does `name`'s function-scoped `var` declarator sit inside a loop BODY (re-run each iteration)?
 // a self-ref `var X = X` re-run by a loop reads the local binding (undefined on iteration 1), so it
@@ -921,25 +939,26 @@ function memoizeByNodePair(compute) {
   };
 }
 
-// does `target` sit inside a loop BODY within `ownerNode`'s var scope (re-run each iteration)?
-// stops at nested var-scope boundaries. shared by the named-declarator check below and the
-// usage-pure reachability gate - a use re-run by a loop back-edge can observe a textually-later write
-const nodeSitsInLoopBodyWithin = memoizeByNodePair((ownerNode, target) => {
+// does `target` sit inside a loop RE-RUN region within `ownerNode`'s var scope (a field the
+// back-edge re-executes each iteration)? stops at nested var-scope boundaries. shared by the
+// named-declarator check below and the usage-pure reachability gate - a use re-run by a loop
+// back-edge can observe a textually-later write
+const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
   let result = false;
-  function visit(node, inLoopBody) {
+  function visit(node, inLoopRerun) {
     if (result || !isASTNode(node)) return;
     if (node === target) {
-      result = inLoopBody;
+      result = inLoopRerun;
       return;
     }
     if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
-    const loopField = LOOP_BODY_FIELD[node.type];
+    const rerunFields = LOOP_RERUN_FIELDS[node.type];
     for (const key of Object.keys(node)) {
       if (result) return;
       const value = node[key];
-      const childInLoopBody = inLoopBody || key === loopField;
-      if (Array.isArray(value)) for (const v of value) visit(v, childInLoopBody);
-      else if (isASTNode(value)) visit(value, childInLoopBody);
+      const childInLoopRerun = inLoopRerun || !!rerunFields?.has(key);
+      if (Array.isArray(value)) for (const v of value) visit(v, childInLoopRerun);
+      else if (isASTNode(value)) visit(value, childInLoopRerun);
     }
   }
   visit(ownerNode, false);
@@ -950,7 +969,7 @@ export function isVarDeclaratorInLoopBody(path, name) {
   const owner = findNearestVarScopeOwner(path);
   const target = owner && collectScopeVars(owner.node).get(name);
   if (!target) return false;
-  return nodeSitsInLoopBodyWithin(owner.node, target);
+  return nodeSitsInLoopRerunWithin(owner.node, target);
 }
 
 // branches whose body runs only on some control-flow paths. a target nested under one is
@@ -967,11 +986,8 @@ export function isVarDeclaratorInLoopBody(path, name) {
 // always run, so they are NOT recorded
 const CONDITIONAL_BRANCH_FIELDS = {
   IfStatement: ['consequent', 'alternate'],
-  ForStatement: ['body'],
-  ForInStatement: ['body'],
-  ForOfStatement: ['body'],
-  WhileStatement: ['body'],
-  DoWhileStatement: ['body'],
+  // loop fields derive from the shared trait table above
+  ...loopFieldsWithTrait('conditional'),
   SwitchCase: ['consequent'],
   TryStatement: ['block'],
   CatchClause: ['body'],
@@ -1127,7 +1143,7 @@ export function reassignmentDominatesUsage({ reassignmentNodes, usagePath, usage
   // reassignment provably dominates such a use - keep resolving the init (over-inject-safe). the
   // textual-precedence check below can't see this, so guard it the same way the pure / reaching
   // siblings (`noReassignmentReachesUsage`, `reassignmentValueNodes`) do
-  if (nodeSitsInLoopBodyWithin(owner.node, usageNode ?? usagePath.node)) return false;
+  if (nodeSitsInLoopRerunWithin(owner.node, usageNode ?? usagePath.node)) return false;
   return reassignmentNodes.some(node => nodeDominatesUsage({ node, usagePath, owner, climb: false, usageNode }));
 }
 
@@ -1151,7 +1167,7 @@ export function noReassignmentReachesUsage({ reassignmentNodes, usagePath }) {
   if (!reassignmentNodes?.length) return true;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
-  if (nodeSitsInLoopBodyWithin(owner.node, usagePath.node)) return false;
+  if (nodeSitsInLoopRerunWithin(owner.node, usagePath.node)) return false;
   return reassignmentNodes.every(node => nodeFollowsUsageInScope({ node, usagePath, owner }));
 }
 
@@ -1237,7 +1253,7 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, 
   // at the declarator, not at the eventual use of `b`): a write to `a` AFTER that read does not reach
   // the captured value, so it is excluded below and the live declarator-init resolves
   const readNode = usageNode ?? usagePath.node;
-  if (nodeSitsInLoopBodyWithin(owner.node, readNode)) return null;
+  if (nodeSitsInLoopRerunWithin(owner.node, readNode)) return null;
   const bindingName = binding.node?.id?.type === 'Identifier' ? binding.node.id.name : null;
   const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, readNode));
   if (!before.length) return null;
@@ -1282,7 +1298,7 @@ export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = 
   // `usageNode` is a multi-hop alias hop's read site: a transitive source's write AFTER that read
   // (`const a = src; src = X`) cannot reach the captured value, so it is not a reachable union value
   const readNode = usageNode ?? usagePath.node;
-  const useInLoop = nodeSitsInLoopBodyWithin(owner.node, readNode);
+  const useInLoop = nodeSitsInLoopRerunWithin(owner.node, readNode);
   const out = [];
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
     if (!useInLoop && endsBeforeStart(readNode, node, false)) continue;
@@ -2765,9 +2781,16 @@ function iifeBodyReturn(callee, paramNames) {
 // function that shadows the param with its own binding is likewise skipped
 export function paramReboundInBody(node, paramNames) {
   if (!node || paramNames.size === 0 || typeof node !== 'object' || typeof node.type !== 'string') return false;
-  if (node.type === 'UpdateExpression') return node.argument?.type === 'Identifier' && paramNames.has(node.argument.name);
+  // the write-target slots recurse too: an LHS pattern carries writes in its DEFAULT values
+  // (`({ x = (arg = P) } = {})`) and computed member keys (`o[arg = P] = 1`, `o[arg = P]++`),
+  // which the binding-leaf walk deliberately skips - an unconditional return would drop them
+  if (node.type === 'UpdateExpression') {
+    return (node.argument?.type === 'Identifier' && paramNames.has(node.argument.name))
+      || paramReboundInBody(node.argument, paramNames);
+  }
   if (node.type === 'AssignmentExpression') {
-    return patternBindsIdentifier(node.left, id => paramNames.has(id.name)) || paramReboundInBody(node.right, paramNames);
+    return patternBindsIdentifier(node.left, id => paramNames.has(id.name))
+      || paramReboundInBody(node.left, paramNames) || paramReboundInBody(node.right, paramNames);
   }
   // a for-of / for-in head assigns the loop target each iteration (bare target / pattern, not a
   // fresh `let`/`const`/`var` that introduces its own binding)
