@@ -24,6 +24,8 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
+  collectFunctionScopeVarReassignments,
+  collectScopeLetReassignments,
   findFunctionScopeVarInPath,
   findIifeArgForParam,
   findIifeCallSite,
@@ -187,7 +189,15 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // actual scope binding IS that import. `info.source === null` is a destructure-alias from
         // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
         // to the destructured global, any declaration kind) and rejects user-declared shadows
-        const constantViolations = withoutValuelessDeclarationViolations(b.constantViolations);
+        // babel's scope model places the whole SwitchStatement - discriminant included - inside
+        // the case-block scope, so a discriminant write of a name that a case-level lexical
+        // shadows is attributed to the INNER binding and the outer binding's set misses it (per
+        // spec the discriminant evaluates in the OUTER env). recompute through the canonical AST
+        // scan per binding kind - the same recovery the unplugin adapter applies to estree scope
+        const constantViolations = withoutValuelessDeclarationViolations(
+          path && b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
+            : path && (b.kind === 'let' || b.kind === 'const') ? collectScopeLetReassignments(b.path, name)
+              : b.constantViolations);
         // a VERIFIED identity hit needs no live shape verification: the registration judged the
         // binding's COMPLETE original write set at pre-pass time, and any violation appearing
         // since is our own mutation (the value swap), not user flow. decl-form entries stay

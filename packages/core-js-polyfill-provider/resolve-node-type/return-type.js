@@ -29,6 +29,7 @@ import { getTypeArgs, spreadAtOrBefore } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
+  getScopeBinding,
   t,
   babelNodeType,
   unwrapTypeAnnotation,
@@ -174,7 +175,7 @@ export function createReturnType({
     // type stays authoritative - narrowing to the arg's `undefined` would drop the polyfill. any
     // `void <x>` yields undefined; bare `undefined` only when unshadowed (it's a writable global)
     if (arg.type === 'UnaryExpression' && arg.operator === 'void') return false;
-    if (isBareUndefinedIdentifier(arg) && !callPath.scope?.getBinding?.('undefined')) return false;
+    if (isBareUndefinedIdentifier(arg) && !getScopeBinding(callPath.scope, 'undefined')) return false;
     return true;
   }
 
@@ -182,7 +183,7 @@ export function createReturnType({
   function resolveBodyExpr(path, fnPath, callPath) {
     const resolved = callPath ? resolvePath(path) : null;
     const refBinding = resolved && t.isIdentifier(resolved.node)
-      ? resolved.scope?.getBinding(resolved.node.name) : null;
+      ? getScopeBinding(resolved.scope, resolved.node.name, resolved) : null;
     const validBinding = refBinding && !refBinding.constantViolations?.length ? refBinding : null;
     // a positional arg overrides a param's default - prefer the arg over the body-local type,
     // which would surface the default and mask the argument. `validBinding` is null for a param
