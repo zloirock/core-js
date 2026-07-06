@@ -491,6 +491,44 @@ runBoth('canonical violations: case-level shadow alone keeps the outer narrow',
     checkType(lbl, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
   });
 
+// --- `T[keyof T]` value union: dropped members must not leave a container narrow ---
+
+runBoth('keyof-self union: method member folds to Function and bails the mixed union',
+  `interface Mixed { run(): void; xs: number[]; }
+   declare const v: Mixed[keyof Mixed];
+   const r = v;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('keyof-self union: untyped member poisons the union to generic',
+  `interface Loose { xs: number[]; blah; }
+   declare const w: Loose[keyof Loose];
+   const r = w;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('keyof-self union: class method member bails the mixed union like the interface form',
+  `class CM { run(): void {} xs: number[] = []; }
+   declare const v: CM[keyof CM];
+   const r = v;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('keyof-self union: homogeneous containers still narrow',
+  `interface Homo { xs: number[]; ys: boolean[]; }
+   declare const h: Homo[keyof Homo];
+   const r = h;`, (adapter, prog, lbl) => {
+    const [decl] = adapter.collectPaths(prog, 'VariableDeclarator', p => p.node.id?.name === 'r');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
 // --- Member-access object-type resolution (`resolvePropertyObjectType`) ---
 
 runBoth('member object type: [].length -> Array',
