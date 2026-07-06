@@ -693,7 +693,10 @@ export default function plugin(api, options) {
             // this-receiver dispatch cannot route through the substituted constructor object
             // (the patch lives on the namespace, not the prototype chain) - keep the bail
             if (inheritedStatic && isMutatedStaticMeta(meta, mutatedStatics)) return;
-            if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
+            // the tag slot may hold a TS wrapper over the member (`(arr.at as any)\`x\`` - the
+            // wrapper survives in babel's AST): climb to the tagged-template host; the shared
+            // predicate unwraps its tag slot, so the identity subsumes the old `path.key` check
+            if (isTaggedTemplateTag(unwrapTSExpressionParent(path).parentPath?.node, path.node, meta.placement)) return;
             // provenance gate: a string-spelled key (`arr['Symbol.iterator']`) is a plain
             // property read and stays raw
             if (isSourcedSymbolIteratorMeta(meta)) {
