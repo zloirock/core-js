@@ -1069,6 +1069,35 @@ export function descendToChainRoot(node, throughChainAssign = false) {
   return { root, firstHop, optionalCount };
 }
 
+// optional flags within the node's OWN unterminated chain: the raw member / call descent stops at
+// any SEALING wrapper - parens, `as`-casts and sequences terminate the `?.` short-circuit in both
+// grammars (babel stops its Optional* type promotion there; estree closes the ChainExpression) -
+// while the chain-transparent postfix `!` (TSNonNullExpression) continues it. contrast with
+// `descendToChainRoot`, whose ROOT-finding walk deliberately peels the full wrapper set: its
+// optionalCount aggregates across sealed boundaries and over-reports for chain SEMANTICS (an
+// emit route keyed on it would treat `(a?.b).c` like a live `?.` and mis-place receiver SE)
+export function ownChainOptionalCount(node) {
+  let count = 0;
+  let cur = node;
+  let depth = 0;
+  while (cur && depth++ <= MAX_KEY_DEPTH) {
+    // babel keeps no paren NODES - a parenthesized subexpression carries `extra.parenthesized`;
+    // reaching one below the start seals the chain exactly like estree's ParenthesizedExpression
+    // (which the member type-check below stops at). the START node's own parens wrap the outer
+    // context, not its inner chain, so they do not seal
+    if (cur !== node && cur.extra?.parenthesized) break;
+    if (cur.type === 'TSNonNullExpression') {
+      cur = cur.expression;
+      continue;
+    }
+    if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression'
+      && cur.type !== 'CallExpression' && cur.type !== 'OptionalCallExpression') break;
+    if (cur.optional) count++;
+    cur = cur.object ?? cur.callee;
+  }
+  return count;
+}
+
 // find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain.
 // `aliasCtx` ({ scope, adapter, path }), when supplied, makes the root check follow const-alias
 // roots through the canonical resolver (`const g = globalThis; g.self.X`); without it the root is
