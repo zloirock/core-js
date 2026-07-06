@@ -914,6 +914,49 @@ function * generateAssignAliasReassign() {
     { id: 'refused-reassigned-this-binding',
       code: '(() => { let M; ({ Map: M } = globalThis); M = { tag: "U", groupBy() { return this.tag; } }; '
         + 'return M.groupBy(); })()' },
+    // a this-PRESERVING wrapper between the guarded member and its call: the raw branch must
+    // still bind `this` (the wrapper peels alike on both parsers); a SEQUENCE callee detaches
+    // `this` natively and the guard must NOT re-bind it
+    { id: 'refused-paren-callee-this-binding',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'M = { tag: "P", groupBy() { return this && this.tag; } }; return (M.groupBy)([1]); } return t(false); })()' },
+    { id: 'refused-cast-callee-this-binding', ts: true,
+      code: '(() => { function t(c: boolean) { let M: any; if (c) ({ Map: M } = globalThis); '
+        + 'M = { tag: "C", groupBy() { return this && this.tag; } }; return (M.groupBy as any)([1]); } return t(false); })()' },
+    { id: 'refused-seq-callee-detached-this',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'M = { tag: "S", groupBy() { return this && this.tag || "detached"; } }; return (0, M.groupBy)([1]); } return t(false); })()' },
+    // a wrapped OPTIONAL callee bails out of the guard: the raw read keeps `this` = the alias
+    { id: 'refused-paren-optional-callee-this-binding',
+      code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+        + 'M = { tag: "O", groupBy() { return this && this.tag; } }; return (M.groupBy)?.([1]); } return t(false); })()' },
+    // an instantiation-expression callee: the guard conditional must stay parenthesized in the
+    // `expr<T>` slot - printed bare, the call re-parses into the alternate and the TAKEN branch
+    // returns the polyfill uninvoked
+    { id: 'refused-instantiation-callee-this-binding', ts: true,
+      code: '(() => { function t(c: boolean) { let M: any; if (c) ({ Map: M } = globalThis); '
+        + 'else M = { tag: "N", groupBy() { return this && this.tag; } }; '
+        + 'return c ? typeof (M.groupBy<any>)([1, 2], x => x % 2) : (M.groupBy<any>)([1]); } '
+        + 'return [t(true), t(false)]; })()' },
+    // a wrapper STACK in the instantiation slot (`(expr as any)<T>`): the slot-filling cast must
+    // stay parenthesized or the type-argument list re-parses into a type
+    { id: 'refused-cast-instantiation-callee-this-binding', ts: true,
+      code: '(() => { function t(c: boolean) { let M: any; if (c) ({ Map: M } = globalThis); '
+        + 'else M = { tag: "W", groupBy() { return this && this.tag; } }; '
+        + 'return c ? typeof ((M.groupBy as any)<any>)([1, 2], x => x % 2) : ((M.groupBy as any)<any>)([1]); } '
+        + 'return [t(true), t(false)]; })()' },
+    // a call-rooted fallback LEFT with an SE-bearing hop key: the discarded left re-emits its
+    // effects in SOURCE order (chain-root call BEFORE the hop-key effect)
+    // the hop stays on a `globalThis` key: `self` is undefined in the bare-Node differential
+    // realm and a native `.Array` read off it would throw before the order is observable
+    { id: 'fallback-collapse-callroot-key-order',
+      code: '(() => { const log = []; function f({ from } = (() => (log.push("call"), globalThis))()'
+        + '[(log.push("key"), "globalThis")].Array || Set) { return typeof from; } const t = f(); return [log.join("-"), t]; })()' },
+    // a call-rooted Symbol chain in a computed KEY: the iterator-helper collapse discards the
+    // receiver, whose effects re-emit in SOURCE order (chain-root call BEFORE the hop-key effect)
+    { id: 'computed-symbol-key-callroot-key-order',
+      code: '(() => { const log = []; const m = [1, 2][(() => (log.push("call"), globalThis))()'
+        + '[(log.push("key"), "Symbol")].iterator]; return [log.join("-"), typeof m]; })()' },
     { id: 'refused-optional-read-untaken',
       code: '(() => { function t(c) { let M; if (c) ({ Map: M } = globalThis); return typeof M?.groupBy; } '
         + 'return t(false); })()' },
@@ -1068,7 +1111,9 @@ function * generateAssignAliasReassign() {
         + 'try { const { rand, other } = (n++, M); return [typeof rand, typeof other, n]; } catch (e) { return ["T", n]; } } '
         + 'return [t(true), t(false)]; })()' },
   ];
-  for (const c of REFUSED_NATIVE) yield { ...snippet(`assign-alias-reassign/${ c.id }`, c.code), strip: false };
+  for (const c of REFUSED_NATIVE) {
+    yield { ...snippet(`assign-alias-reassign/${ c.id }`, c.code), strip: false, ts: !!c.ts };
+  }
 }
 
 // --- Conditional-receiver destructure mirror grammar ---
