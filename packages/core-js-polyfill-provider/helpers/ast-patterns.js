@@ -3617,19 +3617,22 @@ const TRANSPARENT_WRAPPER_TYPES = new Set([
 ]);
 
 // walk every Identifier reachable from a binding pattern (`{a, b: [c]}`, `[d, ...e]`,
-// `f = 1`, `{g = 2}`, etc.), invoking `visit(identifierNode)` per leaf. caller is
-// responsible for short-circuit via captured flag since we always walk the whole tree.
-// peels ParenthesizedExpression (oxc preserves; babel strips) so `({x})` patterns aren't
-// silently dropped from the binding scan
-export function walkPatternIdentifiers(node, visit) {
+// `f = 1`, `{g = 2}`, etc.), invoking `visit(identifierNode, depth)` per leaf. `depth`
+// counts the container levels the pattern unwraps to reach the target (one per object
+// property / array element; a rest target receives a same-shape container of the remaining
+// slots, so its level doesn't count) - field-path consumers align it with slot steps,
+// name-only callers ignore it. caller is responsible for short-circuit via captured flag
+// since we always walk the whole tree. peels ParenthesizedExpression (oxc preserves;
+// babel strips) so `({x})` patterns aren't silently dropped from the binding scan
+export function walkPatternIdentifiers(node, visit, depth = 0) {
   if (!node) return;
   if (node.type === 'ParenthesizedExpression') {
-    walkPatternIdentifiers(node.expression, visit);
+    walkPatternIdentifiers(node.expression, visit, depth);
     return;
   }
   switch (node.type) {
     case 'Identifier':
-      visit(node);
+      visit(node, depth);
       break;
     case 'ObjectPattern':
       for (const p of node.properties) {
@@ -3637,25 +3640,28 @@ export function walkPatternIdentifiers(node, visit) {
         // of `RestElement` inside an ObjectPattern. both wrap the rest-binding identifier
         // in `.argument`, so peel symmetrically - missing `SpreadElement` would silently
         // drop the rest binding from the scan and miss-bind the destructure
-        if (p.type === 'RestElement' || p.type === 'SpreadElement') walkPatternIdentifiers(p.argument, visit);
-        else walkPatternIdentifiers(p.value, visit);
+        if (p.type === 'RestElement' || p.type === 'SpreadElement') walkPatternIdentifiers(p.argument, visit, depth);
+        else walkPatternIdentifiers(p.value, visit, depth + 1);
       }
       break;
     case 'ArrayPattern':
-      for (const el of node.elements) walkPatternIdentifiers(el, visit);
+      for (const el of node.elements) {
+        const isRest = el?.type === 'RestElement' || el?.type === 'SpreadElement';
+        walkPatternIdentifiers(el, visit, isRest ? depth : depth + 1);
+      }
       break;
     case 'AssignmentPattern':
-      walkPatternIdentifiers(node.left, visit);
+      walkPatternIdentifiers(node.left, visit, depth);
       break;
     case 'RestElement':
     case 'SpreadElement':
-      walkPatternIdentifiers(node.argument, visit);
+      walkPatternIdentifiers(node.argument, visit, depth);
       break;
     // TS `constructor(public x: number)` parameter-property shorthand. parser wraps the
     // param's identifier in TSParameterProperty (with access modifier on the wrapper);
     // descend into .parameter so the identifier scan recognises the binding
     case 'TSParameterProperty':
-      walkPatternIdentifiers(node.parameter, visit);
+      walkPatternIdentifiers(node.parameter, visit, depth);
       break;
   }
 }

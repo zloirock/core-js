@@ -31,6 +31,7 @@ import {
   peelParenAndTSParentPath,
   unwrapExpressionChain,
   unwrapRuntimeExpr,
+  walkPatternIdentifiers,
 } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
@@ -113,34 +114,54 @@ export function createClosureAnalysis({
     forEachPatternWriteMember(leftPath, () => { found = true; });
     return found;
   }
-  // leftmost Identifier of a member chain (`obj.a.b` / `obj[k].f` -> `obj`); null for a non-binding
-  // root (`this.f`, `getObj().f`) whose escape is a separate (class-instance / value) analysis
-  function memberRootName(node) {
-    let cur = node;
-    while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = unwrapRuntimeExpr(cur.object);
-    return cur?.type === 'Identifier' ? cur.name : null;
+  // a destructuring pattern's bare-var targets (`const [g] = [{...}]` / `({ x: g } = ...)`): each target
+  // binding receives a matched value, so the anon escapes iff ANY target binding leaks. one pattern level
+  // consumes one fieldPath step (mirrors the for-of element hop); a rest target receives a same-shape
+  // container, so its level's step is preserved - `walkPatternIdentifiers` reports that depth per target.
+  // a target deeper than the anon's path holds a FIELD of the anon, not the anon - the empty remainder's
+  // generic leak analysis over-approximates that safely. a non-pattern LHS shape can't be enumerated -> escape
+  function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath }) {
+    if (pattern?.type !== 'ObjectPattern' && pattern?.type !== 'ArrayPattern') return true;
+    let leaks = false;
+    walkPatternIdentifiers(pattern, (id, depth) => {
+      if (!leaks) leaks = carrierBindingLeaks(scope, id.name, anchorPath, fieldPath.slice(depth));
+    });
+    return leaks;
   }
   // `obj.f = [{...}]` stores the object into a member slot - it escapes iff the chain ROOT binding is
   // externally reachable. a LOCAL var (const / let / var) is reachable only when it leaks (export /
-  // return / arg), so route to the bound-path leak analysis. a PARAM / undeclared GLOBAL is held by the
-  // caller / outer realm so it escapes unconditionally - and that bound-path analysis is not parser-
-  // reliable for a param binding anyway, so the kind gate also keeps babel / unplugin in agreement.
-  // a NON-binding root (`this.f`, `getObj().f`, `this[k]`) has no enumerable local binding to prove
-  // module-local: `this` is the surrounding instance (could be exposed), a call result is an outside-held
-  // object - so an uncertain holder escapes (bail generic), not stays local
+  // return / arg), so route to the bound-path leak analysis against the anon's COMPOSED slot path
+  // (the chain's keys + its path inside the stored carrier) - a held read of the stored slot
+  // (`sink(obj.f)`) aliases the anon out even when the root binding itself stays local. a computed
+  // chain segment (`obj[k].f = ...`) is an untrackable slot -> escape. a PARAM / undeclared GLOBAL
+  // root is held by the caller / outer realm so it escapes unconditionally - and the bound-path
+  // analysis is not parser-reliable for a param binding anyway, so the kind gate also keeps babel /
+  // unplugin in agreement. a NON-binding root (`this.f`, `getObj().f`, `this[k]`) has no enumerable
+  // local binding to prove module-local: `this` is the surrounding instance (could be exposed), a call
+  // result is an outside-held object - so an uncertain holder escapes (bail generic), not stays local
   const LOCAL_VAR_KINDS = new Set(['const', 'let', 'var']);
-  function memberStoreEscapes(rootName, scope, anchorPath) {
-    if (!rootName) return true;
-    const binding = scope?.getBinding(rootName);
+  function memberStoreEscapes({ member, scope, anchorPath, fieldPath }) {
+    const steps = [];
+    let cur = member;
+    while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+      const key = cur.computed ? null : getKeyName(cur.property);
+      if (key === null || key === undefined) return true;
+      steps.unshift({ key: String(key) });
+      cur = unwrapRuntimeExpr(cur.object);
+    }
+    if (cur?.type !== 'Identifier') return true;
+    const binding = scope?.getBinding(cur.name);
     if (!binding || !LOCAL_VAR_KINDS.has(binding.kind)) return true;
-    return carrierBindingLeaks(scope, rootName, anchorPath);
+    return carrierBindingLeaks(scope, cur.name, anchorPath, [...steps, ...fieldPath]);
   }
   function anonymousObjectEscapes(objectPath) {
     let valuePath = objectPath;
     // the anon's nesting path inside the eventual carrier binding (outermost-first): an array adds a wildcard
     // slot, an object property adds its static key, value-forwarders (conditional / logical / sequence) add
-    // nothing. a computed key / spread can't be tracked -> null (the carrier falls back to its generic leak)
-    let fieldPath = [];
+    // nothing. a computed key / spread makes the slot untrackable - ANY read of the carrier could then
+    // extract the anon and hand it out, so escape conservatively (over-narrow throws in foreign runtimes;
+    // under-narrow only degrades to the generic polyfill)
+    const fieldPath = [];
     for (;;) {
       const parentPath = peelParenAndTSParentPath(valuePath);
       const parent = parentPath?.node;
@@ -149,23 +170,20 @@ export function createClosureAnalysis({
       // decided at the OUTERMOST carrier, not the immediate parent, so climb and re-test
       const carrier = valueFlowCarrier(parent, parentPath, valuePath.node);
       if (carrier) {
-        if (fieldPath) {
-          switch (parent.type) {
-            case 'ArrayExpression':
-              fieldPath.unshift({ index: true });
-              break;
-            case 'ObjectProperty':
-            case 'Property': {
-              const key = parent.computed ? null : getKeyName(parent.key);
-              if (key === null || key === undefined) fieldPath = null;
-              else fieldPath.unshift({ key: String(key) });
-              break;
-            }
-            case 'SpreadElement':
-              fieldPath = null;
-              break;
-            // ConditionalExpression / LogicalExpression / SequenceExpression: value-forwarders, no slot step
+        switch (parent.type) {
+          case 'ArrayExpression':
+            fieldPath.unshift({ index: true });
+            break;
+          case 'ObjectProperty':
+          case 'Property': {
+            const key = parent.computed ? null : getKeyName(parent.key);
+            if (key === null || key === undefined) return true;
+            fieldPath.unshift({ key: String(key) });
+            break;
           }
+          case 'SpreadElement':
+            return true;
+          // ConditionalExpression / LogicalExpression / SequenceExpression: value-forwarders, no slot step
         }
         valuePath = carrier;
         continue;
@@ -191,29 +209,35 @@ export function createClosureAnalysis({
         case 'OptionalCallExpression':
           return !!parent.arguments?.some(arg => unwrapRuntimeExpr(arg) === valuePath.node);
         // the carrier is bound to a name (`const x = [...]` / `const o = { f: {...} }`) - escape iff the
-        // binding leaks, OR (for a nested anon) a held read of the anon's own slot aliases it out
+        // binding leaks, OR (for a nested anon) a held read of the anon's own slot aliases it out.
+        // a pattern id (`const [g] = [{...}]`) binds the matched values to TARGET vars - escape iff any
+        // target binding leaks against the anon's remainder path inside the value it received
         case 'VariableDeclarator':
-          return parent.id?.type === 'Identifier' && unwrapRuntimeExpr(parent.init) === valuePath.node
-            && carrierBindingLeaks(parentPath.scope, parent.id.name, objectPath, fieldPath);
+          if (unwrapRuntimeExpr(parent.init) !== valuePath.node) return false;
+          if (parent.id?.type === 'Identifier') {
+            return carrierBindingLeaks(parentPath.scope, parent.id.name, objectPath, fieldPath);
+          }
+          return destructureVarTargetLeaks({ pattern: parent.id, scope: parentPath.scope, anchorPath: objectPath, fieldPath });
         // `x = <carrier>` (locally rebinds x) / `obj.f = <carrier>` (member store) AND forwards the value.
         // a logical-assign (`x ||= ...` / `obj.f ??= ...`) stores the RHS by reference too - same routing;
         // a coercing compound (`+=`, ...) is filtered by REF_STORING_ASSIGN_OPS and stays local.
         // escape if the target leaks - x via the bound-path leak analysis, `obj.f` via its root binding -
         // OR the assignment's own value-position escapes (`return (x = [...])` / `f(obj.f = [...])`).
-        // a destructuring LHS (`({ x: f } = { x: {...} })` / `[f] = [...]`) binds the value to a TARGET
-        // var, not a member slot - its escape is the target binding's leak (a separate analysis), so keep
-        // it module-local here and let the value-position forward decide; do NOT route it as a member store
+        // a destructuring LHS (`({ x: f } = { x: {...} })` / `[f] = [...]`) binds the matched values to
+        // TARGET slots: a member target is a member store with an uncertain holder (escape), a var target
+        // escapes iff its binding leaks against the anon's remainder path inside the value it received
         case 'AssignmentExpression': {
           if (!VALUE_FLOW_ASSIGN_OPS.has(parent.operator) || unwrapRuntimeExpr(parent.right) !== valuePath.node) return false;
           const left = unwrapRuntimeExpr(parent.left);
-          let leaks = false;
+          let leaks;
           if (left.type === 'Identifier') {
             leaks = carrierBindingLeaks(parentPath.scope, left.name, objectPath, fieldPath);
           } else if (isMemberAccessNode(left)) {
-            leaks = memberStoreEscapes(memberRootName(left), parentPath.scope, objectPath);
-          // a destructuring LHS with a member target slot (`({ x: obj.f } = ...)` / `[obj.f] = ...`) stores
-          // the matched value into that member - a member store with an uncertain holder, so escape
-          } else if (destructureHasMemberTarget(parentPath.get('left'))) leaks = true;
+            leaks = memberStoreEscapes({ member: left, scope: parentPath.scope, anchorPath: objectPath, fieldPath });
+          } else {
+            leaks = destructureHasMemberTarget(parentPath.get('left'))
+              || destructureVarTargetLeaks({ pattern: left, scope: parentPath.scope, anchorPath: objectPath, fieldPath });
+          }
           if (leaks) return true;
           valuePath = parentPath;
           continue;
@@ -227,7 +251,7 @@ export function createClosureAnalysis({
         case 'ForOfStatement': {
           if (unwrapRuntimeExpr(parent.right) !== valuePath.node) return false;
           const loopVar = forOfLoopVarName(parent.left);
-          return loopVar ? carrierBindingLeaks(parentPath.scope, loopVar, objectPath, fieldPath?.slice(1)) : true;
+          return loopVar ? carrierBindingLeaks(parentPath.scope, loopVar, objectPath, fieldPath.slice(1)) : true;
         }
         // the object is a DEFAULT value (`function f(o = {...})` param default / `const { x = {...} } = src`
         // destructure default). it binds to the default's TARGET, so a held read of the nested anon's slot
