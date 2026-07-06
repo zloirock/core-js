@@ -739,6 +739,61 @@ function * generateArrayWrapperCtorAlias() {
   }
 }
 
+// --- Symbol-iterator destructure in wrapped hosts ---
+// a symbol-SOURCED `[Symbol.iterator]` binding in a WRAPPED destructure host (ArrayPattern element,
+// nested object prop, destructuring assignment) extracts through the iterator-method helper like the
+// plain declarator form - a rest sibling keeps a re-keyed sentinel in the preserved residual, a sole
+// binding drops the declarator, an assignment host appends a post-statement overwrite. a divergence
+// here surfaces as import-set disagreement (one emitter keeps the binding native). receivers that
+// cannot be safely re-read (an effectful init element - the effects log proves single-eval - a
+// const-chain wrapper) decline to native on BOTH emitters
+const AW_SYMBOL_ITER = [
+  { id: 'aw-rest-sibling', pre: 'const [{ [Symbol.iterator]: it, ...r }, tail] = [[1, 2], 7];', obs: '[typeof it, Object.keys(r).length, tail]' },
+  { id: 'aw-sole', pre: 'const [{ [Symbol.iterator]: single }] = [[3]];', obs: 'typeof single' },
+  { id: 'nested-prop-rest', pre: 'const { y: { [Symbol.iterator]: it, ...r } } = { y: [4, 5] };', obs: '[typeof it, Object.keys(r).length]' },
+  { id: 'nested-prop-sole', pre: 'const { z: { [Symbol.iterator]: single } } = { z: [6] };', obs: 'typeof single' },
+  { id: 'assign-aw', pre: 'let it, r; [{ [Symbol.iterator]: it, ...r }] = [[7]];', obs: 'typeof it' },
+  { id: 'compose-static-symbol-rest', pre: "const [{ 'from': f, [Symbol.iterator]: it, ...r }] = [Array];", obs: '[typeof f, typeof it, Object.keys(r).length]' },
+  { id: 'se-element-single-eval', pre: 'const [{ [Symbol.iterator]: se, ...sr }] = [(() => { log.push(1); return [8]; })()];', obs: 'typeof se' },
+  { id: 'const-chain-decline', pre: 'const chain = [[9]]; const [{ [Symbol.iterator]: chained, ...cr }] = chain;', obs: 'typeof chained' },
+  // a getter-backed element: the sole-binding extraction is the receiver's ONLY read, so the
+  // count proves single vs double read (native evaluates the element exactly once too)
+  { id: 'getter-element-read-once', pre: 'let n = 0; const h = { get g() { n++; return [1]; } }; const [{ [Symbol.iterator]: it }] = [h.g];', obs: '[typeof it, n]' },
+  // a proxy-global NEST sibling hands the symbol prop to the flatten plan (single owner) in
+  // EITHER prop order - a per-prop route racing the rebuild crashed the transform queue or
+  // captured the receiver without its polyfill rewrite
+  { id: 'nest-sibling-symbol-first', pre: 'const [{ [Symbol.iterator]: it, Array: { from: f }, ...r }] = [globalThis];', obs: '[typeof it, typeof f, Object.keys(r).length]' },
+  { id: 'nest-sibling-nest-first', pre: 'const { Array: { from: f }, [Symbol.iterator]: it, ...r } = globalThis;', obs: '[typeof it, typeof f]' },
+  // the harvested init effect runs exactly once ahead of the extractions
+  { id: 'nest-sibling-se-init', pre: 'const { [Symbol.iterator]: it, Array: { from: f } } = (log.push(1), globalThis);', obs: '[typeof it, typeof f]' },
+  // a DIVERGING fallback receiver declines the per-branch mirror for the symbol key (a synth
+  // literal cannot carry a real-symbol slot - the fold emitted INVALID output): the foreign
+  // branch's own values must survive untouched
+  {
+    id: 'diverging-fallback-decline',
+    pre: 'const u = { [Symbol.iterator]: 7, Array: { from: 8 } }; const { [Symbol.iterator]: it, Array: { from: f } } = cond ? globalThis : u;',
+    obs: '[typeof it, typeof f]',
+  },
+  { id: 'and-guard-decline', pre: 'const { [Symbol.iterator]: it, Array: { from: f } } = cond && globalThis;', obs: '[typeof it, typeof f]' },
+  // an all-proxy ternary is flatten-owned; a rest residual keeps the BRANCHING read
+  { id: 'allproxy-ternary-rest', pre: 'const { [Symbol.iterator]: it, ...r } = cond ? globalThis : globalThis;', obs: 'typeof it' },
+  // a symbol leaf under a single-ctor-key ANCHOR extracts off the anchored constructor
+  { id: 'anchored-ctor-symbol', pre: 'const { Array: { [Symbol.iterator]: it } } = globalThis;', obs: 'typeof it' },
+  { id: 'anchored-missing-able-symbol', pre: 'const { Map: { [Symbol.iterator]: it } } = globalThis;', obs: 'typeof it' },
+  // a symbol key KEPT in an anchored residual re-keys to the polyfilled symbol binding
+  // (a raw `Symbol` leak surfaced as an import-set mismatch)
+  { id: 'anchored-residual-symbol-rekey', pre: 'const { Map: { [Symbol.iterator]: it }, Object: { fromEntries: g } } = globalThis;', obs: '[typeof it, typeof g]' },
+  // the re-key must hold in the SIBLING-FIRST dispatch order too (the key visitor has not
+  // fired on the original when the residual is cloned / sliced)
+  { id: 'anchored-residual-rekey-sibling-first', pre: 'const { Object: { fromEntries: g }, Map: { [Symbol.iterator]: it } } = globalThis;', obs: '[typeof g, typeof it]' },
+];
+function * generateAwSymbolIterDestructure() {
+  for (const c of AW_SYMBOL_ITER) {
+    const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
+    yield { ...snippet(`aw-symbol-iter/${ c.id }`, body), strip: false };
+  }
+}
+
 // --- Nested-object destructure of an instance method off a side-effect-free member receiver ---
 // `const { y: { at } } = { y: Array.prototype }` binds an instance method whose receiver is a member.
 // when `at` is the SOLE binding + the init is pure, the residual is eliminated and the extraction
@@ -1203,6 +1258,16 @@ function * generateMutatedDestructure() {
     const body = `(() => { const _o = ${ s.recv }.${ s.key }; try { ${ s.recv }.${ s.key } = () => "P"; const { ${ s.key } } = ${ s.recv }; return ${ s.use }; } finally { ${ s.recv }.${ s.key } = _o; } })()`;
     yield { ...snippet(`mutated-destructure/${ s.recv }.${ s.key }`, body), strip: false };
   }
+}
+
+// a CTOR-SLOT mutation (`globalThis.Map = shim`) must stay patch-visible through the ANCHORED
+// symbol extraction: the synth receiver reads the raw member (`<proxy>.Map` - the shim's own
+// iterator method), never the pure constructor binding (whose iterator the shim never sees)
+function * generateMutatedAnchoredSymbol() {
+  const body = '(() => { const _o = globalThis.Map; try { globalThis.Map = { [Symbol.iterator]: () => "SHIM" }; '
+    + 'const { Map: { [Symbol.iterator]: it } } = globalThis; return typeof it === "function" ? it() : String(it); } '
+    + 'finally { globalThis.Map = _o; } })()';
+  yield { ...snippet('mutated-anchored-symbol/slot-shim', body), strip: false };
 }
 
 // the mutated static is the chain ROOT: `Array.from = patch; Array.from([1]).flat()`. the static bails
@@ -2656,6 +2721,7 @@ export function * generate() {
   yield * generateSymbolIteratorAliasFold();
   yield * generateFlattenSeKeySibling();
   yield * generateArrayWrapperCtorAlias();
+  yield * generateAwSymbolIterDestructure();
   yield * generateNestedInstanceReceiver();
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
@@ -2665,6 +2731,7 @@ export function * generate() {
   yield * generateMutatedStatic();
   yield * generateMutatedSibling();
   yield * generateMutatedDestructure();
+  yield * generateMutatedAnchoredSymbol();
   yield * generateMutatedNarrowChain();
   yield * generateMutatedComputedKey();
   yield * generateMutatedWrapperAssign();
