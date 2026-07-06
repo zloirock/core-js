@@ -2604,6 +2604,14 @@ const TS_FAMILIES = {
   ],
   'ts-overload': [
     '(() => { function f(x: number): number[]; function f(x) { return [x, [x]].flat(); } return f(1); })()',
+    // bigint-LITERAL overload param: babel BigIntLiteral and oxc bigint Literal must canonicalize
+    // to one value, or the emitters pick different arms. multi-type `at` makes the pick visible
+    // in the import set (string[] arm -> array-instance entry, string arm -> generic)
+    '(() => { interface P { get(k: 1n): string[]; get(k: 2n): string; } '
+      + 'const p = { get(k: any): any { return k === 1n ? ["a", "b"] : "ab"; } } as P; return p.get(1n).at(0); })()',
+    // NEGATIVE literal param (`k: -1`, a UnaryExpression) discriminates via the same canonical extractor
+    '(() => { interface Q { pick(k: -1): string[]; pick(k: 1): string; } '
+      + 'const q = { pick(k: any): any { return k === -1 ? ["z"] : "z"; } } as Q; return q.pick(-1).includes("z"); })()',
   ],
   'ts-implements': [
     '(() => { interface I { m(): number[]; } class C implements I { m() { return [1, [2]].flat(); } } return new C().m(); })()',
