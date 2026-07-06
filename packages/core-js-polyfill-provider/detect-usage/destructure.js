@@ -33,7 +33,7 @@ import {
 import { isUsableFallbackReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
-import { collectFallbackCollapseLeftSe, discardRescueNodes, seBearingChainRootCall } from './members.js';
+import { collectFallbackCollapseLeftSe, discardRescueNodes, seBearingChainRootCall, symbolSourcedFoldedKey } from './members.js';
 import {
   isCallShape,
   isStaticPlacement,
@@ -1420,6 +1420,13 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         ? sharedResolveKey({ node: prop.key, computed: true, scope: leafPatternPath.scope, adapter, bailOnSideEffectKey: false })
         : prop.key?.name ?? prop.key?.value;
       if (typeof key !== 'string' || seenKeys.has(key)) return null;
+      // a computed key folding from the REAL Symbol (`[Symbol.iterator]`) has no static string
+      // slot a synth literal could carry - the folded string would render an invalid bare
+      // `Symbol.iterator:` key reading a bogus dotted path off the receiver. bail the whole
+      // mirror: the un-mirrorable fallback keeps sound native semantics per branch
+      if (prop.computed && symbolSourcedFoldedKey({
+        key, keyNode: prop.key, scope: leafPatternPath.scope, adapter, path: leafPatternPath,
+      })) return null;
       seenKeys.add(key);
       if (ctx.kind === 'proxy') {
         const inner = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
