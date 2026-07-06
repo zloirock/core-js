@@ -426,6 +426,40 @@ QUnit.test('IIFE-identity peel: immediately-invoked closure rebind bails, native
   }, TypeError);
 });
 
+QUnit.test('IIFE-identity peel: rebind inside an LHS pattern default bails, native throws', assert => {
+  assert.throws(() => {
+    let x;
+    const { from } = (arg => {
+      ({ x = arg = 'rebound' } = {});
+      return arg;
+    })(Array);
+    from([1, 2]);
+    return x;
+  }, TypeError);
+});
+
+QUnit.test('IIFE-identity peel: rebind inside an LHS computed member key bails, native throws', assert => {
+  assert.throws(() => {
+    const sink = {};
+    const { of } = (arg => {
+      sink[arg = Promise] = 1;
+      return arg;
+    })(Array);
+    of(1);
+  }, TypeError);
+});
+
+QUnit.test('IIFE-identity peel: rebind inside an update-target computed key bails, native throws', assert => {
+  assert.throws(() => {
+    const counts = {};
+    const { from } = (arg => {
+      counts[arg = Promise]++;
+      return arg;
+    })(Array);
+    from([3]);
+  }, TypeError);
+});
+
 QUnit.test('IIFE-identity peel: never-invoked closure still resolves the receiver', assert => {
   // the closure writing `arg` is created but NEVER called, so `Result === Array` at runtime - the
   // peel must RESOLVE (inject the polyfill), not bail. bailing would leave native `Array.from`,
