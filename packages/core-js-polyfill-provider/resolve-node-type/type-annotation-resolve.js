@@ -374,13 +374,25 @@ export function createTypeAnnotationResolve({
     if (!isKeyofTargeting(node.indexType, objectType, scope)) return undefined;
     const members = getTypeMembers({ objectType, scope });
     if (!members) return null;
-    const valueAnnotations = members
-      // a (non-getter) method's value is a Function with no instance-method narrow, not its return
-      // type - mirrors the single-key `T['method']` path. getters / property signatures contribute
-      // their value / return type as usual
-      .filter(m => !(isMethodShapeMember(m.type) && m.kind !== 'get'))
-      .map(m => m.typeAnnotation ?? m.returnType)
-      .filter(Boolean);
+    const valueAnnotations = [];
+    for (const m of members) {
+      // a SETTER carries no readable value on access - it contributes nothing to the READ union
+      // (the single-key path breaks on setters too; a setter-only slot reads as undefined)
+      if (isMethodShapeMember(m.type) && m.kind === 'set') continue;
+      // a (non-getter) method's VALUE is the function itself, not its return type: fold the
+      // member NODE - it resolves to Function exactly like the single-key `T['method']` mirror,
+      // so a mixed union (method + concrete container) BAILS through the fold instead of
+      // over-narrowing to the surviving container member
+      if (isMethodShapeMember(m.type) && m.kind !== 'get') {
+        valueAnnotations.push(m);
+        continue;
+      }
+      const annotation = m.typeAnnotation ?? m.returnType;
+      // an untyped (implicit-any) member makes `T[keyof T]` include `any`, which absorbs the
+      // whole union - a narrow to the surviving typed members would be unsound
+      if (!annotation) return null;
+      valueAnnotations.push(annotation);
+    }
     if (!valueAnnotations.length) return null;
     return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, scope, depth + 1));
   }
