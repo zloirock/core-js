@@ -277,4 +277,19 @@ await runEquivalence('anon escape: paren between slot-read steps - usage-global 
 await runEquivalence('anon escape: field write through a TS-cast slot read',
   `const o = { a: ${ ANON_HELD } }; (o.a as any).data = 5; o.a.read();`, USAGE_PURE);
 
+// own-this method extraction rebinds `this` - the held-read verdicts must agree between the
+// pipelines for the object, class-instance and prototype channels, and a direct call keeps
+// the narrow identically on both
+await runEquivalence('method extraction: var extraction then call',
+  `const o = ${ ANON_HELD }; const m = o.read; m.call({ data: 42 });`, USAGE_PURE);
+await runEquivalence('method extraction: object-spread copy with override',
+  `const o = ${ ANON_HELD }; const o2 = { ...o, data: 42 }; o2.read();`, USAGE_PURE);
+await runEquivalence('method extraction: class prototype extraction',
+  'class C { data = ["x"]; read() { return this.data.at(0); } }\n'
+  + 'const m = C.prototype.read; m.call({ data: 42 }); new C().read();', USAGE_PURE);
+await runEquivalence('method extraction: direct call control',
+  `const o = ${ ANON_HELD }; o.read();`, USAGE_PURE);
+await runEquivalence('method extraction: var extraction - usage-global flavor',
+  `const o = ${ ANON_HELD }; const m = o.read; m.call({ data: 42 });`, USAGE_GLOBAL_IE11);
+
 finish();
