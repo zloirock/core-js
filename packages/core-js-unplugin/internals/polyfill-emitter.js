@@ -103,7 +103,7 @@ function rebuildWrappedProxyChain(hops, binding, code) {
   return src;
 }
 
-function dropLeadingProxyHops(hops, aliasCtx) {
+function dropLeadingProxyHops(hops, aliasCtx, throughChainAssign = false) {
   let boundary = null;
   // a dropped hop with a side-effecting COMPUTED key (`globalThis[(c++,'self')]`, or a FOLD like
   // `globalThis[(eff(),'se')+'lf']` / `` globalThis[`s${(eff(),'e')}lf`] ``) folds that key's SE out (the proxy
@@ -111,7 +111,8 @@ function dropLeadingProxyHops(hops, aliasCtx) {
   // the pure root (`(eff(), _globalThis).Array.prototype`), matching babel. an outer-sequence-only peel dropped
   // effects buried in a `+`-concat or template operand
   const droppedSe = [];
-  while (hops.length && maximalProxyGlobalPrefix(hops.at(-1), aliasCtx, true) === hops.at(-1)) {
+  while (hops.length
+    && maximalProxyGlobalPrefix(hops.at(-1), aliasCtx, { allowSideEffectKeys: true, throughChainAssign }) === hops.at(-1)) {
     const hop = hops.at(-1);
     if (hop.computed) droppedSe.push(...collectFoldedReceiverSideEffects(hop.property));
     boundary = hop;
@@ -1097,9 +1098,49 @@ export function createPolyfillEmitter({
   // and collapses optional `?.` since the substituted leaf is always defined
   function resolveProxyGlobalChainSrc(receiverObj, metaPath, suppressInject = false) {
     if (receiverObj?.type !== 'MemberExpression' && receiverObj?.type !== 'OptionalMemberExpression') return null;
+    // a chain-assign leaf with a NON-static tail (`(a = globalThis).self.Array.prototype`): the
+    // chain roots at the assigned value. mirror of the static branch's chain-assign render in
+    // `resolveProxyGlobalChainSrc` - keep the assignment text, recurse the RHS through the shared
+    // receiver resolver (so a buried sequence tail or the bare root substitutes), and re-state the
+    // root binding as the sequence value the dropped hops read off (`(a = _globalThis, _globalThis)
+    // .Array.prototype`) - the same shape the shared collapse plan and babel emit. an alias buried
+    // in the assign keeps its identifier. `undefined` = not a chain-assign leaf (caller falls
+    // through to the identifier-leaf path); `null` = chain-assign but uncollapsible (caller bails)
+    function chainAssignRootedChainSrc() {
+      const { value: caRhs, outer: chainAssign } = peelChainAssignment(leaf);
+      if (!chainAssign) return undefined;
+      const assignAliasCtx = { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath };
+      const rootIdent = findProxyGlobal(leaf, assignAliasCtx, true);
+      if (!rootIdent) return null;
+      const rootPure = resolveGlobalPolyfill(rootIdent.name);
+      const rootAliased = !rootPure && !POSSIBLE_GLOBAL_OBJECTS.has(rootIdent.name);
+      if (!rootPure && !rootAliased) return null;
+      // an optional-rebind caller (`suppressInject`) DISCARDS this src for a raw `_ref` tail - a
+      // substituted result would inject a dead pure import AND report `substituted`, closing the
+      // guard-collapse gate that resolves the memoized root; bail so the guard owns the collapse
+      if (suppressInject) return null;
+      const dropped = dropLeadingProxyHops(hops, assignAliasCtx, true);
+      if (!dropped.boundary) return null;
+      const rhsSrc = rootAliased ? code.slice(caRhs.start, caRhs.end) : resolveReceiverSource(caRhs, metaPath).src;
+      const rootBinding = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : nodeSrc(rootIdent);
+      // the peeled RHS may sit inside wrappers belonging to the assignment text (`a = (c++, X)` -
+      // the value is the sequence, the closing paren is source between value end and assign end):
+      // keep that remainder so the re-emitted assignment stays balanced
+      const binding = `(${ code.slice(chainAssign.start, caRhs.start) }${ rhsSrc }${
+        code.slice(caRhs.end, chainAssign.end) }, ${
+        [...dropped.droppedSe.map(effect => nodeSrc(effect)), rootBinding].join(', ') })`;
+      skipCollapsedChainExceptRootCall(chainAssign, skippedNodes, dropped.droppedSe);
+      // a MID-CHAIN wrapper (`((a = globalThis).self).Array`) makes the flat tail slice carry the
+      // wrapper's dangling close token - rebuild the surviving hops inner-to-outer instead, like
+      // the main flow below (the hop dropper already popped the collapsed prefix off `hops`)
+      if (hasMidChainWrappers) return { src: rebuildWrappedProxyChain(hops, binding, code), leafNode: chainAssign };
+      const tailStart = afterOptional(dropped.boundary.end, !(hops.at(-1)?.computed ?? false));
+      return { src: binding + code.slice(tailStart, receiverObj.end), leafNode: chainAssign };
+    }
+
     const hops = [];
-    let hasMidChainWrappers = false;
-    let cur = receiverObj;
+    let hasMidChainWrappers = false,
+        cur = receiverObj;
     while (cur && (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression')) {
       hops.push(cur);
       let next = cur.object;
@@ -1113,8 +1154,8 @@ export function createPolyfillEmitter({
       }
       cur = next;
     }
-    const wrappedLeaf = hops.at(-1).object;
-    const unwrappedLeaf = unwrapNode(wrappedLeaf);
+    const wrappedLeaf = hops.at(-1).object,
+          unwrappedLeaf = unwrapNode(wrappedLeaf);
     // SE-tail leaf: a member chain rooted at a sequence with a polyfillable proxy-global tail
     // (`(eff(), globalThis).list.at(0)`). without it the chain walk bottoms at the SequenceExpression
     // and bails, leaving the raw proxy-global while `skipProxyGlobal` (SE-aware) suppresses the
@@ -1132,8 +1173,10 @@ export function createPolyfillEmitter({
     // text. collapsing it here too leaves the outer content as `_Map.list`, so that inner needle can no
     // longer be located -> compose crash. defer to the natural visitor, which nests the two rewrites
     if (staticPure && staticIdx > 0) return null;
-    let leafBoundary = wrappedLeaf;
-    let leaf, polyfillBinding, skipNode;
+    let leafBoundary = wrappedLeaf,
+        leaf,
+        polyfillBinding,
+        skipNode;
     // an ALIAS-rooted SE tail (`pure` is null) with a proxy-global STATIC defers to the static handler below,
     // which already collapses an alias-bound static (`const g = globalThis; (c++, g.self).Map` -> `(c++, _Map)`);
     // the SE-tail static rebind here assumes a pure-importable root and would truncate `hops` and crash
@@ -1182,6 +1225,8 @@ export function createPolyfillEmitter({
       hops.length = staticIdx;
     } else {
       leaf = unwrappedLeaf;
+      const assignRooted = chainAssignRootedChainSrc();
+      if (assignRooted !== undefined) return assignRooted;
       if (leaf?.type !== 'Identifier') return null;
       if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
       const pure = resolveGlobalPolyfill(leaf.name);
