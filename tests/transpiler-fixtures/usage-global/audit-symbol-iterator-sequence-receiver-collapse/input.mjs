@@ -4,6 +4,7 @@
 // (`(n, globalThis.self).Map` -> `(n, _Map)`). before: unplugin CRASHED (the tail's `globalThis.self -> _self`
 // rewrite double-composed with the collapsed receiver - "could not locate inner needle"); babel kept a leaf
 // `_self` only here. distinct prefix SE + hop depth per line: single hop, deep `.self.window`, a get-call.
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 let n = 0;
 const single = (n += 1, globalThis.self)[Symbol.iterator];
 const deep = (n += 10, globalThis.self.window)[Symbol.iterator];

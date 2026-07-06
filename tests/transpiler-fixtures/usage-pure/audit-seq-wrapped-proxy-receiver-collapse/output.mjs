@@ -7,11 +7,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // A proxy-global receiver wrapped in a side-effecting SequenceExpression: `(eff(), globalThis.self)`. the
 // redundant `.self` proxy hop collapses to the pure root and the prefix effect harvests ahead of it, both in a
 // plain receiver `(eff(), globalThis.self).Array.prototype...` and in an OPTIONAL one `(eff(), globalThis.self)?.
-// Array.prototype...` whose receiver memoizes into a `_ref` guard - the guard body must collapse too (`_ref =
-// (eff(), _globalThis)`). babel keeps the receiver raw (`(eff(), globalThis.self)` / `_ref = (eff(), globalThis
-// .self)`) - a bare `globalThis` that ie:11-ReferenceErrors and a dead `.self` - so output-unplugin.mjs diverges
-// (unplugin matches its own collapse of the bare `globalThis.self` receiver). identifier-tail and `.window` hop
-// cover the root variants; distinct instance method per line.
+// Array.prototype...`. both emitters collapse identically to `(eff(), _globalThis).Array.prototype` - no raw
+// `.self` hop and no bare `globalThis` (ie:11 ReferenceError) survives on either side, so there is no sidecar.
+// identifier-tail and `.window` hop cover the root variants; distinct instance method per line.
 let log = [];
 function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
