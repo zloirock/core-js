@@ -261,3 +261,22 @@ QUnit.test('expr: tagged template reads a polyfill interpolation once', assert =
   assert.same(tag`n=${ v() }`, 'n=4');
   assert.same(calls, 1);
 });
+
+// --- Wrapped write position gate ---
+// a paren wrapper between a member and its write host must not turn the write target into a
+// polyfill call (an invalid assignment LHS): the assignment lands on the receiver's own
+// property, and fresh receivers keep dispatching the polyfill. TS-cast variants and the
+// wrapped-tag emission are locked by fixtures and the differential - this file is plain JS,
+// and a paren-wrapped tag preserves `this` like a callee, so its runtime is not distinguishing
+QUnit.test('wrapped write target: assignment survives, fresh receivers keep the polyfill', assert => {
+  const arr = [1, 2, 3];
+  function patched() {
+    return 'patched';
+  }
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren-wrapped write target IS the case under test
+  (arr.at) = patched;
+  // the own property holds the user's function - compare against an equally-raw read
+  // core-js-disable-next-line
+  assert.same(arr.at, patched);
+  assert.deepEqual([4, 5].at(-1), 5);
+});
