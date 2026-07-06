@@ -21,13 +21,13 @@
 //   resolveCallReturnTypeFromAnnotation(callee)       - fallback for callees with no runtime
 //                                                       resolution (cast / ambient / typeof)
 //   functionTypeReturnAnnotation(node)                - cross-dialect return-slot extractor
+//   shadowedAliasReturnAnnotation(arg, scope)         - `ReturnType<Fn alias>` shadow resolver
 //   staticPairFromDestructure(scope, name)            - destructure-alias static resolver
 //   findExpressionAnnotation(path, depth?)            - { annotation, scope } | null
-//   resolveMemberAnnotation(path, depth)              - obj.prop annotation resolution
-//   resolveMemberInTypeMembers({ typeNode, propName, scope, subst }) - member-by-name lookup
 //   resolveIndexSignatureValue(typeNode, scope, subst) - TSIndexSignature member resolution
+//   indexAccessKeyKind(memberPath)                    - computed-key kind classifier
 //   buildCallSiteSubst(fnNode, callNode)              - explicit `<...>` args -> subst Map
-//   inferCallSiteSubst(fnNode, callPath, depth)       - implicit T inference from arg annot
+//   resetExpressionAnnotationCache()                  - per-file cache drop
 //
 // `staticPairFromPolyfillEntry` stays in the factory because it's consumed by the
 // binding-analysis cluster instantiated upstream (factory function declaration is hoisted;

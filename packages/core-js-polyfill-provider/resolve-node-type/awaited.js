@@ -13,24 +13,16 @@
 // the forward-decl thunks a split would need to break the cycle.
 //
 // Public surface:
-//   peelAwaitedArgument({ arg, scope, depth })
-//   peelAwaitedCommonSteps(peeled, scope, depth)
-//   peelAwaitedTupleElement({ element, scope, depth })
-//   peelAwaitedWrapper(node, scope)
 //   peelStructurePreservingWrapper(node)
 //   unwrapPassthroughWrapper(node, scope)
-//   getSingleTypeRefArg(node, namePredicate)
 //   resolveAwaitedAnnotation({ node, scope, depth, typeParamMap, seen })
-//   pickAwaitedConditionalBranch({ node, scope, depth, typeParamMap, seen })
-//   getPromiseInnerAnnotation(node)
 //   resolveAwaitExpressionType(path)
-//   resolveAwaitedFromCallBody(argument)
-//   peelUserThenable(annotation, scope)
 //   functionTypeParams(node)
+//   resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth)
 //
 // `functionTypeParams` is here because the cluster's local callback-param extractors consume
-// it; factory has its own `functionTypeParams` declaration that this cluster's caller-side
-// `unwrap` / `resolve` already work past.
+// it; the factory only forward-declares the name and rebinds it to this cluster's export, so
+// this is the sole declaration.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
 import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';

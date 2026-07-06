@@ -170,8 +170,10 @@ export function $Primitive(type, literal) {
   this.inner = type === 'string' ? 'string' : null;
   // source literal value when widened from a literal type (`2` -> number with literal 2).
   // undefined for bare keyword primitives (`number`). lets conditional-type evaluation keep
-  // `2 extends 1` = false even though both sides widen to the same primitive family; ignored
-  // by typesEqual / innersEqual / commonType so it never affects family-level equality
+  // `2 extends 1` = false even though both sides widen to the same primitive family. ignored
+  // by typesEqual / innersEqual for family-level equality, but READ by commonType (distinct
+  // literal arms fold into one family stamped `literalUnion`) and by the conditional
+  // branch-picker (a `literalUnion` check stays undecidable)
   this.literal = literal;
 }
 

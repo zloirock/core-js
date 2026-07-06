@@ -911,11 +911,12 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   // name or plugin-rewritten alias). for babel the rewritten alias has no scope binding, so
   // the dereference loop above never ran and the alias reaches here verbatim - adapter+scope
   // let `proxyGlobalNameOf` recover its source name (no binding to read the hint off of).
-  // mirror `resolveNestedDestructureReceiver`'s short-circuit: intermediate hops must also be
-  // proxy-globals (chained `globalThis.self.Array.from` shapes), leaf must be a recognised
-  // static-placement name. without this, nested static-receiver chains like
-  // `const ns = {root: globalThis}; const {root: {Array: {from}}} = ns` bail at the inner
-  // `globalThis` hop and downstream `Array.from` polyfill is missed silently
+  // mirror `resolveNestedDestructureReceiver`'s short-circuit: the REMAINING hops must all be
+  // proxy-globals with a recognised static-placement leaf (a CONSTRUCTOR key: `const ns =
+  // {root: globalThis}; const {root: {self: {Array: A}}} = ns`). without this, such chains bail
+  // at the rewritten alias and the constructor polyfill is missed silently. deeper static-METHOD
+  // shapes (`{root: {Array: {from}}}`) fail the all-proxy-hops condition here by design - they
+  // resolve through the nested-proxy flatten, not this lift
   if (proxyGlobalNameOf({ node: current, adapter, scope: currentScope })
       && walkPath.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))
       && isStaticPlacement(walkPath.at(-1))) {

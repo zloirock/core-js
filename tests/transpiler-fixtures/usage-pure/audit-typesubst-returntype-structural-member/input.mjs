@@ -4,7 +4,8 @@
 // `Fn<string[]>` captures it and `r.x` resolves to `string[]`, injecting the array-specific helper on a value
 // that is NOT an array (the real return is the signature-local, unconstrained). shadowed -> unknown, usage-
 // pure bails. an ALIAS-level `T` (no signature-local) IS the real return, so it keeps the array narrow. a
-// method-resolution-only delta - babel and unplugin share the provider verdict, so no sidecar
+// method-resolution-only delta - babel and unplugin share the provider verdict; the sidecar captures only
+// babel's multi-line reprint of the untouched TS type literal, a cosmetic render divergence
 
 type Shadowed<T> = <T>() => { x: T };
 declare const r: ReturnType<Shadowed<string[]>>;

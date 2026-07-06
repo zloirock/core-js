@@ -575,8 +575,10 @@ export function createTypeExpansion({
     // narrower never special-case both yield falseBranch for non-never object check
     if (!check.primitive && extend.primitive) return false;
     // primitive check (string / number / ...) vs concrete-Object extend (Array<X> / Map / ...):
-    // disjoint. EXCEPT wide-Object extend (`Object` keyword resolves to $Object(null)) where
-    // boxing makes `string extends Object` TRUE per TS spec - guarded by extend.constructor
+    // disjoint. EXCEPT wide-Object extend (`Object` keyword resolves to $Object(null)), where
+    // boxing makes `string extends Object` true per TS spec - that shape is excluded by the
+    // `extend.constructor` guard and falls through to `null` below (fold both branches), an
+    // under-resolve rather than a decided true
     if (check.primitive && !extend.primitive && extend.constructor !== null) return false;
     // different primitive types (number vs string): truly disjoint
     if (check.primitive && extend.primitive) return false;
