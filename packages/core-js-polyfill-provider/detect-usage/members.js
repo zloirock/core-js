@@ -696,7 +696,7 @@ function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
 // by its tail. the `in`-producers deliberately do NOT route through this: there the check GATES
 // meta production with its own nested-dot rule, and a peel would fold an SE-carrying LHS whose
 // effects that branch has no channel to preserve (the string-branch keeps them in place)
-function symbolSourcedFoldedKey({ key, keyNode, scope, adapter, path }) {
+export function symbolSourcedFoldedKey({ key, keyNode, scope, adapter, path }) {
   return typeof key === 'string' && key.startsWith('Symbol.')
     && isSymbolSourcedKey({ node: peelReceiverSequenceTail(keyNode), scope, adapter, path });
 }
@@ -719,6 +719,13 @@ export function tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, 
 export function isSourcedSymbolIteratorMeta(meta) {
   return !!meta.symbolSourced && meta.key === 'Symbol.iterator';
 }
+
+// its pure resolution: destructure / extraction pipelines bind the key through
+// `_getIteratorMethod(receiver)`. `resolvePure` returns null for the meta (no entry of its
+// own), so this constant IS the resolution - both emitters consume it wherever a kind-driven
+// gate or an extraction render needs the instance shape, instead of each synthesizing the
+// triple locally
+export const SYMBOL_ITERATOR_PURE_RESULT = { kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod' };
 
 // a computed destructure-prop key "hosts machinery" when the rewrite pipeline has work bound
 // to it: a real well-known-symbol reference (iterator-method / catch-passthrough handling) or a
@@ -757,6 +764,12 @@ export function resolveSymbolInEntry(key) {
 // default is the babel-shape strict match
 export function resolveSymbolIteratorEntry(node, parent, isCall = isCallShape(parent) && parent.callee === node) {
   return isCall && parent.arguments.length === 0 && !parent.optional ? 'get-iterator' : 'get-iterator-method';
+}
+
+// the import-hint half of the iterator-form entry pair - single-sourced so the emitters'
+// injectors cannot drift on the entry -> hint mapping
+export function symbolIteratorHint(entry) {
+  return entry === 'get-iterator' ? 'getIterator' : SYMBOL_ITERATOR_PURE_RESULT.hintName;
 }
 
 // seeds `handledObjects` only for polyfillable Symbol.X. `isEntryAvailable`, when
