@@ -514,33 +514,52 @@ export function createBindingAnalysis({
   function makeNestedAnonAliasRefClassifier(fieldPath) {
     return function (parent, refNode, refPath) {
       let access = refPath;
-      let node = refNode;
       let matched = true;
       for (const step of fieldPath) {
-        const member = access?.parentPath?.node;
+        // paren / TS wrappers between steps (`(o.a as any).b` - both parsers; `(o.a).b` - oxc keeps the
+        // paren) are runtime-transparent: peel so the interposed cast doesn't drop the slot match and
+        // fall a held read through to the default's trivial member-receiver verdict
+        const outer = peelTransparentExprAncestorPath(access);
+        const member = outer?.parentPath?.node;
         // a COMPUTED read (`a[i]` array slot / `o["wrap"]` / `o[0]` / dynamic `o[k]`) could extract this slot,
         // so it matches conservatively; a DOTTED read matches only its own key, keeping a different field
         // (`o.count`) provably-local
-        const stepOk = isMemberRefReceiver(member, node) && (member.computed
+        const stepOk = isMemberRefReceiver(member, outer?.node) && (member.computed
           || (!step.index && member.property?.type === 'Identifier' && member.property.name === step.key));
         if (!stepOk) {
           matched = false;
           break;
         }
-        access = access.parentPath;
-        node = member;
+        access = outer.parentPath;
       }
       if (matched) {
-        const use = access?.parentPath?.node;
-        return isMemberRefReceiver(use, node) ? 'trivial' : 'leak';
+        const outer = peelTransparentExprAncestorPath(access);
+        const use = outer?.parentPath?.node;
+        // the matched slot as the target of a plain `=` (the store that placed the anon there / a later
+        // overwrite) doesn't READ the slot - the stored value's own escape is analyzed at its source.
+        // compound / logical assigns also produce the slot's value, so they stay on the held-read verdict
+        if (use?.type === 'AssignmentExpression' && use.operator === '=' && use.left === outer?.node) return 'trivial';
+        if (!isMemberRefReceiver(use, outer?.node)) return 'leak';
+        // a WRITE through the matched slot (`o.a.data = 5` / `o.a.data++` / `delete o.a.data` / a deeper
+        // chain ending in a write) mutates the anon from OUTSIDE its this-scan - the zero-external-write
+        // premise of the local narrow breaks, so bail; read-only dereferences stay local
+        let memberPath = outer.parentPath;
+        for (;;) {
+          if (isMemberWriteHost(memberPath)) return 'leak';
+          const memberOuter = peelTransparentExprAncestorPath(memberPath);
+          if (!isMemberRefReceiver(memberOuter?.parentPath?.node, memberOuter?.node)) break;
+          memberPath = memberOuter.parentPath;
+        }
+        return 'trivial';
       }
       if (isForXStatement(parent) && parent.right === refNode) return 'leak';
       if (parent?.type === 'SpreadElement') return 'leak';
       if (parent?.type === 'VariableDeclarator' && parent.init === refNode
         && (parent.id?.type === 'ObjectPattern' || parent.id?.type === 'ArrayPattern')) return 'leak';
       if (isMemberRefReceiver(parent, refNode)) {
-        const use = refPath?.parentPath?.parentPath?.node;
-        if ((use?.type === 'CallExpression' || use?.type === 'OptionalCallExpression') && use.callee === parent) {
+        const memberOuter = peelTransparentExprAncestorPath(refPath?.parentPath);
+        const use = memberOuter?.parentPath?.node;
+        if ((use?.type === 'CallExpression' || use?.type === 'OptionalCallExpression') && use.callee === memberOuter?.node) {
           return 'leak';
         }
       }
