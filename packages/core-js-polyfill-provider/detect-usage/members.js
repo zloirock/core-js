@@ -173,15 +173,26 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 //   { kind: 'collapse', rootBinding: { alias: node } | { pure: { entry, hintName } },
 //     harvestedSE: node[], property: node, computed: bool }
 //   { kind: 'member', inner: <plan>, property: node, computed: bool }   // deeper nav under a kept leaf chain
-export function planProxyReceiver(receiver, { aliasCtx = null, isWriteTarget = false, bailOnPureLeaf = true, resolvePure }) {
+export function planProxyReceiver(receiver, {
+  aliasCtx = null, isWriteTarget = false, bailOnPureLeaf = true, throughChainAssign = false, resolvePure,
+}) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
   // collapsible only when the whole `.object` is the proxy-nav prefix; else try call/IIFE-rooted, then a deeper
-  // nav stacked under a non-proxy leaf chain (`(c++, globalThis.self).Array.prototype`)
-  if (maximalProxyGlobalPrefix(receiver, aliasCtx, isWriteTarget) !== receiver.object) {
+  // nav stacked under a non-proxy leaf chain (`(c++, globalThis.self).Array.prototype`). compare against the
+  // WRAPPER-peeled object - the prefix walker returns the peeled member while the raw `.object` may be a
+  // transparent wrapper node sitting between the hops (`((a = globalThis).self as any).Array` - the cast),
+  // which would force the member-recursion onto the non-member wrapper and null the plan. wrappers ONLY -
+  // peeling a sequence TAIL here would claim SE-prefixed objects the emitters route through their own
+  // SE-tail collapse paths, overlapping their queued rewrites
+  let objectCore = receiver.object;
+  while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(objectCore?.type) || objectCore?.type === 'ChainExpression') {
+    objectCore = objectCore.expression;
+  }
+  if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: isWriteTarget, throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
     if (callRooted) return callRooted;
-    if (!findProxyGlobal(receiver, aliasCtx)) return null;
-    const inner = planProxyReceiver(receiver.object, { aliasCtx, bailOnPureLeaf, resolvePure });
+    if (!findProxyGlobal(receiver, aliasCtx, throughChainAssign)) return null;
+    const inner = planProxyReceiver(objectCore, { aliasCtx, bailOnPureLeaf, throughChainAssign, resolvePure });
     return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
   }
   // `bailOnPureLeaf` (synth-swap context): a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map`
@@ -194,7 +205,7 @@ export function planProxyReceiver(receiver, { aliasCtx = null, isWriteTarget = f
   // harvest reads the chain OBJECT not the key, so collapsing would re-root a proxy chain and loop; bail
   const hopLeaf = staticMemberKeyName(receiver);
   if (hopLeaf && POSSIBLE_GLOBAL_OBJECTS.has(hopLeaf)) return null;
-  const root = findProxyGlobal(receiver, aliasCtx);
+  const root = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
   const rootPure = root && resolvePure({ kind: 'global', name: root.name });
   // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
   // root swaps to its pure ctor

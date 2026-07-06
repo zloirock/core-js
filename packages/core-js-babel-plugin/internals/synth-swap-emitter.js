@@ -27,8 +27,6 @@ import {
   isExpandedClassifiableReceiver,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
-  POSSIBLE_GLOBAL_OBJECTS,
-  staticMemberKeyName,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   classifyCallBranchForSynth,
@@ -41,8 +39,8 @@ import {
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix, PROXY_HOP_VALUE_CARRIERS,
-  proxyGlobalMemberCtorPure, resolveSynthKeys,
+  descendToChainRoot, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
+  navHasUnresolvableProxyHop, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure, resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
@@ -327,22 +325,9 @@ export default function createSynthSwapEmitter({
     return t.memberExpression(rootNode, t.cloneNode(plan.property), plan.computed);
   }
 
-  function collapseProxyGlobalReceiver(receiver, aliasCtx = null, isWriteTarget = false) {
-    const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, resolvePure });
+  function collapseProxyGlobalReceiver(receiver, { aliasCtx = null, isWriteTarget = false, throughChainAssign = false } = {}) {
+    const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
     return plan ? renderProxyReceiverPlanAst(plan) : null;
-  }
-
-  // true when ANY hop of a proxy-nav is a proxy-global name WITHOUT a pure entry (`globalThis.window` - no
-  // `_window`): the natural visitor leaves it raw off the pure root (`_globalThis.window`, undefined off-engine).
-  // `staticMemberKeyName` folds a SE-bearing computed hop key (`globalThis[(e++, 'window')]`) so it is detected
-  function navHasUnresolvableProxyHop(navNode) {
-    let cur = navNode;
-    while (t.isMemberExpression(cur) || t.isOptionalMemberExpression(cur)) {
-      const hop = staticMemberKeyName(cur);
-      if (hop && POSSIBLE_GLOBAL_OBJECTS.has(hop) && !resolvePure({ kind: 'global', name: hop })) return true;
-      cur = cur.object;
-    }
-    return false;
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
@@ -357,20 +342,29 @@ export default function createSynthSwapEmitter({
     // globalThis; g.self.X` -> `g.X`): the alias-aware `findProxyGlobal` follows the binding so an
     // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
     // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
-    if (!findProxyGlobal(idPath.node, aliasCtx)) return false;
+    if (!findProxyGlobal(idPath.node, aliasCtx, true)) return false;
     let recPath = idPath.parentPath;
-    // advance while the member is ENTIRELY proxy navigation (its own maximal prefix spans the whole
-    // node), so we stop at the first member whose leaf is non-proxy - the collapse receiver
-    // `allowSideEffectKeys`: advance THROUGH a SE-bearing proxy hop (`globalThis[(eff(), 'self')].X`) too -
-    // it stops the climb at the hop otherwise, leaving a dead `_globalThis.self.X`. the collapse below routes
-    // it to the call-rooted plan, which HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
-    while ((recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression())
-      && maximalProxyGlobalPrefix(recPath.node, aliasCtx, true) === recPath.node) {
+    // climb to the leaf member consuming the maximal proxy-hop prefix (stop at the first member
+    // whose leaf is non-proxy), stepping THROUGH any construct the chain-walk canon peels on the
+    // way down - chain-assignments (`(a = globalThis).self.X`), sequence tails, TS casts,
+    // including MID-CHAIN wrappers (`((a = globalThis).self as any).Array`) - by alternating the
+    // wrapper step with the member step; mirroring the canonical descent (which must terminate at
+    // exactly this identifier) keeps the two walks in lockstep, and a non-peelable parent (call
+    // argument, unary operand, ...) self-limits the loop. `allowSideEffectKeys`: advance THROUGH
+    // a SE-bearing proxy hop too (`globalThis[(eff(), 'self')].X`) - the collapse below routes it
+    // to the call-rooted plan, which HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
+    for (;;) {
+      if (recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression()) {
+        if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
+          { allowSideEffectKeys: true, throughChainAssign: true }) !== recPath.node) break;
+      } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== idPath.node) {
+        break;
+      }
       recPath = recPath.parentPath;
     }
     if (!recPath?.isMemberExpression() && !recPath?.isOptionalMemberExpression()) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
-    if (!maximalProxyGlobalHop(recPath.node, aliasCtx, true)) return false;
+    if (!maximalProxyGlobalHop(recPath.node, aliasCtx, { allowSideEffectKeys: true, throughChainAssign: true })) return false;
     // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
     // it CLAIMED (named props feed a synth literal `{ from: _Array$from }`); collapsing here too
     // double-injects a dead `_globalThis`, even when the source sits under value carriers (`{from} =
@@ -395,8 +389,8 @@ export default function createSynthSwapEmitter({
     // `_globalThis.window` slot is undefined off-engine -> crash). without it babel would always collapse to
     // `_globalThis`, diverging from unplugin (whose `_self` resolution is embedded too deep to re-route cheaply)
     const isWriteTarget = isMemberWriteHost(recPath);
-    if (isWriteTarget && !navHasUnresolvableProxyHop(recPath.node.object)) return false;
-    const collapsed = collapseProxyGlobalReceiver(recPath.node, aliasCtx, isWriteTarget);
+    if (isWriteTarget && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure)) return false;
+    const collapsed = collapseProxyGlobalReceiver(recPath.node, { aliasCtx, isWriteTarget, throughChainAssign: true });
     if (!collapsed) return false;
     recPath.replaceWith(collapsed);
     return true;
@@ -433,7 +427,7 @@ export default function createSynthSwapEmitter({
       // unplugin); a non-ctor leaf falls through to the proxy-root collapse below
       const ctorPure = proxyGlobalMemberCtorPure({ receiver: readReceiver, aliasCtx, resolvePure });
       if (ctorPure) return receiverRef = injectPureImport(ctorPure.entry, ctorPure.hintName);
-      return receiverRef = collapseProxyGlobalReceiver(readReceiver, aliasCtx) ?? readReceiver;
+      return receiverRef = collapseProxyGlobalReceiver(readReceiver, { aliasCtx }) ?? readReceiver;
     }
 
     // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
@@ -509,7 +503,7 @@ export default function createSynthSwapEmitter({
             // collapse a proxy hop in the memoized receiver too (`(() => globalThis)().self.Array` ->
             // `(call, _self).Array`): the memo argument reads the receiver value once, so a verbatim
             // `.self` hop would throw off-browser before the memo body runs
-            [collapseProxyGlobalReceiver(memoReceiver, aliasCtx) ?? t.cloneNode(memoReceiver, true)])
+            [collapseProxyGlobalReceiver(memoReceiver, { aliasCtx }) ?? t.cloneNode(memoReceiver, true)])
           : dropRescueReceiver
             ? t.sequenceExpression([
               ...discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
