@@ -42,6 +42,7 @@ import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
 export function createClosureAnalysis({
+  getScopeBinding,
   t,
   babelBindingAdapter,
   memoize,
@@ -100,7 +101,9 @@ export function createClosureAnalysis({
   // `[{key}]` object field), so the leak analysis can leak only the anon's OWN slot (`a[i]` / `o.wrap`) when
   // held, not every member read of the binding. null/empty -> the binding's own generic leak analysis
   function carrierBindingLeaks(scope, name, anchorPath, fieldPath) {
-    return computeAliasClosureFromBinding({ rootBinding: scope?.getBinding(name), rootName: name, anchorPath, fieldPath }) === null;
+    return computeAliasClosureFromBinding({
+      rootBinding: getScopeBinding(scope, name, anchorPath), rootName: name, anchorPath, fieldPath,
+    }) === null;
   }
   // loop-variable Identifier name of a `for (... of iterable)` head: `for (const x of ...)` (single
   // Identifier declarator) or `for (x of ...)` (bare Identifier). null for a destructure / member target
@@ -207,7 +210,7 @@ export function createClosureAnalysis({
       cur = unwrapRuntimeExpr(cur.object);
     }
     if (cur?.type !== 'Identifier') return true;
-    const binding = scope?.getBinding(cur.name);
+    const binding = getScopeBinding(scope, cur.name);
     if (!binding || !LOCAL_VAR_KINDS.has(binding.kind)) return true;
     return carrierBindingLeaks(scope, cur.name, anchorPath, [...steps, ...fieldPath]);
   }
@@ -363,7 +366,9 @@ export function createClosureAnalysis({
     return memoize(objectAliasClosureCache, objectPath.node, () => {
       const rootName = objectBindingName(objectPath);
       if (rootName) {
-        return computeAliasClosureFromBinding({ rootBinding: objectPath.scope?.getBinding(rootName), rootName, anchorPath: objectPath });
+        return computeAliasClosureFromBinding({
+          rootBinding: getScopeBinding(objectPath.scope, rootName, objectPath), rootName, anchorPath: objectPath,
+        });
       }
       return anonymousObjectEscapes(objectPath) ? null : EMPTY_CLOSURE;
     });
@@ -377,7 +382,7 @@ export function createClosureAnalysis({
   function isReceiverInClosure(objPath, closure) {
     const node = unwrapRuntimeExpr(objPath.node);
     if (!t.isIdentifier(node)) return false;
-    const binding = objPath.scope?.getBinding(node.name);
+    const binding = getScopeBinding(objPath.scope, node.name, objPath);
     return !!binding && closure.has(binding);
   }
 
@@ -571,7 +576,7 @@ export function createClosureAnalysis({
     if (entry.assignmentInitName) {
       const assignPath = entry.wrapperPath.parentPath;
       const scope = assignPath?.scope;
-      if (!isSoleAssignmentSource(scope?.getBinding(entry.assignmentInitName))) return { bail: true };
+      if (!isSoleAssignmentSource(getScopeBinding(scope, entry.assignmentInitName))) return { bail: true };
       return { name: entry.assignmentInitName, scope, anchorPath: assignPath };
     }
     if (!entry.isDeclaratorInit) return null;
@@ -645,7 +650,7 @@ export function createClosureAnalysis({
         // all (e.g., `new C()` as MemberExpression receiver - already tracked elsewhere), skip
         if (source?.bail) return null;
         if (!source) continue;
-        const binding = source.scope?.getBinding(source.name);
+        const binding = getScopeBinding(source.scope, source.name);
         if (!binding) return null;
         const sub = computeAliasClosureFromBinding({
           rootBinding: binding, rootName: source.name, anchorPath: source.anchorPath, methodInfo,
@@ -683,7 +688,7 @@ export function createClosureAnalysis({
   function getClassBindingClosure(classPath, anchorPath) {
     return memoize(classBindingClosureCache, classPath.node, () => {
       const className = classBindingName(classPath);
-      const binding = className ? classPath.scope?.getBinding(className) : null;
+      const binding = className ? getScopeBinding(classPath.scope, className, classPath) : null;
       if (!binding) return null;
       // the `<Class>.prototype` hop exposes the class's OWN instance methods AND the inherited
       // ones (`D.prototype.read` resolves through the prototype chain to the base's method), so
@@ -720,7 +725,7 @@ export function createClosureAnalysis({
   // resolve a class-binding NAME to its class node: a ClassDeclaration binding or a declarator
   // whose init is a class expression. null for anything else (external / unresolvable base)
   function classNodeFromBindingName(name, scope) {
-    const node = scope?.getBinding?.(name)?.path?.node;
+    const node = getScopeBinding(scope, name)?.path?.node;
     if (node?.type === 'ClassDeclaration') return node;
     if (node?.type === 'VariableDeclarator') {
       const init = unwrapRuntimeExpr(node.init);
@@ -736,7 +741,7 @@ export function createClosureAnalysis({
     const seen = new Set();
     while (!seen.has(name)) {
       seen.add(name);
-      const binding = scope?.getBinding?.(name);
+      const binding = getScopeBinding(scope, name);
       if (binding?.constantViolations?.length) return null;
       const init = unwrapExpressionChain(binding?.path?.node?.init);
       if (init?.type !== 'Identifier') return name;
