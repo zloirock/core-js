@@ -5,3 +5,5 @@ const _ref01 = 1;
 const _ref09 = 2;
 const [a, b, c, d] = Array.from(window);
 const [p, q, r, s] = Array.of(_ref01, _ref09, a, b);
+getOne().at(0);
+getTwo().flat();
