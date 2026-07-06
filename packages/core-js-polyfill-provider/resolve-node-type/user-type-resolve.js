@@ -91,17 +91,20 @@ export function createUserTypeResolve({
     const localMap = new Map();
     let didSubst = false;
     declParams.forEach((p, i) => {
+      const pname = typeParamName(p);
       const explicit = callArgs?.[i];
       const arg = explicit ?? p.default;
-      if (!arg) return;
+      if (!pname || !arg) return;
       const map = explicit ? base : localMap;
       const resolved = map.size > 0
         ? substituteTypeParams(arg, map, scope, depth + 1, seen)
         : resolveTypeAnnotation(arg, scope, depth + 1);
-      if (resolved) {
-        localMap.set(typeParamName(p), resolved);
-        didSubst = true;
-      }
+      // a PRESENT-but-opaque instantiation arg (and a consulted-but-unresolvable default,
+      // e.g. a cyclic one) binds opaque (null): the body's type-param-declaration fallback
+      // would otherwise re-derive the DEFAULT for a type the caller explicitly supplied -
+      // a type-specific Maybe on a foreign runtime value (an ie:11 throw)
+      localMap.set(pname, resolved ?? null);
+      didSubst = true;
     });
     // neither subst happened nor a collision exists: return typeParamMap as-is so the caller's
     // identity preserves for downstream memoize keys
