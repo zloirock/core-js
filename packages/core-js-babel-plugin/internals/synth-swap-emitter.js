@@ -36,7 +36,7 @@ import {
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  collectFallbackCollapseLeftSe,
+  discardRescueNodes,
   planProxyReceiver,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
@@ -202,8 +202,8 @@ export default function createSynthSwapEmitter({
       // its harvested SE is re-exposed so the live left PREFIX (`([1].at(0), Array)`, an IIFE body's
       // globals) still polyfills in place, for apply() to harvest into the rescued leftSe sequence
       t.traverseFast(receiver.right, node => { skippedNodes.add(node); });
-      const keepSe = collectFallbackCollapseLeftSe({
-        leftNode: receiver.left, scope: targetPath.scope, adapter, path: targetPath,
+      const keepSe = discardRescueNodes({
+        node: receiver.left, scope: targetPath.scope, adapter, path: targetPath,
       });
       markReplacedReceiverSkipped({ receiver: receiver.left, keepSe, skippedNodes, walkNode: t.traverseFast });
     } else if (!rescueSe || shouldDropRescueReceiver(receiver)) {
@@ -212,8 +212,8 @@ export default function createSynthSwapEmitter({
       // at a sequence and leaves the prefix's dropped globals visible, injecting a dead `_globalThis`
       // import. the harvested SE is re-exposed so its globals still polyfill in the live tree before
       // apply clones them into the re-emitted prefix. keeps the import set identical to the text emitter
-      const keepSe = rescueSe ? collectFallbackCollapseLeftSe({
-        leftNode: receiver, scope: targetPath.scope, adapter, path: targetPath,
+      const keepSe = rescueSe ? discardRescueNodes({
+        node: receiver, scope: targetPath.scope, adapter, path: targetPath,
       }) : [];
       markReplacedReceiverSkipped({ receiver, keepSe, skippedNodes, walkNode: t.traverseFast });
     } else markSynthReceiverSkipped(receiver, skippedNodes);
@@ -512,7 +512,7 @@ export default function createSynthSwapEmitter({
             [collapseProxyGlobalReceiver(memoReceiver, aliasCtx) ?? t.cloneNode(memoReceiver, true)])
           : dropRescueReceiver
             ? t.sequenceExpression([
-              ...collectFallbackCollapseLeftSe({ leftNode: path.node, scope: path.scope, adapter, path })
+              ...discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
                 .map(n => t.cloneNode(n, true)),
               literal,
             ])
@@ -522,14 +522,14 @@ export default function createSynthSwapEmitter({
         // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||` / `??`
         // default collapses to the synth literal (its left is the always-resolved receiver, its right
         // short-circuits), but the left's side effects must still run when the default fires. preserve
-        // them ahead of the literal in source order via the shared `collectFallbackCollapseLeftSe` plan
+        // them ahead of the literal in source order via the shared discarded-receiver rescue plan
         // (structural prefixes + a call-rooted left's chain-root call). harvested from the LIVE tree
         // here, AFTER the identifier / instance visitors mutated the left in place, so a polyfillable
         // left effect (`[1].at(0)`, an IIFE reading `globalThis`) carries its rewrite. a pure left
         // plans nothing, so the clean collapse is unchanged (no fixture churn). suppressed when
         // memoizing - the memo argument is the whole receiver, so the left's SE already runs once there
         if (!needMemo && path.node.type === 'LogicalExpression') {
-          const leftSe = collectFallbackCollapseLeftSe({ leftNode: path.node.left, scope: path.scope, adapter, path });
+          const leftSe = discardRescueNodes({ node: path.node.left, scope: path.scope, adapter, path });
           if (leftSe.length) replacement = t.sequenceExpression([...leftSe.map(n => t.cloneNode(n, true)), replacement]);
         }
         path.replaceWith(replacement);
