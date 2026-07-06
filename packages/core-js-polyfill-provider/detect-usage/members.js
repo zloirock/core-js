@@ -15,6 +15,7 @@ import {
   bindingSymbolKey,
   collectMemberUnionCandidates,
   descendToChainRoot,
+  ownChainOptionalCount,
   enterIdentifierBindingFollow,
   findProxyGlobal,
   inlineCallHasObservableEffects,
@@ -537,7 +538,18 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
         const rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
         if (rootName) {
           const rescue = seedChainRootCallRescue({ node: node.object, scope, adapter, path });
-          symbolReceiverProxyRoot = { rootName, droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue) };
+          // "does this access sit under a `?.`" decides the emitters' droppedSe routing (inline
+          // in the guard-memoized sequence vs the flat SE channel) - decide it ONCE here via the
+          // flag-based OWN-chain walk so both emitters agree at ANY hop depth (babel's node TYPES
+          // promote whole chains while estree flags only the introducing hop - emitter-local
+          // re-derivation from either shape diverges on a mid-chain `?.`). the walk stops at
+          // SEALING wrappers: a paren / cast / sequence-terminated `?.` is not live for this
+          // access, and the emitters' non-optional route is the one that preserves its hop SE
+          symbolReceiverProxyRoot = {
+            rootName,
+            droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue),
+            isOptionalAccess: ownChainOptionalCount(node) > 0,
+          };
         }
       }
     }
