@@ -1646,6 +1646,7 @@ function createResolveNodeType(babelNodeType, t, {
     t,
     babelNodeType,
     getScopeBinding,
+    hasParamTypeRef: returnTypeCluster.hasParamTypeRef,
     babelBindingAdapter,
     isMemberLike,
     isMutatedStatic,
