@@ -872,6 +872,7 @@ export default function createPlugin(options) {
           injector,
           isBodylessStatementBody,
           isDisabled,
+          isEntryNeeded,
           nodeSrc,
           resolveGlobalPolyfill,
           resolveNodeType: typeResolvers.resolveNodeType,
