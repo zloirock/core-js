@@ -50,6 +50,7 @@ const NULLISH_BRANCH_TYPES = new Set([
 ]);
 
 export function createDiscriminantNarrow({
+  getScopeBinding,
   t,
   peelNegation,
   pathKey,
@@ -189,7 +190,7 @@ export function createDiscriminantNarrow({
   // re-resolving across each guard check
   function buildDiscriminantContext(varPath, targetKey) {
     const [rootName] = targetKey.split('.', 1);
-    const objectBinding = rootName === 'this' ? null : varPath.scope?.getBinding(rootName);
+    const objectBinding = rootName === 'this' ? null : getScopeBinding(varPath.scope, rootName, varPath);
     // `violations` = reassignments of the narrowed value's IDENTITY (binding reassignments + writes to
     // the exact narrowed path / a shallower prefix); they invalidate the narrow unconditionally and feed
     // the loop / function-boundary checks. `fieldWrites` = writes to a DIRECT field, kept apart because
@@ -256,7 +257,7 @@ export function createDiscriminantNarrow({
   // the guard - mirrors `hasMutationAfterGuards`' `isBefore` polarity
   function discriminantGuardApplies(scope, testNode, ctx, deferredUpper) {
     const { rootName, objectBinding, targetKey, objectStart } = ctx;
-    if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
+    if (rootName !== 'this' && objectBinding && getScopeBinding(scope, rootName) !== objectBinding) return false;
     // a direct field write only flips THIS guard when the field is one of its discriminants
     const relevant = relevantGuardViolations(ctx, testNode, targetKey, scope);
     if (objectBinding && violationInCapturedFunction(t, relevant, objectBinding.scope?.path)) return false;
@@ -570,7 +571,7 @@ export function createDiscriminantNarrow({
   // declared union. permissive: branches with non-literal members or missing RHS keys pass
   // through, single-branch result wins
   function narrowUnionByAssignmentLiteral(varPath, annotation, scope) {
-    const binding = varPath.scope?.getBinding(varPath.node?.name);
+    const binding = getScopeBinding(varPath.scope, varPath.node?.name, varPath);
     if (!binding) return null;
     const lastAssign = findPrecedingBlockAssignment(binding, varPath);
     const rhs = lastAssign?.node?.right;

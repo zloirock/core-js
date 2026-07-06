@@ -19,6 +19,7 @@ import { isLoopStatement } from '../destructure-host-shape.js';
 import { $Object, $Primitive, PRIMITIVES } from './base.js';
 
 export function createNarrowByGuards({
+  getScopeBinding,
   t,
   resolveTypeAnnotation,
   isNullableOrNever,
@@ -125,11 +126,13 @@ export function createNarrowByGuards({
         && vnode.start >= node.start && vnode.end <= node.end;
     }
     return {
+      // a canonically-recovered extra has no parent chain for the descendant walk - treat it
+      // as violating (and conservatively-before, matching the synthetic-position fallback)
       violates(scope) {
-        return constantViolations.some(v => isDescendantOf(v, scope));
+        return constantViolations.some(v => v.canonicalRecovered || isDescendantOf(v, scope));
       },
       violatesBefore(scope) {
-        return constantViolations.some(v => isDescendantOf(v, scope) && isBefore(v));
+        return constantViolations.some(v => v.canonicalRecovered ? isBefore(v) : (isDescendantOf(v, scope) && isBefore(v)));
       },
       // mutation byte range fits inside node's byte range. used for sibling-relative
       // scopes the parentPath walker can't reach
@@ -344,7 +347,7 @@ export function createNarrowByGuards({
     const { node } = path;
     if (guardsCache.has(node)) return guardsCache.get(node);
     const { name } = node;
-    const binding = path.scope?.getBinding(name);
+    const binding = getScopeBinding(path.scope, name, path);
     let result = null;
     if (binding) {
       const classification = classifyGuardAnnotation(binding);
