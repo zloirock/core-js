@@ -17,8 +17,10 @@ import {
   bindsModuleDefault,
   collectDestructureUnionCandidates,
   collectMemberUnionCandidates,
+  descendToChainRoot,
   isStaticPlacement,
   isTransparentWrapper,
+  ownChainOptionalCount,
   resolveKey,
   returnedReceiverHasEffects,
   unwrapTransparentSeq,
@@ -889,5 +891,48 @@ runBoth('collectDestructureUnionCandidates/usage-pure yields none',
 // (reaching-value walk) a minimal test adapter cannot supply, so a unit here would only fake it.
 // the enumeration primitive itself is unit-locked above; the attach wiring is locked by the
 // union fixtures' import-sets
+
+// --- ownChainOptionalCount (the provider-decided optional-access flag) ---
+
+// the symbol-iterator droppedSe routing reads `ownChainOptionalCount > 0` computed ONCE at
+// detection instead of per-emitter probes: babel's node TYPES promote the whole chain while
+// estree flags only the introducing hop, so any emitter-local re-derivation diverges on a
+// mid-chain `?.`. SEALING wrappers (parens - a NODE in estree, `extra.parenthesized` in babel -
+// plus casts and sequences) terminate the chain: a sealed `?.` is not live for this access and
+// must classify NON-optional (the emitters' flat route is the one preserving its hop SE);
+// the postfix `!` continues the chain in both grammars
+for (const [variant, code, expected, parserPlugins] of [
+  ['non-optional multi-hop', 'globalThis[k1].window[key];', 0],
+  ['optional on the access itself', 'globalThis[k1]?.[key];', 1],
+  ['optional one hop below', 'globalThis[k1]?.window[key];', 1],
+  ['optional two hops below', 'globalThis?.[k1].window[key];', 1],
+  ['optional three hops below', 'globalThis?.[k1].window.self[key];', 1],
+  ['two optional hops', 'globalThis?.[k1]?.window[key];', 2],
+  ['optional call hop', 'globalThis[k1]?.().window[key];', 1],
+  ['paren-terminated optional seals', '(globalThis?.[k1]).window[key];', 0],
+  ['sequence-buried optional seals', '(eff(), globalThis?.[k1]).window[key];', 0],
+  ['cast-sealed optional', '(globalThis?.[k1] as any).window[key];', 0, ['typescript']],
+  ['non-null postfix continues the chain', 'globalThis?.[k1]!.window[key];', 1, ['typescript']],
+  // a `?.` inside a computed KEY belongs to the key's own chain, not the receiver's
+  ['optional inside a computed key does not count', 'globalThis[k1?.x].window[key];', 0],
+  // an outer live `?.` over a paren-sealed inner chain: only the outer one is live
+  ['live outer over sealed inner', '(globalThis?.[k1])?.window[key];', 1],
+]) {
+  runBoth(`ownChainOptionalCount/${ variant }`, code, (adapter, prog, lbl) => {
+    // babel promotes every member of an optional chain to OptionalMemberExpression - pick both types
+    function isKeyAccess(p) {
+      return p.node.property?.name === 'key';
+    }
+    const top = adapter.pickPath(prog, 'MemberExpression', isKeyAccess)
+      ?? adapter.pickPath(prog, 'OptionalMemberExpression', isKeyAccess);
+    check(lbl, ownChainOptionalCount(top.node), expected);
+  }, parserPlugins);
+}
+// contrast: the ROOT-finding walk aggregates across sealed boundaries by design - consumers
+// keying emit ROUTES on it would over-report (the reason the flag uses the own-chain walk)
+runBoth('descendToChainRoot/optionalCount aggregates across a paren seal', '(globalThis?.[k1]).window[key];', (adapter, prog, lbl) => {
+  const top = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'key');
+  check(lbl, descendToChainRoot(top.node).optionalCount, 1);
+});
 
 finish();
