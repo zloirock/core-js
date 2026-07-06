@@ -2636,6 +2636,15 @@ const D_GETITERATOR_SE = [
   // the hop SE) - a route that mis-classified this as non-optional would fold droppedSe into a bare root and
   // the suppress/guard would DROP it. globalThis is never null so both SE run; asserts the hop SE survives
   { id: 'proxy-hop-optional', body: 'let hop = 0, key = 0; try { (globalThis?.[(hop++, "self")][(key++, Symbol.iterator)])(); } catch (e) {} return [hop, key];' },
+  // MID-CHAIN optional (`?.` two-plus hops below the symbol access, no wrapping parens): the optional
+  // verdict comes from the provider's flag-based chain walk - an emitter-local one-hop probe classifies
+  // this NON-optional and routes the hop SE flat, diverging from the other emitter's memoized form.
+  // globalThis is never null so both SE run in hop-then-key order on every leg
+  // hops stay on `globalThis` keys: `self` / `window` are undefined in the bare-Node differential
+  // realm, so a native mid-chain access would throw BEFORE the key SE while the collapsed root
+  // (browser-semantics feature) would not - the hop choice keeps the ORDER assertion realm-neutral
+  { id: 'proxy-hop-midchain-optional',
+    body: 'let hop = 0, key = 0; try { globalThis?.[(hop++, "globalThis")].globalThis[(key++, Symbol.iterator)](); } catch (e) {} return [hop, key];' },
 ];
 function * generateGetIteratorKeySE() {
   for (const c of D_GETITERATOR_SE) yield { ...snippet(`getiterator-key-se/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
