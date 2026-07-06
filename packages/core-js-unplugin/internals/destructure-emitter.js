@@ -67,7 +67,7 @@ import {
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  collectFallbackCollapseLeftSe,
+  discardRescueNodes,
   isSourcedSymbolIteratorMeta,
   planCallRootDiscardedProxySwap,
   planProxyReceiver,
@@ -2043,7 +2043,7 @@ export function createDestructureEmitter({
     // param-default path + the babel emitter via the shared `shouldDropRescueReceiver`
     const dropBranchReceiver = rescueSe && shouldDropRescueReceiver(inner);
     const branchLeftSe = dropBranchReceiver
-      ? collectFallbackCollapseLeftSe({ leftNode: inner, scope, adapter: estreeAdapter, path }) : null;
+      ? discardRescueNodes({ node: inner, scope, adapter: estreeAdapter, path }) : null;
     const binding = injectPureImport(pure.entry, pure.hintName);
     // mark Paren / TS / ChainExpression wrappers AND the inner resolved receiver
     // (Identifier or proxy-global MemberExpression chain). without marking the wrappers,
@@ -2573,8 +2573,8 @@ export function createDestructureEmitter({
       // into the rescued leftSe text (babel-twin contract). the rescue plan is computed once in the shared
       // provider, rendered as text at apply time
       walkAstNodes({ root: receiver.right, visit: n => skippedNodes.add(n) });
-      leftSe = collectFallbackCollapseLeftSe({
-        leftNode: receiver.left, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
+      leftSe = discardRescueNodes({
+        node: receiver.left, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
       });
       skipReplacedReceiver(receiver.left, leftSe);
     } else if (rescueSe && shouldDropRescueReceiver(receiver)) {
@@ -2582,8 +2582,8 @@ export function createDestructureEmitter({
       // be re-emitted verbatim: the kept `_globalThis.self` reads an undefined intermediate hop
       // off-browser. the receiver value is discarded, so drop it and re-emit ONLY its harvested side
       // effects ahead of the literal (matching the babel emitter via the shared `shouldDropRescueReceiver`)
-      leftSe = collectFallbackCollapseLeftSe({
-        leftNode: receiver, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
+      leftSe = discardRescueNodes({
+        node: receiver, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
       });
       skipReplacedReceiver(receiver, leftSe);
       rescueSeEmit = null;
@@ -3529,7 +3529,7 @@ export function createDestructureEmitter({
       // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||`/`??`
       // collapses to the literal (its left is the always-resolved receiver, its right short-circuits),
       // but the left's side effects must still run when the default fires - re-emit them ahead of the
-      // literal in source order via the shared `collectFallbackCollapseLeftSe` plan (structural
+      // literal in source order via the shared discarded-receiver rescue plan (structural
       // prefixes + a call-rooted left's chain-root call). inner rewrites compose into each node's
       // source text by needle. a pure left plans nothing, so the clean collapse is unchanged.
       // suppressed when memoizing - the memo argument (the left) already runs its SE once there
