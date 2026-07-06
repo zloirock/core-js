@@ -30,6 +30,7 @@ import "core-js/modules/web.self";
 // (`_Map.prototype.has`) and COLLAPSES, dropping the call - its inner must be subsumed (keeping it orphaned the
 // inner global). a NATIVE ctor's prototype method (`Array.prototype.at`) wraps, so it rebinds; and a wrapper
 // `.name` ABOVE the prototype method (`Set.prototype.add.name`) also rebinds; and a [Symbol.iterator] leaf (also a _getIteratorMethod wrapper) rebinds too. distinct ctor per line.
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 const collapseProtoMethod = (() => globalThis)()?.self.Map.prototype.has.call(new Map(), 1);
 const rebindNativeProto = (() => globalThis)()?.self.Array.prototype.at.call([1, [2]], 0);
 const rebindWrapperAbove = (() => globalThis)()?.self.Set.prototype.add.name;

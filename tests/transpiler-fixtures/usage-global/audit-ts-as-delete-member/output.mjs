@@ -12,8 +12,9 @@ import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
-// `delete (x as any).Promise`: the TS cast must be peeled, but the `Promise` operand
-// stays verbatim because `delete` operand cannot be polyfill-rewritten.
+// `delete (Map as any).prototype` / `delete (obj.at as any)` / `delete obj.includes!`: the TS
+// wrappers must be peeled, but the operands stay verbatim because a `delete` operand cannot be
+// polyfill-rewritten.
 delete (Map as any).prototype;
 delete (obj.at as any);
 delete obj.includes!;

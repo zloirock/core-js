@@ -27,6 +27,7 @@ import "core-js/modules/web.self";
 // ctor import (the optional rebind keeps the raw `_ref.self.Ctor` hop off the memoized root, so no `_Map`).
 // a computed key-SE folds into the guard's non-null branch (runs only when the receiver is non-nullish).
 // distinct ctor + side-effect shape per line: bare root, a deep `.self.window` hop, a computed key-SE.
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 let n = 0;
 const bareRoot = (() => {
   n += 1;
