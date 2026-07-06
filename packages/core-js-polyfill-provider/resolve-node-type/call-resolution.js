@@ -48,6 +48,7 @@ export function createCallResolution({
   isMutatedStatic = () => false,
   isFunctionLike,
   isNullableOrNever,
+  hasParamTypeRef = null,
   resolveNodeType,
   resolveRuntimeExpression,
   resolveReturnType,
@@ -530,6 +531,30 @@ export function createCallResolution({
     return buildSubstMap(fnNode.typeParameters?.params, getTypeArgs(callNode)?.params, scope);
   }
 
+  // inert unresolvable annotation node bound for a supplied-but-opaque type-param: it
+  // substitutes into downstream slots as unknown (generic) and REPLACES the type-param
+  // reference before the type-param-declaration default fallback can re-derive it
+  const OPAQUE_TYPE_ARG = Object.freeze({ type: 'TSUnknownKeyword' });
+
+  // synthetic keyword annotations for LITERAL args: this inference domain is annotation
+  // nodes (`findExpressionAnnotation` reads declared types), so an un-annotated literal
+  // arg looked opaque - it either fell to the declared default (a wrong-Maybe when the
+  // literal's type differs) or degraded to generic. a literal's type is trivially known -
+  // bridge it as an inert keyword node so the subst keeps the runtime ground truth. an
+  // array literal maps to Array-of-unknown: container-level receiver precision, inert
+  // element slot. objects / calls stay null (structural / unknowable here)
+  const LITERAL_ARG_ANNOTATIONS = {
+    StringLiteral: Object.freeze({ type: 'TSStringKeyword' }),
+    TemplateLiteral: Object.freeze({ type: 'TSStringKeyword' }),
+    NumericLiteral: Object.freeze({ type: 'TSNumberKeyword' }),
+    BigIntLiteral: Object.freeze({ type: 'TSBigIntKeyword' }),
+    BooleanLiteral: Object.freeze({ type: 'TSBooleanKeyword' }),
+    ArrayExpression: Object.freeze({ type: 'TSArrayType', elementType: Object.freeze({ type: 'TSUnknownKeyword' }) }),
+  };
+  function literalArgAnnotation(node) {
+    return node ? LITERAL_ARG_ANNOTATIONS[babelNodeType(node)] ?? null : null;
+  }
+
   // infer T -> argAnnotation from runtime arg annotations when caller omits `<...>`
   // (`makeBox(arr)` with `function makeBox<T>(t: T)`). limited to direct `T` param shapes
   // (no container wrappers); SpreadElement bails whole inference since positional mapping breaks
@@ -551,20 +576,28 @@ export function createCallResolution({
       const name = paramAnnotation && typeRefName(paramAnnotation);
       if (!name || !paramNames.has(name) || subst.has(name)) continue;
       const argInfo = findExpressionAnnotation(args[i], depth + 1);
-      const argAnnot = argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation);
+      const argAnnot = (argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation))
+        ?? literalArgAnnotation(args[i].node);
       if (argAnnot) subst.set(name, argAnnot);
     }
-    if (!subst.size) return null;
     // fill un-inferred params from their declared defaults so a partial inference doesn't
     // shadow `f<T, U = T[]>(t: T)` defaults at the call site. without this the `??` to
     // `buildCallSiteSubst` is skipped (subst is non-null) and U's default never propagates;
     // downstream typeparam-scope lookup recovers U as TSTypeReference but loses the inferred
-    // T binding when walking through U's default (T's scope-lookup has no value)
+    // T binding when walking through U's default (T's scope-lookup has no value).
+    // a PRESENT-but-opaque arg must NOT fall to the default (the default would emit a
+    // type-specific Maybe on a foreign runtime value): a type-param referenced ANYWHERE in
+    // a param annotation whose call arg is present binds the inert unknown node instead
     for (const p of fnTypeParams) {
       const name = typeParamName(p);
-      if (name && !subst.has(name) && p.default) subst.set(name, p.default);
+      if (!name || subst.has(name)) continue;
+      const singleName = new Set([name]);
+      const argConstrained = !!hasParamTypeRef && params.some((prm, i) => i < args.length
+        && hasParamTypeRef(effectiveParam(prm).param, singleName, 0));
+      if (argConstrained) subst.set(name, OPAQUE_TYPE_ARG);
+      else if (p.default) subst.set(name, p.default);
     }
-    return subst;
+    return subst.size ? subst : null;
   }
 
   // cluster-private: `resolveMemberAnnotation` / `resolveMemberInTypeMembers` /

@@ -6610,4 +6610,97 @@ runBoth('wrapper concrete arg keeps the narrow', 'declare const v: NoInfer<numbe
   checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
 });
 
+// --- supplied-but-opaque type-params (wrong-Maybe default-leak family) ---
+// a type-param whose call/instantiation site SUPPLIES a value the resolver cannot type
+// must resolve to NULL (generic helper downstream), never to its declared default (a
+// type-specific Maybe on a foreign runtime receiver); resolvable sites keep precision
+
+runBoth('opaque explicit type-arg does not fall to the default',
+  'type Foo = { z: 1; }; function make<T = number[]>(): T { return [] as any; } const out = make<Foo>();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('resolvable explicit type-arg keeps precision',
+  'function make<T = number[]>(): T { return [] as any; } const out = make<string[]>();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('deeply-referenced param (union wrapper) with a present arg stays opaque',
+  'function f<T = string>(x: T | null): T { return x as any; } const out = f(new Date());',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('bare-T param binds the arg type (inference wins over the default)',
+  'function f<T = string>(x: T): T { return x; } const out = f([1, 2]);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('transitive dependent default (U = T) stays opaque with an opaque earlier param',
+  'type Foo = { z: 1; }; declare const fv: Foo; '
+    + 'function make<T = number[], U = T>(x: T): U { return x as any; } const out = make(fv);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('transitive dependent default (U = T) keeps a resolvable earlier param',
+  'function make<T = number[], U = T>(x: T): U { return x as any; } const out = make(\'hi\');',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('container-of-opaque keeps container precision with an inert element',
+  'type Foo = { z: 1; }; declare const fv: Foo; '
+    + 'function wrap<T>(x: T): T[] { return [x]; } const out = wrap(fv);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('cyclic default with a supplied opaque arg resolves null without looping',
+  'type Foo = { z: 1; }; declare const fv: Foo; '
+    + 'function cyc<T = T[]>(x: T | null): T { return x as any; } const out = cyc(fv);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('user-type instantiation with an opaque explicit arg stays opaque on the member',
+  'type Foo = { z: 1; }; interface Box<T = number[]> { v: T } declare const b: Box<Foo>; const out = b.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('user-type instantiation with an omitted arg legitimately binds the default',
+  'interface Box<T = number[]> { v: T } declare const b: Box; const out = b.v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('literal arg bridges its type through the annotation-domain member chain',
+  'type Wrap<T> = { v: T; }; function w<T = number[]>(x: T): Wrap<T> { return { v: x } as any; } const out = w(\'abc\').v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: true, kind: 'string' });
+  });
+
+runBoth('opaque arg through the same member chain stays opaque',
+  'type Foo = { z: 1; }; declare const fv: Foo; type Wrap<T> = { v: T; }; '
+    + 'function w<T = string>(x: T | null): Wrap<T> { return { v: x } as any; } const out = w(fv).v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', pp => pp.node.id?.name === 'out');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
 finish();
