@@ -3,6 +3,7 @@
 // proxy hop to the pure root and harvest the prefix effect ahead of it (`(eff(), _globalThis).Array.prototype`)
 // - no raw `.self` that reads undefined off-engine (ie:11 / Node). covers the SE-wrapped TAIL, the SE-PREFIX
 // root (`(eff(), globalThis).self.X`), a destructure source, and a DOUBLE hop. distinct instance method per line.
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 let log = [];
 function eff(tag) {
   log.push(tag);

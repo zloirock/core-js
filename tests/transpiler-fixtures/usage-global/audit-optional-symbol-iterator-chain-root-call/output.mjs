@@ -11,6 +11,7 @@ import "core-js/modules/web.self";
 // `_ref.self` (ie:11 ReferenceError + a babel/unplugin desync). a pure call drops entirely; an SE call is
 // preserved in the collapse sequence `(call, _root)`; a deep `.self.window` hop collapses to the root too.
 // fixture-only: the receiver resolves to globalThis (not iterable in Node) and the hazard is off-engine.
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 let n = 0;
 const pureRoot = (() => globalThis)()?.self[Symbol.iterator];
 const seCall = [...(() => {
