@@ -41,6 +41,7 @@ import {
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
+  POSSIBLE_GLOBAL_OBJECTS,
   globalProxyMemberName,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
@@ -54,8 +55,10 @@ import {
 import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
+  descendToChainRoot,
   findProxyGlobal,
   isAliasProxyHopChain,
+  navHasUnresolvableProxyHop,
   isCallShape,
   isStaticPlacement,
   maximalProxyGlobalHop,
@@ -3253,13 +3256,26 @@ export function createDestructureEmitter({
     return src.slice(0, target.object.start - baseStart) + rootText + tail;
   }
 
-  function substituteProxyGlobalRoot({ node, src, baseStart, aliasCtx = null, ctx = null, isWriteTarget = false }) {
+  function substituteProxyGlobalRoot({
+    node, src, baseStart, aliasCtx = null, ctx = null, isWriteTarget = false, throughChainAssign = false,
+  }) {
     // a READ receiver delegates to the shared single-call resolver (the canonical proxy-global collapse, also
     // used by the instance-call path). a WRITE-target keeps the reconstruction below: the leaf is the assignment
     // SLOT (`globalThis.self.Set = fn`), not a static READ - the shared resolver's `.Set -> _Set` swap would
     // reassign the import. an alias / call-rooted read the shared resolver does not cover also falls through
     const metaPath = aliasCtx?.path ?? ctx?.path ?? null;
-    if (!isWriteTarget) {
+    // an ALIAS-rooted chain keeps its identifier and only drops the hops (`planProxyReceiver`'s
+    // rootBinding.alias branch below); the shared receiver resolver would swap the root to the
+    // pure binding (`(se, g).self.X` -> `(se, _globalThis).X` while babel keeps `g`) - so an
+    // alias root must not pre-claim through it
+    const earlyRoot = findProxyGlobal(node, aliasCtx, throughChainAssign);
+    const aliasRooted = !!earlyRoot && !POSSIBLE_GLOBAL_OBJECTS.has(earlyRoot.name);
+    // an ASSIGN-buried root (`(a = globalThis).self.X`, visible only to the chain-assign-aware
+    // walk) must not pre-claim either: the shared resolver renders by raw slices, which would
+    // re-emit the buried `globalThis` untransformed - the plan reconstruction below keeps the
+    // assignment text in place so the natural identifier rewrite composes into it
+    const assignRooted = !!earlyRoot && throughChainAssign && !findProxyGlobal(node, aliasCtx);
+    if (!isWriteTarget && !aliasRooted && !assignRooted) {
       const shared = resolveReceiverSource(node, metaPath);
       if (shared?.substituted) {
         if (shared.skipNode) skippedNodes.add(shared.skipNode);
@@ -3270,13 +3286,13 @@ export function createDestructureEmitter({
     // the proxy-global receiver to collapse is the tail. non-SE nodes peel to themselves, so the
     // member / identifier callers (`synthMemberReceiverSrc`, logical operands) are unaffected
     const target = peelNestedSequenceExpressions(node).tail ?? node;
-    const proxyRoot = findProxyGlobal(target, aliasCtx);
+    const proxyRoot = findProxyGlobal(target, aliasCtx, throughChainAssign);
     if (!proxyRoot) return substituteCallRootedProxyHop({ target, src, baseStart, ctx });
     // root resolution via the shared synth-swap collapse plan (the SAME decision as babel's
     // collapseProxyGlobalReceiver). a direct root -> rootBinding.pure; an ALIAS root (`const g = globalThis;
     // g.self.X`) -> rootBinding.alias, so rootPure is null and the reconstruction keeps the verbatim alias name
     // and only drops the hops. a non-collapsible root (`self.X` where `self` has no pure entry) -> null plan
-    let collapse = planProxyReceiver(target, { aliasCtx, isWriteTarget, resolvePure });
+    let collapse = planProxyReceiver(target, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
     while (collapse?.kind === 'member') collapse = collapse.inner;
     if (collapse?.kind !== 'collapse') return null;
     const rootPure = collapse.rootBinding.pure ?? null;
@@ -3286,7 +3302,13 @@ export function createDestructureEmitter({
     // which harvests the dropped hop SE as a sequence prefix and re-roots, matching babel's `droppedSe`.
     // both the destructure path (`ctx`) and the standalone hop-collapse driver (`aliasCtx`) reach here
     const collapseCtx = ctx ?? aliasCtx;
-    if (collapseCtx) {
+    // the call-rooted delegation swaps the root to the pure binding by construction - when the
+    // shared plan chose the ALIAS-keep branch (SE-free hop keys, `(e++, g).self.X` -> `(e++, g).X`)
+    // it stays with the reconstruction below, which keeps the verbatim alias identifier. a chain the
+    // plan itself routed call-rooted (a SE-bearing hop KEY, `g[(eff(), 'self')].X`) swaps pure on
+    // both emitters, so it delegates even under an alias root - gating on the ROOT identity here
+    // instead of the plan's decision left that shape to the SE-parity bail below (raw `g[...]`)
+    if (collapseCtx && !collapse.rootBinding.alias) {
       const callPlan = resolveCallRootedProxyCollapse({ receiver: target, ...collapseCtx });
       if (callPlan?.droppedSe.length) {
         const delegated = substituteCallRootedProxyHop({ target, src, baseStart, ctx: collapseCtx });
@@ -3304,7 +3326,7 @@ export function createDestructureEmitter({
     // dangles (`_globalThis).Array`; an SE-prefixed root doubles it). a proxy-hop prefix
     // (`(globalThis).self`) ends past the wrapper, so `max` keeps that wider span unchanged. `true`
     // admits SE-bearing hop keys into the span so a `[(c++,'self')]` hop collapses (SE harvested below)
-    const wrappedRoot = proxyGlobalWrappedRoot(target, aliasCtx);
+    const wrappedRoot = proxyGlobalWrappedRoot(target, aliasCtx, throughChainAssign);
     // a BARE-rooted deeper SE-hop (`globalThis[(c++,'self')].Array.prototype` - immediate hop is the native
     // `.Array`, so the call-rooted collapse above missed the `[(c++,'self')]`) BAILS: the natural visitor
     // collapses the proxy-immediate sub-chain (`...Array` -> `(c++, _globalThis).Array`) as a NESTED transform
@@ -3316,7 +3338,8 @@ export function createDestructureEmitter({
     // else it stays raw (`_globalThis[(e++,'window')].Set`, undefined off-engine -> crash)
     const rootIsSeWrapped = unwrapParens(wrappedRoot)?.type === 'SequenceExpression';
     if (!isWriteTarget && !rootIsSeWrapped
-      && maximalProxyGlobalPrefix(target, aliasCtx).end !== maximalProxyGlobalPrefix(target, aliasCtx, true).end) {
+      && maximalProxyGlobalPrefix(target, aliasCtx, { throughChainAssign }).end
+        !== maximalProxyGlobalPrefix(target, aliasCtx, { allowSideEffectKeys: true, throughChainAssign }).end) {
       return null;
     }
     // the maximal proxy navigation prefix (root + every redundant hop, computed-key hops admitted via `true`)
@@ -3326,7 +3349,7 @@ export function createDestructureEmitter({
     // reconstruction needs no per-shape boundary arithmetic. a sequence-BURIED root + trailing hop
     // (`(c++, (d++, globalThis.self)).window.X`) reconstructs cleanly here; the prior bare-identifier start
     // sat INSIDE the parens and the slice cut across the `))`, yielding unbalanced parens (a build-break)
-    const maxPrefix = maximalProxyGlobalPrefix(target, aliasCtx, true);
+    const maxPrefix = maximalProxyGlobalPrefix(target, aliasCtx, { allowSideEffectKeys: true, throughChainAssign });
     // span the WHOLE proxy nav incl. a wrapper directly around the bare root: WITH a hop, maxPrefix's object
     // IS the wrapper so maxPrefix is the outer node; with NO hop the wrapper is maxPrefix's PARENT, so fall
     // back to proxyGlobalWrappedRoot (`(globalThis)` -> the `(`). the outer (min-start) of the two spans both
@@ -3363,7 +3386,7 @@ export function createDestructureEmitter({
     // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
     // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
     const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
-    if (!findProxyGlobal(metaPath?.node, aliasCtx)) return false;
+    if (!findProxyGlobal(metaPath?.node, aliasCtx, true)) return false;
     // oxc preserves `ParenthesizedExpression` / `ChainExpression` / TS-cast wrappers that babel's AST folds
     // away; peel them while climbing so a wrapped proxy navigation (`(globalThis.self).Array`,
     // `((globalThis.self).Array as any).prototype`) reaches its leaf receiver and collapses like babel. the
@@ -3375,19 +3398,37 @@ export function createDestructureEmitter({
         || TS_EXPR_WRAPPERS.has(p.node?.type))) p = p.parentPath;
       return p;
     }
-    // climb to the leaf member that consumes the maximal proxy-hop prefix. `allowSideEffectKeys`: advance
-    // THROUGH a SE-bearing proxy hop (`globalThis[(eff(), 'self')].X`) too - it stops the climb at the hop
-    // otherwise, leaving a dead `_globalThis.self.X`. the collapse below routes it to the call-rooted plan,
-    // which HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
+    // climb to the leaf member consuming the maximal proxy-hop prefix (stop at the first member
+    // whose leaf is non-proxy), stepping THROUGH any construct the chain-walk canon peels on the
+    // way down - chain-assignments (`(a = globalThis).self.X`), sequence tails incl. a hop INSIDE
+    // the tail (`(eff(), globalThis.self).Array`) - by alternating the wrapper step with the
+    // member step (peelOxc handles the wrapper NODES oxc keeps; the canon step handles assigns /
+    // sequences at any depth); mirroring the canonical descent (which must terminate at exactly
+    // this entry node) keeps the two walks in lockstep, and a non-peelable parent (call argument,
+    // unary operand, ...) self-limits the loop. `allowSideEffectKeys`: advance THROUGH a
+    // SE-bearing proxy hop too - the collapse below routes it to the call-rooted plan, which
+    // HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
     let recPath = peelOxc(metaPath?.parentPath);
-    while ((recPath?.node?.type === 'MemberExpression' || recPath?.node?.type === 'OptionalMemberExpression')
-      && maximalProxyGlobalPrefix(recPath.node, aliasCtx, true) === recPath.node) {
+    for (;;) {
+      if (recPath?.node?.type === 'MemberExpression' || recPath?.node?.type === 'OptionalMemberExpression') {
+        if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
+          { allowSideEffectKeys: true, throughChainAssign: true }) !== recPath.node) break;
+      } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== metaPath?.node) {
+        break;
+      }
       recPath = peelOxc(recPath.parentPath);
     }
     const recv = recPath?.node;
     if (recv?.type !== 'MemberExpression' && recv?.type !== 'OptionalMemberExpression') return false;
+    // an earlier whole-span consumer (static dispatch: `(a = globalThis).self.Array.from(x)` ->
+    // `(a = globalThis, _Array$from)(x)` at its member visit, which precedes this identifier
+    // visit in the pre-order walk) claims a WIDER span that drops the chain and keeps only the
+    // harvested effects - a second whole-chain replacement from this drive would nest an
+    // un-composable transform inside it (its needle text no longer exists there). the earlier
+    // claim wins; the buried root's natural rewrite still composes into the claimed span
+    if (transforms.containsRange(recv.start, recv.end)) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
-    if (!maximalProxyGlobalHop(recv, aliasCtx, true)) return false;
+    if (!maximalProxyGlobalHop(recv, aliasCtx, { allowSideEffectKeys: true, throughChainAssign: true })) return false;
     // the destructure path OWNS the chain when it is an OBJECT-pattern destructure SOURCE (named props feed
     // a synth literal), even when wrapped in value carriers (`{from} = (se, globalThis.self.Array) || Set`).
     // walk up through those wrappers to the binding context and skip an OBJECT-pattern target. an ARRAY
@@ -3423,12 +3464,28 @@ export function createDestructureEmitter({
     // wrappers) collapses a SE-bearing hop here rather than deferring its sub-chain to the natural visitor -
     // the write slot has no sub-chain to nest
     const isWriteTarget = isMemberWriteHost(recPath);
-    const collapsed = substituteProxyGlobalRoot({ node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget });
+    // a write nav whose EVERY hop resolves to a pure entry stays with the natural per-hop rewrite
+    // (`(a = globalThis).self.Set = v` -> `(a = _globalThis, _self).Set = v`, already queued);
+    // claiming it here would emit a conflicting whole-span replacement (compose-needle crash).
+    // mirrors the babel drive; only a raw (unresolvable) hop forces the full root-collapse
+    if (isWriteTarget && !navHasUnresolvableProxyHop(recv.object, resolvePure)) return false;
+    const collapsed = substituteProxyGlobalRoot({
+      node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget, throughChainAssign: true,
+    });
     if (collapsed === null) return false;
+    // deliberately chain-assign-BLIND: an assign-buried root (`(a = globalThis).self.X`) is kept
+    // verbatim inside the harvested assignment slice, so its natural identifier rewrite must stay
+    // live to compose into the re-emitted text by needle; only a directly-substituted root is skipped
+    // deliberately chain-assign-BLIND: an assign-buried root (`(a = globalThis).self.X`) is kept
+    // verbatim inside the harvested assignment slice, so its natural identifier rewrite must stay
+    // live to compose into the re-emitted text by needle (`(a = globalThis, ...)` ->
+    // `(a = _globalThis, ...)`); a directly-substituted root (bare / paren / sequence-tail) is
+    // skipped instead. reporting that same visibility back tells the caller whether the natural
+    // rewrite still has to run (false = it does)
     const root = findProxyGlobal(recv, aliasCtx);
     if (root) skippedNodes.add(root); // suppress the parallel natural identifier rewrite
     transforms.add(recv.start, recv.end, collapsed);
-    return true;
+    return !!root;
   }
 
   // receiver source for a synth swap's MemberExpression receiver (`globalThis.Array`),

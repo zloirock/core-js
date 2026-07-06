@@ -232,3 +232,49 @@ QUnit.test('global-proxy: alias-rooted .self / .window hop collapses (runs witho
   const s = self;
   assert.same(new s.window.Array(4).length, 4);
 });
+
+// a CHAIN-ASSIGNMENT-rooted proxy navigation (`(a = globalThis).self.X`): the emit-side root walk
+// must step through the assignment exactly like the canonical descent, dropping the redundant hop
+// and keeping the assignment as a harvested prefix. `self` does not exist in Node, so every read
+// here runs ONLY because the hop was dropped - a surviving `.self` would read undefined and throw.
+// the assignment target must still observe the global object (the pure root it was rewritten to)
+QUnit.test('global-proxy: chain-assign-rooted .self hop collapses (runs without it in Node)', assert => {
+  let a, b, m, n, d;
+  assert.same(typeof (a = globalThis).self.Math.floor, 'function');
+  assert.same(a, globalThis);
+  assert.same(new (b = globalThis).self.Array(3).length, 3);
+  assert.same(b, globalThis);
+  assert.same(typeof (m = n = globalThis).self.JSON.stringify, 'function');
+  assert.same(m, globalThis);
+  assert.same(n, globalThis);
+  const g = globalThis;
+  assert.true((d = g).self.Array.isArray([1]));
+  assert.same(d, g);
+  // an instance-method destructure off the assign-rooted chain: the receiver renderer (not the
+  // hop drive, which defers to the claimed pattern) must drop the hop; the collapsed receiver
+  // stays the method's this-arg
+  let w;
+  const { flat } = (w = globalThis).self.Array.prototype;
+  assert.deepEqual(flat.call([1, [2]]), [1, 2]);
+  assert.same(w, globalThis);
+});
+
+// a SEQUENCE-wrapped root (`(e++, globalThis).self.X`): the climb from the root identifier must
+// mirror the canonical descent through the sequence tail (and a mixed sequence-then-assignment),
+// dropping the hop while the prefix effects run in source order. `self` does not exist in Node,
+// so these run ONLY because the hop was dropped
+QUnit.test('global-proxy: sequence-wrapped root .self hop collapses (runs without it in Node)', assert => {
+  let e = 0;
+  let q;
+  assert.same(typeof (e++, globalThis).self.Math.max, 'function');
+  assert.same(e, 1);
+  assert.true((e++, q = globalThis).self.Array.isArray([]));
+  assert.same(e, 2);
+  assert.same(q, globalThis);
+  // the inverse nesting order - a SE-bearing sequence INSIDE the assignment RHS - must peel to the
+  // same root (the chain-root peel alternates the two peels to fixpoint, not a single pass)
+  let r;
+  assert.same(typeof (r = (e++, globalThis)).self.JSON.parse, 'function');
+  assert.same(e, 3);
+  assert.same(r, globalThis);
+});
