@@ -1,5 +1,7 @@
-// `Object.assign(target, o)` mutates only the target slot, so `o` as a source preserves the alias narrow.
-// Verifies per-index granularity: a mutating callee doesn't bail every arg, only the annotated ones.
+// `Object.assign(target, o)` mutates only the target slot (per-index granularity: a mutating
+// callee doesn't bail every arg), BUT it copies o's enumerable own props - including the own-this
+// method - onto the target: the shared method body later runs with `this` = target, whose fields
+// this closure does not track. the this-field narrow must bail to the generic helpers
 const target = {};
 const o = {
   arr: [1, 2, 3],
