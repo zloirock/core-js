@@ -8,7 +8,7 @@
 // also handles `class extends Array { foo() { this.at(0) } }` shadow check
 import {
   isForXWriteTarget, isMemberWriteHost, isThisReceiver, isTSTypeOnlyIdentifierPath,
-  memberKeyName, peelParenAndTSParentPath,
+  peelParenAndTSParentPath, staticMemberKeyName, unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
 import { hasOwnStaticDefinition } from '../index.js';
@@ -73,8 +73,14 @@ export function createUsageGlobalCallback({
     const outer = peelParenAndTSParentPath(path);
     const outerNode = outer?.node;
     if (outerNode?.type !== 'MemberExpression' && outerNode?.type !== 'OptionalMemberExpression') return false;
-    if (outerNode.object !== path.node) return false;
-    const outerKey = memberKeyName(outerNode);
+    // the outer member's object slot may hold a this-transparent wrapper over the hop value
+    // (`(globalThis.Reflect).ownKeys(...)` - oxc keeps the paren node, babel keeps TS casts):
+    // peel it so the identity check recognises the wrapped hop the same as the bare one
+    if (unwrapRuntimeExpr(outerNode.object) !== path.node) return false;
+    // SE-folding key read (`[(e++, 'ownKeys')]` folds to 'ownKeys'), matching how the inner
+    // meta key was resolved - a literal-only read left the SE form permanently un-subsumed;
+    // a genuinely dynamic key still yields null and keeps the value meta firing
+    const outerKey = staticMemberKeyName(outerNode);
     if (!outerKey || isMemberWriteHost(outer)) return false;
     return hasOwnStaticDefinition(meta.key, outerKey);
   }
