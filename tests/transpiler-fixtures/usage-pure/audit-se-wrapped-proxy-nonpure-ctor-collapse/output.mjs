@@ -10,7 +10,7 @@ function eff(tag) {
   _pushMaybeArray(log).call(log, tag);
   return tag;
 }
-const ctorRead = (eff('a'), _globalThis.self).Headers;
-const protoMethod = (eff('b'), _globalThis.self).Element.prototype.remove;
-const optionalProto = (eff('c'), _globalThis.window).Range?.prototype?.cloneRange;
+const ctorRead = (eff('a'), _globalThis).Headers;
+const protoMethod = (eff('b'), _globalThis).Element.prototype.remove;
+const optionalProto = (eff('c'), _globalThis).Range?.prototype?.cloneRange;
 export { ctorRead, protoMethod, optionalProto, log };
