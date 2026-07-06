@@ -582,13 +582,18 @@ export function createReturnType({
       if (isStructuralAnnotation(returnInner)) return asyncFallback;
     }
     // a return REFERENCING a method type-param the call-site couldn't bind (`T`, `T | null`, `T | string`, ...)
-    // is generic - T is opaque. the body fold would re-derive that T from a `return x` (`x: T`) via the bare-
-    // type-param DEFAULT heuristic, an over-resolve on a present-but-unresolvable arg (type-specific Maybe that
-    // throws at ie:11), so stay generic. (`T[]` / `Promise<T>` already resolved above to a concrete container,
-    // so a STILL-unresolved return here means T leaked through unbound)
-    const methodTypeParamNames = new Set((methodTypeParams?.params ?? []).map(typeParamName));
+    // OR a CLASS-level type-param whose instantiation arg the resolver couldn't type (the class
+    // subst spliced the arg node, but its resolution failed above) is generic - T is opaque.
+    // the body fold would CLOBBER the declared-but-opaque annotation with a stub return's
+    // concrete type: `return null as any` -> a null-primitive receiver that suppresses
+    // injection entirely, `return [] as any` -> an array-specific Maybe on a foreign
+    // runtime receiver (an ie:11 throw). stay generic. (`T[]` / `Promise<T>` already
+    // resolved above to a concrete container, so a STILL-unresolved return here means the
+    // param leaked through unbound)
+    const opaqueReturnParamNames = new Set((methodTypeParams?.params ?? []).map(typeParamName));
+    for (const name of classSubst?.keys() ?? []) opaqueReturnParamNames.add(name);
     const returnAnno = unwrapTypeAnnotation(fnPath.node.returnType);
-    if (methodTypeParamNames.size && returnAnno && hasTypeParamReference(returnAnno, methodTypeParamNames, 0)) {
+    if (opaqueReturnParamNames.size && returnAnno && hasTypeParamReference(returnAnno, opaqueReturnParamNames, 0)) {
       return asyncFallback;
     }
     // fallback: analyze return statements in the function body
