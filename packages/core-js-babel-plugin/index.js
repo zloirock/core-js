@@ -347,7 +347,7 @@ export default function plugin(api, options) {
         // `globalThis.self` off the deeper chain reads undefined off-engine. no-op once already collapsed
         if (synthSwap && path.scope
           && (path.node.object?.type === 'MemberExpression' || path.node.object?.type === 'OptionalMemberExpression')) {
-          const collapsedRecv = synthSwap.collapseProxyGlobalReceiver(path.node.object, { scope: path.scope, adapter, path });
+          const collapsedRecv = synthSwap.collapseProxyGlobalReceiver(path.node.object, { aliasCtx: { scope: path.scope, adapter, path } });
           if (collapsedRecv) path.node.object = collapsedRecv;
         }
         if (path.node.computed) {

@@ -315,7 +315,8 @@ export function isPolyfillableOptional({
   // collapses to the always-defined pure root, and the hop-key / prefix effect rides the collapsed receiver, NOT
   // the dropped guard. `globalProxyMemberName` below is literal-only (a SE computed key yields null), so resolve
   // this directly off the SE-aware maximal prefix - both emitters then drop the guard identically
-  if (member === node && maximalProxyGlobalPrefix(objCore, { scope, adapter, path }, true) === objCore) return true;
+  if (member === node
+    && maximalProxyGlobalPrefix(objCore, { scope, adapter, path }, { allowSideEffectKeys: true }) === objCore) return true;
   const objName = objCore?.type === 'Identifier'
     ? (adapter.hasBinding(scope, objCore.name, path) ? null : objCore.name)
     : globalProxyMemberName({ node: objCore, scope, adapter, path });
