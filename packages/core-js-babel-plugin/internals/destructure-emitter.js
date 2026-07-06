@@ -58,12 +58,14 @@ import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core
 import {
   computedPropKeyHostsMachinery,
   discardRescueNodes,
+  isSourcedSymbolIteratorMeta,
   shouldDropRescueReceiver,
+  SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite,
-  peelProxyGlobalObject, registerCtorAliasExtractions, registerDeclAliasIfSound,
+  peelProxyGlobalObject, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
@@ -263,6 +265,7 @@ export default function createDestructureEmitter({
   injector,
   injectPureImport,
   isDisabled,
+  isEntryNeeded = null,
   resolvePropertyObjectType,
   resolveNodeType = null,
   toHint = null,
@@ -673,7 +676,7 @@ export default function createDestructureEmitter({
       for (const e of outer.extractions ?? []) {
         let value;
         if (e.synth === 'symbol-iterator') {
-          value = t.callExpression(t.cloneNode(injectPureImport('get-iterator-method', 'getIteratorMethod')),
+          value = t.callExpression(t.cloneNode(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName)),
             [flattenSynthReceiver(assignPath.node.right, plan)]);
         } else {
           // a ctor alias (kind global) was already trust-registered by the plan gate - a re-register
@@ -686,7 +689,7 @@ export default function createDestructureEmitter({
       // anchored residual on an assignment host: `({ union } = _Set)` (the printer parenthesizes the
       // pattern-LHS assignment)
       if (outer.kind === 'anchored') {
-        const { pattern, binding } = anchoredResidualNodes(outer);
+        const { pattern, binding } = anchoredResidualNodes(outer, assignPath.scope);
         const assign = t.expressionStatement(t.assignmentExpression('=', pattern, binding));
         t.traverseFast(assign, node => { skippedNodes.add(node); });
         assigns.push(assign);
@@ -845,6 +848,21 @@ export default function createDestructureEmitter({
     });
   }
 
+  // does the host declarator's flatten plan CONSUME this prop (a non-verbatim plan node of
+  // its own)? the flatten then OWNS the prop's emission. consulted EAGERLY at dispatch (the
+  // plan is cached), so prop order cannot decide ownership - without it the per-prop
+  // instance route steals the declarator first (memoizing an SE init into `_ref`) and the
+  // sibling's flatten never fires, silently dropping its polyfill. mirrors the unplugin twin
+  function flattenPlanConsumesProp(prop) {
+    const objectPattern = prop.parentPath;
+    if (!objectPattern?.isObjectPattern()) return false;
+    const { parent: declarator } = peelTransparentWrappers(objectPattern);
+    if (!declarator?.isVariableDeclarator()) return false;
+    const plan = buildFlattenPlan({ declaratorNode: declarator.node, scope: prop.scope, path: prop });
+    const idx = plan ? plan.pattern.properties.indexOf(prop.node) : -1;
+    return idx !== -1 && plan.outerProps[idx].kind !== 'verbatim';
+  }
+
   // prune consumed props from the (possibly nested) pattern per the plan tree: a consumed
   // prop is removed outright, or - under a rest sibling - kept as a `key: _unused` sentinel
   // (rest gathers all OTHER own keys, so dropping a fully-consumed key would change runtime
@@ -889,6 +907,9 @@ export default function createDestructureEmitter({
   // constructor receiver reads through its polyfill binding instead (the raw global would
   // ReferenceError on engines without it); anything else clones the SE-peeled tail verbatim
   function flattenSynthReceiver(initNode, plan) {
+    // an ANCHORED plan's symbol leaf reads the iterator method off the anchored
+    // CONSTRUCTOR, not the proxy root - the same base the anchored residual reads
+    if (plan.anchor) return anchorInitNode(plan);
     const { tail } = peelNestedSequenceExpressions(initNode);
     const isAliasedIdentifier = tail?.type === 'Identifier' && tail.name !== plan.receiver;
     const pure = !isAliasedIdentifier && plan.receiver ? resolveGlobalPure(plan.receiver) : null;
@@ -932,13 +953,41 @@ export default function createDestructureEmitter({
     if (peeled) cascadeAssignmentExpressionDestructure({ assignPath: path, prop: null, peeled });
   }
 
+  // a computed `Symbol.X` key cloned into an anchored residual is skip-seeded whole, so the
+  // standalone key visitor never touches the CLONE: whether it fired on the ORIGINAL depends
+  // on which sibling dispatched the flatten (a rewritten original clones as the injected
+  // identifier and needs nothing). a still-raw key re-keys directly, gated like that
+  // visitor: a scope-shadowed `Symbol` is the user's own object, a non-well-known name falls
+  // to the polyfilled CONSTRUCTOR read (`[_Symbol.foo]`) - raw `Symbol` throws
+  // ReferenceError on symbol-less engines. mirrors the unplugin text render
+  function anchoredResidualPropKey(key, scope) {
+    if (key?.type !== 'MemberExpression' || key.computed) return null;
+    if (key.object?.type !== 'Identifier' || key.object.name !== 'Symbol') return null;
+    if (key.property?.type !== 'Identifier' || (scope && adapter.hasBinding(scope, 'Symbol', null))) return null;
+    const entry = symbolKeyToEntry(`Symbol.${ key.property.name }`);
+    if (entry && isEntryNeeded?.(entry)) {
+      return t.cloneNode(injectPureImport(entry, `Symbol$${ key.property.name }`));
+    }
+    if (isEntryNeeded?.('symbol/constructor')) {
+      return t.memberExpression(t.cloneNode(injectPureImport('symbol/constructor', 'Symbol')), t.identifier(key.property.name));
+    }
+    return null;
+  }
+
   // build the `{ ...leaves } = _Ctor` parts for an anchored-residual prop. the caller wraps them in a
   // VariableDeclarator (declaration host) or an AssignmentExpression statement (assignment host), then
   // skip-seeds the result (the leaves carry no default - the planner bails those - so re-visiting would
   // only risk re-collapsing the binding; matches the unplugin text render's no-re-visit)
-  function anchoredResidualNodes(outer) {
+  function anchoredResidualNodes(outer, scope) {
     return {
-      pattern: t.objectPattern(outer.residualProps.map(p => t.cloneNode(p, true))),
+      pattern: t.objectPattern(outer.residualProps.map(p => {
+        const cloned = t.cloneNode(p, true);
+        if (cloned.computed) {
+          const rekeyed = anchoredResidualPropKey(cloned.key, scope);
+          if (rekeyed) cloned.key = rekeyed;
+        }
+        return cloned;
+      })),
       binding: t.cloneNode(injectPureImport(outer.anchorPure.entry, outer.anchorPure.hintName)),
     };
   }
@@ -953,7 +1002,7 @@ export default function createDestructureEmitter({
       for (const e of outer.extractions ?? []) {
         let init;
         if (e.synth === 'symbol-iterator') {
-          init = t.callExpression(t.cloneNode(injectPureImport('get-iterator-method', 'getIteratorMethod')),
+          init = t.callExpression(t.cloneNode(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName)),
             [flattenSynthReceiver(declarator.node.init, plan)]);
         } else {
           // a ctor alias (kind global) was already trust-registered by the plan gate; statics keep
@@ -964,7 +1013,7 @@ export default function createDestructureEmitter({
         extracted.push(t.variableDeclarator(t.identifier(e.localName), init));
       }
       if (outer.kind === 'anchored') {
-        const { pattern, binding } = anchoredResidualNodes(outer);
+        const { pattern, binding } = anchoredResidualNodes(outer, declarator.scope);
         const declr = t.variableDeclarator(pattern, binding);
         t.traverseFast(declr, node => { skippedNodes.add(node); });
         extracted.push(declr);
@@ -1353,6 +1402,14 @@ export default function createDestructureEmitter({
     originalBindingCount(prop);
     if (!meta?.fromFallback && prop.node.computed && sequenceKeyPrefix(prop.node.key)
       && handleSideEffectComputedKey({ prop, kind, entry, hintName })) return;
+    // a symbol prop on a declarator the flatten OWNS (its plan consumes the prop) routes to
+    // the flatten's own synth extraction - regardless of which prop dispatched first, so the
+    // per-prop instance routes below never race the rebuild. sits ABOVE the fromFallback
+    // branch: the plan exists only for a wholly-discardable fallback init (an all-proxy
+    // ternary - the flatten/extract canon), a diverging receiver bails the plan and keeps
+    // the per-branch mirror
+    if (meta && isSourcedSymbolIteratorMeta(meta) && flattenPlanConsumesProp(prop)
+        && tryFlattenNestedProxyDestructure(prop)) return;
     if (meta?.fromFallback) {
       // per-branch synth-swap on ConditionalExpression / LogicalExpression branches: each
       // viable branch becomes its own `{key: _Branch$key}` literal, preserving runtime

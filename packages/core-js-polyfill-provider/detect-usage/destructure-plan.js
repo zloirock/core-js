@@ -242,6 +242,21 @@ export function buildNestedDestructurePlan({
     return { kind: 'rebuilt', prop: outerProp, pattern, extractions, children };
   }
 
+  // `[Symbol.iterator]`-keyed prop, shared by the proxy-outer level and the single-ctor-key
+  // ANCHOR hop (where the synth receiver is the anchored constructor): a binding value
+  // consumes into the synth extraction `ident = _getIteratorMethod(receiver)`, a non-binding
+  // value keeps the prop with only its key polyfilled, a disabled leaf stays verbatim (the
+  // directive-honoring natural visitor owns the key then). null for non-symbol keys
+  function planSymbolIteratorProp(prop) {
+    if (!isSymbolIteratorComputedKey(prop)) return null;
+    if (leafDisabled(prop)) return { kind: 'verbatim', prop };
+    const localName = symbolIteratorLocalName(prop);
+    if (localName !== null) {
+      return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', localName }] };
+    }
+    return { kind: 'symbol-iterator-key', prop };
+  }
+
   // proxy-global outer prop: five shapes
   //   - `{ Foo: { bar, ... } }` where Foo is a real global - inner pattern holds static methods
   //   - `{ Self: { ... } }` where Self is itself a proxy-global - alias hop, recurse keeping
@@ -251,22 +266,8 @@ export function buildNestedDestructurePlan({
   //     `ident = _getIteratorMethod(receiver)`
   //   - `{ [Symbol.iterator]: {nested} }` non-binding value - keep the prop, polyfill the key
   function planOuterProp(outerProp) {
-    // Symbol.iterator shapes and global shorthands are extraction-producing LEAVES - a
-    // disabled one stays verbatim ('symbol-iterator-key' included: it force-polyfills the
-    // key text, while a verbatim prop leaves that to the directive-honoring natural visitor)
-    if (isSymbolIteratorComputedKey(outerProp) && leafDisabled(outerProp)) {
-      return { kind: 'verbatim', prop: outerProp };
-    }
-    const symbolIterLocal = symbolIteratorLocalName(outerProp);
-    if (symbolIterLocal !== null) {
-      return {
-        kind: 'consumed', prop: outerProp,
-        extractions: [{ synth: 'symbol-iterator', localName: symbolIterLocal }],
-      };
-    }
-    if (isSymbolIteratorComputedKey(outerProp)) {
-      return { kind: 'symbol-iterator-key', prop: outerProp };
-    }
+    const symbolPlanned = planSymbolIteratorProp(outerProp);
+    if (symbolPlanned) return symbolPlanned;
     const name = isPropertyNode(outerProp) ? flattenKeyName(outerProp) : null;
     if (name === null) return { kind: 'verbatim', prop: outerProp };
     const value = peelInnerDefault(outerProp.value);
@@ -437,7 +438,10 @@ export function buildNestedDestructurePlan({
       const hopInner = hopKey && !POSSIBLE_GLOBAL_OBJECTS.has(hopKey) && isStaticPlacement(hopKey)
         ? peelInnerDefault(hopProp.value) : null;
       if (hopInner?.type === 'ObjectPattern' && hopInner.properties.length) {
-        const outerProps = hopInner.properties.map(p => planInnerProp(p, hopKey));
+        // a `[Symbol.iterator]` leaf under the anchor extracts like its proxy-outer twin,
+        // with the ANCHORED constructor as the synth receiver (`x = _getIteratorMethod(_Map)`
+        // / `(_globalThis.Array)`) - the emitters' synth renders read the anchor base
+        const outerProps = hopInner.properties.map(p => planSymbolIteratorProp(p) ?? planInnerProp(p, hopKey));
         // a SLOT-mutated ctor pair (`globalThis.Map = Shim` anywhere in the file) keeps the
         // residual on the RAW member read - a user-installed replacement must win there, so
         // `anchorPure` stays null and the renders emit `<proxyBinding>.<K>` instead of the
