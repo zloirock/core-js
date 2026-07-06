@@ -373,8 +373,12 @@ export function createReturnType({
         // count as referenced so outer-fn subst captures it. each param's annotation is
         // walked (RestElement carries it via `.argument.typeAnnotation` on babel; oxc
         // hoists to top-level - `hasParamTypeRef` handles both shapes)
-        if (node.params) for (const param of node.params) {
-          if (hasParamTypeRef(param, typeParamNames, depth + 1)) return true;
+        {
+          // babel@8 renamed the slot `parameters` -> `params`; oxc/babel@7 use `parameters`
+          const fnParams = node.params ?? node.parameters;
+          if (fnParams) for (const param of fnParams) {
+            if (hasParamTypeRef(param, typeParamNames, depth + 1)) return true;
+          }
         }
         return hasTypeParamReference(node.returnType ?? node.typeAnnotation, typeParamNames, depth + 1);
       // mapped type carries the constraint (`K in keyof T`) and body (`T[K]`); both can
@@ -421,6 +425,7 @@ export function createReturnType({
     const typeParamMap = new Map();
     const argPaths = new Map();
     typeParamArgPaths.set(typeParamMap, argPaths);
+    const suppliedOpaqueParams = new Set();
     // phase 0: explicit type arguments at call site: foo<string>(...)
     const callTypeArgs = getTypeArgs(callPath.node)?.params;
     if (callTypeArgs) {
@@ -428,9 +433,13 @@ export function createReturnType({
       if (!fnTypeParams) return typeParamMap;
       for (let i = 0; i < fnTypeParams.length && i < callTypeArgs.length; i++) {
         const name = typeParamName(fnTypeParams[i]);
-        if (!typeParamMap.has(name)) {
+        if (name && !typeParamMap.has(name)) {
           const resolved = resolveTypeAnnotation(callTypeArgs[i], callPath.scope);
           if (resolved) typeParamMap.set(name, resolved);
+          // a PRESENT explicit type-arg that resolves to nothing is still SUPPLIED: record
+          // it so the name binds opaque after phase 1 (whose call-ARG inference may yet
+          // recover the runtime ground truth, e.g. a union type-arg with a concrete arg)
+          else suppliedOpaqueParams.add(name);
         }
       }
     }
@@ -438,11 +447,8 @@ export function createReturnType({
     // drop the leading `this` pseudo-param so param annotations align with the call args (this side
     // reads annotations only, no AST params path - the dropped list is enough)
     const params = dropLeadingThisParam(fnPath.node.params);
-    // type-params determined by a PRESENT call arg (even when that arg is unresolvable). they must NOT fall
-    // to the phase-2 default: the default is for an OMITTED type-arg with no constraining arg, but a present-
-    // but-unresolvable arg means the type IS supplied (just opaque) - the default would emit a type-specific
-    // Maybe on a foreign runtime value (ie:11 throw). only a type-param with no present arg uses the default
-    const argConstrainedParams = new Set();
+    // phase-0 explicit type-args that were PRESENT but unresolvable: they bind opaque after
+    // phase 1 unless the arg inference recovered a concrete type
     // phase 1: match param annotations against type parameter names
     for (let i = 0; i < params.length && i < args.length; i++) {
       const { param, isRest } = effectiveParam(params[i]);
@@ -450,8 +456,6 @@ export function createReturnType({
       if (!paramAnnotation) continue;
       const name = typeRefName(paramAnnotation);
       const innerName = innerTypeParamName(paramAnnotation, name);
-      if (typeParamNames.has(name)) argConstrainedParams.add(name);
-      if (innerName && typeParamNames.has(innerName)) argConstrainedParams.add(innerName);
       // rest-only generic `function fn<T>(...xs: T[])` - annotation is T[] or Array<T>, bind T
       // to the element type of the first rest-arg. spread-call `fn(...arr)` passes `args[0]`
       // as a SpreadElement whose overall type IS the array - `resolveCallArgType` unwraps
@@ -473,20 +477,40 @@ export function createReturnType({
       // container wrapper: param type is T[], Array<T>, Set<T>, Promise<T>, etc.
       bindTypeParam(innerName, typeParamNames, typeParamMap, resolveInnerType(resolveNodeType(arg)));
     }
+    // phase 1.5: a supplied-but-opaque type-param binds opaque (null) so the phase-2
+    // default AND the type-param-declaration fallback inside `substTypeRefAsType` both
+    // stand down - the default would emit a type-specific Maybe on a foreign runtime value
+    // (an ie:11 throw). two supply channels: a phase-0 explicit type-arg that resolved to
+    // nothing, and a type-param referenced ANYWHERE in a param annotation whose call arg
+    // is PRESENT (the DEEP walker drives this - a shallow name/inner check missed union /
+    // tuple / nested / fn-type references)
+    for (const name of suppliedOpaqueParams) {
+      if (!typeParamMap.has(name)) typeParamMap.set(name, null);
+    }
+    for (const name of typeParamNames) {
+      if (typeParamMap.has(name)) continue;
+      const singleName = new Set([name]);
+      for (let i = 0; i < params.length && i < args.length; i++) {
+        if (!hasParamTypeRef(effectiveParam(params[i]).param, singleName, 0)) continue;
+        typeParamMap.set(name, null);
+        break;
+      }
+    }
     // phase 2: default / constraint fallback for unresolved type params (TS binds to `default`
     // when call-site omits a type arg; constraint is only the upper bound, usually over-broad).
     // route through `substituteTypeParams` (not bare `resolveTypeAnnotation`) so a default that
     // references an earlier type param picks up the already-resolved binding, e.g.
     // `function f<T = string, U = T>(t: T): U` called as `f<number[]>(...)` resolves U to
     // number[] (T's user-supplied value) instead of T.default=string. order matters: phase 1
-    // populates T from the explicit arg before phase 2 fills U
+    // populates T from the explicit arg before phase 2 fills U. a consulted default binds
+    // even on failure (an opaque dependency): the null binding blocks the type-param-
+    // declaration fallback from re-deriving the SAME default downstream
     for (const typeParam of fnPath.node.typeParameters.params) {
       const name = typeParamName(typeParam);
-      if (typeParamMap.has(name) || argConstrainedParams.has(name)) continue;
+      if (!name || typeParamMap.has(name)) continue;
       const annotation = typeParam.default ?? typeParam.constraint;
       if (annotation) {
-        const resolved = substituteTypeParams(annotation, typeParamMap, fnPath.scope, 0);
-        if (resolved) typeParamMap.set(name, resolved);
+        typeParamMap.set(name, substituteTypeParams(annotation, typeParamMap, fnPath.scope, 0) ?? null);
       }
     }
     return typeParamMap;
@@ -602,6 +626,7 @@ export function createReturnType({
     resolveBodyReturnType,
     collectReturnPaths,
     getTypeParamArgPath,
+    hasParamTypeRef,
     reset,
   };
 }
