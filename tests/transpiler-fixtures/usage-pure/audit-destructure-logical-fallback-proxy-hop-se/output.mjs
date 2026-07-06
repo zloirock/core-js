@@ -15,9 +15,9 @@ let c = 0;
 const flat = _flatMaybeArray((c++, _globalThis).Array.prototype || {});
 const {
   at
-} = (c++, _globalThis.self).Array.prototype && {};
+} = (c++, _globalThis).Array.prototype && {};
 const {
   includes
-} = {} || (c++, _globalThis.self).Array.prototype;
+} = {} || (c++, _globalThis).Array.prototype;
 const map = _mapMaybeArray([1] || {});
 export { flat, at, includes, map, c };
