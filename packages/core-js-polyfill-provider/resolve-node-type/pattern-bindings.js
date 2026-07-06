@@ -723,7 +723,7 @@ export function createPatternBindings({
         const arg = callNode.arguments?.[argIndex];
         if (!arg) continue;
         if (arg.type === 'UnaryExpression' && arg.operator === 'void') continue;
-        if (isBareUndefinedIdentifier(arg) && !ref.scope?.getBinding?.('undefined')) continue;
+        if (isBareUndefinedIdentifier(arg) && !getScopeBinding(ref.scope, 'undefined')) continue;
         return false;
       }
     }
