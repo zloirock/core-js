@@ -1337,7 +1337,12 @@ export function followConstLiteralAlias(node, ctx) {
     if (!ctx || cur?.type !== 'Identifier' || !ctx.adapter.hasBinding(ctx.scope, cur.name, ctx.path)) break;
     const binding = ctx.adapter.getBinding(ctx.scope, cur.name, ctx.path);
     if (binding?.constantViolations?.length) break;
-    const init = binding?.path?.node?.init ?? binding?.node?.init;
+    const decl = binding?.path?.node ?? binding?.node;
+    // only a PLAIN declarator binds the name to its init: a destructure declarator binds a
+    // SELECTED slot, so blindly returning the whole init would smuggle the container in place
+    // of the slot value (pattern pairing is `patternSlotValues`' job)
+    if (decl?.type === 'VariableDeclarator' && decl.id?.type !== 'Identifier') break;
+    const init = decl?.init;
     if (init?.type === 'ArrayExpression' || init?.type === 'ObjectExpression') return init;
     if (init?.type !== 'Identifier') break;
     cur = init;
