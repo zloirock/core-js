@@ -1236,6 +1236,7 @@ function createResolveNodeType(babelNodeType, t, {
     isReflectConstructCallee,
     classBindingRefClassifier,
     computeAliasClosureFromBinding,
+    methodReadLeaks,
   } = bindingAnalysisCluster;
 
   // `resolveThisAnchor` / `resolveThisClass` / `resolveThisObject` / `resolveSuperClassPath`
@@ -1313,6 +1314,7 @@ function createResolveNodeType(babelNodeType, t, {
     classBindingName,
     classBindingRefClassifier,
     buildProgramIndex,
+    methodReadLeaks,
     resolveNodeType,
   });
   const {
