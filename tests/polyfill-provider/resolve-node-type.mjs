@@ -5528,6 +5528,144 @@ for (const [variant, code] of [
   });
 }
 
+// --- anon escape through destructure TARGETS, untrackable slots and transparent wrappers ---
+// a destructuring pattern binds matched values to TARGET vars - the anon escapes iff any target binding
+// leaks against the anon's remainder path inside the value that target received. an untrackable slot
+// (computed key / inline spread) means ANY read of the carrier could extract the anon -> conservative
+// escape. paren / TS-cast wrappers between slot-read steps are runtime-transparent and must not drop
+// the held-read detection. a member STORE places the anon at the chain's composed slot path, so a held
+// read of that slot aliases it out even when the root binding stays local
+for (const [variant, code] of [
+  ['declarator array-pattern target leaks', `function f(sink) {\n  const [g] = [${ ANON_ESC }];\n  sink(g);\n}`],
+  ['declarator object-pattern target leaks', `function f(sink) {\n  const { x: g } = { x: ${ ANON_ESC } };\n  sink(g);\n}`],
+  ['assignment array-pattern target leaks', `function f(sink) {\n  let g;\n  [g] = [${ ANON_ESC }];\n  sink(g);\n}`],
+  ['assignment object-pattern target leaks', `function f(sink) {\n  let g;\n  ({ x: g } = { x: ${ ANON_ESC } });\n  sink(g);\n}`],
+  ['pattern target holds a carrier whose slot is held', `function f(sink) {\n  const { x: g } = { x: [${ ANON_ESC }] };\n  sink(g[0]);\n}`],
+  ['rest target held deep slot', `function f(sink) {\n  let r;\n  [...r] = [[${ ANON_ESC }]];\n  sink(r[0][0]);\n}`],
+  ['dynamic computed key held read', `function f(sink, dyn) {\n  const o = { [dyn]: ${ ANON_ESC } };\n  sink(o[dyn]);\n}`],
+  // a STATIC computed key is still an untrackable slot for the path builder - conservative escape is the
+  // current verdict (a precise key fold may legitimately relax this later)
+  ['static computed key conservative escape', `function f() {\n  const o = { ["w"]: ${ ANON_ESC } };\n  o.w.read();\n}`],
+  ['inline spread carrier held slot read', `function f(sink) {\n  const o2 = { ...{ w: ${ ANON_ESC } } };\n  sink(o2.w);\n}`],
+  ['TS cast between slot-read steps', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink((o.a as any).b);\n}`],
+  ['paren between slot-read steps', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink((o.a).b);\n}`],
+  ['TS cast between member and call', `function f(sink) {\n  const o = { w: ${ ANON_ESC }, grab() { return this.w; } };\n  sink((o.grab as any)());\n}`],
+  ['member store then held slot read', `function f(sink) {\n  const holder = {};\n  holder.f = ${ ANON_ESC };\n  sink(holder.f);\n}`],
+  ['deep chain store then held slot read', `function f(sink) {\n  const holder = { a: {} };\n  holder.a.b = ${ ANON_ESC };\n  sink(holder.a.b);\n}`],
+  ['computed member store conservative escape', `function f(k) {\n  const holder = {};\n  holder[k] = ${ ANON_ESC };\n  holder.q.read();\n}`],
+  ['member store of a carrier, held inner slot', `function f(sink) {\n  const holder = {};\n  holder.f = [${ ANON_ESC }];\n  sink(holder.f[0]);\n}`],
+  // a leaking target under a DIFFERENT key over-approximates to escape (bias-safe; a precise key match
+  // may legitimately relax this later)
+  ['different-key leaking target over-bails', `function f(sink) {\n  const { other: h } = { x: ${ ANON_ESC }, other: [1] };\n  sink(h);\n}`],
+]) {
+  runBoth(`anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+// boundaries: a pattern target that is only DEREFERENCED keeps the narrow (the target's own leak analysis
+// runs against the remainder path); a transparent wrapper on a DEREFERENCED slot read stays local; a plain
+// `=` member store is the write that places the anon, not a read that hands it out
+for (const [variant, code] of [
+  ['declarator array-pattern target dereferenced', `function f() {\n  const [g] = [${ ANON_ESC }];\n  g.read();\n}`],
+  ['assignment array-pattern target dereferenced', `function f() {\n  let g;\n  [g] = [${ ANON_ESC }];\n  g.read();\n}`],
+  ['pattern target carrier slot dereferenced', `function f() {\n  const { x: g } = { x: [${ ANON_ESC }] };\n  g[0].read();\n}`],
+  ['rest target deep slot dereferenced', `function f() {\n  let r;\n  [...r] = [[${ ANON_ESC }]];\n  r[0][0].read();\n}`],
+  ['deref through a TS cast', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a as any).read();\n}`],
+  ['deep chain store then deref', `function f() {\n  const holder = { a: {} };\n  holder.a.b = ${ ANON_ESC };\n  holder.a.b.read();\n}`],
+  ['member store of a carrier, inner slot dereferenced', `function f() {\n  const holder = {};\n  holder.f = [${ ANON_ESC }];\n  holder.f[0].read();\n}`],
+]) {
+  runBoth(`anon keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// a WRITE through the anon's matched slot path (`o.a.data = 5` and every other write host - update,
+// delete, destructure member target, a deeper chain ending in a write, a wrapper-peeled LHS) mutates
+// the anon from OUTSIDE its this-scan, so the zero-external-write premise of the local narrow breaks
+// and the anon bails to generic; optional-chain and hole-consuming pattern forms follow the same
+// held-vs-dereferenced verdicts as their plain twins
+for (const [variant, code] of [
+  ['bare field write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.data = 5;\n  o.a.read();\n}`],
+  ['field write through a TS-cast slot read', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a as any).data = 5;\n  o.a.read();\n}`],
+  ['field write through a stored member slot', `function f() {\n  const holder = {};\n  holder.f = ${ ANON_ESC };\n  holder.f.data = 5;\n  holder.f.read();\n}`],
+  ['update expression through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.data++;\n  o.a.read();\n}`],
+  ['delete through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  delete o.a.data;\n  o.a.read();\n}`],
+  ['deep chain write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.data.x = 5;\n  o.a.read();\n}`],
+  ['destructure member target through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  ({ v: o.a.data } = { v: 5 });\n  o.a.read();\n}`],
+  ['logical-assign of the slot is a held read', `function f(sink) {\n  const holder = {};\n  holder.f = ${ ANON_ESC };\n  sink(holder.f ||= {});\n  holder.f.read();\n}`],
+  ['optional-chain held slot read', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink(o.a?.b);\n}`],
+  ['array-pattern hole then leaking target', `function f(sink) {\n  const [, g] = [0, ${ ANON_ESC }];\n  sink(g);\n}`],
+  ['pattern-default target leaks', `function f(sink) {\n  const [g = {}] = [${ ANON_ESC }];\n  sink(g);\n}`],
+]) {
+  runBoth(`anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['static computed write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a["data"] = 5;\n  o.a.read();\n}`],
+  ['dynamic computed write through the slot', `function f(k) {\n  const o = { a: ${ ANON_ESC } };\n  o.a[k] = 5;\n  o.a.read();\n}`],
+  ['carrier alias held slot read', `function f(sink) {\n  const o = { a: ${ ANON_ESC } };\n  const p = o;\n  sink(p.a);\n}`],
+  ['carrier alias write through the slot', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  const p = o;\n  p.a.data = 5;\n  o.a.read();\n}`],
+  ['conditional-forwarded slot held read', `function f(sink, cond) {\n  const o = { k: cond ? ${ ANON_ESC } : null };\n  sink(o.k);\n}`],
+  // the anon channel has no temporal-bound refinement: a post-read write still bails (the named-binding
+  // twin keeps its narrow via the provably-dead-write bound - an intentional precision asymmetry)
+  ['slot write after the last read still bails', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a.read();\n  o.a.data = 5;\n}`],
+  ['sequence-tail carrier held slot read', `function f(sink) {\n  const o = (0, { a: ${ ANON_ESC } });\n  sink(o.a);\n}`],
+  ['cross-function held slot read', `const o = { a: ${ ANON_ESC } };\nfunction g(sink) { sink(o.a); }`],
+  ['TS non-null between slot-read steps', `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink(o.a!.b);\n}`],
+]) {
+  runBoth(`anon escapes via ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    const resolved = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(`${ lbl } not narrowed (escaped)`, !(resolved && !resolved.primitive && resolved.constructor === 'Array'), true);
+  });
+}
+for (const [variant, code] of [
+  ['optional-chain dereference', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a?.read();\n}`],
+  ['array-pattern hole then dereferenced target', `function f() {\n  const [, g] = [0, ${ ANON_ESC }];\n  g.read();\n}`],
+  ['write to a sibling object does not over-bail', `function f() {\n  const other = { data: [] };\n  const o = { a: ${ ANON_ESC } };\n  other.data = 5;\n  o.a.read();\n}`],
+  ['carrier alias dereference', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  const p = o;\n  p.a.read();\n}`],
+  ['untagged template string-coerces the anon', `function f() {\n  const s = \`x\${ ${ ANON_ESC } }y\`;\n}`],
+  ['sequence-tail carrier dereference', `function f() {\n  const o = (0, { a: ${ ANON_ESC } });\n  o.a.read();\n}`],
+  ['cross-function dereference', `const o = { a: ${ ANON_ESC } };\nfunction g() { return o.a.read(); }`],
+  ['TS non-null dereference', `function f() {\n  const o = { a: ${ ANON_ESC } };\n  o.a!.read();\n}`],
+]) {
+  runBoth(`anon keeps the narrow: ${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+// Flow dialect: the cast form `(o.a: any)` parses only on babel (oxc's Flow mode has no cast
+// expression), so the wrapper-peel escape / narrow / write-bail verdicts are locked babel-side;
+// TypeCastExpression membership in the shared peel set is asserted with the wrapper-set checks above
+{
+  const babelOnly = adapters.find(a => a.name === 'babel');
+  for (const [variant, code, wantNarrow] of [
+    ['Flow cast between slot-read steps escapes',
+      `function f(sink) {\n  const o = { a: { b: ${ ANON_ESC } } };\n  sink((o.a: any).b);\n}`, false],
+    ['Flow cast dereference keeps the narrow',
+      `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a: any).read();\n}`, true],
+    ['Flow cast field write drops the narrow',
+      `function f() {\n  const o = { a: ${ ANON_ESC } };\n  (o.a: any).data = 5;\n  o.a.read();\n}`, false],
+  ]) {
+    const lbl = `anon slot via ${ variant } [babel-flow]`;
+    try {
+      const prog = babelOnly.parseAndScope(code, undefined, ['flow']);
+      const member = babelOnly.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+      const resolved = babelOnly.makeResolver().resolveNodeType(member.get('object'));
+      const narrowed = !!(resolved && !resolved.primitive && resolved.constructor === 'Array');
+      check(lbl, narrowed, wantNarrow);
+    } catch (error) {
+      fail(lbl, `threw: ${ error.message }`);
+    }
+  }
+}
+
 // the enum-as-computed-key shadow check uses the CONST-AGNOSTIC binding lookup, so a reassigned `let`
 // of the enum's name shadows it just like a `const` would - the key is the let's value, not the enum's
 runBoth('enum-as-computed-key is shadowed by a reassigned let of the same name',
