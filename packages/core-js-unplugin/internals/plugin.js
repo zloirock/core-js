@@ -203,10 +203,7 @@ function applyMinifierSequenceSplitPass(code, ast) {
 
 // disable-directive state for a (code, ast, comments) snapshot: the offset->line mapper
 // plus the parsed line set. `disable-file` only counts above any code - a `'use strict'`
-// prologue can precede it, so directives before the cutoff are skipped. shared by the
-// pipeline's main parse and the proxy-hop pre-pass (which must consult the ORIGINAL text:
-// its own re-parse shifts offsets, but preserves line structure, so the two parses' line
-// numbers stay interchangeable)
+// prologue can precede it, so directives before the cutoff are skipped
 function parseDisableState(code, ast, comments) {
   const offsetToLine = buildOffsetToLine(code);
   const firstNonDirective = ast.body.find(s => !isDirectiveStatement(s));
