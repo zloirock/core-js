@@ -78,9 +78,11 @@ export function createTypeExpansion({
     return typeof keyNameNode === 'string' ? keyNameNode : keyNameNode.name ?? null;
   }
 
-  // similar for constraint slot - both parser shapes
+  // similar for constraint slot - both parser shapes. peeled: oxc keeps `[K in (keyof T)]`
+  // / `[K in ('a' | 'b')]` as TSParenthesizedType where babel strips it at parse - the
+  // dispatch on `constraint.type` below must see the inner shape on both parsers
   function mappedTypeConstraint(node) {
-    return node?.typeParameter?.constraint ?? node?.constraint;
+    return peelTSParenthesized(node?.typeParameter?.constraint ?? node?.constraint);
   }
 
   function parseMappedTypeShape(node) {
@@ -89,7 +91,10 @@ export function createTypeExpansion({
     if (!paramName || !constraint) return null;
     // `[K in keyof T]` - source is T, iterated via getTypeMembers
     if (constraint.type === 'TSTypeOperator' && constraint.operator === 'keyof') {
-      return { paramName, source: constraint.typeAnnotation, kind: 'keyof' };
+      // peeled: a parenthesized `keyof (T)` source otherwise defeats the passthrough
+      // capture-guard downstream (`typeRefSegments` reads a Paren head as no-segments,
+      // wrongly ADMITTING a cross-param passthrough babel rejects)
+      return { paramName, source: peelTSParenthesized(constraint.typeAnnotation), kind: 'keyof' };
     }
     // `[K in 'a' | 'b']` / `[K in 'a']` - literal union (or single literal) constraint;
     // each literal value drives one synthesized key. supports string + number literals.
@@ -99,7 +104,11 @@ export function createTypeExpansion({
       return { paramName, source: constraint, kind: 'literal-union' };
     }
     if (constraint.type === 'TSUnionType' && constraint.types.length
-        && constraint.types.every(m => m.type === 'TSLiteralType' && literalKeyValue(m.literal) !== null)) {
+        // per-member peel: oxc keeps `[K in ('a') | 'b']` member parens
+        && constraint.types.every(m => {
+          const member = peelTSParenthesized(m);
+          return member.type === 'TSLiteralType' && literalKeyValue(member.literal) !== null;
+        })) {
       return { paramName, source: constraint, kind: 'literal-union' };
     }
     return null;
@@ -171,6 +180,10 @@ export function createTypeExpansion({
   // branches, or null when the template can't be resolved to a literal string
   function evalRenameTemplate(template, paramName, keyValue) {
     if (!template) return null;
+    // entry peel: oxc keeps `as (Uppercase<K & string>)` (and parenthesized recursion
+    // slots - intrinsic args, intersection members, conditional branches, which re-enter
+    // here) as TSParenthesizedType where babel strips it
+    template = peelTSParenthesized(template);
     if (template.type === 'TSNeverKeyword') return RENAME_SKIP;
     if (template.type === 'TSStringKeyword') return keyValue;
     // `\`prefix\${...}suffix\`` - cross-parser via templateLiteralTypeParts; concatenate
@@ -351,7 +364,10 @@ export function createTypeExpansion({
     // substitution value is the literal node itself (already in the right shape)
     if (shape.kind === 'literal-union') {
       const sourceType = unwrapTypeAnnotation(shape.source);
-      const literals = sourceType.type === 'TSLiteralType' ? [sourceType] : sourceType.types;
+      // members re-peeled to mirror the shape gate above (paren members otherwise leak
+      // into `literalKeyValue` / the substitution value)
+      const literals = (sourceType.type === 'TSLiteralType' ? [sourceType] : sourceType.types)
+        .map(m => peelTSParenthesized(m));
       for (const lit of literals) {
         const keyName = String(literalKeyValue(lit.literal));
         const member = buildMappedMember({ node, paramName: shape.paramName, keyName, substValue: lit, body });
@@ -833,7 +849,9 @@ export function createTypeExpansion({
     if (node?.type === 'TSTypeReference') {
       const name = typeRefName(node);
       if (isInferContainerName(name)) {
-        return extractInferTarget(getTypeArgs(node)?.params?.[0], containerInferFamily(name), name);
+        // peeled like the array-sugar entry above: oxc keeps `Array<(infer U)>` type-arg
+        // as TSParenthesizedType where babel strips it
+        return extractInferTarget(peelTSParenthesized(getTypeArgs(node)?.params?.[0]), containerInferFamily(name), name);
       }
     }
     return null;
