@@ -335,10 +335,10 @@ export function createDestructureEmitter({
   // into the claimed slot's residual slice (residual target); queued here so the routing decision
   // happens at flush, when the flatten claim set is complete in either declarator order
   const pendingSeKeyRenames = [];
-  // deferred DUPLICATED instance-receiver copies (the residual SURVIVES, so the receiver is both
   // deferred instance-receiver copies (a consumed `eliminateResidual` extraction `m = _m(recv)`): the
   // natural visitor polyfills the receiver in place; flush composes those rewrites into the copy text
   const pendingReceiverExtracts = [];
+  // deferred DUPLICATED instance-receiver copies (the residual SURVIVES, so the receiver is both
   // kept in place AND copied into the extraction). like `pendingReceiverExtracts` the receiver stays
   // VISIBLE for the natural visitor; at flush `composedRangeSrc` bakes the visitor's full substitution
   // (globals / instance / static, incl. function bodies) into the copy text and re-adds it to the

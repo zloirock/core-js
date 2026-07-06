@@ -28,6 +28,7 @@ import "core-js/modules/web.self";
 // - makes the whole optional chain vestigially COLLAPSE to the always-defined polyfill, dropping the pure
 // call. babel types every member of an optional chain OptionalMemberExpression, so the count keys on the `?.`
 // FLAG, not the node type. distinct ctor per line.
+// usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 const rebindSingleOpt = (() => globalThis)()?.self.Map.name;
 const collapseHopOpt = (() => globalThis)()?.self?.Set.name;
 const collapseLeafOpt = (() => globalThis)()?.self.WeakMap?.name;
