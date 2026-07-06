@@ -34,7 +34,7 @@
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
-import { isUnionType, typeRefName } from './ast-shapes.js';
+import { isUnionType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { getTypeArgs, isCleanDestructureAliasBinding } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -407,7 +407,10 @@ export function createCallResolution({
     for (const m of members) {
       if (m.type !== 'TSIndexSignature' || !m.typeAnnotation) continue;
       firstSig ??= m.typeAnnotation;
-      const sigKey = unwrapTypeAnnotation(m.parameters?.[0]?.typeAnnotation)?.type;
+      // peeled like the static-key mirror `pickIndexSignature`: oxc keeps `[k: (number)]`
+      // as TSParenthesizedType where babel strips it - a raw read misfiled the signature
+      // as string-keyed, over-resolving a string access to the number-sig value
+      const sigKey = peelTSParenthesized(unwrapTypeAnnotation(m.parameters?.[0]?.typeAnnotation))?.type;
       if (sigKey === 'TSNumberKeyword') numberSig ??= m.typeAnnotation;
       else if (sigKey === 'TSSymbolKeyword') symbolSig ??= m.typeAnnotation;
       else stringSig ??= m.typeAnnotation;
