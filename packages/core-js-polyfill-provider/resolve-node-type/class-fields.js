@@ -26,6 +26,7 @@ import {
 import {
   forEachPatternWriteMember,
   hasDeferredContextAncestor,
+  patternBindsName,
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
@@ -272,7 +273,10 @@ export function createClassFields({
           if (!decl) continue;
           if (decl.type === 'VariableDeclaration') {
             for (const d of decl.declarations ?? []) {
-              if (d.id?.type === 'Identifier' && d.id.name === fieldName) found = true;
+              // a destructuring export (`export const { list } = src()` / `[list]` / renamed /
+              // rest / nested / defaulted) binds the runtime static slot exactly like the
+              // identifier form - the shadow census must count every pattern-bound name
+              if (d.id?.type === 'Identifier' ? d.id.name === fieldName : patternBindsName(d.id, fieldName)) found = true;
             }
           } else if (decl.id?.type === 'Identifier' && decl.id.name === fieldName) {
             found = true;
@@ -750,8 +754,12 @@ export function createClassFields({
           methodFns.push(methodFnPath(propPath));
           continue;
         }
-        if (t.isObjectProperty?.(propNode) && t.isFunctionExpression?.(propNode.value)) {
-          methodFns.push(propPath.get('value'));
+        if (t.isObjectProperty?.(propNode)) {
+          // peel TS casts / parens like the class-side field path - a cast-wrapped writer
+          // (`m: (function () { this.field = X; }) as Handler`) still owns an object-bound
+          // `this`; arrows stay excluded (they capture the OUTER this, not the object)
+          const value = peelSkippableWrapperPath(propPath.get('value'));
+          if (t.isFunctionExpression?.(value?.node)) methodFns.push(value);
         }
       }
     }
