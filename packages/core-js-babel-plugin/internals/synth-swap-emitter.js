@@ -169,7 +169,10 @@ export default function createSynthSwapEmitter({
       // accept OptionalMemberExpression too (`{from} = globalThis?.Array`) - symmetric with
       // `isExpandedClassifiableReceiver`'s `globalProxyMemberName` walk which already handles
       // optional-chain shapes. without OME the OME-default silently bails to inline-default
-      if (!fallbackCollapse && !isReceiverShapedNode(rightPath.node)) return null;
+      // a `this` default inside a STATIC method reads the inherited static surface: the meta
+      // funnel already resolved it against the extends host (resolution is the drain gate -
+      // an unresolved `this` never reaches the synth registration), so the shape is admitted
+      if (!fallbackCollapse && !isReceiverShapedNode(rightPath.node) && !rightPath.isThisExpression()) return null;
       return rightPath;
     }
     // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
@@ -485,7 +488,7 @@ export default function createSynthSwapEmitter({
         // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
         const hasInstanceEntry = [...pending.polyfills.values()].some(p => p.instance);
         if ((!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression'
-          && !hasInstanceEntry)
+          && path.node.type !== 'ThisExpression' && !hasInstanceEntry)
           || pending.objectPatternNode?.type !== 'ObjectPattern') return;
         // mark `applied` AFTER `replaceWith` returns. setting BEFORE means a thrown
         // replaceWith (sibling-plugin claimed the path mid-traversal, AST-validation
