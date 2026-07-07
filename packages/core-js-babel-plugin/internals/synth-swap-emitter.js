@@ -39,7 +39,8 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
-  navHasUnresolvableProxyHop, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure, resolveSynthKeys,
+  navHasUnresolvableProxyHop, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
+  proxyGlobalMemberCtorPureSwap, resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
@@ -401,6 +402,24 @@ export default function createSynthSwapEmitter({
   // receiver - injected as a pure import when the receiver is itself a polyfillable global,
   // collapsed to the polyfilled root for a proxy-global member chain, raw otherwise.
   // all-polyfilled cases never call `getReceiverRef`, keeping the import set clean
+  // canonical re-read target for a MEMOIZED receiver, peeled to its SE tail: a pure-ctor leaf
+  // whole-swaps (the erased navigation's harvested effects re-run ahead of the binding), an
+  // alias / proxy chain collapses through the shared plan. only the unresolvable remainder
+  // falls back to the verbatim clone - re-traversal of that clone picks a per-shape collapse
+  // (`_self.Map` vs `_Map` vs a kept dead hop) and desyncs the emitters on the re-read target
+  function buildMemoArg(memoReceiver, aliasCtx) {
+    const { prefix, tail } = peelNestedSequenceExpressions(memoReceiver);
+    const ctorSwap = proxyGlobalMemberCtorPureSwap({ receiver: tail, aliasCtx, resolvePure });
+    const target = ctorSwap
+      ? injectPureImport(ctorSwap.pure.entry, ctorSwap.pure.hintName)
+      : collapseProxyGlobalReceiver(tail, { aliasCtx });
+    if (!target) return t.cloneNode(memoReceiver, true);
+    const ahead = [...prefix, ...ctorSwap ? ctorSwap.se : []];
+    return ahead.length
+      ? t.sequenceExpression([...ahead.map(node => t.cloneNode(node, true)), target])
+      : target;
+  }
+
   function buildSynthLiteral(receiver, { objectPatternNode, polyfills }, memoParam = null, aliasCtx = null) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
@@ -499,10 +518,8 @@ export default function createSynthSwapEmitter({
         let replacement = needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
-            // collapse a proxy hop in the memoized receiver too (`(() => globalThis)().self.Array` ->
-            // `(call, _self).Array`): the memo argument reads the receiver value once, so a verbatim
-            // `.self` hop would throw off-browser before the memo body runs
-            [collapseProxyGlobalReceiver(memoReceiver, { aliasCtx }) ?? t.cloneNode(memoReceiver, true)])
+            // the memo argument takes the same canonical re-read target as the direct path
+            [buildMemoArg(memoReceiver, aliasCtx)])
           : dropRescueReceiver
             ? t.sequenceExpression([
               ...discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })

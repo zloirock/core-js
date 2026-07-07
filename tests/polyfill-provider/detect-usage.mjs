@@ -21,10 +21,11 @@ import {
   isStaticPlacement,
   isTransparentWrapper,
   ownChainOptionalCount,
+  proxyGlobalMemberCtorPureSwap,
   resolveKey,
   returnedReceiverHasEffects,
-  unwrapTransparentSeq,
   unwrapParensCollectingEffects,
+  unwrapTransparentSeq,
 } from '../../packages/core-js-polyfill-provider/detect-usage/resolve.js';
 import {
   computedPropKeyHostsMachinery,
@@ -923,6 +924,39 @@ runBoth('peelArrayWrapperPair/bail commits no prefixes',
     const { init, peeledPrefixes } = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init });
     checkDeep(lbl, peeledPrefixes, []);
     check(`${ lbl } init unchanged`, init, decl.node.init);
+  });
+
+runBoth('proxyGlobalMemberCtorPureSwap/harvests buried key SE with the pure-ctor leaf',
+  'let e = 0; const r = globalThis.self[(e++, "Map")];', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const swap = proxyGlobalMemberCtorPureSwap({
+      receiver: member.node,
+      aliasCtx: { scope: member.scope, adapter: { ...adapter, getBinding: () => null }, path: member },
+      resolvePure: g => g.name === 'Map' ? { entry: 'actual/map/constructor', hintName: 'Map', kind: 'global' } : null,
+    });
+    check(lbl, swap?.pure?.entry, 'actual/map/constructor');
+    checkDeep(`${ lbl } se`, swap?.se.map(n => n.type), ['UpdateExpression']);
+  });
+runBoth('proxyGlobalMemberCtorPureSwap/keeps the SE-bearing chain-root call in the rescue plan',
+  'let n = 0; const r = (() => (n++, globalThis))().Map;', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const swap = proxyGlobalMemberCtorPureSwap({
+      receiver: member.node,
+      aliasCtx: { scope: member.scope, adapter: { ...adapter, getBinding: () => null }, path: member },
+      resolvePure: g => g.name === 'Map' ? { entry: 'actual/map/constructor', hintName: 'Map', kind: 'global' } : null,
+    });
+    check(lbl, swap?.pure?.entry, 'actual/map/constructor');
+    checkDeep(`${ lbl } se`, swap?.se.map(node => node.type), ['CallExpression']);
+  });
+runBoth('proxyGlobalMemberCtorPureSwap/non-pure leaf resolves nothing',
+  'const r = globalThis.self.Math;', (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression');
+    const swap = proxyGlobalMemberCtorPureSwap({
+      receiver: member.node,
+      aliasCtx: { scope: member.scope, adapter: { ...adapter, getBinding: () => null }, path: member },
+      resolvePure: () => null,
+    });
+    check(lbl, swap, null);
   });
 
 // the exported fallback-branch walker: the member / `in` producers enumerate a BRANCHING
