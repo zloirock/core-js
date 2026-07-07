@@ -261,9 +261,16 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       if (!b || b.path.node?.type !== 'VariableDeclarator' || b.path.node.init) return null;
       const violations = withoutValuelessDeclarationViolations(b.constantViolations);
       const first = violations?.[0];
-      const assignPath = first?.isAssignmentExpression?.() ? first : first?.findParent?.(pp => pp.isAssignmentExpression());
+      let assignPath = first?.isAssignmentExpression?.() ? first : first?.findParent?.(pp => pp.isAssignmentExpression());
       const assignNode = assignPath?.node;
       if (!assignNode) return null;
+      // an in-place SE-split (`(0, ({X}=g))` -> `0; ({X}=g);`) hoists the write to statement level
+      // yet leaves the constantViolation path pointing into the DETACHED SequenceExpression (a stale
+      // ancestor whose node is null), so the placement walk climbs a dead chain and misreads the
+      // real placement (spuriously refusing a hoisted-to-statement write, or missing a real
+      // conditional above it). re-anchor to the write's FRESH path so the walk judges the live tree,
+      // matching the estree side which resolves on the pristine AST
+      if (ancestorChainDetached(assignPath)) assignPath = freshPathOfNode(b.scope?.path, assignNode) ?? assignPath;
       // the ASSIGNMENT path itself: the placement walk judges every edge up to the statement,
       // so a conditional expression container between them refuses flow-trust
       return assignmentAliasWriteTrusted({ binding: { ...b, constantViolations: violations }, assignNode, stmtPath: assignPath })
@@ -279,6 +286,33 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
     getStringValue: stringLiteralValue,
   };
   return adapter;
+}
+
+// a NodePath whose ancestor chain hits a detached node (`.node` null) before reaching the Program
+// root: a constantViolation path into a subtree an in-place rewrite has already re-parented, so its
+// placement walk is unreliable
+function ancestorChainDetached(path) {
+  for (let cur = path?.parentPath; cur; cur = cur.parentPath) {
+    if (cur.node === null || cur.node === undefined) return true;
+    if (cur.node.type === 'Program') return false;
+  }
+  return false;
+}
+
+// the LIVE path of `targetNode` in `scopeOwnerPath`'s subtree (node identity), or null. re-anchors a
+// stale constantViolation path after an in-place split moved its statement
+function freshPathOfNode(scopeOwnerPath, targetNode) {
+  if (!scopeOwnerPath || !targetNode) return null;
+  let found = null;
+  scopeOwnerPath.traverse({
+    enter(p) {
+      if (p.node === targetNode) {
+        found = p;
+        p.stop();
+      }
+    },
+  });
+  return found;
 }
 
 // no-tracking adapter for detect-entry's `require('core-js/...')` literal check
