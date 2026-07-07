@@ -439,6 +439,43 @@ runBoth('object method member still resolves to a Function object',
       { primitive: false, ctor: 'Function' });
   });
 
+// --- class-fields shadow census: namespace pattern-merge + wrapped object writer ---
+// a namespace DESTRUCTURING export on a subclass binds the runtime static slot like the
+// identifier form - the inherited `this.<static>` narrow must drop; other-name patterns keep it
+
+runBoth('namespace pattern-merge on subclass drops the inherited static narrow',
+  'class Base { static list = [1, 2]; static m() { return this.list; } } class Sub extends Base {} namespace Sub { export const { list } = src(); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'ThisExpression');
+    const type = adapter.makeResolver().resolveNodeType(member);
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+runBoth('namespace pattern-merge binding other names keeps the narrow',
+  'class Base { static list = [1, 2]; static m() { return this.list; } } class Sub extends Base {} namespace Sub { export const { other } = src(); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'ThisExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// a TS-cast-wrapped FunctionExpression property owns an object-bound `this` - its writes
+// invalidate the field narrow; an arrow keeps the OUTER `this`, so the narrow survives
+
+runBoth('cast-wrapped object writer method invalidates the field narrow',
+  'const obj = { field: [1, 2], m: (function () { this.field = src(); }) as any }; const t = obj.field;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+runBoth('cast-wrapped arrow keeps the field narrow (outer this)',
+  'const obj = { field: [1, 2], m: (() => { this.field = src(); }) as any }; const t = obj.field;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
 // --- assertion-guard own-arg slot (mutation invalidates the narrow) ---
 // a reassignment buried in the assertion's OWN call argument leaves the runtime value
 // post-mutation - the narrow must not survive; a clean assertion still narrows
