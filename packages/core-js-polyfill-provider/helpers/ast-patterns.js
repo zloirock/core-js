@@ -3417,6 +3417,22 @@ export function unwrapExpressionChain(node) {
   return node;
 }
 
+// `unwrapExpressionChain` twin for CODEGEN callers: peels the same wrapper chain but COLLECTS
+// every sequence prefix it crosses into `prefixes` (source order) instead of eliding it - a
+// consumer that DISCARDS the peeled wrappers (the array-wrapper destructure flatten) must
+// re-emit those effects. the sequence peel runs first each round so a prefix buried under a
+// paren / TS wrapper is still collected once the wrapper comes off
+export function unwrapCollectingSePrefixes(node, prefixes) {
+  for (let depth = 0; depth < MAX_DEPTH && node; depth++) {
+    const before = node;
+    const { prefix, tail } = peelNestedSequenceExpressions(node);
+    prefixes.push(...prefix);
+    node = unwrapInitValue(unwrapRuntimeExpr(tail));
+    if (node === before) return node;
+  }
+  return node;
+}
+
 // extract the single return expression of a function-like body. arrow expression-body
 // returns directly; block bodies must contain EXACTLY one ReturnStatement and any other
 // statement type bails - the inlined replacement at the caller swaps the entire call site
