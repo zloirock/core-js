@@ -35,10 +35,12 @@ import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import {
   discardRescueNodes,
+  inlineCallReturnExpression,
   isCallShape,
   isStaticPlacement,
   peelChainAssignmentDeep,
   resolveKey as sharedResolveKey,
+  reachableAliasValues,
   resolveObjectName,
   seBearingChainRootCall,
   symbolSourcedFoldedKey,
@@ -275,12 +277,46 @@ export function flattenFallbackBranches({ node, key, scope, adapter, path }) {
   return branchMeta?.object ? [branchMeta] : [];
 }
 
+// follow SAFE indirection from a receiver expression to a BRANCHING value the canonical
+// walker can flatten: a const-init alias chain (`const M = c ? Array : Iterator; M.from`)
+// and an inline-eligible zero-arg callee return (`const f = () => c ? A : B; f().from`,
+// `function pick() { return c ? A : B; }` - the shared callee inliner's shapes). the
+// usage-global method-aware reassignment gate applies (a dominating reassignment bails,
+// a reassigned alias stays with the reachable-union machinery); `seen` guards binding
+// cycles. returns null for direct / non-branching / unsafe shapes - the caller keeps its
+// path. consumed by the usage-global chokes only: the pure flavor polyfills the branch
+// values in place at the init / return site, so following the alias there would double-handle
+export function resolveIndirectBranchingReceiver({ node, scope, adapter, path }) {
+  const seen = new Set();
+  let cur = unwrapTransparentSeq(node);
+  while (cur) {
+    if (cur.type === 'Identifier') {
+      const { name } = cur;
+      if (seen.has(name) || !adapter.hasBinding(scope, name, path)) return null;
+      seen.add(name);
+      const binding = adapter.getBinding(scope, name, path);
+      if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
+      if (adapter.getBindingNodeType(scope, name, path) !== 'VariableDeclarator' || !binding.node?.init) return null;
+      cur = unwrapTransparentSeq(binding.node.init);
+    } else if (isCallShape(cur)) {
+      const ret = inlineCallReturnExpression({ callNode: cur, scope, adapter, seen, path });
+      if (!ret) return null;
+      cur = unwrapTransparentSeq(ret);
+    } else return null;
+    if (getFallbackBranchSlots(peelFallbackReceiver(cur))) return cur;
+  }
+  return null;
+}
+
 // enumerate fromFallback destructure-receiver branches as resolved metas. for usage-global
 // dispatch each branch's deps separately so `cond ? Array : Iterator` with `{from}` brings
 // in both `es.array.from` and `es.iterator.from` at file level. takes parser-agnostic path
 // API (uses .parentPath / .node / .scope) so both babel and estree-toolkit paths work
-export function enumerateFallbackDestructureBranches(meta, path, adapter, resolvePure = null) {
-  if (!meta?.fromFallback || !path) return null;
+export function enumerateFallbackDestructureBranches(meta, path, adapter, { resolvePure = null, followIndirection = false } = {}) {
+  if (!path) return null;
+  // beyond fromFallback (a DIRECT branching init), the opt-in `followIndirection` admits an
+  // unresolved property meta whose receiver may alias a branching value - resolved below
+  if (!meta?.fromFallback && !(followIndirection && meta?.kind === 'property' && meta.object === null)) return null;
   const objectPattern = path.parentPath?.node;
   // ObjectPattern's parent can be:
   //   - direct host (VariableDeclarator / AssignmentExpression) - read slot
@@ -313,10 +349,111 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, resolv
     }
   }
   if (!receiverNode) return null;
+  let branching = receiverNode;
+  if (!meta.fromFallback) {
+    branching = resolveIndirectBranchingReceiver({ node: receiverNode, scope: path.scope, adapter, path });
+    if (!branching) return null;
+  }
   const out = flattenFallbackBranches({
-    node: receiverNode, key: meta.key, scope: path.scope, adapter, path,
+    node: branching, key: meta.key, scope: path.scope, adapter, path,
   });
   return out.length ? out : null;
+}
+
+// usage-global UNION of reachable member-dispatch targets for a conditionally reassigned receiver
+// and/or computed-key. `let K='from'; if(c) K='of'; Array[K]()` can call Array.from OR Array.of;
+// `var M={}; if(c) M=Array; M.from()` may dispatch on Array. when BOTH vary the reachable targets
+// are the cross product, so each is emitted (over-inject-safe; an impossible pair just resolves to no
+// polyfill). returns extra `{ kind:'property', object, key, placement }` metas minus the primary pair
+// the caller already emits, empty in the common no-reassignment case. global-only: usage-pure bails
+// on any reassignment upstream, so a reassigned alias never reaches a receiver-dropping substitute
+export function collectMemberUnionCandidates(options) {
+  const { objectNode, computedKeyNode, primaryObject, primaryKey, placement: placementOverride = null, scope, adapter, path } = options;
+  if (adapter.method !== 'usage-global') return [];
+  const objects = reachableAliasValues({
+    aliasNode: objectNode, primary: primaryObject, scope, adapter, path,
+    resolve: rhs => resolveObjectName({ objectNode: rhs, scope, adapter, path }),
+  });
+  // an UNRESOLVED receiver (a local instance, an unclassifiable expression) still dispatches every
+  // reachable KEY at runtime, so it enumerates as the typeless receiver itself - each union key then
+  // earns the same typeless prototype-placement meta the primary key gets (`let k = 'at'; if (c)
+  // k = 'flat'; arr[k]` reaches both es.array.at and es.array.flat). without the null entry the
+  // cross product is empty and the reachable alternative silently drops (under-injection). the
+  // resolved values, when the receiver alias ALSO varies, keep their own static extras beside it
+  if (primaryObject === null) objects.unshift(null);
+  // a BRANCHING receiver value - direct or reached through safe indirection - contributes each
+  // branch's resolved object to the union axis, so reachable KEYS cross with reachable branch
+  // OBJECTS (`const M = c ? Array : Iterator; let k = 'from'; if (c2) k = 'of'; M[k]` reaches
+  // all four pairs; the primary-key-only branch extras cannot see the alternative keys).
+  // branch-sourced objects pair at STATIC placements only - the branch-extras canon: instance
+  // keys stay with the typeless primary, which respects the type-engine's dead-branch folds
+  // (a truthy-folded `??` fallback or an isArray-narrowed alternative must not inject)
+  const branchObjects = new Set();
+  // only when NO primary resolved: a resolved primary means an upstream gate already decided
+  // the receiver - a type-engine fold (`definedGlobal ?? Array` folds to its left) or a
+  // caller-arg supersede (a real IIFE arg wins over the branching default) - and structurally
+  // re-enumerating the raw node would resurrect the dead branch it excluded
+  if (objectNode && primaryObject === null) {
+    const branchingNode = getFallbackBranchSlots(peelFallbackReceiver(objectNode))
+      ? objectNode : resolveIndirectBranchingReceiver({ node: objectNode, scope, adapter, path });
+    if (branchingNode) {
+      for (const branch of flattenFallbackBranches({ node: branchingNode, key: primaryKey, scope, adapter, path })) {
+        if (branch.object && branch.placement === 'static' && !objects.includes(branch.object)) {
+          objects.push(branch.object);
+          branchObjects.add(branch.object);
+        }
+      }
+    }
+  }
+  const keys = reachableAliasValues({
+    aliasNode: computedKeyNode, primary: primaryKey, scope, adapter, path,
+    resolve: rhs => sharedResolveKey({ node: rhs, computed: true, scope, adapter, path }),
+  });
+  const extras = [];
+  for (const object of objects) for (const key of keys) {
+    if ((object === primaryObject && key === primaryKey) || key === 'prototype') continue;
+    // `placementOverride`: a prototype-navigated producer (`C.prototype[k]`) dispatches EVERY
+    // reachable pair as a prototype method of the alternative ctor - the receiver value itself
+    // is the ctor, not a static host. other producers derive placement from the value
+    const placement = placementOverride ?? (object !== null && isStaticPlacement(object) ? 'static' : 'prototype');
+    if (branchObjects.has(object) && placement !== 'static') continue;
+    // mirror the primary meta's receiver-type gate so a union key that is an instance method on
+    // the constructor (`Array[K]` with K reaching 'concat') bails instead of over-injecting
+    extras.push({ kind: 'property', object, key, placement, receiverHint: staticReceiverHint(placement, object) });
+  }
+  return extras;
+}
+
+// the single ATTACH point of the usage-global reachable union: every member / `in` / destructure
+// producer that can carry alternatives routes through here, so a producer branch that skips the
+// choke is the bug, not a design split. an axis the producer cannot supply is passed null and the
+// union enumerates the remaining axis; empty extras leave the meta untouched
+export function attachMemberUnionExtras(meta, options) {
+  const extras = collectMemberUnionCandidates(options);
+  if (extras.length) meta.extraCandidates = extras;
+  return meta;
+}
+
+// destructure twin of the member union: `const { [k]: v } = recv` reads the same reachable
+// receiver x key targets a member access does, so each earns its side-effect import too. `path`
+// is the ObjectProperty the funnels anchor at - the receiver alias comes from the declarator /
+// assignment / param-default host when one exists (the remaining hosts - for-x, catch, nested
+// patterns, array elements - bind from a per-element value, not a reassignable receiver alias,
+// and enumerate keys only); a per-branch fallback meta keeps its own mirror machinery and is
+// excluded here
+export function collectDestructureUnionCandidates({ meta, keyNode, computed, scope, adapter, path }) {
+  if (!meta || meta.kind !== 'property' || meta.fromFallback) return [];
+  if (adapter.method !== 'usage-global') return [];
+  const host = path?.parentPath?.parentPath?.node;
+  const hostInitNode = host?.type === 'VariableDeclarator' ? host.init
+    : host?.type === 'AssignmentExpression' || host?.type === 'AssignmentPattern' ? host.right : null;
+  return collectMemberUnionCandidates({
+    objectNode: hostInitNode,
+    computedKeyNode: computed ? keyNode : null,
+    primaryObject: meta.object ?? null,
+    primaryKey: meta.key,
+    scope, adapter, path,
+  });
 }
 
 // gate for the "conditional destructure left untouched" warn: it is only meaningful when some branch
@@ -329,7 +466,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, resolv
 // non-instance resolution) so the gate and the registration cannot disagree on what "candidate" means.
 // single-sourced so both emitters share the gate (each calls it from its own synth-failure site)
 export function fallbackDestructureHasPolyfillableBranch(meta, path, adapter, resolvePure) {
-  return !!enumerateFallbackDestructureBranches(meta, path, adapter, resolvePure)?.some(branchMeta => {
+  return !!enumerateFallbackDestructureBranches(meta, path, adapter, { resolvePure })?.some(branchMeta => {
     const pure = resolvePure(branchMeta);
     return pure && pure.kind !== 'instance';
   });
