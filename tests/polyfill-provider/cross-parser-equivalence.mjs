@@ -26,14 +26,12 @@ function extractPolyfillImports(code) {
 
 // file extension drives oxc's parser-language detection in the unplugin, so derive
 // it from the selected parser plugins rather than hardcoding `.ts` / `.mjs`. JSX
-// needs `.jsx` (or `.tsx` if TS is also on); Flow needs `.flow.js` for oxc to
-// switch modes. the babel side uses the same id as `filename` so its error frames
-// point at a consistent location across scenarios
+// needs `.jsx` (or `.tsx` if TS is also on). the babel side uses the same id as
+// `filename` so its error frames point at a consistent location across scenarios
 function inferTestId(parserPlugins) {
   const hasTS = parserPlugins.includes('typescript');
   const hasJSX = parserPlugins.includes('jsx');
   if (hasJSX) return hasTS ? 'input.tsx' : 'input.jsx';
-  if (parserPlugins.includes('flow')) return 'input.flow.js';
   return hasTS ? 'input.ts' : 'input.mjs';
 }
 
@@ -204,14 +202,10 @@ await runEquivalence(
   { parserPlugins: ['typescript', 'decorators-legacy'] },
 );
 
-// Flow: mutually exclusive with TS at the babel parser level. covers the
-// FunctionTypeAnnotation / GenericTypeAnnotation dispatch on oxc's Flow mode
-await runEquivalence(
-  'Flow type annotation Promise<T>',
-  'const p/*: Promise<number> */ = null;',
-  USAGE_GLOBAL_IE11,
-  { parserPlugins: ['flow'] },
-);
+// NO Flow scenario here on purpose: oxc has no Flow mode on any extension, so a cross-parser
+// Flow equivalence is not expressible (both sides would emit zero imports and trivially agree -
+// a vacuous scenario that can never catch a regression). babel-side Flow dispatch is locked by
+// the real-annotation `at-call-flow-*` fixtures instead
 
 // --- parenthesized type-slot dispatch (oxc keeps `(X)` as TSParenthesizedType, babel
 // strips it at parse) - every raw `.type` dispatch on a type slot must peel, else the
