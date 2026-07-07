@@ -7,10 +7,16 @@ const e2eUsagePure = resolve(__dirname, '../../tests/e2e-usage-pure');
 
 module.exports = {
   ...baseConfig,
+  resolve: {
+    // extension-less `import './x'` in the generated index must also find `.ts` e2e files
+    extensions: ['.js', '.ts', '.json'],
+  },
   module: {
     rules: [{
-      // test files — apply usage-pure plugin + standard transforms
-      test: /\.js$/,
+      // test files — apply usage-pure plugin + standard transforms; `.ts` files run the plugin
+      // against the TYPED AST first (type-driven dispatch is the point of the TS e2e leg), then
+      // strip types before the standard ES transforms
+      test: /\.(?:js|ts)$/,
       include: e2eUsagePure,
       use: {
         loader: 'babel-loader',
@@ -22,6 +28,7 @@ module.exports = {
               mode: 'full',
               targets: 'IE 11, Chrome>=38, Safari>=7.1, FF>=15',
             }],
+            ['@babel/plugin-transform-typescript'],
             ...babelConfig.plugins,
           ],
           assumptions: {
