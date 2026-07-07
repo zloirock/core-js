@@ -32,6 +32,7 @@ import {
   resolveSymbolIteratorEntry,
   tagSymbolSourcedMeta,
 } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
+import { flattenFallbackBranches } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import {
   isTypeAnnotationNodeType,
   walkTypeAnnotationGlobals,
@@ -901,6 +902,20 @@ runBoth('collectDestructureUnionCandidates/param-default host supplies the recei
   'var M = [1]; if (c) M = Iterator; function f({ from } = M) { return from; }', (adapter, prog, lbl) => {
     checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'from', placement: null }),
       [{ kind: 'property', object: 'Iterator', key: 'from', placement: 'static', receiverHint: null }]);
+  });
+
+// the exported fallback-branch walker: the member / `in` producers enumerate a BRANCHING
+// static receiver through the same walk the destructure form uses - lock the flattened
+// per-branch metas (nested conditionals flatten; a shadowed branch drops)
+runBoth('flattenFallbackBranches/nested conditional flattens static branches',
+  'const r = (c ? Array : (d ? Iterator : Map)).from;', (adapter, prog, lbl) => {
+    const cond = adapter.pickPath(prog, 'ConditionalExpression', p => p.parentPath?.node?.type !== 'ConditionalExpression');
+    const metas = flattenFallbackBranches({ node: cond.node, key: 'from', scope: cond.scope, adapter: unionAdapter, path: cond });
+    checkDeep(lbl, metas.map(m => ({ object: m.object, placement: m.placement })), [
+      { object: 'Array', placement: 'static' },
+      { object: 'Iterator', placement: 'static' },
+      { object: 'Map', placement: 'static' },
+    ]);
   });
 
 // the `in`-branch and prototype-branch ATTACH sites are exercised through the fixture pipeline
