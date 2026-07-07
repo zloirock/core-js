@@ -1197,6 +1197,22 @@ function * generateSynthSwapPureCtorReRead() {
   for (const c of CASES) yield { ...snippet(`synth-swap-pure-ctor-reread/${ c.id }`, c.code), strip: true };
 }
 
+// --- Flatten rebuilt-residual init substitution ---
+// a flatten whose residual keeps a REBUILT / symbol-keyed pattern re-emits the init; the
+// detect pass suppressed the natural visitor on its proxy globals, so the emit must own the
+// substitution - a leaked raw `globalThis` dies in the stripped realm (the binding is deleted)
+function * generateFlattenRebuiltInit() {
+  const CASES = [
+    { id: 'nested-rebuilt',
+      code: '(() => { const { from, deep: { other } } = globalThis.Array; return [typeof from, typeof other]; })()' },
+    { id: 'logical-init',
+      code: '(() => { const { of, nested: { more } } = globalThis.Array || null; return [typeof of, typeof more]; })()' },
+    { id: 'symbol-iter-sibling-default',
+      code: '(() => { const { isArray, [Symbol.iterator]: { x = [1].at(0) } } = globalThis.Array; return [typeof isArray, x]; })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`flatten-rebuilt-init/${ c.id }`, c.code), strip: true };
+}
+
 // --- Class-field narrow staleness (TS) ---
 // a field narrow that survives a shadow/write it should have dropped dispatches the WRONG
 // Maybe: full-env both forms fall back to the same native method, so only the stripped realm
@@ -2959,6 +2975,7 @@ export function * generate() {
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
   yield * generateSynthSwapPureCtorReRead();
+  yield * generateFlattenRebuiltInit();
   yield * generateFieldNarrowStale();
   yield * generateAssertGuardStale();
   yield * generateConditionalMirror();

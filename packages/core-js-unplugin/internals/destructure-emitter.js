@@ -503,15 +503,25 @@ export function createDestructureEmitter({
     for (const expr of outerSequencePrefix) segments.push(`${ bakeRefSplicesInRange(expr, drainedRefs) };`);
     for (const expr of seExprs) segments.push(`${ bakeRefSplicesInRange(expr, drainedRefs) };`);
     if (unusedIds.length) segments.push(`var ${ unusedIds.join(', ') };`);
+    // babel order canon: the receiver's own evaluation (an SE tail statement) ALWAYS precedes
+    // every extraction (native reads the receiver first). around a SURVIVING residual,
+    // extractions consuming a TOP-LEVEL binding prop precede it and ones consuming a NESTED
+    // pattern prop follow it; with no residual extractions keep source order after the tail
+    // an ANCHORED residual reads off the constructor binding - babel emits it first wholesale
+    const splitBefore = result.preservedSrc !== null && !result.anchored;
+    const before = splitBefore ? result.extractions.filter(e => !e.nestedSource) : [];
+    const after = splitBefore ? result.extractions.filter(e => e.nestedSource) : result.extractions;
+    if (emitReceiverTail) {
+      // full-consume receiver with a non-liftable nested side effect: evaluate it for effect
+      segments.push(`${ bakeRefSplicesInRange(receiverTail, drainedRefs) };`);
+    }
+    for (const e of before) segments.push(`${ e.patternLhs ? `(${ e.decl })` : e.decl };`);
     if (result.preservedSrc !== null) {
       // parens are REQUIRED only for a `{`-leading LHS (statement-position object pattern);
       // an ArrayPattern-led rebuild stays bare, matching babel's emit byte-for-byte
       segments.push(result.preservedSrc.startsWith('{') ? `(${ result.preservedSrc });` : `${ result.preservedSrc };`);
-    } else if (emitReceiverTail) {
-      // full-consume receiver with a non-liftable nested side effect: evaluate it for effect
-      segments.push(`${ bakeRefSplicesInRange(receiverTail, drainedRefs) };`);
     }
-    for (const e of result.extractions) segments.push(`${ e.patternLhs ? `(${ e.decl })` : e.decl };`);
+    for (const e of after) segments.push(`${ e.patternLhs ? `(${ e.decl })` : e.decl };`);
     return segments;
   }
 
@@ -613,9 +623,20 @@ export function createDestructureEmitter({
     const isAliasedIdentifier = receiverTail?.type === 'Identifier' && tailSrc !== decl.receiver;
     const receiverPure = !isAliasedIdentifier && decl.receiver
       ? resolveGlobalPolyfill(decl.receiver) : null;
-    return receiverPure
-      ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-      : tailSrc;
+    if (receiverPure) return injectPureImport(receiverPure.entry, receiverPure.hintName);
+    // mirror receiverEmitSrc: the detect pass suppressed the natural visitor on the init's
+    // proxy globals, so the re-embedded `(SE, <tail>)` slot must own the substitution or the
+    // raw root leaks (ReferenceError off-engine). skipped when a ref-binding splice landed
+    // inside the tail - the resolver substitutes against ORIGINAL coords and would lose it
+    const refsInTail = refSplices?.some(s => s.start >= receiverTail.start && s.end <= receiverTail.end);
+    if (!isAliasedIdentifier && !refsInTail) {
+      const substituted = polyfillInitGlobals({
+        initNode: receiverTail, initSrc: nodeSrc(receiverTail), initStart: receiverTail.start,
+        declaratorPath: decl.declaratorPath,
+      });
+      if (substituted !== null) return substituted;
+    }
+    return tailSrc;
   }
 
   function tryFlattenNestedProxy(metaPath) {
@@ -636,7 +657,12 @@ export function createDestructureEmitter({
     if (flattenedNestedDecls.has(declaration)) return true;
     const parentNode = declPath.parentPath?.node;
     const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
-    const perDecl = declaration.declarations.map(d => rewriteDeclarator(d, scope, declPath));
+    const perDecl = declaration.declarations.map(d => {
+      const slot = rewriteDeclarator(d, scope, declPath);
+      // the for-init SE-sink substitution resolves aliases through the declaration path
+      slot.declaratorPath = declPath;
+      return slot;
+    });
     if (!perDecl.some(r => r.extractions.length || r.anchored)) return false;
     flattenedNestedDecls.add(declaration);
     seedSkippedForExtractedDeclarators(declaration, perDecl, { scope, path: declPath });
@@ -1401,8 +1427,9 @@ export function createDestructureEmitter({
   //     natural visitor would polyfill the standalone key, but the flatten's blanket skip in
   //     `seedSkippedForExtractedDeclarators` suppresses it - emit the polyfilled key directly
   //     so the rebuilt residual carries `[_Symbol$iterator]: <value>` instead of leaking native
-  //     `Symbol.iterator` (a TypeError on old runtimes without `Symbol`). value source stays
-  //     verbatim - any polyfillable refs inside (e.g. `{next}` binding name) aren't polyfillable
+  //     `Symbol.iterator` (a TypeError on old runtimes without `Symbol`). the value source is
+  //     emitted verbatim here, but its polyfillable CONTENTS (a `{ x = [1].at(0) }` default)
+  //     stay live through the residual compose and still rewrite
   //   - 'rebuilt': partially-consumed nested pattern, reassembled by `renderRebuiltNestedProp`
   function renderOuterPlan(outer) {
     if (outer.kind === 'consumed') return { extractions: outer.extractions, preservedSrc: null };
@@ -1609,7 +1636,12 @@ export function createDestructureEmitter({
             + injectPureImport(receiverPure.entry, receiverPure.hintName)
             + nodeSrc({ start: plan.initElement.end, end: tail.end })
           : injectPureImport(receiverPure.entry, receiverPure.hintName)
-        : tailSrc;
+        // the DETECT pass (markInitGlobals) suppressed the natural visitor on this init's
+        // proxy globals expecting the EMIT to own them; the flat route owns via
+        // polyfillInitGlobals - route the rebuilt residual's tail through the SAME resolver
+        // (it defers to the live visitor with null, claims-and-suppresses otherwise), else
+        // the raw `globalThis` / a raw logical operand leaks into the re-emitted init
+        : polyfillInitGlobals({ initNode: tail, initSrc: tailSrc, initStart: tail.start, declaratorPath: usePath }) ?? tailSrc;
       return cachedReceiverEmitSrc;
     }
     // RestElement in outer pattern - rest gathers all OTHER own keys, so dropping a
@@ -1654,7 +1686,18 @@ export function createDestructureEmitter({
         ? renderOuterPlan({ kind: 'verbatim', prop: claimedProp })
         : renderOuterPlan(plan.outerProps[i]);
       for (const e of outer.extractions ?? []) {
-        extractions.push(emitOuterExtraction(e, scope, synthReceiverSrc));
+        const emittedExtraction = emitOuterExtraction(e, scope, synthReceiverSrc);
+        // order class for the assignment-cascade render (babel canon, probed per shape): an
+        // extraction precedes a surviving residual ONLY for a top-level aliased/shorthand
+        // binding prop in a bare object pattern; a NESTED pattern prop, a rest-forced
+        // SHORTHAND sentinel, and an array-WRAPPED pattern all follow the residual.
+        // declaration hosts ignore the tag (extraction-first there)
+        const valueType = claimedProp?.value?.type;
+        emittedExtraction.nestedSource = keepsWrapper
+          || valueType === 'ObjectPattern' || valueType === 'ArrayPattern'
+          || (valueType === 'AssignmentPattern' && claimedProp.value.left?.type !== 'Identifier')
+          || (claimedProp?.shorthand === true && hasRest);
+        extractions.push(emittedExtraction);
       }
       let emitted = null;
       if (outer.preservedSrc !== null) {
@@ -2127,7 +2170,13 @@ export function createDestructureEmitter({
   // undefined property off the global object on hosts without it (ie:11 pure / Node). deleting
   // only the hop abuts the root-substitution range (no overlap), unlike a full-span overwrite.
   // `maximalProxyGlobalHop` gates on a real intermediate hop, so this no-ops on the bare root
+  // per-node once-guard: the param-default fallback runs PER polyfilled prop, so a multi-prop
+  // pattern re-enters with the SAME receiver - a second hop-delete / root-collapse would queue
+  // an equal-range twin transform and crash the queue's needle merge
+  const collapsedRetainedDefaults = new WeakSet();
   function collapseRetainedProxyDefault(receiver, aliasCtx = null) {
+    if (!receiver || collapsedRetainedDefaults.has(receiver)) return;
+    collapsedRetainedDefaults.add(receiver);
     // a retained LOGICAL receiver (`globalThis.self.Array || Set`) keeps its operands live; an
     // evaluated operand must not read `_globalThis.self` (undefined on ie:11 / Node, which throws
     // BEFORE `||` can short-circuit). recurse and collapse the proxy hop in EACH non-pure operand
@@ -2148,6 +2197,22 @@ export function createDestructureEmitter({
     if (peeled?.type === 'LogicalExpression') {
       collapseRetainedProxyDefault(peeled.left, aliasCtx);
       collapseRetainedProxyDefault(peeled.right, aliasCtx);
+      return;
+    }
+    // an effect buried in a proxy-hop KEY cannot single-hop-delete (deleting the hop would drop
+    // the effect): route through the shared root-collapse, which harvests the key SE as a
+    // sequence prefix and re-roots (`globalThis[(eff++, 'self')].Array` ->
+    // `(eff++, _globalThis).Array`), matching the babel twin's droppedSe harvest. the
+    // declarator-init caller pre-gates this shape away to collapseProxyHopRoot, so only the
+    // param-default route (and its logical operands) reaches this dispatch
+    if (buriesEffectInProxyHopMember(peeled, aliasCtx)) {
+      const src = nodeSrc(peeled);
+      const collapsed = substituteProxyGlobalRoot({ node: peeled, src, baseStart: peeled.start, aliasCtx, ctx: aliasCtx });
+      if (collapsed !== null) {
+        const root = findProxyGlobal(peeled, aliasCtx);
+        if (root) skippedNodes.add(root);
+        transforms.add(peeled.start, peeled.end, collapsed);
+      }
       return;
     }
     const prefix = receiver && maximalProxyGlobalHop(receiver, aliasCtx);
