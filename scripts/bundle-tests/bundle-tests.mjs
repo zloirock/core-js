@@ -1,15 +1,17 @@
-async function generateTestsIndex(name, pkg, filter = /^(?:es|esnext|helpers|web)\./) {
+async function generateTestsIndex(name, pkg, filter = /^(?:es|esnext|helpers|web)\./, extensions = ['.js']) {
   const dir = `../../tests/${ name }`;
   const files = await fs.readdir(dir);
   return fs.writeFile(`${ dir }/index.js`, `import '../helpers/qunit-helpers';\n\n${ files
-    .filter(it => it.endsWith('.js') && it !== 'index.js' && filter.test(it))
+    .filter(it => extensions.some(ext => it.endsWith(ext)) && it !== 'index.js' && filter.test(it))
     .map(it => `import './${ it.slice(0, -3) }';\n`)
     .join('') }${ pkg !== 'core-js' ? `\nimport core from '${ pkg }';\ncore.globalThis.core = core;\n` : '' }`);
 }
 
 await generateTestsIndex('unit-global', 'core-js');
 await generateTestsIndex('unit-pure', '@core-js/pure');
-await generateTestsIndex('e2e-usage-pure', '@core-js/pure', /^[a-z]/);
+// the e2e leg also picks up `.ts` files: TS-type-driven dispatch (class-field narrowing,
+// annotation unions) otherwise has NO runtime oracle - only compile-time fixtures
+await generateTestsIndex('e2e-usage-pure', '@core-js/pure', /^[a-z]/, ['.js', '.ts']);
 
 echo(chalk.green('tests indexes generated'));
 
