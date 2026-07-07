@@ -1163,6 +1163,40 @@ function * generateAssignAliasReassign() {
   }
 }
 
+// --- Synth-swap pure-ctor-leaf re-read ---
+// a param-default / IIFE synth-swap whose proxy-global receiver carries a PURE-CTOR leaf and
+// an UNPOLYFILLED sibling key: the sibling re-reads through a whole-swap to the pure ctor
+// (`_Map.other`) - one shared plan decision. the pre-unification emitters disagreed on the
+// collapse target here (pure ctor vs proxy root vs kept alias), an IMPORT-SET divergence the
+// import oracle catches; an alias-rooted NON-pure leaf takes the keep-alias branch instead
+// (`g.Object.missing`) on both sides
+function * generateSynthSwapPureCtorReRead() {
+  const CASES = [
+    { id: 'pure-ctor-leaf',
+      code: '(() => { function f({ groupBy, other } = globalThis.Map) { return [typeof groupBy, typeof other]; } return f(); })()' },
+    { id: 'alias-pure-ctor-leaf',
+      code: '(() => { const g = globalThis; function f({ groupBy, other } = g.Map) { return [typeof groupBy, typeof other]; } return f(); })()' },
+    { id: 'alias-nonpure-leaf-keeps-alias',
+      code: '(() => { const g = globalThis; function f({ fromEntries, missing } = g.Object) { return [typeof fromEntries, typeof missing]; } return f(); })()' },
+    { id: 'iife-arg-pure-ctor-leaf',
+      code: '(() => (({ groupBy, other } = globalThis.Map) => [typeof groupBy, typeof other])())()' },
+    // MEMOIZED re-read (SE receiver): the buried leaf-key SE must survive the pure-ctor
+    // whole-swap and run exactly once - a memo arg that folds the key without harvesting
+    // drops the increment (runtime-visible: e stays 0)
+    { id: 'memo-leafkey-se-pure-ctor',
+      code: '(() => { let e = 0; function f({ groupBy, other } = globalThis[(e++, "Map")]) { return [typeof groupBy, typeof other, e]; } return f(); })()' },
+    // seq-prefixed memo receiver: both emitters must agree on the whole-swap target
+    // (`(n++, _Map)`), not fall to per-emitter fallbacks
+    { id: 'memo-seq-prefix-pure-ctor',
+      code: '(() => { let n = 0; function f({ groupBy, other } = (n++, globalThis.Map) || null) { return [typeof groupBy, typeof other, n]; } return f(); })()' },
+    // an SE-bearing chain-root call must survive the whole-swap (run exactly once, ahead of
+    // the binding) - dropping it is runtime-visible (n stays 0)
+    { id: 'memo-se-call-root-pure-ctor',
+      code: '(() => { let n = 0; function f({ groupBy, other } = (() => (n++, globalThis))().Map) { return [typeof groupBy, typeof other, n]; } return f(); })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`synth-swap-pure-ctor-reread/${ c.id }`, c.code), strip: true };
+}
+
 // --- Assertion-guard staleness (TS) ---
 // a reassignment in the assertion guard's OWN argument slot leaves the runtime value
 // post-mutation: the string narrow is stale and dispatch must stay generic. in a full
@@ -2906,6 +2940,7 @@ export function * generate() {
   yield * generateNestedInstanceReceiver();
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
+  yield * generateSynthSwapPureCtorReRead();
   yield * generateAssertGuardStale();
   yield * generateConditionalMirror();
   yield * generateChains();
