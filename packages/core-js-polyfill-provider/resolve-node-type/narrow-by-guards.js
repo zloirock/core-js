@@ -217,7 +217,11 @@ export function createNarrowByGuards({
       // `parseSiblingGuards` accepts `outer: if (...) return;` by peeling LabeledStatement;
       // the same peel must run here or label-wrapped test-slot mutation stays invisible
       const nearestNode = peelLabeledStatementNode(siblings[nearestIdx]?.node);
-      if (t.isIfStatement(nearestNode) && violatesInsideNode(nearestNode.test)) return true;
+      // the nearest guard's OWN mutation-bearing slot: an IfStatement early-exit carries it in
+      // its test; an assertion-statement guard carries it in its call-argument slot
+      // (`assertString((x = 5, x))` - the SE-tail unwrap still binds the var, but the runtime
+      // value is the post-mutation one, so the narrow is exactly as stale as a mutated if-test)
+      if (violatesInsideNode(t.isIfStatement(nearestNode) ? nearestNode.test : nearestNode)) return true;
       for (let j = nearestIdx + 1; j < current.key; j++) if (violates(siblings[j])) return true;
       return violatesBefore(siblings[current.key]);
     }
