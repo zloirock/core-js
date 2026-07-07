@@ -2529,3 +2529,55 @@ QUnit.test('array-wrapper flatten preserves wrapper-level side effects in order'
   assert.deepEqual(of(3), [3]);
   assert.deepEqual(order, ['outer', 'inner', 'o2', 'm2', 'i2']);
 });
+
+QUnit.test('destructuring: shadowed Symbol identifier keeps the user value', assert => {
+  const { iterator } = Symbol;
+  assert.same(typeof [][iterator], 'function');
+  // the inner same-name binding reads a USER object through a shadowed `Symbol` - folding
+  // it to the well-known symbol would return an iterator method instead of the element
+  function pickShadowed() {
+    const Symbol = { iterator: 1 };
+    // eslint-disable-next-line no-shadow -- the same-name collision is the case under test
+    const { iterator } = Symbol;
+    return ['a', 'b'][iterator];
+  }
+  assert.same(pickShadowed(), 'b');
+});
+
+QUnit.test('destructuring: mixed ternary Symbol init keeps the branch value', assert => {
+  const { iterator } = Symbol;
+  assert.same(typeof [][iterator], 'function');
+  function pickMixed() {
+    const c = Math.random() > 2;
+    // eslint-disable-next-line no-shadow -- the same-name flat-info collision is the case under test
+    const { iterator } = c ? Symbol : { iterator: 1 };
+    return ['x', 'y'][iterator];
+  }
+  assert.same(pickMixed(), 'y');
+});
+
+QUnit.test('destructuring: assignment-form Symbol alias folds to the well-known symbol', assert => {
+  let assigned;
+  // eslint-disable-next-line prefer-const -- the assignment FORM (not a declarator init) is the case under test
+  ({ iterator: assigned } = Symbol);
+  assert.same(typeof [][assigned], 'function');
+});
+
+QUnit.test('destructuring: non-defaulted branching alias init keeps the native TypeError', assert => {
+  const fake = { Map: null };
+  // eslint-disable-next-line no-var -- the hoisted `var` registration shape is under test
+  var { Map: M } = fake || globalThis;
+  assert.throws(() => M.groupBy(['x'], it => it));
+});
+
+QUnit.test('destructuring: computed string-literal ctor alias resolves member reads', assert => {
+  function early() {
+    return M.groupBy(['x', 'yy'], it => it.length);
+  }
+  // eslint-disable-next-line no-var, no-useless-computed-key -- the hoisted `var` and the computed string key are the case under test
+  var { ['Map']: M } = globalThis;
+  const grouped = early();
+  assert.true(grouped instanceof Map);
+  assert.deepEqual(grouped.get(1), ['x']);
+  assert.deepEqual(grouped.get(2), ['yy']);
+});
