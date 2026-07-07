@@ -34,12 +34,11 @@ import {
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  discardRescueNodes,
   planProxyReceiver,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  descendToChainRoot, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
+  descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure, resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
