@@ -769,7 +769,9 @@ export default function createPlugin(options) {
           isInheritedStaticLookup,
           isInStaticContext,
           isShadowedByClassOwnMember,
-          enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, estreeAdapter, resolvePure),
+          enumerateFallbackBranches(meta, path) {
+            return enumerateFallbackDestructureBranches(meta, path, estreeAdapter, { resolvePure, followIndirection: true });
+          },
         });
 
         const usageVisitors = createUsageVisitors({
