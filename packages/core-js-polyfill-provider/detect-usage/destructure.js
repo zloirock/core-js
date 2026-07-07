@@ -33,13 +33,15 @@ import {
 import { isUsableFallbackReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
-import { discardRescueNodes, seBearingChainRootCall, symbolSourcedFoldedKey } from './members.js';
 import {
+  discardRescueNodes,
   isCallShape,
   isStaticPlacement,
   peelChainAssignmentDeep,
   resolveKey as sharedResolveKey,
   resolveObjectName,
+  seBearingChainRootCall,
+  symbolSourcedFoldedKey,
   unwrapTransparentSeq,
 } from './resolve.js';
 
@@ -254,8 +256,11 @@ export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure,
 // recursive walk of a fallback-receiver expression collecting per-branch resolved metas.
 // `cond1 ? (cond2 ? Array : Iterator) : Set` flattens to [Array, Iterator, Set] - inner
 // conditional's both branches reach their own dispatch. each step peels chain-assign /
-// paren / TS / safe-SE wrappers; non-fallback shapes resolve via `buildDestructuringInitMeta`
-function flattenFallbackBranches({ node, key, scope, adapter, path }) {
+// paren / TS / safe-SE wrappers; non-fallback shapes resolve via `buildDestructuringInitMeta`.
+// exported: the member / `in` producers enumerate a BRANCHING static receiver
+// (`(c ? Array : Iterator).from`) through this same walker - the destructure form and the
+// member form must agree on what a branch resolves to
+export function flattenFallbackBranches({ node, key, scope, adapter, path }) {
   const peeled = peelFallbackReceiver(node);
   const branchSlots = getFallbackBranchSlots(peeled);
   if (branchSlots) {
