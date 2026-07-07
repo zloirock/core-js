@@ -439,6 +439,26 @@ runBoth('object method member still resolves to a Function object',
       { primitive: false, ctor: 'Function' });
   });
 
+// --- assertion-guard own-arg slot (mutation invalidates the narrow) ---
+// a reassignment buried in the assertion's OWN call argument leaves the runtime value
+// post-mutation - the narrow must not survive; a clean assertion still narrows
+
+runBoth('assertion own-arg reassignment invalidates the narrow',
+  'function a(v: unknown): asserts v is string {} function f(x: unknown) { a((x = 5, x)); return x; }',
+  (adapter, prog, lbl) => {
+    const ret = adapter.pickPath(prog, 'ReturnStatement');
+    const type = adapter.makeResolver().resolveNodeType(ret.get('argument'));
+    check(lbl, type?.type === 'string', false);
+  });
+
+runBoth('clean assertion still narrows to string',
+  'function a(v: unknown): asserts v is string {} function f(x: unknown) { a(x); return x; }',
+  (adapter, prog, lbl) => {
+    const ret = adapter.pickPath(prog, 'ReturnStatement');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ret.get('argument')),
+      { primitive: true, kind: 'string' });
+  });
+
 // --- typeof narrowing ---
 // the engine has two narrowing channels:
 //   - `resolveTypeGuardNarrowing` (internal) fires when typeof guard resolves to a
