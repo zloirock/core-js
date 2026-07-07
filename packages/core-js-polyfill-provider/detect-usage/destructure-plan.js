@@ -27,8 +27,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { discardRescueNodes } from './members.js';
-import { isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName } from './resolve.js';
+import { discardRescueNodes, isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName } from './resolve.js';
 import {
   destructureRightIsReceiver, fallbackInitWhollyDiscardable, isUndefinedNode, resolveBranchProxyName, walkStaticReceiverChain,
 } from './destructure.js';
