@@ -397,3 +397,60 @@ QUnit.test('params: instance multi-key member receiver stays native (double-read
   const viaCaller = fn({ at: 'A', flat: 'F' });
   assert.deepEqual(viaCaller, ['A', 'F']);
 });
+
+// --- Self-reference bails the caller-lossy body-extract ---
+// A `{ from, ...rest } = Array` default cannot be caller-correct SYNTH (the rest key set is open),
+// so a no-invisible-caller function gets a caller-lossy body-extract that binds `from` to the
+// injected polyfill on EVERY entry. That is unsound the moment a caller can pass a receiver: a
+// self-call, an escaped reference, or a re-entering param-default callback. Each test passes a
+// distinct sentinel receiver through such an invisible caller and asserts IT wins - a regression to
+// the lossy extract would bind `_Array$from` (a function on every engine, including IE) instead.
+
+QUnit.test('params: a named IIFE that never self-references still injects the polyfill', assert => {
+  // a name alone must NOT trigger the bail - only a real self-reference does; the sound extract
+  // still binds the injected polyfill here
+  // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
+  const bound = (function keep({ from, ...rest } = Array) {
+    return from;
+  })();
+  assert.same(typeof bound, 'function');
+  assert.deepEqual(bound([1, 2, 3]), [1, 2, 3]);
+});
+
+QUnit.test('params: named self-referencing IIFE - the self-call receiver wins over the polyfill', assert => {
+  const results = [];
+  // the named function re-invokes itself with a receiver, an invisible caller the lossy extract
+  // would clobber; the receiver stays raw so the passed value wins
+  // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
+  (function f({ from, ...rest } = Array) {
+    results.push(from);
+    if (results.length === 1) f({ from: 'self-call' });
+  })();
+  assert.same(results[1], 'self-call');
+});
+
+QUnit.test('params: a named reference that escapes - the external receiver wins over the polyfill', assert => {
+  const results = [];
+  let escaped;
+  // the name escapes, so an unseen caller may pass a receiver: the lossy extract is unsound and
+  // the receiver must stay raw
+  // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
+  (function g({ from, ...rest } = Array) {
+    escaped = g;
+    results.push(from);
+  })();
+  escaped({ from: 'external' });
+  assert.same(results[1], 'external');
+});
+
+QUnit.test('params: self-reference in a param default - the re-entry receiver wins over the polyfill', assert => {
+  const seen = [];
+  // the self-reference lives in the `cb` param default, not the body: detection must scan param
+  // defaults too, or the extract wrongly clobbers the re-entry receiver
+  // eslint-disable-next-line no-unused-vars -- the rest sibling forces the caller-lossy extract
+  (function h({ from, ...rest } = Array, cb = () => h({ from: 'via-default' })) {
+    seen.push(from);
+    if (seen.length === 1) cb();
+  })();
+  assert.same(seen[1], 'via-default');
+});
