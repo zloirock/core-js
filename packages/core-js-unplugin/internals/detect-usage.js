@@ -2,6 +2,7 @@
 import {
   buildDestructuringInitMeta,
   chooseFallbackReceiverNode,
+  collectDestructureUnionCandidates,
   isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
@@ -17,7 +18,6 @@ import {
   hasMutationCandidateShapes,
 } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import {
-  collectDestructureUnionCandidates,
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
