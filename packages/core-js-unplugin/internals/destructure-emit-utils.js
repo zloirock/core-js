@@ -134,7 +134,10 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out
     const fallbackCollapse = peeled?.type === 'LogicalExpression' && peeled.operator !== '&&'
       && isReceiverShapedNode(unwrapSafeSequenceTail(peeled.left));
-    if (!fallbackCollapse && !isReceiverShapedNode(peeled)) return null;
+    // a `this` default inside a STATIC method reads the inherited static surface: the meta
+    // funnel already resolved it against the extends host (resolution is the drain gate -
+    // an unresolved `this` never reaches the synth registration), so the shape is admitted
+    if (!fallbackCollapse && !isReceiverShapedNode(peeled) && peeled?.type !== 'ThisExpression') return null;
     return peeled;
   }
   // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
