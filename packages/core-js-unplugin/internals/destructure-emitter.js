@@ -66,6 +66,7 @@ import {
   maximalProxyGlobalPrefix,
   PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalMemberCtorPure,
+  proxyGlobalMemberCtorPureSwap,
   proxyGlobalWrappedRoot,
   resolveKey,
   resolveSynthKeys,
@@ -3494,7 +3495,33 @@ export function createDestructureEmitter({
   // we must do it here. falls back to the verbatim source for non-proxy receivers
   function synthMemberReceiverSrc(member, ctx = null) {
     const src = nodeSrc(member);
-    return substituteProxyGlobalRoot({ node: member, src, baseStart: member.start, ctx }) ?? src;
+    // thread the context into BOTH slots: `aliasCtx` drives the alias-root detection, so an
+    // alias-rooted chain takes the plan's keep-alias branch (`g.self.X` -> `g.X`, babel-parity)
+    // instead of pre-claiming through the shared resolver, which would swap the root to the
+    // pure binding (`_globalThis.X`) and desync the emitters on the re-read target
+    return substituteProxyGlobalRoot({ node: member, src, baseStart: member.start, aliasCtx: ctx, ctx }) ?? src;
+  }
+
+  // canonical re-read target for a MEMOIZED receiver (babel-twin of its memo-arg build),
+  // peeled to its SE tail: a pure-ctor leaf whole-swaps with the erased navigation's harvested
+  // effects re-run ahead; everything else delegates to the alias-aware root substitution
+  // (which peels the SE tail itself and keeps the prefix verbatim)
+  function synthMemoArgSrc(memoNode, ctx) {
+    const { prefix, tail } = peelNestedSequenceExpressions(memoNode);
+    const ctorSwap = proxyGlobalMemberCtorPureSwap({
+      receiver: tail, aliasCtx: ctx, resolvePure: g => resolveGlobalPolyfill(g.name),
+    });
+    if (!ctorSwap) return synthMemberReceiverSrc(memoNode, ctx);
+    // each kept part (seq prefix, harvested key SE) composes-and-drains its own queued inner
+    // rewrites; the DISCARDED navigation remnant is then drain-purged - a single-hop SE receiver
+    // is not chain-skip-marked at registration, so the natural static-ctor visitor holds a
+    // full-range claim on it (`globalThis[(e++, 'Map')]` -> `(e++, _Map)`) that would otherwise
+    // collide with this overwrite at the same range and crash the transform queue
+    const parts = [...prefix.map(node => composedRangeSrc(node)), ...ctorSwap.se.map(node => composedRangeSrc(node))];
+    transforms.composeAndDrainRange(memoNode.start, memoNode.end);
+    const binding = injectPureImport(ctorSwap.pure.entry, ctorSwap.pure.hintName);
+    parts.push(binding);
+    return parts.length > 1 ? `(${ parts.join(', ') })` : binding;
   }
 
   // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
@@ -3581,7 +3608,7 @@ export function createDestructureEmitter({
       // emitter, which drops it). matches the all-resolved leftSe path, which collapses to the left
       const memoNode = inner.type === 'LogicalExpression' ? inner.left : inner;
       const body = needMemo
-        ? `(function (${ memoName }) { return ${ literal }; })(${ synthMemberReceiverSrc(memoNode, ctx) })`
+        ? `(function (${ memoName }) { return ${ literal }; })(${ synthMemoArgSrc(memoNode, ctx) })`
         : rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal;
       // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||`/`??`
       // collapses to the literal (its left is the always-resolved receiver, its right short-circuits),
