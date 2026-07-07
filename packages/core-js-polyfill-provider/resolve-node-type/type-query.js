@@ -253,7 +253,13 @@ export function createTypeQuery({
     // `ReturnType<typeof X.method>`
     if (t.isClassDeclaration(binding.node) && path.length === 1) {
       const found = findClassMember({ classPath: binding, name: path[0], isStatic: true });
-      if (found?.member?.node) return { type: found.member.node, scope: binding.scope };
+      // an accessor is a VALUE read, not a callable: handing the getter node to the
+      // function-type extractor would return its value type V where TS says
+      // `ReturnType<typeof X.getter>` = `ReturnType<V>` - bail like the other
+      // typeof-family member sites do on accessor kinds
+      if (found?.member?.node && !isAccessorKind(found.member.node)) {
+        return { type: found.member.node, scope: binding.scope };
+      }
     }
     let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding));
     if (!annotation) return null;
