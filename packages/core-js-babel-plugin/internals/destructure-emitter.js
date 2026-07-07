@@ -57,12 +57,11 @@ import {
 import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   computedPropKeyHostsMachinery,
-  discardRescueNodes,
   isSourcedSymbolIteratorMeta,
   shouldDropRescueReceiver,
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { discardRescueNodes, maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite,
   peelProxyGlobalObject, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,

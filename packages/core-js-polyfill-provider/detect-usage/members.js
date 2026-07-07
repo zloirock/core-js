@@ -3,6 +3,8 @@
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
   collectFoldedReceiverSideEffects,
+  getFallbackBranchSlots,
+  peelFallbackReceiver,
   memberKeyName,
   proxyNavRootIsSequence,
   staticMemberKeyName,
@@ -10,14 +12,17 @@ import {
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
+import { flattenFallbackBranches } from './destructure.js';
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
   attachMemberUnionExtras,
-  bindingSymbolKey,
   descendToChainRoot,
+  findChainRootCallExpression,
+  isSymbolSourcedKey,
+  seBearingChainRootCall,
+  symbolSourcedFoldedKey,
   ownChainOptionalCount,
-  enterIdentifierBindingFollow,
   findProxyGlobal,
   inlineCallHasObservableEffects,
   inlineCallReturnExpression,
@@ -25,7 +30,6 @@ import {
   isStaticPlacement,
   isTransparentWrapper,
   maximalProxyGlobalPrefix,
-  MAX_KEY_DEPTH,
   peelChainAssignment,
   peelReceiverSequenceTail,
   resolveKey,
@@ -33,6 +37,28 @@ import {
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
 } from './resolve.js';
+
+// a BRANCHING static receiver (`(c ? Array : Iterator).from`, `(x || Map).groupBy`, `'k' in
+// (c ? A : B)`) resolves no single objectName, so the primary meta is typeless / a carrier and a
+// STATIC-only key resolves nothing - both branches broke on old engines. enumerate the branches
+// through the destructure twin's canonical walker and dispatch each resolved branch's STATIC as
+// an extra (usage-global side-effect imports; property-shaped extras inject identically). static
+// placements ONLY: instance keys are already covered by the typeless primary AND respect the
+// type-engine's dead-branch folds (a non-nullable left folds `??` to itself - its string-literal
+// fallback must not inject). usage-pure keeps its bail: substituting a branching static member is
+// a separate design decision, and draining property extras through the pure rewrite funnel would
+// mis-fire
+function attachBranchStaticExtras(meta, { node, key, scope, adapter, path }) {
+  if (adapter.method !== 'usage-global') return meta;
+  // gate on the walker's OWN branching probe (peel + branch-slot test) so every receiver shape
+  // the canonical walk can flatten enumerates here too - a type-only gate missed the zero-arg
+  // IIFE-returned conditional (`(() => c ? Array : Iterator)().from`) the destructure twin covers
+  if (!getFallbackBranchSlots(peelFallbackReceiver(node))) return meta;
+  const branchExtras = flattenFallbackBranches({ node, key, scope, adapter, path })
+    .filter(branch => branch.placement === 'static');
+  if (branchExtras.length) meta.extraCandidates = (meta.extraCandidates || []).concat(branchExtras);
+  return meta;
+}
 
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
 // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
@@ -42,15 +68,6 @@ function tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) {
   if (resolveKey({ node: obj.property, computed: obj.computed, scope, adapter, path }) !== 'prototype') return null;
   const protoName = resolveObjectName({ objectNode: obj.object, scope, adapter, path });
   return protoName ? { kind: 'property', object: protoName, key, placement: 'prototype' } : null;
-}
-
-// the underlying CallExpression at a chain root (`f().X`, `(() => globalThis)().Array`), null otherwise -
-// callers probe `inlineCallHasObservableEffects` for SE-preservation. `throughChainAssign` additionally
-// sees the call under `(a = IIFE()).Symbol` (the subsumption gate needs it); the SE-harvest callers must
-// NOT pass it - the preserved assignment already re-emits the call, so harvesting it too would double-run it
-function findChainRootCallExpression(node, throughChainAssign = false) {
-  const { root } = descendToChainRoot(node, throughChainAssign);
-  return isCallShape(root) ? root : null;
 }
 
 // true when a single optional `?.` directly on a chain-root call keeps it LIVE in a null-guard memoize
@@ -92,16 +109,6 @@ function hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }) {
     parentPath = parentPath.parentPath;
   }
   return false;
-}
-
-// SE-bearing call at the root of a chain (`(() => { c++; return X; })()`, direct or under member
-// hops): a fold / flatten that DISCARDS the chain would silently drop the call's observable setup.
-// returns the call node when it carries effects, null otherwise - callers either harvest it for
-// re-emission or bail the discard entirely
-export function seBearingChainRootCall({ node, scope, adapter, path }) {
-  const rootCall = findChainRootCallExpression(node);
-  return rootCall && inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path })
-    ? rootCall : null;
 }
 
 // collapse plan for a CALL/IIFE-rooted multi-hop proxy-global receiver (`(() => globalThis)().self.Array`):
@@ -269,23 +276,6 @@ function proxyGlobalChainRootName({ node, scope, adapter, path }) {
   return name && POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null;
 }
 
-// observable nodes a DISCARD would silently drop, in source-eval order: chain-assignments
-// (direct or buried under member hops - rescued WHOLE, the structural walk pushes them without
-// descending), an SE-bearing chain-root call (interleaved at its true position via the rescue
-// channel), and every effect buried in a computed member KEY the discard folds away
-// (`globalThis[(c++, 'self')]` - a chain-assignment/root-call-only probe dropped the key effect).
-// the root call evaluates at its true source position - BEFORE any hop-key effect above it
-// (`mk()[(eff(), 'self')].Array` runs mk THEN eff) - so it interleaves via the rescue channel,
-// never appends last. the destructure flatten consults this for the init it is about to discard,
-// and the fallback-logical synth-collapse (`{from} = LEFT || Set`) for the resolved LEFT it folds
-// away; callers re-emit the returned nodes ahead of the extraction / polyfill literal or keep the
-// init verbatim. NOT for the `in` fold, whose planner rescues a DIRECT assignment RHS itself -
-// routing it through here would double-rescue
-export function discardRescueNodes({ node, scope, adapter, path }) {
-  const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
-  return collectFoldedReceiverSideEffects(node, [], rootCall ? new Set([rootCall]) : null);
-}
-
 // a rescued synth-swap receiver whose VALUE is discarded but whose verbatim re-emit would read an
 // undefined INTERMEDIATE proxy hop off-browser (`globalThis[(eff(), 'self')].Array` ->
 // `_globalThis.self...` / the AST emitter's `_self`, undefined on ie:11 / Node) must be DROPPED - re-emit
@@ -417,6 +407,7 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     attachMemberUnionExtras(meta, {
       objectNode: classifyTarget, computedKeyNode, primaryObject: objectName, primaryKey: key, scope, adapter, path,
     });
+    if (!objectName) attachBranchStaticExtras(meta, { node: classifyTarget, key, scope, adapter, path });
     // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
     // (including these nested keys) via the preserved assignment - collecting here too double-runs it.
     // static collapse discards the WHOLE receiver, so harvest its SE (chain-root call + buried hop-key) in
@@ -660,69 +651,6 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
   return meta;
 }
 
-// `resolveKey` can fold StringLiteral / TemplateLiteral / `+` concat to the string
-// `'Symbol.X'`, but none of those are the well-known symbol. this predicate rejects
-// string-sourced keys so `'Symbol.iterator' in Array` isn't miscategorised as an
-// is-iterable check. parallel to resolveKey's Identifier / MemberExpression branches
-// minus the string-folding cases
-function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
-  if (depth > MAX_KEY_DEPTH) return false;
-  node = unwrapTransparentSeq(node);
-  const { type } = node;
-  // string-folded sources - plain strings, not the symbol
-  if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
-    || (type === 'BinaryExpression' && node.operator === '+')) return false;
-  // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape.
-  // also confirm the property is a symbol-name shape: `symbolKeyToEntry` maps ANY lowercase-first
-  // name to a synthetic `symbol/<name>` entry, so it does not itself filter to well-known symbols
-  // (`Symbol.someUserKey` passes here too). the real well-known gate is downstream `isEntryNeeded`
-  // / `isEntryAvailable`, which turns a non-well-known name into a noop plan (no dead import), so a
-  // random `Symbol.foo` never triggers symbol-routed dispatch.
-  // for `Symbol[key]` with statically-resolvable computed key - resolve via `resolveKey`
-  // and validate the resulting name. when the key isn't statically resolvable (dynamic
-  // expression), return true conservatively: we know the shape is Symbol-indexed, even
-  // if the specific well-known name is unknown - downstream callers rely on this to
-  // avoid over-eliminating polyfill dispatch, and `resolveKey` pairing in the caller
-  // filters on the string form anyway
-  if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
-    if (!asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) return false;
-    if (!node.computed && node.property?.type === 'Identifier') {
-      return symbolKeyToEntry(`Symbol.${ node.property.name }`) !== null;
-    }
-    if (node.computed) {
-      const name = resolveKey({
-        node: node.property, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
-      });
-      if (name !== null) return symbolKeyToEntry(`Symbol.${ name }`) !== null;
-    }
-    return true;
-  }
-  if (type !== 'Identifier') return false;
-  const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
-  if (!entry) return false;
-  // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
-  // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
-  // to the whole receiver and lose the `.iterator` slot
-  if (bindingSymbolKey(entry.binding, adapter.packages) !== null) return true;
-  // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
-  // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
-  // user-aliased polyfill packages from `additionalPackages`)
-  if (entry.init) return isSymbolSourcedKey({
-    node: entry.init, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
-  });
-  return false;
-}
-
-// folded `Symbol.X` string whose SOURCE is a real well-known-symbol reference, not a string
-// spelling. sequence-tail peel so an SE-prefixed key (`[(eff(), Symbol.iterator)]`) classifies
-// by its tail. the `in`-producers deliberately do NOT route through this: there the check GATES
-// meta production with its own nested-dot rule, and a peel would fold an SE-carrying LHS whose
-// effects that branch has no channel to preserve (the string-branch keeps them in place)
-export function symbolSourcedFoldedKey({ key, keyNode, scope, adapter, path }) {
-  return typeof key === 'string' && key.startsWith('Symbol.')
-    && isSymbolSourcedKey({ node: peelReceiverSequenceTail(keyNode), scope, adapter, path });
-}
-
 // tag a meta whose computed key folded to `Symbol.X` with symbol provenance - the same contract
 // the `in`-meta producers follow: consumers gate symbol-routed dispatch (`get-iterator-method`
 // extraction, catch-passthrough) on `meta.symbolSourced`, so a string spelling of the key stays
@@ -900,6 +828,9 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     primaryObject: objectName && placement ? objectName : null, primaryKey: resolvedLeft ?? null,
     scope, adapter, path,
   });
+  if (resolvedLeft && !objectName) {
+    attachBranchStaticExtras(carrier, { node: rightObject, key: resolvedLeft, scope, adapter, path });
+  }
   return carrier.extraCandidates ? carrier : null;
 }
 
