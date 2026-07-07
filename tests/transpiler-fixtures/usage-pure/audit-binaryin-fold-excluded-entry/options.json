@@ -1,0 +1,19 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "exclude": [
+          "array/from",
+          "promise/constructor",
+          "symbol/async-iterator"
+        ],
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}
