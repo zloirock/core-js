@@ -1099,6 +1099,16 @@ export default function plugin(api, options) {
                     scope: p.scope, adapter, injector, path: p, isKnownGlobal,
                   });
                 },
+                // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this
+                // traverse never descends into a constructor param-property's legacy decorator and a
+                // ctor-alias write hosted there goes unregistered - the member read then stays native
+                // while the estree side (pristine AST) folds it. requeue each decorator so the
+                // AssignmentExpression / VariableDeclarator visitors above fire on it, mirroring the
+                // mutation pre-pass and usage-visitor requeues
+                TSParameterProperty(p) {
+                  if (!p.node.decorators?.length) return;
+                  for (const decoratorPath of p.get('decorators')) p.requeue(decoratorPath);
+                },
               });
             }
           }
