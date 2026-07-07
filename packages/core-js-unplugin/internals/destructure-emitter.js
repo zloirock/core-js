@@ -705,10 +705,10 @@ export function createDestructureEmitter({
       // wrapper is transparent (planDeclarator descended through it to reach the receiver),
       // and the raw array init carries no top-level SE of its own. non-array inits peel to
       // themselves, leaving the bare-receiver path unchanged
-      const { init: initSource } = peelArrayWrapperPair({ pattern: decl.id, init: decl.init });
+      const { init: initSource, peeledPrefixes } = peelArrayWrapperPair({ pattern: decl.id, init: decl.init });
       const { prefix } = peelNestedSequenceExpressions(initSource);
       const refSplices = perDecl[i].drainedRefs ?? [];
-      return prefix.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
+      return [...peeledPrefixes, ...prefix].map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
     });
   }
 
