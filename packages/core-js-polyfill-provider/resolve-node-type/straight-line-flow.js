@@ -121,20 +121,23 @@ export function bindingCrossesLoopBackEdge(t, usagePath, binding) {
   return usageCrossesLoopBackEdgeReassign(t, usagePath, binding?.constantViolations?.map(v => v.node), bindingLoopAnchor(binding));
 }
 
-// nearest ancestor (inclusive) of `stmtType`; shared by inner/outer checks
+// nearest ancestor (inclusive) of `stmtType`; shared by inner/outer checks. a DETACHED node
+// (`.node` null - a stale constantViolation path into an in-place-rewritten subtree) ends the
+// climb with no match, so the caller conservatively degrades instead of dereferencing null
 function findEnclosingStatement(path, stmtType) {
   let p = path;
-  while (p && p.node.type !== stmtType) p = p.parentPath;
-  return p;
+  while (p && p.node && p.node.type !== stmtType) p = p.parentPath;
+  return p?.node ? p : null;
 }
 
 // every wrapping statement from startPath up to endNode is in the passthrough set -
 // rejects if / switch / loop / try / etc. endNode is the binding's var-scope body (outer)
-// or an IIFE function body (inner during lift)
+// or an IIFE function body (inner during lift). a detached ancestor (stale path) rejects -
+// the straight-line reach cannot be proven through a dead chain
 function reachesStraightLine(startPath, endNode) {
   for (let p = startPath; p; p = p.parentPath) {
     if (p.node === endNode) return true;
-    if (!STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES.has(p.node.type)) return false;
+    if (!p.node || !STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES.has(p.node.type)) return false;
   }
   return false;
 }
