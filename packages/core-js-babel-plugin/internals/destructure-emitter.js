@@ -54,7 +54,9 @@ import {
   resolveNestedReceiverNode,
   collectEnclosingObjectPatterns,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-import { buildNestedDestructurePlan, resolvePolyfillableStaticProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
+import {
+  buildNestedDestructurePlan, peelArrayWrapperPair, resolvePolyfillableStaticProp,
+} from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   computedPropKeyHostsMachinery,
   isSourcedSymbolIteratorMeta,
@@ -123,24 +125,22 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null
 }
 
 // descend a transparent single-element array wrapper (`[{...}] = [(se(), R)]`) to the element
-// that carries the receiver's SE prefix - one ArrayExpression level down where the bare
-// top-level peel (which only sees a top-level SequenceExpression) would miss it. mirrors the
-// unplugin `peelArrayWrapperPair` init descent. returns `{ prefix, tail, arr }` (arr = the
-// innermost ArrayExpression whose first element holds the SE) or null when there is no wrapper
-// or no nested SE. takes `t` since it sits at module scope, outside the factory closure
+// that carries a receiver SE prefix at ANY consumed level - including the wrapper chain AROUND
+// each array level (`(outer(), [(inner(), R)])`). thin adapter over the provider's
+// `peelArrayWrapperPair` descent (ONE walk for both emitters): prefix = the peel's committed
+// wrapper-level prefixes + the leaf element's own, source order; tail = the leaf stripped of its
+// prefix; arr = the innermost consumed ArrayExpression (its first element is swapped to `tail`
+// by the caller); unwrappedInit = the outermost one (re-anchoring `init` there stops a
+// multi-prop host re-visit from re-lifting). null when no level carries a prefix
 function descendArrayWrapperToSE(t, declaratorNode) {
-  let pattern = declaratorNode.id;
-  let arr = declaratorNode.init;
-  while (t.isArrayPattern(pattern) && pattern.elements.length === 1 && pattern.elements[0]
-    && t.isArrayExpression(arr) && arr.elements.length === 1 && arr.elements[0]) {
-    const [patternElement] = pattern.elements;
-    const [arrElement] = arr.elements;
-    const { prefix, tail } = peelNestedSequenceExpressions(arrElement);
-    if (prefix.length) return { prefix, tail, arr };
-    pattern = t.isAssignmentPattern(patternElement) ? patternElement.left : patternElement;
-    arr = arrElement;
-  }
-  return null;
+  const { init: leaf, peeledPrefixes, firstArray, lastArray } = peelArrayWrapperPair({
+    pattern: declaratorNode.id, init: declaratorNode.init,
+  });
+  if (!lastArray) return null;
+  const { prefix: leafPrefix, tail } = peelNestedSequenceExpressions(leaf);
+  const prefix = [...peeledPrefixes, ...leafPrefix];
+  if (!prefix.length) return null;
+  return { prefix, tail, arr: lastArray, unwrappedInit: firstArray };
 }
 
 // build per-SE-expr ExpressionStatements (one per peeled prefix expr) for `insertBefore`.
@@ -193,6 +193,8 @@ function liftDeclaratorInitSE(t, declaratorNode, hostPath) {
   if (!descended) return liftSEPrefixSwap(t, declaratorNode, 'init', hostPath);
   hostPath.insertBefore(buildSEPrefixStatements(t, descended.prefix));
   descended.arr.elements[0] = descended.tail;
+  // drop the consumed outer wrappers too - a host re-visit would re-collect their prefixes
+  declaratorNode.init = descended.unwrappedInit;
 }
 
 // render the provider-normalized nested-param synth plan as AST replacing the parameter

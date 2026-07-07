@@ -23,6 +23,7 @@ import {
   propBindingIdentifier,
   propertyKeyName,
   reassignmentBlocksGlobalResolve,
+  unwrapCollectingSePrefixes,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
@@ -48,6 +49,17 @@ function isPropertyNode(node) {
 // [{x}] = wrapper` descends to the leaf via the wrapper's init
 export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = null, path = null }) {
   const visited = new Set();
+  // sequence prefixes peeled off CONSUMED wrapper levels, source order. the flatten discards
+  // those levels, so their effects must surface to the caller's lift - silently peeling them
+  // lost the outer effect on the text emitter (`(outer(), [(inner(), R)])` kept only `inner`)
+  // while the AST emitter's own descent lost the inner one: both sides re-emit from THIS list.
+  // a bail level's prefixes are NOT committed - the returned `init` keeps them in place.
+  // `firstArray` / `lastArray` bracket the consumed ArrayExpression chain (null when no level
+  // was consumed): the AST emitter re-anchors `init` at the first and swaps the leaf element
+  // of the last, so its re-visit guard needs no descent of its own
+  const peeledPrefixes = [];
+  let firstArray = null;
+  let lastArray = null;
   for (;;) {
     // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
     // equivalent (defaults sit on the LHS slot), so we only peel pattern here. EXCEPTION: a
@@ -56,18 +68,19 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // (the identification's resolveArrayInnerDefaultReceiver agrees, so both emitters stay consistent)
     if (pattern?.type === 'AssignmentPattern') {
       if (isUndefinedNode(init) && destructureRightIsReceiver(pattern.right)) {
-        return { pattern: pattern.left, init: pattern.right };
+        return { pattern: pattern.left, init: pattern.right, peeledPrefixes, firstArray, lastArray };
       }
       pattern = pattern.left;
       continue;
     }
     if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1) {
-      return { pattern, init };
+      return { pattern, init, peeledPrefixes, firstArray, lastArray };
     }
     // peel SE-tail / paren / TS wrappers first (`(se(), [Array])` descends into the tail's
-    // array; the SE prefix is lifted separately by the host's own machinery, and the
-    // descended element's span stays inside the original init for the residual splice)
-    let effectiveInit = unwrapExpressionChain(init);
+    // array); the crossed sequence prefixes are collected and committed only when this level's
+    // wrapper is actually consumed, so a bail below leaves the original init (effects in place)
+    const levelPrefixes = [];
+    let effectiveInit = unwrapCollectingSePrefixes(init, levelPrefixes);
     // dereference const-bound Identifier (`= wrapper` where `const wrapper = [Array]`).
     // flow-sensitive bail mirrors the object-wrapper static-receiver walk: only a reassignment
     // that reaches the use aborts (a `wrapper = []` strictly AFTER the read leaves the read's
@@ -86,10 +99,13 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
         readNode = (binding.path?.node ?? binding.node) ?? readNode;
       }
     }
-    if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init };
+    if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init, peeledPrefixes, firstArray, lastArray };
     const [innerPattern] = pattern.elements;
     const [innerInit] = effectiveInit.elements;
-    if (!innerPattern || !innerInit) return { pattern, init };
+    if (!innerPattern || !innerInit) return { pattern, init, peeledPrefixes, firstArray, lastArray };
+    peeledPrefixes.push(...levelPrefixes);
+    firstArray ??= effectiveInit;
+    lastArray = effectiveInit;
     pattern = innerPattern;
     init = innerInit;
   }
