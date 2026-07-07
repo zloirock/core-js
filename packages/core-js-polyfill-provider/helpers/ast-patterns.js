@@ -1302,6 +1302,12 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
 function patternSlotHasDefault(pattern, name) {
   return patternBindsNameUnderDefault(pattern, name, false);
 }
+// does the pattern bind `name` in ANY slot (identifier leaf, renamed value, rest, nested,
+// with or without a default)? the `underDefault=true` seed makes every reached Identifier
+// leaf count; the default-only variant above seeds false and counts only default-guarded slots
+export function patternBindsName(pattern, name) {
+  return patternBindsNameUnderDefault(pattern, name, true);
+}
 function patternBindsNameUnderDefault(node, name, underDefault) {
   switch (node?.type) {
     case 'Identifier': return underDefault && node.name === name;
