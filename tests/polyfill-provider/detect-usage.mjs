@@ -861,6 +861,17 @@ runBoth('collectMemberUnionCandidates/no reassignment yields no extras',
   'const k = "at"; const arr = [1]; arr[k];', (adapter, prog, lbl) => {
     checkDeep(lbl, unionExtras(adapter, prog, false), []);
   });
+// the prototype-navigated producer forces prototype placement: a reachable ctor value read
+// through `.prototype` dispatches the key as ITS prototype method, never as a static
+runBoth('collectMemberUnionCandidates/placement override types the reachable ctor as prototype',
+  'let C = Array; if (c) C = String; C.prototype.includes;', (adapter, prog, lbl) => {
+    const proto = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'prototype');
+    const extras = collectMemberUnionCandidates({
+      objectNode: proto.node.object, computedKeyNode: null, primaryObject: null, primaryKey: 'includes',
+      placement: 'prototype', scope: proto.scope, adapter: unionAdapter, path: proto,
+    });
+    checkDeep(lbl, extras, [{ kind: 'property', object: 'String', key: 'includes', placement: 'prototype', receiverHint: null }]);
+  });
 
 // the destructure twin anchors at the ObjectProperty: the declarator host supplies the receiver
 // alias, the prop key supplies the key alias; a non-global method or a fallback meta yields none
@@ -884,6 +895,12 @@ runBoth('collectDestructureUnionCandidates/receiver alias reaching a constructor
 runBoth('collectDestructureUnionCandidates/usage-pure yields none',
   'let k = "at"; if (c) k = "flat"; const arr = [1]; const { [k]: v } = arr;', (adapter, prog, lbl) => {
     checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'at', placement: null }, 'usage-pure'), []);
+  });
+// a param-default host supplies the receiver alias like a declarator init does
+runBoth('collectDestructureUnionCandidates/param-default host supplies the receiver alias',
+  'var M = [1]; if (c) M = Iterator; function f({ from } = M) { return from; }', (adapter, prog, lbl) => {
+    checkDeep(lbl, destructureExtras(adapter, prog, { kind: 'property', object: null, key: 'from', placement: null }),
+      [{ kind: 'property', object: 'Iterator', key: 'from', placement: 'static', receiverHint: null }]);
   });
 
 // the `in`-branch and prototype-branch ATTACH sites are exercised through the fixture pipeline
