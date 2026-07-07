@@ -534,10 +534,12 @@ export function createMemberResolve({
           vals.push(v);
           continue;
         }
-        // a NON-call index whose value is a non-nullable type we couldn't resolve makes the union uncertain ->
-        // widen rather than collapse to the branches that resolved. (a call through the index already folds a
-        // non-callable branch to generic, so leave the callPath case alone; a nullable value stays skippable)
-        if (!callPath && !isNullableOrNeverAnnotation(unwrapTypeAnnotation(info.annotation))) return null;
+        // an index whose value is a non-nullable type we couldn't resolve makes the union uncertain ->
+        // widen rather than collapse to the branches that resolved (a nullable value stays skippable).
+        // the CALL case widens identically: a callable arm whose RETURN fails to resolve (or is void)
+        // yields null here too, and dropping it would over-narrow the surviving arms into a wrong
+        // Maybe - matching the sibling call-return union widens
+        if (!isNullableOrNeverAnnotation(unwrapTypeAnnotation(info.annotation))) return null;
       }
       return vals.length ? foldUnionTypes(vals, r => r) : null;
     }

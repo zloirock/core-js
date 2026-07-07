@@ -27,7 +27,7 @@ import {
   quasiText,
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
-import { readonlyCollectionBase, mutableCollectionName } from './ast-shapes.js';
+import { isPrivateMemberNode, readonlyCollectionBase, mutableCollectionName } from './ast-shapes.js';
 
 // `resolveInferElementPattern` sentinel: the extends clause is a recognised `Container<infer U>`
 // pattern AND the check side is a disjoint primitive, so the conditional definitively takes the
@@ -384,13 +384,15 @@ export function createTypeExpansion({
       // spec - skip-but-continue so they don't sink the rest of the expansion. only null
       // statically-named keys (`getKeyName` returned null) signal indeterminate, bail
       if (m.computed) continue;
+      // private (`#priv`) members are EXCLUDED from `keyof T` per TS spec, so skip-but-continue:
+      // they don't leak through mapped expansion and shouldn't sink the rest of the result.
+      // privacy keys on the AST discriminator - a PUBLIC member SPELLED `'#foo'` (string-literal
+      // key) is a normal key and must survive, though `getKeyName` returns the same string
+      if (isPrivateMemberNode(m)) continue;
       const keyName = getKeyName(m.key);
       // null key signals "not statically evaluable" - bail entire expansion (a member we
-      // can't name leaves the mapped result indeterminate). private (`#priv`) members are
-      // EXCLUDED from `keyof T` per TS spec, so skip-but-continue: they don't leak through
-      // mapped expansion and shouldn't sink the rest of the result with them
+      // can't name leaves the mapped result indeterminate)
       if (keyName === null) return null;
-      if (keyName.startsWith('#')) continue;
       const member = buildMappedMember({
         node, paramName: shape.paramName, keyName, substValue: literalTypeFromKeyName(keyName), body,
       });
