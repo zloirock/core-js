@@ -369,7 +369,14 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         // registry's guard hint for it - IDENTITY view only, like the native-binding path (a
         // hoisted-var alias registers per-declarator in the pre-pass, so identity reaches it)
         const synthIdentity = getInjector()?.getBindingAliasInfo?.(synth.node) ?? null;
-        return { ...synth, guardedAliasHint: synthIdentity?.hint ?? null };
+        // and the Symbol destructure fold source: an UNCONDITIONAL nested-block `var`
+        // (a labeled block, a finally, a for-init) folds on babel through its native
+        // hoist, so the shape-judged alias must surface here too or the emitters desync
+        const synthInfo = synthIdentity ?? getInjector()?.getBindingInfo(name, path?.node?.start ?? null) ?? null;
+        const aliasSymbolSource = isSymbolDestructureAliasBinding({
+          info: synthInfo, binding: synth, scope, adapter, injector: getInjector(),
+        }) ? synthInfo.source : null;
+        return { ...synth, aliasSymbolSource, guardedAliasHint: synthIdentity?.hint ?? null };
       }
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the

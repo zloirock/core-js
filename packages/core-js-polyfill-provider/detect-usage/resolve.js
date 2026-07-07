@@ -248,7 +248,12 @@ export function enterIdentifierBindingFollow({ node, scope, adapter, seen, path 
   // reassignment does not dominate the use; pure / narrowing keep the flat bail. `usageNode` anchors the
   // dominance at THIS hop's read site so a multi-hop key alias (`let k='from'; const j=k; k='of';
   // Array[j]`) sees `k='of'` as after the `const j=k` read, not dominating - `j` keeps 'from'
-  if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
+  // the assignment-form Symbol alias's ONLY write IS the aliasing destructure: its write set
+  // was already judged clean by the shadow-safe predicate that surfaced `aliasSymbolSource`.
+  // blocking on that same write kept the fold babel-only (babel's in-place rewrite hides the
+  // write from its own scope tracker, the mutation-free estree side always saw it)
+  if (!binding || (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })
+    && !binding.aliasSymbolSource)) return null;
   const nextSeen = new Set(seen);
   nextSeen.add(node.name);
   const init = binding.node?.type === 'VariableDeclarator' ? binding.node.init : null;
