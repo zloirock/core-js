@@ -687,12 +687,15 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
 // a no-op for babel. shape carries `.node` (declarator) + recomputed violations, the minimum the
 // static-receiver walk + reassignment gates read (they fall back to `.node` when there is no `.path`)
 export function synthVarHoistBinding(path, name) {
-  const declarator = path ? findFunctionScopeVarDeclaratorInPath(path, name) : null;
-  if (!declarator) return null;
+  const found = path ? findVarOwnerDeclaring(path, name) : null;
+  if (!found) return null;
   return {
-    node: declarator,
+    node: found.declarator,
+    // node-based anchor for the guard-verdict / dominance consumers: a synthetic binding
+    // has no `.path` to climb
+    ownerNode: found.owner.node,
     kind: 'var',
-    constantViolations: collectFunctionScopeVarReassignments(path, name),
+    constantViolations: collectScopeReassignmentNodes(found.owner.node, name),
     importSource: null,
     polyfillHint: null,
   };
@@ -797,10 +800,15 @@ export function findFunctionScopeVarInPath(path, name) {
 // common case still resolves. cached per owner node (same staleness contract as `scopeVarsCache`)
 const scopeReassignCache = new WeakMap();
 // collect every reassignment NODE of `name` within `ownerNode`'s subtree, stopping at nested scopes /
-// blocks that shadow `name`. cached per (ownerNode, name). `ownDeclarator` is the binding's own
-// declarator (skipped in the `var name = init` redeclaration branch). shared by the var-hoist and the
-// cross-boundary-`let` reassignment recovery, which differ only in how they locate `ownerNode`
-function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
+// blocks that shadow `name`. cached per (ownerNode, name). the binding's OWN declarator (skipped in
+// the `var name = init` redeclaration branch) is derived from the live walk itself - the FIRST
+// declaring declarator in tree order, the same rule as the var index. it must NOT come from a cached
+// index or a caller parameter: the plugin's in-place rewrite replaces the declarator node, so any
+// externally-held identity is stale and the binding's own initializer would count as a reassignment
+// of itself. shared by the var-hoist and the cross-boundary-`let` reassignment recovery, which
+// differ only in how they locate `ownerNode`
+function collectScopeReassignmentNodes(ownerNode, name) {
+  let firstDeclaring = null;
   let perName = scopeReassignCache.get(ownerNode);
   if (!perName) scopeReassignCache.set(ownerNode, perName = new Map());
   if (perName.has(name)) return perName.get(name);
@@ -860,7 +868,12 @@ function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
     // value; a bare `var name;` (no init) keeps it. a same-name `let`/`const` can't co-exist
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
       for (const d of node.declarations ?? []) {
-        if (d !== ownDeclarator && d.init && bindsName(d.id)) violations.push(d);
+        if (!bindsName(d.id)) continue;
+        if (firstDeclaring === null) {
+          firstDeclaring = d;
+          continue;
+        }
+        if (d.init) violations.push(d);
       }
     }
     for (const key of Object.keys(node)) {
@@ -879,7 +892,7 @@ function collectScopeReassignmentNodes(ownerNode, name, ownDeclarator) {
 export function collectFunctionScopeVarReassignments(path, name) {
   const found = findVarOwnerDeclaring(path, name);
   if (!found) return [];
-  return collectScopeReassignmentNodes(found.owner.node, name, found.declarator);
+  return collectScopeReassignmentNodes(found.owner.node, name);
 }
 
 // a `let` declarator is always statement-level, so the first of these hosts above its
@@ -956,7 +969,7 @@ export function collectScopeLetReassignments(declaratorPath, name) {
   for (let p = declaratorPath?.parentPath; p && !scopeNode; p = p.parentPath) {
     if (LET_SCOPE_HOST_TYPES.has(p.node?.type)) scopeNode = p.node;
   }
-  return scopeNode ? collectScopeReassignmentNodes(scopeNode, name, declaratorPath.node) : [];
+  return scopeNode ? collectScopeReassignmentNodes(scopeNode, name) : [];
 }
 
 // per-loop-field control-flow traits, single-sourced so the USE-side re-run walk and the
@@ -1174,6 +1187,48 @@ function nodeDominatesUsage({ node, usagePath, owner, climb, usageNode = null })
     if (outer !== null) return outer.length === 0 && endsBeforeStart(node, owner.node, false);
   }
   return null;
+}
+
+// the aliasing write's guard verdict for a body-extract registration: a hoisted `var`
+// DECLARATOR in a conditional branch (`if (c) { var { iterator } = Symbol; }`) or an
+// assignment-form write under any branch assigns on ONE path only, while the binding is
+// readable on every path - a registered fold source would substitute the polyfill on the
+// untaken path where the runtime value is undefined. judged at REGISTRATION time: the tree
+// is pristine there, while a fold-time walk sees the emitter's in-place rewrite
+// (re-minted / positionless nodes) and cannot anchor the dominance question
+export function isGuardedAliasingWrite(binding) {
+  const declarator = binding?.path?.node ?? binding?.node;
+  if (declarator?.type !== 'VariableDeclarator') return false;
+  let writeNode = declarator;
+  let anchorPath = binding.path ?? null;
+  if (declarator.init) {
+    // declarator form: only a hoisted `var` leaks past its branch (let / const are block-scoped)
+    if (binding.kind !== 'var') return false;
+  } else {
+    // assignment form: the write site is the aliasing assignment. babel records the
+    // AssignmentExpression path, estree records the bound identifier inside the LHS
+    // pattern (climb its path), a synthetic var-hoist binding records the raw node
+    const [violation] = binding.constantViolations ?? [];
+    const node = violation?.node ?? violation;
+    if (node?.type === 'AssignmentExpression') {
+      writeNode = node;
+      if (violation?.parentPath) anchorPath = violation;
+    } else if (node?.type === 'Identifier' && violation?.parentPath) {
+      let p = violation;
+      while (p && p.node?.type !== 'AssignmentExpression'
+        && (p.node?.type === 'Identifier' || p.node?.type === 'Property'
+          || p.node?.type === 'ObjectProperty' || p.node?.type === 'ObjectPattern')) {
+        p = p.parentPath;
+      }
+      if (p?.node?.type !== 'AssignmentExpression') return false;
+      writeNode = p.node;
+      anchorPath = p;
+    } else return false;
+  }
+  const ownerNode = binding.ownerNode ?? (anchorPath ? findNearestVarScopeOwner(anchorPath)?.node : null);
+  if (!ownerNode) return false;
+  const guards = collectVarGuardsToDeclarator(ownerNode, writeNode);
+  return !!guards?.length;
 }
 
 // SOUND gate for resolving a function-scoped `var` alias to a global. `var` hoists to the whole
@@ -1582,6 +1637,28 @@ export function varInitStaleByRedecl(binding, usagePath, name) {
 // the alias resolves to - only a write at a DIFFERENT node is a real reassignment. mirrors the
 // unplugin var-hoist scan (which never records declarators), so a use after the in-body assignment
 // of `while (c) { var M = globalThis; M.Array.from(...) }` resolves on both plugins
+// a bare same-name redeclaration (`var { Map: M } = g; var M;`) writes NO value, yet both
+// scope trackers record it as a constantViolation - a phantom for every value-flow consumer.
+// the shape differs per parser: babel records the valueless DECLARATOR itself, estree-toolkit
+// records the redeclared IDENTIFIER (whose declarator parent carries no init). a for-x head
+// declarator also has no init, but its per-iteration rebind is a real write and stays.
+// filter both shapes so the alias binding-shape guards and the trust predicates see real
+// writes only - a one-shape filter would keep the emitters' poison decisions diverged
+export function withoutValuelessDeclarationViolations(violations) {
+  if (!violations?.length) return violations;
+  const filtered = violations.filter(v => {
+    const node = v?.node ?? v;
+    if (node?.type === 'VariableDeclarator' && !node.init) return false;
+    if (node?.type === 'Identifier') {
+      const declarator = v?.parentPath?.node;
+      if (declarator?.type === 'VariableDeclarator' && !declarator.init && declarator.id === node
+        && !FOR_X_STATEMENT_TYPES.has(v.parentPath.parentPath?.parentPath?.node?.type)) return false;
+    }
+    return true;
+  });
+  return filtered.length === violations.length ? violations : filtered;
+}
+
 export function isReassignedBeyondDeclarator(binding) {
   return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
 }
@@ -1593,7 +1670,26 @@ export function isReassignedBeyondDeclarator(binding) {
 // parser-agnostic - it never inspects whether the write node is the assignment (babel) or the bound
 // identifier (estree), so babel and unplugin make the same poison decision for identical source
 export function isCleanDestructureAliasBinding(binding) {
-  const writes = binding?.constantViolations?.length ?? 0;
+  const own = binding?.path?.node ?? binding?.node;
+  const writes = (withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [])
+    // estree records a for-init declarator as a violation of ITSELF (the loop-reinit self,
+    // same exclusion `reassignmentNodesBeyondDeclarator` applies) - for a DESTRUCTURING
+    // declarator the recorded node is the bound identifier INSIDE the own pattern, so climb
+    // pattern shells to the declarator. a declaration is not a reassignment of itself
+    .filter(v => {
+      const node = violationNode(v);
+      if (node === own || node === own?.id) return false;
+      if (node?.type === 'Identifier' && v?.parentPath) {
+        for (let p = v.parentPath; p; p = p.parentPath) {
+          if (p.node === own) return false;
+          const type = p.node?.type;
+          if (type !== 'Property' && type !== 'ObjectProperty' && type !== 'ObjectPattern'
+            && type !== 'ArrayPattern' && type !== 'RestElement') break;
+        }
+      }
+      return true;
+    })
+    .length;
   return writes === 0 || (writes === 1 && !binding.path?.node?.init);
 }
 
