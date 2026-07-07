@@ -1,6 +1,6 @@
 import { entryToGlobalHint } from './index.js';
 import { findUniqueName } from './helpers/pattern-matching.js';
-import { isCleanDestructureAliasBinding } from './helpers/ast-patterns.js';
+import { isCleanDestructureAliasBinding, isGuardedAliasingWrite } from './helpers/ast-patterns.js';
 
 // post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
@@ -181,6 +181,18 @@ export default class ImportInjectorState {
       this.#trackReassignedBinding(name, reassignedStart(sourceBinding));
       return;
     }
+    // a conditionally-executed aliasing write assigns on one path only: the registered fold
+    // source would substitute the polyfill where the runtime value is undefined. same poison
+    // semantics as a reassignment - the value is not guaranteed at every use
+    if (sourceBinding && isGuardedAliasingWrite(sourceBinding)) {
+      this.#trackReassignedBinding(name, reassignedStart(sourceBinding));
+      return;
+    }
+    // a prior registration of this binding was poisoned (unclean / guarded write set): a
+    // lagged re-registration (babel's scope after the first in-place rewrite no longer shows
+    // the sibling writes) must not resurrect the fold source the pristine-tree judgment
+    // refused. positional lookup keeps a SIBLING-scope same-name binding registerable
+    if (this.isReassignedBinding(name, sourceBinding)) return;
     this.#recordImportInfo(name, entry);
   }
 

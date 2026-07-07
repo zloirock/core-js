@@ -93,9 +93,52 @@ export function unaryOperatorResultKind(operator, argKindOf) {
   return null;
 }
 
+// shape-only matcher for the destructuring-default desugar ternary: positive
+// `_ref === void 0 ? D : _ref` (babel) and inverse `_ref !== void 0 ? _ref : D`
+// (esbuild / swc / terser), plus the `typeof _ref === 'undefined'` and loose `== null`
+// test spellings. returns the slot holding the DEFAULT branch ('consequent' /
+// 'alternate'), null when the ternary isn't a self-default pattern. module-level so
+// value-identity predicates (the alias-init resolvers) share ONE canon with the
+// resolver; `isLocalUndefinedName` lets the caller reject a shadowed bare `undefined`
+export function matchSelfDefaultTernarySlot(node, { isLocalUndefinedName = () => false } = {}) {
+  const { test, consequent, alternate } = node;
+  if (test?.type !== 'BinaryExpression') return null;
+  const op = test.operator;
+  const isInverse = op === '!==' || op === '!=';
+  const isLoose = op === '!=' || op === '==';
+  if (op !== '===' && op !== '==' && !isInverse) return null;
+  const refName = selfTernaryRefName(test.left, test.right, isLoose, isLocalUndefinedName);
+  if (!refName) return null;
+  const selfBranch = isInverse ? consequent : alternate;
+  if (selfBranch?.type !== 'Identifier' || selfBranch.name !== refName) return null;
+  return isInverse ? 'alternate' : 'consequent';
+}
+
+function selfTernaryRefName(left, right, isLoose, isLocalUndefinedName) {
+  if (left?.type === 'UnaryExpression' && left.operator === 'typeof'
+    && left.argument?.type === 'Identifier' && isStringLiteralValue(right, 'undefined')) return left.argument.name;
+  if (left?.type !== 'Identifier') return null;
+  if (isVoidZeroNode(right)) return left.name;
+  if (isBareUndefinedIdentifier(right) && !isLocalUndefinedName()) return left.name;
+  if (isLoose && (right?.type === 'NullLiteral'
+    || (right?.type === 'Literal' && right.value === null && !right.regex))) return left.name;
+  return null;
+}
+
+function isStringLiteralValue(node, value) {
+  return (node?.type === 'StringLiteral' || (node?.type === 'Literal' && typeof node.value === 'string'))
+    && node.value === value;
+}
+
+function isVoidZeroNode(node) {
+  if (node?.type !== 'UnaryExpression' || node.operator !== 'void') return false;
+  const arg = node.argument;
+  return (arg?.type === 'NumericLiteral' || (arg?.type === 'Literal' && typeof arg.value === 'number'))
+    && arg.value === 0;
+}
+
 export function createValueOps({
   getScopeBinding,
-  isLiteralOf,
   literalKeyValue,
   singleQuasiString,
   getKeyName,
@@ -186,7 +229,7 @@ export function createValueOps({
   // to null so the caller falls through to the standard `?:` union fold rather than emitting
   // an unsound Maybe-array narrow against a caller-controlled value
   function resolveDesugarDefaultTernary(path) {
-    const slot = matchSelfDefaultTernarySlot(path.node, path.scope);
+    const slot = matchSelfDefaultTernarySlotBound(path.node, path.scope);
     if (!slot) return null;
     const defaultType = resolveNodeType(path.get(slot));
     if (!defaultType) return null;
@@ -197,70 +240,17 @@ export function createValueOps({
     return commonType(defaultType, refType);
   }
 
-  // shape-only matcher: returns the slot holding the DEFAULT branch
-  // ('consequent' / 'alternate'), null when the ternary isn't a self-default pattern.
-  // extracted from the resolver so the AST shape detection is testable without binding
-  // to a resolver instance
-  function matchSelfDefaultTernarySlot(node, scope) {
-    const { test, consequent, alternate } = node;
-    if (test.type !== 'BinaryExpression') return null;
-    const op = test.operator;
-    const isInverse = op === '!==' || op === '!=';
-    const isLoose = op === '!=' || op === '==';
-    if (op !== '===' && op !== '==' && !isInverse) return null;
-    const refName = checkSelfTernaryRefName(test.left, test.right, scope, isLoose);
-    if (!refName) return null;
-    const selfBranch = isInverse ? consequent : alternate;
-    if (selfBranch.type !== 'Identifier' || selfBranch.name !== refName) return null;
-    return isInverse ? 'alternate' : 'consequent';
-  }
-
-  // identify the destructure-ref name from a default-ternary test. supported test shapes:
-  //   _ref === void 0 / _ref === undefined           - babel + esbuild strict-eq
-  //   typeof _ref === 'undefined'                    - older esbuild / swc
-  //   _ref == null (loose only)                      - terser idiom (null OR undefined)
-  // each form picks the default for `function ({x = D})`; missing one silently drops the
-  // narrow. bare-`undefined` requires scope check (shadowable identifier). NullLiteral
-  // RHS is accepted only under loose-eq - strict `_ref === null` would NOT fire default
-  // for `undefined` so it isn't a destructure-default shape
-  function checkSelfTernaryRefName(left, right, scope, isLoose) {
-    if (left.type === 'UnaryExpression' && left.operator === 'typeof'
-      && left.argument?.type === 'Identifier' && isUndefinedString(right)) return left.argument.name;
-    if (left.type !== 'Identifier') return null;
-    if (isVoidZero(right) || isBareUndefined(right, scope)) return left.name;
-    if (isLoose && isNullLiteral(right)) return left.name;
-    return null;
-  }
-
-  function isNullLiteral(node) {
-    if (node?.type === 'NullLiteral') return true;
-    return node?.type === 'Literal' && node.value === null && !node.regex;
-  }
-
-  function isVoidZero(node) {
-    return node.type === 'UnaryExpression' && node.operator === 'void'
-      && isLiteralOf(node.argument, 'Numeric') && node.argument.value === 0;
-  }
-
-  // `undefined` is a read-only global but ECMA still allows local shadowing
-  // (`var undefined` / `function (undefined) {}` / `const undefined = X`).
-  // `scope.hasBinding` is true for the global itself in babel; `getBinding`
-  // returns a descriptor only for a LOCAL binding - the gate that distinguishes
-  // bare global-`undefined` from a shadowed identifier
-  function isBareUndefined(node, scope) {
-    if (!isBareUndefinedIdentifier(node)) return false;
-    return !getScopeBinding(scope, 'undefined');
+  // scope-bound delegate to the module-level canon: `undefined` is a read-only global
+  // but ECMA still allows local shadowing (`var undefined` / `function (undefined) {}`),
+  // and `getBinding` returns a descriptor only for a LOCAL binding - the gate that
+  // distinguishes bare global-`undefined` from a shadowed identifier
+  function matchSelfDefaultTernarySlotBound(node, scope) {
+    return matchSelfDefaultTernarySlot(node, {
+      isLocalUndefinedName: () => !!getScopeBinding(scope, 'undefined'),
+    });
   }
 
   // `isLiteralOf(node, 'String')` routes through `babelNodeType` which normalises ESTree
-  // `Literal{value: 'undefined'}` (string-typed) to `StringLiteral` - one check covers
-  // both parsers. a second branch on raw `node.type === 'Literal'` would be dead - babel
-  // emits `StringLiteral` for strings and the normalised first branch already
-  // matches ESTree's raw `Literal` shape
-  function isUndefinedString(node) {
-    return isLiteralOf(node, 'String') && node.value === 'undefined';
-  }
-
   function resolveBinaryOperatorType(operator, leftPath, rightPath) {
     const kind = binaryOperatorResultKind(
       operator,
