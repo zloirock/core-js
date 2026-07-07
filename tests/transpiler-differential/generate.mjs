@@ -1163,6 +1163,26 @@ function * generateAssignAliasReassign() {
   }
 }
 
+// --- Assertion-guard staleness (TS) ---
+// a reassignment in the assertion guard's OWN argument slot leaves the runtime value
+// post-mutation: the string narrow is stale and dispatch must stay generic. in a full
+// environment the Maybe-String and generic helpers both fall back to the same native method,
+// so ONLY the stripped realm separates them: with native `at` gone, a stale Maybe-String
+// import dies on the array receiver while the generic helper substitutes the array polyfill
+function * generateAssertGuardStale() {
+  const CASES = [
+    // stale narrow: the runtime value is an ARRAY - dispatch must stay generic to survive
+    { id: 'own-arg-reassign-array',
+      code: '(() => { function g(v: unknown): asserts v is string { void v; } let x: unknown = "zz"; '
+        + 'g((x = ["c", "d"], x)); return (x as any).at(0); })()' },
+    // clean assertion: the narrow holds - the Maybe-String helper must itself stand alone
+    { id: 'clean-narrow-string',
+      code: '(() => { function g(v: unknown): asserts v is string { void v; } let x: unknown = "cd"; '
+        + 'g(x); return (x as any).at(0); })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`assert-guard-stale/${ c.id }`, c.code), strip: true, ts: true };
+}
+
 // --- Conditional-receiver destructure mirror grammar ---
 // the receiver is a runtime-selected ternary / `&&` / `||` carrying a global-PROXY operand beside a
 // USER-object (or short-circuit) operand. each snippet exercises BOTH runtime selections; the bug
@@ -2886,6 +2906,7 @@ export function * generate() {
   yield * generateNestedInstanceReceiver();
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
+  yield * generateAssertGuardStale();
   yield * generateConditionalMirror();
   yield * generateChains();
   yield * generateIn();
