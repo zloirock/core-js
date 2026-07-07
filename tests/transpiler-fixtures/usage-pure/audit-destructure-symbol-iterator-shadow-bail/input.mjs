@@ -8,3 +8,22 @@ function pick() {
   return [2][iterator];
 }
 pick();
+
+// the same flat-info collision through a SHADOWED `Symbol` IDENTIFIER: the bare-name arm of
+// the fold gate consults the scope - the user binding redirects the read to a plain object,
+// so folding would substitute the wrong VALUE (`[4][3]` is undefined, not an iterator)
+function pickShadowed() {
+  const Symbol = { iterator: 3 };
+  const { iterator } = Symbol;
+  return [4][iterator];
+}
+pickShadowed();
+
+// a MIXED ternary init is not value-sound (the shim branch's value is a plain number): the
+// per-branch substitution keeps the Symbol branch polyfilled, but the read must stay native
+function pickMixed() {
+  const c = Math.random() > 2;
+  const { iterator } = c ? Symbol : { iterator: 1 };
+  return ['x', 'y'][iterator];
+}
+pickMixed();

@@ -1236,6 +1236,50 @@ function * generateThisStaticDestructure() {
   for (const c of CASES) yield { ...snippet(`this-static-destructure/${ c.id }`, c.code), strip: true };
 }
 
+// --- Symbol destructure-alias shadow gate ---
+// a SHADOWED `Symbol` identifier feeding a same-name destructure keeps the USER value: the
+// flat name-keyed alias info collides with the outer genuine alias, and folding the inner
+// read to the well-known symbol returns an iterator method instead of the user's element
+function * generateSymbolAliasShadow() {
+  const CASES = [
+    { id: 'shadowed-identifier',
+      code: '(() => { const { iterator } = Symbol; const outer = typeof [][iterator]; '
+        + 'const inner = (() => { const Symbol = { iterator: 0 }; const { iterator } = Symbol; return [7][iterator]; })(); '
+        + 'return [outer, inner]; })()' },
+    // a binary init can never be the global object: the alias must not register, the member
+    // read stays native and keeps its TypeError
+    { id: 'binary-init-throws',
+      code: '(() => { var { Map: M } = globalThis > 0; try { return typeof M.groupBy; } catch (e) { return "throws"; } })()' },
+    // a MIXED ternary init through the flat name-keyed collision must keep the shim
+    // branch's value; a reversed `||` yields its truthy LEFT operand, so the member read
+    // keeps the native TypeError
+    { id: 'mixed-ternary-symbol',
+      code: '(() => { const { iterator } = Symbol; const probe = typeof [][iterator]; '
+        + 'const inner = (() => { const c = Math.random() > 2; const { iterator } = c ? Symbol : { iterator: 0 }; return [7][iterator]; })(); '
+        + 'return [probe, inner]; })()' },
+    { id: 'reversed-or-global',
+      code: '(() => { const fake = { Map: null }; var { Map: M } = fake || globalThis; try { M.groupBy([1], (x) => x); return "no-throw"; } catch (e) { return "throws"; } })()' },
+    // a conditionally-executed aliasing write registers no fold source: the untaken path
+    // reads undefined natively and a fold would mask it
+    { id: 'conditional-var-alias',
+      code: '(() => { function pick(flag) { if (flag) { var { iterator } = Symbol; } return typeof [][iterator]; } return [pick(false), pick(true)]; })()' },
+    { id: 'conditional-assign-alias',
+      code: '(() => { var it; if (Math.random() > 2) { ({ iterator: it } = Symbol); } return typeof [][it]; })()' },
+    // a repeated aliasing write refuses the fold source on the pristine tree; the lagged
+    // re-registration desynced the emitters' import sets
+    { id: 'double-assign-alias',
+      code: '(() => { let it; ({ iterator: it } = Symbol); ({ iterator: it } = Symbol); return typeof [][it]; })()' },
+    // UNCONDITIONAL nested-block writes fold on both emitters: the estree side resolves a
+    // labeled block through the synthetic var-hoist binding and a for-init past the
+    // loop-reinit self record
+    { id: 'labeled-block-alias',
+      code: '(() => { labeled: { var { iterator } = Symbol; } return typeof [][iterator]; })()' },
+    { id: 'for-init-alias',
+      code: '(() => { for (var { iterator } = Symbol; Math.random() > 2;) { break; } return typeof [][iterator]; })()' },
+  ];
+  for (const c of CASES) yield snippet(`symbol-alias-shadow/${ c.id }`, c.code);
+}
+
 // --- Class-field narrow staleness (TS) ---
 // a field narrow that survives a shadow/write it should have dropped dispatches the WRONG
 // Maybe: full-env both forms fall back to the same native method, so only the stripped realm
@@ -3000,6 +3044,7 @@ export function * generate() {
   yield * generateSynthSwapPureCtorReRead();
   yield * generateFlattenRebuiltInit();
   yield * generateThisStaticDestructure();
+  yield * generateSymbolAliasShadow();
   yield * generateFieldNarrowStale();
   yield * generateAssertGuardStale();
   yield * generateConditionalMirror();
