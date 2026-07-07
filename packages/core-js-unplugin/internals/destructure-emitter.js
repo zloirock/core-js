@@ -3617,7 +3617,7 @@ export function createDestructureEmitter({
       // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
       const hasInstanceEntry = [...polyfills.values()].some(p => typeof p !== 'string' && p?.instance);
       if (!isReceiverShapedNode(inner) && inner?.type !== 'LogicalExpression' && !isCallShape(inner)
-        && !hasInstanceEntry) continue;
+        && inner?.type !== 'ThisExpression' && !hasInstanceEntry) continue;
       // a fallback-logical receiver reads through its peeled LEFT branch (babel-twin contract):
       // the left decides the value under short-circuit; the dead right global stays unreferenced
       const readReceiver = inner.type === 'LogicalExpression'

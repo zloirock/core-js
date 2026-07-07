@@ -32,6 +32,7 @@ import {
   tagSymbolSourcedMeta,
 } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
 import {
+  buildDestructuringInitMeta,
   collectDestructureUnionCandidates,
   collectMemberUnionCandidates,
   flattenFallbackBranches,
@@ -931,6 +932,30 @@ runBoth('peelArrayWrapperPair/bail commits no prefixes',
     const { init, peeledPrefixes } = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init });
     checkDeep(lbl, peeledPrefixes, []);
     check(`${ lbl } init unchanged`, init, decl.node.init);
+  });
+
+runBoth('destructure init meta resolves this-in-static through the adapter hook',
+  'class C extends Array { static m() { const { from } = this; return from; } }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'Property') ?? adapter.pickPath(prog, 'ObjectProperty');
+    const meta = buildDestructuringInitMeta({
+      initNode: prop.parentPath.parent.init ?? { type: 'ThisExpression' },
+      key: 'from', scope: prop.scope, path: prop,
+      adapter: {
+        ...adapter,
+        resolveThisStaticHost: () => ({ kind: 'property', object: 'Array', key: 'from', placement: 'static', inheritedStatic: true }),
+      },
+    });
+    check(lbl, meta?.object, 'Array');
+    check(`${ lbl } placement`, meta?.placement, 'static');
+  });
+runBoth('destructure init meta keeps this untyped without the hook',
+  'class C extends Array { static m() { const { from } = this; return from; } }', (adapter, prog, lbl) => {
+    const prop = adapter.pickPath(prog, 'Property') ?? adapter.pickPath(prog, 'ObjectProperty');
+    const meta = buildDestructuringInitMeta({
+      initNode: { type: 'ThisExpression' }, key: 'from', scope: prop.scope, path: prop,
+      adapter: { ...adapter, isStringLiteral: () => false },
+    });
+    check(lbl, meta?.object, null);
   });
 
 runBoth('proxyGlobalMemberCtorPureSwap/harvests buried key SE with the pure-ctor leaf',
