@@ -14,6 +14,7 @@ import {
   createEstreeAdapter,
 } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { blockAlwaysExits, canFallThrough, nodeAlwaysExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
+import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
 import {
   isAmbientClassNode,
   isAmbientFunctionNode,
@@ -105,6 +106,8 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   peelFallbackReceiver,
   peelNestedSequenceExpressions,
+  isCleanDestructureAliasBinding,
+  isGuardedAliasingWrite,
   propBindingIdentifier,
   resolveCallArgument,
   singleQuasiString,
@@ -117,11 +120,14 @@ import {
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
+  withoutValuelessDeclarationViolations,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   buildSuperStaticMeta,
   createClassHelpers,
+  isSymbolDestructureAliasBinding,
+  registerAliasPrePassSite,
   globalProxyMemberName,
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
@@ -2973,6 +2979,40 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
 // --- helpers/ast-patterns (pure top-level utilities) ---
 
 {
+  // valueless-redecl phantom filter: BOTH parser shapes must drop, real writes must stay
+  const babelPhantom = { node: { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'x' }, init: null } };
+  check('ast-patterns: valueless filter drops babel declarator shape',
+    withoutValuelessDeclarationViolations([babelPhantom]).length, 0);
+
+  function estreeIdViolation(forX) {
+    const id = { type: 'Identifier', name: 'x' };
+    const declarator = { type: 'VariableDeclarator', id, init: null };
+    const declaration = { type: 'VariableDeclaration', kind: 'var', declarations: [declarator] };
+    const host = forX ? { type: 'ForOfStatement', left: declaration } : { type: 'Program' };
+    const declarationPath = { node: declaration, parentPath: { node: host, parentPath: null } };
+    return { node: id, parentPath: { node: declarator, parentPath: declarationPath } };
+  }
+  check('ast-patterns: valueless filter drops estree identifier shape',
+    withoutValuelessDeclarationViolations([estreeIdViolation(false)]).length, 0);
+  // a for-x head declarator also has no init, but its per-iteration rebind is a real write
+  check('ast-patterns: for-x head identifier violation stays',
+    withoutValuelessDeclarationViolations([estreeIdViolation(true)]).length, 1);
+  const realWrite = { node: { type: 'AssignmentExpression' } };
+  check('ast-patterns: assignment violation stays',
+    withoutValuelessDeclarationViolations([babelPhantom, realWrite]).length, 1);
+
+  // the clean-alias shape check counts real writes only: a redecl phantom next to an
+  // init-bearing declarator must not read as a reassignment
+  const cleanWithPhantom = {
+    kind: 'var',
+    constantViolations: [babelPhantom],
+    path: { node: { type: 'VariableDeclarator', id: { type: 'ObjectPattern' }, init: { type: 'Identifier', name: 'Symbol' } } },
+  };
+  checkTruthy('ast-patterns: isCleanDestructureAliasBinding ignores the phantom',
+    isCleanDestructureAliasBinding(cleanWithPhantom));
+}
+
+{
   // singleQuasiString: TemplateLiteral with no interpolations -> the cooked string
   const tpl = {
     type: 'TemplateLiteral',
@@ -4988,12 +5028,214 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     isAmbientFunctionOrClassNode({ type: 'FunctionDeclaration' }), false);
 }
 
+{
+  // guard verdict for an aliasing write: a hoisted `var` declarator (or an assignment-form
+  // write) under a branch assigns on one path only and must not register a fold source;
+  // an unconditional write and a block-scoped `let` declarator stay registerable
+  function chain(nodes) {
+    let path = null;
+    for (const node of nodes) path = { node, parentPath: path };
+    return path;
+  }
+  function fnWith(statement) {
+    const body = { type: 'BlockStatement', body: [statement] };
+    return { type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'f' }, params: [], body };
+  }
+  const guardedDeclarator = {
+    type: 'VariableDeclarator',
+    id: { type: 'ObjectPattern', properties: [] },
+    init: { type: 'Identifier', name: 'Symbol' },
+  };
+  const guardedDeclaration = { type: 'VariableDeclaration', kind: 'var', declarations: [guardedDeclarator] };
+  const guardedBlock = { type: 'BlockStatement', body: [guardedDeclaration] };
+  const guardedIf = { type: 'IfStatement', test: { type: 'Identifier', name: 'c' }, consequent: guardedBlock, alternate: null };
+  const guardedFn = fnWith(guardedIf);
+  checkTruthy('ast-patterns: guarded var declarator write refused',
+    isGuardedAliasingWrite({
+      kind: 'var', constantViolations: [],
+      path: chain([guardedFn, guardedFn.body, guardedIf, guardedBlock, guardedDeclaration, guardedDeclarator]),
+    }));
+
+  const plainDeclarator = {
+    type: 'VariableDeclarator',
+    id: { type: 'ObjectPattern', properties: [] },
+    init: { type: 'Identifier', name: 'Symbol' },
+  };
+  const plainDeclaration = { type: 'VariableDeclaration', kind: 'var', declarations: [plainDeclarator] };
+  const plainFn = fnWith(plainDeclaration);
+  check('ast-patterns: unconditional var declarator write keeps',
+    isGuardedAliasingWrite({
+      kind: 'var', constantViolations: [],
+      path: chain([plainFn, plainFn.body, plainDeclaration, plainDeclarator]),
+    }), false);
+
+  // a block-scoped `let` cannot leak past its branch - the declarator form stays registerable
+  check('ast-patterns: guarded let declarator keeps (block-scoped)',
+    isGuardedAliasingWrite({
+      kind: 'let', constantViolations: [],
+      path: chain([guardedFn, guardedFn.body, guardedIf, guardedBlock, guardedDeclaration, guardedDeclarator]),
+    }), false);
+
+  const bareDeclarator = { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'it' }, init: null };
+  const assign = {
+    type: 'AssignmentExpression', operator: '=',
+    left: { type: 'ObjectPattern', properties: [] },
+    right: { type: 'Identifier', name: 'Symbol' },
+  };
+  const assignStmt = { type: 'ExpressionStatement', expression: assign };
+  const assignBlock = { type: 'BlockStatement', body: [assignStmt] };
+  const assignIf = { type: 'IfStatement', test: { type: 'Identifier', name: 'c' }, consequent: assignBlock, alternate: null };
+  const assignFn = fnWith(assignIf);
+  checkTruthy('ast-patterns: guarded assignment-form write refused',
+    isGuardedAliasingWrite({
+      kind: 'var',
+      constantViolations: [chain([assignFn, assignFn.body, assignIf, assignBlock, assignStmt, assign])],
+      path: { node: bareDeclarator, parentPath: null },
+    }));
+
+  const plainAssignFn = fnWith(assignStmt);
+  check('ast-patterns: unconditional assignment-form write keeps',
+    isGuardedAliasingWrite({
+      kind: 'var',
+      constantViolations: [chain([plainAssignFn, plainAssignFn.body, assignStmt, assign])],
+      path: { node: bareDeclarator, parentPath: null },
+    }), false);
+
+  // a synthetic var-hoist binding carries `.node` + `.ownerNode` (no `.path`): the guard
+  // verdict anchors node-based there
+  checkTruthy('ast-patterns: guarded synthetic binding refused',
+    isGuardedAliasingWrite({ kind: 'var', constantViolations: [], node: guardedDeclarator, ownerNode: guardedFn }));
+  check('ast-patterns: unconditional synthetic binding keeps',
+    isGuardedAliasingWrite({ kind: 'var', constantViolations: [], node: plainDeclarator, ownerNode: plainFn }), false);
+
+  // estree records a for-init declarator as a violation of ITSELF via the bound identifier
+  // inside the own pattern - the clean-alias count must not read it as a reassignment
+  const selfId = { type: 'Identifier', name: 'iterator' };
+  const selfProp = { type: 'Property', key: selfId, value: selfId };
+  const selfPattern = { type: 'ObjectPattern', properties: [selfProp] };
+  const selfDeclarator = { type: 'VariableDeclarator', id: selfPattern, init: { type: 'Identifier', name: 'Symbol' } };
+  const selfViolation = chain([selfDeclarator, selfPattern, selfProp, selfId]);
+  checkTruthy('ast-patterns: for-init self record does not poison the clean-alias count',
+    isCleanDestructureAliasBinding({ kind: 'var', constantViolations: [selfViolation], path: { node: selfDeclarator, parentPath: null } }));
+}
+
+// --- resolve-node-type/value-ops (module-level self-default ternary canon) ---
+
+{
+  function ternary(test, consequent, alternate) {
+    return { type: 'ConditionalExpression', test, consequent, alternate };
+  }
+  const ref = { type: 'Identifier', name: '_ref' };
+  const dflt = { type: 'Identifier', name: 'd' };
+  const voidZero = { type: 'UnaryExpression', operator: 'void', argument: { type: 'NumericLiteral', value: 0 } };
+  check('value-ops: self-default positive `_ref === void 0 ? d : _ref`',
+    matchSelfDefaultTernarySlot(ternary({ type: 'BinaryExpression', operator: '===', left: ref, right: voidZero }, dflt, ref)),
+    'consequent');
+  check('value-ops: self-default inverse `_ref !== void 0 ? _ref : d`',
+    matchSelfDefaultTernarySlot(ternary({ type: 'BinaryExpression', operator: '!==', left: ref, right: voidZero }, ref, dflt)),
+    'alternate');
+  const typeofTest = {
+    type: 'BinaryExpression', operator: '===',
+    left: { type: 'UnaryExpression', operator: 'typeof', argument: ref },
+    right: { type: 'StringLiteral', value: 'undefined' },
+  };
+  check('value-ops: self-default typeof spelling',
+    matchSelfDefaultTernarySlot(ternary(typeofTest, dflt, ref)), 'consequent');
+  const bareUndef = { type: 'BinaryExpression', operator: '===', left: ref, right: { type: 'Identifier', name: 'undefined' } };
+  check('value-ops: bare undefined accepted while unshadowed',
+    matchSelfDefaultTernarySlot(ternary(bareUndef, dflt, ref)), 'consequent');
+  check('value-ops: bare undefined rejected when locally shadowed',
+    matchSelfDefaultTernarySlot(ternary(bareUndef, dflt, ref), { isLocalUndefinedName: () => true }), null);
+  // a NON-self ternary (the tested reference is not the value branch) is not a default shape
+  check('value-ops: non-self ternary rejected',
+    matchSelfDefaultTernarySlot(ternary({ type: 'BinaryExpression', operator: '===', left: { type: 'Identifier', name: 'other' }, right: voidZero }, dflt, ref)),
+    null);
+  check('value-ops: bare-identifier test rejected',
+    matchSelfDefaultTernarySlot(ternary(ref, ref, dflt)), null);
+}
+
 // --- helpers/class-walk (pure utilities) ---
+
+{
+  // the Symbol destructure-alias shadow gate: a bare `Symbol` init counts only while
+  // unshadowed; a binary init can never be the constructor; the valueless-redecl phantom
+  // does not poison the shape check
+  function symbolBinding(init, violations = []) {
+    return {
+      path: { node: { type: 'VariableDeclarator', id: { type: 'ObjectPattern' }, init } },
+      constantViolations: violations,
+    };
+  }
+  const info = { source: 'actual/symbol/iterator' };
+  const bareSymbol = { type: 'Identifier', name: 'Symbol' };
+  const unshadowed = { hasBinding: () => false };
+  const shadowed = { hasBinding: () => true };
+  checkTruthy('class-walk: symbol alias accepts unshadowed bare Symbol',
+    isSymbolDestructureAliasBinding({ info, binding: symbolBinding(bareSymbol), scope: {}, adapter: unshadowed, injector: null }));
+  check('class-walk: symbol alias rejects SHADOWED bare Symbol',
+    isSymbolDestructureAliasBinding({ info, binding: symbolBinding(bareSymbol), scope: {}, adapter: shadowed, injector: null }), false);
+  check('class-walk: symbol alias rejects a binary init',
+    isSymbolDestructureAliasBinding({
+      info, binding: symbolBinding({ type: 'BinaryExpression', operator: '+', left: bareSymbol, right: { type: 'NumericLiteral', value: 1 } }),
+      scope: {}, adapter: unshadowed, injector: null,
+    }), false);
+  const phantom = { node: { type: 'VariableDeclarator', id: { type: 'Identifier', name: 'iterator' }, init: null } };
+  checkTruthy('class-walk: symbol alias survives the valueless-redecl phantom',
+    isSymbolDestructureAliasBinding({ info, binding: symbolBinding(bareSymbol, [phantom]), scope: {}, adapter: unshadowed, injector: null }));
+
+  // a BRANCHING init is value-sound only on every completing path: a mixed ternary and the
+  // non-defaulted logical directions reject; the self-default ternary and `X || d` keep
+  const shim = { type: 'Identifier', name: 'shim' };
+  function accepted(init) {
+    return isSymbolDestructureAliasBinding({ info, binding: symbolBinding(init), scope: {}, adapter: unshadowed, injector: null });
+  }
+  check('class-walk: mixed ternary init rejected',
+    accepted({ type: 'ConditionalExpression', test: { type: 'Identifier', name: 'c' }, consequent: bareSymbol, alternate: shim }), false);
+  checkTruthy('class-walk: self-default ternary init accepted',
+    accepted({
+      type: 'ConditionalExpression',
+      test: {
+        type: 'BinaryExpression', operator: '===',
+        left: { type: 'UnaryExpression', operator: 'typeof', argument: bareSymbol },
+        right: { type: 'StringLiteral', value: 'undefined' },
+      },
+      consequent: shim, alternate: bareSymbol,
+    }));
+  checkTruthy('class-walk: defaulted `Symbol || shim` accepted',
+    accepted({ type: 'LogicalExpression', operator: '||', left: bareSymbol, right: shim }));
+  check('class-walk: reversed `shim || Symbol` rejected',
+    accepted({ type: 'LogicalExpression', operator: '||', left: shim, right: bareSymbol }), false);
+  check('class-walk: `cond && Symbol` rejected',
+    accepted({ type: 'LogicalExpression', operator: '&&', left: { type: 'Identifier', name: 'cond' }, right: bareSymbol }), false);
+
+  // the ctor-alias pre-pass registers a computed STRING-LITERAL key like the plain form
+  // and keeps identifier (dynamic) keys out
+  function prePassPattern(key, computed) {
+    return {
+      type: 'ObjectPattern',
+      properties: [{ type: 'ObjectProperty', computed, key, value: { type: 'Identifier', name: 'M' } }],
+    };
+  }
+  function runPrePass(pattern) {
+    const registered = [];
+    registerAliasPrePassSite({
+      pattern, init: { type: 'Identifier', name: 'globalThis' }, declKind: 'const', assignNode: null,
+      scope: {}, adapter: { hasBinding: () => false, getBinding: () => null },
+      injector: { registerGlobalAlias(local, hint) { registered.push(`${ local }<-${ hint }`); } },
+      path: null, isKnownGlobal: hint => hint === 'Map',
+    });
+    return registered.join(',');
+  }
+  check('class-walk: pre-pass registers computed string-literal ctor-alias key',
+    runPrePass(prePassPattern({ type: 'StringLiteral', value: 'Map' }, true)), 'M<-Map');
+  check('class-walk: pre-pass keeps computed identifier key out',
+    runPrePass(prePassPattern({ type: 'Identifier', name: 'Map' }, true)), '');
+}
 
 {
   // a stale path from a replaced subtree (detached ancestor, node === null) must degrade to
   // "no enclosing member" without throwing and without poisoning the walk cache for live
-  // nodes re-used in the rebuilt tree
+  // nodes reused in the rebuilt tree
   function typeIs(expected) {
     return function (node) { return node?.type === expected; };
   }
