@@ -563,7 +563,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
   // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
   // the type resolver via the same canon)
   if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
-  return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path });
+  return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode });
 }
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
@@ -802,10 +802,12 @@ export function returnedReceiverHasEffects(node) {
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
 // or through a const alias (`const g = globalThis`).
 // `seen` threaded so cyclic `const a = b.x; const b = a.x;` doesn't restart the guard
-function isProxyGlobalIdentifier({ node, scope, adapter, seen, path }) {
+function isProxyGlobalIdentifier({ node, scope, adapter, seen, path, usageNode = null }) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name, path)) return true;
-  // follow const alias: `const g = globalThis` / `const g = self`
-  const resolved = resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path });
+  // follow const alias: `const g = globalThis` / `const g = self`. thread `usageNode` so a reassigned
+  // root captured earlier (`const g = holder.x; holder = {}; ...`) anchors its dominance at the capture
+  // read, not the final host use - else a write after the capture wrongly kills the alias
+  const resolved = resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path, usageNode });
   return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
