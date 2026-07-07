@@ -2152,6 +2152,29 @@ function checkPrePostAliasMemberHandoff() {
 }
 checkPrePostAliasMemberHandoff();
 
+// --- collapseWhitespace: the cross-plugin comparator's lexer ---
+// the comparator must DISCRIMINATE real divergences inside/after regex and template literals
+// (the old quote-toggle scanner fused a regex quote into a phantom string and mis-closed
+// nested templates - false PASS) while staying whitespace-insensitive outside literals
+async function checkCollapseWhitespaceLexer() {
+  const { collapseWhitespace: cw } = await import('./collapse-whitespace.mjs');
+  check('collapse/regex quote discriminates suffix',
+    cw('const r = /a"b/; f(1);') !== cw('const r = /a"b/; f(2);'), true);
+  check('collapse/regex literal keeps its inner space', cw('const r = /a b/;').includes('/a b/'), true);
+  /* eslint-disable no-template-curly-in-string -- template lexing is the case under test */
+  check('collapse/nested template discriminates code after it',
+    cw('tag`a${ inner`x` }b`; f(1);') !== cw('tag`a${ inner`x` }b`; f(2);'), true);
+  check('collapse/substitution collapses, literal chunks kept',
+    cw('`a  b${ x  +  1 }c  d`'), '`a  b${x+1}c  d`');
+  /* eslint-enable no-template-curly-in-string -- end of the lexed-template block */
+  check('collapse/whitespace-only difference equal', cw('const  a\n=\n1;'), cw('const a = 1;'));
+  check('collapse/division is not a regex', cw('const q = a / b / c;'), 'const q=a/b/c;');
+  check('collapse/word-boundary space preserved', cw('const from = 1;'), 'const from=1;');
+  check('collapse/comment apostrophe does not open a string',
+    cw("// don't\nf(1);"), cw('f(1);'));
+}
+await checkCollapseWhitespaceLexer();
+
 // the discriminating other branch: a usage-pure pre REWRITES the source (`Array.from` -> pure
 // helper) and emits a content-bearing map, so post must CHAIN through it and OMIT its own
 // sourcesContent (re-emitting would duplicate the content the build composes from pre's map).
@@ -4353,9 +4376,17 @@ function checkPrePostBundlerDowngrade() {
       check(`phase pre+post downgrades to one stage on ${ fw }`, subs.length, 1);
       check(`phase pre+post downgraded stage runs at post on ${ fw }`, subs[0].enforce, 'post');
     }
-    for (const fw of ['vite', 'webpack', 'farm']) {
+    // membership = EVERY known adapter minus the unsafe pair - a newly added safe bundler
+    // must keep both stages by default, and the stages must run pre-THEN-post (the enforce
+    // pair is the ordering contract the downgrade exists to protect)
+    const KNOWN_BUNDLERS = ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rsbuild', 'rolldown', 'farm', 'bun'];
+    const PRE_POST_UNSAFE = new Set(['bun', 'esbuild']);
+    const keepBothBundlers = KNOWN_BUNDLERS.filter(name => !PRE_POST_UNSAFE.has(name));
+    for (const fw of keepBothBundlers) {
       const subs = unplugin.raw({ ...opts }, { framework: fw });
       check(`phase pre+post keeps both stages on ${ fw }`, subs.length, 2);
+      check(`phase pre+post first stage enforces 'pre' on ${ fw }`, subs[0].enforce, 'pre');
+      check(`phase pre+post second stage enforces 'post' on ${ fw }`, subs[1].enforce, 'post');
     }
   } finally {
     console.warn = origWarn;
@@ -4379,6 +4410,27 @@ function checkSingleStageEnforce() {
   }
 }
 checkSingleStageEnforce();
+
+// the GENERAL invalid-phase throw (non-entry-global): a bad string is quoted, a non-string
+// value reports its `typeof` (the formatter deliberately avoids JSON.stringify - BigInt /
+// Symbol / circular options would blow up the diagnostic itself). the entry-global-specific
+// gate has its own test; this covers the shared VALID_PHASES gate
+function checkGeneralInvalidPhaseThrow() {
+  function throwMessage(phase) {
+    try {
+      unplugin.raw({ method: 'usage-global', version: '4.0', phase }, { framework: 'vite' });
+    } catch (error) {
+      return error.message;
+    }
+    return null;
+  }
+  check('invalid phase string throws quoted', /invalid `phase` option: 'lol'/.test(throwMessage('lol')), true);
+  check('invalid phase number reports typeof', /invalid `phase` option: number/.test(throwMessage(42)), true);
+  check('invalid phase symbol reports typeof', /invalid `phase` option: symbol/.test(throwMessage(Symbol('x'))), true);
+  check('invalid phase bigint reports typeof', /invalid `phase` option: bigint/.test(throwMessage(1n)), true);
+  check('null phase falls back to default (no throw)', throwMessage(null), null);
+}
+checkGeneralInvalidPhaseThrow();
 
 // createRewriteHint's four branches: (1) no guard + no deopt -> null; (2) no guard + deopt
 // positions -> inert deopt-only hint with absorbsRoot coerced false; (3) guardRef without rootRaw
