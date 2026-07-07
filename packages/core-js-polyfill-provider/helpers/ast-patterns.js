@@ -527,9 +527,46 @@ export function paramsHaveInvisibleCallers(path, { paramNeverOverridden = null }
   if (!fnPath) return false;
   const paramPath = findFunctionParamPath(path, fnPath);
   if (!paramPath) return false;
-  if (isImmediatelyInvokedFunction(fnPath)) return false;
+  // the IIFE's own invocation is not the ONLY call when the function is a NAMED expression that
+  // references its own name inside the body: that name can re-invoke it with arguments the
+  // caller-lossy emission never sees (`(function f({from} = Array){ return c ? f(1) : from })()`
+  // - the self-call passes 1, so the default never runs there, yet an extract emits `_Array$from`
+  // unconditionally). fall through to the param-override scan / conservative bail for that shape
+  if (isImmediatelyInvokedFunction(fnPath) && !namedFunctionSelfReferences(fnPath)) return false;
   if (paramNeverOverridden?.(paramPath)) return false;
   return true;
+}
+
+// a FunctionExpression / FunctionDeclaration whose own name is referenced anywhere in its params
+// or body - a potential self-call (or an escape that leads to one). the name binds only inside the
+// function, so any such reference is the sole extra caller an immediately-invoked gate would
+// otherwise miss. a PARAM default is in scope of the name too (`(cb = () => f(1))` re-invokes it),
+// so params are scanned alongside the body. conservative: a non-call reference (`return f`) still
+// counts, since it can escape and be called with arguments. non-computed property / member KEYS
+// (`{ f: 1 }`, `.f`) are skipped
+function namedFunctionSelfReferences(fnPath) {
+  const node = fnPath?.node;
+  const name = node?.id?.name;
+  if (!name) return false;
+  return (node.params ?? []).some(param => identifierReferencedInSubtree(param, name))
+    || identifierReferencedInSubtree(node.body, name);
+}
+
+function identifierReferencedInSubtree(node, name) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (node.type === 'Identifier') return node.name === name;
+  const keyProp = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression' ? 'property'
+    : node.type === 'ObjectProperty' || node.type === 'Property'
+      || node.type === 'ObjectMethod' || node.type === 'ClassMethod' ? 'key' : null;
+  for (const key of Object.keys(node)) {
+    // a non-computed member / property KEY is a name literal, not a reference
+    if (key === keyProp && !node.computed) continue;
+    const value = node[key];
+    if (Array.isArray(value)) {
+      if (value.some(child => identifierReferencedInSubtree(child, name))) return true;
+    } else if (identifierReferencedInSubtree(value, name)) return true;
+  }
+  return false;
 }
 
 // walk parentPath chain (inclusive) to the nearest enclosing function-like. used by
