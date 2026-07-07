@@ -89,6 +89,17 @@ let worker = null;
 let workerReady = null;
 let nextId = 0;
 const pending = new Map();
+// a worker death (crash / OOM / a stripped-realm `import()` that hard-exits) must FAIL the
+// in-flight evals loudly instead of leaving their promises pending forever - an unhandled
+// hang here wedges the shard, so the coordinator's Promise.all never settles and the whole
+// run stalls with no diagnostic. every pending id settles with a sentinel key; the next
+// `ensureWorker` call forks a fresh worker
+function settleAllPending(reason) {
+  for (const [id, settle] of pending) {
+    pending.delete(id);
+    settle(`stripped-worker-died: ${ reason }`);
+  }
+}
 function ensureWorker() {
   if (workerReady) return workerReady;
   const stripUrl = pathToFileURL(join(HERE, 'strip-builtins.mjs')).href;
@@ -101,20 +112,43 @@ function ensureWorker() {
       pending.delete(msg.id);
       settle(msg.key);
     });
+    function onDeath(reason) {
+      resolve(); // a pre-ready death must not wedge ensureWorker's awaiters either
+      settleAllPending(reason);
+      worker = null;
+      workerReady = null;
+    }
+    worker.on('error', error => onDeath(error?.message ?? 'error'));
+    worker.on('exit', (code, signal) => onDeath(`exit ${ code ?? signal }`));
   });
   return workerReady;
 }
 // re-run an already-written module file in the builtin-stripped realm; returns its runtimeKey
 async function evalStripped(file) {
   await ensureWorker();
+  // the worker may have died while we awaited readiness - retry once against a fresh fork
+  if (!worker) await ensureWorker();
+  if (!worker) return 'stripped-worker-died: unavailable';
   const id = nextId++;
   return new Promise(resolve => {
     pending.set(id, resolve);
-    worker.send({ id, file });
+    // eslint-disable-next-line promise/prefer-await-to-callbacks -- node's send() error channel IS a callback
+    worker.send({ id, file }, error => {
+      // a send onto a dead IPC channel is otherwise dropped silently
+      if (error && pending.has(id)) {
+        pending.delete(id);
+        resolve(`stripped-worker-died: ${ error.message }`);
+      }
+    });
   });
 }
 export function closeStrippedWorker() {
-  if (worker) worker.kill();
+  if (worker) {
+    // the intentional shutdown must not trigger the death-sentinel path
+    worker.removeAllListeners('exit');
+    worker.removeAllListeners('error');
+    worker.kill();
+  }
   worker = null;
   workerReady = null;
 }
