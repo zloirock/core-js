@@ -121,6 +121,7 @@ import {
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   buildSuperStaticMeta,
+  createClassHelpers,
   globalProxyMemberName,
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
@@ -4988,6 +4989,41 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
 }
 
 // --- helpers/class-walk (pure utilities) ---
+
+{
+  // a stale path from a replaced subtree (detached ancestor, node === null) must degrade to
+  // "no enclosing member" without throwing and without poisoning the walk cache for live
+  // nodes re-used in the rebuilt tree
+  function typeIs(expected) {
+    return function (node) { return node?.type === expected; };
+  }
+  const tShim = {
+    isClassMethod: typeIs('ClassMethod'),
+    isClassPrivateMethod: typeIs('ClassPrivateMethod'),
+    isClassProperty: typeIs('ClassProperty'),
+    isClassPrivateProperty: typeIs('ClassPrivateProperty'),
+    isClassAccessorProperty: typeIs('ClassAccessorProperty'),
+    isStaticBlock: typeIs('StaticBlock'),
+    isArrowFunctionExpression: typeIs('ArrowFunctionExpression'),
+    isFunction(node) { return !!node?.type?.includes('Function'); },
+  };
+  const helpers = createClassHelpers({ t: tShim, adapter: {}, resolveKey: () => null });
+  const method = { type: 'ClassMethod', static: true, key: { type: 'Identifier', name: 'm' } };
+  const classBody = { type: 'ClassBody', body: [method] };
+  const classNode = { type: 'ClassDeclaration', body: classBody };
+  const methodPath = {
+    node: method,
+    parentPath: { node: classBody, parentPath: { node: classNode, parentPath: null } },
+  };
+  const stale = { node: { type: 'ObjectProperty' }, parentPath: { node: null, parentPath: methodPath } };
+  check('class-walk: detached ancestor degrades without throw',
+    helpers.isInStaticContext(stale), false);
+  // the later live walk through the SAME method node still resolves - the stale walk must
+  // not have cached a null conclusion for it
+  const live = { node: { type: 'Identifier' }, parentPath: methodPath };
+  check('class-walk: live walk after stale one unaffected',
+    helpers.isInStaticContext(live), true);
+}
 
 {
   // POSSIBLE_GLOBAL_OBJECTS: from known-built-in-return-types.globalProxies
