@@ -35,6 +35,26 @@ QUnit.test('typed dispatch: generic element passthrough', assert => {
   assert.same(first([7, 8]), 7);
 });
 
+QUnit.test('typed dispatch: assertion guard with own-arg reassignment stays generic', assert => {
+  function assertString(v: unknown): asserts v is string { /* type-level only */ }
+  function probe(x: unknown) {
+    assertString((x = 5, x));
+    return (x as any).at(0);
+  }
+  // end-to-end lock of the transpiled assertion-guard path: it bundles, runs, and stays
+  // native-like (numbers have no `.at` - TypeError; the clean path returns the value). on
+  // modern Node the Maybe-String and generic helpers both fall back to the same native
+  // method, so the runtime here CANNOT separate a stale narrow from a generic dispatch -
+  // that discrimination lives in the fixture import-sets and the stripped-realm
+  // differential family, where the native method is gone
+  assert.throws(() => probe('ignored'));
+  function clean(x: unknown) {
+    assertString(x);
+    return (x as any).at(0);
+  }
+  assert.same(clean('abc'), 'a');
+});
+
 QUnit.test('typed dispatch: as-cast receiver stays callable with correct this', assert => {
   const counters = { hits: [1, 2, 3] } as { hits: number[] };
   assert.same(counters.hits.at(-1), 3);
