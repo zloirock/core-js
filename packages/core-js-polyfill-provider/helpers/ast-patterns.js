@@ -1595,8 +1595,14 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       // value is the receiver's member - synthesize it so the reaching resolution sees
       // `globalThis.Promise` exactly like the identifier-assignment form (`M = globalThis.Promise`).
       // an unresolvable receiver just fails downstream resolution, same as no value
+      // inherit `rhs`'s source position so a downstream reassignment-dominance check can anchor at the
+      // capture read (where the receiver was destructured), not fall back to the host use - a positionless
+      // synthetic node made a reassign-after-capture receiver look dominated and wrongly bailed
       else if (key !== null && isReceiverShapedNode(rhs)) {
-        out.push({ type: 'MemberExpression', object: rhs, property: { type: 'Identifier', name: key }, computed: false });
+        out.push({
+          type: 'MemberExpression', object: rhs, property: { type: 'Identifier', name: key },
+          computed: false, start: rhs.start, end: rhs.end,
+        });
       }
     }
   }
