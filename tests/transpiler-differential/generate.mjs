@@ -1213,6 +1213,29 @@ function * generateFlattenRebuiltInit() {
   for (const c of CASES) yield { ...snippet(`flatten-rebuilt-init/${ c.id }`, c.code), strip: true };
 }
 
+// --- this-static destructure remap ---
+// `const { from } = this` in a static method of `extends Array` reads the inherited STATIC
+// surface: the fixed funnel injects/extracts the polyfill. full-env both paths reach the
+// native static, so the stripped realm separates them (native gone - the un-fixed raw read
+// dies, the extraction substitutes the pure binding)
+function * generateThisStaticDestructure() {
+  const CASES = [
+    { id: 'basic-from',
+      code: '(() => { class C extends Array { static m() { const { from } = this; return from([7]).length; } } return C.m(); })()' },
+    { id: 'renamed-groupby',
+      code: '(() => { class C extends Map { static m() { const { groupBy: g } = this; return typeof g; } } return C.m(); })()' },
+    // the `this` PARAM-DEFAULT synth: pre-fix pure lost the inherited static through the
+    // extends swap even in a full environment
+    { id: 'param-default-this',
+      code: '(() => { class C extends Map { static m({ groupBy: g } = this) { return typeof g; } } return C.m(); })()' },
+    // sibling declarators: the first declarator's split must not derail (or crash on) the
+    // second `this` read's stale re-visit
+    { id: 'two-declarators',
+      code: '(() => { class C extends Map { static m() { const { groupBy: g } = this, { keyOf } = this; return [typeof g, typeof keyOf]; } } return C.m(); })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`this-static-destructure/${ c.id }`, c.code), strip: true };
+}
+
 // --- Class-field narrow staleness (TS) ---
 // a field narrow that survives a shadow/write it should have dropped dispatches the WRONG
 // Maybe: full-env both forms fall back to the same native method, so only the stripped realm
@@ -2976,6 +2999,7 @@ export function * generate() {
   yield * generateAssignAliasReassign();
   yield * generateSynthSwapPureCtorReRead();
   yield * generateFlattenRebuiltInit();
+  yield * generateThisStaticDestructure();
   yield * generateFieldNarrowStale();
   yield * generateAssertGuardStale();
   yield * generateConditionalMirror();
