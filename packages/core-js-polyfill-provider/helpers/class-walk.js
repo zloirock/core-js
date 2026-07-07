@@ -619,6 +619,11 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     let prev = path;
     for (let cur = path.parentPath; cur; cur = cur.parentPath) {
       const { node } = cur;
+      // a stale path from a replaced subtree has detached ancestors (node === null): no
+      // enclosing member is derivable. bail WITHOUT backfilling - live nodes already in
+      // `visited` may be re-used in the rebuilt tree, and a cached null would poison
+      // their fresh re-visit
+      if (!node) return null;
       if (enclosingCache.has(node)) return backfill(visited, enclosingCache.get(node));
       // computed-key slot AND member decorators evaluate at class-def time in the OUTER scope
       // (this !== the class) - skip the member when prev's node is the key or one of its
@@ -953,6 +958,15 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     if (objType === 'Super') return true;
     return objType === 'ThisExpression' && isInStaticContext(path);
   }
+
+  // `const { X } = this` in a static method reads the inherited static surface: the shared
+  // destructure funnel resolves it through this hook (same gate + shadow rules as the
+  // member remap). both emitters call this factory per file, so the hook re-attaches with
+  // helpers closing over per-file state
+  adapter.resolveThisStaticHost = function (path, key) {
+    if (!isInStaticContext(path) || isShadowedByClassOwnMember(path, key)) return null;
+    return resolveStaticInheritedMember(path, key);
+  };
 
   return {
     resolveStaticInheritedMember,
