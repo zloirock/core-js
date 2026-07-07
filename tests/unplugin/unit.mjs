@@ -2121,6 +2121,37 @@ function checkPrePostUsageGlobalSourcesContent() {
 }
 checkPrePostUsageGlobalSourcesContent();
 
+// --- pre+post: ctor-alias member reads survive the snapshot handoff end-to-end ---
+// the injector-level round-trip is unit-locked above (blind entries carried, per-binding
+// entries intentionally dropped - stale spans); this locks the TRANSFORM-level outcome the
+// handoff exists for: a usage-global pre detects the alias, the post pass still resolves the
+// member read through the carried hint for BOTH the declaration and the assignment form.
+// the usage-pure twin completes in pre (the alias and its read rewrite in the same pass), so
+// post is an idempotent pass-through - locked as the discriminating other branch
+function checkPrePostAliasMemberHandoff() {
+  const globalCases = [
+    ['decl-form', 'const { Map: M } = globalThis;\nexport const r = M.groupBy([1], x => x);\n'],
+    ['assignment-form', 'let M;\n({ Map: M } = globalThis);\nexport const r = M.groupBy([1], x => x);\n'],
+  ];
+  for (const [label, source] of globalCases) {
+    const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+    const pre = plugin.transform(source, '/src/prepost-alias.js', 'pre');
+    const post = plugin.transform(pre?.code ?? source, '/src/prepost-alias.js', 'post');
+    const out = post?.code ?? pre?.code ?? source;
+    check(`prePost/global alias ${ label } injects the member polyfill`,
+      /core-js\/modules\/es\.map\.group-by/.test(out), true);
+  }
+  const pureSource = 'const { Map: M } = globalThis;\nexport const r = typeof M.groupBy;\n';
+  const purePlugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const purePre = purePlugin.transform(pureSource, '/src/prepost-alias-pure.js', 'pre');
+  check('prePost/pure alias read narrows already in pre', /_Map\$groupBy/.test(purePre?.code ?? ''), true);
+  const purePost = purePlugin.transform(purePre?.code ?? pureSource, '/src/prepost-alias-pure.js', 'post');
+  const purePostCode = purePost?.code ?? purePre?.code ?? pureSource;
+  check('prePost/pure post is idempotent over the rewritten alias', /_Map\$groupBy/.test(purePostCode)
+    && !/_Map\$groupBy\$/.test(purePostCode), true);
+}
+checkPrePostAliasMemberHandoff();
+
 // the discriminating other branch: a usage-pure pre REWRITES the source (`Array.from` -> pure
 // helper) and emits a content-bearing map, so post must CHAIN through it and OMIT its own
 // sourcesContent (re-emitting would duplicate the content the build composes from pre's map).
