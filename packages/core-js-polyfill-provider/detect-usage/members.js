@@ -1073,7 +1073,10 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals, scope, a
     // via the placement-static branch) re-subsumes the receiver-LESS collapse cases that genuinely drop the call
     let optionalToCall = node.type === 'OptionalMemberExpression' || node.optional;
     while (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
-      const propName = current.computed ? null : current.property?.name;
+      // fold a computed STRING key like the plain form (`g['self'].Map` === `g.self.Map`) - the
+      // canonical member-name resolver, matching `markSubsumedProxyChain`'s peel; a bespoke
+      // literal-only check left a computed proxy hop unmarked
+      const propName = staticMemberKeyName(current);
       if (!propName || !POSSIBLE_GLOBAL_OBJECTS.has(propName)) break;
       if (current.type === 'OptionalMemberExpression' || current.optional) optionalToCall = true;
       handledObjects.add(current);
