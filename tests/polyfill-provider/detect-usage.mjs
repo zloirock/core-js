@@ -36,6 +36,10 @@ import {
   collectDestructureUnionCandidates,
   collectMemberUnionCandidates,
   flattenFallbackBranches,
+  isConstantLiteralReceiver,
+  isReReferenceableReceiver,
+  isSeFreeBranchingReceiver,
+  isSeFreeMemberReceiver,
 } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
@@ -1053,5 +1057,59 @@ runBoth('descendToChainRoot/optionalCount aggregates across a paren seal', '(glo
   const top = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'key');
   check(lbl, descendToChainRoot(top.node).optionalCount, 1);
 });
+
+// --- receiver re-reference classification (side-effect-key destructure plan) ---
+// cross-parser: babel spells an object getter as ObjectMethod(kind get), estree as Property(kind get) -
+// both must classify identically. an accessor re-fires on READ, so a literal bearing one is NOT safe to
+// reference twice even though `mayHaveSideEffects` proves its CREATION pure - re-emitting the literal beside
+// the residual would double-evaluate the getter. a side-effect-free MEMBER / BRANCHING receiver is
+// memoize-only for the same reason (a second read re-fires the getter / re-selects the branch)
+function receiverInit(adapter, prog) {
+  return adapter.pickPath(prog, 'VariableDeclarator').node.init;
+}
+for (const [predicate, name, rows] of [
+  [isReReferenceableReceiver, 'isReReferenceableReceiver', [
+    ['identifier', 'const x = holder;', true],
+    ['this', 'const x = this;', true],
+    ['plain object', 'const x = { a: 1 };', true],
+    ['object with identifier values', 'const x = { a: b };', true],
+    ['plain array', 'const x = [1, 2];', true],
+    ['method is not an accessor', 'const x = { m() {} };', true],
+    ['constant template', 'const x = `abc`;', true],
+    ['getter object', 'const x = { get z() { return 1; } };', false],
+    ['setter object', 'const x = { set z(v) {} };', false],
+    ['getter nested in an array', 'const x = [{ get z() { return 1; } }];', false],
+    ['getter nested in an object', 'const x = { a: { get z() { return 1; } } };', false],
+    ['call receiver', 'const x = make();', false],
+    ['spread literal', 'const x = [...a];', false],
+    // eslint-disable-next-line no-template-curly-in-string -- source string under test IS an interpolated template
+    ['interpolated template', 'const x = `a${ y }`;', false],
+  ]],
+  [isSeFreeBranchingReceiver, 'isSeFreeBranchingReceiver', [
+    ['pure ternary', 'const x = c ? [7] : [];', true],
+    ['pure logical or', 'const x = a || b;', true],
+    ['nullish', 'const x = a ?? b;', true],
+    ['effectful ternary', 'const x = c ? f() : [];', false],
+    ['effectful logical', 'const x = a || f();', false],
+    ['non-branching literal', 'const x = [1, 2];', false],
+    ['member is not branching', 'const x = holder.p;', false],
+  ]],
+  [isSeFreeMemberReceiver, 'isSeFreeMemberReceiver', [
+    ['pure member', 'const x = holder.p;', true],
+    ['effectful member object', 'const x = make().p;', false],
+    ['non-member literal', 'const x = [1];', false],
+  ]],
+  [isConstantLiteralReceiver, 'isConstantLiteralReceiver', [
+    ['constant array', 'const x = [1, 2, 3];', true],
+    ['constant nested object', 'const x = { a: 1, b: { c: "s" } };', true],
+    ['object with identifier bails', 'const x = { a: b };', false],
+    ['getter object bails', 'const x = { get z() { return 1; } };', false],
+    ['primitive is not extensible', 'const x = 5;', false],
+  ]],
+]) {
+  for (const [variant, code, expected] of rows) {
+    runBoth(`${ name }/${ variant }`, code, (adapter, prog, lbl) => check(lbl, predicate(receiverInit(adapter, prog)), expected));
+  }
+}
 
 finish();
