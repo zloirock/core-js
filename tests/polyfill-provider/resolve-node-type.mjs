@@ -413,6 +413,32 @@ runBoth('TS interface annotation: method return -> Array',
     checkTruthy(`${ lbl } interface binding -> non-primitive`, type && type.primitive === false);
   });
 
+// --- accessor member resolution (getter/setter typeof-bail) ---
+// an accessor member must NOT resolve as a Function object (`typeof obj.g` reads the GETTER'S
+// RETURN value; a Function resolution would drive a throwing Function-receiver Maybe downstream).
+// the bail lets the return-type resolution take over; a real method still resolves to Function
+
+runBoth('object getter member resolves the return type, not Function',
+  'const obj = { get g() { return 1; } }; const t = obj.g;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'number', ctor: null });
+  });
+
+runBoth('class static getter member resolves the return type, not Function',
+  'class C { static get sg() { return 1; } } const t = C.sg;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'number', ctor: null });
+  });
+
+runBoth('object method member still resolves to a Function object',
+  'const obj = { m() {} }; const t = obj.m;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Function' });
+  });
+
 // --- typeof narrowing ---
 // the engine has two narrowing channels:
 //   - `resolveTypeGuardNarrowing` (internal) fires when typeof guard resolves to a
