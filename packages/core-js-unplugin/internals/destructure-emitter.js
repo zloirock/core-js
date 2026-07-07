@@ -56,6 +56,7 @@ import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   descendToChainRoot,
+  discardRescueNodes,
   findProxyGlobal,
   isAliasProxyHopChain,
   navHasUnresolvableProxyHop,
@@ -70,7 +71,6 @@ import {
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  discardRescueNodes,
   isSourcedSymbolIteratorMeta,
   planCallRootDiscardedProxySwap,
   planProxyReceiver,

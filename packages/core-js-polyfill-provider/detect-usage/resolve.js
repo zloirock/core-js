@@ -6,10 +6,12 @@
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
 import {
   isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
+  symbolKeyToEntry,
 } from '../helpers/class-walk.js';
 import { staticReceiverHint } from './globals.js';
 import {
   isTopLevelThisContext,
+  collectFoldedReceiverSideEffects,
   isDirectiveStatement,
   isReassignedBeyondDeclarator,
   isVarDeclaratorInLoopBody,
@@ -1245,6 +1247,105 @@ export function navHasUnresolvableProxyHop(navNode, resolvePure) {
 export function maximalProxyGlobalHop(node, aliasCtx = null, { allowSideEffectKeys = false, throughChainAssign = false } = {}) {
   const prefix = maximalProxyGlobalPrefix(node, aliasCtx, { allowSideEffectKeys, throughChainAssign });
   return prefix && prefix.type !== 'Identifier' ? prefix : null;
+}
+
+// the underlying CallExpression at a chain root (`f().X`, `(() => globalThis)().Array`), null otherwise -
+// callers probe `inlineCallHasObservableEffects` for SE-preservation. `throughChainAssign` additionally
+// sees the call under `(a = IIFE()).Symbol` (the subsumption gate needs it); the SE-harvest callers must
+// NOT pass it - the preserved assignment already re-emits the call, so harvesting it too would double-run it
+export function findChainRootCallExpression(node, throughChainAssign = false) {
+  const { root } = descendToChainRoot(node, throughChainAssign);
+  return isCallShape(root) ? root : null;
+}
+
+// SE-bearing call at the root of a chain (`(() => { c++; return X; })()`, direct or under member
+// hops): a fold / flatten that DISCARDS the chain would silently drop the call's observable setup.
+// returns the call node when it carries effects, null otherwise - callers either harvest it for
+// re-emission or bail the discard entirely
+export function seBearingChainRootCall({ node, scope, adapter, path }) {
+  const rootCall = findChainRootCallExpression(node);
+  return rootCall && inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path })
+    ? rootCall : null;
+}
+
+// observable nodes a DISCARD would silently drop, in source-eval order: chain-assignments
+// (direct or buried under member hops - rescued WHOLE, the structural walk pushes them without
+// descending), an SE-bearing chain-root call (interleaved at its true position via the rescue
+// channel), and every effect buried in a computed member KEY the discard folds away
+// (`globalThis[(c++, 'self')]` - a chain-assignment/root-call-only probe dropped the key effect).
+// the root call evaluates at its true source position - BEFORE any hop-key effect above it
+// (`mk()[(eff(), 'self')].Array` runs mk THEN eff) - so it interleaves via the rescue channel,
+// never appends last. the destructure flatten consults this for the init it is about to discard,
+// and the fallback-logical synth-collapse (`{from} = LEFT || Set`) for the resolved LEFT it folds
+// away; callers re-emit the returned nodes ahead of the extraction / polyfill literal or keep the
+// init verbatim. NOT for the `in` fold, whose planner rescues a DIRECT assignment RHS itself -
+// routing it through here would double-rescue
+export function discardRescueNodes({ node, scope, adapter, path }) {
+  const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
+  return collectFoldedReceiverSideEffects(node, [], rootCall ? new Set([rootCall]) : null);
+}
+
+// `resolveKey` can fold StringLiteral / TemplateLiteral / `+` concat to the string
+// `'Symbol.X'`, but none of those are the well-known symbol. this predicate rejects
+// string-sourced keys so `'Symbol.iterator' in Array` isn't miscategorised as an
+// is-iterable check. parallel to resolveKey's Identifier / MemberExpression branches
+// minus the string-folding cases
+export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
+  if (depth > MAX_KEY_DEPTH) return false;
+  node = unwrapTransparentSeq(node);
+  const { type } = node;
+  // string-folded sources - plain strings, not the symbol
+  if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
+    || (type === 'BinaryExpression' && node.operator === '+')) return false;
+  // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape.
+  // also confirm the property is a symbol-name shape: `symbolKeyToEntry` maps ANY lowercase-first
+  // name to a synthetic `symbol/<name>` entry, so it does not itself filter to well-known symbols
+  // (`Symbol.someUserKey` passes here too). the real well-known gate is downstream `isEntryNeeded`
+  // / `isEntryAvailable`, which turns a non-well-known name into a noop plan (no dead import), so a
+  // random `Symbol.foo` never triggers symbol-routed dispatch.
+  // for `Symbol[key]` with statically-resolvable computed key - resolve via `resolveKey`
+  // and validate the resulting name. when the key isn't statically resolvable (dynamic
+  // expression), return true conservatively: we know the shape is Symbol-indexed, even
+  // if the specific well-known name is unknown - downstream callers rely on this to
+  // avoid over-eliminating polyfill dispatch, and `resolveKey` pairing in the caller
+  // filters on the string form anyway
+  if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
+    if (!asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) return false;
+    if (!node.computed && node.property?.type === 'Identifier') {
+      return symbolKeyToEntry(`Symbol.${ node.property.name }`) !== null;
+    }
+    if (node.computed) {
+      const name = resolveKey({
+        node: node.property, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+      });
+      if (name !== null) return symbolKeyToEntry(`Symbol.${ name }`) !== null;
+    }
+    return true;
+  }
+  if (type !== 'Identifier') return false;
+  const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
+  if (!entry) return false;
+  // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
+  // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
+  // to the whole receiver and lose the `.iterator` slot
+  if (bindingSymbolKey(entry.binding, adapter.packages) !== null) return true;
+  // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
+  // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
+  // user-aliased polyfill packages from `additionalPackages`)
+  if (entry.init) return isSymbolSourcedKey({
+    node: entry.init, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
+  });
+  return false;
+}
+
+// folded `Symbol.X` string whose SOURCE is a real well-known-symbol reference, not a string
+// spelling. sequence-tail peel so an SE-prefixed key (`[(eff(), Symbol.iterator)]`) classifies
+// by its tail. the `in`-producers deliberately do NOT route through this: there the check GATES
+// meta production with its own nested-dot rule, and a peel would fold an SE-carrying LHS whose
+// effects that branch has no channel to preserve (the string-branch keeps them in place)
+export function symbolSourcedFoldedKey({ key, keyNode, scope, adapter, path }) {
+  return typeof key === 'string' && key.startsWith('Symbol.')
+    && isSymbolSourcedKey({ node: peelReceiverSequenceTail(keyNode), scope, adapter, path });
 }
 
 // is `node` a member chain rooted at an ALIAS of a proxy-global (NOT a proxy-global NAME) carrying a REAL
