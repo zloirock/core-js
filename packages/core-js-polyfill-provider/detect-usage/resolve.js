@@ -1222,6 +1222,18 @@ export function proxyGlobalMemberCtorPure({ receiver, aliasCtx = null, resolvePu
   return pure && pure.kind !== 'instance' ? pure : null;
 }
 
+// the MEMO-ARG form of the pure-ctor whole-swap: the swap erases the WHOLE navigation
+// (`g.self[(e++, 'Map')]` -> `_Map`), so every effect buried in it - computed-key SEs and an
+// SE-bearing chain-root call, in source eval order - must re-run ahead of the binding (the
+// shared discarded-receiver rescue plan; a provably-pure inline root call is dropped). the
+// direct (non-memo) re-read never carries receiver SE (an SE receiver is classified
+// callBranch and always memoizes), so `proxyGlobalMemberCtorPure` stays SE-blind there
+export function proxyGlobalMemberCtorPureSwap({ receiver, aliasCtx = null, resolvePure }) {
+  const pure = proxyGlobalMemberCtorPure({ receiver, aliasCtx, resolvePure });
+  if (!pure) return null;
+  return { pure, se: discardRescueNodes({ node: receiver, ...aliasCtx }) };
+}
+
 // true when ANY hop of a proxy-nav is a proxy-global name WITHOUT a pure entry (`globalThis.window` -
 // no `_window`): the natural visitor leaves it raw off the pure root (`_globalThis.window`, undefined
 // off-engine). both emitters' hop-collapse drives gate WRITE targets on this: a nav whose every hop
