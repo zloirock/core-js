@@ -2,6 +2,7 @@ import { parseSync } from 'oxc-parser';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import { collapseWhitespace } from './collapse-whitespace.mjs';
 
 const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
 const { basename, join } = path;
@@ -29,54 +30,6 @@ function normalize(code) {
 // the same line or every targets-bearing debug fixture would spuriously diverge from the baseline
 function collapseDriftingTargets(text) {
   return text === null ? text : text.replace(/Using targets: \{[^}]*\}/, 'Using targets: <RESOLVED>');
-}
-
-// collapse cosmetic whitespace outside string literals for formatting-insensitive comparison.
-// spaces between identifier-like tokens (keywords, names) are preserved to catch
-// broken codegen like `constfrom` instead of `const from`. line/block comments are
-// consumed whole (dropped from output) so apostrophes inside comments don't get mistaken
-// for string delimiters and swallow the rest of the file
-function collapseWhitespace(code) {
-  let result = '';
-  for (let i = 0; i < code.length; i++) {
-    const ch = code[i];
-    if (ch === '/' && code[i + 1] === '/') {
-      // ECMA-262 LineTerminator: LF / CR / U+2028 / U+2029
-      while (i < code.length && code[i] !== '\n' && code[i] !== '\r'
-        && code[i] !== '\u2028' && code[i] !== '\u2029') i++;
-      continue;
-    }
-    if (ch === '/' && code[i + 1] === '*') {
-      i += 2;
-      while (i + 1 < code.length && !(code[i] === '*' && code[i + 1] === '/')) i++;
-      i++; // land on final `/` — outer i++ advances past
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') {
-      const quote = ch;
-      result += ch;
-      for (i++; i < code.length; i++) {
-        result += code[i];
-        if (code[i] === '\\') {
-          result += code[++i] ?? '';
-          continue;
-        }
-        if (code[i] === quote) break;
-      }
-    } else if (/\s/.test(ch)) {
-      // keep a single space only when both neighbors are word characters
-      const before = result.at(-1);
-      // scan ahead to the next non-whitespace
-      let j = i + 1;
-      while (j < code.length && /\s/.test(code[j])) j++;
-      const after = code[j];
-      if (before && after && /[\w$]/.test(before) && /[\w$]/.test(after)) result += ' ';
-      i = j - 1;
-    } else {
-      result += ch;
-    }
-  }
-  return result.trim();
 }
 
 // strip Babel-specific boilerplate + collapse whitespace for cross-plugin comparison

@@ -915,14 +915,14 @@ runBoth('peelArrayWrapperPair/collects consumed wrapper-level SE prefixes in ord
     const names = peeledPrefixes.map(e => e.callee?.name);
     checkDeep(lbl, names, ['o', 'm']);
     // babel strips the paren node, oxc keeps it around the leaf's sequence - both carry the prefix
-    check(lbl + ' leaf keeps its own prefix', /^(?:Sequence|Parenthesized)Expression$/.test(init?.type), true);
+    check(`${ lbl } leaf keeps its own prefix`, /^(?:Parenthesized|Sequence)Expression$/.test(init?.type), true);
   });
 runBoth('peelArrayWrapperPair/bail commits no prefixes',
   'const [{ y }] = (o(), notAnArray);', (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
     const { init, peeledPrefixes } = peelArrayWrapperPair({ pattern: decl.node.id, init: decl.node.init });
     checkDeep(lbl, peeledPrefixes, []);
-    check(lbl + ' init unchanged', init, decl.node.init);
+    check(`${ lbl } init unchanged`, init, decl.node.init);
   });
 
 // the exported fallback-branch walker: the member / `in` producers enumerate a BRANCHING
