@@ -1,6 +1,7 @@
 import {
   buildDestructuringInitMeta,
   chooseFallbackReceiverNode,
+  collectDestructureUnionCandidates,
   isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
@@ -12,7 +13,6 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
-  collectDestructureUnionCandidates,
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
