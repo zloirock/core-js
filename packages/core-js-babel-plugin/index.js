@@ -396,7 +396,9 @@ export default function plugin(api, options) {
         isInheritedStaticLookup,
         isInStaticContext,
         isShadowedByClassOwnMember,
-        enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, adapter, resolvePure),
+        enumerateFallbackBranches(meta, path) {
+          return enumerateFallbackDestructureBranches(meta, path, adapter, { resolvePure, followIndirection: true });
+        },
       });
 
       // any detached ancestor puts our node outside the live AST - polyfill emission
