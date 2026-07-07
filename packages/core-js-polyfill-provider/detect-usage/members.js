@@ -13,8 +13,8 @@ import { isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
+  attachMemberUnionExtras,
   bindingSymbolKey,
-  collectMemberUnionCandidates,
   descendToChainRoot,
   ownChainOptionalCount,
   enterIdentifierBindingFollow,
@@ -377,14 +377,19 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     collectFoldedReceiverSideEffects(obj.object, protoCtorReceiverSE);
     if (protoCtorReceiverSE.length) meta.protoCtorReceiverSE = protoCtorReceiverSE;
   }
-  // a prototype-navigated read (`Array.prototype[k]`) unions its reachable keys like every other
+  // a prototype-navigated read (`C.prototype[k]`) unions its reachable keys like every other
   // member: each alternative dispatches as a typeless prototype meta (over-inject-safe), with the
-  // primary pair excluded the usual way. the receiver axis does not apply - the ctor is fixed
+  // primary pair excluded the usual way. the ctor is fixed only for a literal `Array.prototype` -
+  // an ALIASED `C.prototype` where `C` is a reassigned let/var reaches every reassignment target,
+  // so the receiver axis enumerates too; each reachable ctor dispatches the key as ITS prototype
+  // method (`let C = Array; if (x) C = String; C.prototype.includes` needs es.string.includes
+  // beside the dominating es.array.includes). primaryObject stays null so the dominating ctor
+  // keeps its typeless key extras and only genuine reassignment values add typed rows
   if (meta) {
-    const protoExtras = collectMemberUnionCandidates({
-      objectNode: null, computedKeyNode, primaryObject: null, primaryKey: key, scope, adapter, path,
+    attachMemberUnionExtras(meta, {
+      objectNode: obj.object, computedKeyNode, primaryObject: null, primaryKey: key,
+      placement: 'prototype', scope, adapter, path,
     });
-    if (protoExtras.length) meta.extraCandidates = protoExtras;
   }
   if (!meta) {
     // chain-assignment receiver `(a = Array).from(...)`: peel `=` chain so receiver
@@ -409,10 +414,9 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     meta = { kind: 'property', object: objectName, key, placement, receiverHint: staticReceiverHint(placement, objectName) };
     // usage-global: a conditionally reassigned receiver / computed-key reaches more than the
     // declarator-init primary - emit a side-effect import for each reachable target too
-    const extraCandidates = collectMemberUnionCandidates({
+    attachMemberUnionExtras(meta, {
       objectNode: classifyTarget, computedKeyNode, primaryObject: objectName, primaryKey: key, scope, adapter, path,
     });
-    if (extraCandidates.length) meta.extraCandidates = extraCandidates;
     // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
     // (including these nested keys) via the preserved assignment - collecting here too double-runs it.
     // static collapse discards the WHOLE receiver, so harvest its SE (chain-root call + buried hop-key) in
@@ -858,39 +862,45 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
   // as written at runtime and the tail names the object to classify
   let rightObject = unwrapTransparentSeq(node.right);
   if (rightObject?.type === 'SequenceExpression') rightObject = unwrapTransparentSeq(rightObject.expressions.at(-1));
-  if (resolvedLeft) {
-    const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path });
-    if (objectName) {
-      const placement = isStaticPlacement(objectName);
-      if (placement) {
-        // a monkey-patched static must not FOLD: the fold's `true` assumes the polyfill key,
-        // but the user's patch (or delete) owns the slot. no meta + no marking - the RHS
-        // receiver substitutes through the identifier machinery and `in` evaluates live
-        if (adapter.isMutatedStatic?.(objectName, resolvedLeft)) return null;
-        const meta = { kind: 'in', key: resolvedLeft, object: objectName, placement };
-        // usage-global reachable union: a reassigned LHS key alias / RHS receiver alias reaches
-        // each candidate at runtime, and the `in` RESULT depends on the injected polyfill - each
-        // extra target earns its side-effect import (property-shaped extras inject identically)
-        const extraCandidates = collectMemberUnionCandidates({
-          objectNode: rightObject, computedKeyNode: node.left,
-          primaryObject: objectName, primaryKey: resolvedLeft, scope, adapter, path,
-        });
-        if (extraCandidates.length) meta.extraCandidates = extraCandidates;
-        // usage-pure FOLDS this meta to `true`, discarding the RHS. the planner harvests the
-        // discarded operand's STRUCTURAL effects (sequence prefixes + tails, computed keys, buried
-        // assignments rescued WHOLE) off `node.right`. detection adds only the scope-aware bit the
-        // structural walk can't decide: a provably-IMPURE inline receiver call at the chain root
-        // (`'from' in mk().Array` keeps `mk()`; a pure `(() => Map)()` is dropped to bare `true`).
-        // a chain-ASSIGNMENT root is NOT probed here - the planner rescues the whole assignment,
-        // which already reruns any call inside it, so harvesting both would double-run the setup
-        const sideEffects = [];
-        collectChainRootCallEffect({ node: rightObject, sideEffects, scope, adapter, path });
-        if (sideEffects.length) meta.sideEffects = sideEffects;
-        return meta;
-      }
-    }
+  const objectName = resolveObjectName({ objectNode: rightObject, scope, adapter, seen: new Set(), path });
+  const placement = objectName ? isStaticPlacement(objectName) : null;
+  if (resolvedLeft && objectName && placement) {
+    // a monkey-patched static must not FOLD: the fold's `true` assumes the polyfill key,
+    // but the user's patch (or delete) owns the slot. no meta + no marking - the RHS
+    // receiver substitutes through the identifier machinery and `in` evaluates live
+    if (adapter.isMutatedStatic?.(objectName, resolvedLeft)) return null;
+    const meta = { kind: 'in', key: resolvedLeft, object: objectName, placement };
+    // usage-global reachable union: a reassigned LHS key alias / RHS receiver alias reaches
+    // each candidate at runtime, and the `in` RESULT depends on the injected polyfill - each
+    // extra target earns its side-effect import (property-shaped extras inject identically)
+    attachMemberUnionExtras(meta, {
+      objectNode: rightObject, computedKeyNode: node.left,
+      primaryObject: objectName, primaryKey: resolvedLeft, scope, adapter, path,
+    });
+    // usage-pure FOLDS this meta to `true`, discarding the RHS. the planner harvests the
+    // discarded operand's STRUCTURAL effects (sequence prefixes + tails, computed keys, buried
+    // assignments rescued WHOLE) off `node.right`. detection adds only the scope-aware bit the
+    // structural walk can't decide: a provably-IMPURE inline receiver call at the chain root
+    // (`'from' in mk().Array` keeps `mk()`; a pure `(() => Map)()` is dropped to bare `true`).
+    // a chain-ASSIGNMENT root is NOT probed here - the planner rescues the whole assignment,
+    // which already reruns any call inside it, so harvesting both would double-run the setup
+    const sideEffects = [];
+    collectChainRootCallEffect({ node: rightObject, sideEffects, scope, adapter, path });
+    if (sideEffects.length) meta.sideEffects = sideEffects;
+    return meta;
   }
-  return null;
+  // the dominating pair did not resolve to an injectable static (`let O = {}; if (c) O = Array;
+  // 'from' in O`, or a dominating key that does not fold) - no primary injects, but a reachable
+  // reassignment alternative still dispatches at runtime, so the union must run anyway. the
+  // extras ride an INERT carrier: `kind:'in'` with a null object resolves to no module itself
+  // and usage-pure never reaches here with extras (the union is empty off usage-global), so the
+  // pure fold keeps seeing the same null this producer always returned
+  const carrier = attachMemberUnionExtras({ kind: 'in', key: resolvedLeft ?? null, object: null, placement: null }, {
+    objectNode: rightObject, computedKeyNode: node.left,
+    primaryObject: objectName && placement ? objectName : null, primaryKey: resolvedLeft ?? null,
+    scope, adapter, path,
+  });
+  return carrier.extraCandidates ? carrier : null;
 }
 
 // returns { key: 'Symbol.xxx', ref: { raw, unwrapped }, sideEffects } so the caller can mark
