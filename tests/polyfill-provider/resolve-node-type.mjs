@@ -439,6 +439,49 @@ runBoth('object method member still resolves to a Function object',
       { primitive: false, ctor: 'Function' });
   });
 
+// --- resolver bias: index-sig call-union widen / typeof accessor bail / keyof privacy ---
+
+runBoth('index-sig call union widens on an unresolvable arm return',
+  'type A = { [k: string]: () => number[]; }; type B = { [k: string]: () => UndeclaredT; }; declare const d: A | B; declare const k: string; const t = d[k]();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+runBoth('index-sig call union keeps the narrow on convergent arms',
+  'type A = { [k: string]: () => number[]; }; type B = { [k: string]: () => number[]; }; declare const d: A | B; declare const k: string; const t = d[k]();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('ReturnType<typeof static getter> bails instead of returning the value type',
+  'class X { static get sg(): () => number[] { return () => [1]; } } declare const v: ReturnType<typeof X.sg>; const t = v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Function', false);
+  });
+runBoth('ReturnType<typeof static method> keeps the precise return',
+  'class X { static sm(): number[] { return [1]; } } declare const v: ReturnType<typeof X.sm>; const t = v;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('non-passthrough mapped keyof keeps a public string key spelled like a private',
+  "interface Src { '#weird': number[]; } type M = { [K in keyof Src]: readonly Src[K][]; }; declare const m: M; const t = m['#weird'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('non-passthrough mapped keyof still excludes a real private member',
+  'class P { #secret = 1; open = 2; } type M = { [K in keyof P]: number[]; }; declare const m: M; const t = m.open;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+
 // --- class-fields shadow census: namespace pattern-merge + wrapped object writer ---
 // a namespace DESTRUCTURING export on a subclass binds the runtime static slot like the
 // identifier form - the inherited `this.<static>` narrow must drop; other-name patterns keep it
