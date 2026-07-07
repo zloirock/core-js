@@ -159,6 +159,14 @@ export function createUsageGlobalCallback({
         return;
       }
     }
+    // INDIRECT branching receiver (const-alias init / bound-callee return): the typeless
+    // primary keeps the instance coverage, each resolved branch adds its STATIC deps beside
+    // it - the member-form canon (static-only extras next to the typeless primary)
+    if (enumerateFallbackBranches && meta?.kind === 'property' && meta.object === null) {
+      for (const branchMeta of enumerateFallbackBranches(meta, path) ?? []) {
+        if (branchMeta.placement === 'static') dispatch(branchMeta, path);
+      }
+    }
     return dispatch(superMeta ?? meta, path);
   };
 }
