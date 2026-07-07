@@ -1197,6 +1197,24 @@ function * generateSynthSwapPureCtorReRead() {
   for (const c of CASES) yield { ...snippet(`synth-swap-pure-ctor-reread/${ c.id }`, c.code), strip: true };
 }
 
+// --- Class-field narrow staleness (TS) ---
+// a field narrow that survives a shadow/write it should have dropped dispatches the WRONG
+// Maybe: full-env both forms fall back to the same native method, so only the stripped realm
+// separates them (the receiver's true runtime type is a string - a stale Maybe-Array forwards
+// to the deleted native, the corrected generic substitutes the string polyfill)
+function * generateFieldNarrowStale() {
+  const CASES = [
+    // cast-wrapped object writer: its `this.field =` write must widen the field
+    { id: 'object-writer-cast-wrapped',
+      code: '(() => { const obj = { field: ["a", "b"], m: (function () { this.field = "zz"; }) as any }; obj.m(); return (obj.field as any).at(0); })()' },
+    // namespace destructuring export shadows the subclass static slot at runtime
+    { id: 'namespace-pattern-shadow',
+      code: '(() => { class Base { static list = ["a", "b"]; static m() { return (this.list as any).at(0); } } '
+        + 'class Sub extends Base {} namespace Sub { export const { list } = { list: "zz" }; } return Sub.m(); })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`field-narrow-stale/${ c.id }`, c.code), strip: true, ts: true };
+}
+
 // --- Assertion-guard staleness (TS) ---
 // a reassignment in the assertion guard's OWN argument slot leaves the runtime value
 // post-mutation: the string narrow is stale and dispatch must stay generic. in a full
@@ -2941,6 +2959,7 @@ export function * generate() {
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
   yield * generateSynthSwapPureCtorReRead();
+  yield * generateFieldNarrowStale();
   yield * generateAssertGuardStale();
   yield * generateConditionalMirror();
   yield * generateChains();
