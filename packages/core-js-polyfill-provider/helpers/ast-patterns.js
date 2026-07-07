@@ -1369,10 +1369,16 @@ export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = 
   // (`const a = src; src = X`) cannot reach the captured value, so it is not a reachable union value
   const readNode = usageNode ?? usagePath.node;
   const useInLoop = nodeSitsInLoopRerunWithin(owner.node, readNode);
+  // an Identifier-shaped violation (adapters that record the LHS Identifier) resolves its
+  // enclosing assignment by subtree search - anchor that search at the BINDING's own scope
+  // block, not the usage's var-scope owner: a use inside an inner function (a param default,
+  // a closure body) has an owner that does not contain an outer-scope write. babel scopes
+  // carry the AST node on `.block`, estree-toolkit ones on `.path.node`
+  const violationSearchRoot = binding.scope?.block ?? binding.scope?.path?.node ?? owner.node;
   const out = [];
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
     if (!useInLoop && endsBeforeStart(readNode, node, false)) continue;
-    out.push(...reassignmentValueNodesAt(node, owner.node, bindingName, ctx));
+    out.push(...reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx));
   }
   return out;
 }
