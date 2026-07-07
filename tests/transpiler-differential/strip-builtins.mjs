@@ -5,12 +5,10 @@
 //   2. the injection actually happened - a MISSED injection leaves a native call which now throws
 //      (in a full Node realm it would silently succeed and mask the bug).
 // The full-environment native run (in the parent) supplies the reference value; the stripped run
-// must reproduce it.
-//
-// Strip ONLY leaf feature methods/statics that core-js IMPLEMENTS and never consumes internally.
-// NOT foundational primitives (slice / push / indexOf / Function.prototype.call / defineProperty),
-// NOT constructors (Promise / Map / Set), NOT Symbol / Symbol.iterator - removing those would break
-// core-js's own internals or the realm itself, not exercise a polyfill.
+// must reproduce it. WHAT gets stripped (and the strip criterion) lives in strip-manifest.mjs -
+// the shared source this preload applies and generate.mjs derives the per-snippet arming from.
+
+import { STRIP_PROTO, STRIP_STATIC, STRIP_GLOBALS } from './strip-manifest.mjs';
 
 function dropProto(ctor, names) {
   for (const n of names) {
@@ -23,24 +21,19 @@ function dropStatic(ctor, names) {
   }
 }
 
-dropProto(Array, [
-  'at', 'flat', 'flatMap', 'includes', 'findLast', 'findLastIndex',
-  'toReversed', 'toSorted', 'toSpliced', 'with',
-]);
-dropProto(String, ['at', 'padStart', 'padEnd', 'replaceAll', 'trimStart', 'trimEnd']);
-dropStatic(Array, ['from', 'of', 'fromAsync']);
-dropStatic(Object, ['fromEntries', 'groupBy', 'hasOwn']);
-dropStatic(Map, ['groupBy']);
-// Number.isInteger: the pure static stands alone (is-integral-number falls back to its own impl when
-// the native is absent - evaluated at load, after this preload), so a missed injection surfaces here
-dropStatic(Number, ['isInteger']);
-// the new-Set-methods leaf ops: core-js implements each on its own pure Set and never consumes them
-// internally, so removing them from the native prototype (the constructor stays) only forces a missed
-// `new Set` -> pure-Set rewrite to surface (the native op is now gone) instead of silently using native
-dropProto(Set, [
-  'union', 'intersection', 'difference', 'symmetricDifference',
-  'isSubsetOf', 'isSupersetOf', 'isDisjointFrom',
-]);
+// the CTORS map keys the manifest's names onto this realm's live constructors; the manifest
+// (strip-manifest.mjs) is the single source both for what gets deleted here and for what
+// generate.mjs arms - per-ctor rationales live next to the lists there
+const CTORS = { Array, String, Set, Object, Map, Number };
+for (const [name, methods] of Object.entries(STRIP_PROTO)) dropProto(CTORS[name], methods);
+for (const [name, statics] of Object.entries(STRIP_STATIC)) dropStatic(CTORS[name], statics);
+
+// NOTE: `Array.prototype[Symbol.iterator]` is deliberately NOT stripped, although the
+// `symbol-iter-alias` / `getiterator-key-se` observables read it (their strip legs are
+// therefore vacuous and those cells carry `strip:false`): the transpiled OUTPUTS themselves
+// use array destructuring / spread, which needs the native array iterator to run at all -
+// deleting it fails the "never consumed" criterion at the language level (verified: the
+// polyfilled destructure-default legs TypeError realm-wide with the slot gone)
 
 // usage-pure also rewrites the `Iterator` constructor and every `globalThis` reference to pure
 // imports, so they belong in the strip set too. `GLOBAL` is the realm global via
@@ -55,5 +48,4 @@ const GLOBAL = Function('return this')();
 // its own prototype) - deleting them throws in the polyfilled output too, so they fail the "never consumed
 // internally" strip criterion. Iterator-helper receivers stay full-env (a missed injection is import-parity
 // caught), while Set's leaf ops ARE reimplemented per-pure-Set and remain strippable above.
-delete GLOBAL.Iterator;
-delete GLOBAL.globalThis;
+for (const name of STRIP_GLOBALS) delete GLOBAL[name];

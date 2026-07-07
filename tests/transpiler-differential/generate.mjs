@@ -3,6 +3,8 @@
 // entry). Snippets must run natively without a "boring" throw so the runtime three-way comparison
 // stays high-signal. `arr`, `cond`, `nul`, `log` are bound by the prelude. Node-only: `globalThis`
 // is used (never `self` / `window`, which don't exist here).
+import { STRIP_PROTO, STRIP_STATIC, STRIP_GLOBALS } from './strip-manifest.mjs';
+
 const PRELUDE = [
   'const log = [];',
   'const cond = true;',
@@ -675,10 +677,11 @@ function * generateIdentityIifeRebind() {
 // --- Symbol.iterator alias fold: `obj[iterator]` where `iterator` resolves to Symbol.iterator ---
 // direct, bare-constructor destructure, and proxy-global destructure all bind `iterator` to
 // Symbol.iterator, so `[x][iterator]` is an iterator-method access and folds to `_getIteratorMethod(x)`.
-// a MISSED fold leaves `[x][Symbol.iterator]` reading natively: in the STRIPPED realm the array's
-// iterator is not on the prototype (pure doesn't patch it), so `typeof` is `undefined` there while the
-// full-env reference is `function` - the divergence the strip oracle catches. all three must fold in
-// BOTH emitters (bare/proxy previously folded only in babel via its early pattern-flatten)
+// strip:false ON PURPOSE: `Array.prototype[Symbol.iterator]` cannot be stripped (the transpiled
+// outputs' own destructuring/spread needs it - see strip-builtins.mjs), so a missed fold reads
+// the still-present native iterator and the strip leg could never fire; the LIVE oracle for this
+// family is import-set parity + the full-env three-way. all four must fold in BOTH emitters
+// (bare/proxy previously folded only in babel via its early pattern-flatten)
 const SYMBOL_ITER_ALIAS = [
   { id: 'direct', pre: '', key: 'Symbol.iterator' },
   { id: 'bare', pre: 'const { iterator } = Symbol;', key: 'iterator' },
@@ -688,7 +691,7 @@ const SYMBOL_ITER_ALIAS = [
 function * generateSymbolIteratorAliasFold() {
   for (const c of SYMBOL_ITER_ALIAS) {
     const body = `(() => { ${ c.pre } return typeof [10, 20][${ c.key }]; })()`;
-    yield { ...snippet(`symbol-iter-alias/${ c.id }`, body), strip: true };
+    yield { ...snippet(`symbol-iter-alias/${ c.id }`, body), strip: false };
   }
   // SHADOW: a NESTED same-name binding off a non-Symbol object must NOT fold (the injector's
   // name-keyed alias info is flat). native reads `[x][5]` -> undefined; an over-fold would call
@@ -1260,6 +1263,12 @@ function * generateChains() {
       // type-agnostic null receiver pairs with any chain (short-circuits before the first hop)
       if (recv.type !== null && recv.type !== chain.type) continue;
       for (const opt of C_OPT) {
+        // a null receiver must SHORT-CIRCUIT at the first hop. under patterns whose first
+        // member access is a plain `.` (`dot`, `call`) the snippet throws natively before any
+        // poly hop - a boring throw with zero oracle signal (the strip leg is skipped on
+        // native errors, and the full-env three-way agrees on the TypeError no matter what
+        // was injected) - so those cells are not emitted
+        if (recv.type === null && !opt.at(chain.hops[0], 0).member) continue;
         yield { ...snippet(`chain/${ recv.id }/${ chain.id }/${ opt.id }`, renderChain(recv.src, chain.hops, opt)), strip: true };
       }
     }
@@ -2690,15 +2699,33 @@ const TS_FAMILIES = {
   ],
 };
 
-// EXPR families whose every snippet is a PROVABLE-injection case (a strip-target builtin that MUST be
-// replaced) get the stripped-realm oracle, re-arming the only leg that catches a SHARED (both-plugins-
-// agree) missed injection - import parity and the full-env three-way both pass when both sides miss
-// identically. left full-env: families with a deliberate bail / null-receiver / dynamic-key where a
-// native call legitimately survives, and families whose target is not in the strip set (their strip run
-// would be vacuous anyway). within a marked family, a non-strip-target snippet (e.g. structuredClone)
-// simply runs vacuously - its native is still present - which is harmless
-const STRIP_FAMILIES = new Set([
-  'string-receiver', 'static-more', 'array-new-methods', 'collection-methods',
+// the stripped-realm oracle is DERIVED PER SNIPPET from the strip-target criterion instead of a
+// family allow-list: a snippet whose text reads a strip-target builtin is a PROVABLE-injection
+// case, and the stripped realm is the only leg that catches a SHARED (both-plugins-agree) missed
+// injection - import parity and the full-env three-way both pass when both sides miss identically
+// (the old 4-family allow-list silently forwent that leg for ~50 provable families). a snippet
+// with no strip-target runs the leg vacuously-green if armed, so the regex errs conservative.
+// derived from the SHARED manifest (strip-manifest.mjs) - one edit arms both sides of the oracle
+const STRIP_TARGET_RE = new RegExp([
+  `\\.(?:${ [...new Set(Object.values(STRIP_PROTO).flat())].sort().join('|') })\\b`,
+  `\\b(?:${ Object.entries(STRIP_STATIC).map(([ctor, names]) => `${ ctor }\\.(?:${ [...names].sort().join('|') })`).sort().join('|') })\\b`,
+  `\\b(?:${ [...STRIP_GLOBALS].sort().join('|') })\\b`,
+].join('|'));
+
+// families whose snippets DELIBERATELY keep a native call live (a bail, a dynamic key, a
+// null/unknown receiver) - the surviving native call throws in the stripped realm BY DESIGN,
+// so the strip leg stays off no matter how provable the family's other reads look
+const FULL_ENV_FAMILIES = new Set([
+  // adversarial residual/patch/dead-default shapes: monkey-patched statics, typeof-guarded dead
+  // assigns, rest/dup-key siblings that stay native-residual, `??=`-rooted and IIFE-ternary
+  // receivers the canon bails on - the family's oracle is the full-env VALUE set (patched
+  // markers, dead defaults, SE counts), and its by-design residuals would only false-fail strip
+  'destructure-edge',
+]);
+// point exceptions inside otherwise-armed families: a single cell whose surviving native read
+// is the canon's own bail (`globalThis ?? {}` keeps the guard, blocking the proxy-root collapse)
+const FULL_ENV_SNIPPETS = new Set([
+  '(globalThis ?? {}).Array.from([1, 2])',
 ]);
 
 // ASI left-fusion: a destructure whose lifted side-effect re-roots its statement-overwrite on a hazard char
@@ -2744,7 +2771,10 @@ const D_GETITERATOR_SE = [
     body: 'let hop = 0, key = 0; try { globalThis?.[(hop++, "globalThis")].globalThis[(key++, Symbol.iterator)](); } catch (e) {} return [hop, key];' },
 ];
 function * generateGetIteratorKeySE() {
-  for (const c of D_GETITERATOR_SE) yield { ...snippet(`getiterator-key-se/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+  // strip:false: the observables read `Array.prototype[Symbol.iterator]` (non-strippable, see
+  // strip-builtins.mjs) or short-circuit before any strip target - the live oracle is the SE
+  // counters in the full-env three-way, not the stripped realm
+  for (const c of D_GETITERATOR_SE) yield { ...snippet(`getiterator-key-se/${ c.id }`, `(() => { ${ c.body } })()`), strip: false };
 }
 
 // TS leading-`this` param (`function f(this: T, x): R`): the resolver must DROP the leading this-param
@@ -2874,7 +2904,10 @@ export function * generate() {
   yield * generateCollectionReceivers();
   yield * generateForOfIterable();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
-    for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), strip: STRIP_FAMILIES.has(family) };
+    for (const expr of exprs) {
+      const strip = !FULL_ENV_FAMILIES.has(family) && !FULL_ENV_SNIPPETS.has(expr) && STRIP_TARGET_RE.test(expr);
+      yield { ...snippet(`${ family }: ${ expr }`, expr), strip };
+    }
   }
   for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
     for (const expr of exprs) yield { ...snippet(`${ family }: ${ expr }`, expr), ts: true };
