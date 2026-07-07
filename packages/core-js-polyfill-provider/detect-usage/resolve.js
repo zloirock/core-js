@@ -675,7 +675,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
 // the caller already emits, empty in the common no-reassignment case. global-only: usage-pure bails
 // on any reassignment upstream, so a reassigned alias never reaches a receiver-dropping substitute
 export function collectMemberUnionCandidates(options) {
-  const { objectNode, computedKeyNode, primaryObject, primaryKey, scope, adapter, path } = options;
+  const { objectNode, computedKeyNode, primaryObject, primaryKey, placement: placementOverride = null, scope, adapter, path } = options;
   if (adapter.method !== 'usage-global') return [];
   const objects = reachableAliasValues({
     aliasNode: objectNode, primary: primaryObject, scope, adapter, path,
@@ -695,7 +695,10 @@ export function collectMemberUnionCandidates(options) {
   const extras = [];
   for (const object of objects) for (const key of keys) {
     if ((object === primaryObject && key === primaryKey) || key === 'prototype') continue;
-    const placement = object !== null && isStaticPlacement(object) ? 'static' : 'prototype';
+    // `placementOverride`: a prototype-navigated producer (`C.prototype[k]`) dispatches EVERY
+    // reachable pair as a prototype method of the alternative ctor - the receiver value itself
+    // is the ctor, not a static host. other producers derive placement from the value
+    const placement = placementOverride ?? (object !== null && isStaticPlacement(object) ? 'static' : 'prototype');
     // mirror the primary meta's receiver-type gate so a union key that is an instance method on
     // the constructor (`Array[K]` with K reaching 'concat') bails instead of over-injecting
     extras.push({ kind: 'property', object, key, placement, receiverHint: staticReceiverHint(placement, object) });
@@ -703,18 +706,29 @@ export function collectMemberUnionCandidates(options) {
   return extras;
 }
 
+// the single ATTACH point of the usage-global reachable union: every member / `in` / destructure
+// producer that can carry alternatives routes through here, so a producer branch that skips the
+// choke is the bug, not a design split. an axis the producer cannot supply is passed null and the
+// union enumerates the remaining axis; empty extras leave the meta untouched
+export function attachMemberUnionExtras(meta, options) {
+  const extras = collectMemberUnionCandidates(options);
+  if (extras.length) meta.extraCandidates = extras;
+  return meta;
+}
+
 // destructure twin of the member union: `const { [k]: v } = recv` reads the same reachable
 // receiver x key targets a member access does, so each earns its side-effect import too. `path`
 // is the ObjectProperty the funnels anchor at - the receiver alias comes from the declarator /
-// assignment host when one exists (other hosts - for-x, catch, params, nested patterns - carry
-// no reassignable receiver alias in reach and enumerate keys only); a per-branch fallback meta
-// keeps its own mirror machinery and is excluded here
+// assignment / param-default host when one exists (the remaining hosts - for-x, catch, nested
+// patterns, array elements - bind from a per-element value, not a reassignable receiver alias,
+// and enumerate keys only); a per-branch fallback meta keeps its own mirror machinery and is
+// excluded here
 export function collectDestructureUnionCandidates({ meta, keyNode, computed, scope, adapter, path }) {
   if (!meta || meta.kind !== 'property' || meta.fromFallback) return [];
   if (adapter.method !== 'usage-global') return [];
   const host = path?.parentPath?.parentPath?.node;
   const hostInitNode = host?.type === 'VariableDeclarator' ? host.init
-    : host?.type === 'AssignmentExpression' ? host.right : null;
+    : host?.type === 'AssignmentExpression' || host?.type === 'AssignmentPattern' ? host.right : null;
   return collectMemberUnionCandidates({
     objectNode: hostInitNode,
     computedKeyNode: computed ? keyNode : null,
