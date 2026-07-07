@@ -117,6 +117,7 @@ import {
   unwrapInitValue,
   unwrapParens,
   unwrapReceiverLeaf,
+  paramsHaveInvisibleCallers,
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
@@ -3363,6 +3364,61 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
 }
 
 // --- helpers/ast-patterns: pure predicates ---
+
+{
+  // paramsHaveInvisibleCallers: a NAMED immediately-invoked function that references its own
+  // name in the body has an extra (self-call) caller, so a caller-lossy emission is unsound -
+  // it reports invisible callers even though it is an IIFE
+  function iifeParamProbe({ named, selfRefKind }) {
+    const param = { type: 'Identifier', name: 'p' };
+    const nameRef = { type: 'Identifier', name: 'f' };
+    const bodyStmts = selfRefKind === 'call'
+      ? [{ type: 'ExpressionStatement', expression: { type: 'CallExpression', callee: nameRef, arguments: [{ type: 'NumericLiteral', value: 1 }] } }]
+      : selfRefKind === 'escape'
+        ? [{ type: 'ReturnStatement', argument: nameRef }]
+        : selfRefKind === 'propkey'
+          ? [{
+            type: 'ExpressionStatement',
+            expression: {
+              type: 'ObjectExpression',
+              properties: [{ type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'f' }, value: { type: 'NumericLiteral', value: 1 } }],
+            },
+          }]
+          : [];
+    const fn = { type: 'FunctionExpression', id: named ? { type: 'Identifier', name: 'f' } : null, params: [param], body: { type: 'BlockStatement', body: bodyStmts } };
+    const call = { type: 'CallExpression', callee: fn, arguments: [] };
+    const fnPath = { node: fn, parentPath: { node: call, parentPath: null } };
+    return { node: param, parentPath: fnPath };
+  }
+  const opts = { paramNeverOverridden: () => false };
+  checkTruthy('ast-patterns: named self-call IIFE has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'call' }), opts));
+  checkTruthy('ast-patterns: named escaping IIFE has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'escape' }), opts));
+  check('ast-patterns: unnamed IIFE callers visible',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: false, selfRefKind: 'none' }), opts), false);
+  check('ast-patterns: named IIFE without self-reference callers visible',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'none' }), opts), false);
+  check('ast-patterns: name matching an object-property KEY is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'propkey' }), opts), false);
+
+  // a self-reference in a PARAM DEFAULT is in scope of the name too - it counts as an extra caller
+  const paramDefaultParam = {
+    type: 'AssignmentPattern',
+    left: { type: 'Identifier', name: 'cb' },
+    right: {
+      type: 'ArrowFunctionExpression',
+      params: [],
+      body: { type: 'CallExpression', callee: { type: 'Identifier', name: 'f' }, arguments: [{ type: 'NumericLiteral', value: 1 }] },
+    },
+  };
+  const firstParam = { type: 'Identifier', name: 'p' };
+  const paramDefaultFn = { type: 'FunctionExpression', id: { type: 'Identifier', name: 'f' }, params: [firstParam, paramDefaultParam], body: { type: 'BlockStatement', body: [] } };
+  const paramDefaultCall = { type: 'CallExpression', callee: paramDefaultFn, arguments: [] };
+  const paramDefaultPath = { node: firstParam, parentPath: { node: paramDefaultFn, parentPath: { node: paramDefaultCall, parentPath: null } } };
+  checkTruthy('ast-patterns: named self-reference in a param default has invisible callers',
+    paramsHaveInvisibleCallers(paramDefaultPath, opts));
+}
 
 {
   // isASTNode: shape-only check - object with string `type`
