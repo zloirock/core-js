@@ -1240,6 +1240,26 @@ function * generateThisStaticDestructure() {
 // a SHADOWED `Symbol` identifier feeding a same-name destructure keeps the USER value: the
 // flat name-keyed alias info collides with the outer genuine alias, and folding the inner
 // read to the well-known symbol returns an iterator method instead of the user's element
+// --- SE-split native-ctor alias fold ---
+// a native-constructor alias written through an UNCONDITIONAL sequence-expression statement
+// folds its static read; babel splits the sequence IN PLACE, so the write's constantViolation
+// path detaches - the fix re-anchors it to the fresh statement, matching the estree side. a
+// CONDITIONAL sequence write stays native (the taken path only), and the resolver must not crash
+// on the stale path while narrowing the folded call's return type
+function * generateSeSplitNativeCtorAlias() {
+  const CASES = [
+    { id: 'unconditional-array-from',
+      code: '(() => { let A; (0, ({ Array: A } = globalThis)); return A.from([1, 2, 3]).length; })()' },
+    { id: 'unconditional-object-from-entries',
+      code: '(() => { let O; (0, ({ Object: O } = globalThis)); return O.fromEntries([["k", 7]]).k; })()' },
+    { id: 'unconditional-array-from-chain',
+      code: '(() => { let A; (0, ({ Array: A } = globalThis)); return A.from([4, 5]).at(-1); })()' },
+    { id: 'conditional-array-from-native',
+      code: '(() => { let A; if (Math.random() > 2) { (0, ({ Array: A } = globalThis)); } try { return A.from([6])[0]; } catch (e) { return "throws"; } })()' },
+  ];
+  for (const c of CASES) yield snippet(`se-split-native-ctor/${ c.id }`, c.code);
+}
+
 function * generateSymbolAliasShadow() {
   const CASES = [
     { id: 'shadowed-identifier',
@@ -3045,6 +3065,7 @@ export function * generate() {
   yield * generateFlattenRebuiltInit();
   yield * generateThisStaticDestructure();
   yield * generateSymbolAliasShadow();
+  yield * generateSeSplitNativeCtorAlias();
   yield * generateFieldNarrowStale();
   yield * generateAssertGuardStale();
   yield * generateConditionalMirror();
