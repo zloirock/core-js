@@ -107,6 +107,15 @@ function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = 
       break;
     }
   }
+  // `const { from } = this` inside a STATIC method of `extends Array`: `this` is the
+  // constructor, so the destructure reads the inherited STATIC surface exactly like
+  // `this.from` - resolve through the emitter's class-walk hook (same extends resolution
+  // and own-static-member shadow gate as the member remap); non-static / shadowed /
+  // unresolved supers fall through to the untyped default
+  if (unwrapped.type === 'ThisExpression' && path) {
+    const inherited = adapter.resolveThisStaticHost?.(path, key);
+    if (inherited) return { ...inherited, receiverHint: staticReceiverHint(inherited.placement, inherited.object) };
+  }
   // `const { from } = Array` or `const { from } = globalThis.Array`
   if (isReceiverShapedNode(unwrapped)) {
     const objectName = resolveObjectName({ objectNode: unwrapped, scope, adapter, path });
