@@ -714,12 +714,12 @@ export function refineParamDefaultInstancePure({ pureResult, key, receiverPath, 
 
 // a receiver SAFE TO REFERENCE TWICE: the residual destructure reads it, and the extracted instance
 // polyfill `_m(recv)` reads it again. a bare Identifier / `this` is safe; so is a side-effect-free literal
-// value (array / object / primitive with no nested call or spread) - re-evaluating yields a fresh value of
-// the SAME TYPE, so `_m`'s native-vs-polyfill pick is identical. a member (`obj.x` - `mayHaveSideEffects`
-// treats a property read as pure, but a getter would re-fire on the second read) or a call must NOT be
-// re-referenced, so they bail. `mayHaveSideEffects` recursively rejects `[fn()]` / `[...a]` literals; a
-// CONSTANT (no-interpolation) template is a string constant, so it parallels a StringLiteral - but an
-// interpolated `` `${x}` `` bails (re-evaluating would re-run x's string coercion, a possible side effect)
+// value (array / object / primitive with no nested call, spread, or getter / setter) - re-evaluating yields
+// a fresh value of the SAME TYPE, so `_m`'s native-vs-polyfill pick is identical. a member (`obj.x` -
+// `mayHaveSideEffects` treats a property read as pure, but a getter would re-fire on the second read) or a
+// call must NOT be re-referenced, so they bail. `mayHaveSideEffects` recursively rejects `[fn()]` / `[...a]`
+// literals; a CONSTANT (no-interpolation) template is a string constant, so it parallels a StringLiteral -
+// but an interpolated `` `${x}` `` bails (re-evaluating would re-run x's string coercion, a possible effect)
 const REFERENCEABLE_LITERAL_TYPES = new Set([
   'ArrayExpression',
   'ObjectExpression',
@@ -732,11 +732,24 @@ const REFERENCEABLE_LITERAL_TYPES = new Set([
   'Literal',
 ]);
 
+// an object-literal getter / setter re-fires on every property READ, so re-referencing the literal
+// (emitting it twice) double-evaluates the accessor - unlike a plain value property, whose read is pure.
+// `mayHaveSideEffects` proves object CREATION pure and cannot see this, so re-reference safety checks
+// accessors separately, recursing nested array / object literals. babel spells a getter as an ObjectMethod
+// and estree as a Property, but both carry `kind: 'get' | 'set'` - so the one `kind` test serves both
+function literalHasAccessorProperty(node) {
+  if (node?.type === 'ObjectExpression') {
+    return node.properties.some(p => p?.kind === 'get' || p?.kind === 'set' || literalHasAccessorProperty(p?.value));
+  }
+  if (node?.type === 'ArrayExpression') return node.elements.some(el => literalHasAccessorProperty(el));
+  return false;
+}
+
 export function isReReferenceableReceiver(node) {
   if (!node) return false;
   if (node.type === 'Identifier' || node.type === 'ThisExpression') return true;
   if (node.type === 'TemplateLiteral') return node.expressions.length === 0;
-  return REFERENCEABLE_LITERAL_TYPES.has(node.type) && !mayHaveSideEffects(node);
+  return REFERENCEABLE_LITERAL_TYPES.has(node.type) && !mayHaveSideEffects(node) && !literalHasAccessorProperty(node);
 }
 
 // a side-effect-free MEMBER receiver (`Array.prototype`, `holder.p`): reading it carries no
@@ -947,7 +960,7 @@ function proxyGlobalNameOf({ node, binding = null, adapter = null, scope = null 
   return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
 }
 
-function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = null, seen = null }) {
+function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = null, seen = null, readNode: incomingReadNode = null }) {
   if (depth > STATIC_WALK_DEPTH) return null;
   let current = unwrapTransparentSeq(node);
   let currentScope = scope;
@@ -955,8 +968,12 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
   // (`const a = b` reads `b` there). the reassignment-dominance check must use this read site - a write
   // to an intermediate hop AFTER its read can't change the captured value (`const a = b; b = 0; { from }
   // = a` keeps Array). the adapter surfaces the declarator at `binding.node` (no path), so thread the
-  // NODE; `path` (binding lookup / terminal / scope owner) stays the host so only the textual position moves
-  let readNode = path?.node ?? null;
+  // NODE; `path` (binding lookup / terminal / scope owner) stays the host so only the textual position moves.
+  // a recursive container descent (object-literal value / class static field) threads the CONTAINER's
+  // capture site as `incomingReadNode` - the value was captured when the container literal / class was
+  // evaluated, so a write AFTER that (but before the final host read) can't change it either; without this
+  // the recursion reset the read site to the host and over-bailed a reassign-after-capture value
+  let readNode = incomingReadNode ?? path?.node ?? null;
   let hops = 0;
   // per-walk cycle guard: `const a = b; const b = a` (mutually-aliased identifiers) would
   // bounce between names until STATIC_WALK_DEPTH burns out. Set short-circuits at the
@@ -993,17 +1010,23 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
       break;
     }
     const bindingType = adapter.getBindingNodeType(currentScope, current.name, path);
-    // class-bound leaf at empty walkPath: classes are stable bindings (no reassignment
-    // legal), so the identifier name reliably identifies the declaration. accept as the
-    // leaf without further dereferencing - matches the empty-walkPath / unbound-Identifier
-    // path below for the canonical-name return contract. enables `class Foo {}; const NS =
-    // {Foo}; walkStaticReceiverChain(NS, ['Foo'])` to return 'Foo' (otherwise would bail
+    // a class binding is REASSIGNABLE (`class Foo {}` then `Foo = X` is legal, unlike const), so a
+    // reassignment that dominates the read makes the declared name unreliable - gate the class arms
+    // exactly like the VariableDeclarator arm below. absent a dominating reassignment the identifier
+    // name reliably identifies the declaration: a class-bound leaf at empty walkPath returns its name
+    // (matching the empty-walkPath / unbound-Identifier path below for the canonical-name return
+    // contract), and a non-empty walkPath descends the class's STATIC fields. enables `class Foo {};
+    // const NS = {Foo}; walkStaticReceiverChain(NS, ['Foo'])` to return 'Foo' (otherwise would bail
     // here since ClassDeclaration isn't VariableDeclarator)
-    if (walkPath.length === 0 && bindingType === 'ClassDeclaration') return current.name;
     if (bindingType === 'ClassDeclaration') {
-      // remaining walkPath descends the class's STATIC fields - hand the declaration node to
-      // the container branch below
+      if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) return null;
+      if (walkPath.length === 0) return current.name;
+      // remaining walkPath descends the class's STATIC fields - hand the declaration node to the container
+      // branch below; the class declaration is where those fields captured their values, so it becomes the
+      // read site for the descent's reassignment checks (a field-value write after the class definition
+      // can't change the captured static)
       current = binding.path?.node ?? binding.node;
+      readNode = current;
       break;
     }
     if (bindingType !== 'VariableDeclarator') return null;
@@ -1039,12 +1062,12 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     currentScope = binding.scope ?? currentScope;
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
-  return walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited });
+  return walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited, readNode });
 }
 
 // post-dereference terminal: leaf extraction, proxy mid-chain lift, intermediate member
 // resolution, and the static-container descents (object literal / class statics)
-function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited }) {
+function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited, readNode = null }) {
   // leaf return: walkPath consumed - extract the leaf global name.
   // bare Identifier returns its name directly; proxy-global member access
   // (`globalThis.Array` / `_globalThis.Array` after polyfill-injected rewrite) routes
@@ -1054,7 +1077,7 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   if (walkPath.length === 0) {
     if (current?.type === 'Identifier') return current.name;
     if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
-      return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path });
+      return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
     }
     return null;
   }
@@ -1080,14 +1103,14 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   // descend-through-resolved-constructor which has no AST anchor here)
   if ((current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression')
       && walkPath.length === 1) {
-    return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path });
+    return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
   }
   // class STATIC fields are a member container too (`class NS { static M = Map }`); descend
   // the matching field's value exactly like an object-literal property
   if (current?.type === 'ClassDeclaration' || current?.type === 'ClassExpression') {
     const field = classStaticField(current, walkPath[0]);
     return field ? walkStaticReceiverStep({
-      node: field.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited,
+      node: field.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited, readNode,
     }) : null;
   }
   if (current?.type !== 'ObjectExpression') return null;
@@ -1101,7 +1124,7 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   });
   if (!match) return null;
   return walkStaticReceiverStep({
-    node: match.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited,
+    node: match.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited, readNode,
   });
 }
 
@@ -1282,6 +1305,10 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
   // the captured value, so the dominance check uses the read NODE (the adapter surfaces the declarator
   // at `binding.node`), not the host use - else `const a = b; b = 0; { from } = a` wrongly bails `b`
   let readNode = path?.node ?? null;
+  // the declarator this chain last dereferenced through - the value captured into the wrapper array is
+  // fixed at that point, so a downstream leaf resolution anchors its reassignment check there (not the
+  // destructure host). null when nothing dereferenced (an inline literal is captured at the host)
+  let captureSite = null;
   while (cur?.type === 'Identifier' && adapter.hasBinding(scope, cur.name, path) && !visited.has(cur.name)) {
     visited.add(cur.name);
     const binding = adapter.getBinding(scope, cur.name, path);
@@ -1293,8 +1320,9 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
     cur = unwrapExpressionChain(peelChainAssignmentDeep(initNode));
     scope = binding.scope ?? scope;
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
+    captureSite = readNode;
   }
-  return cur;
+  return { node: cur, captureSite };
 }
 
 // descend ArrayExpression layers following `indices` (outermost-first) to mirror the
@@ -1305,10 +1333,16 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
 // unwrap to the assumed slot and static resolution would lie.
 // when scope/adapter are passed, dereferences const-bound Identifier wrappers via
 // `followConstIdentifierInit` so `const wrapper = [Array]; [v] = wrapper` reaches Array
-function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = null, path = null) {
+function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = null, path = null, captureRef = null) {
   for (const index of indices) {
     let cur = unwrapExpressionChain(receiverNode);
-    if (scope && adapter) cur = followConstIdentifierInit(cur, scope, adapter, path);
+    if (scope && adapter) {
+      const followed = followConstIdentifierInit(cur, scope, adapter, path);
+      cur = followed.node;
+      // record the wrapper binding's declarator so a leaf resolution anchors its reassignment check
+      // at the capture point, not the destructure host (each level overwrites - the innermost wins)
+      if (followed.captureSite && captureRef) captureRef.site = followed.captureSite;
+    }
     if (cur?.type !== 'ArrayExpression') return null;
     for (let i = 0; i <= index; i++) {
       if (cur.elements[i]?.type === 'SpreadElement') return null;
@@ -1368,7 +1402,8 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
   if (!slot) return null;
   const slotNode = host.node[slot];
   if (!slotNode) return null;
-  const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host);
+  const captureRef = {};
+  const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host, captureRef);
   if (!descended) return null;
   const leaf = unwrapExpressionChain(descended);
   // any leaf that resolves to a static-placement constructor, through ONE branch: a bare global
@@ -1386,7 +1421,9 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
     // ahead of the extraction. an AssignmentExpression leaf (`[a = Array]`) classifies through
     // `resolveObjectName`'s own chain-assignment peel and is rescued WHOLE at emit - bailing it
     // instead would silently lose the polyfill
-    const resolved = resolveObjectName({ objectNode: leaf, scope: host.scope, adapter, path: host });
+    const resolved = resolveObjectName({
+      objectNode: leaf, scope: host.scope, adapter, path: host, usageNode: captureRef.site ?? host.node,
+    });
     return resolved && isStaticPlacement(resolved) ? resolved : null;
   }
   return null;
