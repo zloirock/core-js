@@ -15,8 +15,6 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 import {
   bindsModuleDefault,
-  collectDestructureUnionCandidates,
-  collectMemberUnionCandidates,
   descendToChainRoot,
   isStaticPlacement,
   isTransparentWrapper,
@@ -33,7 +31,11 @@ import {
   resolveSymbolIteratorEntry,
   tagSymbolSourcedMeta,
 } from '../../packages/core-js-polyfill-provider/detect-usage/members.js';
-import { flattenFallbackBranches } from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
+import {
+  collectDestructureUnionCandidates,
+  collectMemberUnionCandidates,
+  flattenFallbackBranches,
+} from '../../packages/core-js-polyfill-provider/detect-usage/destructure.js';
 import { peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
   isTypeAnnotationNodeType,
@@ -841,6 +843,11 @@ const unionAdapter = {
   ...provenanceAdapter,
   method: 'usage-global',
   getBinding(scope, name) { return scope?.getBinding?.(name); },
+  // the branch-objects axis probes the receiver's declarator through the full scope-adapter
+  // surface; a null node-type makes the indirection resolver bail, keeping these units on the
+  // reachable-reassignment axis they lock
+  getBindingNodeType() { return null; },
+  hasBinding(scope, name) { return !!scope?.getBinding?.(name); },
 };
 function unionExtras(adapter, prog, receiverIsStatic) {
   const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.computed);
