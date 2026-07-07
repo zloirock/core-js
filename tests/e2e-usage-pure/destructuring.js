@@ -2513,3 +2513,19 @@ QUnit.test('destructuring: SE-key sibling of a flatten-claimed declaration', ass
   assert.same(typeof more8, 'undefined');
   assert.same(revRuns, 1);
 });
+
+QUnit.test('array-wrapper flatten preserves wrapper-level side effects in order', assert => {
+  // the flatten discards the wrapper levels; the effects buried between them (outer chain +
+  // element prefixes) must each run EXACTLY once, outermost first
+  const order = [];
+  function eff(tag) {
+    order.push(tag);
+    return tag;
+  }
+  const [{ Array: { from } }] = (eff('outer'), [(eff('inner'), globalThis)]);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+  assert.deepEqual(order, ['outer', 'inner']);
+  const [[{ Array: { of } }]] = (eff('o2'), [(eff('m2'), [(eff('i2'), globalThis)])]);
+  assert.deepEqual(of(3), [3]);
+  assert.deepEqual(order, ['outer', 'inner', 'o2', 'm2', 'i2']);
+});
