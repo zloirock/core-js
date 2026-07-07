@@ -10,9 +10,15 @@ const a2 = [2];
 export const typedLocals = (globalThis.cond ? a1 : a2).at(-1);
 function eff(x) { return x; }
 export const seBranch = (globalThis.cond ? (eff(1), Reflect) : Object).ownKeys;
-// the canonical walker follows neither a const-alias INIT nor a bound CALLEE to a branching
-// value - the member form and the destructure form agree on this boundary (parity, both bail)
-const aliasInit = globalThis.cond ? Promise : Map;
-export const viaAliasInit = aliasInit.any;
-const boundCallee = () => (globalThis.cond ? Promise : Map);
-export const viaBoundCallee = boundCallee().race;
+// a DOMINATING reassignment kills the branching init before the use - the init value never
+// reaches the member, so following the alias would inject dead deps; the indirection
+// resolver bails (positive indirection forms live in audit-branch-value-indirection)
+let dominated = globalThis.cond ? Promise : Map;
+dominated = {};
+export const viaDominatedAlias = dominated.any;
+// an inner shadow is a fresh binding - the outer branching alias must not leak through it
+const shadowedAlias = globalThis.cond ? Promise : Map;
+export function innerShadow(arg) {
+  const shadowedAlias = arg;
+  return shadowedAlias.race;
+}

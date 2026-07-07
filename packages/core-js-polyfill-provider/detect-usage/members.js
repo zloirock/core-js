@@ -12,11 +12,10 @@ import {
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
-import { flattenFallbackBranches } from './destructure.js';
+import { attachMemberUnionExtras, flattenFallbackBranches, resolveIndirectBranchingReceiver } from './destructure.js';
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
-  attachMemberUnionExtras,
   descendToChainRoot,
   findChainRootCallExpression,
   isSymbolSourcedKey,
@@ -52,9 +51,15 @@ function attachBranchStaticExtras(meta, { node, key, scope, adapter, path }) {
   if (adapter.method !== 'usage-global') return meta;
   // gate on the walker's OWN branching probe (peel + branch-slot test) so every receiver shape
   // the canonical walk can flatten enumerates here too - a type-only gate missed the zero-arg
-  // IIFE-returned conditional (`(() => c ? Array : Iterator)().from`) the destructure twin covers
-  if (!getFallbackBranchSlots(peelFallbackReceiver(node))) return meta;
-  const branchExtras = flattenFallbackBranches({ node, key, scope, adapter, path })
+  // IIFE-returned conditional (`(() => c ? Array : Iterator)().from`) the destructure twin covers.
+  // an INDIRECT receiver (const-alias init / bound-callee return) resolves to its branching
+  // value first, so the alias form enumerates the same branch statics the inline form does
+  let branchingNode = node;
+  if (!getFallbackBranchSlots(peelFallbackReceiver(node))) {
+    branchingNode = resolveIndirectBranchingReceiver({ node, scope, adapter, path });
+    if (!branchingNode) return meta;
+  }
+  const branchExtras = flattenFallbackBranches({ node: branchingNode, key, scope, adapter, path })
     .filter(branch => branch.placement === 'static');
   if (branchExtras.length) meta.extraCandidates = (meta.extraCandidates || []).concat(branchExtras);
   return meta;
