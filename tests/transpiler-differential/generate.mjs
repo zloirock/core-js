@@ -1,8 +1,10 @@
 // Transpiler-differential generator. Each family yields self-contained modules exporting `r` (the observed
 // value) and `effects` (a side-effect log, so a receiver double-eval shows up as a duplicated
 // entry). Snippets must run natively without a "boring" throw so the runtime three-way comparison
-// stays high-signal. `arr`, `cond`, `nul`, `log` are bound by the prelude. Node-only: `globalThis`
-// is used (never `self` / `window`, which don't exist here).
+// stays high-signal. `arr`, `cond`, `nul`, `log` are bound by the prelude. Node has no `self`; ONLY the
+// native (untranspiled) leg aliases it to `globalThis` (harness.mjs, deleted before the transpiled
+// outputs run), so a `globalThis || self` proxy-global fallback resolves natively while a plugin that
+// leaves a bare `self` in its OUTPUT still throws (missed-injection). `window` is not a core-js target.
 import { STRIP_PROTO, STRIP_STATIC, STRIP_GLOBALS } from './strip-manifest.mjs';
 
 const PRELUDE = [
@@ -2135,7 +2137,7 @@ const EXPR_FAMILIES = {
       + 'const r = [[1]].flat?.()?.[0] && o.cA?.(1)?.cB(2)?.at(1); return [r]; })()',
     // a guarded non-poly optional computed hop stays syntactically valid and runs in order
     '(() => { const calls = []; const o = { customY(v) { calls.push("y"); return [v]; } }; '
-      + 'const r = [[o]].flat?.()?.[(calls.push("k"), "at")](0)?.[0].customY(3); return [r[0], calls.join("-")]; })()',
+      + 'const r = [[o]].flat?.()?.[(calls.push("k"), "at")](0)?.customY(3); return [r[0], calls.join("-")]; })()',
     // optional-hop key SE replays once through the folded guard too
     '(() => { const calls = []; const r = [[5]].flat?.()?.[(calls.push("o"), "map")](v => v[0])?.at(0); '
       + 'return [r, calls.length]; })()',
@@ -2273,6 +2275,20 @@ const EXPR_FAMILIES = {
     '(() => { let m = 1, c = 0; const { Array: { from } } = (c++, m) && globalThis; return [typeof from, c]; })()',
     '(() => { let c = 0; const { Array: { of } } = (c++, globalThis) || self; return [typeof of, c]; })()',
     '(() => { let c = 0; const { Array: { from } } = globalThis || (c++, self); return [typeof from, c]; })()',
+    // `self` in the KEPT (EVALUATED, not short-circuited) position: the proxy-global IS the taken value
+    // (|| / ?? keep the left, && keeps the right, a ternary keeps its branch, a member root is read), so
+    // the mirror / hop-collapse must rewrite bare `self` to its pure import (`_self`; core-js ships one).
+    // Node has no `self`, so the harness aliases it for the NATIVE leg ONLY - a plugin that leaves a bare
+    // `self` in its pure OUTPUT throws there (undefined) instead of silently resolving to globalThis
+    '(() => { const { Array: { of } } = globalThis && self; return typeof of; })()',
+    '(() => { const { Array: { from } } = self || globalThis; return typeof from; })()',
+    '(() => { const { Array: { of } } = self && globalThis; return typeof of; })()',
+    '(() => { const { Array: { from } } = self; return typeof from; })()',
+    '(() => { const { Array: { of } } = self ?? globalThis; return typeof of; })()',
+    '(() => { let cond = true; const { Array: { from } } = cond ? self : globalThis; return typeof from; })()',
+    '(() => { let c = 0; const { Array: { of } } = (c++, self); return [typeof of, c]; })()',
+    '(() => { const { from } = self.Array; return typeof from; })()',
+    '(() => { return self.Array.of(1, 2).length; })()',
     // host-shape edges of the precise mirror: multi-declarator keeps the sibling and the
     // effect; the assignment-form cascade keeps the whole RHS statement
     '(() => { let c = 0, m = 1; const a = 2, { Array: { of } } = (c++, m) && globalThis; return [typeof of, a, c]; })()',
@@ -2321,7 +2337,7 @@ const EXPR_FAMILIES = {
     '(() => { let from; ({ Array: { from } } = globalThis || globalThis); return typeof from; })()',
     '(() => { let of, c = 0; ({ Array: { of } } = (() => { c++; return globalThis; })()); return [typeof of, c]; })()',
     '(() => { const [{ Array: { from } }] = [globalThis || globalThis]; return typeof from; })()',
-    '(() => { function g({ Array: { of } } = globalThis || self || window) { return typeof of; } return g(); })()',
+    '(() => { function g({ Array: { of } } = globalThis || self) { return typeof of; } return g(); })()',
     '(() => { class K { m({ JSON: { stringify } } = globalThis) { return typeof stringify; } } return new K().m(); })()',
     // the call-site scan: a non-exported function whose every call leaves the default gets the
     // lossy emission back (nothing exists to lose); a real-arg caller and an escaping alias bail
