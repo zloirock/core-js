@@ -21,10 +21,10 @@ const ES_TARGETS = [
   'es6',
 ];
 
-const DEFAULT_TYPE_SCRIPT_VERSION = '6.0';
+const DEFAULT_TYPE_SCRIPT_VERSION = '7.0';
 
 const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
-  '7.0',
+  '6.0',
   '5.9',
   '5.8',
   '5.7',
@@ -34,7 +34,7 @@ const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
   // '5.3',
   // '5.2',
 ] : CI_TESTS ? [
-  '7.0',
+  '6.0',
   '5.9',
   '5.6',
 ] : [
@@ -96,10 +96,7 @@ async function runTasksInParallel() {
 }
 
 async function runTask({ cwd, ts = DEFAULT_TYPE_SCRIPT_VERSION, config, args = [] }) {
-  const native = ts === '7.0';
-  const pkg = native ? '@typescript/native-preview@beta' : `typescript@${ ts }`;
-  const bin = native ? 'tsgo' : 'tsc';
-  const task = $({ cwd, verbose: false })`npx --package ${ pkg } ${ bin } --project ${ config } ${ args }`;
+  const task = $({ cwd, verbose: false })`npx --package typescript@${ ts } tsc --project ${ config } ${ args }`;
   // eslint-disable-next-line no-underscore-dangle -- third-party code
   const { cmd } = task._snapshot;
   echo`run ${ cyan(cmd) }`;
