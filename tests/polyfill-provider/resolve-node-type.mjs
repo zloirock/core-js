@@ -1231,15 +1231,15 @@ runBoth('discriminant union: bigint guard does not narrow same-digit number memb
 // member tables - that's the user-observable contract these helpers exist to support
 
 runBoth('mapped type via keyof: `Pick<{a:string}, "a">.a` -> string',
-  'let x: Pick<{ a: string; b: number }, "a">;',
+  'let x: Pick<{ a: string; b: number }, "a">; x.a;',
   (adapter, prog, lbl) => {
-    const decl = adapter.pickPath(prog, 'VariableDeclarator');
     const resolver = adapter.makeResolver();
-    // Pick is a built-in structure-preserving wrapper - resolver walks it as a key-filtering
-    // mapped type. annotation alone shouldn't bottom out on a primitive, but resolvePropertyObjectType
-    // on `x.a` should yield string. without member access, check the binding is non-primitive
-    const type = resolver.resolveNodeType(decl.get('id'));
-    checkTruthy(`${ lbl } binding resolves`, type !== null);
+    // Pick is a structure-preserving wrapper: the binding keeps its object shape and the
+    // picked member `x.a` resolves through resolvePropertyObjectType to string
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(`${ lbl } binding`, resolver.resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Object' });
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node?.property?.name === 'a');
+    checkType(`${ lbl } member`, resolver.resolveNodeType(member), { primitive: true, kind: 'string' });
   });
 
 runBoth('passthrough mapped type: `{ [K in keyof T]: T[K] }` -> T',
@@ -1708,17 +1708,9 @@ runBoth('Array.isArray() built-in predicate narrows to Array',
   (adapter, prog, lbl) => {
     const ref = pickReturnArg(adapter, prog, 'x');
     const resolver = adapter.makeResolver();
-    // built-in Array.isArray is in KNOWN_STATIC_TYPE_GUARDS and should narrow x to Array
-    // in the positive branch. failure here would expose the typeguard table lookup
-    const type = resolver.resolveNodeType(ref);
-    // accept either Array Type or null - the engine may take either path depending on
-    // ambient binding wiring in this harness; this is a stub test that we'll refine when
-    // extracting the predicate-guards cluster
-    if (type === null || (type && type.primitive === false && type.constructor === 'Array')) {
-      pass();
-    } else {
-      fail(lbl, `expected Array or null, got ${ JSON.stringify(type) }`);
-    }
+    // built-in Array.isArray is in KNOWN_STATIC_TYPE_GUARDS - narrows x to Array in the
+    // positive branch; a typeguard-table regression would drop back to null/unknown
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: false, ctor: 'Array' });
   });
 
 // --- Resolver precision: ternary nullable-fold, discriminants, predicate-to-interface ---
@@ -2247,10 +2239,8 @@ runBoth('array destructure of tuple: `const [a, b]: [string, number[]] = ...` a 
       return false;
     });
     const resolver = adapter.makeResolver();
-    const type = resolver.resolveNodeType(aRef);
-    // we don't strictly require tuple-element narrowing here; ensure resolver doesn't crash
-    // and returns something non-throwing (null is acceptable - the contract is no exception)
-    checkTruthy(`${ lbl } destructure id resolves without throw`, type === null || type !== undefined);
+    // the tuple annotation narrows the first destructured element `a` to its slot type (string)
+    checkType(lbl, resolver.resolveNodeType(aRef), { primitive: true, kind: 'string' });
   });
 
 // --- Array.isArray narrowing ---
@@ -2260,13 +2250,7 @@ runBoth('Array.isArray narrowing inside if -> Array',
   (adapter, prog, lbl) => {
     const ref = pickReturnArg(adapter, prog, 'v');
     const resolver = adapter.makeResolver();
-    const type = resolver.resolveNodeType(ref);
-    // engine may not implement Array.isArray narrowing; smoke-test no-throw + acceptable result
-    if (type) {
-      checkType(lbl, type, { primitive: false, ctor: 'Array' });
-    } else {
-      pass();
-    }
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: false, ctor: 'Array' });
   });
 
 // --- Generic constraint propagation ---
@@ -2276,10 +2260,8 @@ runBoth('generic constraint via `<T extends number[]>` -> Array',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
     const resolver = adapter.makeResolver();
-    try {
-      resolver.resolveNodeType(decl.get('id'));
-      pass();
-    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
+    // ReturnType flows through the type param to its `number[]` constraint -> Array
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
   });
 
 // --- Static class members ---
@@ -2311,22 +2293,14 @@ runBoth('Object literal with spread does not crash',
 // NOTE: TS template-literal types in source use `${string}` placeholders - the test's source
 // literal must contain that syntax verbatim. disable lint rules that fire on its appearance
 // inside a non-template-string test fixture
-runBoth('Template literal type with string placeholder smoke',
+runBoth('Template literal type with string placeholder -> string',
   // eslint-disable-next-line no-template-curly-in-string -- TS template-literal type fixture
   'let v: `pre-${string}`;',
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
     const resolver = adapter.makeResolver();
-    try {
-      const type = resolver.resolveNodeType(decl.get('id'));
-      // resolver may yield string primitive for known-string template, or null/object;
-      // contract here is just no-throw
-      if (type?.primitive && type.type === 'string') {
-        pass();
-      } else {
-        pass();
-      }
-    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
+    // a TS template-literal type always denotes a string primitive
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')), { primitive: true, kind: 'string' });
   });
 
 // --- Resolver entry points: edge cases ---
@@ -2345,12 +2319,10 @@ runBoth('resolveGuardHints: typeof === string returns concrete (null hints)',
   (adapter, prog, lbl) => {
     const ref = pickReturnArg(adapter, prog, 'x');
     const resolver = adapter.makeResolver();
-    // resolveNodeType resolves to string primitive (concrete) => guardHints returns null
-    // since the narrowing flows through resolveNodeType, not the guard-hint channel
-    const hints = resolver.resolveGuardHints(ref);
-    // null OR a hints object both acceptable; verify no throw
-    if (hints === null || (hints && typeof hints === 'object')) pass();
-    else fail(lbl, `unexpected ${ JSON.stringify(hints) }`);
+    // the narrowing flows through resolveNodeType (-> string primitive), so the guard-hint
+    // channel stays null; both halves of that contract are locked
+    check(`${ lbl } hints`, resolver.resolveGuardHints(ref), null);
+    checkType(`${ lbl } nodeType`, resolver.resolveNodeType(ref), { primitive: true, kind: 'string' });
   });
 
 runBoth('isString / isObject on number literal',
@@ -2387,7 +2359,7 @@ runBoth('Self-referential alias terminates: type X = X; let v: X;',
 
 // --- Union of arrays ---
 
-runBoth('Union of arrays narrowed inside Array.isArray no-throw',
+runBoth('Union of arrays narrowed inside Array.isArray -> Array',
   `
     function g(v: string[] | number[]) {
       if (Array.isArray(v)) { return v; }
@@ -2396,10 +2368,8 @@ runBoth('Union of arrays narrowed inside Array.isArray no-throw',
   (adapter, prog, lbl) => {
     const ref = pickReturnArg(adapter, prog, 'v');
     const resolver = adapter.makeResolver();
-    try {
-      resolver.resolveNodeType(ref);
-      pass();
-    } catch (error) { fail(lbl, `threw: ${ error.message }`); }
+    // both union members are arrays, so the guard collapses the union to Array
+    checkType(lbl, resolver.resolveNodeType(ref), { primitive: false, ctor: 'Array' });
   });
 
 // --- Enum types ---
