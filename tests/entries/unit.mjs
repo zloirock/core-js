@@ -175,6 +175,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'number/prototype/to-exponential').call(1, 1) === '1.0e+0');
     ok(load(NS, 'number/prototype/to-fixed').call(1, 1) === '1.0');
     ok('isNaN' in load(NS, 'number'));
+    ok(typeof load(NS, 'reflect/namespace') == 'object');
     ok(load(NS, 'reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
     ok(load(NS, 'reflect/construct')(function () {
       return this.a = 2;
