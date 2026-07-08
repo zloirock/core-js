@@ -44,7 +44,7 @@ import {
   isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry, SYMBOL_ITERATOR_PURE_RESULT, symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
@@ -1061,9 +1061,12 @@ export default function plugin(api, options) {
           if (removed.size) {
             for (const stmt of path.get('body')) {
               if (!removed.has(stmt.node)) continue;
-              // an indirect-require removal keeps the callee (its SE prefix); a plain import drops whole
-              const keptCallee = coreJSImportRemovalKeptCallee(stmt.node);
-              if (keptCallee) stmt.get('expression').replaceWith(t.cloneNode(keptCallee));
+              // an indirect-require removal keeps its side-effect prefix (callee's AND an outer comma
+              // sequence's - `0, (spy(), require)('core-js/X')` keeps `spy()`), same helper the entry path
+              // uses; the emitted prefix statements stay VISITED so a polyfillable use inside them
+              // (`(arr.includes(1), require)(...)`) still injects. a side-effect-free prefix drops whole
+              const sePrefix = extractIndirectRequireSEPrefix(stmt.node);
+              if (sePrefix.length) stmt.replaceWithMultiple(sePrefix.map(e => t.expressionStatement(e)));
               else stmt.remove();
             }
           }
