@@ -37,6 +37,7 @@ import {
   isTopLevelImportLike,
   lastUserImportEnd,
   liftSfcLangSuffix,
+  prevSignificantPos,
   skipBlockComment,
   skipDirectivePrologue,
   skipGap,
@@ -165,6 +166,10 @@ const shouldTransformCases = [
   // bundling stages; transformed body is Vite's synthetic output, not user JS
   ['/src/worker.js?worker-module', false, 'Vite ?worker-module'],
   ['/src/worker.js?worker_file', false, 'Vite ?worker_file'],
+  // Vite `?sharedworker` resolves to a SharedWorker-constructor factory exactly like `?worker` - the
+  // worker body is bundled separately, so the import id itself is not user JS and must skip transform
+  ['/src/worker.js?sharedworker', false, 'Vite ?sharedworker'],
+  ['/src/worker.js?sharedworker-module', false, 'Vite ?sharedworker sub-form'],
   // Vite internal queries: `?html-proxy` (HTML inline scripts), `?css` (CSS-as-JS),
   // `?used` (tree-shake marker), `?direct` (post-processing escape), `?import` (wrap bypass)
   ['/index.html?html-proxy&index=0.js', false, 'Vite ?html-proxy'],
@@ -3077,6 +3082,28 @@ function checkUsagePurePhasePreWrapperEmitsImports() {
 }
 checkUsagePurePhasePreWrapperEmitsImports();
 
+// --- buildEnd / watchChange lifecycle hook attachment ---
+// unplugin fires buildEnd / watchChange once per plugin instance to bound snapshot retention across
+// watch rebuilds / HMR. the factory attaches them to the LAST sub-plugin only (pre+post shares one drain
+// point), wired to plugin.reset() / invalidateSnapshot(). exercised so the wiring can't rot silently
+function checkLifecycleHookAttachment() {
+  const single = unplugin.raw({ method: 'usage-pure', targets: { ie: '11' } }, { framework: 'vite' });
+  check('lifecycle/single sub carries buildEnd', typeof single.at(-1).buildEnd, 'function');
+  check('lifecycle/single sub carries watchChange', typeof single.at(-1).watchChange, 'function');
+  const prePost = unplugin.raw({ method: 'usage-pure', phase: 'pre+post', targets: { ie: '11' } }, { framework: 'vite' });
+  check('lifecycle/pre+post yields two subs', prePost.length, 2);
+  check('lifecycle/hooks on the LAST sub only (pre sub has none)', typeof prePost[0].buildEnd, 'undefined');
+  check('lifecycle/last sub carries buildEnd', typeof prePost.at(-1).buildEnd, 'function');
+  // calling the hooks drives plugin.reset() / invalidateSnapshot() without throwing
+  let threw = false;
+  try {
+    prePost.at(-1).buildEnd();
+    prePost.at(-1).watchChange('/some-file.js');
+  } catch { threw = true; }
+  check('lifecycle/hooks drain snapshot state without throwing', threw, false);
+}
+checkLifecycleHookAttachment();
+
 // --- deeply-nested body-wraps compose correctly (iterative post-order) ---
 // regression lock for the scope-tracker body-wrap composition: `#composeBodyWrapText` walks the
 // wrap nesting iteratively (heap stack, no per-level re-filter, no recursion-depth footgun). the
@@ -4305,6 +4332,13 @@ check('overwriteFuses/comment-aware prev', statementOverwriteFusesLeft('a\n/*c*/
 // block-open `{` / case-label `:` are list openers - the overwrite is the FIRST statement, no fusion
 check('overwriteFuses/block-open prev safe', statementOverwriteFusesLeft('{\n+x', 2, '+'), false);
 check('overwriteFuses/case-label prev safe', statementOverwriteFusesLeft('case 1:\n+x', 8, '+'), false);
+
+// a malformed literal ending on a lone backslash at EOF (unterminated string / regex / template): the
+// `\X` escape must not consume past src.length. an overshooting region end made prevSignificantPos report
+// a boundary one char BEYOND the input (a past-EOF position with an undefined char), corrupting fusion
+check('prevSignificantPos/string trailing backslash at EOF stays in bounds', prevSignificantPos('x="ab\\', 6), 5);
+check('prevSignificantPos/regex trailing backslash at EOF stays in bounds', prevSignificantPos('y=/re\\', 6), 5);
+check('prevSignificantPos/template trailing backslash at EOF stays in bounds', prevSignificantPos('z=`t\\', 5), 4);
 
 // --- guardInjectionLeftBoundary (indirect-require SE-prefix rewrite) ---
 // the SE-prefix rewrite OVERWRITES a detected `(prefix, require)('core-js/...')` node in place. unlike a
