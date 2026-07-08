@@ -20,10 +20,11 @@ const SFC_JS_LANG_RE = /^(?:[cm]?[jt]s|[jt]sx)$/;
 const SFC_NON_JS_TYPES = new Set(['style', 'template']);
 // Vite asset-import query params whose resolved body is not user-authored JS (`?url` / `?raw` /
 // `?worker` / `?inline` / ...). matched at ANY param position (the prior regex used `[&?]`), so a
-// structured key check is order-neutral by construction. `worker` has `-module` / `_file` sub-forms
+// structured key check is order-neutral by construction. `?worker` and `?sharedworker` both resolve to
+// a worker-constructor factory (the body is bundled separately), and `worker` has `-module` / `_file` sub-forms
 const ASSET_QUERY_PARAMS = new Set(['css', 'direct', 'html-proxy', 'import', 'inline', 'raw', 'url',
   'used', 'worklet']);
-const WORKER_PARAM_RE = /^worker(?:[-_][a-z]+)?$/;
+const WORKER_PARAM_RE = /^(?:shared)?worker(?:[-_][a-z]+)?$/;
 
 // Split a bundler module id into its path and query params. Each decoded param key + value is lowercased
 // so every structured lookup stays case-insensitive (markers / types / langs were matched case-
