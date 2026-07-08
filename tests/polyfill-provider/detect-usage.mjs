@@ -56,9 +56,21 @@ import {
   STATEMENT_LIST_HOST_TYPES,
   varInitDominatesUsage,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { createChecker } from './harness.mjs';
+import { createChecker, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
+
+// collect the globals a type annotation surfaces, reaching the TS node by raw-AST descent so the
+// oxc leg actually runs: estree-toolkit does not visit TS type-annotation nodes, so the old
+// `pickPath('TS...') ?? return` made the oxc leg a silent no-op. a missing node throws (loud fail
+// via runBoth's catch), never a vacuous skip
+function annotationGlobals(programNode, type) {
+  const node = findTypeNode(programNode, type);
+  if (!node) throw new Error(`no ${ type } node found`);
+  const found = [];
+  walkTypeAnnotationGlobals(node, name => found.push(name));
+  return found;
+}
 
 // minimal adapter contract for entries helpers - both parsers store the literal value
 // on `node.value` (babel's StringLiteral, oxc's Literal both work)
@@ -250,24 +262,22 @@ runBoth('unwrapTransparentSeq/Identifier passes through', 'x;', (adapter, prog, 
   check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
-// TSAsExpression wrapper (TS-AST only)
+// TSAsExpression wrapper - both parsers surface the cast node in the runtime tree, so a missing
+// node is a loud failure (via runBoth's catch), never a silent skip
 runBoth('unwrapTransparentSeq/TSAsExpression peeled', 'x as number;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'TSAsExpression');
-  if (!path) return; // oxc may emit differently for ts cast
   check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
 // TSNonNullExpression wrapper
 runBoth('unwrapTransparentSeq/TSNonNullExpression peeled', 'x!;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'TSNonNullExpression');
-  if (!path) return;
   check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
 // TSSatisfiesExpression wrapper
 runBoth('unwrapTransparentSeq/TSSatisfiesExpression peeled', 'x satisfies number;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'TSSatisfiesExpression');
-  if (!path) return;
   check(lbl, unwrapTransparentSeq(path.node).type, 'Identifier');
 });
 
@@ -311,7 +321,6 @@ runBoth('bindsModuleDefault/namespace specifier', 'import * as X from "m";', (ad
 
 runBoth('isTransparentWrapper/TSAsExpression', 'x as number;', (adapter, prog, lbl) => {
   const path = adapter.pickPath(prog, 'TSAsExpression');
-  if (!path) return;
   check(lbl, isTransparentWrapper(path.node), true);
 });
 
@@ -357,42 +366,27 @@ check('isTypeAnnotationNodeType/CallExpression (not type)', isTypeAnnotationNode
 
 // walks `Promise<number>` reference, calls onGlobal with 'Promise' once
 runBoth('walkTypeAnnotationGlobals/Promise<number>', 'const x: Promise<number> = null!;', (adapter, prog, lbl) => {
-  const tsAnnotation = adapter.pickPath(prog, 'TSTypeReference');
-  if (!tsAnnotation) return;
-  const found = [];
-  walkTypeAnnotationGlobals(tsAnnotation.node, name => found.push(name));
-  checkDeep(lbl, found, ['Promise']);
+  checkDeep(lbl, annotationGlobals(prog.node, 'TSTypeReference'), ['Promise']);
 });
 
-// nested type references: Map<string, Set<number>> walks both Map and Set
+// nested type references: Map<string, Set<number>> walks both Map and Set. the outermost
+// TSTypeReference (Map) is reached first, and its walk descends into the inner Set
 runBoth('walkTypeAnnotationGlobals/nested generic', 'const x: Map<string, Set<number>> = null!;', (adapter, prog, lbl) => {
-  const annotations = adapter.collectPaths(prog, 'TSTypeReference');
-  if (annotations.length === 0) return;
-  const [outer] = annotations;
-  const found = [];
-  walkTypeAnnotationGlobals(outer.node, name => found.push(name));
-  // expect at least Map and Set in some order
+  const found = annotationGlobals(prog.node, 'TSTypeReference');
   checkTruthy(lbl, found.includes('Map') && found.includes('Set'),
     `expected Map+Set in [${ found.join(',') }]`);
 });
 
 // Non-reference annotation (primitive): no global emitted
 runBoth('walkTypeAnnotationGlobals/primitive (no global)', 'const x: number = 1;', (adapter, prog, lbl) => {
-  const annotation = adapter.pickPath(prog, 'TSNumberKeyword');
-  if (!annotation) return;
-  const found = [];
-  walkTypeAnnotationGlobals(annotation.node, name => found.push(name));
-  checkDeep(lbl, found, []);
+  checkDeep(lbl, annotationGlobals(prog.node, 'TSNumberKeyword'), []);
 });
 
 // qualified `typeof` chain through an ALL-proxy root surfaces every link: each proxy member resolves
 // back to a global (`globalThis.self.Map` references globalThis AND self AND Map)
 runBoth('walkTypeAnnotationGlobals/typeof all-proxy chain surfaces every link',
   'let x: typeof globalThis.self.Map;', (adapter, prog, lbl) => {
-    const tq = adapter.pickPath(prog, 'TSTypeQuery');
-    if (!tq) return;
-    const found = [];
-    walkTypeAnnotationGlobals(tq.node, name => found.push(name));
+    const found = annotationGlobals(prog.node, 'TSTypeQuery');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('self') && found.includes('Map'),
       `expected globalThis+self+Map, got [${ found.join(',') }]`);
   });
@@ -402,10 +396,7 @@ runBoth('walkTypeAnnotationGlobals/typeof all-proxy chain surfaces every link',
 // ReferencedIdentifier (which over-surfaces every segment). surfaces globalThis + Array, never Map
 runBoth('walkTypeAnnotationGlobals/typeof non-proxy mid-chain stops at non-proxy',
   'let x: typeof globalThis.Array.Map;', (adapter, prog, lbl) => {
-    const tq = adapter.pickPath(prog, 'TSTypeQuery');
-    if (!tq) return;
-    const found = [];
-    walkTypeAnnotationGlobals(tq.node, name => found.push(name));
+    const found = annotationGlobals(prog.node, 'TSTypeQuery');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
       `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
   });
@@ -415,10 +406,7 @@ runBoth('walkTypeAnnotationGlobals/typeof non-proxy mid-chain stops at non-proxy
 // babel's es.set.* + es.global-this. same proxy-chain precision as the typeof cases, on a type annotation
 runBoth('walkTypeAnnotationGlobals/qualified proxy-global root surfaces member',
   'let x: globalThis.Set<number>;', (adapter, prog, lbl) => {
-    const ref = adapter.pickPath(prog, 'TSTypeReference');
-    if (!ref) return;
-    const found = [];
-    walkTypeAnnotationGlobals(ref.node, name => found.push(name));
+    const found = annotationGlobals(prog.node, 'TSTypeReference');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Set'),
       `expected globalThis+Set, got [${ found.join(',') }]`);
   });
@@ -428,11 +416,7 @@ runBoth('walkTypeAnnotationGlobals/qualified proxy-global root surfaces member',
 // root IS a runtime binding). guards the proxy-root gate against over-surfacing type-only namespaces
 runBoth('walkTypeAnnotationGlobals/qualified type-only namespace stays silent',
   'let x: NS.Foo;', (adapter, prog, lbl) => {
-    const ref = adapter.pickPath(prog, 'TSTypeReference');
-    if (!ref) return;
-    const found = [];
-    walkTypeAnnotationGlobals(ref.node, name => found.push(name));
-    checkDeep(lbl, found, []);
+    checkDeep(lbl, annotationGlobals(prog.node, 'TSTypeReference'), []);
   });
 
 // the proxy-chain precision applies to a plain qualified TSTypeReference too: in `globalThis.Array.Map`
@@ -440,10 +424,7 @@ runBoth('walkTypeAnnotationGlobals/qualified type-only namespace stays silent',
 // but never the global Map (same precision as the typeof variant, on a type annotation)
 runBoth('walkTypeAnnotationGlobals/qualified non-proxy mid-chain stops at non-proxy',
   'let x: globalThis.Array.Map<string, number>;', (adapter, prog, lbl) => {
-    const ref = adapter.pickPath(prog, 'TSTypeReference');
-    if (!ref) return;
-    const found = [];
-    walkTypeAnnotationGlobals(ref.node, name => found.push(name));
+    const found = annotationGlobals(prog.node, 'TSTypeReference');
     checkTruthy(lbl, found.includes('globalThis') && found.includes('Array') && !found.includes('Map'),
       `expected [globalThis, Array] without Map, got [${ found.join(',') }]`);
   });
@@ -452,20 +433,14 @@ runBoth('walkTypeAnnotationGlobals/qualified non-proxy mid-chain stops at non-pr
 // `parameters` key (oxc uses `params`). a global referenced ONLY in a fn-type param must
 // surface on both parsers - babel-side regression guard for the `parameters` child key
 runBoth('walkTypeAnnotationGlobals/fn-type param', 'let handler: (items: Set<number>) => void;', (adapter, prog, lbl) => {
-  const fnType = adapter.pickPath(prog, 'TSFunctionType');
-  if (!fnType) return;
-  const found = [];
-  walkTypeAnnotationGlobals(fnType.node, name => found.push(name));
+  const found = annotationGlobals(prog.node, 'TSFunctionType');
   checkTruthy(lbl, found.includes('Set'), `expected Set in [${ found.join(',') }]`);
 });
 
 // method-signature param inside a type literal: walks members -> method signature -> its
 // `parameters`. structurally distinct host from TSFunctionType, same babel `parameters` key
 runBoth('walkTypeAnnotationGlobals/method-sig param', 'let o: { run(items: Set<number>): void };', (adapter, prog, lbl) => {
-  const lit = adapter.pickPath(prog, 'TSTypeLiteral');
-  if (!lit) return;
-  const found = [];
-  walkTypeAnnotationGlobals(lit.node, name => found.push(name));
+  const found = annotationGlobals(prog.node, 'TSTypeLiteral');
   checkTruthy(lbl, found.includes('Set'), `expected Set in [${ found.join(',') }]`);
 });
 
