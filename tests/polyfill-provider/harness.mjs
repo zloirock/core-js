@@ -87,6 +87,35 @@ export const oxcAdapter = {
 
 export const adapters = [babelAdapter, oxcAdapter];
 
+// raw-AST descent: walk own object / array properties directly (parser-visitor-independent) and
+// return the first NODE satisfying `predicate`, or null. skips parent / scope back-references and
+// `loc`; `seen` bounds any cycles. arrays are traversed but never tested (they carry no `.type`)
+export function findNode(root, predicate) {
+  const seen = new WeakSet();
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+    if (!Array.isArray(node) && predicate(node)) return node;
+    for (const key in node) {
+      if (key === 'parent' || key === '_scope' || key === 'loc') continue;
+      const value = node[key];
+      if (value && typeof value === 'object') stack.push(value);
+    }
+  }
+  return null;
+}
+
+// find the first node of `type`. `pickPath` / `collectPaths` rely on the parser's VISITOR keys, and
+// estree-toolkit (the oxc adapter) does not descend into TS type-annotation nodes - they live
+// outside the runtime tree - so `pickPath('TS...')` returns null on oxc and a cross-parser
+// type-annotation test's oxc leg silently no-ops. the raw descent reaches them on both parsers
+// (both emit identical TS node-type names), keeping type-annotation suites genuinely cross-parser
+export function findTypeNode(root, type) {
+  return findNode(root, node => node.type === type);
+}
+
 // suite factory. `name` is used by `finish()` for the summary line + Error message;
 // counts are per-suite so each file reports independently. `echo` / `chalk` are zx
 // globals - imported modules see them on `globalThis` via the bare identifier
