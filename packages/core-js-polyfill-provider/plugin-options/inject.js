@@ -44,7 +44,10 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
 
   function outputDebug() {
     const debugOutput = getDebugOutput();
-    if (!debugOutput) return;
+    // guard `typeof console` for a console-less runtime, matching the sibling opt-in-debug sink in
+    // snapshot-cache.js; both fire only under `debug:true`, so an unguarded ReferenceError here would
+    // be a hygiene regression in that exotic environment
+    if (!debugOutput || typeof console === 'undefined') return;
     // eslint-disable-next-line no-console -- debug output
     console.log(debugOutput.format());
   }

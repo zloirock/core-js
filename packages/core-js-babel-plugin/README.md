@@ -107,7 +107,7 @@ Array.from(items);
 | `targets` | `string` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
-| `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
+| `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfills by module name, entry path (for pure version), or pattern. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfills - same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
@@ -157,7 +157,7 @@ Override this if you use a custom package name:
 
 ### `additionalPackages`
 
-Additional package names to recognize as `core-js` entry points in `entry-global` mode. By default, only `core-js` is recognized. If you re-export `core-js` from another package, add it here so the plugin can process those imports too.
+Additional package names to recognize as `core-js`. By default, only `core-js` is recognized. If you re-export `core-js` from another package, add it here so the plugin can process those imports too. Applies to every method: in `entry-global` the extra names are treated as entry points, while in `usage-global` / `usage-pure` they are recognized alongside `core-js` for `Symbol.*` import detection.
 
 ```json
 {
