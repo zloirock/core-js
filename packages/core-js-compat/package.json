@@ -83,7 +83,7 @@
     "./targets-parser.js": "./targets-parser.js"
   },
   "dependencies": {
-    "browserslist": "^4.28.4"
+    "browserslist": "^4.28.5"
   },
   "engines": {
     "node": "^22.18.0 || >=24.11.0"

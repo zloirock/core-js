@@ -75,7 +75,7 @@
     "@core-js/polyfill-provider": "4.0.0-alpha.1",
     "estree-toolkit": "^1.7.14",
     "magic-string": "^0.30.21",
-    "oxc-parser": "^0.138.0",
+    "oxc-parser": "^0.139.0",
     "unplugin": "^3.3.0"
   },
   "engines": {
