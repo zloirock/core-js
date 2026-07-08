@@ -29,6 +29,7 @@ await rm(TMP, { recursive: true, force: true });
 await mkdir(TMP, { recursive: true });
 
 const MARKER = /@@SHARD@@(?<json>.*)@@/u;
+const children = [];
 function runShard(shard) {
   return new Promise((resolve, reject) => {
     // execArgv: [] so the shard (a file module) does not inherit a loader / --input-type flag
@@ -37,6 +38,7 @@ function runShard(shard) {
       env: { ...process.env, DIFF_SHARD: `${ shard }/${ SHARDS }` },
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
+    children.push(child);
     let buf = '';
     child.stdout.on('data', d => { buf += d; });
     child.on('error', reject);
@@ -48,7 +50,22 @@ function runShard(shard) {
   });
 }
 
-const results = await Promise.all(Array.from({ length: SHARDS }, (_, k) => runShard(k)));
+// on the FIRST shard failure Promise.all rejects while the siblings keep running - each is a live
+// process that also forked its own stripped worker, so an un-torn-down sibling orphans both. kill any
+// shard still alive (guarded so the success path, where all have already exited, is a no-op); the
+// IPC disconnect on kill lets each shard's own exit handler tear its worker down (see harness.mjs)
+function killSurvivingShards() {
+  for (const child of children) {
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+  }
+}
+
+let results;
+try {
+  results = await Promise.all(Array.from({ length: SHARDS }, (_, k) => runShard(k)));
+} finally {
+  killSurvivingShards();
+}
 let passed = 0;
 const failures = [];
 for (const r of results) {

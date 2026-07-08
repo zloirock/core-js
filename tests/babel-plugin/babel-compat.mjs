@@ -16,7 +16,7 @@ const { parse: babelParse } = requireBabel('@babel/parser');
 const traverseModule = requireBabel('@babel/traverse');
 const t = requireBabel('@babel/types');
 import createASTHelpers from '../../packages/core-js-babel-plugin/internals/babel-compat.js';
-import { createChecker } from '../polyfill-provider/harness.mjs';
+import { createChecker, findNode } from '../polyfill-provider/harness.mjs';
 
 const traverse = traverseModule.default ?? traverseModule;
 const { check, checkTruthy, finish } = createChecker('babel-compat');
@@ -81,11 +81,29 @@ function pickIdent(programPath, name) {
   return pickPath(programPath, 'Identifier', p => p.node.name === name);
 }
 
+// pick a member of `type` (MemberExpression / OptionalMemberExpression) by its property name
+function pickMember(programPath, type, name) {
+  return pickPath(programPath, type, p => p.node.property?.name === name);
+}
+
+// the trailing rewritten ExpressionStatement (memoize may inject `var _refN;` above it)
+function firstExprStmt(body) {
+  return body.find(s => s.type === 'ExpressionStatement');
+}
+
+// stub type resolvers so `pathType` / `seededRefClone` / return-type relocation activate. `seen` is
+// the backing WeakMap - assert against it to check what the compat layer seeded / relocated
+function stubTypeResolvers(type) {
+  const seen = new WeakMap();
+  return { seen, resolveNodeType: () => type, resolvedType: { get: n => seen.get(n), set: (n, v) => seen.set(n, v) } };
+}
+
 // drive replaceInstanceLike on first OptionalMemberExpression matching `predicate`.
 // returns trailing ExpressionStatement (memoize may inject `var _refN;` above it)
 function runOptional(helpers, program, polyfillName, {
   skipOptional = null,
   sideEffects = null,
+  receiverEffectCount = null,
   predicate = () => true,
 } = {}) {
   const memberPath = pickPath(program, 'OptionalMemberExpression', predicate);
@@ -94,18 +112,25 @@ function runOptional(helpers, program, polyfillName, {
     id: t.identifier(polyfillName),
     skipOptional,
     sideEffects,
+    receiverEffectCount,
   });
-  return program.node.body.find(s => s.type === 'ExpressionStatement');
+  return firstExprStmt(program.node.body);
 }
 
 // drive replaceInstanceLike on first non-optional MemberExpression; returns updated body
-function runMember(helpers, program, polyfillName, { skipOptional = null, sideEffects = null } = {}) {
-  const memberPath = pickPath(program, 'MemberExpression');
+function runMember(helpers, program, polyfillName, {
+  skipOptional = null,
+  sideEffects = null,
+  receiverEffectCount = null,
+  predicate = () => true,
+} = {}) {
+  const memberPath = pickPath(program, 'MemberExpression', predicate);
   helpers.replaceInstanceLike({
     path: memberPath,
     id: t.identifier(polyfillName),
     skipOptional,
     sideEffects,
+    receiverEffectCount,
   });
   return program.node.body;
 }
@@ -128,7 +153,7 @@ function runChainCombined(helpers, program, ast, {
     innerId: t.identifier(innerId),
     sideEffects,
   });
-  return program.node.body.find(s => s.type === 'ExpressionStatement');
+  return firstExprStmt(program.node.body);
 }
 
 // drive replaceCallWithSimple on first MemberExpression / OptionalMemberExpression
@@ -136,10 +161,12 @@ function runSimple(helpers, program, polyfillName, {
   optional = false,
   skipOptional = null,
   sideEffects = null,
+  receiverEffectCount = null,
+  predicate = () => true,
 } = {}) {
   const type = optional ? 'OptionalMemberExpression' : 'MemberExpression';
-  const memberPath = pickPath(program, type);
-  helpers.replaceCallWithSimple(memberPath, t.identifier(polyfillName), skipOptional, sideEffects);
+  const memberPath = pickPath(program, type, predicate);
+  helpers.replaceCallWithSimple(memberPath, t.identifier(polyfillName), skipOptional, sideEffects, receiverEffectCount);
   return program.node.body;
 }
 
@@ -295,7 +322,7 @@ for (const { kind, code, pick, to } of DEOPT_CASES) {
 // stripFirstOptional=true: deoptionalizes the immediate ?. above the replaced node
 {
   const { helpers, program } = setup('arr?.includes;');
-  const memberPath = pickPath(program, 'OptionalMemberExpression', p => p.node.property?.name === 'includes');
+  const memberPath = pickMember(program, 'OptionalMemberExpression', 'includes');
   // simulate the post-replacement state: synth result occupies the receiver slot
   const objectPath = memberPath.get('object');
   objectPath.replaceWith(t.identifier('_polyfilled'));
@@ -717,6 +744,268 @@ function countOr(n) {
     stmt.expression.type === 'CallExpression'
     && stmt.expression.callee.name === '_includes'
     && stmt.expression.arguments[0].name === 'arr');
+}
+
+// --- undriven private-branch coverage ---
+// These branches are reached by the fixture suite but not by the unit cases above, so a
+// dispatch regression would only surface behind a fixture-output diff. Each case constructs
+// the exact input shape that drives the branch and asserts the distinguishing output.
+
+// does any node in the subtree satisfy `predicate`? mid-transform nodes keep their source Optional*
+// type even where the printed form is plain, so predicates must allow both
+function someNode(root, predicate) {
+  return findNode(root, predicate) !== null;
+}
+
+// a call (bare `name()` or member `.name()`, optional or not) to `name`
+function isCalleeNamed(n, name) {
+  if (n.type !== 'CallExpression' && n.type !== 'OptionalCallExpression') return false;
+  const c = n.callee;
+  if (c?.type === 'Identifier') return c.name === name;
+  if (c?.type === 'MemberExpression' || c?.type === 'OptionalMemberExpression') return c.property?.name === name;
+  return false;
+}
+function containsCallee(node, name) {
+  return someNode(node, n => isCalleeNamed(n, name));
+}
+
+// a `.call(<firstArg>, ...)` whose first argument satisfies `matchArg` - checks the polyfill keeps
+// the original receiver bound as `this`
+function hasDotCallBoundTo(node, matchArg) {
+  return someNode(node, n => (n.type === 'CallExpression' || n.type === 'OptionalCallExpression')
+    && n.callee?.property?.name === 'call' && matchArg(n.arguments[0]));
+}
+
+// replaceInstanceChainCombined with surviving non-optional hops between the optional inner call
+// and the outer call (`arr.flat?.().map(f).at?.(0)`): `hasHops` splices the memoized inner result
+// back into the outer receiver sub-chain so `.map(f)` re-emits instead of being dropped (value
+// corruption). the sole existing chain-combined cases have no hops, so `spliceChainInner` and the
+// `hasHops` arm never ran
+{
+  const { helpers, program } = setup('arr.flat?.().map(f).at?.(0);');
+  const outerMember = pickMember(program, 'OptionalMemberExpression', 'at');
+  const innerCall = pickPath(program, 'OptionalCallExpression', p => p.node.callee?.property?.name === 'flat');
+  const hasHops = innerCall.node !== outerMember.node.object;
+  checkTruthy('replaceInstanceChainCombined/surviving hop detected as hasHops', hasHops);
+  helpers.replaceInstanceChainCombined(outerMember, t.identifier('_at'), {
+    innerCallee: innerCall.node.callee,
+    innerArgs: innerCall.node.arguments,
+    innerId: t.identifier('_flat'),
+    chainStartNode: innerCall.node,
+    hasHops,
+    sideEffects: null,
+  });
+  const stmt = firstExprStmt(program.node.body);
+  // the `.map(f)` hop must survive spliced onto the inner result inside the conditional alternate;
+  // a dropped hop would call `.at` on the bare flat() value
+  checkTruthy('replaceInstanceChainCombined/hasHops splices surviving .map hop',
+    stmt.expression.type === 'ConditionalExpression'
+    && containsCallee(stmt.expression.alternate, 'map'));
+}
+
+// normalizeOptionalChain trailing optional-CALL backstop (`x?.includes?.(2)`): after deopting the
+// `.includes` member, the trailing `?.(2)` genuinely guards it and must STAY optional - the top
+// returned is the OptionalCallExpression (unmodified), not the deopted member
+{
+  const { helpers, program } = setup('x?.includes?.(2);');
+  const member = pickMember(program, 'OptionalMemberExpression', 'includes');
+  member.get('object').replaceWith(t.identifier('_polyfilled'));
+  const top = helpers.normalizeOptionalChain(member.get('object'), true);
+  check('normalizeOptionalChain/trailing optional-call stays optional (top is the call)',
+    top?.node.type, 'OptionalCallExpression');
+  checkTruthy('normalizeOptionalChain/trailing optional-call keeps its ?.', top.node.optional === true);
+  check('normalizeOptionalChain/inner member deoptionalized', member.node.type, 'MemberExpression');
+}
+
+// rewriteOptionalMethodCall: an OptionalCallExpression chainStart whose callee is a method member
+// (`obj.m?.().includes(2)`) - the chain-descent inputs above all have an OptionalMEMBER chainStart,
+// so this body never ran. the method is null-guarded while the receiver stays bound via `.call(recv)`.
+// three receiver forks: reusable / super->this / memoized-and-folded
+{
+  const { helpers, program } = setup('obj.m?.().includes(2);');
+  const member = pickMember(program, 'OptionalMemberExpression', 'includes');
+  helpers.replaceInstanceLike({ path: member, id: t.identifier('_includes'), skipOptional: null, sideEffects: null });
+  const stmt = firstExprStmt(program.node.body);
+  // `... : _includes(_ref = _ref.call(obj)).call(_ref, 2)` - the method is invoked via `.call(obj)`
+  // so the reusable receiver `obj` stays bound as `this` (a plain `_ref()` would pass this=undefined)
+  checkTruthy('rewriteOptionalMethodCall/reusable receiver bound via .call(obj)',
+    hasDotCallBoundTo(stmt.expression, a => a?.type === 'Identifier' && a.name === 'obj'));
+}
+
+// super receiver: `super.m?.()` binds `this` (the call arg cannot be `super`)
+{
+  const { helpers, program } = setup('class C extends B { f() { return super.m?.().includes(2); } }');
+  const member = pickMember(program, 'OptionalMemberExpression', 'includes');
+  helpers.replaceInstanceLike({ path: member, id: t.identifier('_includes'), skipOptional: null, sideEffects: null });
+  const returned = pickPath(program, 'ReturnStatement').node.argument;
+  checkTruthy('rewriteOptionalMethodCall/super receiver rebinds to this',
+    hasDotCallBoundTo(returned, a => a?.type === 'ThisExpression'));
+}
+
+// memoized side-effecting receiver: `getObj().m?.()` memoizes the receiver and folds its assignment
+// ahead of the method memo so it evaluates once, before the method-get
+{
+  const { helpers, program } = setup('getObj().m?.().includes(2);');
+  const member = pickMember(program, 'OptionalMemberExpression', 'includes');
+  helpers.replaceInstanceLike({ path: member, id: t.identifier('_includes'), skipOptional: null, sideEffects: null });
+  const stmt = firstExprStmt(program.node.body);
+  // the guard test is `null == (_ref = getObj(), _ref2 = _ref.m)` - a SequenceExpression folding the
+  // receiver memo ahead of the method memo (receiver evaluated once)
+  const { test } = stmt.expression;
+  checkTruthy('rewriteOptionalMethodCall/memoized receiver folded ahead of method memo',
+    stmt.expression.type === 'ConditionalExpression'
+    && test.type === 'BinaryExpression'
+    && test.right.type === 'SequenceExpression'
+    && test.right.expressions[0].right.type === 'CallExpression'
+    && test.right.expressions[0].right.callee.name === 'getObj');
+}
+
+// applyReceiverSeMode 'peel' + receiverEffectCount: a SequenceExpression receiver (`(f(), arr)`)
+// with the SE list replaying the prefix - the receiver is peeled to its tail `arr` and `f()` is
+// replayed as the leading side effect. never driven (drivers passed no receiverEffectCount)
+{
+  const { helpers, program } = setup('(f(), arr).includes(1);');
+  const se = [t.callExpression(t.identifier('f'), [])];
+  const stmt = firstExprStmt(runMember(helpers, program, '_includes',
+    { sideEffects: se, receiverEffectCount: 1, predicate: p => p.node.property?.name === 'includes' }));
+  // expected `f(), _includes(arr).call(arr, 1)` - the receiver is PEELED to the bare tail `arr`
+  // (not left as the memoized SequenceExpression `_ref = (f(), arr)`, which would re-run `f()`)
+  checkTruthy('replaceInstanceLike/peel mode replays SE prefix on peeled tail receiver',
+    stmt.expression.type === 'SequenceExpression'
+    && stmt.expression.expressions[0].callee.name === 'f'
+    && stmt.expression.expressions[1].callee.property.name === 'call'
+    && stmt.expression.expressions[1].callee.object.callee.name === '_includes'
+    && stmt.expression.expressions[1].callee.object.arguments[0].type === 'Identifier'
+    && stmt.expression.expressions[1].callee.object.arguments[0].name === 'arr');
+}
+
+// hoistReceiverSE memoize + reorder: a side-effecting receiver (`foo()`) with a key-SE - the
+// receiver is memoized and its assignment prepended BEFORE the key SE so it evaluates first
+// (native member-call order), instead of the key running before the receiver
+{
+  const { helpers, program } = setup('foo().includes(1);');
+  const se = [t.callExpression(t.identifier('k'), [])];
+  const stmt = firstExprStmt(runMember(helpers, program, '_includes',
+    { sideEffects: se, receiverEffectCount: 0, predicate: p => p.node.property?.name === 'includes' }));
+  // expected `_ref = foo(), k(), _includes(_ref).call(_ref, 1)` - receiver memo hoisted ahead of key
+  checkTruthy('hoistReceiverSE/memoized receiver evaluates before key SE',
+    stmt.expression.type === 'SequenceExpression'
+    && stmt.expression.expressions[0].type === 'AssignmentExpression'
+    && stmt.expression.expressions[0].right.callee.name === 'foo'
+    && stmt.expression.expressions[1].callee.name === 'k');
+}
+
+// hoistReceiverSE check + receiverEffectCount > 0: an optional side-effecting receiver where the
+// guard's own memoize already ran the receiver SE - the body must carry ONLY the key SE (empty
+// here), never re-emitting the receiver SE
+{
+  const { helpers, program } = setup('getArr()?.includes(1);');
+  const se = [t.callExpression(t.identifier('recvSE'), [])];
+  const exprStmt = runOptional(helpers, program, '_includes', { sideEffects: se, receiverEffectCount: 1 });
+  // receiver SE (index < receiverEffectCount) is dropped from the body - it lives in the guard memo
+  checkTruthy('hoistReceiverSE/optional guard drops already-run receiver SE from body',
+    exprStmt.expression.type === 'ConditionalExpression'
+    && !containsCallee(exprStmt.expression.alternate, 'recvSE')
+    && exprStmt.expression.alternate.type !== 'SequenceExpression');
+}
+
+// replaceCallWithSimple paren-lookup (`(arr?.[key])()`): parens terminate the optional chain, so
+// a nullish receiver must throw at the outer call. no-SE emits the bare `_id(receiver)`; the SE
+// form guards the key SE behind the receiver's nullishness. never driven (runSimple fed no parens)
+{
+  const { helpers, program } = setup('(arr?.[Symbol.iterator])();');
+  const stmt = firstExprStmt(runSimple(helpers, program, '_getIterator', { optional: true }));
+  check('replaceCallWithSimple/paren-lookup emits bare call (throws on nullish)',
+    stmt.expression.type, 'CallExpression');
+  checkTruthy('replaceCallWithSimple/paren-lookup bare call is the polyfill on the receiver',
+    stmt.expression.callee.name === '_getIterator'
+    && stmt.expression.arguments[0].name === 'arr');
+}
+
+// paren-lookup WITH a computed-key SE: the SE fires only when the receiver is non-null (native
+// short-circuits `?.` before the key), guarded behind the receiver's nullishness
+{
+  const { helpers, program } = setup('(arr?.[(sideKey(), Symbol.iterator)])();');
+  const se = [t.callExpression(t.identifier('sideKey'), [])];
+  const stmt = firstExprStmt(runSimple(helpers, program, '_getIterator', { optional: true, sideEffects: se }));
+  // `arr == null ? void 0 : (sideKey(), void 0), _getIterator(arr)` - guarded SE then the call
+  checkTruthy('replaceCallWithSimple/paren-lookup guards key SE behind receiver nullishness',
+    stmt.expression.type === 'SequenceExpression'
+    && stmt.expression.expressions[0].type === 'ConditionalExpression'
+    && containsCallee(stmt.expression.expressions[0].alternate, 'sideKey')
+    && stmt.expression.expressions[1].callee.name === '_getIterator');
+}
+
+// replaceInstanceLike paren-lookup SE-fold-into-alternate: `(arr?.includes)(1)` with a receiver SE
+// folds the SE INSIDE the ternary alternate (fires only on the non-null branch), not around the
+// whole result. the sole existing paren-lookup case passes no sideEffects, so this fold never ran
+{
+  const { helpers, program } = setup('(arr?.includes)(1);');
+  const se = [t.callExpression(t.identifier('spy'), [])];
+  const exprStmt = runOptional(helpers, program, '_includes', { sideEffects: se });
+  // `(arr == null ? void 0 : (spy(), _includes(arr))).call(arr, 1)` - the callee is a conditional
+  // whose alternate is `(spy(), _includes(arr))`
+  const callee = exprStmt.expression.callee.object;
+  checkTruthy('replaceInstanceLike/paren-lookup folds SE into ternary alternate',
+    exprStmt.expression.callee.property.name === 'call'
+    && callee.type === 'ConditionalExpression'
+    && callee.alternate.type === 'SequenceExpression'
+    && callee.alternate.expressions[0].callee.name === 'spy'
+    && callee.alternate.expressions[1].callee.name === '_includes');
+}
+
+// replaceAndWrap NewExpression paren-forcing: an OptionalCallExpression replacement standing in a
+// NewExpression callee (`new (arr.flat?.())(z)`) must be parenthesized so `new` applies to the
+// call result, not the helper. babel codegen would otherwise misprint `new _flat(arr)?.call(arr)(z)`
+{
+  const { helpers, program } = setup('new (arr.flat?.())(z);');
+  const member = pickMember(program, 'MemberExpression', 'flat');
+  helpers.replaceInstanceLike({ path: member, id: t.identifier('_flat'), skipOptional: null, sideEffects: null });
+  const stmt = firstExprStmt(program.node.body);
+  // `new (_flat(arr)?.call(arr))(z)` - the new-callee is a ParenthesizedExpression around the optional call
+  checkTruthy('replaceAndWrap/OptionalCall in NewExpression callee is parenthesized',
+    stmt.expression.type === 'NewExpression'
+    && stmt.expression.callee.type === 'ParenthesizedExpression'
+    && stmt.expression.callee.expression.type === 'OptionalCallExpression');
+}
+
+// seededRefClone + pathType: when wired with type resolvers, a chain-descent memoize seeds the
+// resolved Type on the SAME clone that enters the AST (via `resolvedType.set`), so downstream
+// resolution short-circuits back to it. all setups above default the resolvers to null
+{
+  const { seen, ...resolvers } = stubTypeResolvers({ primitive: false, type: 'object', constructor: 'Array' });
+  const helpers = makeHelpers(resolvers);
+  const ast = parseCode('arr?.b.includes(2);');
+  const program = getProgramPath(ast);
+  const member = pickMember(program, 'OptionalMemberExpression', 'includes');
+  helpers.replaceInstanceLike({ path: member, id: t.identifier('_includes'), skipOptional: null, sideEffects: null });
+  // a node carrying the seeded Type must be present in the rewritten output
+  checkTruthy('seededRefClone/resolved Type seeded on the emitted ref clone',
+    someNode(firstExprStmt(program.node.body), n => seen.has(n)));
+}
+
+// resolvedType relocation: replaceInstanceChainCombined moves the outer call's pre-combine return-
+// type stamp onto the wrapping conditional so chained callers still resolve it off the result node
+{
+  const OUT_TYPE = { primitive: false, type: 'object', constructor: 'Array' };
+  const { seen, ...resolvers } = stubTypeResolvers(OUT_TYPE);
+  const helpers = makeHelpers(resolvers);
+  const ast = parseCode('arr.flat?.().at?.(0);');
+  const program = getProgramPath(ast);
+  const outerMember = pickMember(program, 'OptionalMemberExpression', 'at');
+  seen.set(outerMember.parentPath.node, OUT_TYPE); // pre-combine annotateCallReturnType stamp on the outer call
+  const innerCall = pickPath(program, 'OptionalCallExpression', p => p.node.callee?.property?.name === 'flat');
+  helpers.replaceInstanceChainCombined(outerMember, t.identifier('_at'), {
+    innerCallee: innerCall.node.callee,
+    innerArgs: innerCall.node.arguments,
+    innerId: t.identifier('_flat'),
+    chainStartNode: innerCall.node,
+    hasHops: false,
+    sideEffects: null,
+  });
+  const stmt = firstExprStmt(program.node.body);
+  checkTruthy('replaceInstanceChainCombined/relocates return-type stamp onto the conditional',
+    stmt.expression.type === 'ConditionalExpression' && seen.get(stmt.expression) === OUT_TYPE);
 }
 
 finish();
