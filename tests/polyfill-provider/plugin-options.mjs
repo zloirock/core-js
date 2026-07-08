@@ -358,6 +358,22 @@ throwsWith('validateOptions/targets empty array',
     '`debug`');
 }
 
+// `formatReceived`'s class-instance branch reads `value.constructor?.name` (guarded) then
+// interpolates it into the diagnostic. a `constructor.name` getter returning a Symbol (or any
+// non-string), or itself throwing, would raise a SECONDARY coercion crash on that interpolation and
+// mask the primary shape error - the read must be narrowed to a string INSIDE the guard. asserting the
+// `[core-js] \`debug\`` diagnostic survives (the Symbol crash message would not contain it)
+{
+  const symbolCtorName = Object.create({ constructor: { get name() { return Symbol('X'); } } });
+  throwsWith('validateOptions/Symbol constructor.name does not mask shape error',
+    () => validateOptions({ ...validBase, debug: symbolCtorName }),
+    '`debug`');
+  const throwingCtorName = Object.create({ constructor: { get name() { throw new Error('boom'); } } });
+  throwsWith('validateOptions/throwing constructor.name getter does not mask shape error',
+    () => validateOptions({ ...validBase, debug: throwingCtorName }),
+    '`debug`');
+}
+
 // `resolveTargets` wraps upstream errors with `[core-js] failed to resolve targets:`.
 // when the thrown value's `.message` getter or `String(error)` throws (adversarial
 // Proxy as the thrown payload), the wrapping must still emit a readable diagnostic
@@ -588,6 +604,32 @@ check('sortByPolyfillOrder/single element unknown', JSON.stringify(sortByPolyfil
   doesNotThrow('createModuleInjectors/null debug-output safe',
     () => injectors.injectModulesForModeEntry('symbol/iterator'));
   check('createModuleInjectors/null debug-output still injects', injected[0], 'es.symbol.iterator');
+}
+
+// outputDebug guards `typeof console` so a console-less runtime with debug:true does not throw a bare
+// ReferenceError (matches the snapshot-cache opt-in-debug sink). the throw is captured manually and the
+// global restored BEFORE asserting - the checker's own reporting must not run inside the delete window
+{
+  const injected = [];
+  const injectors = createModuleInjectors({
+    mode: 'actual',
+    getModulesForEntry: () => [],
+    getDebugOutput: () => ({ format: () => 'debug output' }),
+    injectGlobal: m => injected.push(m),
+  });
+  const savedConsole = globalThis.console;
+  let threw = false;
+  try {
+    delete globalThis.console;
+    try {
+      injectors.outputDebug();
+    } catch {
+      threw = true;
+    }
+  } finally {
+    globalThis.console = savedConsole;
+  }
+  check('createModuleInjectors/outputDebug guards typeof console (no throw)', threw, false);
 }
 
 // --- resolveTargets ---

@@ -20,29 +20,23 @@ function isEmpty(v) {
   return v === null || v === undefined;
 }
 
-// JSON.stringify drops/null-renders BigInt, NaN, Infinity, Symbol, function - explicit
-// branches for those so the diagnostic stays distinguishable
+// delegates to safeStringify for primitives + plain values (it carries the BigInt / NaN / Infinity /
+// Symbol / function branches JSON.stringify would otherwise drop); this layer only adds a class-
+// instance ctor-name prefix and the explicit `undefined` rendering (JSON.stringify yields no string)
 function formatReceived(value) {
-  if (typeof value === 'symbol') return value.toString();
-  if (typeof value === 'function') {
-    let fnName = null;
-    try {
-      const raw = value.name;
-      fnName = typeof raw === 'string' ? raw : null;
-    } catch { /* swallow */ }
-    return `[Function${ fnName ? ` ${ fnName }` : '' }]`;
-  }
-  if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
-  if (typeof value === 'bigint') return `${ value }n`;
-  if (value === undefined) return 'undefined';
   if (typeof value === 'object' && value !== null && !isPlainObject(value) && !Array.isArray(value)) {
     // class-instance prefix lets users distinguish `new Targets()` from a plain-object literal
     let ctorName = null;
     try {
-      ctorName = value.constructor?.name;
+      // normalize to a string INSIDE the guard: a `constructor.name` getter can return a Symbol
+      // (or any non-string), and interpolating it below would throw a secondary coercion crash that
+      // masks the primary shape diagnostic - the exact defensive-contract hole this file avoids
+      const raw = value.constructor?.name;
+      ctorName = typeof raw === 'string' ? raw : null;
     } catch { /* swallow */ }
     return ctorName && ctorName !== 'Object' ? `[${ ctorName }] ${ safeStringify(value) }` : safeStringify(value);
   }
+  if (value === undefined) return 'undefined';
   return safeStringify(value);
 }
 
