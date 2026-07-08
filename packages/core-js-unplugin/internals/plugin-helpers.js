@@ -295,6 +295,13 @@ function scanLiteralRegions(src) {
   return regions;
 }
 
+// advance past a `\X` escape at `p`: 2 chars normally, but only 1 when `\` is the last char (EOF)
+// so a malformed literal ending on a lone backslash never overshoots src.length and pushes a region
+// end past the input. the `\r\n` string continuation (3 chars) is handled by its caller before this
+function advancePastEscape(src, p) {
+  return p + (p + 1 < src.length ? 2 : 1);
+}
+
 // scan a regex literal from its opening `/` at `start`; push a 'regex' region and return the
 // position after the closing `/` and flags. returns null when the candidate isn't a regex
 // (unescaped LineTerminator or EOF before the closer -> the `/` was division). `[...]` char
@@ -306,7 +313,7 @@ function scanRegexRegion(src, start, regions) {
     const c = src[p];
     if (isLineTerminator(c)) return null;
     if (c === '\\') {
-      p += 2;
+      p = advancePastEscape(src, p);
       continue;
     }
     if (c === '[') inClass = true;
@@ -355,7 +362,7 @@ function scanStringRegion(src, start, quote, regions) {
         p += 3;
         continue;
       }
-      p += 2;
+      p = advancePastEscape(src, p);
       continue;
     }
     if (c === quote) {
@@ -377,7 +384,7 @@ function scanTemplateRegion(src, start, regions) {
   while (p < src.length) {
     const c = src[p];
     if (c === '\\') {
-      p += 2;
+      p = advancePastEscape(src, p);
       continue;
     }
     if (c === '`') {
