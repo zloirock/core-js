@@ -8,6 +8,7 @@ import {
   getMinifierSequenceDestructureExpressions,
   createTypeAnnotationChecker,
   detectCommonJS,
+  extractIndirectRequireSEPrefix,
   hasTopLevelESM,
   isDeleteTarget,
   isForXWriteTarget,
@@ -44,7 +45,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isSourcedSymbolIteratorMeta, planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { coreJSImportRemovalKeptCallee, scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
@@ -585,21 +586,25 @@ export default function createPlugin(options) {
         if (removed.size) {
         // a plain import / require splices from the AST too - `await import(...)` would otherwise drag
         // Promise polyfills via the syntax visitor after its statement is gone from output. an indirect-
-        // require (`(spy(), require)('core-js/X')`) keeps its callee as a bare statement (`spy(), require;`):
-        // the node STAYS in the AST re-pointed at the callee, so the syntax visitor still polyfills any
-        // usage inside the kept prefix (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
-          const keptCallees = new Map();
+        // require (`0, (spy(), require)('core-js/X')`) keeps its side-effect prefix (outer sequence AND
+        // callee) as bare statements via the same helper the entry path uses; the node STAYS in the AST
+        // re-pointed at that prefix, so the syntax visitor still polyfills any usage inside the kept prefix
+        // (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
+          const keptPrefixes = new Map();
           for (const node of removed) {
-            const callee = coreJSImportRemovalKeptCallee(node);
-            if (callee) keptCallees.set(node, callee);
+            const sePrefix = extractIndirectRequireSEPrefix(node);
+            if (sePrefix.length) keptPrefixes.set(node, sePrefix);
           }
-          ast.body = ast.body.filter(n => !removed.has(n) || keptCallees.has(n));
+          ast.body = ast.body.filter(n => !removed.has(n) || keptPrefixes.has(n));
           const removeStatement = createTopLevelStatementRemover(ms);
+          removeStatement.seed([...removed].filter(n => !keptPrefixes.has(n)));
           for (const node of removed) {
-            const callee = keptCallees.get(node);
-            if (callee) {
-              ms.overwrite(node.start, node.end, `${ ms.slice(callee.start, callee.end) };`);
-              node.expression = callee;
+            const sePrefix = keptPrefixes.get(node);
+            if (sePrefix) {
+              const text = sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n');
+              removeStatement.guardInjectionLeftBoundary(node.start, text);
+              ms.overwrite(node.start, node.end, text);
+              node.expression = sePrefix.length === 1 ? sePrefix[0] : { type: 'SequenceExpression', expressions: sePrefix };
             } else removeStatement(node);
           }
         }
