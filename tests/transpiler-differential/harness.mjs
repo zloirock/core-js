@@ -179,7 +179,19 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   const babelImports = importSet(babelOut);
   const unpluginImports = importSet(unpluginOut);
 
+  // the corpus uses `self` ONLY as a proxy-global alias in NATIVE (untranspiled) snippets
+  // (`globalThis || self`); Node has no `self`, and core-js polyfills it (unlike `window`, which is not a
+  // core-js target and never appears bare in the corpus). Alias it to globalThis for the native leg
+  // ALONE, then `delete` (not `= undefined`: a deleted property makes a bare `self` reference throw, an
+  // undefined-valued one resolves to undefined) so the TRANSPILED outputs run WITHOUT it - a plugin that
+  // fails to rewrite a bare `self` to its pure import (`_self`) leaves a reference that must throw, the
+  // missed-injection signal, the same way the stripped realm catches a missed `globalThis`. same shared
+  // realm, evals are sequential, so the window between define and delete covers only the native import.
+  // NON-enumerable so a globalThis rest/spread/Object.keys probe counts the same as the outputs (a bare
+  // `self` still resolves - identifier [[Get]] ignores the enumerable flag)
+  Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
   const native = runtimeKey((await evalModule(src, ts)).result);
+  delete globalThis.self;
   const babelEval = await evalModule(babelOut, ts);
   const unpluginEval = await evalModule(unpluginOut, ts);
   const babelRun = runtimeKey(babelEval.result);
