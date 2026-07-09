@@ -72,9 +72,7 @@ export function mergeVisitors(base, extra) {
     const current = merged[key];
     if (current === null || current === undefined) {
       merged[key] = handler;
-    } else if (handler === null || handler === undefined) {
-      continue;
-    } else {
+    } else if (handler !== null && handler !== undefined) {
       const a = toObject(current);
       const b = toObject(handler);
       const combined = {};
