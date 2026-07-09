@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/relative-url-style -- required for testing */
+/* eslint-disable unicorn/prefer-url-href, unicorn/relative-url-style -- required for testing */
 import { BUN, GLOBAL, NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
 import urlTestData from '../wpt-url-resources/urltestdata.js';
 import javascriptURLTestData from '../wpt-url-resources/urltestdata-javascript-only.js';
