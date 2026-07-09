@@ -59,7 +59,7 @@ interface CoreJSAsyncIteratorLike<T, TReturn = any, TNext = any> {
   find(...args: any[]): Promise<T | undefined>;
   flatMap<U>(...args: any[]): CoreJSAsyncIteratorLike<U>;
   forEach(...args: any[]): Promise<void>;
-  map<U>(...args: any[]): CoreJSAsyncIteratorLike<Awaited<U>>;
+  map<U>(callbackfn: (value: T, index: number) => U): CoreJSAsyncIteratorLike<Awaited<U>>;
   reduce<U>(...args: any[]): Promise<U>;
   some(...args: any[]): Promise<boolean>;
   take(...args: any[]): CoreJSAsyncIteratorLike<T>;
