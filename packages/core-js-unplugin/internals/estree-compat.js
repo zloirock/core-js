@@ -9,10 +9,9 @@ export function nodeType(node) {
     if (typeof node.value === 'number') return 'NumericLiteral';
     if (typeof node.value === 'boolean') return 'BooleanLiteral';
     if (node.value === null) return 'NullLiteral';
-  }
   // ESTree Property -> Babel ObjectProperty / ObjectMethod
   // getters/setters in ESTree have method: false but kind: get / set - in Babel they're ObjectMethod
-  if (type === 'Property') return node.method || node.kind === 'get' || node.kind === 'set' ? 'ObjectMethod' : 'ObjectProperty';
+  } else if (type === 'Property') return node.method || node.kind === 'get' || node.kind === 'set' ? 'ObjectMethod' : 'ObjectProperty';
   // ESTree MethodDefinition / TS abstract methods -> Babel ClassMethod. `TSAbstractMethodDefinition`
   // is the oxc shape for `abstract m()` - structurally identical to MethodDefinition at runtime
   // (abstract is type-only, stripped before emit), so resolve-node-type treats them as the same
