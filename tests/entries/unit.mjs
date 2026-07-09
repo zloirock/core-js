@@ -1329,7 +1329,7 @@ for (const NS of ['es', 'stable', 'actual', 'full']) {
   ];
 
   for (const TA of typedArrays) {
-    ok(typeof load(NS, `${ TA }`) == 'function');
+    ok(typeof load(NS, TA) == 'function');
     ok(typeof load(NS, `${ TA }/constructor`) == 'function');
   }
 
