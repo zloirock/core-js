@@ -428,9 +428,8 @@ export function createTypeExpansion({
     // nested conditional binds its own infer scope - stop the walk so its trueType-only
     // names don't bleed into the outer extendsType's collector
     if (node.type === 'TSConditionalType') return into;
-    for (const key of Object.keys(node)) {
+    for (const [key, value] of Object.entries(node)) {
       if (STRUCTURAL_WALK_SKIP_KEYS.has(key)) continue;
-      const value = node[key];
       if (Array.isArray(value)) {
         for (const item of value) collectInferredNames(item, into, depth + 1);
       } else if (value && typeof value === 'object' && typeof value.type === 'string') {

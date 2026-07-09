@@ -3435,6 +3435,7 @@ console.log(url.pathname);   // => '/foo/bar'
 console.log(url.search);     // => '?a=1&b=2&a=3'
 console.log(url.hash);       // => '#fragment'
 console.log(url.toJSON());   // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+// eslint-disable-next-line unicorn/prefer-url-href -- example
 console.log(url.toString()); // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
 
 for (let [key, value] of url.searchParams) {

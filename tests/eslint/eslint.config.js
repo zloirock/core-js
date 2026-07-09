@@ -773,6 +773,8 @@ const base = {
   'unicorn/prefer-array-flat': ERROR,
   // use `.flatMap()` to map and then flatten an array instead of using `.map().flat()`
   'unicorn/prefer-array-flat-map': ERROR,
+  // use using the `Array.from()` mapping function argument
+  'unicorn/prefer-array-from-map': ERROR,
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
   'unicorn/prefer-array-index-of': ERROR,
   // prefer last-oriented array methods over `Array#reverse()` or `Array#toReversed()` followed by a method
@@ -793,14 +795,22 @@ const base = {
   'unicorn/prefer-date-now': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
+  // prefer direct iteration over default iterator method calls
+  'unicorn/prefer-direct-iteration': ERROR,
   // prefer `EventTarget` over `EventEmitter`
   'unicorn/prefer-event-target': ERROR,
   // prefer `.getOrInsertComputed()` when the default value has side effects
   'unicorn/prefer-get-or-insert-computed': ERROR,
   // prefer `globalThis` over `window`, `self`, and `global`
   'unicorn/prefer-global-this': ERROR,
+  // prefer identifiers over string literals in import and export specifiers.
+  'unicorn/prefer-identifier-import-export-specifiers': ERROR,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
   'unicorn/prefer-includes': ERROR,
+  // prefer passing iterables directly to constructors instead of filling empty collections
+  'unicorn/prefer-iterable-in-constructor': ERROR,
+  // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
+  'unicorn/prefer-iterator-to-array': ERROR,
   // prefer moving `.toArray()` to the end of iterator helper chains
   'unicorn/prefer-iterator-to-array-at-end': ERROR,
   // prefer reading a `JSON` file as a buffer
@@ -819,6 +829,12 @@ const base = {
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': ERROR,
+  // prefer `Object.defineProperties()` over multiple `Object.defineProperty()` calls
+  'unicorn/prefer-object-define-properties': ERROR,
+  // prefer object destructuring defaults over default object literals with spread
+  'unicorn/prefer-object-destructuring-defaults': ERROR,
+  // prefer the most specific `Object` iterable method.
+  'unicorn/prefer-object-iterable-methods': ERROR,
   // prefer `queueMicrotask()` over `process.nextTick()`, `setImmediate()`, and `setTimeout(…, 0)`
   'unicorn/prefer-queue-microtask': ERROR,
   // prefer `Response.json()` over `new Response(JSON.stringify())`
@@ -829,8 +845,16 @@ const base = {
   'unicorn/prefer-set-size': ERROR,
   // prefer simple conditions first in logical expressions
   'unicorn/prefer-simple-condition-first': ERROR,
+  // prefer a simple comparison function for `Array#sort()`
+  'unicorn/prefer-simple-sort-comparator': ERROR,
+  // prefer a single `Array#some()` or `Array#every()` with a combined predicate
+  'unicorn/prefer-single-array-predicate': ERROR,
   // enforce combining multiple `Array#push`, `Element#classList.{ add, remove }()` or `importScripts` into one call
   'unicorn/prefer-single-call': ERROR,
+  // prefer a single object destructuring declaration per local const source
+  'unicorn/prefer-single-object-destructuring': ERROR,
+  // prefer declaring variables in the smallest possible scope
+  'unicorn/prefer-smaller-scope': ERROR,
   // prefer `String#split()` with a limit
   'unicorn/prefer-split-limit': ERROR,
   // prefer String#matchAll() over RegExp#exec() loops
@@ -847,6 +871,8 @@ const base = {
   'unicorn/prefer-structured-clone': ERROR,
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
+  // prefer `URL#href` over stringifying a `URL`
+  'unicorn/prefer-url-href': ERROR,
   // enforce consistent relative `URL` style
   'unicorn/relative-url-style': [ERROR, ALWAYS],
   // enforce using the separator argument with `Array#join()`
@@ -857,6 +883,8 @@ const base = {
   'unicorn/require-number-to-fixed-digits-argument': ERROR,
   // enforce using the `targetOrigin`` argument with `window.postMessage()`
   'unicorn/require-post-message-target-origin': ERROR,
+  // require boolean-returning Proxy traps to return booleans
+  'unicorn/require-proxy-trap-boolean-return': ERROR,
   // forbid braces for case clauses
   'unicorn/switch-case-braces': [ERROR, 'avoid'],
   // fix whitespace-insensitive template indentation
@@ -1589,6 +1617,8 @@ const forbidES2017BuiltIns = {
   'es/no-object-values': ERROR,
   'es/no-shared-array-buffer': ERROR,
   'es/no-string-prototype-padstart-padend': ERROR,
+  // prefer the most specific `Object` iterable method.
+  'unicorn/prefer-object-iterable-methods': OFF,
   // prefer `String#padStart()` and `String#padEnd()` over manual string padding
   'unicorn/prefer-string-pad-start-end': OFF,
 };
@@ -1694,6 +1724,8 @@ const forbidES2025BuiltIns = {
   'es/no-set-prototype-issupersetof': ERROR,
   'es/no-set-prototype-symmetricdifference': ERROR,
   'es/no-set-prototype-union': ERROR,
+  // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
+  'unicorn/prefer-iterator-to-array': OFF,
 };
 
 const forbidES2026BuiltIns = {
@@ -1964,6 +1996,19 @@ const tests = {
   'redos/no-vulnerable': OFF,
   // allow Annex B methods for testing
   ...disable(forbidESAnnexBBuiltIns),
+};
+
+const e2eUsagePure = {
+  // disallow unreadable object destructuring
+  'unicorn/no-unreadable-object-destructuring': OFF,
+  // use using the `Array.from()` mapping function argument
+  'unicorn/prefer-array-from-map': OFF,
+  // prefer direct iteration over default iterator method calls
+  'unicorn/prefer-direct-iteration': OFF,
+  // prefer object destructuring defaults over default object literals with spread
+  'unicorn/prefer-object-destructuring-defaults': OFF,
+  // prefer a single object destructuring declaration per local const source.
+  'unicorn/prefer-single-object-destructuring': OFF,
 };
 
 const qunit = {
@@ -2557,10 +2602,7 @@ export default [
     files: [
       'tests/e2e-usage-pure/**',
     ],
-    rules: {
-      // disallow unreadable object destructuring
-      'unicorn/no-unreadable-object-destructuring': OFF,
-    },
+    rules: e2eUsagePure,
   },
   {
     files: [
