@@ -761,6 +761,8 @@ const base = {
   'unicorn/no-useless-length-check': ERROR,
   // disallow returning / yielding `Promise.{ resolve, reject }` in async functions or promise callbacks
   'unicorn/no-useless-promise-resolve-reject': ERROR,
+  // disallow simple recursive function calls that can be replaced with a loop
+  'unicorn/no-useless-recursion': ERROR,
   // disallow useless spread
   'unicorn/no-useless-spread': ERROR,
   // disallow useless `case` in `switch` statements

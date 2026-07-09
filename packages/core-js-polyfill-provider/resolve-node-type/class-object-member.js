@@ -84,30 +84,35 @@ export function createClassObjectMember({
   }
 
   function findClassMember({ classPath, name, isStatic, classSubst, depth = 0, visited = undefined }) {
-    if (depth > MAX_DEPTH) return null;
-    // reverse-walk: duplicate member keys are legal; the last matching definition wins. setters are
-    // skipped because a read resolves to the getter / data member, never the setter - and a class
-    // FIELD is an own data property that shadows a prototype setter on read, so returning an earlier
-    // field past a setter is correct here. NOTE this legitimately diverges from `findObjectMember`,
-    // where a later setter makes the object-literal key a setter-only accessor (read -> undefined)
-    const members = classPath.get('body').get('body');
-    for (let i = members.length - 1; i >= 0; i--) {
-      const member = members[i];
-      if (!memberKeyMatches(member.node.key, member.node.computed, name)) continue;
-      if (!!member.node.static !== isStatic) continue;
-      if (member.node.kind === 'set') continue;
-      return { member, subst: classSubst ?? null };
+    while (true) {
+      if (depth > MAX_DEPTH) return null;
+      // reverse-walk: duplicate member keys are legal; the last matching definition wins. setters are
+      // skipped because a read resolves to the getter / data member, never the setter - and a class
+      // FIELD is an own data property that shadows a prototype setter on read, so returning an earlier
+      // field past a setter is correct here. NOTE this legitimately diverges from `findObjectMember`,
+      // where a later setter makes the object-literal key a setter-only accessor (read -> undefined)
+      const members = classPath.get('body').get('body');
+      for (let i = members.length - 1; i >= 0; i--) {
+        const member = members[i];
+        if (!memberKeyMatches(member.node.key, member.node.computed, name)) continue;
+        if (!!member.node.static !== isStatic) continue;
+        if (member.node.kind === 'set') continue;
+        return { member, subst: classSubst ?? null };
+      }
+      // `class A extends B; class B extends A` cycle: MAX_DEPTH bottoms out via 64-frame
+      // CPU-burn. visited Set on class nodes short-circuits at the second visit (parallels
+      // `collectClassLikeMembers`'s `seen` and the type-alias decl-set guard)
+      const seen = visited ?? new Set();
+      if (seen.has(classPath.node)) return null;
+      seen.add(classPath.node);
+      const parentPath = resolveSuperClassPath(classPath);
+      if (!parentPath) return null;
+      const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst, classPath.scope);
+      classPath = parentPath;
+      classSubst = parentSubst;
+      depth += 1;
+      visited = seen;
     }
-    // `class A extends B; class B extends A` cycle: MAX_DEPTH bottoms out via 64-frame
-    // CPU-burn. visited Set on class nodes short-circuits at the second visit (parallels
-    // `collectClassLikeMembers`'s `seen` and the type-alias decl-set guard)
-    const seen = visited ?? new Set();
-    if (seen.has(classPath.node)) return null;
-    seen.add(classPath.node);
-    const parentPath = resolveSuperClassPath(classPath);
-    if (!parentPath) return null;
-    const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst, classPath.scope);
-    return findClassMember({ classPath: parentPath, name, isStatic, classSubst: parentSubst, depth: depth + 1, visited: seen });
   }
 
   // single returned expression as a path - used to resolve getters like properties
@@ -198,31 +203,35 @@ export function createClassObjectMember({
   // sees `Base`'s merged namespace exports as inherited statics. mirrors `findClassMember`'s
   // super-walk semantics for class body
   function resolveMergedNamespaceStatic({ classPath, name, callPath, depth = 0, visited }) {
-    if (!callPath || depth > MAX_DEPTH) return null;
-    if (!findNamespacedFunctionPath) return null;
-    if (!classPath.node.id?.name) return null;
-    const found = findNamespacedFunctionPath([classPath.node.id.name, name], classPath.scope);
-    if (found) {
-      // matched in THIS class's namespace - own export wins. route through
-      // `resolveReturnType` which handles BOTH annotated returns (with type-param subst
-      // from call-site args - `identity<T>(item: T): T` + `Box.identity('hello')` -> T=string)
-      // AND body-return inference (`function build() { return [1,2,3] }` -> Array).
-      // ClassDeclaration leaves (`export class Inner {}`) miss the visitor list and fall
-      // through to null - synthesising a TSTypeReference back to the inner class would
-      // face scope-binding issues and the user-class member path doesn't over-inject
-      // without that signal. bail on null result instead of falling through to the
-      // parent walk: parent's same-name export has a different return type, and
-      // returning its annotation would emit the wrong polyfill family for the runtime
-      // value of the child override
-      const fnPath = nodePathInScope(found.node, found.scope, NAMESPACE_FN_PATH_TYPES);
-      return fnPath ? resolveReturnType(fnPath, callPath, null) : null;
+    while (true) {
+      if (!callPath || depth > MAX_DEPTH) return null;
+      if (!findNamespacedFunctionPath) return null;
+      if (!classPath.node.id?.name) return null;
+      const found = findNamespacedFunctionPath([classPath.node.id.name, name], classPath.scope);
+      if (found) {
+        // matched in THIS class's namespace - own export wins. route through
+        // `resolveReturnType` which handles BOTH annotated returns (with type-param subst
+        // from call-site args - `identity<T>(item: T): T` + `Box.identity('hello')` -> T=string)
+        // AND body-return inference (`function build() { return [1,2,3] }` -> Array).
+        // ClassDeclaration leaves (`export class Inner {}`) miss the visitor list and fall
+        // through to null - synthesising a TSTypeReference back to the inner class would
+        // face scope-binding issues and the user-class member path doesn't over-inject
+        // without that signal. bail on null result instead of falling through to the
+        // parent walk: parent's same-name export has a different return type, and
+        // returning its annotation would emit the wrong polyfill family for the runtime
+        // value of the child override
+        const fnPath = nodePathInScope(found.node, found.scope, NAMESPACE_FN_PATH_TYPES);
+        return fnPath ? resolveReturnType(fnPath, callPath, null) : null;
+      }
+      const seen = visited ?? new Set();
+      if (seen.has(classPath.node)) return null;
+      seen.add(classPath.node);
+      const parentPath = resolveSuperClassPath(classPath);
+      if (!parentPath) return null;
+      classPath = parentPath;
+      depth += 1;
+      visited = seen;
     }
-    const seen = visited ?? new Set();
-    if (seen.has(classPath.node)) return null;
-    seen.add(classPath.node);
-    const parentPath = resolveSuperClassPath(classPath);
-    if (!parentPath) return null;
-    return resolveMergedNamespaceStatic({ classPath: parentPath, name, callPath, depth: depth + 1, visited: seen });
   }
 
   // ESTree MethodDefinition / ObjectMethod wrap the function in `.value`; babel ClassMethod /
