@@ -530,142 +530,146 @@ export function createTypeMembers({
   }
 
   function findTypeMember({ objectType, key, scope, depth = 0 }) {
-    if (!objectType || depth > MAX_DEPTH) return null;
-    // peel a leading TSParenthesizedType (`(A | B)['k']`) so the union / intersection / structural
-    // dispatch below sees the raw discriminated shape, not the wrapper (branch-level peel is withSubst)
-    objectType = peelTSParenthesized(objectType);
-    // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
-    // union member may itself be a wrapped generic (`Inner<T>` / `T[]`); deep subst
-    // descends into the inner type-param
-    const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
-    // `Readonly<[T, U]>[0]` - after chain-follow the alias may still land on a structure-
-    // preserving wrapper. peel it here so the tuple branch below gets the raw TSTupleType
-    // (getTypeMembers fallback returns null for tuples - they carry element types, not members)
-    // structure-preserving wrapper (`Readonly<T>`) OR trivial mapped-type passthrough
-    // (`{ [K in keyof T]: T[K] }`) - both unwrap to T for property-lookup purposes. subst
-    // from `followTypeAliasChain` already maps the alias's type-params to the receiver's
-    // concrete args; apply to the unwrapped inner before recursing
-    // SUBSTITUTE before unwrapping: `Awaited<T>` with subst T -> Promise<X[]> must unwrap the
-    // SUBSTITUTED promise layer (peel-then-subst yielded the raw Promise and dropped the
-    // member); order-equivalent for the structure-preserving wrappers (`Readonly<T>` etc.)
-    const passthrough = unwrapPassthroughWrapper(applySubst(aliased ?? objectType, subst), scope);
-    if (passthrough) {
-      return findTypeMember({ objectType: passthrough, key, scope, depth: depth + 1 });
-    }
-    function withSubst(node) {
-      if (!node) return node;
-      // peel TSParenthesizedType (oxc preserves `(B)` / `(B | C)` as a wrapper; babel keeps it
-      // in member position too) so union / intersection branch recursion and member-type
-      // returns see the raw discriminated shape instead of bailing on the wrapper
-      const unwrapped = peelTSParenthesized(unwrapTypeAnnotation(node));
-      return applySubst(unwrapped, subst);
-    }
-    // an optional property (`a?: T`) admits undefined even on a present receiver; the
-    // signature's own `optional` flag would otherwise be dropped when only the annotation
-    // is returned. a synthetic TSOptionalType wrapper carries the possibility to the
-    // annotation resolvers, which mark the resolved type for the logical truthy-fold gate
-    function withOptional(annotation, member) {
-      return member.optional && annotation ? { type: 'TSOptionalType', typeAnnotation: annotation } : annotation;
-    }
-    // conditional types route through dedicated helper: extracts the branch-pick logic
-    // (AST equality > structural Type Object eval > infer-pattern fallback > undecidable
-    // union fold) into one place. without the extraction, findTypeMember exceeds the
-    // max-statements lint threshold and the member-lookup-on-conditional path becomes
-    // hard to reason about
-    if (aliased?.type === 'TSConditionalType') {
-      return findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst });
-    }
-    function resolveBranch(member) {
-      return findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
-    }
-    if (isUnionType(aliased)) {
-      const found = aliased.types.map(resolveBranch).filter(Boolean);
-      if (!found.length) return null;
-      if (found.length === 1) return found[0];
-      return { type: aliased.type, types: found };
-    }
-    // intersection: `(A & B)['k']` is `A['k'] & B['k']` - a key declared in several constituents
-    // contributes the INTERSECTION of its per-constituent member types, not the first hit. collect
-    // every constituent's member and fold into a synthetic intersection (mirrors the union branch
-    // and the additive `getTypeMembers` intersection semantics); the downstream
-    // `foldIntersectionTypes` prefers the array / string-like constituent over a bare object, so a
-    // non-array member listed before an array member no longer shadows the array polyfill
-    if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
-      const found = aliased.types.map(resolveBranch).filter(Boolean);
-      if (!found.length) return null;
-      if (found.length === 1) return found[0];
-      return { type: aliased.type, types: found };
-    }
-    const indexedElement = tryIndexedElementMember({ aliased, key, scope, subst });
-    if (indexedElement) return indexedElement;
-    // walk through trivial mapped passthroughs / aliases when looking up members
-    const members = getTypeMembers({ objectType: aliased ?? objectType, scope, depth });
-    if (!members) return null;
-    for (const member of members) {
-      switch (member.type) {
-        // unannotated `interface I { items; items: number[] }` declaration-merging: `break`
-        // rather than `return null` so iteration continues to a typed sibling. without that,
-        // the first hit halts the walk and over-emits the generic polyfill family
-        case 'TSPropertySignature':
-          if (!keyMatchesName(member.key, key) || !member.typeAnnotation) break;
-          return withOptional(withSubst(member.typeAnnotation), member);
-        // getter: read the return; setter: continue iteration to a paired getter;
-        // plain method: expose the full signature (see returnMemberMethodNode)
-        case 'TSMethodSignature':
-          if (!keyMatchesName(member.key, key)) break;
-          if (member.kind === 'get') return withSubst(member.typeAnnotation ?? member.returnType);
-          if (member.kind === 'set') break;
-          return returnMemberMethodNode(member, subst);
-        case 'ObjectTypeProperty':
-          if (!keyMatchesName(member.key, key)) break;
-          // Flow getter (`{ get items(): T }`) has kind 'get' with a FunctionTypeAnnotation
-          // value: return its return type, not the function type itself (else `.at()` on the
-          // result is dispatched against Function and the narrow is lost). setter: skip to a
-          // paired getter. plain property / method value: return the value annotation
-          if (member.kind === 'get') return withSubst(functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value)));
-          if (member.kind === 'set') break;
-          return withOptional(withSubst(member.value), member);
-        case 'ClassProperty':         // flow
-        case 'PropertyDefinition':    // babel TS / ESTree spec
-        case 'ClassAccessorProperty': // babel decoratorAutoAccessors plugin
-        case 'AccessorProperty':      // TC39 stage-4 auto-accessor: oxc / ESTree spec
-          // class body property: typeAnnotation if present, otherwise `break` so a sibling
-          // iface-merge property with the annotation supplies the type (`class C { items=[] };
-          // interface C { items: number[] }`). returning null here would halt iteration and
-          // over-emit the generic Maybe polyfill family. keep parser-shape list in sync with
-          // `createClassMemberShape.isPropertyMember` in `class-member-shapes.js`
-          if (!member.computed && keyMatchesName(member.key, key) && member.typeAnnotation) {
-            return withOptional(withSubst(member.typeAnnotation), member);
-          }
-          break;
-        // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
-        // babel carries it directly). setter: `break` so iteration continues to a paired getter.
-        // oxc models `abstract m(): T` as TSAbstractMethodDefinition (same `.value` wrap as
-        // MethodDefinition; babel uses TSDeclareMethod, already listed) - matched identically
-        case 'ClassMethod':
-        case 'ClassPrivateMethod':
-        case 'TSDeclareMethod':
-        case 'MethodDefinition':
-        case 'TSAbstractMethodDefinition':
-          if (member.computed || !keyMatchesName(member.key, key)) break;
-          if (member.kind === 'get') return withSubst(member.returnType ?? member.value?.returnType);
-          if (member.kind === 'set') break;
-          return returnMemberMethodNode(member, subst);
+    while (true) {
+      if (!objectType || depth > MAX_DEPTH) return null;
+      // peel a leading TSParenthesizedType (`(A | B)['k']`) so the union / intersection / structural
+      // dispatch below sees the raw discriminated shape, not the wrapper (branch-level peel is withSubst)
+      objectType = peelTSParenthesized(objectType);
+      // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
+      // union member may itself be a wrapped generic (`Inner<T>` / `T[]`); deep subst
+      // descends into the inner type-param
+      const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
+      // `Readonly<[T, U]>[0]` - after chain-follow the alias may still land on a structure-
+      // preserving wrapper. peel it here so the tuple branch below gets the raw TSTupleType
+      // (getTypeMembers fallback returns null for tuples - they carry element types, not members)
+      // structure-preserving wrapper (`Readonly<T>`) OR trivial mapped-type passthrough
+      // (`{ [K in keyof T]: T[K] }`) - both unwrap to T for property-lookup purposes. subst
+      // from `followTypeAliasChain` already maps the alias's type-params to the receiver's
+      // concrete args; apply to the unwrapped inner before recursing
+      // SUBSTITUTE before unwrapping: `Awaited<T>` with subst T -> Promise<X[]> must unwrap the
+      // SUBSTITUTED promise layer (peel-then-subst yielded the raw Promise and dropped the
+      // member); order-equivalent for the structure-preserving wrappers (`Readonly<T>` etc.)
+      const passthrough = unwrapPassthroughWrapper(applySubst(aliased ?? objectType, subst), scope);
+      if (passthrough) {
+        objectType = passthrough;
+        depth += 1;
+        continue;
       }
+      function withSubst(node) {
+        if (!node) return node;
+        // peel TSParenthesizedType (oxc preserves `(B)` / `(B | C)` as a wrapper; babel keeps it
+        // in member position too) so union / intersection branch recursion and member-type
+        // returns see the raw discriminated shape instead of bailing on the wrapper
+        const unwrapped = peelTSParenthesized(unwrapTypeAnnotation(node));
+        return applySubst(unwrapped, subst);
+      }
+      // an optional property (`a?: T`) admits undefined even on a present receiver; the
+      // signature's own `optional` flag would otherwise be dropped when only the annotation
+      // is returned. a synthetic TSOptionalType wrapper carries the possibility to the
+      // annotation resolvers, which mark the resolved type for the logical truthy-fold gate
+      function withOptional(annotation, member) {
+        return member.optional && annotation ? { type: 'TSOptionalType', typeAnnotation: annotation } : annotation;
+      }
+      // conditional types route through dedicated helper: extracts the branch-pick logic
+      // (AST equality > structural Type Object eval > infer-pattern fallback > undecidable
+      // union fold) into one place. without the extraction, findTypeMember exceeds the
+      // max-statements lint threshold and the member-lookup-on-conditional path becomes
+      // hard to reason about
+      if (aliased?.type === 'TSConditionalType') {
+        return findConditionalTypeMember({ aliased, subst, key, scope, depth, withSubst });
+      }
+      function resolveBranch(member) {
+        return findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
+      }
+      if (isUnionType(aliased)) {
+        const found = aliased.types.map(resolveBranch).filter(Boolean);
+        if (!found.length) return null;
+        if (found.length === 1) return found[0];
+        return { type: aliased.type, types: found };
+      }
+      // intersection: `(A & B)['k']` is `A['k'] & B['k']` - a key declared in several constituents
+      // contributes the INTERSECTION of its per-constituent member types, not the first hit. collect
+      // every constituent's member and fold into a synthetic intersection (mirrors the union branch
+      // and the additive `getTypeMembers` intersection semantics); the downstream
+      // `foldIntersectionTypes` prefers the array / string-like constituent over a bare object, so a
+      // non-array member listed before an array member no longer shadows the array polyfill
+      if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
+        const found = aliased.types.map(resolveBranch).filter(Boolean);
+        if (!found.length) return null;
+        if (found.length === 1) return found[0];
+        return { type: aliased.type, types: found };
+      }
+      const indexedElement = tryIndexedElementMember({ aliased, key, scope, subst });
+      if (indexedElement) return indexedElement;
+      // walk through trivial mapped passthroughs / aliases when looking up members
+      const members = getTypeMembers({ objectType: aliased ?? objectType, scope, depth });
+      if (!members) return null;
+      for (const member of members) {
+        switch (member.type) {
+          // unannotated `interface I { items; items: number[] }` declaration-merging: `break`
+          // rather than `return null` so iteration continues to a typed sibling. without that,
+          // the first hit halts the walk and over-emits the generic polyfill family
+          case 'TSPropertySignature':
+            if (!keyMatchesName(member.key, key) || !member.typeAnnotation) break;
+            return withOptional(withSubst(member.typeAnnotation), member);
+          // getter: read the return; setter: continue iteration to a paired getter;
+          // plain method: expose the full signature (see returnMemberMethodNode)
+          case 'TSMethodSignature':
+            if (!keyMatchesName(member.key, key)) break;
+            if (member.kind === 'get') return withSubst(member.typeAnnotation ?? member.returnType);
+            if (member.kind === 'set') break;
+            return returnMemberMethodNode(member, subst);
+          case 'ObjectTypeProperty':
+            if (!keyMatchesName(member.key, key)) break;
+            // Flow getter (`{ get items(): T }`) has kind 'get' with a FunctionTypeAnnotation
+            // value: return its return type, not the function type itself (else `.at()` on the
+            // result is dispatched against Function and the narrow is lost). setter: skip to a
+            // paired getter. plain property / method value: return the value annotation
+            if (member.kind === 'get') return withSubst(functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value)));
+            if (member.kind === 'set') break;
+            return withOptional(withSubst(member.value), member);
+          case 'ClassProperty':         // flow
+          case 'PropertyDefinition':    // babel TS / ESTree spec
+          case 'ClassAccessorProperty': // babel decoratorAutoAccessors plugin
+          case 'AccessorProperty':      // TC39 stage-4 auto-accessor: oxc / ESTree spec
+            // class body property: typeAnnotation if present, otherwise `break` so a sibling
+            // iface-merge property with the annotation supplies the type (`class C { items=[] };
+            // interface C { items: number[] }`). returning null here would halt iteration and
+            // over-emit the generic Maybe polyfill family. keep parser-shape list in sync with
+            // `createClassMemberShape.isPropertyMember` in `class-member-shapes.js`
+            if (!member.computed && keyMatchesName(member.key, key) && member.typeAnnotation) {
+              return withOptional(withSubst(member.typeAnnotation), member);
+            }
+            break;
+          // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
+          // babel carries it directly). setter: `break` so iteration continues to a paired getter.
+          // oxc models `abstract m(): T` as TSAbstractMethodDefinition (same `.value` wrap as
+          // MethodDefinition; babel uses TSDeclareMethod, already listed) - matched identically
+          case 'ClassMethod':
+          case 'ClassPrivateMethod':
+          case 'TSDeclareMethod':
+          case 'MethodDefinition':
+          case 'TSAbstractMethodDefinition':
+            if (member.computed || !keyMatchesName(member.key, key)) break;
+            if (member.kind === 'get') return withSubst(member.returnType ?? member.value?.returnType);
+            if (member.kind === 'set') break;
+            return returnMemberMethodNode(member, subst);
+        }
+      }
+      const indexSig = pickIndexSignature(members, key);
+      if (indexSig) return withSubst(indexSig);
+      // Flow: ObjectTypeIndexer is stored separately on the type node, not in properties.
+      // reuse the `aliased`/`subst` from the top-of-function `followTypeAliasChain` instead of
+      // re-walking the alias chain - the chain is identity-stable and the two walks would
+      // hit the same memoized cache, so a second call is pure overhead
+      const flowType = aliased ?? objectType;
+      if (flowType?.type === 'ObjectTypeAnnotation' && flowType.indexers?.length) {
+        const indexerValue = flowType.indexers[0].value;
+        // deep subst - Flow indexer value can be a wrapped generic (`{[K]: T[]}`)
+        return subst ? applyAliasSubstDeep(indexerValue, subst) : indexerValue;
+      }
+      return null;
     }
-    const indexSig = pickIndexSignature(members, key);
-    if (indexSig) return withSubst(indexSig);
-    // Flow: ObjectTypeIndexer is stored separately on the type node, not in properties.
-    // reuse the `aliased`/`subst` from the top-of-function `followTypeAliasChain` instead of
-    // re-walking the alias chain - the chain is identity-stable and the two walks would
-    // hit the same memoized cache, so a second call is pure overhead
-    const flowType = aliased ?? objectType;
-    if (flowType?.type === 'ObjectTypeAnnotation' && flowType.indexers?.length) {
-      const indexerValue = flowType.indexers[0].value;
-      // deep subst - Flow indexer value can be a wrapped generic (`{[K]: T[]}`)
-      return subst ? applyAliasSubstDeep(indexerValue, subst) : indexerValue;
-    }
-    return null;
   }
 
   function reset() {

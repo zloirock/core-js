@@ -304,98 +304,109 @@ export function createReturnType({
     return false;
   }
 
-  // check whether a type annotation AST node references any type parameter from the given set
-  function hasTypeParamReference(node, typeParamNames, depth) {
-    if (depth > MAX_DEPTH) return false;
-    node = unwrapTypeAnnotation(node);
-    if (!node) return false;
-    switch (babelNodeType(node)) {
-      case 'TSTypeReference':
-      case 'GenericTypeAnnotation': {
-        const name = typeRefName(node);
-        if (name && typeParamNames.has(name)) return true;
-        const params = getTypeArgs(node)?.params;
-        if (params) for (const param of params) {
-          if (hasTypeParamReference(param, typeParamNames, depth + 1)) return true;
-        }
-        return false;
-      }
-      case 'TSArrayType':
-      case 'ArrayTypeAnnotation':
-        return hasTypeParamReference(node.elementType, typeParamNames, depth + 1);
-      case 'TSUnionType':
-      case 'UnionTypeAnnotation':
-      case 'TSIntersectionType':
-      case 'IntersectionTypeAnnotation':
-        for (const member of node.types) {
-          if (hasTypeParamReference(member, typeParamNames, depth + 1)) return true;
-        }
-        return false;
-      case 'TSTupleType':
-      case 'TupleTypeAnnotation':
-        for (const element of tupleElements(node) ?? []) {
-          const actual = element.type === 'TSNamedTupleMember' ? element.elementType : element;
-          if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
-        }
-        return false;
-      case 'TSConditionalType':
-        return hasTypeParamReference(node.checkType, typeParamNames, depth + 1)
-          || hasTypeParamReference(node.extendsType, typeParamNames, depth + 1)
-          || hasTypeParamReference(node.trueType, typeParamNames, depth + 1)
-          || hasTypeParamReference(node.falseType, typeParamNames, depth + 1);
-      case 'TSNamedTupleMember':
-        return hasTypeParamReference(node.elementType, typeParamNames, depth + 1);
-      case 'TSIndexedAccessType':
-        return hasTypeParamReference(node.objectType, typeParamNames, depth + 1)
-          || hasTypeParamReference(node.indexType, typeParamNames, depth + 1);
-      case 'TSTypeOperator':
-      case 'TSRestType':
-      case 'TSOptionalType':
-      case 'TSParenthesizedType':
-      case 'NullableTypeAnnotation':
-        return hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
-      case 'TSTypeLiteral':
-        for (const member of node.members) {
-          if (hasTypeParamReference(member.typeAnnotation, typeParamNames, depth + 1)) return true;
-          if (hasTypeParamReference(member.returnType, typeParamNames, depth + 1)) return true;
-          // method signatures carry params (`{ foo(x: T): U }`); a T in param must propagate
-          // so call-site subst captures it. babel@8 renamed the slot `parameters`->`params`
-          // (oxc/babel@7 use `parameters`); property signatures have neither, skipped
-          const memberParams = member.params ?? member.parameters;
-          if (memberParams) for (const param of memberParams) {
-            if (hasParamTypeRef(param, typeParamNames, depth + 1)) return true;
-          }
-        }
-        return false;
-      case 'TSFunctionType':
-      case 'TSConstructorType':
-      case 'FunctionTypeAnnotation':
-        // function-type params (`(x: T) => U`) - T in param slot or `...rest: T[]` must
-        // count as referenced so outer-fn subst captures it. each param's annotation is
-        // walked (RestElement carries it via `.argument.typeAnnotation` on babel; oxc
-        // hoists to top-level - `hasParamTypeRef` handles both shapes)
-        {
-          // babel@8 renamed the slot `parameters` -> `params`; oxc/babel@7 use `parameters`
-          const fnParams = node.params ?? node.parameters;
-          if (fnParams) for (const param of fnParams) {
-            if (hasParamTypeRef(param, typeParamNames, depth + 1)) return true;
-          }
-        }
-        return hasTypeParamReference(node.returnType ?? node.typeAnnotation, typeParamNames, depth + 1);
-      // mapped type carries the constraint (`K in keyof T`) and body (`T[K]`); both can
-      // reference type params. without this branch an outer function returning a raw
-      // mapped type (not wrapped in TSTypeReference) skips substitution and loses inner
-      case 'TSMappedType':
-        // `mappedTypeConstraint` covers both parser shapes (babel nests; oxc flattens) so
-        // a mapped type returned from oxc parser doesn't skip subst on its constraint slot
-        return hasTypeParamReference(mappedTypeConstraint(node), typeParamNames, depth + 1)
-          || hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
-      // `typeof x` references the type of a value binding; when x itself is typed by
-      // a type param (rare: `declare const x: T; typeof x`), substitution is needed
-      case 'TSTypeQuery':
-        return typeof node.exprName?.name === 'string' && typeParamNames.has(node.exprName.name);
+  // any param in a signature's param list references a type param from the given set
+  function hasAnyParamTypeRef(params, typeParamNames, depth) {
+    if (params) for (const param of params) {
+      if (hasParamTypeRef(param, typeParamNames, depth)) return true;
     }
     return false;
+  }
+
+  // check whether a type annotation AST node references any type parameter from the given set
+  function hasTypeParamReference(node, typeParamNames, depth) {
+    while (true) {
+      if (depth > MAX_DEPTH) return false;
+      node = unwrapTypeAnnotation(node);
+      if (!node) return false;
+      switch (babelNodeType(node)) {
+        case 'TSTypeReference':
+        case 'GenericTypeAnnotation': {
+          const name = typeRefName(node);
+          if (name && typeParamNames.has(name)) return true;
+          const params = getTypeArgs(node)?.params;
+          if (params) for (const param of params) {
+            if (hasTypeParamReference(param, typeParamNames, depth + 1)) return true;
+          }
+          return false;
+        }
+        case 'TSArrayType':
+        case 'ArrayTypeAnnotation':
+        case 'TSNamedTupleMember':
+          node = node.elementType;
+          depth += 1;
+          continue;
+        case 'TSUnionType':
+        case 'UnionTypeAnnotation':
+        case 'TSIntersectionType':
+        case 'IntersectionTypeAnnotation':
+          for (const member of node.types) {
+            if (hasTypeParamReference(member, typeParamNames, depth + 1)) return true;
+          }
+          return false;
+        case 'TSTupleType':
+        case 'TupleTypeAnnotation':
+          for (const element of tupleElements(node) ?? []) {
+            const actual = element.type === 'TSNamedTupleMember' ? element.elementType : element;
+            if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
+          }
+          return false;
+        case 'TSConditionalType':
+          return hasTypeParamReference(node.checkType, typeParamNames, depth + 1)
+            || hasTypeParamReference(node.extendsType, typeParamNames, depth + 1)
+            || hasTypeParamReference(node.trueType, typeParamNames, depth + 1)
+            || hasTypeParamReference(node.falseType, typeParamNames, depth + 1);
+        case 'TSIndexedAccessType':
+          return hasTypeParamReference(node.objectType, typeParamNames, depth + 1)
+            || hasTypeParamReference(node.indexType, typeParamNames, depth + 1);
+        case 'TSTypeOperator':
+        case 'TSRestType':
+        case 'TSOptionalType':
+        case 'TSParenthesizedType':
+        case 'NullableTypeAnnotation':
+          node = node.typeAnnotation;
+          depth += 1;
+          continue;
+        case 'TSTypeLiteral':
+          for (const member of node.members) {
+            if (hasTypeParamReference(member.typeAnnotation, typeParamNames, depth + 1)) return true;
+            if (hasTypeParamReference(member.returnType, typeParamNames, depth + 1)) return true;
+            // method signatures carry params (`{ foo(x: T): U }`); a T in param must propagate
+            // so call-site subst captures it. babel@8 renamed the slot `parameters`->`params`
+            // (oxc/babel@7 use `parameters`); property signatures have neither, skipped
+            const memberParams = member.params ?? member.parameters;
+            if (hasAnyParamTypeRef(memberParams, typeParamNames, depth + 1)) return true;
+          }
+          return false;
+        case 'TSFunctionType':
+        case 'TSConstructorType':
+        case 'FunctionTypeAnnotation':
+          // function-type params (`(x: T) => U`) - T in param slot or `...rest: T[]` must
+          // count as referenced so outer-fn subst captures it. each param's annotation is
+          // walked (RestElement carries it via `.argument.typeAnnotation` on babel; oxc
+          // hoists to top-level - `hasParamTypeRef` handles both shapes)
+          {
+            // babel@8 renamed the slot `parameters` -> `params`; oxc/babel@7 use `parameters`
+            const fnParams = node.params ?? node.parameters;
+            if (hasAnyParamTypeRef(fnParams, typeParamNames, depth + 1)) return true;
+          }
+          node = node.returnType ?? node.typeAnnotation;
+          depth += 1;
+          continue;
+        // mapped type carries the constraint (`K in keyof T`) and body (`T[K]`); both can
+        // reference type params. without this branch an outer function returning a raw
+        // mapped type (not wrapped in TSTypeReference) skips substitution and loses inner
+        case 'TSMappedType':
+          // `mappedTypeConstraint` covers both parser shapes (babel nests; oxc flattens) so
+          // a mapped type returned from oxc parser doesn't skip subst on its constraint slot
+          return hasTypeParamReference(mappedTypeConstraint(node), typeParamNames, depth + 1)
+            || hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
+        // `typeof x` references the type of a value binding; when x itself is typed by
+        // a type param (rare: `declare const x: T; typeof x`), substitution is needed
+        case 'TSTypeQuery':
+          return typeof node.exprName?.name === 'string' && typeParamNames.has(node.exprName.name);
+      }
+      return false;
+    }
   }
 
   // extract inner type parameter name from a container annotation: T[] -> T, Array<T> -> T, Set<T> -> T, Promise<T> -> T, etc.
