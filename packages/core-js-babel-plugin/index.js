@@ -1163,7 +1163,8 @@ export default function plugin(api, options) {
         if (!destructureEmit) return;
         const { deferredSideEffects } = destructureEmit;
         while (deferredSideEffects.length) {
-          const batch = deferredSideEffects.splice(0).sort(batchOrder);
+          const batch = deferredSideEffects.slice().sort(batchOrder);
+          deferredSideEffects.length = 0;
           const inserted = new Set();
           for (const { body, index, node } of batch) {
             body.splice(index, 0, node);
@@ -1360,7 +1361,7 @@ export default function plugin(api, options) {
         // (e.g. `commonjs` rewriters) after our traversal. by post-phase our flush has
         // already emitted imports; the remaining useful action is surfacing the mismatch
         // through debug so users reorder plugins or opt into `importStyle: 'require'`
-        const markersGone = !this.file.path.node.body.some(n => ESM_MARKER_TYPES.has(n.type));
+        const markersGone = this.file.path.node.body.every(n => !ESM_MARKER_TYPES.has(n.type));
         if (importStyleOption === undefined && importStyle === 'import' && markersGone && injector.hasFlushed) {
           debugOutput?.warn(
             '[core-js] sibling plugin stripped ESM markers after our traversal; emitted imports '

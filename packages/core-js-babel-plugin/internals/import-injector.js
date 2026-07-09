@@ -527,7 +527,7 @@ export default class ImportInjector extends ImportInjectorState {
       // pull our refs; when the whole node is initless also pull the foreign siblings (inert hoist)
       const pulled = stmt.declarations.filter(d => !d.init && d.id.type === 'Identifier'
         && (allInitless || refsSet.has(d.id.name)));
-      if (!pulled.some(d => refsSet.has(d.id.name))) continue; // sibling-only initless var migrates separately
+      if (pulled.every(d => !refsSet.has(d.id.name))) continue; // sibling-only initless var migrates separately
       pulledDeclarators.push(...pulled);
       const remaining = stmt.declarations.filter(d => !pulled.includes(d));
       if (remaining.length) {

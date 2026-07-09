@@ -616,7 +616,7 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
   function visitChainRootAlias(leaf) {
     const parts = memberChainParts(leaf, { scope, adapter, path });
     if (!parts) return;
-    if (!parts.keys.slice(0, -1).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
+    if (parts.keys.slice(0, -1).some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
     let rootValues;
     if (parts.rootNode.type === 'Identifier') {
       if (!adapter.hasBinding(scope, parts.rootNode.name, path)) return;

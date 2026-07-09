@@ -734,7 +734,7 @@ export function createMemberResolve({
     }
     // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string
     if (!path.node.computed) return null;
-    if (!enumDecls.every(decl => resolveEnumType(decl)?.type === 'number')) return null;
+    if (enumDecls.some(decl => resolveEnumType(decl)?.type !== 'number')) return null;
     return resolveNodeType(path.get('property'))?.type === 'number' ? new $Primitive('string') : null;
   }
 

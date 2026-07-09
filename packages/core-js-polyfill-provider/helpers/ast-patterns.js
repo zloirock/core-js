@@ -972,8 +972,8 @@ export function withCanonicalViolations(binding, name) {
     // marker here would erase that precision. assignment-shaped writes stay
     .filter(node => node.type !== 'VariableDeclarator')
     .filter(node => node.start !== undefined && node.end !== undefined)
-    .filter(node => !known.some(k => k === node
-      || (k.start !== undefined && k.start >= node.start && k.end <= node.end)))
+    .filter(node => known.every(k => !(k === node
+      || (k.start !== undefined && k.start >= node.start && k.end <= node.end))))
     .map(node => ({ node, canonicalRecovered: true }));
   if (!extras.length) return binding;
   return { ...binding, constantViolations: [...binding.constantViolations ?? [], ...extras] };
@@ -3244,7 +3244,7 @@ export function objectPatternHasNestedValue(objectPattern) {
 // (caller-lossy) a key the mirror's synth default provides, or race it when a leaf resolves transiently
 export function nestedMirrorOwnsMixedPattern(objectPattern) {
   return objectPatternHasNestedValue(objectPattern)
-    && !objectPattern.properties.some(p => p.type === 'RestElement');
+    && objectPattern.properties.every(p => p.type !== 'RestElement');
 }
 
 export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
