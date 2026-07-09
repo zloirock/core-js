@@ -261,7 +261,8 @@ var parseIPv6 = function (input) {
       }
       if (numbersSeen !== 4) return;
       break;
-    } else if (char() === ':') {
+    }
+    if (char() === ':') {
       pointer++;
       if (!char()) return;
     } else if (char()) return;
@@ -551,10 +552,9 @@ URLState.prototype = {
           if (char === '/') {
             state = AUTHORITY;
             break;
-          } else {
-            state = PATH;
-            continue;
           }
+          state = PATH;
+          continue;
 
         case RELATIVE:
           url.scheme = base.scheme;
@@ -653,7 +653,8 @@ URLState.prototype = {
           if (stateOverride && url.scheme === 'file') {
             state = FILE_HOST;
             continue;
-          } else if (char === ':' && !seenBracket) {
+          }
+          if (char === ':' && !seenBracket) {
             if (buffer === '') return INVALID_HOST;
             if (stateOverride === HOSTNAME) return;
             failure = url.parseHost(buffer);
@@ -765,7 +766,8 @@ URLState.prototype = {
               buffer = '';
               state = PATH_START;
             } continue;
-          } else buffer += char;
+          }
+          buffer += char;
           break;
 
         case PATH_START:
