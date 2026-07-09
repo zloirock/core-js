@@ -12,6 +12,7 @@ async function getJSON(path, ...slice) {
 
 async function getFromMDN(name, branch = 'mdn/browser-compat-data/main') {
   const {
+    // eslint-disable-next-line unicorn/no-unreadable-object-destructuring -- ok
     browsers: { [name]: { releases } },
   } = await getJSON(`https://raw.githubusercontent.com/${ branch }/browsers/${ name }.json`);
   return releases;

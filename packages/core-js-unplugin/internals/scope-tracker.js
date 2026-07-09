@@ -244,7 +244,7 @@ export default class ScopeTracker {
     // scopedVar text entirely AND truncating the body content shifted by the insert length
     const { roots, childrenMap, scopedVarMap } = buildWrapNesting(wrapsInRange, scopedVarSplices);
     const splices = scopedVarSplices.filter(
-      sv => !roots.some(([body]) => bodyContains(body, sv.start)));
+      sv => roots.every(([body]) => !bodyContains(body, sv.start)));
     for (const [body, entry] of roots) {
       splices.push({
         start: body.start,

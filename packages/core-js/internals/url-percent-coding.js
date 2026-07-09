@@ -138,9 +138,8 @@ var decode = function (input) {
           for (var replacement = 0; replacement < byteSequenceLength; replacement++) result += FALLBACK_REPLACER;
           i++;
           continue;
-        } else {
-          decodedChar = fromCodePoint(codePoint);
         }
+        decodedChar = fromCodePoint(codePoint);
       }
     }
 
