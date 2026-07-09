@@ -3279,8 +3279,8 @@ export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputed
       if (bound.has(p.key.name)) return false;
     } else if (allowSideEffectComputedKeys && sequenceKeyStaticName(p.key) !== null) {
       // a side-effecting computed key `[(eff(), 'from')]` is replayable when the caller opts in: the SE
-      // prefix stays on the pattern key (evaluated once), the synth literal mirrors only the tail name
-      continue;
+      // prefix stays on the pattern key (evaluated once), the synth literal mirrors only the tail name -
+      // accept it (fall through) like the Identifier / static-string cases
     } else if (!allowLiteralComputedKeys || staticStringKey(p.key) === null) {
       // a non-Identifier computed key: only a static string / template literal is replayable, and only
       // when the caller opts in. anything else is dynamic / side-effecting - not replayable
