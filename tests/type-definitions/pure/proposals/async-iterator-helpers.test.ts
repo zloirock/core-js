@@ -63,6 +63,8 @@ const ait2 = flatMap(aiton, (v: number, i: number) => `${ v }`);
 assertCoreJSAsyncIteratorLike<string>(ait2);
 const ait3 = map(aiton, (v: number, i: number) => v * 2);
 assertCoreJSAsyncIteratorLike<number>(ait3);
+const ait3async = map(aiton, async (v: number, i: number) => `${ v }`);
+assertCoreJSAsyncIteratorLike<string>(ait3async);
 const ait4 = take(aiton, 10);
 assertCoreJSAsyncIteratorLike<number>(ait4);
 const ait5 = drop(aiton, 3);
