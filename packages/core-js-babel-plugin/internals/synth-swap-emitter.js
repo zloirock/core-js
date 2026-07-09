@@ -486,7 +486,7 @@ export default function createSynthSwapEmitter({
         if (!pending || pending.applied) return;
         // an INSTANCE param-default registration additionally admits `this` / constant-literal
         // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
-        const hasInstanceEntry = [...pending.polyfills.values()].some(p => p.instance);
+        const hasInstanceEntry = pending.polyfills.values().some(p => p.instance);
         if ((!isReceiverShapedNode(path.node) && !pending.callBranch && path.node.type !== 'LogicalExpression'
           && path.node.type !== 'ThisExpression' && !hasInstanceEntry)
           || pending.objectPatternNode?.type !== 'ObjectPattern') return;
