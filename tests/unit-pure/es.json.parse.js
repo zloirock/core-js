@@ -191,7 +191,7 @@ QUnit.test('JSON.parse', assert => {
 
   const arr2 = parse('[1, 2]', function (key, value) {
     if (key === '0') defineProperty(this, '1', { configurable: false });
-    if (key === '1') return 22;
+    else if (key === '1') return 22;
     return value;
   });
   assert.same(arr2[0], 1, 'reviver-array-non-configurable-prop-create-1');
@@ -199,7 +199,7 @@ QUnit.test('JSON.parse', assert => {
 
   const arr3 = parse('[1, 2]', function (key, value) {
     if (key === '0') defineProperty(this, '1', { configurable: false });
-    if (key === '1') return;
+    else if (key === '1') return;
     return value;
   });
   assert.same(arr3[0], 1, 'reviver-array-non-configurable-prop-delete-1');
@@ -208,7 +208,7 @@ QUnit.test('JSON.parse', assert => {
 
   const obj2 = parse('{"a": 1, "b": 2}', function (key, value) {
     if (key === 'a') defineProperty(this, 'b', { configurable: false });
-    if (key === 'b') return 22;
+    else if (key === 'b') return 22;
     return value;
   });
   assert.same(obj2.a, 1, 'reviver-object-non-configurable-prop-create-1');
@@ -216,7 +216,7 @@ QUnit.test('JSON.parse', assert => {
 
   const obj3 = parse('{"a": 1, "b": 2}', function (key, value) {
     if (key === 'a') defineProperty(this, 'b', { configurable: false });
-    if (key === 'b') return;
+    else if (key === 'b') return;
     return value;
   });
   assert.same(obj3.a, 1, 'reviver-object-non-configurable-prop-delete-1');
