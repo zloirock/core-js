@@ -74,7 +74,7 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
       // `case 1: case 2: return;` exits via case 2). only the trailing case can't fall through
       // past the switch, so an empty consequent there is a real non-exit
       if (!$case.consequent.length && i < cases.length - 1) continue;
-      if (!$case.consequent.some(stmt => alwaysExitsWithKind(stmt, depth + 1, FUNCTION_EXIT_STATEMENTS, blockedLabels))) {
+      if ($case.consequent.every(stmt => !alwaysExitsWithKind(stmt, depth + 1, FUNCTION_EXIT_STATEMENTS, blockedLabels))) {
         return false;
       }
     }
