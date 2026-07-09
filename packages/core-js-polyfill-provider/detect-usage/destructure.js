@@ -1526,36 +1526,39 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   // literal there needs wrapping parens (block ambiguity); AST printers add them automatically
   const expressionBodyLeaves = new Set();
   function collectValueLeaves(node) {
-    const { tail } = peelNestedSequenceExpressions(node);
-    if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
-      // a transparent IIFE stays CALLED (its body effects and the selection run natively);
-      // only the value leaves inside its return expression are mirrored
-      const inlined = peelZeroArgIifeReturn(tail);
-      if (inlined) {
-        let calleeNode = unwrapRuntimeExpr(tail.callee);
-        while (calleeNode?.type === 'SequenceExpression') calleeNode = unwrapRuntimeExpr(calleeNode.expressions.at(-1));
-        if (calleeNode?.type === 'ArrowFunctionExpression' && calleeNode.body === inlined) {
-          expressionBodyLeaves.add(inlined);
+    while (true) {
+      const { tail } = peelNestedSequenceExpressions(node);
+      if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
+        // a transparent IIFE stays CALLED (its body effects and the selection run natively);
+        // only the value leaves inside its return expression are mirrored
+        const inlined = peelZeroArgIifeReturn(tail);
+        if (inlined) {
+          let calleeNode = unwrapRuntimeExpr(tail.callee);
+          while (calleeNode?.type === 'SequenceExpression') calleeNode = unwrapRuntimeExpr(calleeNode.expressions.at(-1));
+          if (calleeNode?.type === 'ArrowFunctionExpression' && calleeNode.body === inlined) {
+            expressionBodyLeaves.add(inlined);
+          }
+          node = inlined;
+          continue;
         }
-        return collectValueLeaves(inlined);
       }
+      if (tail?.type === 'ConditionalExpression') {
+        // both branches are reachable - the runtime test picks per call and stays native
+        const consequentFalsy = collectValueLeaves(tail.consequent);
+        return collectValueLeaves(tail.alternate) || consequentFalsy;
+      }
+      if (tail?.type !== 'LogicalExpression') {
+        targetLeaves.push(tail);
+        // a proxy operand is truthy, so a `||` / `??` right beside it is dead; any other value may
+        // be falsy, so its fallback IS reachable and the caller must collect it for the mirror
+        return rootContext(tail)?.kind !== 'proxy';
+      }
+      if (tail.operator === '&&') {
+        collectValueLeaves(tail.right);
+        return true;
+      }
+      return collectValueLeaves(tail.left) ? collectValueLeaves(tail.right) : false;
     }
-    if (tail?.type === 'ConditionalExpression') {
-      // both branches are reachable - the runtime test picks per call and stays native
-      const consequentFalsy = collectValueLeaves(tail.consequent);
-      return collectValueLeaves(tail.alternate) || consequentFalsy;
-    }
-    if (tail?.type !== 'LogicalExpression') {
-      targetLeaves.push(tail);
-      // a proxy operand is truthy, so a `||` / `??` right beside it is dead; any other value may
-      // be falsy, so its fallback IS reachable and the caller must collect it for the mirror
-      return rootContext(tail)?.kind !== 'proxy';
-    }
-    if (tail.operator === '&&') {
-      collectValueLeaves(tail.right);
-      return true;
-    }
-    return collectValueLeaves(tail.left) ? collectValueLeaves(tail.right) : false;
   }
   const rootCanBeFalsy = collectValueLeaves(receiverNode);
   // a bare always-defined left keeps the right DEAD: when the whole expression is pure it
@@ -1707,35 +1710,39 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
 // no `&&` guard anywhere on the path: a guard can select its falsy LEFT, and that path's
 // native TypeError must survive the transform) and every dropped operand is pure
 export function fallbackInitWhollyDiscardable(initNode) {
-  const { tail } = peelNestedSequenceExpressions(initNode);
-  if (isChainAssignment(tail)) {
-    // the assignment itself is rescued WHOLE, but the destructure READ of its value is what
-    // the flatten discards - a guarded RHS keeps its falsy-path TypeError
-    return fallbackInitWhollyDiscardable(tail.right);
+  while (true) {
+    const { tail } = peelNestedSequenceExpressions(initNode);
+    if (isChainAssignment(tail)) {
+      // the assignment itself is rescued WHOLE, but the destructure READ of its value is what
+      // the flatten discards - a guarded RHS keeps its falsy-path TypeError
+      initNode = tail.right;
+      continue;
+    }
+    if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
+      // a transparent IIFE discards by its RETURN expression: an SE BODY is rescued by the
+      // existing discard-rescue harvest, but a guard inside the return keeps its falsy path,
+      // and an effectful ARGUMENT (`(g => g)((c++, globalThis))`) is not harvested - the
+      // mirror keeps the call and swaps the leaf inside the argument instead
+      const inlined = peelZeroArgIifeReturn(tail);
+      if (!inlined) return true;
+      if ((tail.arguments ?? []).some(arg => mayHaveSideEffects(arg))) return false;
+      initNode = inlined;
+      continue;
+    }
+    if (tail?.type === 'ConditionalExpression') {
+      // a ternary is discardable only when the dropped test is pure and EACH branch is itself
+      // wholly discardable - a guard inside a branch keeps its falsy-path TypeError
+      return !mayHaveSideEffects(tail.test)
+        && fallbackInitWhollyDiscardable(tail.consequent)
+        && fallbackInitWhollyDiscardable(tail.alternate);
+    }
+    if (tail?.type !== 'LogicalExpression') return true;
+    if (mayHaveSideEffects(tail)) return false;
+    for (let node = tail; node?.type === 'LogicalExpression'; node = peelNestedSequenceExpressions(node.left).tail) {
+      if (node.operator === '&&') return false;
+    }
+    return true;
   }
-  if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
-    // a transparent IIFE discards by its RETURN expression: an SE BODY is rescued by the
-    // existing discard-rescue harvest, but a guard inside the return keeps its falsy path,
-    // and an effectful ARGUMENT (`(g => g)((c++, globalThis))`) is not harvested - the
-    // mirror keeps the call and swaps the leaf inside the argument instead
-    const inlined = peelZeroArgIifeReturn(tail);
-    if (!inlined) return true;
-    if ((tail.arguments ?? []).some(arg => mayHaveSideEffects(arg))) return false;
-    return fallbackInitWhollyDiscardable(inlined);
-  }
-  if (tail?.type === 'ConditionalExpression') {
-    // a ternary is discardable only when the dropped test is pure and EACH branch is itself
-    // wholly discardable - a guard inside a branch keeps its falsy-path TypeError
-    return !mayHaveSideEffects(tail.test)
-      && fallbackInitWhollyDiscardable(tail.consequent)
-      && fallbackInitWhollyDiscardable(tail.alternate);
-  }
-  if (tail?.type !== 'LogicalExpression') return true;
-  if (mayHaveSideEffects(tail)) return false;
-  for (let node = tail; node?.type === 'LogicalExpression'; node = peelNestedSequenceExpressions(node.left).tail) {
-    if (node.operator === '&&') return false;
-  }
-  return true;
 }
 
 // render a synth-plan tree through emitter-supplied constructors: the recursion structure and
@@ -1868,21 +1875,29 @@ export function resolveBranchProxyName({ branchNode, scope, adapter, path }) {
 // a transparent IIFE its return; parens / sequences are peeled (babel uses `extra.parenthesized` so
 // unwrapTransparentSeq is a no-op there - it only makes the oxc ParenthesizedExpression node match babel)
 function allDestructureValueBranches(node, isLeaf) {
-  const { tail } = peelNestedSequenceExpressions(unwrapTransparentSeq(node));
-  if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
-    const inlined = peelZeroArgIifeReturn(tail);
-    if (inlined) return allDestructureValueBranches(inlined, isLeaf);
+  while (true) {
+    const { tail } = peelNestedSequenceExpressions(unwrapTransparentSeq(node));
+    if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
+      const inlined = peelZeroArgIifeReturn(tail);
+      if (inlined) {
+        node = inlined;
+        continue;
+      }
+    }
+    if (isChainAssignment(tail)) {
+      node = tail.right;
+      continue;
+    }
+    if (tail?.type === 'ConditionalExpression') {
+      return allDestructureValueBranches(tail.consequent, isLeaf) && allDestructureValueBranches(tail.alternate, isLeaf);
+    }
+    if (tail?.type === 'LogicalExpression') {
+      return tail.operator === '&&'
+        ? allDestructureValueBranches(tail.right, isLeaf)
+        : allDestructureValueBranches(tail.left, isLeaf) && allDestructureValueBranches(tail.right, isLeaf);
+    }
+    return isLeaf(tail);
   }
-  if (isChainAssignment(tail)) return allDestructureValueBranches(tail.right, isLeaf);
-  if (tail?.type === 'ConditionalExpression') {
-    return allDestructureValueBranches(tail.consequent, isLeaf) && allDestructureValueBranches(tail.alternate, isLeaf);
-  }
-  if (tail?.type === 'LogicalExpression') {
-    return tail.operator === '&&'
-      ? allDestructureValueBranches(tail.right, isLeaf)
-      : allDestructureValueBranches(tail.left, isLeaf) && allDestructureValueBranches(tail.right, isLeaf);
-  }
-  return isLeaf(tail);
 }
 
 // a leaf is a PROXY when it is a bare global-object name or a proxy-hop member chain ending in one

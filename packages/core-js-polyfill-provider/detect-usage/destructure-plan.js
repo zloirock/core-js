@@ -123,10 +123,9 @@ function peelInnerDefault(value) {
 // must defer anchoring at every nesting level, not just the top - a nested default (`nested: { x = d }`)
 // re-anchored to the pure ctor renders verbatim, so a polyfillable `d` is never injected
 function patternHasAnyDefault(node) {
+  while (node?.type === 'RestElement' || node?.type === 'SpreadElement') node = node.argument;
   switch (node?.type) {
     case 'AssignmentPattern': return true;
-    case 'RestElement':
-    case 'SpreadElement': return patternHasAnyDefault(node.argument);
     case 'ArrayPattern': return node.elements.some(patternHasAnyDefault);
     case 'ObjectPattern': return node.properties.some(prop => patternHasAnyDefault(
       prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value));

@@ -542,28 +542,33 @@ export function patternBindingName(node) {
 // unplugin's text-emit doesn't queue a parallel `globalThis -> _globalThis` rewrite that
 // would overlap the outer polyfill replacement
 function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNode = null }) {
-  // peel chain-assign AND SE-tail to fixpoint at every step: `((a = globalThis).Array).from(x)`
-  // buries the assignment inside .object's .object, and `(eff(), globalThis).Map.groupBy` buries the
-  // proxy root behind a sequence tail - a flat unwrapTransparentSeq loses both. this is pure shape
-  // classification: the SE prefix stays in the source and is collected by the emit side
-  let obj = peelChainRootValue(receiver);
-  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
-    // carry `seen` into computed-key resolution so a shared alias chain across the
-    // proxy-global walk and its intermediate member keys can't exceed the cycle guard
-    const memberKey = obj.computed
-      ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode })
-      : obj.property?.name;
-    if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
-    obj = peelChainRootValue(obj.object);
+  while (true) {
+    // peel chain-assign AND SE-tail to fixpoint at every step: `((a = globalThis).Array).from(x)`
+    // buries the assignment inside .object's .object, and `(eff(), globalThis).Map.groupBy` buries the
+    // proxy root behind a sequence tail - a flat unwrapTransparentSeq loses both. this is pure shape
+    // classification: the SE prefix stays in the source and is collected by the emit side
+    let obj = peelChainRootValue(receiver);
+    while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
+      // carry `seen` into computed-key resolution so a shared alias chain across the
+      // proxy-global walk and its intermediate member keys can't exceed the cycle guard
+      const memberKey = obj.computed
+        ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode })
+        : obj.property?.name;
+      if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
+      obj = peelChainRootValue(obj.object);
+    }
+    if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
+      const inlined = inlineCallReturnExpression({ callNode: obj, scope, adapter, seen, path });
+      if (inlined) {
+        receiver = inlined;
+        continue;
+      }
+    }
+    // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
+    // the type resolver via the same canon)
+    if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
+    return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode });
   }
-  if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
-    const inlined = inlineCallReturnExpression({ callNode: obj, scope, adapter, seen, path });
-    if (inlined) return resolveProxyGlobalRoot({ receiver: inlined, scope, adapter, seen, path, usageNode });
-  }
-  // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
-  // the type resolver via the same canon)
-  if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
-  return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode });
 }
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
@@ -761,26 +766,31 @@ export function inlineCallHasObservableEffects({ callNode, scope, adapter, path 
 }
 
 function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
-  // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
-  // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation
-  if (callNode.arguments?.some(mayHaveSideEffects)) return true;
-  const body = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen })?.body;
-  if (!body) return false;
-  const isBlock = body.type === 'BlockStatement';
-  // filter out leading directive ExpressionStatements (`'use strict';`) - parser-shape
-  // diff only: oxc inlines them in body[]; babel separates into `program.directives`.
-  // either way `'use strict'` carries no observable runtime effect for SE-wrap purposes
-  const stmts = isBlock ? body.body.filter(s => !isDirectiveStatement(s)) : null;
-  // block w/ anything beyond a single `return X;` carries observable effects directly
-  if (isBlock && (stmts.length !== 1 || stmts[0].type !== 'ReturnStatement')) return true;
-  // chain target: block-body extracts return arg, expression-body is itself the target.
-  const next = isBlock ? stmts[0].argument : body;
-  // recurse when next is an inline-resolvable call (`() => inner()` with its own prefix effects)
-  if (isCallShape(next)) return hasObservableEffectsRec({ callNode: next, scope, adapter, path, seen });
-  // else the returned value IS the inlined receiver; it carries observable effects only when the
-  // receiver is wrapped in a write or an SE-prefixed sequence (`a = Array`, `(eff(), Array)`) - the
-  // substitution drops the whole call, so those must be preserved. a bare receiver ref has none
-  return returnedReceiverHasEffects(next);
+  while (true) {
+    // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
+    // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation
+    if (callNode.arguments?.some(mayHaveSideEffects)) return true;
+    const body = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen })?.body;
+    if (!body) return false;
+    const isBlock = body.type === 'BlockStatement';
+    // filter out leading directive ExpressionStatements (`'use strict';`) - parser-shape
+    // diff only: oxc inlines them in body[]; babel separates into `program.directives`.
+    // either way `'use strict'` carries no observable runtime effect for SE-wrap purposes
+    const stmts = isBlock ? body.body.filter(s => !isDirectiveStatement(s)) : null;
+    // block w/ anything beyond a single `return X;` carries observable effects directly
+    if (isBlock && (stmts.length !== 1 || stmts[0].type !== 'ReturnStatement')) return true;
+    // chain target: block-body extracts return arg, expression-body is itself the target.
+    const next = isBlock ? stmts[0].argument : body;
+    // recurse when next is an inline-resolvable call (`() => inner()` with its own prefix effects)
+    if (isCallShape(next)) {
+      callNode = next;
+      continue;
+    }
+    // else the returned value IS the inlined receiver; it carries observable effects only when the
+    // receiver is wrapped in a write or an SE-prefixed sequence (`a = Array`, `(eff(), Array)`) - the
+    // substitution drops the whole call, so those must be preserved. a bare receiver ref has none
+    return returnedReceiverHasEffects(next);
+  }
 }
 
 // the returned expression of an inlined call, beyond the receiver value the caller resolves: a
@@ -812,128 +822,134 @@ function isProxyGlobalIdentifier({ node, scope, adapter, seen, path, usageNode =
 }
 
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
-  if (depth > MAX_KEY_DEPTH) return null;
-  // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
-  // binding inits; Babel strips them. unwrap up front so the identifier-alias and
-  // Symbol-member branches below work uniformly across parsers.
-  // SequenceExpression tail: only the last element's value drives key identity. SE
-  // prefix is captured by unwrapParensCollectingEffects at meta-build sites (members.js);
-  // direct callers without an effects channel (resolveStaticInheritedMember) get the
-  // peeled tail so super[(fn(),'X')] still classifies as super.X
-  if (computed) {
-    node = unwrapTransparentSeq(node);
-    // a side-effecting key prefix (`[(fn(), 'X')]`) can only be re-emitted by callers with an
-    // effects channel. callers without one (destructure detection) pass bailOnSideEffectKey to
-    // leave the key unresolved, so the whole construct is skipped rather than silently dropping
-    // the side effect (babel) or feeding the text composer a needle it cannot place (unplugin).
-    // the flag is threaded into the fold recursions below (`+` / template / Symbol.X) so an SE
-    // BURIED in a fold operand (`[(fn(), 'se') + 'lf']`) bails transitively, not just a top-level one
-    if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return null;
-    // unwrap parens at EACH sequence level (mirror `sequenceKeyStaticName`): oxc keeps a
-    // `ParenthesizedExpression` between nested sequences (`(e++, (d++, 'self'))`), so a bare `.at(-1)`
-    // stops at the inner paren and bails the fold - babel folds the parens away so it never noticed
-    while (node?.type === 'SequenceExpression') node = unwrapTransparentSeq(node.expressions.at(-1));
-  }
-  if (!computed && node.type === 'Identifier') return node.name;
-  if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
-  // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
-  if (node.type === 'TemplateLiteral') {
-    const single = singleQuasiString(node);
-    if (single !== null) return single;
-    let out = '';
-    for (let i = 0; i < node.quasis.length; i++) {
-      // tagged template with invalid escape (`\\xZ`, `\\u{...}`) leaves `cooked === null`
-      // post-ES2018. bailing here is right - the cooked form is what runtime concat would
-      // see, so we can't form a valid lookup key without it
-      const { cooked } = node.quasis[i].value;
-      if (cooked === null || cooked === undefined) return null;
-      out += cooked;
-      if (i < node.expressions.length) {
-        // fork `seen` per interpolation - same-binding reuse (`${k}${k}`) must not
-        // trip the cycle guard after the first interpolation mutates a shared Set.
-        // mirrors the fork pattern in the BinaryExpression `+` branch below
-        const part = resolveKey({
-          node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen),
-          path, depth: depth + 1, usageNode, bailOnSideEffectKey,
-        });
-        if (part === null) return null;
-        out += part;
+  while (true) {
+    if (depth > MAX_KEY_DEPTH) return null;
+    // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
+    // binding inits; Babel strips them. unwrap up front so the identifier-alias and
+    // Symbol-member branches below work uniformly across parsers.
+    // SequenceExpression tail: only the last element's value drives key identity. SE
+    // prefix is captured by unwrapParensCollectingEffects at meta-build sites (members.js);
+    // direct callers without an effects channel (resolveStaticInheritedMember) get the
+    // peeled tail so super[(fn(),'X')] still classifies as super.X
+    if (computed) {
+      node = unwrapTransparentSeq(node);
+      // a side-effecting key prefix (`[(fn(), 'X')]`) can only be re-emitted by callers with an
+      // effects channel. callers without one (destructure detection) pass bailOnSideEffectKey to
+      // leave the key unresolved, so the whole construct is skipped rather than silently dropping
+      // the side effect (babel) or feeding the text composer a needle it cannot place (unplugin).
+      // the flag is threaded into the fold recursions below (`+` / template / Symbol.X) so an SE
+      // BURIED in a fold operand (`[(fn(), 'se') + 'lf']`) bails transitively, not just a top-level one
+      if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return null;
+      // unwrap parens at EACH sequence level (mirror `sequenceKeyStaticName`): oxc keeps a
+      // `ParenthesizedExpression` between nested sequences (`(e++, (d++, 'self'))`), so a bare `.at(-1)`
+      // stops at the inner paren and bails the fold - babel folds the parens away so it never noticed
+      while (node?.type === 'SequenceExpression') node = unwrapTransparentSeq(node.expressions.at(-1));
+    }
+    if (!computed && node.type === 'Identifier') return node.name;
+    if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
+    // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
+    if (node.type === 'TemplateLiteral') {
+      const single = singleQuasiString(node);
+      if (single !== null) return single;
+      let out = '';
+      for (let i = 0; i < node.quasis.length; i++) {
+        // tagged template with invalid escape (`\\xZ`, `\\u{...}`) leaves `cooked === null`
+        // post-ES2018. bailing here is right - the cooked form is what runtime concat would
+        // see, so we can't form a valid lookup key without it
+        const { cooked } = node.quasis[i].value;
+        if (cooked === null || cooked === undefined) return null;
+        out += cooked;
+        if (i < node.expressions.length) {
+          // fork `seen` per interpolation - same-binding reuse (`${k}${k}`) must not
+          // trip the cycle guard after the first interpolation mutates a shared Set.
+          // mirrors the fork pattern in the BinaryExpression `+` branch below
+          const part = resolveKey({
+            node: node.expressions[i], computed: true, scope, adapter, seen: new Set(seen),
+            path, depth: depth + 1, usageNode, bailOnSideEffectKey,
+          });
+          if (part === null) return null;
+          out += part;
+        }
+      }
+      return out;
+    }
+    // computed: const variable - follow to init, else fall back to plugin-managed bindings
+    // (`polyfillHint` in-place mutation / `core-js/.../symbol/X` import, incl. user-aliased
+    // polyfill packages from `additionalPackages`)
+    if (node.type === 'Identifier' && computed) {
+      const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path, usageNode });
+      if (entry) {
+        // a registered Symbol.X alias resolves the key regardless of the binding's (possibly mutated /
+        // pattern) init: `const { iterator } = Symbol; obj[iterator]`. must run BEFORE the init branch -
+        // following a destructure init resolves the WHOLE receiver (`Symbol`), losing the `.iterator` slot
+        const aliasKey = bindingSymbolKey(entry.binding, adapter.packages);
+        if (aliasKey) return aliasKey;
+        if (entry.init) {
+          // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
+          // the literal only on the guarded path, so following it would rewrite `Builtin[K]()` to a
+          // receiver-less polyfill and mask the native TypeError on the skipped path. gate on
+          // init-dominance like the receiver branch (usage-global over-injects, so it keeps following)
+          if (adapter.method === 'usage-pure'
+            && !varInitDominatesUsage({ declaratorNode: entry.binding.node, usagePath: path, kind: entry.binding.kind })) return null;
+          // usage-global: an unconditional reassignment can kill the init before the use - including one
+          // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
+          // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
+          // become the primary key; fall through to the init when no such value is determinable
+          const target = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode }) || entry.init;
+          node = target;
+          seen = entry.nextSeen;
+          depth += 1;
+          usageNode = target;
+          continue;
+        }
+      } else if (!seen?.has(node.name)) {
+        // the alias-follow bailed on a reassignment (declarator init dead at the use). resolve the key
+        // from the value the use actually sees - the reaching definition (`K = 'of'` in
+        // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
+        const binding = adapter.getBinding(scope, node.name, path);
+        const reaching = binding && isReassignedBeyondDeclarator(binding)
+          ? reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode }) : null;
+        if (reaching) {
+          // extend the cycle-guard set BEFORE overwriting `node` - it reads the current name
+          seen = new Set(seen).add(node.name);
+          node = reaching;
+          depth += 1;
+          usageNode = reaching;
+          continue;
+        }
       }
     }
-    return out;
-  }
-  // computed: const variable - follow to init, else fall back to plugin-managed bindings
-  // (`polyfillHint` in-place mutation / `core-js/.../symbol/X` import, incl. user-aliased
-  // polyfill packages from `additionalPackages`)
-  if (node.type === 'Identifier' && computed) {
-    const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path, usageNode });
-    if (entry) {
-      // a registered Symbol.X alias resolves the key regardless of the binding's (possibly mutated /
-      // pattern) init: `const { iterator } = Symbol; obj[iterator]`. must run BEFORE the init branch -
-      // following a destructure init resolves the WHOLE receiver (`Symbol`), losing the `.iterator` slot
-      const aliasKey = bindingSymbolKey(entry.binding, adapter.packages);
-      if (aliasKey) return aliasKey;
-      if (entry.init) {
-        // usage-pure: a conditionally-initialized key alias (`if (c) var K = 'fromEntries'`) holds
-        // the literal only on the guarded path, so following it would rewrite `Builtin[K]()` to a
-        // receiver-less polyfill and mask the native TypeError on the skipped path. gate on
-        // init-dominance like the receiver branch (usage-global over-injects, so it keeps following)
-        if (adapter.method === 'usage-pure'
-          && !varInitDominatesUsage({ declaratorNode: entry.binding.node, usagePath: path, kind: entry.binding.kind })) return null;
-        // usage-global: an unconditional reassignment can kill the init before the use - including one
-        // that completes before a capturing closure is defined (`let K = 'of'; K = 'from'; () =>
-        // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
-        // become the primary key; fall through to the init when no such value is determinable
-        const reaching = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode });
-        if (reaching) return resolveKey({
-          node: reaching, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1, usageNode: reaching,
-        });
-        return resolveKey({
-          node: entry.init, computed: true, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1, usageNode: entry.init,
-        });
-      }
-    } else if (!seen?.has(node.name)) {
-      // the alias-follow bailed on a reassignment (declarator init dead at the use). resolve the key
-      // from the value the use actually sees - the reaching definition (`K = 'of'` in
-      // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
-      const binding = adapter.getBinding(scope, node.name, path);
-      const reaching = binding && isReassignedBeyondDeclarator(binding)
-        ? reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode }) : null;
-      if (reaching) return resolveKey({
-        node: reaching, computed: true, scope, adapter, seen: new Set(seen).add(node.name), path, depth: depth + 1, usageNode: reaching,
+    // string concatenation: 'a' + 'b'
+    if (node.type === 'BinaryExpression' && node.operator === '+') {
+      // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
+      // cycle guard on the right branch after the left added `a` to the shared Set
+      const left = resolveKey({
+        node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
       });
+      const right = resolveKey({
+        node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
+      });
+      if (left !== null && right !== null) return left + right;
     }
+    // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
+    // fork `seen` per side so shared-binding probe (e.g. `obj[s[s]]` re-entering `s`) doesn't
+    // trip the cycle guard on the second side after the first side populated the Set. mirrors
+    // the TemplateLiteral / `+` branches above.
+    // reject the doubly-bracket-nested case `Symbol[Symbol.X]`: the inner `Symbol.X` resolves
+    // to a well-known symbol VALUE (not the string 'X'), so the outer reads property keyed by
+    // a symbol value - Symbol constructor itself doesn't carry well-known-symbol-valued
+    // properties, so `Symbol[Symbol.iterator]` is `undefined` at runtime. recognising that as
+    // a well-known polyfill dispatch is a misclassification
+    if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+      && asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) {
+      const name = resolveKey({
+        node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen),
+        path, depth: depth + 1, usageNode, bailOnSideEffectKey,
+      });
+      if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
+    }
+    return null;
   }
-  // string concatenation: 'a' + 'b'
-  if (node.type === 'BinaryExpression' && node.operator === '+') {
-    // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
-    // cycle guard on the right branch after the left added `a` to the shared Set
-    const left = resolveKey({
-      node: node.left, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
-    });
-    const right = resolveKey({
-      node: node.right, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1, usageNode, bailOnSideEffectKey,
-    });
-    if (left !== null && right !== null) return left + right;
-  }
-  // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
-  // fork `seen` per side so shared-binding probe (e.g. `obj[s[s]]` re-entering `s`) doesn't
-  // trip the cycle guard on the second side after the first side populated the Set. mirrors
-  // the TemplateLiteral / `+` branches above.
-  // reject the doubly-bracket-nested case `Symbol[Symbol.X]`: the inner `Symbol.X` resolves
-  // to a well-known symbol VALUE (not the string 'X'), so the outer reads property keyed by
-  // a symbol value - Symbol constructor itself doesn't carry well-known-symbol-valued
-  // properties, so `Symbol[Symbol.iterator]` is `undefined` at runtime. recognising that as
-  // a well-known polyfill dispatch is a misclassification
-  if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
-    && asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) {
-    const name = resolveKey({
-      node: node.property, computed: node.computed, scope, adapter, seen: new Set(seen),
-      path, depth: depth + 1, usageNode, bailOnSideEffectKey,
-    });
-    if (name && !name.startsWith('Symbol.')) return `Symbol.${ name }`;
-  }
-  return null;
 }
 
 // the two keys a synth-swap pattern property needs, derived once so babel-plugin and unplugin agree:
@@ -1238,51 +1254,56 @@ export function discardRescueNodes({ node, scope, adapter, path }) {
 // is-iterable check. parallel to resolveKey's Identifier / MemberExpression branches
 // minus the string-folding cases
 export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0 }) {
-  if (depth > MAX_KEY_DEPTH) return false;
-  node = unwrapTransparentSeq(node);
-  const { type } = node;
-  // string-folded sources - plain strings, not the symbol
-  if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
-    || (type === 'BinaryExpression' && node.operator === '+')) return false;
-  // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape.
-  // also confirm the property is a symbol-name shape: `symbolKeyToEntry` maps ANY lowercase-first
-  // name to a synthetic `symbol/<name>` entry, so it does not itself filter to well-known symbols
-  // (`Symbol.someUserKey` passes here too). the real well-known gate is downstream `isEntryNeeded`
-  // / `isEntryAvailable`, which turns a non-well-known name into a noop plan (no dead import), so a
-  // random `Symbol.foo` never triggers symbol-routed dispatch.
-  // for `Symbol[key]` with statically-resolvable computed key - resolve via `resolveKey`
-  // and validate the resulting name. when the key isn't statically resolvable (dynamic
-  // expression), return true conservatively: we know the shape is Symbol-indexed, even
-  // if the specific well-known name is unknown - downstream callers rely on this to
-  // avoid over-eliminating polyfill dispatch, and `resolveKey` pairing in the caller
-  // filters on the string form anyway
-  if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
-    if (!asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) return false;
-    if (!node.computed && node.property?.type === 'Identifier') {
-      return symbolKeyToEntry(`Symbol.${ node.property.name }`) !== null;
+  while (true) {
+    if (depth > MAX_KEY_DEPTH) return false;
+    node = unwrapTransparentSeq(node);
+    const { type } = node;
+    // string-folded sources - plain strings, not the symbol
+    if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
+      || (type === 'BinaryExpression' && node.operator === '+')) return false;
+    // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape.
+    // also confirm the property is a symbol-name shape: `symbolKeyToEntry` maps ANY lowercase-first
+    // name to a synthetic `symbol/<name>` entry, so it does not itself filter to well-known symbols
+    // (`Symbol.someUserKey` passes here too). the real well-known gate is downstream `isEntryNeeded`
+    // / `isEntryAvailable`, which turns a non-well-known name into a noop plan (no dead import), so a
+    // random `Symbol.foo` never triggers symbol-routed dispatch.
+    // for `Symbol[key]` with statically-resolvable computed key - resolve via `resolveKey`
+    // and validate the resulting name. when the key isn't statically resolvable (dynamic
+    // expression), return true conservatively: we know the shape is Symbol-indexed, even
+    // if the specific well-known name is unknown - downstream callers rely on this to
+    // avoid over-eliminating polyfill dispatch, and `resolveKey` pairing in the caller
+    // filters on the string form anyway
+    if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
+      if (!asSymbolRef({ node: node.object, scope, adapter, seen: new Set(seen), path })) return false;
+      if (!node.computed && node.property?.type === 'Identifier') {
+        return symbolKeyToEntry(`Symbol.${ node.property.name }`) !== null;
+      }
+      if (node.computed) {
+        const name = resolveKey({
+          node: node.property, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
+        });
+        if (name !== null) return symbolKeyToEntry(`Symbol.${ name }`) !== null;
+      }
+      return true;
     }
-    if (node.computed) {
-      const name = resolveKey({
-        node: node.property, computed: true, scope, adapter, seen: new Set(seen), path, depth: depth + 1,
-      });
-      if (name !== null) return symbolKeyToEntry(`Symbol.${ name }`) !== null;
+    if (type !== 'Identifier') return false;
+    const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
+    if (!entry) return false;
+    // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
+    // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
+    // to the whole receiver and lose the `.iterator` slot
+    if (bindingSymbolKey(entry.binding, adapter.packages) !== null) return true;
+    // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
+    // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
+    // user-aliased polyfill packages from `additionalPackages`)
+    if (entry.init) {
+      node = entry.init;
+      seen = entry.nextSeen;
+      depth += 1;
+      continue;
     }
-    return true;
+    return false;
   }
-  if (type !== 'Identifier') return false;
-  const entry = enterIdentifierBindingFollow({ node, scope, adapter, seen, path });
-  if (!entry) return false;
-  // a registered Symbol.X alias resolves regardless of the binding's init (`const { iterator } =
-  // Symbol; iterator in X`) - run before the init branch, which would follow the destructure init
-  // to the whole receiver and lose the `.iterator` slot
-  if (bindingSymbolKey(entry.binding, adapter.packages) !== null) return true;
-  // alias indirection (`const k = Symbol.iterator; k in X`) else plugin-managed binding
-  // (`polyfillHint` in-place mutation / real `core-js/.../symbol/X` import, incl.
-  // user-aliased polyfill packages from `additionalPackages`)
-  if (entry.init) return isSymbolSourcedKey({
-    node: entry.init, scope, adapter, seen: entry.nextSeen, path, depth: depth + 1,
-  });
-  return false;
 }
 
 // folded `Symbol.X` string whose SOURCE is a real well-known-symbol reference, not a string
