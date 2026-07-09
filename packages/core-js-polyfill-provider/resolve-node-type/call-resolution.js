@@ -512,11 +512,10 @@ export function createCallResolution({
           const ret = functionTypeReturnAnnotation(unwrappedMember);
           if (ret) return { annotation: ret, scope: memberInfo.scope };
         }
-      }
-      // function-typed const callee: `declare const f: () => T; f().X` - extract returnType
-      // from the binding's annotation. without this, `getObj()?.a.includes(...)` loses
-      // receiver narrowing past the call hop because findExpressionAnnotation falls through
-      if (callee.node.type === 'Identifier') {
+      } else if (callee.node.type === 'Identifier') {
+        // function-typed const callee: `declare const f: () => T; f().X` - extract returnType
+        // from the binding's annotation. without this, `getObj()?.a.includes(...)` loses
+        // receiver narrowing past the call hop because findExpressionAnnotation falls through
         const calleeInfo = findExpressionAnnotation(callee, depth + 1);
         const calleeAnnot = calleeInfo?.annotation && unwrapTypeAnnotation(calleeInfo.annotation);
         const ret = functionTypeReturnAnnotation(calleeAnnot);
