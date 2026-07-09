@@ -57,8 +57,7 @@ function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
     nextLabels = new Set(labels);
     nextLabels.add(node.label.name);
   }
-  for (const key of Object.keys(node)) {
-    const value = node[key];
+  for (const value of Object.values(node)) {
     if (Array.isArray(value)) {
       if (value.some(v => subtreeContainsExit(v, nextInLoop, nextLabels))) return true;
     } else if (subtreeContainsExit(value, nextInLoop, nextLabels)) return true;

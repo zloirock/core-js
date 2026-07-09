@@ -128,6 +128,7 @@ QUnit.test('complex: polyfill in object shorthand', assert => {
 QUnit.test('complex: Object.defineProperty with getters calling polyfilled .at', assert => {
   const target = [10, 20, 30];
   const wrapped = {};
+  // eslint-disable-next-line unicorn/prefer-object-define-properties -- testing
   Object.defineProperty(wrapped, 'first', { get() { return target.at(0); } });
   Object.defineProperty(wrapped, 'last', { get() { return target.at(-1); } });
   assert.same(wrapped.first, 10);

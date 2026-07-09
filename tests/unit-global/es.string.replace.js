@@ -16,7 +16,7 @@ function run(assert) {
   instance = Object(false);
   instance.replace = String.prototype.replace;
   assert.same(instance.replace(false, undefined), 'undefined', 'S15.5.4.11_A1_T2');
-  assert.same('gnulluna'.replace(null, (a1, a2) => `${ a2 }`), 'g1una', 'S15.5.4.11_A1_T4');
+  assert.same('gnulluna'.replace(null, (a1, a2) => a2), 'g1una', 'S15.5.4.11_A1_T4');
   assert.same('gnulluna'.replace(null, () => { /* empty */ }), 'gundefineduna', 'S15.5.4.11_A1_T5');
   assert.same(Object('undefined').replace(undefined, (a1, a2) => a2 + 42), '42', 'S15.5.4.11_A1_T6');
   assert.same('undefined'.replace('e', undefined), 'undundefinedfined', 'S15.5.4.11_A1_T7');

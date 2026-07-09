@@ -284,7 +284,7 @@ export function createClassFields({
         }
         if (found) return;
       }
-      for (const key of Object.keys(node)) scan(node[key]);
+      for (const value of Object.values(node)) scan(value);
     })(programNode);
     return found;
   }
