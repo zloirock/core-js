@@ -228,6 +228,7 @@ QUnit.test('class: post-declaration static tags survive extends chain', assert =
 // `this === undefined` - the inherited method reads `this`, so a lost receiver would throw
 QUnit.test('class: optional super-method call preserves this', assert => {
   class Base {
+    data;
     getArr() { return this.data; }
   }
   class C extends Base {

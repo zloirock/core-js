@@ -849,7 +849,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
-    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties, unicorn/no-unnecessary-splice -- @@species
     return array.splice().foo === 1;
   },
   'es.array.to-reversed': function () {

@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/no-unnecessary-splice -- testing */
 import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
 
 const { defineProperty } = Object;

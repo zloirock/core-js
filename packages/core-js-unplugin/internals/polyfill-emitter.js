@@ -1450,7 +1450,7 @@ export function createPolyfillEmitter({
     // otherwise queue a standalone transform overlapping the shared optional call (composition
     // crash). exclude always-defined-optional inners so `Array.from?.().flat().at()` keeps its
     // deopt + compose shape rather than emitting a raw guarded `Array.from`
-    if (!effectiveResult && (!hops.some(h => h.poly)
+    if (!effectiveResult && (hops.every(h => !h.poly)
       || isPolyfillableOptional({
         node: current, scope: metaPath.scope, adapter: estreeAdapter, resolve: resolveBuiltIn, mutatedSet: mutatedStatics,
       }))) return null;
