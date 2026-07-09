@@ -876,7 +876,7 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = fa
         // last match wins (duplicate keys); only plain non-computed data properties resolve, and a
         // trailing spread that could override the matched key bails (canonical helper)
         const match = findObjectKeyBeforeSpread(node.properties, p => !p.computed
-          && (p.key?.type === 'Identifier' ? p.key.name === seg.key : p.key?.value === seg.key));
+          && (p.key?.type === 'Identifier' ? p.key.name : p.key?.value) === seg.key);
         if (!match) return null;
         node = unwrapExpressionChain(match.value);
       } else {
