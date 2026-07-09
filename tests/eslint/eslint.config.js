@@ -310,8 +310,6 @@ const base = {
     onlyDeclarations: true,
     ignoreDestructuring: true,
   }],
-  // require logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, ALWAYS],
   // enforce a maximum depth that blocks can be nested
   'max-depth': [ERROR, { max: 5 }],
   // enforce a maximum depth that callbacks can be nested
@@ -635,6 +633,8 @@ const base = {
   'unicorn/explicit-timer-delay': [ERROR, 'always'],
   // enforce a case style for filenames
   'unicorn/filename-case': [ERROR, { case: 'kebabCase' }],
+  // require or disallow logical assignment operator shorthand
+  'unicorn/logical-assignment-operators': [ERROR, ALWAYS],
   // limit the depth of nested calls
   'unicorn/max-nested-calls': [ERROR, { max: 5 }],
   // enforce specifying rules to disable in `eslint-disable` comments
@@ -701,6 +701,8 @@ const base = {
   'unicorn/no-negation-in-equality-check': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
   'unicorn/no-new-buffer': ERROR,
+  // disallow non-function values with function-style verb prefixes
+  'unicorn/no-non-function-verb-prefix': ERROR,
   // disallow `Object` methods with `Map` or `Set`
   'unicorn/no-object-methods-with-collections': ERROR,
   // disallow optional chaining on undeclared variables
@@ -717,6 +719,8 @@ const base = {
   'unicorn/no-thenable': ERROR,
   // disallow comparing `undefined` using `typeof` when it's not required
   'unicorn/no-typeof-undefined': ERROR,
+  // disallow referencing methods without calling them
+  'unicorn/no-uncalled-method': ERROR,
   // require class members to be declared
   'unicorn/no-undeclared-class-members': ERROR,
   // disallow using 1 as the depth argument of `Array#flat()`
@@ -745,10 +749,14 @@ const base = {
   'unicorn/no-unused-properties': ERROR,
   // disallow unnecessary `Boolean()` casts in array predicate callbacks
   'unicorn/no-useless-boolean-cast': ERROR,
+  // disallow useless type coercions of values that are already of the target type
+  'unicorn/no-useless-coercion': ERROR,
   // disallow useless values or fallbacks in `Set`, `Map`, `WeakSet`, or `WeakMap`
   'unicorn/no-useless-collection-argument': ERROR,
-  // disallow no-useless-concat
+  // disallow useless concatenation of literals
   'unicorn/no-useless-concat': ERROR,
+  // disallow useless `continue` statements
+  'unicorn/no-useless-continue': ERROR,
   // disallow `else` after a statement that exits
   'unicorn/no-useless-else': ERROR,
   // disallow unnecessary `Error.captureStackTrace()`
@@ -759,6 +767,8 @@ const base = {
   'unicorn/no-useless-iterator-to-array': ERROR,
   // disallow useless array length check
   'unicorn/no-useless-length-check': ERROR,
+  // disallow useless overrides of class methods
+  'unicorn/no-useless-override': ERROR,
   // disallow returning / yielding `Promise.{ resolve, reject }` in async functions or promise callbacks
   'unicorn/no-useless-promise-resolve-reject': ERROR,
   // disallow simple recursive function calls that can be replaced with a loop
@@ -767,6 +777,8 @@ const base = {
   'unicorn/no-useless-spread': ERROR,
   // disallow useless `case` in `switch` statements
   'unicorn/no-useless-switch-case': ERROR,
+  // require assignment operator shorthand where possible
+  'unicorn/operator-assignment': [ERROR, ALWAYS],
   // prefer `.find()` over the first element from `.filter()`
   'unicorn/prefer-array-find': [ERROR, { checkFromLast: true }],
   // use `.flat()` to flatten an array of arrays
@@ -779,6 +791,8 @@ const base = {
   'unicorn/prefer-array-index-of': ERROR,
   // prefer last-oriented array methods over `Array#reverse()` or `Array#toReversed()` followed by a method
   'unicorn/prefer-array-last-methods': ERROR,
+  // prefer `Array#slice()` over `Array#splice()` when reading from the returned array
+  'unicorn/prefer-array-slice': ERROR,
   // prefer `.some()` over `.filter().length` check and `.find()`
   'unicorn/prefer-array-some': ERROR,
   // prefer `.at()` method for index access and `String#charAt()`
@@ -797,6 +811,8 @@ const base = {
   'unicorn/prefer-default-parameters': ERROR,
   // prefer direct iteration over default iterator method calls
   'unicorn/prefer-direct-iteration': ERROR,
+  // prefer `else if` over adjacent `if` statements with related conditions
+  'unicorn/prefer-else-if': ERROR,
   // prefer `EventTarget` over `EventEmitter`
   'unicorn/prefer-event-target': ERROR,
   // prefer `.getOrInsertComputed()` when the default value has side effects
@@ -817,6 +833,8 @@ const base = {
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': ERROR,
+  // prefer `new Map()` over `Object.fromEntries()` when using the result as a map
+  'unicorn/prefer-map-from-entries': ERROR,
   // prefer `Math.min()` and `Math.max()` over ternaries for simple comparisons
   'unicorn/prefer-math-min-max': ERROR,
   // prefer modern `Math` APIs over legacy patterns
@@ -1257,8 +1275,6 @@ const noAsyncAwait = {
 
 const useES5Syntax = {
   ...noAsyncAwait,
-  // disallow logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, NEVER],
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': ERROR,
   // disallow specified syntax
@@ -1287,6 +1303,8 @@ const useES5Syntax = {
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  // require or disallow logical assignment operator shorthand
+  'unicorn/logical-assignment-operators': OFF,
   // prefer class field declarations over this assignments in constructors
   'unicorn/prefer-class-fields': OFF,
   // prefer default parameters over reassignment
@@ -1879,6 +1897,8 @@ const polyfills = {
   }],
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
+  // disallow referencing methods without calling them
+  'unicorn/no-uncalled-method': OFF,
 };
 
 const transpiledAndPolyfilled = {
@@ -1986,6 +2006,8 @@ const tests = {
   'unicorn/no-immediate-mutation': OFF,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
+  // disallow referencing methods without calling them
+  'unicorn/no-uncalled-method': OFF,
   // disallow ignoring the return value of selected array methods
   'unicorn/no-unused-array-method-return': OFF,
   // prefer `.at()` method for index access and `String#charAt()`
@@ -1999,8 +2021,12 @@ const tests = {
 };
 
 const e2eUsagePure = {
+  // require or disallow logical assignment operator shorthand
+  'unicorn/logical-assignment-operators': OFF,
   // disallow unreadable object destructuring
   'unicorn/no-unreadable-object-destructuring': OFF,
+  // disallow useless overrides of class methods
+  'unicorn/no-useless-override': OFF,
   // use using the `Array.from()` mapping function argument
   'unicorn/prefer-array-from-map': OFF,
   // prefer direct iteration over default iterator method calls
