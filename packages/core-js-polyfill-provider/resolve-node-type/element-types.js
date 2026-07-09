@@ -39,62 +39,66 @@ export function createElementTypes({
   // resolve the element type of a collection from its type annotation. `seen` is a per-
   // resolution decl-cycle guard threaded through `resolveUserTypeElement`
   function resolveElementType(node, scope, depth, seen) {
-    if (depth > MAX_DEPTH) return null;
-    node = unwrapTypeAnnotation(node);
-    if (!node) return null;
-    switch (babelNodeType(node)) {
-      // string[] -> element type
-      case 'TSArrayType':
-      case 'ArrayTypeAnnotation':
-        return resolveTypeAnnotation(node.elementType, scope, depth + 1);
-      // [string, number] -> common element type if all same
-      case 'TSTupleType':
-      case 'TupleTypeAnnotation': {
-        const elements = tupleElements(node);
-        return elements?.length
-          ? resolveTupleInner(elements, e => resolveTypeAnnotation(e, scope, depth + 1))
-          : null;
-      }
-      // Array<T>, Set<T>, Map<K,V>, Iterable<T>, Generator<T>, user type aliases
-      case 'TSTypeReference':
-      case 'GenericTypeAnnotation': {
-        const name = typeRefName(node);
-        if (!name) return null;
-        const params = getTypeArgs(node)?.params;
-        if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
-        if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
-        return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: resolveElementType, seen });
-      }
-      // iterating a string yields characters (strings)
-      case 'TSStringKeyword':
-      case 'StringTypeAnnotation':
-        return new $Primitive('string');
-      // union: strip null/undefined, check remaining
-      case 'TSUnionType':
-      case 'UnionTypeAnnotation': {
-        const { types } = node;
-        if (!types?.length) return null;
-        let result = null;
-        for (const member of types) {
-          const resolved = resolveTypeAnnotation(member, scope, depth + 1);
-          if (!resolved) return null;
-          if (isNullableOrNever(resolved)) continue;
-          const elemType = resolveElementType(member, scope, depth + 1);
-          if (!elemType) return null;
-          result = commonType(result, elemType);
-          if (!result) return null;
+    while (true) {
+      if (depth > MAX_DEPTH) return null;
+      node = unwrapTypeAnnotation(node);
+      if (!node) return null;
+      switch (babelNodeType(node)) {
+        // string[] -> element type
+        case 'TSArrayType':
+        case 'ArrayTypeAnnotation':
+          return resolveTypeAnnotation(node.elementType, scope, depth + 1);
+        // [string, number] -> common element type if all same
+        case 'TSTupleType':
+        case 'TupleTypeAnnotation': {
+          const elements = tupleElements(node);
+          return elements?.length
+            ? resolveTupleInner(elements, e => resolveTypeAnnotation(e, scope, depth + 1))
+            : null;
         }
-        return result;
+        // Array<T>, Set<T>, Map<K,V>, Iterable<T>, Generator<T>, user type aliases
+        case 'TSTypeReference':
+        case 'GenericTypeAnnotation': {
+          const name = typeRefName(node);
+          if (!name) return null;
+          const params = getTypeArgs(node)?.params;
+          if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
+          if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
+          return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: resolveElementType, seen });
+        }
+        // iterating a string yields characters (strings)
+        case 'TSStringKeyword':
+        case 'StringTypeAnnotation':
+          return new $Primitive('string');
+        // union: strip null/undefined, check remaining
+        case 'TSUnionType':
+        case 'UnionTypeAnnotation': {
+          const { types } = node;
+          if (!types?.length) return null;
+          let result = null;
+          for (const member of types) {
+            const resolved = resolveTypeAnnotation(member, scope, depth + 1);
+            if (!resolved) return null;
+            if (isNullableOrNever(resolved)) continue;
+            const elemType = resolveElementType(member, scope, depth + 1);
+            if (!elemType) return null;
+            result = commonType(result, elemType);
+            if (!result) return null;
+          }
+          return result;
+        }
+        // transparent wrappers: readonly T[], (T[])
+        case 'TSTypeOperator':
+          return node.operator !== 'keyof' ? resolveElementType(node.typeAnnotation, scope, depth + 1) : null;
+        case 'TSOptionalType':
+        case 'TSParenthesizedType':
+        case 'NullableTypeAnnotation':
+          node = node.typeAnnotation;
+          depth += 1;
+          continue;
       }
-      // transparent wrappers: readonly T[], (T[])
-      case 'TSTypeOperator':
-        return node.operator !== 'keyof' ? resolveElementType(node.typeAnnotation, scope, depth + 1) : null;
-      case 'TSOptionalType':
-      case 'TSParenthesizedType':
-      case 'NullableTypeAnnotation':
-        return resolveElementType(node.typeAnnotation, scope, depth + 1);
+      return null;
     }
-    return null;
   }
 
   // follow user-defined type aliases and interface extends chain using a parameterized resolver.
@@ -133,49 +137,53 @@ export function createElementTypes({
   // `seen` flows through `resolveUserTypeElement`'s decl-cycle short-circuit when alias /
   // interface bodies re-reference an ancestor declaration
   function extractElementAnnotation(node, scope, depth, seen) {
-    if (depth > MAX_DEPTH) return null;
-    node = unwrapTypeAnnotation(node);
-    if (!node) return null;
-    switch (babelNodeType(node)) {
-      case 'TSArrayType':
-      case 'ArrayTypeAnnotation':
-        return node.elementType;
-      case 'TSTypeReference':
-      case 'GenericTypeAnnotation': {
-        const name = typeRefName(node);
-        if (!name) return null;
-        const params = getTypeArgs(node)?.params;
-        if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ?? null;
-        // Map/ReadonlyMap iterate as [K, V] - synthesize a TSTupleType so `findTupleElement`
-        // can pick up K or V by index
-        if (name === 'Map' || name === 'ReadonlyMap') {
-          return params?.length >= 2 ? { type: 'TSTupleType', elementTypes: [params[0], params[1]] } : null;
+    while (true) {
+      if (depth > MAX_DEPTH) return null;
+      node = unwrapTypeAnnotation(node);
+      if (!node) return null;
+      switch (babelNodeType(node)) {
+        case 'TSArrayType':
+        case 'ArrayTypeAnnotation':
+          return node.elementType;
+        case 'TSTypeReference':
+        case 'GenericTypeAnnotation': {
+          const name = typeRefName(node);
+          if (!name) return null;
+          const params = getTypeArgs(node)?.params;
+          if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ?? null;
+          // Map/ReadonlyMap iterate as [K, V] - synthesize a TSTupleType so `findTupleElement`
+          // can pick up K or V by index
+          if (name === 'Map' || name === 'ReadonlyMap') {
+            return params?.length >= 2 ? { type: 'TSTupleType', elementTypes: [params[0], params[1]] } : null;
+          }
+          return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: extractElementAnnotation, seen });
         }
-        return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: extractElementAnnotation, seen });
-      }
-      case 'TSTypeOperator':
-        return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
-      case 'TSOptionalType':
-      case 'TSParenthesizedType':
-      case 'NullableTypeAnnotation':
-        return extractElementAnnotation(node.typeAnnotation, scope, depth + 1);
-      case 'TSUnionType':
-      case 'UnionTypeAnnotation': {
-        const { types } = node;
-        if (!types?.length) return null;
-        let result = null;
-        for (const member of types) {
-          const resolved = resolveTypeAnnotation(member, scope, depth + 1);
-          if (!resolved) return null;
-          if (isNullableOrNever(resolved)) continue;
-          if (result) return null; // multiple non-null collection members -> ambiguous
-          result = extractElementAnnotation(member, scope, depth + 1);
-          if (!result) return null;
+        case 'TSTypeOperator':
+          return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
+        case 'TSOptionalType':
+        case 'TSParenthesizedType':
+        case 'NullableTypeAnnotation':
+          node = node.typeAnnotation;
+          depth += 1;
+          continue;
+        case 'TSUnionType':
+        case 'UnionTypeAnnotation': {
+          const { types } = node;
+          if (!types?.length) return null;
+          let result = null;
+          for (const member of types) {
+            const resolved = resolveTypeAnnotation(member, scope, depth + 1);
+            if (!resolved) return null;
+            if (isNullableOrNever(resolved)) continue;
+            if (result) return null; // multiple non-null collection members -> ambiguous
+            result = extractElementAnnotation(member, scope, depth + 1);
+            if (!result) return null;
+          }
+          return result;
         }
-        return result;
       }
+      return null;
     }
-    return null;
   }
 
   return { resolveElementType, extractElementAnnotation };

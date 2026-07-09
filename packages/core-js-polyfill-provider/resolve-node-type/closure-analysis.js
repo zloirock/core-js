@@ -145,11 +145,9 @@ export function createClosureAnalysis({
   // levels below the anon index into FIELD values and cannot reach its methods
   function patternBindsAnonMethod({ pattern, fieldPath, methodInfo, level = 0 }) {
     if (!methodInfo) return false;
-    if (pattern?.type === 'ParenthesizedExpression') {
-      return patternBindsAnonMethod({ pattern: pattern.expression, fieldPath, methodInfo, level });
-    }
-    if (pattern?.type === 'AssignmentPattern') {
-      return patternBindsAnonMethod({ pattern: pattern.left, fieldPath, methodInfo, level });
+    // peel transparent wrappers (`(x)`, `x = d`) - they carry the binding through unchanged
+    while (pattern?.type === 'ParenthesizedExpression' || pattern?.type === 'AssignmentPattern') {
+      pattern = pattern.type === 'ParenthesizedExpression' ? pattern.expression : pattern.left;
     }
     if (pattern?.type === 'ObjectPattern') {
       for (const p of pattern.properties ?? []) {
@@ -160,9 +158,10 @@ export function createClosureAnalysis({
         const key = propertyKeyName(p);
         if (level === fieldPath.length) {
           // an untrackable pattern key could name any method; a resolvable key only a known one
-          if (key === null || key === undefined) {
-            if (methodInfo.methodKeys.size || methodInfo.unknownKey) return true;
-          } else if (methodInfo.methodKeys.has(key)) return true;
+          const matches = key === null || key === undefined
+            ? methodInfo.methodKeys.size || methodInfo.unknownKey
+            : methodInfo.methodKeys.has(key);
+          if (matches) return true;
           continue;
         }
         const step = fieldPath[level];
