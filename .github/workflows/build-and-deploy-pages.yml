@@ -21,7 +21,7 @@ jobs:
         run: |
           BRANCHES=$(
             git branch -r |
-            grep -Ev 'HEAD|v1|v2' |
+            grep -Ev 'HEAD|v1|v2|data-view-clamped-stage-2' |
             sed 's/^[ *]*//' |
             sed 's/^origin\///' |
             jq -R . |
@@ -32,7 +32,9 @@ jobs:
   build-compat-pages:
     needs: list-branches
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
         branch: ${{ fromJson(needs.list-branches.outputs.branches) }}
     name: Build for ${{ matrix.branch }}
