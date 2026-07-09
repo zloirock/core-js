@@ -330,8 +330,6 @@ const base = {
   'no-console': ERROR,
   // disallow deletion of variables
   'no-delete-var': ERROR,
-  // disallow else after a return in an if
-  'no-else-return': [ERROR, { allowElseIf: false }],
   // disallow empty statements
   'no-empty': ERROR,
   // disallow empty functions, except for standalone funcs/arrows
@@ -694,18 +692,33 @@ const base = {
   'unicorn/no-lonely-if': ERROR,
   // disallow named usage of default import and export
   'unicorn/no-named-default': ERROR,
+  // disallow negated array predicate calls
+  'unicorn/no-negated-array-predicate': ERROR,
+  // disallow negated comparisons
+  // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/3510
+  'unicorn/no-negated-comparison': OFF,
   // disallow negated expression in equality check
   'unicorn/no-negation-in-equality-check': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
   'unicorn/no-new-buffer': ERROR,
+  // disallow `Object` methods with `Map` or `Set`
+  'unicorn/no-object-methods-with-collections': ERROR,
+  // disallow optional chaining on undeclared variables
+  'unicorn/no-optional-chaining-on-undeclared-variable': ERROR,
+  // disallow comparisons made redundant by an equality check in the same logical AND
+  'unicorn/no-redundant-comparison': ERROR,
   // disallow passing single-element arrays to `Promise` methods
   'unicorn/no-single-promise-in-promise-methods': ERROR,
   // forbid classes that only have static members
   'unicorn/no-static-only-class': ERROR,
+  // prefer comparing values directly over subtracting and comparing to 0
+  'unicorn/no-subtraction-comparison': ERROR,
   // disallow `then` property
   'unicorn/no-thenable': ERROR,
   // disallow comparing `undefined` using `typeof` when it's not required
   'unicorn/no-typeof-undefined': ERROR,
+  // require class members to be declared
+  'unicorn/no-undeclared-class-members': ERROR,
   // disallow using 1 as the depth argument of `Array#flat()`
   'unicorn/no-unnecessary-array-flat-depth': ERROR,
   // disallow using `.length` or `Infinity` as the `deleteCount` or `skipCount` argument of `Array#{ splice, toSpliced }()`
@@ -716,16 +729,28 @@ const base = {
   'unicorn/no-unnecessary-nested-ternary': ERROR,
   // disallow using `.length` or `Infinity` as the end argument of `{ Array, String, %TypedArray% }#slice()`
   'unicorn/no-unnecessary-slice-end': ERROR,
+  // disallow `Array#splice()` when simpler alternatives exist
+  'unicorn/no-unnecessary-splice': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unreadable IIFEs
   'unicorn/no-unreadable-iife': ERROR,
+  // disallow unreadable object destructuring
+  'unicorn/no-unreadable-object-destructuring': ERROR,
+  // disallow unsafe values as property keys
+  'unicorn/no-unsafe-property-key': ERROR,
   // disallow ignoring the return value of selected array methods
   'unicorn/no-unused-array-method-return': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
+  // disallow unnecessary `Boolean()` casts in array predicate callbacks
+  'unicorn/no-useless-boolean-cast': ERROR,
   // disallow useless values or fallbacks in `Set`, `Map`, `WeakSet`, or `WeakMap`
   'unicorn/no-useless-collection-argument': ERROR,
+  // disallow no-useless-concat
+  'unicorn/no-useless-concat': ERROR,
+  // disallow `else` after a statement that exits
+  'unicorn/no-useless-else': ERROR,
   // disallow unnecessary `Error.captureStackTrace()`
   'unicorn/no-useless-error-capture-stack-trace': ERROR,
   // forbid useless fallback when spreading in object literals
@@ -2524,6 +2549,15 @@ export default [
     ],
     languageOptions: {
       globals: globalsESNext,
+    },
+  },
+  {
+    files: [
+      'tests/e2e-usage-pure/**',
+    ],
+    rules: {
+      // disallow unreadable object destructuring
+      'unicorn/no-unreadable-object-destructuring': OFF,
     },
   },
   {
