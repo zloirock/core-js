@@ -112,7 +112,7 @@ export default async function ({
   if (summary.console.modules) {
     console.log(styleText('green', `bundling ${ styleText('cyan', TITLE) }, modules:`));
     if (list.length) for (const it of list) {
-      console.log(styleText('cyan', `${ it + (targets ? styleText('green', ` for ${ styleText('cyan', JSON.stringify(compatTargets[it])) }`) : '') }`));
+      console.log(styleText('cyan', it + (targets ? styleText('green', ` for ${ styleText('cyan', JSON.stringify(compatTargets[it])) }`) : '')));
     } else console.log(styleText('green', 'nothing'));
   }
 
