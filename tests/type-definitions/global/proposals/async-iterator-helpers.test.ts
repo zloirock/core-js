@@ -76,6 +76,7 @@ const r4g: Promise<string | undefined> = ains.find((v): v is string => typeof v 
 const r5: AsyncIterator<number> = ain.flatMap((v: number, i: number) => [v, v * 2]);
 const r6: Promise<void> = ain.forEach((v: number, i: number) => { });
 const r7: AsyncIterator<string> = ain.map((v: number, i: number) => v.toString());
+const r7async: AsyncIterator<string> = ain.map(async (v: number, i: number) => v.toString());
 const r8: Promise<number> = ain.reduce((acc: number, v: number, i: number) => acc + v, 0);
 const r8no: Promise<number> = ain.reduce((acc: number, v: number, i: number) => acc + v);
 const r9: Promise<boolean> = ain.some((v: number, i: number) => v > 0);
