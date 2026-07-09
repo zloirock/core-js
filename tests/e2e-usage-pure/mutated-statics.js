@@ -131,7 +131,6 @@ QUnit.test('mutated-statics: mutated static flows through alias and super', asse
 QUnit.test('mutated-statics: guarded shims stay dead on the enriched constructor', assert => {
   Iterator.from ||= function () { return 'dead-shim'; };
   assert.same(Iterator.from([5].values()).next().value, 5);
-  // eslint-disable-next-line logical-assignment-operators -- the classic `X = X || shim` pattern under test
   Promise.allSettled = Promise.allSettled || function () { return 'dead-shim'; };
   assert.same(typeof Promise.allSettled, 'function');
   return Promise.allSettled([Promise.resolve(7)]).then(rs => {
@@ -141,7 +140,6 @@ QUnit.test('mutated-statics: guarded shims stay dead on the enriched constructor
 
 /* eslint-disable es/no-nonstandard-map-properties -- the or-shim pattern targets a deliberately missing key */
 QUnit.test('mutated-statics: or-shim on a missing key assigns and serves the shim', assert => {
-  // eslint-disable-next-line logical-assignment-operators -- the classic `X = X || shim` pattern under test
   Map.customShimKey = Map.customShimKey || function () { return 'served'; };
   try {
     assert.same(Map.customShimKey(), 'served');
