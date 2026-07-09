@@ -436,7 +436,7 @@ check('polyfillOrderComparator/lex-smaller unknown after known',
     const ab = polyfillOrderComparator(a, b);
     const bc = polyfillOrderComparator(b, c);
     const ac = polyfillOrderComparator(a, c);
-    if (ab < 0 && bc < 0 && !(ac < 0)) {
+    if (ab < 0 && bc < 0 && ac >= 0) {
       transitive = false;
       counterExample = { a, b, c, ab, bc, ac };
     }
