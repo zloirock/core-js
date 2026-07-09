@@ -1819,8 +1819,7 @@ export function createDestructureEmitter({
         return;
       }
       if (isVarScopeBoundary(node.type)) return;
-      for (const key of Object.keys(node)) {
-        const value = node[key];
+      for (const value of Object.values(node)) {
         if (Array.isArray(value)) for (const v of value) collectFunctionVars(v, locals);
         else collectFunctionVars(value, locals);
       }
@@ -1965,7 +1964,7 @@ export function createDestructureEmitter({
         matches.push(node);
       }
       ancestors.push(node);
-      for (const key of Object.keys(node)) {
+      for (const [key, value] of Object.entries(node)) {
         // skip the `init` slot of a nested VariableDeclarator with ObjectPattern id
         // (potentially flatten-eligible inner destructure). its own inner flatten consumes
         // the receiver via the inner-flatten's overwrite, OR the natural visitor handles
@@ -1985,7 +1984,6 @@ export function createDestructureEmitter({
         // (`[globalThis]`) too since the whole right subtree is skipped
         if (key === 'right' && (node.type === 'AssignmentExpression' || node.type === 'AssignmentPattern')
           && (node.left?.type === 'ObjectPattern' || node.left?.type === 'ArrayPattern')) continue;
-        const value = node[key];
         if (Array.isArray(value)) for (const item of value) walk(item, node);
         else walk(value, node);
       }
@@ -2444,7 +2442,7 @@ export function createDestructureEmitter({
         // dropping the destructure - and every sibling binding - out of the export. matches babel
         const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
         const extraction = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ localId.name } = ${ copyExpr };`;
-        emitPrecedingDeclStatement({ declPath, insertPos: exportNode ? exportNode.start : declaration.start,
+        emitPrecedingDeclStatement({ declPath, insertPos: (exportNode ?? declaration).start,
           text: `${ hoist }${ extraction }\n`, order: propNode.start });
       }
     }
@@ -3615,7 +3613,7 @@ export function createDestructureEmitter({
       // keys (no re-read needed); accept the side-effect re-evaluation trade-off.
       // an INSTANCE param-default registration additionally admits `this` / constant-literal
       // receivers (`= [1, 2]`) - its own registration gate already bounded the shape
-      const hasInstanceEntry = [...polyfills.values()].some(p => typeof p !== 'string' && p?.instance);
+      const hasInstanceEntry = polyfills.values().some(p => typeof p !== 'string' && p?.instance);
       if (!isReceiverShapedNode(inner) && inner?.type !== 'LogicalExpression' && !isCallShape(inner)
         && inner?.type !== 'ThisExpression' && !hasInstanceEntry) continue;
       // a fallback-logical receiver reads through its peeled LEFT branch (babel-twin contract):
