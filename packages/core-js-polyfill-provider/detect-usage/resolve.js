@@ -563,10 +563,9 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
         receiver = inlined;
         continue;
       }
-    }
     // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
     // the type resolver via the same canon)
-    if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
+    } else if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
     return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode });
   }
 }
