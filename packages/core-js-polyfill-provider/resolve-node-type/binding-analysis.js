@@ -312,7 +312,7 @@ export function createBindingAnalysis({
     const mutates = entry.mutatesArgument;
     if (!Array.isArray(mutates)) return true;
     return refNode.type === 'SpreadElement'
-      ? !mutates.some(idx => idx >= argIndex)
+      ? mutates.every(idx => idx < argIndex)
       : !mutates.includes(argIndex);
   }
 

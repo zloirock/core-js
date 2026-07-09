@@ -96,7 +96,7 @@ export function createNarrowByGuards({
         droppedNullish ||= resolved.type !== 'never' && guards.every(guard => guardKeeps(resolved, guard));
         continue;
       }
-      if (!guards.every(guard => guardKeeps(resolved, guard))) continue;
+      if (guards.some(guard => !guardKeeps(resolved, guard))) continue;
       result = commonType(result, resolved);
       if (!result) return null;
     }
