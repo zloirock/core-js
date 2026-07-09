@@ -122,67 +122,74 @@ export function createTypeFolding({
   }
 
   function findTupleElement(objectType, index, scope, depth = 0) {
-    // self-recursive alias behind a structure-preserving wrapper (`type R<T> = Readonly<R<T>>;
-    // R<number>[0]`) re-enters with a FRESH followTypeAliasChain on each peel, escaping that
-    // function's own cycle guard - cap depth here so it bails to null instead of overflowing
-    if (index < 0 || depth > MAX_DEPTH) return null;
-    // peel BEFORE alias chain catches direct `Readonly<[T, U]>` indexing. mirrors
-    // `findTypeMember`'s peel-then-follow-then-peel pattern
-    const peeledBefore = peelStructurePreservingWrapper(objectType);
-    if (peeledBefore) return findTupleElement(peeledBefore, index, scope, depth + 1);
-    // follow alias chain BEFORE the Parameters check so `type P = Parameters<typeof fn>;
-    // P[0]` reaches the Parameters branch - `resolveParametersParams` matches by typeRefName
-    // and would see "P" instead of "Parameters" without the alias walk
-    const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
-    const target = aliased ?? objectType;
-    // `Parameters<typeof fn>[N]` / `ConstructorParameters<typeof Cls>[N]` - N-th param's
-    // annotation; rest param unwraps `T[]` -> T and covers every index >= its position.
-    // alias subst applies if the resolved annotation references type-params of the alias.
-    // `applyAliasSubstDeep` is a no-op when `subst` is null, so direct call covers both
-    // alias-walked and direct-Parameters cases without a guard
-    const params = resolveParametersParams(target, scope);
-    if (params) {
-      for (let i = 0; i < params.length; i++) {
-        const { param, isRest } = effectiveParam(params[i]);
-        const annotation = param?.typeAnnotation?.typeAnnotation;
-        if (!isRest && i === index) return applyAliasSubstDeep(annotation, subst) ?? null;
-        if (isRest) {
-          return i <= index
-            ? applyAliasSubstDeep(extractElementAnnotation(annotation, scope, 0), subst) ?? null
-            : null;
-        }
+    while (true) {
+      // self-recursive alias behind a structure-preserving wrapper (`type R<T> = Readonly<R<T>>;
+      // R<number>[0]`) re-enters with a FRESH followTypeAliasChain on each peel, escaping that
+      // function's own cycle guard - cap depth here so it bails to null instead of overflowing
+      if (index < 0 || depth > MAX_DEPTH) return null;
+      // peel BEFORE alias chain catches direct `Readonly<[T, U]>` indexing. mirrors
+      // `findTypeMember`'s peel-then-follow-then-peel pattern
+      const peeledBefore = peelStructurePreservingWrapper(objectType);
+      if (peeledBefore) {
+        objectType = peeledBefore;
+        depth += 1;
+        continue;
       }
-      return null;
+      // follow alias chain BEFORE the Parameters check so `type P = Parameters<typeof fn>;
+      // P[0]` reaches the Parameters branch - `resolveParametersParams` matches by typeRefName
+      // and would see "P" instead of "Parameters" without the alias walk
+      const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
+      const target = aliased ?? objectType;
+      // `Parameters<typeof fn>[N]` / `ConstructorParameters<typeof Cls>[N]` - N-th param's
+      // annotation; rest param unwraps `T[]` -> T and covers every index >= its position.
+      // alias subst applies if the resolved annotation references type-params of the alias.
+      // `applyAliasSubstDeep` is a no-op when `subst` is null, so direct call covers both
+      // alias-walked and direct-Parameters cases without a guard
+      const params = resolveParametersParams(target, scope);
+      if (params) {
+        for (let i = 0; i < params.length; i++) {
+          const { param, isRest } = effectiveParam(params[i]);
+          const annotation = param?.typeAnnotation?.typeAnnotation;
+          if (!isRest && i === index) return applyAliasSubstDeep(annotation, subst) ?? null;
+          if (isRest) {
+            return i <= index
+              ? applyAliasSubstDeep(extractElementAnnotation(annotation, scope, 0), subst) ?? null
+              : null;
+          }
+        }
+        return null;
+      }
+      // peel AFTER follow handles `type X = Readonly<[T, U]>; X[0]` (wrapper hidden one
+      // level deeper through the alias). without the second peel numeric indexing falls
+      // through to generic `_at`
+      const peeledAfter = peelStructurePreservingWrapper(target);
+      if (peeledAfter) {
+        objectType = applySubst(peeledAfter, subst);
+        depth += 1;
+        continue;
+      }
+      if (target.type !== 'TSTupleType' && target.type !== 'TupleTypeAnnotation') return null;
+      const elements = tupleElements(target);
+      if (!elements?.length) return null;
+      // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number.
+      // rest element NOT at the last position (`[...string[], number][1]` leading;
+      // `[string, ...number[], boolean][2]` middle) makes positional indexing semantically
+      // ambiguous - the rest's runtime length is unknown, so any index at or past the rest
+      // position could be either the rest's element type or a later fixed element. bail to
+      // the generic path so dispatch widens. trailing rest stays positional: indices before
+      // the rest hit fixed slots, indices at-or-past extend the rest's element type
+      const restIndex = elements.findIndex(isTupleRestElement);
+      if (restIndex !== -1 && restIndex !== elements.length - 1 && index >= restIndex) return null;
+      const element = index < elements.length ? elements[index]
+        // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
+        : isTupleRestElement(elements.at(-1)) ? elements.at(-1) : null;
+      if (!element) return null;
+      const memberNode = isTupleRestElement(element)
+        ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
+      if (!memberNode) return null;
+      // deep subst so generic args reach nested shapes: `Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`
+      return applyAliasSubstDeep(memberNode, subst);
     }
-    // peel AFTER follow handles `type X = Readonly<[T, U]>; X[0]` (wrapper hidden one
-    // level deeper through the alias). without the second peel numeric indexing falls
-    // through to generic `_at`
-    const peeledAfter = peelStructurePreservingWrapper(target);
-    if (peeledAfter) {
-      const substituted = applySubst(peeledAfter, subst);
-      return findTupleElement(substituted, index, scope, depth + 1);
-    }
-    if (target.type !== 'TSTupleType' && target.type !== 'TupleTypeAnnotation') return null;
-    const elements = tupleElements(target);
-    if (!elements?.length) return null;
-    // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number.
-    // rest element NOT at the last position (`[...string[], number][1]` leading;
-    // `[string, ...number[], boolean][2]` middle) makes positional indexing semantically
-    // ambiguous - the rest's runtime length is unknown, so any index at or past the rest
-    // position could be either the rest's element type or a later fixed element. bail to
-    // the generic path so dispatch widens. trailing rest stays positional: indices before
-    // the rest hit fixed slots, indices at-or-past extend the rest's element type
-    const restIndex = elements.findIndex(isTupleRestElement);
-    if (restIndex !== -1 && restIndex !== elements.length - 1 && index >= restIndex) return null;
-    const element = index < elements.length ? elements[index]
-      // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
-      : isTupleRestElement(elements.at(-1)) ? elements.at(-1) : null;
-    if (!element) return null;
-    const memberNode = isTupleRestElement(element)
-      ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
-    if (!memberNode) return null;
-    // deep subst so generic args reach nested shapes: `Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`
-    return applyAliasSubstDeep(memberNode, subst);
   }
 
   // resolve a type-arg annotation honoring the caller's generic-substitution map when present,
