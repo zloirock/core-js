@@ -1566,7 +1566,7 @@ export default function createDestructureEmitter({
     // default on the resolved key (the guarded `_ref`-read rewrite); a plain resolved
     // prop matters only when the body actually reads it. plain `{ code = 1 }` /
     // rest-only patterns destructure in place
-    if (!param.properties.some(p => computedPropKeyHostsMachinery({
+    if (param.properties.every(p => !computedPropKeyHostsMachinery({
       propNode: p, scope: path.scope, adapter, path, resolvePure,
     }))) {
       if (!resolvableProps.length) return;
