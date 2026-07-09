@@ -36,8 +36,7 @@ export { isLineTerminator, skipBlockComment, skipGap };
 export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
   if (!root || typeof root !== 'object' || typeof root.type !== 'string' || depth >= 1024) return;
   visit(root, parent);
-  for (const key of Object.keys(root)) {
-    const value = root[key];
+  for (const value of Object.values(root)) {
     if (Array.isArray(value)) for (const v of value) walkAstNodes({ root: v, visit, parent: root, depth: depth + 1 });
     else walkAstNodes({ root: value, visit, parent: root, depth: depth + 1 });
   }

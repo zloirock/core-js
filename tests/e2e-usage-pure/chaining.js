@@ -136,6 +136,7 @@ QUnit.test('chain: Set -> Array.from -> toSorted -> at', assert => {
 
 // deep chaining with type propagation
 QUnit.test('chain: Object.entries -> flatMap -> includes', assert => {
+  // eslint-disable-next-line unicorn/prefer-object-iterable-methods -- testing
   assert.true(Object.entries({ a: [1], b: [2] }).flatMap(([, v]) => v).includes(2));
 });
 
