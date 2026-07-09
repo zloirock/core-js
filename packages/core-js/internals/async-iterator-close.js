@@ -28,6 +28,6 @@ module.exports = function (iterator, method, argument, reject) {
     }
   } catch (error2) {
     // the original error (`argument`) takes priority over `return()` errors
-    return method === reject ? reject(argument) : reject(error2);
+    return reject(method === reject ? argument : error2);
   } method(argument);
 };
