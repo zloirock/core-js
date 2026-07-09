@@ -558,10 +558,9 @@ function identifierReferencedInSubtree(node, name) {
   const keyProp = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression' ? 'property'
     : node.type === 'ObjectProperty' || node.type === 'Property'
       || node.type === 'ObjectMethod' || node.type === 'ClassMethod' ? 'key' : null;
-  for (const key of Object.keys(node)) {
+  for (const [key, value] of Object.entries(node)) {
     // a non-computed member / property KEY is a name literal, not a reference
     if (key === keyProp && !node.computed) continue;
-    const value = node[key];
     if (Array.isArray(value)) {
       if (value.some(child => identifierReferencedInSubtree(child, name))) return true;
     } else if (identifierReferencedInSubtree(value, name)) return true;
@@ -650,8 +649,7 @@ function findNearestVarScopeOwner(path) {
 function walkVarScope(scopeNode, onNode) {
   function visit(node) {
     if (!isASTNode(node) || onNode(node)) return;
-    for (const key of Object.keys(node)) {
-      const value = node[key];
+    for (const value of Object.values(node)) {
       if (Array.isArray(value)) for (const v of value) visit(v);
       else visit(value);
     }
@@ -913,8 +911,7 @@ function collectScopeReassignmentNodes(ownerNode, name) {
         if (d.init) violations.push(d);
       }
     }
-    for (const key of Object.keys(node)) {
-      const value = node[key];
+    for (const value of Object.values(node)) {
       if (Array.isArray(value)) for (const v of value) visit(v, false);
       else visit(value, false);
     }
@@ -1073,9 +1070,8 @@ const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
     }
     if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
     const rerunFields = LOOP_RERUN_FIELDS[node.type];
-    for (const key of Object.keys(node)) {
+    for (const [key, value] of Object.entries(node)) {
       if (result) return;
-      const value = node[key];
       const childInLoopRerun = inLoopRerun || !!rerunFields?.has(key);
       if (Array.isArray(value)) for (const v of value) visit(v, childInLoopRerun);
       else if (isASTNode(value)) visit(value, childInLoopRerun);
@@ -1150,9 +1146,8 @@ const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
     }
     if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
     const branchFields = CONDITIONAL_BRANCH_FIELDS[node.type];
-    for (const key of Object.keys(node)) {
+    for (const [key, value] of Object.entries(node)) {
       if (result !== null) return;
-      const value = node[key];
       const isBranch = branchFields?.includes(key);
       // an array-valued branch (switch-case body) has no wrapper node, so record the parent
       if (Array.isArray(value)) {
@@ -1347,9 +1342,8 @@ const reassignmentRhs = memoizeByNodePair((node, ownerNode) => {
       found = n.right;
       return;
     }
-    for (const key of Object.keys(n)) {
+    for (const value of Object.values(n)) {
       if (found) return;
-      const value = n[key];
       if (Array.isArray(value)) for (const v of value) visit(v);
       else visit(value);
     }
@@ -1645,9 +1639,8 @@ const enclosingValueFlowAssignment = memoizeByNodePair((node, ownerNode) => {
       found = n;
       return;
     }
-    for (const key of Object.keys(n)) {
+    for (const value of Object.values(n)) {
       if (found) return;
-      const value = n[key];
       if (Array.isArray(value)) for (const v of value) visit(v);
       else visit(value);
     }
@@ -2242,8 +2235,7 @@ export function isMemberWriteOnlyContext(member, parent, grandparent) {
 // and oxc shapes carry the same `.type` string on AST nodes
 export function walkAstChildren(node, visit) {
   if (!node || typeof node !== 'object') return;
-  for (const key of Object.keys(node)) {
-    const value = node[key];
+  for (const value of Object.values(node)) {
     if (Array.isArray(value)) {
       for (const el of value) if (isASTNode(el)) visit(el);
     } else if (isASTNode(value)) visit(value);
@@ -2917,8 +2909,7 @@ function bodyHasParamReference(node, paramNames) {
       || (node.computed && bodyHasParamReference(node.property, paramNames));
   }
   if (NESTED_BINDING_INTRODUCERS.has(node.type)) return true;
-  for (const key of Object.keys(node)) {
-    const value = node[key];
+  for (const value of Object.values(node)) {
     if (Array.isArray(value)) {
       if (value.some(v => bodyHasParamReference(v, paramNames))) return true;
     } else if (bodyHasParamReference(value, paramNames)) return true;
@@ -2937,8 +2928,7 @@ function expressionReadsName(node, name) {
   if (Array.isArray(node)) return node.some(child => expressionReadsName(child, name));
   if (typeof node.type !== 'string') return false;
   if (node.type === 'Identifier') return node.name === name;
-  for (const key of Object.keys(node)) {
-    const child = node[key];
+  for (const child of Object.values(node)) {
     if (isNonReferencePosition(node, child)) continue;
     if (expressionReadsName(child, name)) return true;
   }
@@ -3041,8 +3031,7 @@ export function paramReboundInBody(node, paramNames) {
   // a nested function whose own params rebind the target shadows ours - its writes hit its OWN binding
   if (isPlainFunctionNode(node)
     && (node.params ?? []).some(param => patternBindsIdentifier(param, id => paramNames.has(id.name)))) return false;
-  for (const key of Object.keys(node)) {
-    const value = node[key];
+  for (const value of Object.values(node)) {
     if (Array.isArray(value)) {
       if (value.some(child => paramReboundInBody(child, paramNames))) return true;
     } else if (paramReboundInBody(value, paramNames)) return true;
@@ -4150,7 +4139,7 @@ export function forEachStatementListBody(rootNode, visitor) {
     }
     if (STATEMENT_LIST_HOST_TYPES.has(node.type) && Array.isArray(node.body)) visitor(node.body);
     if (node.type === 'SwitchCase' && Array.isArray(node.consequent)) visitor(node.consequent);
-    for (const key of Object.keys(node)) visitListHosts(node[key]);
+    for (const value of Object.values(node)) visitListHosts(value);
   }
   visitListHosts(rootNode);
 }

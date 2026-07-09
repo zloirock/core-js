@@ -35,7 +35,7 @@ async function getModuleMetadata(path, stack = new Set()) {
   stack.add(path);
   const module = await fs.readFile(`./packages/core-js/${ path }.js`, 'utf8');
   const directDependencies = konan(module).strings.map(normalizeModulePath);
-  const declaredDependencies = [...module.matchAll(DEPENDENCY_DIRECTIVE)].map(it => normalizeModulePath(it.groups.module));
+  const declaredDependencies = module.matchAll(DEPENDENCY_DIRECTIVE).map(it => normalizeModulePath(it.groups.module)).toArray();
   const dependencies = unique([...directDependencies, ...declaredDependencies]);
   const paths = new Set([path]);
   const types = new Set();

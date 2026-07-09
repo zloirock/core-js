@@ -418,8 +418,7 @@ export function registerDeclAliasIfSound({ injector, kind, localName, hint, stmt
             if (binds) extraBindingNodes.push(d);
           }
         }
-        for (const key of Object.keys(node)) {
-          const value = node[key];
+        for (const value of Object.values(node)) {
           if (Array.isArray(value)) for (const item of value) collect(item);
           else collect(value);
         }

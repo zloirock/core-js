@@ -167,7 +167,7 @@ function init() {
     const html = document.querySelector('html');
     const isDark = html.classList.contains('theme-dark');
     // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- global function
-    isDark ? setTheme('theme-light') : setTheme('theme-dark');
+    setTheme(isDark ? 'theme-light' : 'theme-dark');
   });
 
   contentMenuTrigger && contentMenuTrigger.addEventListener('click', e => {

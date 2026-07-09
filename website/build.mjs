@@ -293,11 +293,10 @@ async function build() {
 
   let currentVersion = '';
   let versionsMenu = '';
-  let isChangelog;
   for (const mdPath of mdFiles) {
     const content = await readFile(mdPath, 'utf8');
+    const isChangelog = mdPath.includes('/changelog');
     isDocs = mdPath.includes('/docs');
-    isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
 
     const title = getTitle(content);
