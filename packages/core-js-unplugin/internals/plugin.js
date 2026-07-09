@@ -132,7 +132,7 @@ function neutralizeTSDeclareFunctions(node) {
     for (const child of node) neutralizeTSDeclareFunctions(child);
     return;
   }
-  for (const key of Object.keys(node)) neutralizeTSDeclareFunctions(node[key]);
+  for (const value of Object.values(node)) neutralizeTSDeclareFunctions(value);
 }
 
 // 1-based `line:col` from oxc's first label via shared offset->line+column helper.
