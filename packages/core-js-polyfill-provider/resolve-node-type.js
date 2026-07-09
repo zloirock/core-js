@@ -409,45 +409,52 @@ function createResolveNodeType(babelNodeType, t, {
   // [key] where key is a string/number literal, a const binding (chain) to one, or an
   // enum member access (`obj[Enum.A]` - enum members carry static literals at known slots)
   function resolveComputedKeyName(key, scope, depth = 0) {
-    if (depth > MAX_DEPTH) return null;
-    const literal = literalKeyValue(key);
-    if (literal !== null) return literal;
-    // single-quasi TemplateLiteral (`` `foo` `` with no interpolations) resolves to its
-    // cooked text. matches `getMemberProperty`'s template handling so `box.kind === \`A\``
-    // (and identifier chains pointing at such templates) classify the same as `'A'`
-    const quasi = singleQuasiString(key);
-    if (quasi !== null) return quasi;
-    if (!scope) return null;
-    if (key?.type === 'Identifier') {
-      // route through the hook (not raw `scope.getBinding`) so an over-hoisted namespace twin
-      // does not surface here for a use outside its block; no use-path at this site, so the
-      // estree hook drops the twin conservatively (generic dispatch) rather than mis-resolving
-      const binding = getScopeBinding(scope, key.name);
-      if (!binding || binding.constantViolations?.length) return null;
-      const decl = binding.path;
-      if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
-      return resolveComputedKeyName(decl.node.init, decl.scope ?? scope, depth + 1);
-    }
-    // `Enum.A` - TSEnumDeclaration lookup via findTypeDeclaration (scope-chain walk),
-    // not scope.getBinding - estree-toolkit adapter doesn't register enum bindings the
-    // same way babel does; type-declaration walker works uniformly for both
-    const memberName = getMemberProperty(key);
-    if (memberName !== null && key.object?.type === 'Identifier') {
-      const objectName = key.object.name;
-      // a lexically-nearer value binding of the same name (const / let / var / param, reassigned or
-      // not) shadows the enum - read enum member values only when the enum is the nearest value
-      // declaration. the shadow test needs the binding SCOPE only, so use the const-agnostic lookup
-      // (`constantBindingPath` would miss a reassigned `let Enum` and read the enum value under it)
-      if (enumIsNearestValue(objectName, scope, bindingDeclaratorPath(objectName, scope))) {
-        // TS merges enum blocks - the member may live in any block
-        for (const enumDecl of findAllEnumDeclarations(objectName, scope)) {
-          const member = findEnumMember(enumDecl, memberName);
-          const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
-          if (initValue !== null) return initValue;
+    // follow const-binding chains by looping instead of recursing - the Identifier branch
+    // re-drives the whole resolution on the binding's init at an incremented depth
+    while (true) {
+      if (depth > MAX_DEPTH) return null;
+      const literal = literalKeyValue(key);
+      if (literal !== null) return literal;
+      // single-quasi TemplateLiteral (`` `foo` `` with no interpolations) resolves to its
+      // cooked text. matches `getMemberProperty`'s template handling so `box.kind === \`A\``
+      // (and identifier chains pointing at such templates) classify the same as `'A'`
+      const quasi = singleQuasiString(key);
+      if (quasi !== null) return quasi;
+      if (!scope) return null;
+      if (key?.type === 'Identifier') {
+        // route through the hook (not raw `scope.getBinding`) so an over-hoisted namespace twin
+        // does not surface here for a use outside its block; no use-path at this site, so the
+        // estree hook drops the twin conservatively (generic dispatch) rather than mis-resolving
+        const binding = getScopeBinding(scope, key.name);
+        if (!binding || binding.constantViolations?.length) return null;
+        const decl = binding.path;
+        if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
+        scope = decl.scope ?? scope;
+        key = decl.node.init;
+        depth += 1;
+        continue;
+      }
+      // `Enum.A` - TSEnumDeclaration lookup via findTypeDeclaration (scope-chain walk),
+      // not scope.getBinding - estree-toolkit adapter doesn't register enum bindings the
+      // same way babel does; type-declaration walker works uniformly for both
+      const memberName = getMemberProperty(key);
+      if (memberName !== null && key.object?.type === 'Identifier') {
+        const objectName = key.object.name;
+        // a lexically-nearer value binding of the same name (const / let / var / param, reassigned or
+        // not) shadows the enum - read enum member values only when the enum is the nearest value
+        // declaration. the shadow test needs the binding SCOPE only, so use the const-agnostic lookup
+        // (`constantBindingPath` would miss a reassigned `let Enum` and read the enum value under it)
+        if (enumIsNearestValue(objectName, scope, bindingDeclaratorPath(objectName, scope))) {
+          // TS merges enum blocks - the member may live in any block
+          for (const enumDecl of findAllEnumDeclarations(objectName, scope)) {
+            const member = findEnumMember(enumDecl, memberName);
+            const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
+            if (initValue !== null) return initValue;
+          }
         }
       }
+      return null;
     }
-    return null;
   }
 
   function keyMatchesName(key, name) {
@@ -522,13 +529,21 @@ function createResolveNodeType(babelNodeType, t, {
   }
 
   function unwrapTypeAnnotation(node) {
-    if (!node) return null;
-    if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') return unwrapTypeAnnotation(node.typeAnnotation);
-    // parens are a semantic no-op in type position; oxc keeps `(X)` as TSParenthesizedType
-    // where babel strips it at parse - peeling HERE makes every unwrap-mediated `.type`
-    // dispatch across the resolver paren-safe on both parsers, instead of per-site peels
-    if (node.type === 'TSParenthesizedType') return unwrapTypeAnnotation(node.typeAnnotation);
-    return node;
+    while (node) {
+      if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') {
+        node = node.typeAnnotation;
+        continue;
+      }
+      // parens are a semantic no-op in type position; oxc keeps `(X)` as TSParenthesizedType
+      // where babel strips it at parse - peeling HERE makes every unwrap-mediated `.type`
+      // dispatch across the resolver paren-safe on both parsers, instead of per-site peels
+      if (node.type === 'TSParenthesizedType') {
+        node = node.typeAnnotation;
+        continue;
+      }
+      return node;
+    }
+    return null;
   }
   // peelTSParenthesized is imported from ast-shapes and shared with siblings that
   // pattern-match TSUnionType / TSIntersectionType / TSTypeQuery on the oxc parser path

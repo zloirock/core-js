@@ -510,30 +510,34 @@ export function createPatternBindings({
   // { a: [{ b: 'x' }] } with path ['a', 0, 'b'] -> resolveObjectMember for 'x'
   // string keys resolve object properties, number keys resolve array elements
   function resolveObjectMemberPath(objPath, keyPath) {
-    if (keyPath.length === 0) return resolveNodeType(objPath);
-    const [step] = keyPath;
-    const rest = keyPath.slice(1);
-    if (typeof step === 'number') {
-      // -1 = rest element. with no further keys the binding IS the rest Array; a remaining
-      // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
-      // needs the source element type - bail so the member doesn't mis-resolve as the Array
-      if (step < 0) return rest.length ? null : new $Object('Array');
-      if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
-      // any spread at or before the target index shifts subsequent positions to a runtime-
-      // determined slot - `[...spread, 'x'][1]` resolves to spread[1] OR 'x' depending on
-      // spread.length. mirror `resolveArrayLiteralElement`'s spread-guard so this nested
-      // path matches the top-level extraction semantics
-      for (let i = 0; i <= step; i++) {
-        if (objPath.node.elements[i]?.type === 'SpreadElement') return null;
+    while (true) {
+      if (keyPath.length === 0) return resolveNodeType(objPath);
+      const [step] = keyPath;
+      const rest = keyPath.slice(1);
+      if (typeof step === 'number') {
+        // -1 = rest element. with no further keys the binding IS the rest Array; a remaining
+        // key-path (`const [...{ length }] = a`) reads off that Array, but resolving it precisely
+        // needs the source element type - bail so the member doesn't mis-resolve as the Array
+        if (step < 0) return rest.length ? null : new $Object('Array');
+        if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
+        // any spread at or before the target index shifts subsequent positions to a runtime-
+        // determined slot - `[...spread, 'x'][1]` resolves to spread[1] OR 'x' depending on
+        // spread.length. mirror `resolveArrayLiteralElement`'s spread-guard so this nested
+        // path matches the top-level extraction semantics
+        for (let i = 0; i <= step; i++) {
+          if (objPath.node.elements[i]?.type === 'SpreadElement') return null;
+        }
+        objPath = resolveRuntimeExpression(objPath.get('elements')[step]);
+        keyPath = rest;
+        continue;
       }
-      return resolveObjectMemberPath(resolveRuntimeExpression(objPath.get('elements')[step]), rest);
+      if (!t.isObjectExpression(objPath.node)) return null;
+      if (!rest.length) return resolveObjectMember(objPath, step);
+      const prop = findObjectMember(objPath, step);
+      if (!prop || !t.isObjectProperty(prop.node)) return null;
+      objPath = resolveRuntimeExpression(prop.get('value'));
+      keyPath = rest;
     }
-    if (!t.isObjectExpression(objPath.node)) return null;
-    if (!rest.length) return resolveObjectMember(objPath, step);
-    const prop = findObjectMember(objPath, step);
-    if (!prop || !t.isObjectProperty(prop.node)) return null;
-    const next = resolveRuntimeExpression(prop.get('value'));
-    return resolveObjectMemberPath(next, rest);
   }
 
   // try runtime object literal, then annotation-based resolution for a destructured member

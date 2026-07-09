@@ -178,61 +178,69 @@ export function createTypeExpansion({
   // returns the renamed key string, RENAME_SKIP for `as never` / un-matched conditional
   // branches, or null when the template can't be resolved to a literal string
   function evalRenameTemplate(template, paramName, keyValue) {
-    if (!template) return null;
-    // entry peel: oxc keeps `as (Uppercase<K & string>)` (and parenthesized recursion
-    // slots - intrinsic args, intersection members, conditional branches, which re-enter
-    // here) as TSParenthesizedType where babel strips it
-    template = peelTSParenthesized(template);
-    if (template.type === 'TSNeverKeyword') return RENAME_SKIP;
-    if (template.type === 'TSStringKeyword') return keyValue;
-    // `\`prefix\${...}suffix\`` - cross-parser via templateLiteralTypeParts; concatenate
-    // quasis interleaved with the per-expression evaluation results
-    const parts = templateLiteralTypeParts(template);
-    if (parts) {
-      let out = quasiText(parts.quasis[0]);
-      for (let i = 0; i < parts.exprs.length; i++) {
-        const sub = evalRenameTemplate(parts.exprs[i], paramName, keyValue);
-        if (typeof sub !== 'string') return sub;
-        out += sub + quasiText(parts.quasis[i + 1]);
+    while (true) {
+      if (!template) return null;
+      // entry peel: oxc keeps `as (Uppercase<K & string>)` (and parenthesized recursion
+      // slots - intrinsic args, intersection members, conditional branches, which re-enter
+      // here) as TSParenthesizedType where babel strips it
+      template = peelTSParenthesized(template);
+      if (template.type === 'TSNeverKeyword') return RENAME_SKIP;
+      if (template.type === 'TSStringKeyword') return keyValue;
+      // `\`prefix\${...}suffix\`` - cross-parser via templateLiteralTypeParts; concatenate
+      // quasis interleaved with the per-expression evaluation results
+      const parts = templateLiteralTypeParts(template);
+      if (parts) {
+        let out = quasiText(parts.quasis[0]);
+        for (let i = 0; i < parts.exprs.length; i++) {
+          const sub = evalRenameTemplate(parts.exprs[i], paramName, keyValue);
+          if (typeof sub !== 'string') return sub;
+          out += sub + quasiText(parts.quasis[i + 1]);
+        }
+        return out;
       }
-      return out;
-    }
-    // `as 'fixed'` - direct string / numeric literal type
-    if (template.type === 'TSLiteralType') return literalKeyValue(template.literal);
-    if (template.type === 'TSTypeReference' && template.typeName?.type === 'Identifier') {
-      const { name } = template.typeName;
-      if (name === paramName) return keyValue;
-      const xform = INTRINSIC_STRING_TRANSFORMERS[name];
-      if (!xform) return null;
-      const arg = getTypeArgs(template)?.params?.[0];
-      if (!arg) return null;
-      const inner = evalRenameTemplate(arg, paramName, keyValue);
-      return typeof inner === 'string' ? xform(inner) : inner;
-    }
-    // `string & K` - drop the string-keyword half, evaluate the remaining type-level part
-    if (template.type === 'TSIntersectionType') {
-      let result = null;
-      for (const part of template.types) {
-        if (part?.type === 'TSStringKeyword') continue;
-        const sub = evalRenameTemplate(part, paramName, keyValue);
-        if (typeof sub !== 'string') return sub;
-        if (result !== null && result !== sub) return null;
-        result = sub;
+      // `as 'fixed'` - direct string / numeric literal type
+      if (template.type === 'TSLiteralType') return literalKeyValue(template.literal);
+      if (template.type === 'TSTypeReference' && template.typeName?.type === 'Identifier') {
+        const { name } = template.typeName;
+        if (name === paramName) return keyValue;
+        const xform = INTRINSIC_STRING_TRANSFORMERS[name];
+        if (!xform) return null;
+        const arg = getTypeArgs(template)?.params?.[0];
+        if (!arg) return null;
+        const inner = evalRenameTemplate(arg, paramName, keyValue);
+        return typeof inner === 'string' ? xform(inner) : inner;
       }
-      return result;
-    }
-    // distributive conditional rename: `as K extends Pat ? New : never` filters/renames members.
-    // only handles `K extends ...` checks; the extends-side must be a literal or a string
-    // template that we can pattern-match against the concrete key
-    if (template.type === 'TSConditionalType') {
-      const matched = matchesConditionalPattern({
-        checkType: template.checkType, extendsType: template.extendsType, paramName, keyValue,
-      });
-      if (matched === true) return evalRenameTemplate(template.trueType, paramName, keyValue);
-      if (matched === false) return evalRenameTemplate(template.falseType, paramName, keyValue);
+      // `string & K` - drop the string-keyword half, evaluate the remaining type-level part
+      if (template.type === 'TSIntersectionType') {
+        let result = null;
+        for (const part of template.types) {
+          if (part?.type === 'TSStringKeyword') continue;
+          const sub = evalRenameTemplate(part, paramName, keyValue);
+          if (typeof sub !== 'string') return sub;
+          if (result !== null && result !== sub) return null;
+          result = sub;
+        }
+        return result;
+      }
+      // distributive conditional rename: `as K extends Pat ? New : never` filters/renames members.
+      // only handles `K extends ...` checks; the extends-side must be a literal or a string
+      // template that we can pattern-match against the concrete key
+      if (template.type === 'TSConditionalType') {
+        const matched = matchesConditionalPattern({
+          checkType: template.checkType, extendsType: template.extendsType, paramName, keyValue,
+        });
+        if (matched === true) {
+          template = template.trueType;
+          continue;
+        }
+        if (matched === false) {
+          template = template.falseType;
+          continue;
+        }
+        return null;
+      }
       return null;
     }
-    return null;
   }
 
   // `K extends 'a' ? ... : ...` - true when keyValue equals the extendsType literal.
