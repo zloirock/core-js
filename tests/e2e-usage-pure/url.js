@@ -26,6 +26,7 @@ QUnit.test('URL.canParse', assert => {
 QUnit.test('URL#toJSON / toString', assert => {
   const url = new URL('https://example.com/');
   assert.same(url.toJSON(), 'https://example.com/');
+  // eslint-disable-next-line unicorn/prefer-url-href -- testing
   assert.same(url.toString(), 'https://example.com/');
 });
 
