@@ -146,6 +146,7 @@ QUnit.test('Symbol.iterator: string-spelled key stays a plain property read', as
   const arr = [1, 2];
   assert.same(arr['Symbol.iterator'], undefined);
   assert.same(arr[`Symbol.${ 'iterator' }`], undefined);
+  // eslint-disable-next-line unicorn/no-useless-concat -- testing
   const stringKey = 'Symbol.' + 'iterator';
   assert.same(arr[stringKey], undefined);
   assert.throws(() => arr['Symbol.iterator'](), TypeError);

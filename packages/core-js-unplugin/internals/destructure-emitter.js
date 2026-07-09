@@ -663,7 +663,7 @@ export function createDestructureEmitter({
       slot.declaratorPath = declPath;
       return slot;
     });
-    if (!perDecl.some(r => r.extractions.length || r.anchored)) return false;
+    if (perDecl.every(r => !(r.extractions.length || r.anchored))) return false;
     flattenedNestedDecls.add(declaration);
     seedSkippedForExtractedDeclarators(declaration, perDecl, { scope, path: declPath });
     // defer rendering + transforms.add to applyDestructuringTransforms - sibling subtree
@@ -689,7 +689,7 @@ export function createDestructureEmitter({
   function tryFlattenProxyHopHost(path) {
     const { node } = path;
     if (node.type === 'VariableDeclaration') {
-      if (!node.declarations.some(d => isProxyHopHostShape(d.id, d.init) && !isDisabled(d))) return;
+      if (node.declarations.every(d => !(isProxyHopHostShape(d.id, d.init) && !isDisabled(d)))) return;
       flattenDeclarationPath(path, path.scope);
       return;
     }
@@ -2958,7 +2958,7 @@ export function createDestructureEmitter({
     const declaratorPath = metaPath.parentPath?.parentPath;
     const isCatchClause = declaratorPath?.node?.type === 'CatchClause';
     if (isCatchClause && !objectPatternPropNeedsReceiverRewrite(propNode)
-        && !objectPattern.properties.some(p => p.type === 'RestElement')) {
+        && objectPattern.properties.every(p => p.type !== 'RestElement')) {
       let referenced = false;
       // matches babel-plugin's symmetric filter pair in `extractCatchClause`:
       // `isNonReferencePosition` excludes method/property keys / member-access tails /
