@@ -1556,9 +1556,9 @@ export function createPolyfillEmitter({
       } else {
         // non-poly hops: verbatim mode keeps the `?.`; a guarded one deopts its connector
         // (`?.m` -> `.m`, `?.[k]` -> `[k]` - a dot before a bracket is a syntax error)
-        acc = `${ acc }${ hop.optional && !verbatimHops
+        acc += hop.optional && !verbatimHops
           ? hop.rawSrc.replace(/^\s*\?\.(?<bracket>\s*\[)?/, (m, bracket) => bracket ?? '.')
-          : hop.rawSrc }`;
+          : hop.rawSrc;
       }
     }
     return { threaded: acc, extraTests };
