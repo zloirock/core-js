@@ -1401,15 +1401,22 @@ export function patternBindsName(pattern, name) {
   return patternBindsNameUnderDefault(pattern, name, true);
 }
 function patternBindsNameUnderDefault(node, name, underDefault) {
-  switch (node?.type) {
-    case 'Identifier': return underDefault && node.name === name;
-    case 'AssignmentPattern': return patternBindsNameUnderDefault(node.left, name, true);
-    case 'RestElement':
-    case 'SpreadElement': return patternBindsNameUnderDefault(node.argument, name, underDefault);
-    case 'ArrayPattern': return node.elements.some(el => patternBindsNameUnderDefault(el, name, underDefault));
-    case 'ObjectPattern': return node.properties.some(prop => patternBindsNameUnderDefault(
-      prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value, name, underDefault));
-    default: return false;
+  while (true) {
+    switch (node?.type) {
+      case 'Identifier': return underDefault && node.name === name;
+      case 'AssignmentPattern':
+        node = node.left;
+        underDefault = true;
+        continue;
+      case 'RestElement':
+      case 'SpreadElement':
+        node = node.argument;
+        continue;
+      case 'ArrayPattern': return node.elements.some(el => patternBindsNameUnderDefault(el, name, underDefault));
+      case 'ObjectPattern': return node.properties.some(prop => patternBindsNameUnderDefault(
+        prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value, name, underDefault));
+      default: return false;
+    }
   }
 }
 
@@ -2187,41 +2194,46 @@ const WRITE_LEFT_SLOT_TYPES = new Set(['AssignmentPattern', ...FOR_X_STATEMENT_T
 // inherited method). compound `+=` / `||=` / `??=` and `obj.at++` still read LHS - excluded
 // here. ESTree uses 'Property' for object-pattern slots; babel uses 'ObjectProperty'
 export function isMemberWriteOnlyContext(member, parent, grandparent) {
-  if (!member || !parent) return false;
-  // a transparent wrapper between the member and its write host: oxc keeps `(obj.at) = X`
-  // parens as real nodes, and TS casts (`(obj.at as any) = X`) survive in BOTH parsers' ASTs -
-  // climb so the LHS-slot identity checks below compare the node that fills the slot. a
-  // paren-only peel left the cast forms rewriting a write target into a polyfill call (an
-  // invalid assignment target). node-only callers see one wrapper level per grandparent
-  // window; path-holding callers pre-climb via `climbTransparentWrapperPath` instead
-  if ((parent.type === 'ParenthesizedExpression' || parent.type === 'ChainExpression'
-    || TS_EXPR_WRAPPERS.has(parent.type)) && parent.expression === member && grandparent) {
-    return isMemberWriteOnlyContext(parent, grandparent, null);
+  while (true) {
+    if (!member || !parent) return false;
+    // a transparent wrapper between the member and its write host: oxc keeps `(obj.at) = X`
+    // parens as real nodes, and TS casts (`(obj.at as any) = X`) survive in BOTH parsers' ASTs -
+    // climb so the LHS-slot identity checks below compare the node that fills the slot. a
+    // paren-only peel left the cast forms rewriting a write target into a polyfill call (an
+    // invalid assignment target). node-only callers see one wrapper level per grandparent
+    // window; path-holding callers pre-climb via `climbTransparentWrapperPath` instead
+    if ((parent.type === 'ParenthesizedExpression' || parent.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(parent.type)) && parent.expression === member && grandparent) {
+      member = parent;
+      parent = grandparent;
+      grandparent = null;
+      continue;
+    }
+    // `=` AssignmentExpression: compound operators (`+=`, `||=`) read LHS first - excluded
+    if (parent.type === 'AssignmentExpression' && parent.left === member && parent.operator === '=') return true;
+    // left-slot writers grouped: AssignmentPattern default, for-of / for-in head
+    if (WRITE_LEFT_SLOT_TYPES.has(parent.type) && parent.left === member) return true;
+    // ObjectPattern property value: `({a: obj.at} = src)` - prop key drives `a`, prop value
+    // is the write target. grandparent must be ObjectPattern to distinguish from regular
+    // object literal `{a: obj.at}` (where the member is a read for the prop's value)
+    if ((parent.type === 'ObjectProperty' || parent.type === 'Property')
+      && parent.value === member && grandparent?.type === 'ObjectPattern') return true;
+    // ArrayPattern element / RestElement target: `[obj.at] = src`, `[...obj.at] = src`.
+    // upstream `isReferenced` already filters these, but explicit handling here keeps the
+    // helper authoritative for callers that bypass that check (decorator subtree walks etc.)
+    if (parent.type === 'ArrayPattern' && parent.elements?.includes(member)) return true;
+    if (parent.type === 'RestElement' && parent.argument === member) return true;
+    // assignment-target shape that parsers emit as ArrayExpression rather than ArrayPattern:
+    // `[obj.at] = src`. MemberExpression appears as element because it's a valid LHS but NOT
+    // a valid binding pattern. detect via the AssignmentExpression grandparent with `.left`
+    // pointing at the array container. ObjectExpression-LHS shape (`({a: obj.at} = src)`)
+    // would need great-grandparent inspection - intentionally not handled here; callers with
+    // path access (unplugin's destructure-LHS check) walk the path directly
+    if (parent.type === 'ArrayExpression' && parent.elements?.includes(member)
+        && grandparent?.type === 'AssignmentExpression' && grandparent.left === parent
+        && grandparent.operator === '=') return true;
+    return false;
   }
-  // `=` AssignmentExpression: compound operators (`+=`, `||=`) read LHS first - excluded
-  if (parent.type === 'AssignmentExpression' && parent.left === member && parent.operator === '=') return true;
-  // left-slot writers grouped: AssignmentPattern default, for-of / for-in head
-  if (WRITE_LEFT_SLOT_TYPES.has(parent.type) && parent.left === member) return true;
-  // ObjectPattern property value: `({a: obj.at} = src)` - prop key drives `a`, prop value
-  // is the write target. grandparent must be ObjectPattern to distinguish from regular
-  // object literal `{a: obj.at}` (where the member is a read for the prop's value)
-  if ((parent.type === 'ObjectProperty' || parent.type === 'Property')
-    && parent.value === member && grandparent?.type === 'ObjectPattern') return true;
-  // ArrayPattern element / RestElement target: `[obj.at] = src`, `[...obj.at] = src`.
-  // upstream `isReferenced` already filters these, but explicit handling here keeps the
-  // helper authoritative for callers that bypass that check (decorator subtree walks etc.)
-  if (parent.type === 'ArrayPattern' && parent.elements?.includes(member)) return true;
-  if (parent.type === 'RestElement' && parent.argument === member) return true;
-  // assignment-target shape that parsers emit as ArrayExpression rather than ArrayPattern:
-  // `[obj.at] = src`. MemberExpression appears as element because it's a valid LHS but NOT
-  // a valid binding pattern. detect via the AssignmentExpression grandparent with `.left`
-  // pointing at the array container. ObjectExpression-LHS shape (`({a: obj.at} = src)`)
-  // would need great-grandparent inspection - intentionally not handled here; callers with
-  // path access (unplugin's destructure-LHS check) walk the path directly
-  if (parent.type === 'ArrayExpression' && parent.elements?.includes(member)
-      && grandparent?.type === 'AssignmentExpression' && grandparent.left === parent
-      && grandparent.operator === '=') return true;
-  return false;
 }
 
 // generic AST child-walker. covers single-child slots (`MemberExpression.object`) and
@@ -2937,25 +2949,29 @@ function expressionReadsName(node, name) {
 // and computed keys. binding (declaration) positions recurse for nested reads but never
 // self-match the bindings they introduce
 function paramPatternReadsValue(node, name) {
-  if (!node || typeof node.type !== 'string') return false;
-  switch (node.type) {
-    case 'AssignmentPattern':
-      return expressionReadsName(node.right, name) || paramPatternReadsValue(node.left, name);
-    case 'ObjectPattern':
-      return (node.properties ?? []).some(property => paramPatternReadsValue(property, name));
-    case 'ArrayPattern':
-      return (node.elements ?? []).some(element => paramPatternReadsValue(element, name));
-    case 'RestElement':
-      return paramPatternReadsValue(node.argument, name);
-    // babel: ObjectProperty; estree / oxc: Property
-    case 'ObjectProperty':
-    case 'Property':
-      return (node.computed && expressionReadsName(node.key, name)) || paramPatternReadsValue(node.value, name);
-    // babel TS parameter-property wrapper (`constructor(public x)`)
-    case 'TSParameterProperty':
-      return paramPatternReadsValue(node.parameter, name);
-    default:
-      return false;
+  while (true) {
+    if (!node || typeof node.type !== 'string') return false;
+    switch (node.type) {
+      case 'AssignmentPattern':
+        return expressionReadsName(node.right, name) || paramPatternReadsValue(node.left, name);
+      case 'ObjectPattern':
+        return (node.properties ?? []).some(property => paramPatternReadsValue(property, name));
+      case 'ArrayPattern':
+        return (node.elements ?? []).some(element => paramPatternReadsValue(element, name));
+      case 'RestElement':
+        node = node.argument;
+        continue;
+      // babel: ObjectProperty; estree / oxc: Property
+      case 'ObjectProperty':
+      case 'Property':
+        return (node.computed && expressionReadsName(node.key, name)) || paramPatternReadsValue(node.value, name);
+      // babel TS parameter-property wrapper (`constructor(public x)`)
+      case 'TSParameterProperty':
+        node = node.parameter;
+        continue;
+      default:
+        return false;
+    }
   }
 }
 
@@ -3459,11 +3475,11 @@ function getForXWrites(leftNode) {
 // Both the write target (bare or nested in a destructuring pattern) and matching reads in
 // the body target a local write, not the inherited method - polyfilling either is wrong
 export function isForXWriteTarget(path) {
-  const { node } = path;
   // ObjectProperty / Property wraps a write-target MemberExpression in `.value`;
   // meta emission for destructure properties hands us the wrapper, not the member
-  if ((node?.type === 'ObjectProperty' || node?.type === 'Property')
-    && node.value?.type === 'MemberExpression') return isForXWriteTarget(path.get('value'));
+  while ((path.node?.type === 'ObjectProperty' || path.node?.type === 'Property')
+    && path.node.value?.type === 'MemberExpression') path = path.get('value');
+  const { node } = path;
   if (node?.type !== 'MemberExpression') return false;
   for (let current = path.parentPath; current; current = current.parentPath) {
     const parent = current.node;
