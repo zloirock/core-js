@@ -27,7 +27,6 @@ import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   collectFunctionScopeVarReassignments,
   collectScopeLetReassignments,
-  findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findIifeArgForParam,
   findIifeCallSite,
@@ -181,6 +180,34 @@ function isOverHoistedNamespaceBinding(native, path) {
   return !!block && !pathContainedBy(path, block);
 }
 
+// estree-toolkit does not model the switch CaseBlock (the braces around the cases) as its own
+// lexical scope: a case-body `let` (`case 1: let globalThis = ...`) reports as in scope at the
+// DISCRIMINANT and even outside the switch - regions the CaseBlock never covers. a raw global in
+// the discriminant then loses its substitution (ReferenceError on targets without it). true when
+// `native` is declared directly under a SwitchCase and `path` does NOT sit inside that switch's
+// cases region. babel scopes the CaseBlock correctly, so this fires only on the estree side; a
+// binding inside a nested block of a case is scoped by that block and never resolves out here
+function isCaseBlockBindingOutsideCases(native, path) {
+  if (!native?.path || !path?.node) return false;
+  let p = native.path;
+  while (p?.node && p.node.type !== 'SwitchCase') {
+    if (FUNCTION_NODE_TYPES.has(p.node.type) || p.node.type === 'Program') return false;
+    p = p.parentPath;
+  }
+  const switchNode = p?.parentPath?.node;
+  if (switchNode?.type !== 'SwitchStatement') return false;
+  const pos = path.node.start;
+  const casesStart = switchNode.cases?.[0]?.start ?? switchNode.end;
+  return typeof pos === 'number' && !(pos >= casesStart && pos <= switchNode.end);
+}
+
+// a native binding that does not actually cover the use site: an over-hoisted namespace-local
+// declaration, or a case-block lexical binding consulted from outside the cases region. callers
+// fall through to the TS-runtime / var-hoist fallbacks - a nested-block `var` may still bind
+function nativeBindingInvisibleAtUse(native, path) {
+  return isOverHoistedNamespaceBinding(native, path) || isCaseBlockBindingOutsideCases(native, path);
+}
+
 // estree-toolkit FALSELY records a DECLARATION as a constant-violation babel never does: a
 // same-named `namespace N {}` / `declare global {}` twin (over-hoisted onto the real binding), and a
 // for-init `let`/`const` recording its own declarator. both surface as an Identifier that is the
@@ -210,37 +237,40 @@ export function withoutPhantomDeclarationViolations(binding) {
   return { ...binding, constantViolations: real, constant: real.length === 0 };
 }
 
+// shared tail of every "no authoritative native binding" branch below: a TS-runtime
+// declaration (enum / namespace / import-equals) or a nested-block hoisted `var` may still
+// bind the name even when the scope tracker reports nothing usable
+function tsOrVarHoistFallback(scope, name, path) {
+  if (hasTSRuntimeBinding(scope, name, path)) return true;
+  // estree-toolkit doesn't hoist `var` declarations from nested non-function blocks to
+  // the enclosing function scope (babel's tracker does). without this fallback,
+  // `function () { if (cond) { var globalThis = ...; } return globalThis; }` reports
+  // no binding at the inner reference, the Identifier visitor queues
+  // `globalThis -> _globalThis`, and `polyfillSiblingReceiverRefs`'s OWN var-walker
+  // disagrees - the resulting nth-occurrence mismatch fails compose with "could not
+  // locate inner needle". walking `path` ancestors for var-scope owners closes the gap
+  return path ? findFunctionScopeVarInPath(path, name) : false;
+}
+
 function hasRuntimeBinding(scope, name, path = null) {
   // pass `path` through to `scope.hasBinding` / `scope.getBinding`: native estree-toolkit
   // scopes ignore the extra arg (their signature is name-only), but `makeFrameScope` uses
   // it for position-aware block-scope shadow checks - the inner `let`/`const`/`catch.param`
   // binding only matches when the lookup site sits inside its containing block
-  if (!(scope?.hasBinding?.(name, path) ?? false)) {
-    if (hasTSRuntimeBinding(scope, name, path)) return true;
-    // estree-toolkit doesn't hoist `var` declarations from nested non-function blocks to
-    // the enclosing function scope (babel's tracker does). without this fallback,
-    // `function () { if (cond) { var globalThis = ...; } return globalThis; }` reports
-    // no binding at the inner reference, the Identifier visitor queues
-    // `globalThis -> _globalThis`, and `polyfillSiblingReceiverRefs`'s OWN var-walker
-    // disagrees - the resulting nth-occurrence mismatch fails compose with "could not
-    // locate inner needle". walking `path` ancestors for var-scope owners closes the gap
-    return path ? findFunctionScopeVarInPath(path, name) : false;
-  }
+  if (!(scope?.hasBinding?.(name, path) ?? false)) return tsOrVarHoistFallback(scope, name, path);
   // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
   // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
   // their hasBinding=true is authoritative
   const native = scope?.getBinding?.(name, path);
   if (!native) return true;
-  if (isAmbientBinding(native)) {
-    // an ambient shape alone is NOT authoritative: a declaration-merged runtime namespace
-    // (`declare const Map: any; namespace Map {}`) still emits a real `var` after the TS
-    // transform, so the use MUST stay on the user binding. fall through to the TS-runtime
-    // scan and the function-scope var walk - matching the babel adapter's ordering
-    if (hasTSRuntimeBinding(scope, name, path)) return true;
-    return path ? findFunctionScopeVarInPath(path, name) : false;
+  // an ambient shape alone is NOT authoritative: a declaration-merged runtime namespace
+  // (`declare const Map: any; namespace Map {}`) still emits a real `var` after the TS
+  // transform, so the use MUST stay on the user binding. a use-invisible binding (over-hoisted
+  // namespace / case-block let outside the cases) doesn't shadow either - both fall through to
+  // the TS-runtime scan and the function-scope var walk, matching the babel adapter's ordering
+  if (isAmbientBinding(native) || nativeBindingInvisibleAtUse(native, path)) {
+    return tsOrVarHoistFallback(scope, name, path);
   }
-  // a namespace-local binding over-hoisted by estree-toolkit doesn't shadow a use OUTSIDE the block
-  if (isOverHoistedNamespaceBinding(native, path)) return false;
   return true;
 }
 
@@ -332,6 +362,25 @@ export function collectAliasPrePass({ ast, adapter, injector, isKnownGlobal, isD
   });
 }
 
+// closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
+// shares the same primitives and branch order): forward `path` so a makeFrameScope lookup
+// stays position-aware; drop a native binding invisible at the use (over-hoisted namespace /
+// case-block let outside the cases); prefer the synthesized var-hoist binding when the visible
+// native declaration lies OUTSIDE the var's hoist owner - the nested-block `var` is the NEARER
+// binding there (estree-toolkit neither hoists it nor lets it shadow the outer name), while a
+// declaration INSIDE the owner (a param, a nearer lexical shadow) keeps the native view. a
+// native resolution of the SAME declarator keeps the native view too (richer info channel)
+function resolveClosestBinding(scope, name, path) {
+  let native = scope?.getBinding?.(name, path) ?? null;
+  if (native && nativeBindingInvisibleAtUse(native, path)) native = null;
+  const synth = path ? synthVarHoistBinding(path, name) : null;
+  if (!synth) return { native, synth: null };
+  if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
+    return { native, synth: null };
+  }
+  return { native: null, synth };
+}
+
 export function createEstreeAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
   const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
@@ -352,18 +401,15 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       return hasRuntimeBinding(scope, name, path);
     },
     getBinding(scope, name, path = null) {
-      let b = scope?.getBinding?.(name);
-      // a namespace-local binding over-hoisted by estree-toolkit doesn't reach an out-of-namespace
-      // use: drop it so the boundary-respecting var-hoist fallback governs (matches babel)
-      if (isOverHoistedNamespaceBinding(b, path)) b = null;
-      // var-hoist fallback (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var` from a
+      const { native: b, synth } = resolveClosestBinding(scope, name, path);
+      // var-hoist branch (mirrors hasRuntimeBinding): estree-toolkit doesn't hoist a `var` from a
       // nested non-function block to its function scope, so `function f(){ if (c) { var g =
-      // globalThis } g.Map.groupBy(...) }` finds no native binding and the proxy-global alias is
-      // lost (babel hoists the var natively, so the two pipelines diverge here). surface a synthetic
-      // binding off the declarator + its reassignment sites so alias resolution reads its `.init`
-      // and the resolver's reassignment guard fires for a REASSIGNED nested-block var
-      if (!b) {
-        const synth = synthVarHoistBinding(path, name);
+      // globalThis } g.Map.groupBy(...) }` either finds no native binding or resolves to an OUTER
+      // same-name binding the nested var actually shadows (babel hoists the var natively, so the
+      // two pipelines diverge here). surface a synthetic binding off the declarator + its
+      // reassignment sites so alias resolution reads its `.init` and the resolver's reassignment
+      // guard fires for a REASSIGNED nested-block var
+      if (synth || !b) {
         if (!synth) return null;
         // the synthetic binding skips the hint machinery below (no `.path`); still surface the
         // registry's guard hint for it - IDENTITY view only, like the native-binding path (a
@@ -464,13 +510,12 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         ? assignNode : null;
     },
     getBindingNodeType(scope, name, path = null) {
-      const nativeBinding = scope?.getBinding?.(name);
-      // stay consistent with getBinding: an over-hoisted namespace binding doesn't reach an
-      // outside use, so don't report its declarator type (else the resolver type-gates into
-      // resolveVariableBindingToGlobal with the null binding getBinding returned)
-      if (nativeBinding && !isOverHoistedNamespaceBinding(nativeBinding, path)) return nativeBinding.path?.node?.type;
-      // var-hoist fallback parity with getBinding: a nested-block `var` surfaces as a declarator
-      return path && findFunctionScopeVarDeclaratorInPath(path, name) ? 'VariableDeclarator' : null;
+      // stay consistent with getBinding through the SAME closest-binding resolution: a
+      // use-invisible native binding must not report its declarator type (else the resolver
+      // type-gates into resolveVariableBindingToGlobal with the null binding getBinding
+      // returned), and a nested-block `var` shadowing an outer binding reports as a declarator
+      const { native, synth } = resolveClosestBinding(scope, name, path);
+      return synth ? 'VariableDeclarator' : native?.path?.node?.type ?? null;
     },
     // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression
     // so `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
@@ -617,7 +662,6 @@ const BLOCK_SCOPING_NODE_TYPES = new Set([
   'ForStatement',
   'ForInStatement',
   'ForOfStatement',
-  'SwitchStatement',
 ]);
 
 // LIFO insertion: most-recently-added entry sits at index 0 so the no-position fallback
@@ -660,6 +704,16 @@ function collectFunctionLocals(fnNode) {
       }
       return;
     }
+    if (node.type === 'SwitchStatement') {
+      // the CaseBlock (the braces around the cases) is the switch's lexical scope; the
+      // DISCRIMINANT precedes it and resolves in the enclosing block, so a case-body `let`
+      // must not cover it (the main traversal fixes the same class via the case-block
+      // visibility filter on native bindings)
+      walk(node.discriminant, blockStart, blockEnd);
+      const casesStart = node.cases?.[0]?.start ?? node.end;
+      for (const c of node.cases ?? []) walk(c, casesStart, node.end);
+      return;
+    }
     if (FUNCTION_NODE_TYPES.has(node.type)) return;
     if (node.type === 'VariableDeclaration') {
       // `var` hoists out of any enclosing block (fn-scoped); `let`/`const`/`using` /
@@ -700,11 +754,27 @@ function collectFunctionLocals(fnNode) {
   return locals;
 }
 
+// a named ClassExpression binds its own name for the class extent (a self-reference inside
+// the body resolves to the class, not an outer / global same-name binding). the locals walk
+// stops at class nodes, so the decorator traversal opens a dedicated one-name frame for it
+const CLASS_NAME_LOCALS_CACHE = new WeakMap();
+function classExpressionNameLocals(node) {
+  let locals = CLASS_NAME_LOCALS_CACHE.get(node);
+  if (!locals) {
+    locals = new Map();
+    addLocal(locals, node.id.name, { constant: true, node, blockStart: node.start, blockEnd: node.end });
+    CLASS_NAME_LOCALS_CACHE.set(node, locals);
+  }
+  return locals;
+}
+
 function walkSubtree({ node, parent, parentKey, parentPath, scope, visitors, listKey = null, container = null }) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
   const childScope = FUNCTION_NODE_TYPES.has(node.type)
     ? makeFrameScope(scope, collectFunctionLocals(node))
-    : scope;
+    : node.type === 'ClassExpression' && node.id?.name
+      ? makeFrameScope(scope, classExpressionNameLocals(node))
+      : scope;
   const synthPath = makeSynthPath({ node, parent, parentKey, parentPath, scope: childScope, listKey, container });
   visitors[node.type]?.(synthPath);
   forEachChildNode(node, (child, childKey, childListKey, childContainer) => {
