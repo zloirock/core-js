@@ -5,9 +5,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // through proxy-global keys (`window`, `self`, ...) so the leaf `Array` binding still
 // registers as the global; otherwise downstream `Array.from(...)` loses its narrow
 const {
-  window: {
-    Array
-  }
+  Array
 } = _globalThis;
 const arr = _Array$from([1, 2, 3]);
 const head = _atMaybeArray(arr).call(arr, 0);

@@ -432,33 +432,38 @@ export function buildNestedDestructurePlan({
       // SE-lift machinery expects; a side-effecting computed key keeps its in-place run
       // a disabled host line opts out of the reshaping (cascade callers stamp loc/start
       // onto their synthetic host so the per-line check reaches the real statement)
-      const hopProp = !arrayPeelHappened && pattern.properties.length === 1
-        && isPropertyNode(pattern.properties[0]) && !mayHaveSideEffects(declarator.init)
-        && !isDisabledProp?.(declarator)
-        ? pattern.properties[0] : null;
-      const hopKey = hopProp ? sharedResolveKey({
-        node: hopProp.key, computed: hopProp.computed, scope, adapter, bailOnSideEffectKey: true,
-      }) : null;
-      const hopInner = hopKey && !POSSIBLE_GLOBAL_OBJECTS.has(hopKey) && isStaticPlacement(hopKey)
-        ? peelInnerDefault(hopProp.value) : null;
-      if (hopInner?.type === 'ObjectPattern' && hopInner.properties.length) {
-        // a `[Symbol.iterator]` leaf under the anchor extracts like its proxy-outer twin,
-        // with the ANCHORED constructor as the synth receiver (`x = _getIteratorMethod(_Map)`
-        // / `(_globalThis.Array)`) - the emitters' synth renders read the anchor base
-        const outerProps = hopInner.properties.map(p => planSymbolIteratorProp(p) ?? planInnerProp(p, hopKey));
-        // a SLOT-mutated ctor pair (`globalThis.Map = Shim` anywhere in the file) keeps the
-        // residual on the RAW member read - a user-installed replacement must win there, so
-        // `anchorPure` stays null and the renders emit `<proxyBinding>.<K>` instead of the
-        // ctor binding. extractions stay leaf-gated (a mutated LEAF already planned verbatim
-        // upstream). the pure-vs-member decision is resolved HERE once - the renders only
-        // materialize bindings
-        const anchorSlotMutated = !!adapter.isMutatedStatic?.(receiver, hopKey);
-        plan = {
-          receiver, anchor: hopKey,
-          anchorPure: anchorSlotMutated ? null : resolveGlobalPolyfill(hopKey),
-          outerProps, pattern: hopInner, discardSe, initElement: null,
+      // single-key ctor ANCHOR plan over `hostPattern` (`{ K: <inner> }` on the proxy receiver):
+      // inner props are K's statics, and a residual re-anchors to the CONSTRUCTOR binding. a
+      // `[Symbol.iterator]` leaf under the anchor extracts like its proxy-outer twin, with the
+      // ANCHORED constructor as the synth receiver (`x = _getIteratorMethod(_Map)` /
+      // `(_globalThis.Array)`) - the emitters' synth renders read the anchor base. a SLOT-mutated
+      // ctor pair (`globalThis.Map = Shim` anywhere in the file) keeps the residual on the RAW
+      // member read - a user-installed replacement must win there, so `anchorPure` stays null and
+      // the renders emit `<proxyBinding>.<K>` instead of the ctor binding. extractions stay
+      // leaf-gated (a mutated LEAF already planned verbatim upstream). null when the key is not a
+      // static non-proxy constructor or the inner is not a non-empty ObjectPattern
+      function planCtorKeyAnchor(hostPattern) {
+        const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
+          ? hostPattern.properties[0] : null;
+        const key = prop ? sharedResolveKey({
+          node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true,
+        }) : null;
+        const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
+          ? peelInnerDefault(prop.value) : null;
+        if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
+        const outerProps = inner.properties.map(p => planSymbolIteratorProp(p) ?? planInnerProp(p, key));
+        const anchorSlotMutated = !!adapter.isMutatedStatic?.(receiver, key);
+        return {
+          receiver, anchor: key,
+          anchorPure: anchorSlotMutated ? null : resolveGlobalPolyfill(key),
+          outerProps, pattern: inner, discardSe, initElement: null,
         };
-      } else {
+      }
+      const hopHostEligible = !arrayPeelHappened && !mayHaveSideEffects(declarator.init)
+        && !isDisabledProp?.(declarator) && pattern.properties.length === 1
+        && isPropertyNode(pattern.properties[0]);
+      if (hopHostEligible) plan = planCtorKeyAnchor(pattern);
+      if (!plan) {
         const planned = pattern.properties.map(planOuterProp);
         // re-anchor missing-able ctor residuals only in the CLEAN case: an SE-free init where EVERY prop is
         // already consumed or anchorable. a verbatim sibling (always-present ctor / global alias / disabled
@@ -477,6 +482,41 @@ export function buildNestedDestructurePlan({
           plan = { receiver, outerProps, pattern, discardSe, initElement };
         }
       }
+      // a pattern hop that is ITSELF a proxy-global alias (`{ self: { x } } = globalThis`, deeper
+      // `{ self: { window: { y } } }`, `{ globalThis: { Map: {...} } }`) binds nothing at the hop
+      // levels: without a resolvable leaf it falls between the recursive fold (all-verbatim, no
+      // plan) and the missing-able re-anchor (proxy names bail), and the raw residual reads the
+      // hop off the pure root - undefined off-engine, destructure TypeError. peel consecutive
+      // single-prop proxy hops like the member-chain prefix walk (`globalThis.self.x` ->
+      // `_globalThis.x`), then re-try the ctor anchor on the peeled pattern (`{ globalThis:
+      // { Map: { x } } }` -> `({ x } = _Map)`) or anchor the remainder on the receiver's own
+      // always-defined binding. a slot-mutated hop or an un-importable receiver keeps the raw
+      // residual (patch visibility / no binding to anchor on)
+      function planPeeledProxyHop() {
+        const receiverPure = resolveGlobalPolyfill(receiver);
+        if (!receiverPure) return null;
+        let effPattern = pattern,
+            lastHop = null;
+        while (effPattern.properties.length === 1 && isPropertyNode(effPattern.properties[0])) {
+          const [prop] = effPattern.properties;
+          const key = sharedResolveKey({
+            node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true,
+          });
+          if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key)) break;
+          const inner = peelInnerDefault(prop.value);
+          if (inner?.type !== 'ObjectPattern' || !inner.properties.length
+            || inner.properties.some(p => p.type === 'RestElement')) break;
+          effPattern = inner;
+          lastHop = key;
+        }
+        if (!lastHop) return null;
+        return planCtorKeyAnchor(effPattern) ?? {
+          receiver, anchor: lastHop, anchorPure: receiverPure,
+          outerProps: effPattern.properties.map(p => planSymbolIteratorProp(p) ?? planOuterProp(p)),
+          pattern: effPattern, discardSe, initElement: null,
+        };
+      }
+      if (!plan && hopHostEligible) plan = planPeeledProxyHop();
     } else if (receiver && isStaticPlacement(receiver)) {
       // receiver is a known constructor (`Array` / `Map` / ...): pattern's properties
       // are direct method extractions. an ArrayPattern wrapper (with or without a rest
