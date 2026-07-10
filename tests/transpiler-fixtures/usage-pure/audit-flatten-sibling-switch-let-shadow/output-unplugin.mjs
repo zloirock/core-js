@@ -1,5 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
+import _globalThis from "@core-js/pure/actual/global-this";
 // outer flatten of `globalThis` extracts `Array.from`. a sibling IIFE has a switch with
 // `let globalThis` in a case body. ES spec: one shared block scope across cases, so the
 // let shadows the outer global throughout the switch. the sibling-ref rewrite must treat
@@ -9,7 +10,7 @@ import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 const from = _Array$from;
 const val = (function (kind) {
   var _ref, _ref2;
-  switch (kind === 'a' ? globalThis : kind) {
+  switch (kind === 'a' ? _globalThis : kind) {
     case 'a':
       let globalThis = 'shadow';
       return _valuesMaybeArray(_ref = [globalThis]).call(_ref);
