@@ -10,7 +10,7 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
   isGuardedAliasingWrite,
-  staticStringKey,
+  propertyKeyName,
   unwrapRuntimeExpr,
   withoutValuelessDeclarationViolations,
   walkAstChildren,
@@ -273,8 +273,7 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
   function collectFromObjectPattern(pat) {
     for (const prop of pat.properties ?? []) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-      const key = prop.computed ? staticStringKey(prop.key)
-        : prop.key?.name ?? (typeof prop.key?.value === 'string' ? prop.key.value : null);
+      const key = propertyKeyName(prop);
       if (key && prop.value?.type === 'Identifier') pairs.push({ localName: prop.value.name, hint: key });
     }
   }
