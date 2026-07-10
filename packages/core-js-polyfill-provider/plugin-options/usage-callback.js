@@ -161,8 +161,14 @@ export function createUsageGlobalCallback({
     }
     // INDIRECT branching receiver (const-alias init / bound-callee return): the typeless
     // primary keeps the instance coverage, each resolved branch adds its STATIC deps beside
-    // it - the member-form canon (static-only extras next to the typeless primary)
-    if (enumerateFallbackBranches && meta?.kind === 'property' && meta.object === null) {
+    // it - the member-form canon (static-only extras next to the typeless primary). when the
+    // producer already routed through the union choke (`attachMemberUnionExtras` populated
+    // `extraCandidates`, dispatched separately by the emitter) the branch statics are covered
+    // there - re-enumerating here double-dispatches the same pairs. this backstop stays for
+    // producers the choke cannot serve (IIFE-param destructure hosts and other
+    // non-declarator / non-assignment hosts enumerate no union)
+    if (enumerateFallbackBranches && meta?.kind === 'property' && meta.object === null
+      && !meta.extraCandidates?.length) {
       for (const branchMeta of enumerateFallbackBranches(meta, path) ?? []) {
         if (branchMeta.placement === 'static') dispatch(branchMeta, path);
       }
