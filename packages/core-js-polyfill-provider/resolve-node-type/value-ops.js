@@ -203,10 +203,13 @@ export function createValueOps({
     // operand, so folding to left would emit a type-specific Maybe for a receiver the runtime
     // never guarantees (ie:11 TypeError). `&&` keeps its right-fold even then - a nullish
     // left short-circuits to a nullish RESULT, which throws the same TypeError transformed
-    // or not (same rationale as the `?:` nullable-branch fold below)
+    // or not (same rationale as the `?:` nullable-branch fold below) - but the fold survivor
+    // is marked: `A && B` with a nullish-capable A may be nullish at runtime, so an enclosing
+    // `||`/`??` fold must keep its two-operand union (`(r && arr) || s` may yield s - folding
+    // to the array operand emits a wrong type-specific Maybe on a runtime string)
     if (left && isAlwaysTruthyType(left)) {
       if ((op === '||' || op === '||=' || op === '??' || op === '??=') && !left.mayBeNullish) return left;
-      if (op === '&&' || op === '&&=') return right;
+      if (op === '&&' || op === '&&=') return right && left.mayBeNullish ? right.mark('mayBeNullish') : right;
     }
     // ternary: a statically-nullable branch folds away for polyfill purposes - the
     // surviving branch's instance helpers are Maybe-dispatched, and a null receiver

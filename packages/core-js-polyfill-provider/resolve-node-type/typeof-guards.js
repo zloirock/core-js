@@ -21,6 +21,7 @@
 import { getOrInitMap } from './base.js';
 import {
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
+  peeledLabelNames,
   peelLabeledStatementPath,
   unwrapExpressionChain,
   unwrapParens,
@@ -254,10 +255,15 @@ export function createTypeofGuards({
 
   // if (...) return; -> false (consequent exits, condition was true -> narrowed type is !condition)
   // if (...) {} else return; -> true (alternate exits, condition was true -> narrowed type is condition)
-  function resolveExitCondition(sibling) {
+  // `blockedLabels` = label names an enclosing LabeledStatement peel discarded: a
+  // `break <label>` targeting one of them resumes right AFTER the labeled guard - at the
+  // very use the guard was to protect - so it must NOT count as an exit (else the
+  // "exiting" branch's runtime values reach the use un-narrowed: `outer: if (typeof x
+  // === "string") break outer; x.at(0)` runs `.at` on the string)
+  function resolveExitCondition(sibling, blockedLabels = null) {
     if (!t.isIfStatement(sibling.node)) return null;
-    if (blockAlwaysExits(sibling.get('consequent'))) return false;
-    if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) return true;
+    if (blockAlwaysExits(sibling.get('consequent'), 0, blockedLabels)) return false;
+    if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'), 0, blockedLabels)) return true;
     return null;
   }
 
@@ -266,8 +272,9 @@ export function createTypeofGuards({
   // LabeledStatement wrappers (`outer: inner: if (...) return;`) peel to the wrapped body
   // first - the label is irrelevant to guard polarity
   function parseSiblingGuards(sibling, varName) {
+    const blockedLabels = peeledLabelNames(sibling);
     sibling = peelLabeledStatementPath(sibling);
-    const conditionTrue = resolveExitCondition(sibling);
+    const conditionTrue = resolveExitCondition(sibling, blockedLabels);
     if (conditionTrue !== null) {
       return parseGuardsFromCondition({ testNode: sibling.node.test, conditionTrue, varName, scope: sibling.scope });
     }

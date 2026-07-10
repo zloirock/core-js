@@ -88,12 +88,20 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
   }
 }
 
-export function nodeAlwaysExits(node, depth = 0) {
-  return alwaysExitsWithKind(node, depth, EXIT_STATEMENTS, null);
+export function nodeAlwaysExits(node, depth = 0, blockedLabels = null) {
+  return alwaysExitsWithKind(node, depth, EXIT_STATEMENTS, blockedLabels);
 }
 
-export function blockAlwaysExits(block, depth = 0) {
-  return nodeAlwaysExits(block.node, depth);
+export function blockAlwaysExits(block, depth = 0, blockedLabels = null) {
+  return nodeAlwaysExits(block.node, depth, blockedLabels);
+}
+
+// does the node unconditionally reach a FUNCTION-level exit (return / throw)? break /
+// continue - even labeled - resume somewhere in the surrounding function, so they never
+// count here: consumers use this to prove statements AFTER a construct are unreachable
+// through it, and a resumed break could land exactly on those statements
+export function nodeAlwaysHardExits(node, depth = 0) {
+  return alwaysExitsWithKind(node, depth, FUNCTION_EXIT_STATEMENTS, null);
 }
 
 export function canFallThrough($case) {

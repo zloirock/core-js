@@ -223,7 +223,15 @@ export function createTypeFolding({
     let merged = commonTypeInner(existing, incoming);
     if (!merged) return merged;
     if (existing?.mayBeNullish || incoming.mayBeNullish) merged = merged.mark('mayBeNullish');
+    // topObject is a MAY-union like mayBeNullish: assignability to a union target holds
+    // when ANY arm accepts, so `object | Object` accepts primitives regardless of arm
+    // order (the identity-returned fold otherwise dropped the marker order-dependently)
+    if (existing?.topObject || incoming.topObject) merged = merged.mark('topObject');
+    // enforced symmetrically: the inner fold may return `existing` by IDENTITY with its
+    // readonly marker already set, which made `readonly | mutable` readonly-certain in one
+    // arm order but not the other - so the single-readonly merge STRIPS, not just skips-add
     if (existing && existing.readonly && incoming.readonly) merged = merged.mark('readonly');
+    else if (existing && merged.readonly) merged = merged.unmark('readonly');
     return merged;
   }
 
