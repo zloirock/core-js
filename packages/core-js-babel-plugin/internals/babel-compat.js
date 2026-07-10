@@ -66,9 +66,11 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return clone;
   }
 
-  // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement)
+  // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement).
+  // only Identifier / this can reach here: `isReusableReceiver` admits nothing else as a memo-free
+  // receiver, and a bare `super` cannot head an optional chain (SyntaxError)
   function isLeadingIdentLike(node) {
-    return t.isIdentifier(node) || t.isThisExpression(node) || t.isSuper(node);
+    return t.isIdentifier(node) || t.isThisExpression(node);
   }
 
   function wrapConditional(check, result) {
