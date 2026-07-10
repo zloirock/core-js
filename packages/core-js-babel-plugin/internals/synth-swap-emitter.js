@@ -290,14 +290,13 @@ export default function createSynthSwapEmitter({
     // is the synth-literal slot (`[k]` for a computed key) the polyfill is registered + emitted under
     const pure = isViableBranchForKey({ branch, key: lookupKey, scope: peeled.scope, adapter, resolvePure, path: peeled });
     if (!pure) return false;
-    const innerPath = unwrapSequenceTail(peeled);
     // call-branch policy (single fully-polyfilled key + SE rescue) lives in the shared
     // `classifyCallBranchForSynth`
     const callPolicy = classifyCallBranchForSynth({
-      inner: innerPath.node, scope: innerPath.scope, adapter, path: innerPath,
+      inner: peeled.node, scope: peeled.scope, adapter, path: peeled,
     });
     registerPolyfill({
-      targetPath: innerPath, objectPatternPath: objectPattern, key: slotKey,
+      targetPath: peeled, objectPatternPath: objectPattern, key: slotKey,
       entry: pure.entry, hintName: pure.hintName, callBranch: callPolicy.callBranch, rescueSe: callPolicy.rescueSe,
     });
     return true;
