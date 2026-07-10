@@ -1,6 +1,8 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
+import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // A proxy-global hop in a NON-assignment mutation target - `delete`, update (`++`), a for-of/in head (the
@@ -12,3 +14,10 @@ delete _globalThis.Set;
 _globalThis.Map++;
 for (_globalThis.WeakSet of [function () {}]) {}
 delete (e++, _globalThis).WeakMap;
+// a SEQUENCE-wrapped write host (`(se, globalThis.window).X = v`) has no read-side SE-tail owner:
+// the write-target plan peels the sequence tail and collapses the raw hop too, keeping the prefix
+// effects ahead of the pure root (a pure discard is droppable)
+_globalThis.Promise = function () {};
+let f = 0;
+(f++, _globalThis).Symbol = function () {};
+(f++, _globalThis).BigInt += 1;
