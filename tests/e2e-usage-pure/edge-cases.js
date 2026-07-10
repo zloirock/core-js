@@ -689,3 +689,32 @@ QUnit.test('SE-prefix: nested IIFE static-fallback receiver, setup runs once', a
   assert.same(called, 1);
   assert.same(m, undefined);
 });
+
+/* eslint-disable no-var, no-redeclare, no-lone-blocks, no-shadow, block-scoped-var, prefer-destructuring,
+   es/no-nonstandard-array-prototype-properties -- the var-hoist / redeclaration / nested-block
+   shadow shapes (and the dynamic native member read they gate) ARE the semantics under test */
+// a bare `var X;` redeclaration twin must not defeat the branch guard on the real aliasing
+// write: the read stays native, so the untaken branch observes undefined (a fold would hand
+// back the always-defined iterator-method helper instead)
+QUnit.test('shadow: valueless var redecl keeps the guarded alias read native', assert => {
+  var assigned;
+  var assigned;
+  if (Math.random() > 2) {
+    ({ iterator: assigned } = Symbol);
+  }
+  assert.same([][assigned], undefined);
+});
+
+// a nested-block `var` hoists to the function scope and shadows an outer same-name alias for
+// the whole function - the untaken-branch read observes the shadow value, never the outer fold
+QUnit.test('shadow: nested-block var shadows an outer symbol alias', assert => {
+  var iterator = Symbol.iterator;
+  assert.same(typeof [][iterator], 'function');
+  function viaShadow() {
+    { var iterator = {}; }
+    return [1][iterator];
+  }
+  assert.same(viaShadow(), undefined);
+});
+/* eslint-enable no-var, no-redeclare, no-lone-blocks, no-shadow, block-scoped-var, prefer-destructuring,
+   es/no-nonstandard-array-prototype-properties -- end of the var-hoist shadow shapes */
