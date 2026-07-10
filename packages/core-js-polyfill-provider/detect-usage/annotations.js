@@ -8,8 +8,8 @@
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import { getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
-import { globalProxyMemberName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
-import { maximalProxyGlobalPrefix, resolveKey, unwrapTransparentSeq } from './resolve.js';
+import { globalProxyMemberName, isProxyGlobalIdentifierNode, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { maximalProxyGlobalPrefix, peelChainAssignment, resolveKey, unwrapTransparentSeq } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
 // louder than silent skip). runtime-carrying wrappers (TSAsExpression, ...) stay out
@@ -311,12 +311,30 @@ export function isPolyfillableOptional({
   // is preserved by the receiver collapse, NOT dropped by the deopt). matches both emitters' SE-tail collapse
   const objCore = obj?.type === 'SequenceExpression' ? unwrapRuntimeExpr(unwrapTransparentSeq(obj.expressions.at(-1))) : obj;
   // a member-shape `?.` whose receiver is ENTIRELY proxy navigation (`globalThis.self`, multi-hop `.self.window`,
-  // a SE-bearing computed hop `globalThis[(eff(), 'self')]`, or any of those sequence-wrapped) is dead: the chain
-  // collapses to the always-defined pure root, and the hop-key / prefix effect rides the collapsed receiver, NOT
-  // the dropped guard. `globalProxyMemberName` below is literal-only (a SE computed key yields null), so resolve
-  // this directly off the SE-aware maximal prefix - both emitters then drop the guard identically
+  // a SE-bearing computed hop `globalThis[(eff(), 'self')]`, a chain-assign root `(q = globalThis).self`,
+  // or any of those sequence-wrapped) is dead: the chain collapses to the always-defined pure root, and the
+  // hop-key / prefix / assignment effect rides the collapsed receiver, NOT the dropped guard.
+  // `globalProxyMemberName` below is literal-only (a SE computed key yields null), so resolve this directly
+  // off the SE-aware maximal prefix - both emitters then drop the guard identically. `throughChainAssign`
+  // matches the emit-side collapse walkers, which see through the assignment and preserve it as a SE
   if (member === node
-    && maximalProxyGlobalPrefix(objCore, { scope, adapter, path }, { allowSideEffectKeys: true }) === objCore) return true;
+    && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
+      { allowSideEffectKeys: true, throughChainAssign: true }) === objCore) return true;
+  // a BARE chain-assign subject navigating a PROXY HOP (`(q = globalThis)?.self.x`, nested
+  // `(m = n = globalThis)?.self.x`): the guarded value is the assign RESULT - the always-defined
+  // proxy global itself - so the `?.` is as dead as over the navigated forms; the collapse
+  // preserves the assignment as a SE and the hop drops off it. gated on the hop key: a non-hop
+  // member (`(q = globalThis)?.Array...`) keeps the (dead but harmless) guard - both emitters'
+  // guarded shape is already canonical there, and the text emitter has no hop-collapse claim to
+  // strip the `?.` into. an assign whose VALUE is itself a navigation (`(q = globalThis.self)?.x`)
+  // keeps the guard: the assigned value may be undefined off-engine
+  if (member === node && objCore?.type === 'AssignmentExpression'
+    && memberKey && POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) {
+    const { value, outer } = peelChainAssignment(objCore);
+    const valueCore = unwrapRuntimeExpr(unwrapTransparentSeq(value ?? objCore));
+    if (outer && valueCore?.type === 'Identifier'
+      && isProxyGlobalIdentifierNode({ node: valueCore, scope, adapter, path })) return true;
+  }
   const objName = objCore?.type === 'Identifier'
     ? (adapter.hasBinding(scope, objCore.name, path) ? null : objCore.name)
     : globalProxyMemberName({ node: objCore, scope, adapter, path });
