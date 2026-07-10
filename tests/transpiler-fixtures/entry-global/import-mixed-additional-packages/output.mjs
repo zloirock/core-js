@@ -1,4 +1,6 @@
 import "core-js/modules/es.iterator.dispose";
+import "core-js/modules/es.iterator.drop";
+import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.zip";
 import "core-js/modules/es.math.sum-precise";
 import "core-js/modules/esnext.iterator.chunks";
