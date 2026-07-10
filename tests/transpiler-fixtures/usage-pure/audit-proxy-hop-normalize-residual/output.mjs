@@ -27,14 +27,10 @@ const {
     customB
   }
 } = (eff(), _globalThis);
-// boundary: a proxy-global KEY keeps the nested handling (only a constructor key hops)
+// a proxy-global KEY peels like a member-chain hop (it binds nothing), then the ctor anchor fires
 const {
-  globalThis: {
-    Map: {
-      customG
-    }
-  }
-} = _globalThis;
+  customG
+} = _Map;
 // an escaped string key resolves to its cooked constructor name
 const {
   customU
