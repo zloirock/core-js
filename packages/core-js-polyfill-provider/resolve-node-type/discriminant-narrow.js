@@ -157,7 +157,7 @@ export function createDiscriminantNarrow({
   // drops the narrow just like a whole-binding rebind would. `collectBindingReferences` is the
   // parser-agnostic enumerator (babel `referencePaths`, estree-toolkit program-index fallback) -
   // reading `binding.referencePaths` directly would miss every reference under the oxc adapter
-  // write-side dotted-key deriver, aligned with the READ side (`matchTargetFieldPath`):
+  // write-side dotted-key resolution, aligned with the READ side (`matchTargetFieldPath`):
   // literal keys via `getMemberProperty`, alias / enum computed keys via the scope-aware
   // `resolveComputedKeyName`, transparent wrappers peeled per hop. `dynamic: true` marks a
   // chain whose next step past `key` is genuinely unresolvable (`box[expr]`)

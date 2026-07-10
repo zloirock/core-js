@@ -415,3 +415,24 @@ QUnit.test('mutated-statics: computed mutator callee keeps the patch', assert =>
     } else Reflect[del](Object, 'groupBy');
   }
 });
+
+// a SEQUENCE-wrapped write host over a raw `.window` hop with a POLYFILLABLE ctor leaf: the
+// write-target collapse must peel the sequence tail and drop the hop - `window` does not exist
+// in Node, so an uncollapsed host is an undefined write target (TypeError at the patch). the
+// slot restores through the same sequence-wrapped shape so only the path under test touches it
+QUnit.test('mutated-statics: SE-tail write host ctor slot collapses (runs without window in Node)', assert => {
+  // opaque key: substituted reads yield the pure ctor by the pure-flavor contract, so the REAL
+  // global slot the collapsed write lands on is observed through a non-resolvable computed key
+  const key = ['Weak', 'Set'].join('');
+  const had = key in globalThis;
+  const original = globalThis[key];
+  let c = 0;
+  (c++, globalThis.window).WeakSet = function patched() { return null; };
+  try {
+    assert.same(c, 1);
+    assert.same(globalThis[key].name, 'patched');
+  } finally {
+    if (had) (0, globalThis.window).WeakSet = original;
+    else delete (0, globalThis.window).WeakSet;
+  }
+});
