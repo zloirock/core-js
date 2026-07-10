@@ -32,8 +32,9 @@ export const namespaceLeaf = (a = _globalThis, _Reflect);
 export const flat = _flatMaybeArray((a = _globalThis, _globalThis).Array.prototype);
 export const viaStatic = (b = _globalThis, _Array$of)(1, 2);
 export const includes = _includes((c = g, g).Array.prototype);
-// a paren-scoped optional on the hop VALUE keeps its runtime guard: the memoized root must
-// carry the substituted pure global, not the raw source (a raw `globalThis` in the guard is a
-// ReferenceError on targets without it)
+// a paren-scoped optional whose subject is ENTIRELY proxy navigation over a chain-assign root is
+// dead: the subject collapses to the always-defined pure root, so the `?.` deopts and the collapse
+// owns the emit (a kept guard would memoize the raw `.self` hop - undefined off-engine, silently
+// swallowing the polyfill)
 let r;
 export const optionalRebind = _findLastMaybeArray((r = _globalThis, _globalThis).Array.prototype);

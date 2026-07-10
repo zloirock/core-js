@@ -7,3 +7,10 @@ delete globalThis.window.Set;
 globalThis.window.Map++;
 for (globalThis.window.WeakSet of [function () {}]) {}
 delete globalThis[(e++, 'window')].WeakMap;
+// a SEQUENCE-wrapped write host (`(se, globalThis.window).X = v`) has no read-side SE-tail owner:
+// the write-target plan peels the sequence tail and collapses the raw hop too, keeping the prefix
+// effects ahead of the pure root (a pure discard is droppable)
+(0, globalThis.window).Promise = function () {};
+let f = 0;
+(f++, globalThis.window).Symbol = function () {};
+(f++, globalThis.window).BigInt += 1;
