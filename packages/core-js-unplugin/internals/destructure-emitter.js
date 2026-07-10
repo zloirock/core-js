@@ -1228,7 +1228,7 @@ export function createDestructureEmitter({
         // post-render bake doesn't try to re-apply them against the null preservedSrc
         if (decls) perDecl[i] = { extractions: decls.map(decl => ({ decl })), preservedSrc: null, receiver: null, drainedRefs: [] };
       }
-      const replacement = isForInit
+      const { replacement, slotRanges } = isForInit
         ? renderForInitFlatten(declaration, perDecl)
         : renderBlockFlatten(declaration, declPath, perDecl);
       // when the host VariableDeclaration sits inside `export const { ... } = X`,
@@ -1238,7 +1238,9 @@ export function createDestructureEmitter({
       const parent = declPath.parentPath?.node;
       const useExportRange = !isForInit && parent?.type === 'ExportNamedDeclaration';
       const [start, end] = useExportRange ? [parent.start, parent.end] : [declaration.start, declaration.end];
-      transforms.add(start, end, guardOverwriteLeftFusion(start, replacement, declPath));
+      // the per-slot hint keeps nested transforms' nth-occurrence counts aligned with the
+      // rebuilt text (a consumed slot drops its source needle occurrences from the content)
+      transforms.add(start, end, guardOverwriteLeftFusion(start, replacement, declPath), null, { rewrittenRanges: slotRanges });
     }
     pendingFlatten.length = 0;
   }
@@ -1248,6 +1250,23 @@ export function createDestructureEmitter({
   // after on non-extracted siblings to substitute receiver-name refs (`globalThis ->
   // _globalThis`) into their preservedSrc. single-declaration emit: `kind d1, d2, d3` -
   // newline-separated declarators would parse the middle as the for-test slot, syntax error
+  // per-declarator rendered contribution, paired with the slot's ORIGINAL source range - the
+  // compose pass uses these to keep an inner transform's nth-occurrence count aligned with the
+  // flatten's rebuilt text (a consumed receiver drops source occurrences of a needle; a sibling
+  // inner AFTER the slot would otherwise land one occurrence too far). counts only - join is fine
+  function flattenSlotHintRanges(declaration, perDecl, sePrefixesByIdx = null) {
+    return declaration.declarations.map((d, i) => {
+      const r = perDecl[i];
+      const text = [
+        ...sePrefixesByIdx?.[i] ?? [],
+        ...r.extractions.map(e => e.decl),
+        r.preservedSrc ?? '',
+        ...(r.trailingExtractions ?? []).map(e => e.decl),
+      ].join('\n');
+      return { start: d.start, end: d.end, text };
+    });
+  }
+
   function renderForInitFlatten(declaration, perDecl) {
     bakeResidualContentIntoPreserved(perDecl);
     injectForInitSESinks(declaration, perDecl);
@@ -1259,7 +1278,10 @@ export function createDestructureEmitter({
       // SE-key trailing pairs run AFTER the residual (its kept key effect fires first)
       for (const e of r.trailingExtractions ?? []) parts.push(e.decl);
     }
-    return `${ declaration.kind } ${ parts.join(', ') }`;
+    return {
+      replacement: `${ declaration.kind } ${ parts.join(', ') }`,
+      slotRanges: flattenSlotHintRanges(declaration, perDecl),
+    };
   }
 
   // block-level: emit one statement per declarator (matches babel's `splitDeclarators`).
@@ -1281,7 +1303,10 @@ export function createDestructureEmitter({
     // explicit `count > 1` honors the helper's contract; `text.includes('\n')` would mis-fire
     // on a single statement that happens to render across multiple lines
     const { text, count } = renderBlockStatements(perDecl, declaration.kind, sePrefixesByIdx, isExport);
-    return wrapBodylessIfMulti(text, count > 1, declPath);
+    return {
+      replacement: wrapBodylessIfMulti(text, count > 1, declPath),
+      slotRanges: flattenSlotHintRanges(declaration, perDecl, sePrefixesByIdx),
+    };
   }
 
   // seed skippedNodes ONLY for the consumed parts: the ObjectPattern (id) and the
@@ -2002,6 +2027,19 @@ export function createDestructureEmitter({
     const ancestors = [];
     function walk(node, parent) {
       if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+      // the switch's block scope is the CaseBlock: the DISCRIMINANT evaluates in the
+      // ENCLOSING scope, so it walks before the case-lets frame is pushed. mirrors the
+      // adapter's case-block visibility filter - the two walkers must agree, or the natural
+      // visitor's queued substitution lands on a shifted occurrence inside the flatten re-emit
+      if (node.type === 'SwitchStatement') {
+        ancestors.push(node);
+        walk(node.discriminant, node);
+        pushScope(node);
+        for (const c of node.cases ?? []) walk(c, node);
+        scopeStack.pop();
+        ancestors.pop();
+        return;
+      }
       const opens = isScopeOwner(node.type);
       if (opens) pushScope(node);
       if (node.type === 'Identifier' && flattenedReceivers.has(node.name)
