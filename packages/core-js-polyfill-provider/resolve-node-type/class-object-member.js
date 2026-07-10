@@ -294,6 +294,14 @@ export function createClassObjectMember({
     return null;
   }
 
+  // bodyless method SHAPE, return annotation NOT required: an implicit-any overload arm
+  // (`m(x: number);`) must stay in the overload set so the fold's widen sees it - filtering
+  // membership through `bodylessReturnPath` dropped it before arg-discrimination, and the
+  // surviving annotated arm narrowed a call TS types as `any`
+  function isBodylessMethodShape(member) {
+    return member.node.type === 'TSDeclareMethod' || member.node.value?.type === 'TSEmptyBodyFunctionExpression';
+  }
+
   // a callable field's CALL return follows its DECLARED signature when annotated, not the init
   // function body alone: `make: () => number[] | string` yields the folded union return, so a
   // reassignment to a different-family function (which TS permits only under such a union) leaks
@@ -332,11 +340,12 @@ export function createClassObjectMember({
     const isStatic = !!member.node.static;
     const overloads = siblings.filter(m => !!m.node.static === isStatic
       && m.node.kind !== 'get' && m.node.kind !== 'set'
-      && bodylessReturnPath(m) && memberKeyMatches(m.node.key, m.node.computed, name));
+      && isBodylessMethodShape(m) && memberKeyMatches(m.node.key, m.node.computed, name));
     if (overloads.length < 2) return undefined;
-    return foldOverloadReturns(overloads, m => m.node.params ?? m.node.value?.params,
-      m => resolveReturnType(bodylessReturnPath(m), callPath, classSubst),
-      m => bodylessReturnPath(m)?.node.returnType, callPath);
+    return foldOverloadReturns(overloads, m => m.node.params ?? m.node.value?.params, m => {
+      const declared = bodylessReturnPath(m);
+      return declared ? resolveReturnType(declared, callPath, classSubst) : null;
+    }, m => bodylessReturnPath(m)?.node.returnType, callPath);
   }
 
   function resolveClassMemberNode(member, callPath, classSubst) {
@@ -456,7 +465,11 @@ export function createClassObjectMember({
       }
       if (member.type === 'TSPropertySignature' || member.type === 'ObjectTypeProperty') {
         const annotation = member.typeAnnotation ?? member.value;
-        return annotation ? resolveTypeAnnotation(annotation, scope) : null;
+        const resolved = annotation ? resolveTypeAnnotation(annotation, scope) : null;
+        // an OPTIONAL property (`items?: number[]`) may be undefined at runtime - carry the
+        // marker so an enclosing `??`/`||` fold keeps its two-operand union (the class-body
+        // twin already marks via markFieldOptional; this is the merged-interface/object path)
+        return resolved && member.optional ? resolved.mark('mayBeNullish') : resolved;
       }
     }
     return null;

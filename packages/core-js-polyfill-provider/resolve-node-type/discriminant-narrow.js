@@ -19,8 +19,10 @@
 // because it requires only block-child preceding-sibling reachability, not var-scope-wide
 // straight-line execution).
 import {
+  climbTransparentWrapperPath,
   isMemberAccessNode,
   isMemberWriteHost,
+  peeledLabelNames,
   peelLabeledStatementPath,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   unwrapRuntimeExpr,
@@ -28,8 +30,9 @@ import {
   IIFE_CALL_CALLEE_WRAPPERS,
 } from '../helpers/ast-patterns.js';
 import { scopeNode, bindingLoopAnchor, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
+import { nodeAlwaysHardExits } from './exit-analysis.js';
 import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
-import { bigIntLiteralValue, isBigIntLiteralNode } from './base.js';
+import { bigIntLiteralValue, isBigIntLiteralNode, MAX_DEPTH } from './base.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
@@ -154,19 +157,51 @@ export function createDiscriminantNarrow({
   // drops the narrow just like a whole-binding rebind would. `collectBindingReferences` is the
   // parser-agnostic enumerator (babel `referencePaths`, estree-toolkit program-index fallback) -
   // reading `binding.referencePaths` directly would miss every reference under the oxc adapter
+  // write-side dotted-key deriver, aligned with the READ side (`matchTargetFieldPath`):
+  // literal keys via `getMemberProperty`, alias / enum computed keys via the scope-aware
+  // `resolveComputedKeyName`, transparent wrappers peeled per hop. `dynamic: true` marks a
+  // chain whose next step past `key` is genuinely unresolvable (`box[expr]`)
+  function writeChainInfo(node, scope) {
+    const peeled = unwrapRuntimeExpr(node);
+    if (peeled?.type === 'Identifier') return { key: peeled.name, dynamic: false };
+    if (peeled?.type === 'ThisExpression') return { key: 'this', dynamic: false };
+    if (!isMemberAccessNode(peeled)) return null;
+    const parent = writeChainInfo(peeled.object, scope);
+    if (!parent) return null;
+    if (parent.dynamic) return parent;
+    let field = getMemberProperty(peeled);
+    if (field === null && peeled.computed && scope) field = resolveComputedKeyName(peeled.property, scope);
+    if (field === null) return { key: parent.key, dynamic: true };
+    return { key: `${ parent.key }.${ field }`, dynamic: false };
+  }
+
   function memberPathWriteViolations({ objectBinding, anchorPath, targetKey }) {
     const out = [];
     for (const ref of collectBindingReferences(objectBinding, anchorPath) ?? []) {
-      // climb to the top of the member-access chain rooted at this `obj` reference
-      let p = ref;
-      while (isMemberAccessNode(p.parentPath?.node) && p.parentPath.node.object === p.node) p = p.parentPath;
+      // climb to the top of the member-access chain rooted at this `obj` reference,
+      // stepping THROUGH transparent wrappers per hop - a TS cast between hops
+      // (`(box as any).kind = v`) otherwise strands the climb below the write host and
+      // the stale narrow survives
+      let p = climbTransparentWrapperPath(ref);
+      while (isMemberAccessNode(p.parentPath?.node) && p.parentPath.node.object === p.node) {
+        p = climbTransparentWrapperPath(p.parentPath);
+      }
       // record only when the climbed member chain is itself the WRITE TARGET of its host -
       // assignment / update / delete, OR a destructure-pattern slot / for-x head (the canonical
       // `isMemberWriteHost` enumeration; the bare hostType check missed those, so a `[obj.a] = v`
       // or `for (obj.a of it)` write left the narrow unsoundly retained)
       if (!isMemberWriteHost(p)) continue;
-      const writeKey = pathKey(p.node);
-      if (writeKey === null) continue;
+      const info = writeChainInfo(p.node, p.scope ?? anchorPath.scope);
+      if (!info) continue;
+      if (info.dynamic) {
+        // a dynamic step AT or ABOVE the narrowed path (`box[expr] = v` for target `box`)
+        // could rebind it or flip its discriminant - conservative identity violation. a
+        // DEEPER dynamic step (`box.data[i] = v`) is a property mutation past the
+        // direct-field level and stays excluded like its resolvable siblings
+        if (info.key === targetKey || targetKey.startsWith(`${ info.key }.`)) out.push(p.parentPath);
+        continue;
+      }
+      const writeKey = info.key;
       // an IDENTITY write - the exact narrowed path or a shallower prefix of it (`obj.a` vs target
       // `obj.a.b`) - reassigns the narrowed value, so it drops the narrow unconditionally. push the
       // write-host PATH so `violationInCapturedFunction` can walk `.parentPath`
@@ -299,7 +334,7 @@ export function createDiscriminantNarrow({
       // the peel `outer: if (kind !== 'a') return;` would skip discriminant narrow
       // (resolveExitCondition gates on IfStatement type)
       const sibling = peelLabeledStatementPath(siblings[i]);
-      const exitCond = resolveExitCondition(sibling);
+      const exitCond = resolveExitCondition(sibling, peeledLabelNames(siblings[i]));
       if (exitCond === null) continue;
       if (!discriminantGuardApplies(sibling.scope, sibling.node.test, ctx, deferredUpper)) continue;
       pushDiscriminantClauses({ test: sibling.node.test, conditionTrue: exitCond, targetKey, out, scope: sibling.scope });
@@ -458,23 +493,55 @@ export function createDiscriminantNarrow({
   // different shape, so the candidate's RHS no longer represents the value at the use site.
   // bail to null so the caller falls back to the declared type. without this, narrowing
   // unsoundly picks the FIRST preceding match and ignores conditional shadowing
-  function findPrecedingSiblingAssignment({ parent, currentKey, targetName, binding, varPath }) {
-    const siblings = parent.get('body');
-    for (let i = currentKey - 1; i >= 0; i--) {
-      const sib = siblings[i];
-      if (sib?.node?.type !== 'ExpressionStatement') continue;
-      let expr = sib.node.expression;
-      let exprPath = sib.get('expression');
-      while (expr?.type === 'ParenthesizedExpression') {
-        expr = expr.expression;
-        exprPath = exprPath.get('expression');
-      }
-      if (assignmentBindsTarget(expr, targetName, sib.scope)) {
-        if (hasReassignmentBetween(binding, sib.node.end, varPath.node?.start)) return null;
-        return exprPath;
+  // unwrap an ExpressionStatement sibling to its assignment path when it binds `targetName`
+  function statementAssignmentPath(sibPath, targetName) {
+    if (sibPath?.node?.type !== 'ExpressionStatement') return null;
+    let expr = sibPath.node.expression;
+    let exprPath = sibPath.get('expression');
+    while (expr?.type === 'ParenthesizedExpression') {
+      expr = expr.expression;
+      exprPath = exprPath.get('expression');
+    }
+    return assignmentBindsTarget(expr, targetName, sibPath.scope) ? exprPath : null;
+  }
+
+  // a preceding IF whose one branch unconditionally HARD-exits (return / throw) is
+  // transparent toward its fall-through branch: post-if control came through that branch,
+  // so its trailing assignment dominates the use like a same-level sibling
+  // (`if (typeof x === "string") { x = 5; } else throw 0; x.at(0)` always sees 5).
+  // recursion composes `else if` chains and nested such ifs; the label-immune hard-exit
+  // test keeps `break outer` shapes conditional (the break resumes at the use). any write
+  // positioned after the found assignment - the branch tail, the exiting branch, later
+  // conditionals - is caught by the caller's positional reassignment guard
+  function fallThroughBranchPath(sibPath) {
+    const { node } = sibPath;
+    if (node?.type !== 'IfStatement' || !node.alternate) return null;
+    if (nodeAlwaysHardExits(node.alternate)) return sibPath.get('consequent');
+    if (nodeAlwaysHardExits(node.consequent)) return sibPath.get('alternate');
+    return null;
+  }
+
+  function scanStatementsForAssignment(stmtPaths, targetName, depth) {
+    if (depth > MAX_DEPTH) return null;
+    for (let i = stmtPaths.length - 1; i >= 0; i--) {
+      const sib = stmtPaths[i];
+      const direct = statementAssignmentPath(sib, targetName);
+      if (direct) return direct;
+      const branch = sib?.node ? fallThroughBranchPath(sib) : null;
+      if (branch) {
+        const inner = branch.node.type === 'BlockStatement' ? branch.get('body') : [branch];
+        const hit = scanStatementsForAssignment(inner, targetName, depth + 1);
+        if (hit) return hit;
       }
     }
     return null;
+  }
+
+  function findPrecedingSiblingAssignment({ parent, currentKey, targetName, binding, varPath }) {
+    const hit = scanStatementsForAssignment(parent.get('body').slice(0, currentKey), targetName, 0);
+    if (!hit) return null;
+    if (hasReassignmentBetween(binding, hit.parentPath.node.end ?? hit.node.end, varPath.node?.start)) return null;
+    return hit;
   }
 
   // `for (x = R; ...) { use x; }` - the init slot's AssignmentExpression runs before ANY
