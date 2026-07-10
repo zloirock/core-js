@@ -1191,11 +1191,17 @@ export function proxyGlobalMemberCtorPureSwap({ receiver, aliasCtx = null, resol
 // _self).Set = v`), and claiming it here would conflict with that already-queued rewrite. `staticMemberKeyName`
 // folds a SE-bearing computed hop key (`globalThis[(e++, 'window')]`) so it is detected
 export function navHasUnresolvableProxyHop(navNode, resolvePure) {
-  let cur = navNode;
+  // peel transparent wrappers / SE tails at entry and at every hop, mirroring the sibling
+  // walkers (`maximalProxyGlobalPrefix` / `findProxyGlobal`): a TS cast or a sequence
+  // between the write host and its proxy sub-nav (`(globalThis.window as any).Set = fn`,
+  // `(0, globalThis.window).Set = fn`) otherwise hides the unresolvable hop, the collapse
+  // gate wrongly reports "all hops resolve" and the raw `.window` survives to an
+  // off-engine write throw
+  let cur = peelReceiverSequenceTail(navNode);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const hop = staticMemberKeyName(cur);
     if (hop && POSSIBLE_GLOBAL_OBJECTS.has(hop) && !resolvePure({ kind: 'global', name: hop })) return true;
-    cur = cur.object;
+    cur = peelReceiverSequenceTail(cur.object);
   }
   return false;
 }

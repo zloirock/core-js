@@ -1046,6 +1046,31 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   };
 }
 
+// Symbol.iterator `in`-fold canon entry (`Symbol.iterator in x` -> `_isIterable(x)`)
+export const IS_ITERABLE_ENTRY = 'is-iterable';
+// direct-fetch iterator canon entry (`node[Symbol.iterator]()` -> `_getIterator(node)`)
+export const GET_ITERATOR_ENTRY = 'get-iterator';
+
+// the resolution of a symbol-sourced `[Symbol.iterator]` member meta. the pure package has no
+// `symbol/instance/iterator` entry (the method form IS the canonical access, dispatched on its
+// own), so this constant IS the resolution - both emitters consume it wherever a kind-driven
+// gate or an extraction render needs the instance shape, instead of each synthesizing the
+// triple locally
+export const SYMBOL_ITERATOR_PURE_RESULT = { kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod' };
+
+// the `$helper` entries of the pure package that detection resolves to as the EMIT CANON itself
+// (`resolveSymbolIteratorEntry` / `resolveSymbolInEntry` + `SYMBOL_ITERATOR_PURE_RESULT`).
+// `isEntryNeeded` exempts them from a user `exclude`: filtering the entry must not flip the
+// canonical emit to a raw static-symbol read - the helper wraps native lookups and stays correct
+// with its polyfill modules filtered. the other `$helper` entries of the package
+// (`function/name`, `regexp/flags`) are NOT here: detection resolves those reads to the
+// instance-wrapper entries instead, so the plugins never inject them
+export const HELPER_CANON_ENTRIES = new Set([
+  GET_ITERATOR_ENTRY,
+  SYMBOL_ITERATOR_PURE_RESULT.entry,
+  IS_ITERABLE_ENTRY,
+]);
+
 // `Symbol.hasInstance` -> `symbol/has-instance`. pure string transform - caller must
 // validate the entry exists via the resolver. lowercase first char to filter malformed
 // inputs (`Symbol.XYZ` -> `symbol/-x-y-z` would silently miss the lookup)
