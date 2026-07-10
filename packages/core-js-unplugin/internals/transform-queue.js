@@ -1124,6 +1124,17 @@ export default class TransformQueue {
       // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
       // during composition, so the rightmost inner's nth must point to the sole remaining slot
       let nth = countInRange(needle, 0, inner.start - start);
+      // outer-slot rewrites (the multi-decl flatten's per-declarator hint): a consumed slot
+      // drops its source needle occurrences from the content while its rendered text may
+      // re-emit some - adjust the ordinal by the delta so an inner in a LATER (verbatim)
+      // sibling still lands on its own occurrence. without this, a preceding consumed
+      // receiver shifts the count and the substitution renames an unrelated occurrence
+      for (const r of rewriteHint?.rewrittenRanges ?? []) {
+        if (r.end <= inner.start) {
+          nth -= countInRange(needle, r.start - start, r.end - start);
+          nth += collectOccurrencePositions(r.text, needle).length;
+        }
+      }
       for (const r of processedRanges) {
         if (r.end <= inner.start) nth -= countInRange(needle, r.start - start, r.end - start);
       }
