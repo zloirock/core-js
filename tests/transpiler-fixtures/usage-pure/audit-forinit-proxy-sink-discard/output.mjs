@@ -3,7 +3,9 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$entries from "@core-js/pure/actual/object/entries";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
+import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // a for-init destructure whose consumed receiver navigates proxy hops keeps its side effects
 // in a loop-header sink; a MULTI-hop receiver cannot sink verbatim (the raw hop reads an
@@ -42,3 +44,17 @@ for (const _ref4 = (q = _Object$entries({
   out4 = typeof from;
 }
 export const r4 = [out4, q.length];
+// a provably-pure call root leaves NO effects to sink: the discarded receiver renders through the
+// shared discarded-receiver decision instead of a verbatim clone (whose raw `.self` hop would
+// throw at loop init off-engine) - a pure-ctor leaf whole-swaps, a native-static leaf re-roots
+// at the pure global
+let out5;
+for (const _ref5 = _globalThis.Array, of = _Array$of; !out5;) {
+  out5 = typeof of;
+}
+export const r5 = [out5];
+let out6;
+for (const _ref6 = _Promise, withResolvers = _Promise$withResolvers; !out6;) {
+  out6 = typeof withResolvers;
+}
+export const r6 = [out6];

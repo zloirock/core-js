@@ -7,7 +7,7 @@ const { Promise: { try: tryFn, customZ } } = globalThis;
 const { Iterator: { customA }, navigator: nav } = globalThis;
 // boundary: an SE-prefixed init keeps the nested handling
 const { Set: { customB } } = (eff(), globalThis);
-// boundary: a proxy-global KEY keeps the nested handling (only a constructor key hops)
+// a proxy-global KEY peels like a member-chain hop (it binds nothing), then the ctor anchor fires
 const { globalThis: { Map: { customG } } } = globalThis;
 // an escaped string key resolves to its cooked constructor name
 const { "\u0049terator": { customU } } = globalThis;

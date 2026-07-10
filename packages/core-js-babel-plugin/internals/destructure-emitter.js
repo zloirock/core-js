@@ -60,6 +60,7 @@ import {
 import {
   computedPropKeyHostsMachinery,
   isSourcedSymbolIteratorMeta,
+  planCallRootDiscardedProxySwap,
   shouldDropRescueReceiver,
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
@@ -1714,6 +1715,21 @@ export default function createDestructureEmitter({
         if (rescue.length) {
           sinkInit = rescue.length === 1 ? t.cloneDeep(rescue[0])
             : t.sequenceExpression(rescue.map(node => t.cloneDeep(node)));
+        } else {
+          // droppable receiver with NO surviving effects (a provably-pure call root): the verbatim
+          // clone would keep the raw multi-hop (`(() => globalThis)().self.Array` - `.self` reads
+          // undefined off-engine at loop init), and unlike a lifted residual the for-init sink
+          // never re-enters the natural member detection. render the DISCARDED value through the
+          // shared plans instead: a pure-ctor leaf whole-swaps (`_Map`), a native-static leaf
+          // re-roots at the pure global (`_globalThis.Array`)
+          const aliasCtx = aliasCtxFromPath(parent);
+          const discarded = planCallRootDiscardedProxySwap({ receiver: initLeaf, ...aliasCtx, resolvePure });
+          if (discarded) {
+            const pureId = injectPureImport(discarded.leafPure.entry, discarded.leafPure.hintName);
+            sinkInit = discarded.harvestedSE.length
+              ? t.sequenceExpression([...discarded.harvestedSE.map(node => t.cloneDeep(node)), pureId])
+              : pureId;
+          } else sinkInit = synthSwap.collapseProxyGlobalReceiver(initLeaf, { aliasCtx });
         }
       }
       const sink = t.variableDeclarator(ref, sinkInit ?? t.cloneDeep(parent.node.init));

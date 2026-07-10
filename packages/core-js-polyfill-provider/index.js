@@ -3,7 +3,7 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
+import { HELPER_CANON_ENTRIES, POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
 import { WINDOWS_UNC_PREFIX_RE, lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
 import { validatePackageShape } from './plugin-options/validate.js';
@@ -241,13 +241,19 @@ export function createPolyfillContext({
 
   // filter precedence convention: `exclude` wins over `include` over targets-default.
   // mirrors `buildShouldInjectPolyfill` in `plugin-options/targets.js` for module-level
-  // filtering. flipping one without the other would desync - change both sites in lockstep
+  // filtering. flipping one without the other would desync - change both sites in lockstep.
+  // `HELPER_CANON_ENTRIES` (the emit-canon `$helper` entries, single-sourced next to their
+  // detect-side resolvers) are exempt from `exclude`: filtering the entry must not flip the
+  // canonical emit to a raw static-symbol read - the helper wraps native lookups and stays
+  // correct with its polyfill modules filtered; only the targets branch (nothing to polyfill
+  // at all) may drop the emit and keep raw source
   function isEntryNeeded(entry) {
     if (entry === '') entry = 'index';
     if (isEntryNeededCache.has(entry)) return isEntryNeededCache.get(entry);
     const normalized = normalizeEntryPath(entry);
+    const helper = HELPER_CANON_ENTRIES.has(entry) || HELPER_CANON_ENTRIES.has(normalized);
     let result;
-    if (excludeEntries.has(entry) || excludeEntries.has(normalized)) result = false;
+    if (!helper && (excludeEntries.has(entry) || excludeEntries.has(normalized))) result = false;
     else if (includeEntries.has(entry) || includeEntries.has(normalized)) result = true;
     else {
       const modeEntry = `${ mode }/${ entry }`;
