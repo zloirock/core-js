@@ -6,6 +6,7 @@
 //
 // O(V) cache build per binding (sorted by source position), O(log V) per query.
 import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
+import { nodeAlwaysHardExits } from './exit-analysis.js';
 import { usageCrossesLoopBackEdgeReassign } from './ast-shapes.js';
 import {
   IIFE_CALL_PATH_WRAPPERS,
@@ -132,11 +133,24 @@ function findEnclosingStatement(path, stmtType) {
 // every wrapping statement from startPath up to endNode is in the passthrough set -
 // rejects if / switch / loop / try / etc. endNode is the binding's var-scope body (outer)
 // or an IIFE function body (inner during lift). a detached ancestor (stale path) rejects -
-// the straight-line reach cannot be proven through a dead chain
+// the straight-line reach cannot be proven through a dead chain.
+// ONE conditional shape stays straight-line: climbing out of an if-BRANCH whose OTHER
+// branch unconditionally HARD-exits (return / throw). statements after such an if run
+// only via the fall-through branch, so its trailing assignment dominates every later
+// position (`if (typeof x === "string") { x = 5; } else throw 0; x.at(0)` - the use
+// always sees 5). climbs from the test slot or from the EXITING branch stay conditional;
+// `else if` chains compose - each level requires its own sibling branch to hard-exit
 function reachesStraightLine(startPath, endNode) {
-  for (let p = startPath; p; p = p.parentPath) {
+  for (let prev = null, p = startPath; p; prev = p, p = p.parentPath) {
     if (p.node === endNode) return true;
-    if (!p.node || !STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES.has(p.node.type)) return false;
+    if (!p.node) return false;
+    if (STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES.has(p.node.type)) continue;
+    if (p.node.type === 'IfStatement' && prev
+      && (prev.node === p.node.consequent || prev.node === p.node.alternate)) {
+      const other = prev.node === p.node.consequent ? p.node.alternate : p.node.consequent;
+      if (other && nodeAlwaysHardExits(other)) continue;
+    }
+    return false;
   }
   return false;
 }

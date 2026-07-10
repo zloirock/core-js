@@ -337,8 +337,17 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
   // function boundary (an expression-body arrow `() => ({ Map: M } = g)`) makes the write run on
   // one branch / an unknown call even though the statement placement itself is unconditional.
   // sequence / call-argument / object- and array-literal / await positions evaluate whenever the
-  // statement runs, so they pass through; then judge the statement's ancestors
+  // statement runs, so they pass through; then judge the statement's ancestors.
+  // an OPTIONAL chain short-circuits everything right of its `?.` hop: a write sitting in a
+  // non-spine slot (call argument / member key) under an optional hop may never run
+  // (`host?.doThing(WRITE)` with a nullish host), so those edges are conditional like a
+  // logical right arm. the spine head (leftmost object/callee) always evaluates and passes.
+  // babel spells every chain node Optional*; estree keeps plain Member/Call with `.optional`
+  // flags under a ChainExpression wrapper - a non-spine exit is remembered so the deeper
+  // estree form (`a?.b.c(WRITE)` - the call itself is `optional: false`) still cuts when
+  // the climb crosses the chain wrapper
   let stmt = stmtPath;
+  let leftChainSideSlot = false;
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) {
     const parent = stmt.parentPath;
     const parentType = parent?.node?.type;
@@ -346,6 +355,16 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
       if (FUNCTION_LIKE_NODE_TYPES.has(parentType)) return false;
       if (parentType === 'ConditionalExpression' && parent.node.test !== stmt.node) return false;
       if (parentType === 'LogicalExpression' && parent.node.left !== stmt.node) return false;
+      const isOptionalNamed = parentType === 'OptionalMemberExpression' || parentType === 'OptionalCallExpression';
+      const isMemberOrCall = isOptionalNamed || parentType === 'MemberExpression' || parentType === 'CallExpression';
+      if (isMemberOrCall) {
+        const spineSlot = parent.node.object === stmt.node || parent.node.callee === stmt.node;
+        if (!spineSlot) {
+          if (isOptionalNamed || parent.node.optional === true) return false;
+          leftChainSideSlot = true;
+        }
+      }
+      if (leftChainSideSlot && (parentType === 'ChainExpression' || isOptionalNamed)) return false;
     }
     stmt = parent;
   }
