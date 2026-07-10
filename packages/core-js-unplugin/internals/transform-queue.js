@@ -660,6 +660,25 @@ export default class TransformQueue {
     return isStrictlyContained({ ranges: this.#sorted, start, end, prefixMaxEnd: this.#prefixMaxEnd });
   }
 
+  // content-survival probe for a NESTED rewrite: compose can fold a nested transform into a
+  // containing one only when the containing content still carries the nested range's SOURCE
+  // text (exactly one identifier-boundary occurrence - ambiguity would mis-splice). true =
+  // the claiming transform re-emits the text verbatim (a raw receiver slice); false = a
+  // DROPPING consumer (e.g. a static dispatch discarding the chain) - nesting there has no
+  // needle left to compose into
+  containingContentIncludes(start, end) {
+    const needle = this.#code.slice(start, end);
+    if (!needle.length) return false;
+    for (const entry of this.#transforms) {
+      const entryEnd = entryLogicalEnd(entry);
+      if (!(entry.start <= start && entryEnd >= end) || (entry.start === start && entryEnd === end)) continue;
+      if (entry.splitInfo?.role === 'suffix') continue;
+      const content = entry.splitInfo ? splitInnerContent(entry, new Map()) : entry.content;
+      return collectOccurrencePositions(content, needle).length === 1;
+    }
+    return false;
+  }
+
   // true when any already-queued transform sits fully within [start, end]. used before
   // appending a raw source tail to a synthetic body, so a nested transform inside that tail
   // is not duplicated (the tail would carry both the raw text and the composed rewrite)

@@ -976,7 +976,7 @@ export function createUsageVisitors({
       return;
     }
     const meta = handleMemberExpressionNode({
-      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta,
+      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
     });
     if (meta) {
       onUsage(meta, path);

@@ -6,6 +6,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // (`globalThis.self.Array.prototype` -> `_globalThis.Array.prototype`), never a raw read off-engine (ie:11).
 // the unwrapped receiver is a single concrete Array.prototype, so multi-type methods (includes, at) narrow
 // to the array variant - proving the type resolves THROUGH the wrapper. distinct method per line.
-const arrayElem = _includesMaybeArray([_globalThis.self.Array.prototype][0]).call([1], 1);
-const objMember = _atMaybeArray({ box: _globalThis.self.Array.prototype }.box).call([1], 0);
+const arrayElem = _includesMaybeArray([_globalThis.Array.prototype][0]).call([1], 1);
+const objMember = _atMaybeArray({ box: _globalThis.Array.prototype }.box).call([1], 0);
 export { arrayElem, objMember };

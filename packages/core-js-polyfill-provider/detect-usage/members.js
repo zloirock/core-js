@@ -9,7 +9,14 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
-import { isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
+import {
+  GET_ITERATOR_ENTRY,
+  isAliasProxyRoot,
+  IS_ITERABLE_ENTRY,
+  POSSIBLE_GLOBAL_OBJECTS,
+  SYMBOL_ITERATOR_PURE_RESULT,
+  symbolKeyToEntry,
+} from '../helpers/class-walk.js';
 import { attachMemberUnionExtras } from './destructure.js';
 import { staticReceiverHint } from './globals.js';
 import {
@@ -163,13 +170,17 @@ export function planProxyReceiver(receiver, {
   // nav stacked under a non-proxy leaf chain (`(c++, globalThis.self).Array.prototype`). compare against the
   // WRAPPER-peeled object - the prefix walker returns the peeled member while the raw `.object` may be a
   // transparent wrapper node sitting between the hops (`((a = globalThis).self as any).Array` - the cast),
-  // which would force the member-recursion onto the non-member wrapper and null the plan. wrappers ONLY -
-  // peeling a sequence TAIL here would claim SE-prefixed objects the emitters route through their own
-  // SE-tail collapse paths, overlapping their queued rewrites
+  // which would force the member-recursion onto the non-member wrapper and null the plan. wrappers ONLY
+  // for a READ - peeling a sequence TAIL would claim SE-prefixed objects the emitters route through their
+  // own SE-tail collapse paths, overlapping their queued rewrites. a WRITE target has no such owner (the
+  // leaf is the assignment slot, never an SE-tail read), so its sequence tail peels here - else a raw hop
+  // survives off the pure root (`(0, globalThis.window).Set = fn` -> `(0, _globalThis.window).Set`, an
+  // undefined write host off-engine); the prefix effects ride the harvest below
   let objectCore = receiver.object;
   while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(objectCore?.type) || objectCore?.type === 'ChainExpression') {
     objectCore = objectCore.expression;
   }
+  if (isWriteTarget) objectCore = peelReceiverSequenceTail(objectCore);
   if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: isWriteTarget, throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
     if (callRooted) return callRooted;
@@ -472,7 +483,9 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   };
 }
 
-export function handleMemberExpressionNode({ node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta }) {
+export function handleMemberExpressionNode({
+  node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
+}) {
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
     // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
@@ -494,6 +507,17 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
     // unlike a leaf-hop pure import. gate on a proxy-global root so a real-object receiver
     // (`arr[Symbol.iterator]`) stays untouched (it is the genuine argument)
     let symbolReceiverProxyRoot = null;
+    // the receiver subsume + proxy-root collapse serve exactly the ITERATOR strand: only the
+    // emitters' `handleSymbolIterator` consumes `symbolReceiverProxyRoot`, and only when its
+    // entry survives the include/exclude filter. a NON-iterator well-known key
+    // (`self[Symbol.asyncIterator]`) or an EXCLUDED iterator entry leaves the receiver to the
+    // identifier visitor's own proxy rewrite - subsuming it here stranded the raw proxy-global
+    // (off-engine throw), asymmetric with `handleBinaryIn`'s availability gate
+    const parentNode = path.parentPath?.node;
+    const iteratorEntry = resolveSymbolIteratorEntry(node, parentNode,
+      isCallShape(parentNode) && unwrapRuntimeExpr(parentNode.callee) === node);
+    const iteratorStrandLive = symbolKey.key === 'Symbol.iterator'
+      && (!isEntryAvailable || isEntryAvailable(iteratorEntry));
     if (suppressProxyGlobals) {
       markSubsumedProxyChain(symbolKey.ref.unwrapped, handledObjects, scope, adapter, path);
       // peel a SEQUENCE / paren wrapper to the receiver's actual proxy chain (`(n++, globalThis.self)` ->
@@ -503,7 +527,7 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
       const receiverObj = unwrapTransparentSeq(node.object);
       const receiverChain = peelReceiverSequenceTail(receiverObj);
       const receiverName = resolveObjectName({ objectNode: receiverChain, scope, adapter, path });
-      if (receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
+      if (iteratorStrandLive && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
         // subsume the chain so the identifier visitor does not queue a parallel rewrite (unplugin crash)
         markSubsumedProxyChain(receiverChain, handledObjects, scope, adapter, path);
         // collapse to the proxy ROOT from the (sequence-peeled) tail chain; the prefix SE of a sequence
@@ -525,6 +549,20 @@ export function handleMemberExpressionNode({ node, scope, adapter, handledObject
             droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue),
             isOptionalAccess: ownChainOptionalCount(node) > 0,
           };
+        }
+      } else if (receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)
+        && (receiverChain.type === 'MemberExpression' || receiverChain.type === 'OptionalMemberExpression')) {
+        // NON-collapsing strand (a non-iterator well-known key): the member-chain receiver stays
+        // in the output, and its redundant hop collapses through the ROOT identifier's hop-collapse
+        // drive like every other continued navigation (`globalThis.self[Symbol.toStringTag]` ->
+        // `_globalThis[...]`). subsume the HOP MEMBERS only - the leaf-static rewrite
+        // (`globalThis.self` -> `_self`) would otherwise win the text emitter's race and desync
+        // from the AST emitter's root collapse - while the ROOT identifier stays live to fire
+        // the drive (a whole-chain subsume stranded the raw proxy-global)
+        let hop = receiverChain;
+        while (hop && (hop.type === 'MemberExpression' || hop.type === 'OptionalMemberExpression')) {
+          handledObjects.add(hop);
+          hop = unwrapRuntimeExpr(hop.object);
         }
       }
     }
@@ -644,12 +682,9 @@ export function isSourcedSymbolIteratorMeta(meta) {
   return !!meta.symbolSourced && meta.key === 'Symbol.iterator';
 }
 
-// its pure resolution: destructure / extraction pipelines bind the key through
-// `_getIteratorMethod(receiver)`. `resolvePure` returns null for the meta (no entry of its
-// own), so this constant IS the resolution - both emitters consume it wherever a kind-driven
-// gate or an extraction render needs the instance shape, instead of each synthesizing the
-// triple locally
-export const SYMBOL_ITERATOR_PURE_RESULT = { kind: 'instance', entry: 'get-iterator-method', hintName: 'getIteratorMethod' };
+// its pure resolution lives in class-walk (`SYMBOL_ITERATOR_PURE_RESULT`, single-sourced with
+// the emit-canon helper-entry set); re-exported here for the emitters' existing import surface
+export { HELPER_CANON_ENTRIES, SYMBOL_ITERATOR_PURE_RESULT } from '../helpers/class-walk.js';
 
 // a computed destructure-prop key "hosts machinery" when the rewrite pipeline has work bound
 // to it: a real well-known-symbol reference (iterator-method / catch-passthrough handling) or a
@@ -673,7 +708,7 @@ export function computedPropKeyHostsMachinery({ propNode, scope, adapter, path, 
 
 // Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
 export function resolveSymbolInEntry(key) {
-  if (key === 'Symbol.iterator') return { entry: 'is-iterable', hint: 'isIterable' };
+  if (key === 'Symbol.iterator') return { entry: IS_ITERABLE_ENTRY, hint: 'isIterable' };
   const entry = symbolKeyToEntry(key);
   if (!entry) return null;
   return { entry, hint: key.replace('.', '$') };
@@ -687,13 +722,13 @@ export function resolveSymbolInEntry(key) {
 // so a strict callee match suffices, while oxc keeps them so unplugin unwraps the callee. The
 // default is the babel-shape strict match
 export function resolveSymbolIteratorEntry(node, parent, isCall = isCallShape(parent) && parent.callee === node) {
-  return isCall && parent.arguments.length === 0 && !parent.optional ? 'get-iterator' : 'get-iterator-method';
+  return isCall && parent.arguments.length === 0 && !parent.optional ? GET_ITERATOR_ENTRY : SYMBOL_ITERATOR_PURE_RESULT.entry;
 }
 
 // the import-hint half of the iterator-form entry pair - single-sourced so the emitters'
 // injectors cannot drift on the entry -> hint mapping
 export function symbolIteratorHint(entry) {
-  return entry === 'get-iterator' ? 'getIterator' : SYMBOL_ITERATOR_PURE_RESULT.hintName;
+  return entry === GET_ITERATOR_ENTRY ? 'getIterator' : SYMBOL_ITERATOR_PURE_RESULT.hintName;
 }
 
 // seeds `handledObjects` only for polyfillable Symbol.X. `isEntryAvailable`, when

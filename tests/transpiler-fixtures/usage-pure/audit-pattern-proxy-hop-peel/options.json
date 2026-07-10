@@ -7,12 +7,7 @@
         "version": "4.0",
         "targets": {
           "ie": 11
-        },
-        "exclude": [
-          "get-iterator-method",
-          "get-iterator",
-          "is-iterable"
-        ]
+        }
       }
     ]
   ]

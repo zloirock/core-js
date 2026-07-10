@@ -278,3 +278,70 @@ QUnit.test('global-proxy: sequence-wrapped root .self hop collapses (runs withou
   assert.same(e, 3);
   assert.same(r, globalThis);
 });
+
+// a `?.` whose subject is entirely proxy navigation over a chain-assign root is dead: the subject
+// collapses to the always-defined pure root and the guard drops. `self` does not exist in Node, so
+// a kept guard would memoize the raw `.self` hop (undefined) and silently swallow the value
+QUnit.test('global-proxy: dead optional over chain-assign proxy subject (runs without self in Node)', assert => {
+  let q1, q2, q3;
+  let c = 0;
+  assert.same((q1 = globalThis).self?.Array.prototype.findLast.call([1, 2], it => it < 2), 1);
+  assert.same(q1, globalThis);
+  assert.same((q2 = globalThis).self?.Array.prototype.at.call([5], 0), 5);
+  assert.same(q2, globalThis);
+  assert.deepEqual((c++, (q3 = globalThis).self)?.Array.prototype.flat.call([[1], 2]), [1, 2]);
+  assert.same(c, 1);
+  assert.same(q3, globalThis);
+  // bare chain-assign subject with the hop after the `?.`: same collapse, assignment preserved
+  let q4;
+  assert.true((q4 = globalThis)?.self.Array.prototype.includes.call([7], 7));
+  assert.same(q4, globalThis);
+  // alias subject: keeps its identifier, drops the hop
+  const g = globalThis;
+  const flat = g?.self.Array.prototype.flat;
+  assert.deepEqual(flat.call([[3], 4]), [3, 4]);
+});
+
+// an alias-rooted chain as a method-EXTRACT receiver (no call, no unresolved sibling usage to
+// trigger the fallback): the redundant hop must still collapse - `self` does not exist in Node
+QUnit.test('global-proxy: alias-rooted method-extract receiver .self hop collapses (runs without it in Node)', assert => {
+  const g = globalThis;
+  const extractedFindLast = g.self.Array.prototype.findLast;
+  assert.same(extractedFindLast.call([1, 2, 3], it => it < 3), 2);
+});
+
+// a for-init destructure over a provably-PURE call-rooted proxy chain leaves no effects to sink:
+// the discarded sink must not clone the raw `.self` hop (undefined in Node - reading `.Array` off
+// it would throw at loop init)
+QUnit.test('global-proxy: for-init destructure over pure-call-rooted proxy chain (runs without self in Node)', assert => {
+  let out;
+  for (const { from } = (() => globalThis)().self.Array; !out;) out = from;
+  assert.same(typeof out, 'function');
+  assert.deepEqual(out('ab'), ['a', 'b']);
+  let out2;
+  for (const { groupBy } = (() => globalThis)().self.Map; !out2;) out2 = groupBy;
+  assert.same(typeof out2, 'function');
+});
+
+// a SEQUENCE-wrapped write host over a raw `.window` hop: the write-target collapse must peel the
+// sequence tail and drop the hop - `window` does not exist in Node, so an uncollapsed host is an
+// undefined write target (TypeError at the assignment)
+QUnit.test('global-proxy: SE-tail write host .window hop collapses (runs without it in Node)', assert => {
+  let c = 0;
+  (c++, globalThis.window).seTailWriteProbeKey = 42;
+  assert.same(globalThis.seTailWriteProbeKey, 42);
+  assert.same(c, 1);
+  delete (0, globalThis.window).seTailWriteProbeKey;
+  assert.false('seTailWriteProbeKey' in globalThis);
+});
+
+// a destructure pattern hop that is itself a proxy-global alias peels onto the always-defined
+// pure root - `self` does not exist in Node, so an unpeeled residual is a destructure TypeError
+QUnit.test('global-proxy: destructure pattern proxy hop peels (runs without self in Node)', assert => {
+  const { self: { x } } = globalThis;
+  assert.same(x, undefined);
+  const { self: { window: { y } } } = globalThis;
+  assert.same(y, undefined);
+  const { self: { Math: { PI: pi } } } = globalThis;
+  assert.same(pi, Math.PI);
+});
