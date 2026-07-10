@@ -1249,8 +1249,11 @@ export function isGuardedAliasingWrite(binding) {
   } else {
     // assignment form: the write site is the aliasing assignment. babel records the
     // AssignmentExpression path, estree records the bound identifier inside the LHS
-    // pattern (climb its path), a synthetic var-hoist binding records the raw node
-    const [violation] = binding.constantViolations ?? [];
+    // pattern (climb its path), a synthetic var-hoist binding records the raw node.
+    // filter valueless redeclarations first: a bare `var X;` twin lands at index 0 as a
+    // phantom (no value flows), and neither sub-branch matches it - the guard would report
+    // "not guarded" and the read wrongly folds on the untaken path of the REAL guarded write
+    const [violation] = withoutValuelessDeclarationViolations(binding.constantViolations) ?? [];
     const node = violation?.node ?? violation;
     if (node?.type === 'AssignmentExpression') {
       writeNode = node;
