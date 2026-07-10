@@ -1122,8 +1122,13 @@ export default function plugin(api, options) {
       // augment a visitor set with the unconditional proxy-hop trigger: an anchored plan must
       // fire even when NO leaf resolves (`{ Map: { customY } } = globalThis` - the point is
       // the re-anchored residual), so leaf-driven dispatch alone cannot cover it. lives in
-      // the MAIN traversal - the dedicated normalize pre-pass traverse is retired
+      // the MAIN traversal - the dedicated normalize pre-pass traverse is retired - AND in the
+      // Program:exit drains (deferred-SE / helper bodies), whose cloned subtrees the main pass
+      // never saw; without it a deferred host keeps its raw hop while the plain form re-anchors.
+      // the flatten is a usage-pure receiver rewrite, so gate HERE like `withCatchExtractor` -
+      // every caller routes through this single point and usage-global stays untouched
       function withProxyHopTrigger(visitors) {
+        if (!isPure) return visitors;
         return mergeVisitors(visitors, {
           'VariableDeclarator|AssignmentExpression': {
             enter(path) { destructureEmit.tryFlattenProxyHopHost(path); },
@@ -1169,7 +1174,7 @@ export default function plugin(api, options) {
           // sibling-plugin-injected helper bodies (already TS-stripped), wrong contract
           // here. usage-pure case: usageVisitors === helperVisitors so behaviour identical
           if (!usageVisitors) continue;
-          const deferredVisitors = withCatchExtractor(usageVisitors);
+          const deferredVisitors = withProxyHopTrigger(withCatchExtractor(usageVisitors));
           path.traverse({
             ExpressionStatement(p) {
               if (!inserted.delete(p.node)) return;
@@ -1237,7 +1242,7 @@ export default function plugin(api, options) {
       // `null.has(...)` throws TypeError on every body child here
       function reTraverseHelperBodies(path) {
         if (!originalBodyNodes) return;
-        const helperWithCatch = withCatchExtractor(helperVisitors);
+        const helperWithCatch = withProxyHopTrigger(withCatchExtractor(helperVisitors));
         for (const childPath of path.get('body')) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperWithCatch);
         }

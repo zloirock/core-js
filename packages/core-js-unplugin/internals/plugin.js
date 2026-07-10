@@ -895,6 +895,7 @@ export default function createPlugin(options) {
           canFullyConsumeProxyDeclarator,
           collapseProxyHopRoot,
           handleDestructuringPure,
+          markLiftedSePrefixOperand,
           tryFlattenProxyHopHost,
         } = destructureEmitter;
 
@@ -942,7 +943,11 @@ export default function createPlugin(options) {
         // globalThis; new g.self.Array(3)` / `g['self'].Array.isArray(...)`): no leaf usage and no
         // `kind:'global'` trigger reaches the alias root, so the redundant `.self` / `.window` hop survives
         // and reads an undefined hop off the alias off-engine. `isAliasProxyHopChain` is the shared provider
-        // detection; peel to the root path and collapse (which self-gates on the hop again)
+        // detection; peel to the root path and collapse (which self-gates on the hop again). ALSO fired
+        // for a RESOLVED instance dispatch (its verbatim receiver claim hosts the collapse as a nested
+        // compose) - the skippedNodes root guard keeps a chain with several triggering metas
+        // (`g.self.Array...includes.call(...)` - the unresolved `.call` property meta plus the resolved
+        // `includes` instance meta) from queueing the same whole-span replacement twice
         function tryCollapseAliasProxyHop(node, metaPath) {
           const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
           if (!isAliasProxyHopChain(node, aliasCtx, true)) return;
@@ -950,6 +955,7 @@ export default function createPlugin(options) {
           while (rootPath.node.type === 'MemberExpression' || rootPath.node.type === 'OptionalMemberExpression') {
             rootPath = rootPath.get('object');
           }
+          if (skippedNodes.has(rootPath.node)) return;
           collapseProxyHopRoot(rootPath);
         }
 
@@ -1141,6 +1147,12 @@ export default function createPlugin(options) {
             replaceInstance({
               binding, node, parent, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
             });
+            // an alias-rooted receiver keeps its identifier, so the instance claim re-emits it
+            // verbatim and NO usage callback ever reaches the alias root (a method-EXTRACT chain
+            // has no unresolved sibling meta to fire the fallback below) - the redundant `.self`
+            // hop would survive to an off-engine throw. collapse it here; the drive composes into
+            // the claim as a nested transform and self-gates on non-alias / hop-free receivers
+            tryCollapseAliasProxyHop(node, metaPath);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
             replaceGlobalOrStatic({
               binding, node, parent, metaPath, inheritedStatic,
@@ -1190,6 +1202,12 @@ export default function createPlugin(options) {
           const { prefix, tail } = peelNestedSequenceExpressions(init);
           for (const operand of prefix) {
             if (!mayHaveSideEffects(operand)) walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
+            // a kept SE operand of a STATEMENT lift is re-emitted verbatim: record it so a
+            // proxy-hop host buried inside re-anchors as a nested compose on its later visit,
+            // matching babel's drain re-traversal of the lifted statement. a FOR-INIT sink
+            // re-embed stays un-anchored - babel's drain never reaches the sink clone, so
+            // re-anchoring here would desync the emitters on a runtime-equal shape
+            else if (!isForInit) markLiftedSePrefixOperand(operand);
           }
           if (!isForInit && tail !== init && !mayHaveSideEffects(tail)) {
             walkAstNodes({ root: tail, visit: n => skippedNodes.add(n) });

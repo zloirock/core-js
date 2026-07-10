@@ -121,6 +121,60 @@ function dropLeadingProxyHops(hops, aliasCtx, throughChainAssign = false) {
   return { boundary, droppedSe };
 }
 
+// collect a receiver's member hops down to its leaf, peeling transparent wrappers between hops:
+// ParenthesizedExpression (oxc emits for `(...)`), ChainExpression (oxc wraps the inside of a
+// paren'd optional chain to scope the `?.`), and TS expression wrappers (`as` / `satisfies` /
+// `!`). `hasMidChainWrappers` tells the caller a flat text slice would carry dangling wrapper
+// tokens (it rebuilds the chain instead)
+function walkReceiverHops(receiverObj) {
+  const hops = [];
+  let hasMidChainWrappers = false,
+      cur = receiverObj;
+  while (cur && (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression')) {
+    hops.push(cur);
+    let next = cur.object;
+    while (next && (next.type === 'ParenthesizedExpression' || next.type === 'ChainExpression'
+        || TS_EXPR_WRAPPERS.has(next.type))) {
+      hasMidChainWrappers = true;
+      next = next.expression;
+    }
+    cur = next;
+  }
+  return { hops, hasMidChainWrappers };
+}
+
+// an optional-rebind stitches the RAW source tail onto the memoized guard ref
+// (`_ref` + `.self.Array.prototype`) - redundant proxy hops right above the memoized
+// root must not survive into that tail (`_ref.self.X` reads undefined off-engine where
+// babel collapses the hop). walk the receiver chain down to the root, drop the leading
+// proxy hops via the shared collapse test, and return the advanced tail boundary; a
+// side-effecting dropped key has no SE channel on this path - keep the raw tail
+// (the sibling suppressInject gates bail the same way). null = nothing to drop
+function proxyTailBoundaryAfterRoot({ receiver, rootNode, metaPath, code, adapter }) {
+  const hops = [];
+  // the memoized root may sit inside wrappers the chain walk peels (`(a = globalThis)` -
+  // the paren is the rootNode, the walk lands on the assignment) - compare both spellings
+  const rootCore = unwrapNode(rootNode);
+  let cur = receiver;
+  while ((cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression')
+    && cur !== rootNode && cur !== rootCore) {
+    hops.push(cur);
+    let next = cur.object;
+    while (next && (next.type === 'ParenthesizedExpression' || next.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(next.type))) next = next.expression;
+    cur = next;
+  }
+  if ((cur !== rootNode && cur !== rootCore) || !hops.length) return null;
+  const aliasCtx = { scope: metaPath?.scope, adapter, path: metaPath };
+  const dropped = dropLeadingProxyHops(hops, aliasCtx, true);
+  if (!dropped.boundary || dropped.droppedSe.length) return null;
+  // position past an optional `?.` token after the boundary (keep the plain dot when the
+  // next surviving hop is dotted)
+  const p = skipGap(code, dropped.boundary.end);
+  const keepDot = !(hops.at(-1)?.computed ?? false);
+  return code[p] === '?' && code[p + 1] === '.' ? (keepDot ? p + 1 : p + 2) : dropped.boundary.end;
+}
+
 // find the hop of a proxy-global member chain that names a real polyfillable global static, so the
 // whole `<forwarder-chain>.Static` prefix collapses to the static's pure ctor in one step
 // (`globalThis.self.Map` -> `_Map`, not the inner `_self.Map`). `resolveObjectName` is the canonical
@@ -513,8 +567,14 @@ export function createPolyfillEmitter({
   //      (rebuild path emits property names verbatim, so source-tail is the right text)
   //   3. neither - bodyObj is source-aligned, slice by raw rootRaw length works
   function rebindBodyOnGuard({ bodyObj, guardRef, rootRaw, substituted, rootIsReceiver,
-    rootNodeEnd, receiverEnd, deoptPositions, objectStart }) {
+    rootNodeEnd, receiverEnd, deoptPositions, objectStart, tailBoundary = null }) {
     if (substituted && rootIsReceiver) return guardRef;
+    // an ADVANCED tail boundary (redundant proxy hops dropped above the memoized root)
+    // overrides both slice strategies: the surviving tail comes verbatim from source in
+    // either case, and slicing from the boundary is what drops the dead `.self` hop
+    if (tailBoundary !== null && receiverEnd !== undefined) {
+      return guardRef + stripOptionalDots(code.slice(tailBoundary, receiverEnd), tailBoundary, deoptPositions);
+    }
     if (substituted && rootNodeEnd !== undefined && receiverEnd !== undefined) {
       return guardRef + stripOptionalDots(code.slice(rootNodeEnd, receiverEnd), rootNodeEnd, deoptPositions);
     }
@@ -524,7 +584,8 @@ export function createPolyfillEmitter({
   function buildReplacement(binding, objectSrc, opts) {
     const { optionalRoot, rootRaw, deoptPositions, objectStart, preAllocatedGuardRef,
       substituted, rootIsReceiver, sideEffects, rootNodeEnd, receiverEnd, methodCall,
-      isNonIdent, seMode, receiverHasSE, receiverEffectCount = 0, bareParenLookup = false } = opts;
+      isNonIdent, seMode, receiverHasSE, receiverEffectCount = 0, bareParenLookup = false,
+      tailBoundary = null } = opts;
 
     let bodyObj = deoptPositions?.length ? stripOptionalDots(objectSrc, objectStart ?? 0, deoptPositions) : objectSrc;
     let guard = '';
@@ -576,7 +637,7 @@ export function createPolyfillEmitter({
         guard = `null == (${ guardRef } = ${ optionalRoot }) ? void 0 : `;
         bodyObj = rebindBodyOnGuard({
           bodyObj, guardRef, rootRaw, substituted, rootIsReceiver,
-          rootNodeEnd, receiverEnd, deoptPositions, objectStart,
+          rootNodeEnd, receiverEnd, deoptPositions, objectStart, tailBoundary,
         });
         // the guard already evaluated the receiver into `guardRef`, RUNNING its receiver-SE (a
         // side-effecting chain-root call `(call)?.self.X` -> `_ref = call`). the body wrap must NOT
@@ -924,6 +985,10 @@ export function createPolyfillEmitter({
       // by the binding-length delta and corrupts the tail (e.g. `.Y` -> `Y`)
       rootNodeEnd: rootNode?.end,
       receiverEnd: node.object.end,
+      // advanced past redundant proxy hops right above the memoized root - the raw
+      // stitched tail must not re-read them (`_ref.self.X` off-engine throw)
+      tailBoundary: optionalRootCapturesIntoRef && !methodCall && rootNode
+        ? proxyTailBoundaryAfterRoot({ receiver: node.object, rootNode, metaPath, code, adapter: estreeAdapter }) : null,
       parenLookupOnly, methodCall, bareParenLookup,
     });
     let { replacement } = built;
@@ -965,7 +1030,6 @@ export function createPolyfillEmitter({
 
   function handleSymbolIterator({ node, parent, metaPath, sideEffects = null, receiverEffectCount = 0, symbolReceiverProxyRoot = null }) {
     if (node.object?.type === 'Super') return;
-    skipDroppedKeyPrefix(node, sideEffects, skippedNodes);
     // computed key carrying a side effect (`obj[(fn(), Symbol.iterator)]`, nested sequences too):
     // meta.sideEffects already carries the prefix, so the getIterator / getIteratorMethod rewrite
     // preserves it as `(fn(), _getIterator(obj))`; a side-effecting receiver is hoisted ahead of the
@@ -977,7 +1041,11 @@ export function createPolyfillEmitter({
     // oxc has no OptionalCallExpression (optional calls are CallExpression + `optional`), and `new`
     // must not take the direct-iterator form - so the plain-call test is the dialect-specific input
     const entry = resolveSymbolIteratorEntry(node, parent, isCallParent && parent.type === 'CallExpression');
+    // the ENTRY gate must run before any node is marked skipped: on a filtered entry this
+    // member stays untouched, and a pre-marked dropped-key prefix would strand its raw
+    // proxy-global (the early return skips the collapse that owns it)
     if (!isEntryNeeded(entry)) return;
+    skipDroppedKeyPrefix(node, sideEffects, skippedNodes);
     const binding = injectPureImport(entry, symbolIteratorHint(entry));
     // `(arr?.[Symbol.iterator])()`: parens terminate the chain, so native evaluates
     // `(undefined)()` on nullish receiver and throws TypeError. mark parenLookupOnly so the
@@ -1055,16 +1123,19 @@ export function createPolyfillEmitter({
     // the WHOLE tail through the shared chain resolver and carry its source. that resolver keeps a pure ctor
     // (`globalThis.self.Map` -> `_Map`) and drops the redundant hop off a native static (`globalThis.self.Array`
     // -> `_globalThis.Array`) - a flat suffix-slice would emit `_globalThis.Map`, the unpolyfilled native Map.
-    // babel flattens these via its recursive collapse; a one-level peel here left the raw global ie:11
+    // babel flattens these via its recursive collapse; a one-level peel here left the raw global ie:11.
+    // `throughChainAssign` roots a chain-assign member tail (`(c++, (q = globalThis).self)`) like the
+    // sibling walkers; the recursive resolver below preserves the assignment as a SE, so no double-run
     const leafFromMember = tail?.type !== 'Identifier';
-    const leaf = leafFromMember ? findProxyGlobal(tail, aliasCtx) : tail;
+    const leaf = leafFromMember ? findProxyGlobal(tail, aliasCtx, true) : tail;
     if (leaf?.type !== 'Identifier') return null;
     if (tail !== leaf && maximalProxyGlobalPrefix(tail, aliasCtx) !== tail) {
       const collapsedTail = resolveProxyGlobalChainSrc(tail, metaPath);
       if (!collapsedTail) return null;
       return {
         leaf: collapsedTail.leafNode, pure: null, aliasBinding: null,
-        tailSrc: collapsedTail.src, prefixSrcs: seqPrefix.map(expr => nodeSrc(expr)),
+        tailSrc: collapsedTail.bindingInner ?? collapsedTail.src,
+        prefixSrcs: seqPrefix.map(expr => nodeSrc(expr)),
       };
     }
     const pure = resolveGlobalPolyfill(leaf.name);
@@ -1126,34 +1197,28 @@ export function createPolyfillEmitter({
       // the peeled RHS may sit inside wrappers belonging to the assignment text (`a = (c++, X)` -
       // the value is the sequence, the closing paren is source between value end and assign end):
       // keep that remainder so the re-emitted assignment stays balanced
-      const binding = `(${ code.slice(chainAssign.start, caRhs.start) }${ rhsSrc }${
+      const bindingInner = `${ code.slice(chainAssign.start, caRhs.start) }${ rhsSrc }${
         code.slice(caRhs.end, chainAssign.end) }, ${
-        [...dropped.droppedSe.map(effect => nodeSrc(effect)), rootBinding].join(', ') })`;
+        [...dropped.droppedSe.map(effect => nodeSrc(effect)), rootBinding].join(', ') }`;
+      const binding = `(${ bindingInner })`;
       skipCollapsedChainExceptRootCall(chainAssign, skippedNodes, dropped.droppedSe);
       // a MID-CHAIN wrapper (`((a = globalThis).self).Array`) makes the flat tail slice carry the
       // wrapper's dangling close token - rebuild the surviving hops inner-to-outer instead, like
-      // the main flow below (the hop dropper already popped the collapsed prefix off `hops`)
-      if (hasMidChainWrappers) return { src: rebuildWrappedProxyChain(hops, binding, code), leafNode: chainAssign };
-      const tailStart = afterOptional(dropped.boundary.end, !(hops.at(-1)?.computed ?? false));
-      return { src: binding + code.slice(tailStart, receiverObj.end), leafNode: chainAssign };
+      // the main flow below (the hop dropper already popped the collapsed prefix off `hops`).
+      // `bindingInner` hands the paren-free sequence body to an embedding SE-tail consumer when
+      // the WHOLE result is the binding: a nested `(c++, (q = _globalThis, _globalThis))`
+      // flattens to the babel canon `(c++, q = _globalThis, _globalThis)`
+      if (hasMidChainWrappers) {
+        return {
+          src: rebuildWrappedProxyChain(hops, binding, code), leafNode: chainAssign,
+          bindingInner: hops.length ? undefined : bindingInner,
+        };
+      }
+      const tail = code.slice(afterOptional(dropped.boundary.end, !(hops.at(-1)?.computed ?? false)), receiverObj.end);
+      return { src: binding + tail, leafNode: chainAssign, bindingInner: tail ? undefined : bindingInner };
     }
 
-    const hops = [];
-    let hasMidChainWrappers = false,
-        cur = receiverObj;
-    while (cur && (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression')) {
-      hops.push(cur);
-      let next = cur.object;
-      // peel transparent wrappers between hops: ParenthesizedExpression (oxc emits for `(...)`),
-      // ChainExpression (oxc wraps the inside of a paren'd optional chain to scope the `?.`),
-      // and TS expression wrappers (`as` / `satisfies` / `!`)
-      while (next && (next.type === 'ParenthesizedExpression' || next.type === 'ChainExpression'
-          || TS_EXPR_WRAPPERS.has(next.type))) {
-        hasMidChainWrappers = true;
-        next = next.expression;
-      }
-      cur = next;
-    }
+    const { hops, hasMidChainWrappers } = walkReceiverHops(receiverObj);
     const wrappedLeaf = hops.at(-1).object,
           unwrappedLeaf = unwrapNode(wrappedLeaf);
     // SE-tail leaf: a member chain rooted at a sequence with a polyfillable proxy-global tail
@@ -1179,8 +1244,11 @@ export function createPolyfillEmitter({
         skipNode;
     // an ALIAS-rooted SE tail (`pure` is null) with a proxy-global STATIC defers to the static handler below,
     // which already collapses an alias-bound static (`const g = globalThis; (c++, g.self).Map` -> `(c++, _Map)`);
-    // the SE-tail static rebind here assumes a pure-importable root and would truncate `hops` and crash
+    // the SE-tail static rebind here assumes a pure-importable root and would truncate `hops` and crash.
+    // an optional-rebind caller (`suppressInject`) DISCARDS this src - bail like the sibling collapsing
+    // branches so the guard owns the collapse and no dead pure import registers
     if (seTail && (seTail.pure || !staticPure)) {
+      if (suppressInject) return null;
       skipNode = seTail.leaf;
       if (staticPure) {
         // rebind the SE tail to the static, keeping the prefix effects ahead of it in eval order:
