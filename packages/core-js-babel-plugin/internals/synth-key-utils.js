@@ -1,8 +1,11 @@
+import { computedKeysAllBound } from '@core-js/polyfill-provider/helpers/ast-patterns';
+
 // babel-plugin: computed-key synth-swap safety gate. a computed key is safe to mirror into a synth
 // literal (`[k]: _polyfill` / `[k]: receiver[k]`) when it resolves to a STABLE in-scope value: a user
 // local (`const k = 'of'`) or a genuine user import (replayed losslessly as `[X]: receiver[X]`). it is
 // UNSAFE when:
-//   - it has no binding (a bare global like `[Set]`) - emitted raw it ReferenceErrors on the target
+//   - it has no binding (a bare global like `[Set]`) - emitted raw it ReferenceErrors on the target;
+//     this half is the provider rule (`computedKeysAllBound`) shared with unplugin's gate
 //   - its binding is a polyfill-rewritten well-known symbol. babel mutates `[Symbol.iterator]` to
 //     `[_Symbol$iterator]` (a core-js pure import) BEFORE this gate runs, so it reads as an
 //     Identifier; unplugin's deferred text-transform still sees the original `Symbol.iterator`
@@ -19,9 +22,6 @@ export function patternComputedKeysSynthSafe(t, objectPatternNode, scope, isInje
     if (!p.computed || !t.isIdentifier(p.key)) continue;
     // a polyfill-rewritten member key (`[Symbol.iterator]` -> `[_Symbol$iterator]`) - bail to match unplugin
     if (isInjectedReference(p.key)) return false;
-    // no binding: a bare global (`[Set]`) emitted raw ReferenceErrors on the target - unsafe.
-    // any other in-scope value (user local / user import) replays losslessly as `[X]: receiver[X]`
-    if (!scope.getBinding(p.key.name)) return false;
   }
-  return true;
+  return computedKeysAllBound(objectPatternNode, scope);
 }
