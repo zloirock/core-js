@@ -29,10 +29,10 @@
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
 import {
   collectQualifiedSegments, isMethodShapeMember, isQualifiedNameNode, isUnionType, peelTSParenthesized,
-  matchOverloadByArgs, typeRefName,
+  typeRefName,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
-import { getTypeArgs, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isMemberWriteHost, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
 import { staticMemberKeyName } from '../helpers/class-walk.js';
 
 const CLASS_PATH_TYPES = ['ClassDeclaration'];
@@ -50,6 +50,7 @@ export function createMemberResolve({
   applyAliasSubstDeep,
   shadowMethodTypeParams,
   foldUnionTypes,
+  foldOverloadReturns,
   followTypeAliasChain,
   applySubst,
   isNullableOrNever,
@@ -73,6 +74,8 @@ export function createMemberResolve({
   indexAccessKeyKind,
   resolveMemberPropertyName,
   resolveRuntimeExpression,
+  resolveInnerType,
+  collectBindingReferences,
   resolveThisObject,
   resolveObjectFieldFlow,
   findAmbientClassPath,
@@ -162,6 +165,30 @@ export function createMemberResolve({
 
   // --- Method-call return resolver ---
 
+  // callable member SHAPE, annotation presence NOT required: an implicit-any overload
+  // (`parse(x: number);`) must stay in the overload set so the fold's widen sees it -
+  // gating membership on the return annotation drops it before arg-discrimination and
+  // lets a surviving annotated arm narrow a call TS types as `any`. function-typed
+  // properties always carry a return in the grammar, so their shape check IS the
+  // annotation check
+  function isCallableMemberShape(member) {
+    if (member.kind === 'get' || member.kind === 'set') return false;
+    switch (member.type) {
+      case 'TSMethodSignature':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+      case 'TSDeclareMethod':
+        return true;
+      case 'MethodDefinition':
+        return !!member.value;
+      case 'TSPropertySignature':
+        return !!functionTypeReturnAnnotation(unwrapTypeAnnotation(member.typeAnnotation));
+      case 'ObjectTypeProperty':
+        return !!functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value));
+    }
+    return false;
+  }
+
   // extract the return type annotation from a method/property call signature
   function memberCallReturnAnnotation(member) {
     // a getter (or setter) signature is not callable as a method - narrowing the CALL to the
@@ -221,55 +248,27 @@ export function createMemberResolve({
   function resolveMemberCallReturnFromAnnotation({ annotation, name, scope, resolve, depth, subst, callPath }) {
     const members = getTypeMembers({ objectType: annotation, scope, depth });
     if (!members) return null;
-    const matchingMembers = members.filter(m => keyMatchesName(m.key, name) && memberCallReturnAnnotation(m));
-    const argMatched = selectOverloadByArgs(matchingMembers, callPath);
-    const resolvedReturns = [];
-    for (const member of argMatched ? [argMatched] : matchingMembers) {
+    const matchingMembers = members.filter(m => keyMatchesName(m.key, name) && isCallableMemberShape(m));
+    // apply subst so generic alias method returns (`type Box<T> = { get(): T[] }`) bind T
+    // through every nested shape (arrays/tuples/unions), not just top-level references. but a method
+    // that declares its OWN `<T>` shadows the outer alias's `T`: remap those signature-local params
+    // to `unknown` first (shadowMethodTypeParams) so the outer subst can't capture them
+    // (`Box<number[]>.get<T>(): T` must stay generic, not resolve the method's T to number[] ->
+    // `_atMaybeArray` on the real foreign return, ie:11 throw). dropping instead of shadowing would
+    // re-bind the bare `T` to the receiver arg via scope lookup - the same capture.
+    // the canon's nullable check runs on the SUBSTITUTED annotation, so it sees the same
+    // shape `resolve` failed on; an annotation-less (implicit-any) arm yields null here and
+    // the canon widens the whole set to generic
+    function substitutedReturn(member) {
       const returnAnnotation = memberCallReturnAnnotation(member);
-      if (!returnAnnotation) continue;
-      // apply subst so generic alias method returns (`type Box<T> = { get(): T[] }`) bind T
-      // through every nested shape (arrays/tuples/unions), not just top-level references. but a method
-      // that declares its OWN `<T>` shadows the outer alias's `T`: remap those signature-local params
-      // to `unknown` first (shadowMethodTypeParams) so the outer subst can't capture them
-      // (`Box<number[]>.get<T>(): T` must stay generic, not resolve the method's T to number[] ->
-      // `_atMaybeArray` on the real foreign return, ie:11 throw). dropping instead of shadowing would
-      // re-bind the bare `T` to the receiver arg via scope lookup - the same capture
+      if (!returnAnnotation) return null;
       const memberSubst = subst ? shadowMethodTypeParams(memberCallTypeParameters(member), subst) : null;
-      const substituted = memberSubst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), memberSubst) : returnAnnotation;
-      const resolved = resolve(substituted);
-      if (resolved) {
-        resolvedReturns.push(resolved);
-        continue;
-      }
-      // a NON-nullable arm we couldn't resolve (bare generic `<T>`, complex type) makes the whole divergent
-      // set uncertain - we can't prove this arm isn't a foreign type - so widen to generic rather than collapse
-      // to the arms that did resolve (which would emit their type-specific Maybe). a nullable / never arm is
-      // empty and stays skippable
-      if (!isNullableOrNeverAnnotation(unwrapTypeAnnotation(substituted))) return null;
+      return memberSubst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), memberSubst) : returnAnnotation;
     }
-    if (!resolvedReturns.length) return null;
-    if (resolvedReturns.length === 1) return resolvedReturns[0];
-    // arg-match already collapsed to one member when it could; a multi-element set here means the args
-    // were unresolvable / accepted by several overloads. fold: convergent (incl. compatible containers like
-    // `number[]`/`string[]` -> Array) -> the widened type; DIVERGENT (`number[]` vs `string`) -> null
-    // (generic), NOT the first arm - picking it emits a type-specific Maybe that throws on a foreign return
-    return foldUnionTypes(resolvedReturns, r => r);
-  }
-
-  // TS overload selection: the FIRST signature whose params accept the call args wins. returns that member
-  // (so its return type is used), or null when there is nothing to choose between (<=1 candidate), the
-  // args aren't all simple primitives, or no overload's primitive-keyword params line up - the caller then
-  // folds / best-effort-firsts. deliberately conservative: only `string` / `number` / `boolean` keyword
-  // params are matched (a literal / complex / generic param is indeterminate, so that overload is skipped).
-  // this is enough to disambiguate the common `f(x: string): A; f(x: number): B` arg-discriminated shape
-  // without a full assignability engine; richer shapes safely fall through to the fold
-  function selectOverloadByArgs(matchingMembers, callPath) {
-    const argPaths = callPath?.get('arguments');
-    if (!Array.isArray(argPaths)) return null;
-    // literal-aware overload select (DOM `createElement`, registries, discriminated getters): a literal arg
-    // picks its matching overload PRECISELY - including mixed literal+keyword params - else divergent overloads
-    // widen to generic, not first-arm
-    return matchOverloadByArgs(matchingMembers, m => m.parameters ?? m.params, argPaths, resolveNodeType);
+    return foldOverloadReturns(matchingMembers, m => m.parameters ?? m.params, member => {
+      const substituted = substitutedReturn(member);
+      return substituted ? resolve(substituted) : null;
+    }, substitutedReturn, callPath);
   }
 
   // union/intersection method calls - for `x: A | B` or `x: A & B` calling `x.foo()`,
@@ -672,15 +671,86 @@ export function createMemberResolve({
   }
 
   // arr[0], arr[1] - numeric index access on array literals
+  // element-type precision is only sound while nothing can RETYPE the elements between
+  // the array's creation and the read: an element write (`a[0] = "x"`), a mutating method
+  // (`a.unshift(v)` / `a.fill(v)`), or ANY escape of the binding (call argument, alias,
+  // spread - the holder may write elements) invalidates it. whitelist: a reference is safe
+  // only as a member-access READ off the binding with a non-mutating key. the object-field
+  // twin consults its external-write fold the same way; destructure-time element reads
+  // (`const [x] = a`) copy the value at execution and stay exempt
+  const ELEMENT_MUTATING_METHODS = new Set([
+    'copyWithin',
+    'fill',
+    'pop',
+    'push',
+    'reverse',
+    'shift',
+    'sort',
+    'splice',
+    'unshift',
+  ]);
+
+  function arrayElementsMayBeRetyped(objectPath, anchorPath) {
+    if (!t.isIdentifier(objectPath.node)) return false;
+    const binding = getScopeBinding(objectPath.scope, objectPath.node.name, objectPath);
+    if (!binding) return true;
+    for (const ref of collectBindingReferences(binding, anchorPath) ?? []) {
+      const member = ref.parentPath;
+      const memberNode = member?.node;
+      // a WHOLE-binding write (plain reassign / update / for-x head) is the FLOW layer's
+      // domain: it replaces the value the element read resolves from, so it is not an
+      // element retype - a conditional / undominated form already bails upstream, and a
+      // dominating one IS the value source (treating it as unsafe over-bailed
+      // `x = [[9]]; x[0].at(0)`)
+      if (memberNode?.type === 'AssignmentExpression' && memberNode.left === ref.node) continue;
+      if (memberNode?.type === 'UpdateExpression' && memberNode.argument === ref.node) continue;
+      if ((memberNode?.type === 'ForOfStatement' || memberNode?.type === 'ForInStatement')
+        && memberNode.left === ref.node) continue;
+      // NON-RETENTIVE reads never leak the reference to a potential writer: a typeof /
+      // void / logical-not (any unary but `delete`), a binary comparison / arithmetic
+      // (boolean / primitive result), and a bare condition slot (`if (x)`, `c ? ... :`,
+      // `switch (x)`). a logical / conditional BRANCH position forwards the reference
+      // and stays an escape
+      if (memberNode?.type === 'UnaryExpression' && memberNode.operator !== 'delete') continue;
+      if (memberNode?.type === 'BinaryExpression') continue;
+      if ((memberNode?.type === 'IfStatement' || memberNode?.type === 'WhileStatement'
+        || memberNode?.type === 'DoWhileStatement' || memberNode?.type === 'ConditionalExpression')
+        && memberNode.test === ref.node) continue;
+      if (memberNode?.type === 'SwitchStatement' && memberNode.discriminant === ref.node) continue;
+      const isMemberRead = (memberNode?.type === 'MemberExpression' || memberNode?.type === 'OptionalMemberExpression')
+        && memberNode.object === ref.node;
+      if (!isMemberRead) return true;
+      if (isMemberWriteHost(member)) return true;
+      // canonical key extraction so a computed-literal spelling (`a["unshift"]`) matches
+      // the mutating set exactly like the dotted form; a CALL through an UNRESOLVED
+      // dynamic key (`a[m]("x")`) may be any mutator at runtime, so it bails too -
+      // a dynamic-key pure READ stays safe (reading cannot retype)
+      const calleeOfParent = (member.parentPath?.node?.type === 'CallExpression'
+        || member.parentPath?.node?.type === 'OptionalCallExpression')
+        && member.parentPath.node.callee === memberNode;
+      if (calleeOfParent) {
+        const key = memberKeyName(memberNode);
+        if (key === null || key === undefined || ELEMENT_MUTATING_METHODS.has(key)) return true;
+      }
+    }
+    return false;
+  }
+
   function resolveArrayIndexAccess(path) {
     if (!path.node.computed) return null;
     const resolvedProp = resolveRuntimeExpression(path.get('property'));
     if (!isLiteralOf(resolvedProp.node, 'Numeric')) return null;
     const index = resolvedProp.node.value;
     if (!Number.isInteger(index) || index < 0) return null;
-    const objectPath = resolveRuntimeExpression(path.get('object'));
-    if (!t.isArrayExpression(objectPath.node)) return null;
-    return resolveArrayLiteralElement(objectPath, index);
+    const rawObject = path.get('object');
+    const objectPath = resolveRuntimeExpression(rawObject);
+    if (arrayElementsMayBeRetyped(rawObject, path)) return null;
+    if (t.isArrayExpression(objectPath.node)) return resolveArrayLiteralElement(objectPath, index);
+    // a receiver whose RESOLVED type carries an element type (a rest-slice, an inner-typed
+    // binding) yields it for a non-negative integer index: the value route above needs a
+    // literal array node, but the element family is already proven by the receiver's type
+    const objectType = resolveNodeType(objectPath);
+    return objectType?.constructor === 'Array' ? resolveInnerType(objectType) : null;
   }
 
   // collect runtime member-expression segments: bare `E` -> ['E'], non-computed dotted chain
