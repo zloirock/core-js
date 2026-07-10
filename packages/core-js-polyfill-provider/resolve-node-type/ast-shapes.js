@@ -295,22 +295,6 @@ export function primitiveTypeKind(type) {
   return PRIMITIVE_HINTS.has(type) ? type : null;
 }
 
-// TS overload selection by argument primitive kinds: the FIRST overload whose primitive-keyword params line
-// up with `argKinds` wins (`getParams(overload)` -> its param list). null when there is nothing to
-// disambiguate (<=1 overload), an arg is non-primitive / unknown, or no overload provably matches - the
-// caller then folds / best-effort-firsts. conservative (keywords only, no full assignability engine), but
-// enough to fix the common `f(x: string): A; f(x: number): B` arg-discriminated shape across resolvers
-export function selectOverloadByArgKinds(overloads, getParams, argKinds) {
-  if (overloads.length < 2 || !argKinds.length || argKinds.includes(null)) return null;
-  for (const ov of overloads) {
-    const params = getParams(ov);
-    if (params && params.length === argKinds.length && params.every((p, i) => paramPrimitiveKind(p) === argKinds[i])) {
-      return ov;
-    }
-  }
-  return null;
-}
-
 // the literal VALUE of a literal NODE (a call arg or a TSLiteralType's `.literal`) for overload
 // discrimination, via the canonical cross-parser extractor (babel `BigIntLiteral` and an oxc bigint
 // `Literal` canonicalize to one BigInt value; `-N` negations resolve). a non-primitive `.value`
@@ -327,30 +311,69 @@ export function paramLiteralValue(param) {
   return lit?.type === 'TSLiteralType' ? overloadLiteralValue(lit.literal) : undefined;
 }
 
-// TS overload selection by args, LITERAL-aware. a literal-discriminated overload (`get('a'): A; get('b'): B`,
-// possibly MIXED with keyword params) is matched per-param: a LITERAL param by its `.value` against the arg's
-// literal value, a KEYWORD param by primitive kind - and at least one literal param must line up (else it is
-// a pure-kind shape, deferred to `selectOverloadByArgKinds`). null when nothing disambiguates -> caller widens.
-// `argPaths` are the call's argument paths; the literal is read off the arg NODE (the resolved type erases it),
-// the kind from `resolveNodeType`. owning this extraction keeps the matcher's input contract in one place
+// TS overload selection by args - FIRST-MATCH faithful, LITERAL-aware. the walk is in
+// declaration order (TS picks the FIRST overload whose params accept the args) and stops at
+// the first verdict that isn't a provable NON-match:
+//   - provable MATCH (exact arity, every param a keyword matching the arg's kind or a
+//     literal matching the arg node's literal value) -> that overload wins;
+//   - provable NON-match (a keyword/literal param rejects its arg, extra REQUIRED params) ->
+//     skip to the next overload;
+//   - anything AMBIGUOUS (an `unknown` / `any` / union / generic param, an unresolvable arg
+//     kind, a same-family literal param without an arg literal to compare, optional / rest
+//     arity) -> null. an ambiguous EARLIER overload might be the TS-selected arm, so
+//     single-selecting a later one would narrow to the wrong arm - the caller's fold widens
+//     the divergent set to generic instead.
+// `argPaths` are the call's argument paths; the literal is read off the arg NODE (the
+// resolved type erases it), the kind from `resolveNodeType`
 export function matchOverloadByArgs(overloads, getParams, argPaths, resolveNodeType) {
   if (overloads.length < 2) return null;
   const argLiterals = argPaths.map(a => overloadLiteralValue(a.node));
   const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
-  if (argLiterals.some(v => v !== undefined)) {
-    const byLiteral = overloads.find(ov => {
-      const params = getParams(ov);
-      if (params?.length !== argLiterals.length) return false;
-      let anyLiteralParam = false;
-      const ok = params.every((p, i) => {
-        const pLit = paramLiteralValue(p);
-        if (pLit === undefined) return paramPrimitiveKind(p) === argKinds[i];
-        anyLiteralParam = true;
-        return pLit === argLiterals[i];
-      });
-      return ok && anyLiteralParam;
-    });
-    if (byLiteral) return byLiteral;
+  for (const ov of overloads) {
+    const params = getParams(ov);
+    if (!params) return null;
+    if (params.length !== argKinds.length) {
+      // a rest param, or extra params that are ALL optional, may still accept the call -
+      // not provable here, bail to the fold; extra REQUIRED params provably reject it
+      if (params.some(p => p.type === 'RestElement')) return null;
+      if (params.length > argKinds.length
+        && params.slice(argKinds.length).every(p => p.optional)) return null;
+      continue;
+    }
+    let verdict = 'match';
+    for (let i = 0; i < params.length; i++) {
+      const param = params[i];
+      if (param.type === 'RestElement') {
+        verdict = 'ambiguous';
+        break;
+      }
+      const paramLit = paramLiteralValue(param);
+      if (paramLit !== undefined) {
+        if (argLiterals[i] !== undefined) {
+          if (paramLit === argLiterals[i]) continue;
+          verdict = 'non-match';
+          break;
+        }
+        // a WIDE arg of the literal's own family may still hold the literal value at
+        // runtime through a const binding the kind extraction erased - undecidable
+        verdict = argKinds[i] !== null && typeof paramLit !== argKinds[i] ? 'non-match' : 'ambiguous';
+        break;
+      }
+      const keywordKind = paramPrimitiveKind(param);
+      if (keywordKind !== null) {
+        if (argKinds[i] === null) {
+          verdict = 'ambiguous';
+          break;
+        }
+        if (keywordKind === argKinds[i]) continue;
+        verdict = 'non-match';
+        break;
+      }
+      verdict = 'ambiguous';
+      break;
+    }
+    if (verdict === 'match') return ov;
+    if (verdict === 'ambiguous') return null;
   }
-  return selectOverloadByArgKinds(overloads, getParams, argKinds);
+  return null;
 }

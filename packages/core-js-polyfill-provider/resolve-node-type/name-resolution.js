@@ -157,9 +157,6 @@ export function createNameResolution({ t }) {
     return walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false }) ?? [];
   }
 
-  function findAmbientFunctionPath(name, scope) {
-    return findAmbientDeclarationPath(name, scope, isAmbientFunctionNode);
-  }
   // `declare class X { ... }` - babel doesn't bind the name as a value (unlike runtime
   // `class X`), so `resolveRuntimeExpression(X)` returns the bare Identifier. without an
   // ambient lookup, `X.staticMethod()` skips the class-member resolution path entirely
@@ -603,7 +600,6 @@ export function createNameResolution({ t }) {
     isClassLikeDeclaration,
     findAmbientDeclarationPath,
     findAmbientFunctionPaths,
-    findAmbientFunctionPath,
     findAmbientClassPath,
     findNamespacedFunctionPath,
     findOverloadsForName,

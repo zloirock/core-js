@@ -18,7 +18,7 @@ import { $Object, $Primitive, literalNodeValue } from './base.js';
 import {
   isMethodShapeMember, isOpenKeywordAnnotation, isUnionType, peelTSParenthesized, readonlyCollectionBase, typeRefSegments,
 } from './ast-shapes.js';
-import { getTypeArgs, singleQuasiString } from '../helpers/ast-patterns.js';
+import { getTypeArgs, propertyKeyName, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
@@ -79,7 +79,11 @@ export function createTypeAnnotationResolve({
       if (!target.inner) return true;
       return innersEqual(candidate.inner, target.inner);
     }
-    // any non-primitive is assignable to object / Object
+    // capital `Object` (boxed-top): every candidate but null / undefined / never is
+    // assignable (`Extract<string | number[], Object>` keeps BOTH arms in TS - dropping
+    // the primitive arm narrowed the union to a wrong-family Maybe on a runtime string)
+    if (target.topObject) return !isNullableOrNever(candidate);
+    // any non-primitive is assignable to lowercase `object` / a structural literal shape
     return !candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object');
   }
 
@@ -150,7 +154,9 @@ export function createTypeAnnotationResolve({
       return resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
     }
     const known = resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
-    if (known) return known;
+    // capital `Object` accepts primitives in assignability (unlike lowercase `object`);
+    // its resolution stays constructor-null so member dispatch keeps the generic helpers
+    if (known) return name === 'Object' ? known.mark('topObject') : known;
     function firstArg() {
       // peeled: oxc keeps a parenthesized utility-type arg (`ReturnType<(typeof f)>`)
       // as TSParenthesizedType where babel strips it - the `.type` dispatches on the
@@ -376,9 +382,19 @@ export function createTypeAnnotationResolve({
     if (!members) return null;
     const valueAnnotations = [];
     for (const m of members) {
-      // a SETTER carries no readable value on access - it contributes nothing to the READ union
-      // (the single-key path breaks on setters too; a setter-only slot reads as undefined)
-      if (isMethodShapeMember(m.type) && m.kind === 'set') continue;
+      // a setter arm skips only when a PAIRED reader (getter / data member on the same key)
+      // supplies the slot's read type; a SET-ONLY accessor still reads as its param type in
+      // TS, so `S[keyof S]` includes it - dropping the arm narrowed the union to the
+      // surviving members (wrong-family Maybe on the setter-typed runtime value). the
+      // param type isn't extracted here (rare shape) - the whole union bails to generic
+      if (isMethodShapeMember(m.type) && m.kind === 'set') {
+        const key = propertyKeyName(m);
+        const paired = key !== null && key !== undefined && members.some(other => other !== m
+          && !(isMethodShapeMember(other.type) && other.kind === 'set')
+          && propertyKeyName(other) === key);
+        if (paired) continue;
+        return null;
+      }
       // a (non-getter) method's VALUE is the function itself, not its return type: fold the
       // member NODE - it resolves to Function exactly like the single-key `T['method']` mirror,
       // so a mixed union (method + concrete container) BAILS through the fold instead of
