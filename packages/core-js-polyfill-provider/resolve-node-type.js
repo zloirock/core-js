@@ -19,6 +19,7 @@ import {
   GENERATOR_LIKE_NAMES,
   MAX_DEPTH,
   PATTERN_WRAPPERS,
+  $Primitive,
   PROMISE_SYNONYMS,
   SINGLE_ELEMENT_COLLECTIONS,
   STRUCTURE_PRESERVING_WRAPPERS,
@@ -479,7 +480,6 @@ function createResolveNodeType(babelNodeType, t, {
     isClassLikeDeclaration,
     findAmbientDeclarationPath,
     findAmbientFunctionPaths,
-    findAmbientFunctionPath,
     findAmbientClassPath,
     findNamespacedFunctionPath,
     findOverloadsForName,
@@ -1001,7 +1001,7 @@ function createResolveNodeType(babelNodeType, t, {
   // genuine reaching write wins regardless of order. returns the init ONLY when that reaching write
   // is a redecl - a recorded reassignment reaching instead returns null, leaving the caller's
   // recorded-violation branch (which handles `=` + destructure-assignment slots) to take over
-  function reachingStaleVarRedeclInit(binding, usagePath, name) {
+  function findReachingStaleRedecl(binding, usagePath, name) {
     const gapNodes = new Set(staleVarRedeclNodes(binding, usagePath, name));
     if (!gapNodes.size) return null;
     let owner = usagePath;
@@ -1012,7 +1012,12 @@ function createResolveNodeType(babelNodeType, t, {
     if (!redeclPaths.length) return null;
     const combined = [...binding.constantViolations ?? [], ...redeclPaths];
     const reaching = findLastStraightLineAssignment({ ...binding, constantViolations: combined }, usagePath);
-    if (reaching?.node?.type !== 'VariableDeclarator' || !reaching.node.init) return null;
+    return reaching?.node?.type === 'VariableDeclarator' && reaching.node.init ? reaching : null;
+  }
+
+  function reachingStaleVarRedeclInit(binding, usagePath, name) {
+    const reaching = findReachingStaleRedecl(binding, usagePath, name);
+    if (!reaching) return null;
     const initPath = reaching.get('init');
     // a destructure-pattern redecl (`var [x] = ['s']`) binds the SLOT for `name`, not the whole RHS -
     // follow the key-path to the destructured element, the same way resolvePath's assignment-destructure
@@ -1022,20 +1027,55 @@ function createResolveNodeType(babelNodeType, t, {
     if (id?.type === 'ArrayPattern' || id?.type === 'ObjectPattern') {
       const keyPath = findPatternKeyPath(id, name, reaching.scope);
       if (!keyPath) return null;
-      // a rest-bound slot (`[...r]`, `[a, [...b]]`) is always an Array - but the RHS being spread is
-      // not necessarily one: `var [...r] = "abc"` spreads a STRING into a fresh Array, so returning the
-      // RHS init would mis-type the slot as the RHS (`_atMaybeString` on an Array). return the RHS only
-      // when it itself resolves to an Array (the slot then IS that array, and resolving the reaching RHS
-      // keeps the narrow precise where `resolveBindingType` can't - estree drops the redecl's scope);
-      // otherwise bail to the generic helper (sound on the array). a key READ off a rest
-      // (`[...{ length }]`) likewise bails (NOT the rest array itself)
-      const restIndex = keyPath.indexOf(-1);
-      if (restIndex !== -1) {
-        return restIndex === keyPath.length - 1 && resolveNodeType(initPath)?.constructor === 'Array' ? initPath : null;
+      // a rest-bound slot is always an Array - but the RHS being spread is not necessarily
+      // one: `var [...r] = "abc"` spreads a STRING into a fresh Array, so returning the RHS
+      // init would mis-type the slot as the RHS (`_atMaybeString` on an Array). the RHS
+      // aliases the slot ONLY for the exact whole-RHS shape - a single-step position-0 rest
+      // (`var [...r] = rhs`) whose RHS itself resolves to an Array. a positioned rest
+      // (`[a, ...r]` - a slice), a nested rest (`[a, [...b]]` - an element's slice), and a
+      // key READ off a rest (`[...{ length }]`) all bail to the generic helper (sound on
+      // the array) - the sentinel cannot prove whole-RHS coverage there
+      if (keyPath.some(step => typeof step === 'number' && step < 0)) {
+        return keyPath.length === 1 && keyPath[0] === -1
+          && resolveNodeType(initPath)?.constructor === 'Array' ? initPath : null;
       }
       return followKeyPathInRhs(initPath, keyPath) ?? null;
     }
     return initPath;
+  }
+
+  // a dominating var-redecl binding the name through an array-REST has no single RHS node
+  // to hand back when the slot is a SLICE (`var [a, ...rest] = [[1], 2, 3]` - rest is
+  // [2, 3]), so the path machinery above declines - but the slice TYPE is still derivable:
+  // an Array whose inner is the literal tail elements' common type (`rest[0]` then resolves
+  // number and a number receiver injects nothing). a spread / hole in the RHS, a non-literal
+  // RHS, or a key READ off the rest keep the bare-Array degrade (inner unknown); the
+  // whole-RHS `[...r]` shape with a STRING rhs is the same slice family (chars -> string)
+  function resolveStaleRedeclSliceType(binding, usagePath, name) {
+    const reaching = findReachingStaleRedecl(binding, usagePath, name);
+    if (!reaching) return null;
+    const { id } = reaching.node;
+    if (id?.type !== 'ArrayPattern') return null;
+    const keyPath = findPatternKeyPath(id, name, reaching.scope);
+    if (keyPath?.length !== 1 || typeof keyPath[0] !== 'number' || keyPath[0] >= 0) return null;
+    const initPath = reaching.get('init');
+    const sliceStart = -keyPath[0] - 1;
+    const initNode = initPath.node;
+    if (initNode?.type === 'ArrayExpression' && initNode.elements?.length >= 0) {
+      if (initNode.elements.some(el => !el || el.type === 'SpreadElement')) return new $Object('Array');
+      let inner = null;
+      const elements = initPath.get('elements');
+      for (let i = sliceStart; i < elements.length; i++) {
+        const resolved = resolveNodeType(elements[i]);
+        if (!resolved) return new $Object('Array');
+        inner = i === sliceStart ? resolved : commonType(inner, resolved);
+        if (!inner) return new $Object('Array');
+      }
+      return new $Object('Array', safeInnerType(inner));
+    }
+    // spreading a STRING builds an Array of its chars
+    if (resolveNodeType(initPath)?.type === 'string') return new $Object('Array', new $Primitive('string'));
+    return new $Object('Array');
   }
 
   // --- Type utilities & runtime expression resolver ---
@@ -1600,6 +1640,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveComputedKeyName,
     getKeyName,
     findLastStraightLineAssignment,
+    resolveStaleRedeclSliceType,
     withLookupPath,
     functionTypeParams: (...args) => functionTypeParams(...args),
     collectBindingReferences,
@@ -1687,7 +1728,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveReturnType,
     foldOverloadReturns,
-    findAmbientFunctionPath,
     findAmbientFunctionPaths,
     resolveFromMemberExpression: (...args) => resolveFromMemberExpression(...args),
     resolveKnownStaticReturnType,
@@ -1853,6 +1893,7 @@ function createResolveNodeType(babelNodeType, t, {
     applyAliasSubstDeep,
     shadowMethodTypeParams,
     foldUnionTypes,
+    foldOverloadReturns,
     followTypeAliasChain,
     applySubst,
     isNullableOrNeverAnnotation,
@@ -1874,6 +1915,8 @@ function createResolveNodeType(babelNodeType, t, {
     indexAccessKeyKind,
     resolveMemberPropertyName,
     resolveRuntimeExpression,
+    resolveInnerType,
+    collectBindingReferences,
     resolveThisObject,
     resolveObjectFieldFlow,
     findAmbientClassPath,
@@ -1974,6 +2017,7 @@ function createResolveNodeType(babelNodeType, t, {
     findEarlyExitGuards,
     guardAppliesToBinding,
     getStatementSiblings,
+    resolveExitCondition,
   } = typeofGuardsCluster;
 
   // guard-narrowing cluster: filters union annotations / synthesises from positive guards.
@@ -1997,6 +2041,7 @@ function createResolveNodeType(babelNodeType, t, {
     findEarlyExitGuards,
     getStatementSiblings,
     canFallThrough,
+    resolveExitCondition,
   });
   const {
     resolveGuardType,
@@ -2020,6 +2065,7 @@ function createResolveNodeType(babelNodeType, t, {
     getCachedType: node => resolvedTypeCache.get(node),
     resolvePath,
     resolveNodeType,
+    resolveBindingType,
     resolveRuntimeExpression,
     unwrapTypeAnnotation,
     resolveGlobalName,

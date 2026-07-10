@@ -17,7 +17,7 @@ import {
 } from './base.js';
 import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { spreadAtOrBefore, varInitStaleByRedecl } from '../helpers/ast-patterns.js';
+import { spreadAtOrBefore, staleVarRedeclNodes, varInitStaleByRedecl } from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
   t,
@@ -46,6 +46,7 @@ export function createPatternBindings({
   resolveComputedKeyName,
   getKeyName,
   findLastStraightLineAssignment,
+  resolveStaleRedeclSliceType,
   withLookupPath,
   functionTypeParams,
   collectBindingReferences,
@@ -69,9 +70,11 @@ export function createPatternBindings({
     for (let i = 0; i < (arrayPattern.elements?.length ?? 0); i++) {
       const el = arrayPattern.elements[i];
       if (!el) continue;
-      // rest: [...x] is always Array - signal via negative index so callers know
+      // rest: [...x] is always Array - signal via negative index so callers know.
+      // `-1` = position-0 rest (may alias the WHOLE RHS); a later-positioned rest binds a
+      // SLICE, encoded `-(i + 1)` so a slice can never claim whole-RHS coverage downstream
       if (el.type === 'RestElement') {
-        if (el.argument?.type === 'Identifier' && el.argument.name === name) return [-1];
+        if (el.argument?.type === 'Identifier' && el.argument.name === name) return [-(i + 1)];
         // nested ArrayPattern inside rest (`[a, ...[head]] = arr`). the rest slice has
         // the same element type as the source; an inner positional access at `j` then maps
         // to source index `i + j` (rest starts at outer position `i`)
@@ -87,7 +90,7 @@ export function createPatternBindings({
         // `length` -> number, numeric -> element - needs the source element type)
         if (el.argument?.type === 'ObjectPattern') {
           const inner = findDestructuredKeyPath(el.argument, name, scope);
-          if (inner) return [-1, ...inner];
+          if (inner) return [-(i + 1), ...inner];
         }
         continue;
       }
@@ -135,8 +138,12 @@ export function createPatternBindings({
     if (!defaultPath) return memberType;
     const presence = staticMemberPresence(pattern, varName, bindingPath);
     // a statically PRESENT member (`const [a = 0] = ['x']`) keeps the default DEAD - the
-    // member's type alone is precise
-    if (memberType && presence === 'present') return memberType;
+    // member's type alone is precise. `staticMemberPresence` is purely SYNTACTIC (any
+    // non-`undefined` value node reads as present), so a mayBeNullish member value
+    // (`{ a: maybe }` with `maybe: string | undefined`) must not shortcut here - at runtime
+    // the default still fires on the nullish path, and the member's type alone narrows to
+    // the wrong family; fall through to the member x default fold instead
+    if (memberType && presence === 'present' && !memberType.mayBeNullish) return memberType;
     const defaultType = resolveNodeType(defaultPath);
     // a statically ABSENT member (`const [a = 'x'] = []`, `const { a = 'x' } = {}`) means the
     // default always fires - its type alone is precise
@@ -566,7 +573,11 @@ export function createPatternBindings({
       } else if (type === 'ArrayPattern') {
         const idx = cur.node.elements?.indexOf(prev.node);
         if (idx === undefined || idx < 0) return null;
-        result.unshift(idx);
+        // a REST element is not the value at its position - it collects a SLICE, so its
+        // positive index would key the wrong element type (`[...{ at }]` read element 0).
+        // the `-1` sentinel makes element-keyed consumers bail and rest-aware ones
+        // resolve the slice as Array
+        result.unshift(prev.node?.type === 'RestElement' ? -1 : idx);
       }
       prev = cur;
       cur = cur.parentPath;
@@ -739,6 +750,64 @@ export function createPatternBindings({
   // single Identifier path; never recurses through the resolver entry-point on the binding
   // itself (callers use this as the leaf of an `Identifier` resolution chain). returns null
   // for any non-Identifier path or unresolvable binding shape
+  // the binding's OWN declaration / loop-head iteration write is not a reassignment: babel
+  // canonicalizes a for-x head as the ForX statement (an ANCESTOR of the head declarator),
+  // estree records the declared pattern identifier itself (a DESCENDANT of it) - both
+  // describe the initial binding the structural narrow already models. a REAL violation
+  // node (assignment / update / a for-x head re-targeting an OUTER binding) never nests
+  // with the declarator in either direction
+  function isOwnBindingWrite(violation, bindingPath) {
+    for (let cur = violation; cur; cur = cur.parentPath) if (cur.node === bindingPath.node) return true;
+    for (let cur = bindingPath; cur; cur = cur.parentPath) if (cur.node === violation.node) return true;
+    return false;
+  }
+
+  // a STRUCTURAL narrow (rest / destructure slot / default-param / for-of element) reflects
+  // the binding's initial value only: a recorded reassignment that the straight-line walk
+  // cannot dominate (a conditional / loop write) may replace it with a foreign family at
+  // runtime, so the narrow must bail to generic. a DOMINATING straight-line write is
+  // intercepted by resolvePath before this leaf is consulted, so a null walk result with
+  // non-empty foreign violations is exactly the undominated case. annotation-based narrows
+  // stay un-gated - the declared type already covers every TS-legal reassignment
+  function structuralNarrowInvalidated(binding, path, ignorableRebind = null) {
+    // any surviving foreign write bails UNCONDITIONALLY: a dominating write with a
+    // RESOLVABLE value is intercepted upstream (resolvePath's straight-line / redecl
+    // machinery) and never reaches this leaf - so a write observed here is either
+    // undominated (conditional / loop) or dominated-but-unresolvable, and in both cases
+    // the binding's runtime value is not the structural slot this leaf would narrow to
+    const foreign = binding.constantViolations?.filter(v => !isOwnBindingWrite(v, binding.path)
+      && !ignorableRebind?.(v.node));
+    if (foreign?.length) return true;
+    // a `var` RE-DECLARATION reaches here with an empty violation list on the estree lane
+    // (no native record; the canonical recovery deliberately excludes declarator-shaped
+    // writes for the positional redecl machinery) - consult the positional scan directly.
+    // a redecl is legal over var / param / hoisted-function / catch-param bindings - every
+    // kind except the block-scoped ones (whose redecl is a parse error and never reaches
+    // us) and imports; gating on kind === 'var' alone left a `var x` over a PARAM stale
+    // on the estree lane
+    const { kind } = binding;
+    return kind !== 'let' && kind !== 'const' && kind !== 'module'
+      && staleVarRedeclNodes(binding, path, path.node.name).some(node => !ignorableRebind?.(node));
+  }
+
+  // a REST slot's family is RHS-INDEPENDENT (`var [...r] = "abc"` spreads into a fresh
+  // Array; `{ ...rest }` is always an Object): when the ORIGINAL binding and a re-declaration
+  // both bind the name through a rest slot of the SAME family, the redecl cannot change the
+  // structural narrow - it is ignorable for invalidation. null = not a rest binding
+  function restRebindFamily(node, name) {
+    if (node?.type === 'RestElement' && node.argument?.type === 'Identifier'
+      && node.argument.name === name) return 'Array';
+    if (node?.type === 'VariableDeclarator') return nestedRestType(node.id, name)?.constructor ?? null;
+    return null;
+  }
+
+  // invariance filter for a binding whose CURRENT declaration is a same-family rest slot
+  function sameRestFamilyRebind(binding, name) {
+    const original = restRebindFamily(binding.path?.node, name);
+    if (!original) return null;
+    return node => restRebindFamily(node, name) === original;
+  }
+
   function resolveBindingType(path) {
     if (!t.isIdentifier(path.node)) return null;
     const binding = getScopeBinding(path.scope, path.node.name, path);
@@ -746,6 +815,12 @@ export function createPatternBindings({
     const { path: bindingPath } = binding;
     const { name } = path.node;
     const { node } = bindingPath;
+    // a dominating var-redecl whose slot for `name` is an array-rest SLICE has no RHS node
+    // the redecl path machinery could hand back - its slice TYPE resolves here instead,
+    // before the reassignment gate below treats the redecl as an invalidating write
+    const sliceType = binding.kind !== 'let' && binding.kind !== 'const' && binding.kind !== 'module'
+      && resolveStaleRedeclSliceType(binding, path, name);
+    if (sliceType) return sliceType;
     // rest-param: `function f(...xs) { xs.at(0) }` - `xs` is always an Array at runtime
     // regardless of call-site. annotated form (`...xs: T[]`) flows through the annotation
     // branch below; unannotated falls here. without this, `.at(0)` on `xs` dispatches the
@@ -753,17 +828,17 @@ export function createPatternBindings({
     if (node?.type === 'RestElement') {
       const annotated = findBindingAnnotation(bindingPath);
       if (annotated) return resolveTypeAnnotation(annotated, bindingPath.scope);
-      return new $Object('Array');
+      return structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(binding, name)) ? null : new $Object('Array');
     }
-    // destructured object: for (const { a } of ...) or const { a } = ...
+    // destructured object / array: for (const { a } of ...) / const [a] = ...
     const objectPattern = findBindingPattern(node, 'ObjectPattern');
-    if (objectPattern) {
-      return foldWithPatternDefault(resolveObjectBinding(objectPattern, name, bindingPath), objectPattern, name, bindingPath);
-    }
-    // destructured array: for (const [a] of ...) or const [a] = ...
-    const arrayPattern = findBindingPattern(node, 'ArrayPattern');
-    if (arrayPattern) {
-      return foldWithPatternDefault(resolveArrayBinding(arrayPattern, name, bindingPath), arrayPattern, name, bindingPath);
+    const pattern = objectPattern ?? findBindingPattern(node, 'ArrayPattern');
+    if (pattern) {
+      if (structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(binding, name))) return null;
+      const slot = objectPattern
+        ? resolveObjectBinding(pattern, name, bindingPath)
+        : resolveArrayBinding(pattern, name, bindingPath);
+      return foldWithPatternDefault(slot, pattern, name, bindingPath);
     }
     // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
     // must NOT be reached for destructured bindings - their pattern-level annotation
@@ -778,7 +853,7 @@ export function createPatternBindings({
     // `items` to the raw `T[]` from the method signature and dispatches the generic polyfill
     // instead of the array-specific helper
     if (node?.type === 'Identifier' && bindingPath.parentPath?.node && t.isFunction(bindingPath.parentPath.node)) {
-      const inferred = inferCallbackParamType(bindingPath);
+      const inferred = !structuralNarrowInvalidated(binding, path) && inferCallbackParamType(bindingPath);
       if (inferred) return inferred;
     }
     // unannotated Identifier param with default value (`function f(x = [1,2,3])`). the default's
@@ -788,11 +863,13 @@ export function createPatternBindings({
     // default only when every call omits the arg (or passes `undefined` / `void`, which trigger
     // the default), else resolve generic
     if (node?.type === 'AssignmentPattern' && node.left?.type === 'Identifier' && node.left.name === name) {
+      if (structuralNarrowInvalidated(binding, path)) return null;
       return defaultParamNeverOverridden(bindingPath) ? resolveNodeType(bindingPath.get('right')) : null;
     }
     // for-in / for-of (only for direct bindings - destructured bindings return early above)
     const forLoopParent = findForLoopParent(bindingPath);
     if (forLoopParent) {
+      if (structuralNarrowInvalidated(binding, path)) return null;
       // for-in: iteration variable is always a string per ECMAScript spec
       if (t.isForInStatement(forLoopParent.node)) return new $Primitive('string');
       // for-of / for-await-of: infer element type from the iterable
