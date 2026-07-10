@@ -29,6 +29,7 @@ import {
   patternBindsName,
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
+  ownThisMemberKeyName,
 } from '../helpers/ast-patterns.js';
 import { isPrivateMemberNode, nodeRangeContains } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
@@ -127,11 +128,18 @@ export function createClassFields({
   // a `#field` write is lexically pinned to its declaring class body, so a private field's writer set
   // is exactly the `<expr>.#field = Y` writes inside `classNode` - `internalThisScan` covers only the
   // `this.#field` subset, missing `C.#field = Y` (class binding) and `other.#field = Y` (sibling
-  // instance). a nested class declaring a same-named `#field` shares the module-field-index key, so the
-  // fold is scoped by NEAREST enclosing class (range containment would over-fold the nested twin)
-  function nearestEnclosingClassIsThis(writePath, classNode) {
+  // instance). the scope walk stops at the nearest enclosing class THAT DECLARES a same-named
+  // private member: a lexically-nested class WITHOUT its own `#field` still binds the outer
+  // declaring class's slot, so its writes belong to the outer fold; a nested same-named twin
+  // shares the module-field-index key and is excluded
+  function nearestEnclosingClassIsThis(writePath, classNode, fieldName) {
+    // canonical `#name` spelling on both sides so a public same-named member never shadows
+    const spelled = typeof fieldName === 'string' && !fieldName.startsWith('#') ? `#${ fieldName }` : fieldName;
     for (let p = writePath.parentPath; p && !t.isProgram(p.node); p = p.parentPath) {
-      if (t.isClass(p.node)) return p.node === classNode;
+      if (!t.isClass(p.node)) continue;
+      if (p.node === classNode) return true;
+      const declaresTwin = (p.node.body?.body ?? []).some(m => m?.key && ownThisMemberKeyName(m) === spelled);
+      if (declaresTwin) return false;
     }
     return false;
   }
@@ -388,7 +396,7 @@ export function createClassFields({
         // already pushed). descendant / closure are unbuilt for private (programGate short-circuits)
         if (isPrivate) {
           foldExternalWrites({
-            fieldName, predicate: p => nearestEnclosingClassIsThis(p, classPath.node), bound: Infinity, program, out: candidates,
+            fieldName, predicate: p => nearestEnclosingClassIsThis(p, classPath.node, fieldName), bound: Infinity, program, out: candidates,
           });
           return;
         }
@@ -441,7 +449,7 @@ export function createClassFields({
         // closure / descendant are unbuilt for private (programGate short-circuits)
         if (isPrivate) {
           foldExternalWrites({
-            fieldName, predicate: p => nearestEnclosingClassIsThis(p, classPath.node), bound: Infinity, program, out: candidates,
+            fieldName, predicate: p => nearestEnclosingClassIsThis(p, classPath.node, fieldName), bound: Infinity, program, out: candidates,
           });
           return;
         }
@@ -478,6 +486,7 @@ export function createClassFields({
   // keys the cache by (objectExpression, fieldName) so distinct missing fields on the same
   // literal don't share a slot
   let objectFieldTypeCache = new WeakMap();
+  let objectFnPropWriteCache = new WeakMap();
   let objectFieldMissingSentinels = new WeakMap();
   function resolveObjectFieldFlow(objectPath, fieldName, callPath) {
     const prop = findObjectMember(objectPath, fieldName);
@@ -489,6 +498,17 @@ export function createClassFields({
       // return semantics. without the peel the flow-fold path mis-treats the cast-wrapped function
       // as a plain data field and loses the call return type
       if (t.isObjectProperty?.(prop.node) && t.isFunction?.(unwrapRuntimeExpr(prop.node.value))) {
+        // a function-valued DATA prop is reassignable like any data prop: any observed write
+        // to the slot (`o.fn = () => 'x'`) invalidates the init function's call/return
+        // narrowing - the runtime value may be a foreign-family function - so bail to the
+        // generic helper; an unknown writer set (exported / leaked literal) bails too.
+        // prop=null reuses the missing-field collector shape: writes only, no init.
+        // memoized per prop node - repeated `o.fn()` queries must not re-walk the module
+        const written = memoize(objectFnPropWriteCache, prop.node, () => {
+          const writes = collectObjectFieldCandidates(objectPath, null, fieldName);
+          return !writes || writes.length > 0;
+        });
+        if (written) return null;
         return resolveObjectMember(objectPath, fieldName, callPath);
       }
     }
@@ -646,7 +666,9 @@ export function createClassFields({
     };
     for (const path of methodPaths) {
       if (!path?.node) continue;
-      scanForThisWrites(path.node.type === 'StaticBlock' ? path : path.get('body'));
+      // function-like roots scan their body; a StaticBlock or a raw non-fn field
+      // initializer value (no `.body` slot) scans as-is
+      scanForThisWrites(path.node.type === 'StaticBlock' || !path.node.body ? path : path.get('body'));
     }
     return index;
   }
@@ -714,6 +736,9 @@ export function createClassFields({
       if (isPropertyMember(bodyMember.node)) {
         const fnPath = fieldFunctionPath(bodyMember);
         if (fnPath) paths.push(fnPath);
+        // non-fn static initializer: `this` is the class - same scan-root rule as the
+        // instance branch above
+        else if (bodyMember.node.value) paths.push(bodyMember.get('value'));
       }
     }
     return paths;
@@ -735,10 +760,14 @@ export function createClassFields({
           continue;
         }
         // arrow / FE-valued instance fields: `this` is the instance (captured at constructor
-        // run), so internal `this.X = ...` writes mutate the field-flow surface
+        // run), so internal `this.X = ...` writes mutate the field-flow surface. a NON-fn
+        // initializer runs at construction with the same `this` - a buried write inside it
+        // (`poison = (this.items = "s")`) mutates the surface exactly like a constructor
+        // write, so its raw value path joins the scan roots
         if (isPropertyMember(bodyMember.node)) {
           const fnPath = fieldFunctionPath(bodyMember);
           if (fnPath) methodFns.push(fnPath);
+          else if (bodyMember.node.value) methodFns.push(bodyMember.get('value'));
         }
       }
     } else if (t.isObjectExpression(ownerPath.node)) {
@@ -769,6 +798,7 @@ export function createClassFields({
   function reset() {
     classFieldTypeCache = new WeakMap();
     objectFieldTypeCache = new WeakMap();
+    objectFnPropWriteCache = new WeakMap();
     objectFieldMissingSentinels = new WeakMap();
     instanceMethodThisWritesCache = new WeakMap();
     staticMethodThisWritesCache = new WeakMap();

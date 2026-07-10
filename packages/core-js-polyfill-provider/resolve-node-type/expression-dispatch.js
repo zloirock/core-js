@@ -26,6 +26,7 @@ export function createExpressionDispatch({
   getCachedType,
   resolvePath,
   resolveNodeType,
+  resolveBindingType,
   resolveRuntimeExpression,
   unwrapTypeAnnotation,
   resolveGlobalName,
@@ -134,6 +135,7 @@ export function createExpressionDispatch({
     // side-channel opaque to sibling plugins / AST-cloning libraries
     const cached = getCachedType(path.node);
     if (cached) return cached;
+    const entryNode = path.node;
     path = resolvePath(path);
     const cachedAfter = getCachedType(path.node);
     if (cachedAfter) return cachedAfter;
@@ -146,7 +148,13 @@ export function createExpressionDispatch({
       case 'TSInstantiationExpression':
         return resolveNodeType(path.get('expression'));
       case 'Identifier':
-        return resolvePrototypeAsInstance(path) || resolveKnownGlobalReference(path);
+        // the value-follow landed on a DIFFERENT binding (an assignment RHS / alias init):
+        // the runtime value IS that binding's value, so its declared annotation types it
+        // exactly like a direct use would (`x = arr; x.includes(1)` types by arr's
+        // `number[]`). without this the caller's fallback annotates only the ORIGINAL
+        // identifier, and a value-backed follow to an annotation-only binding lost the type
+        return resolvePrototypeAsInstance(path) || resolveKnownGlobalReference(path)
+          || (path.node !== entryNode ? resolveBindingType(path) : null);
       case 'NullLiteral':
         return new $Primitive('null');
       case 'StringLiteral':

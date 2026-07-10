@@ -778,7 +778,7 @@ export function createTypeExpansion({
     // readonly collection reached through an alias / type-param indirection (`match.container` is the
     // mutable base name, so a `ReadonlyX<infer U>` pattern - container `ReadonlyX` - never matches)
     if (readonlyCheckVsMutablePattern(node.checkType, node.extendsType)
-      || (checkType.readonly && checkType.constructor === match.container)) return INFER_PATTERN_FALSE;
+      || (checkType.readonly && !match.readonlyPattern && checkType.constructor === match.container)) return INFER_PATTERN_FALSE;
     // constraint AST (TSStringKeyword / TSNumberKeyword / ...) must pass through
     // resolveTypeAnnotation first; `substituteTypeParams` inserts the value as-is, and
     // downstream consumers expect the internal `$Primitive` / `$Object` shape rather than
@@ -848,13 +848,21 @@ export function createTypeExpansion({
     // oxc keeps a parenthesized extends-clause (`(Array<infer U>)`) as TSParenthesizedType where
     // babel strips it - peel so both parsers reach the inner pattern shape
     let node = peelTSParenthesized(unwrapTypeAnnotation(extendsType));
-    // peel `readonly X` modifier (TSTypeOperator operator='readonly')
-    if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') node = peelTSParenthesized(node.typeAnnotation);
+    // peel `readonly X` modifier (TSTypeOperator operator='readonly') but REMEMBER it: the
+    // operator form `readonly (infer U)[]` is a readonly pattern like `ReadonlyArray<infer U>`,
+    // and a readonly CHECK is assignable to it (TRUE branch) - peeling without the flag made
+    // the readonly-vs-mutable rejection below fire on a readonly-to-readonly match
+    let readonlyPattern = false;
+    if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') {
+      readonlyPattern = true;
+      node = peelTSParenthesized(node.typeAnnotation);
+    }
     if (node?.type === 'TSArrayType') {
       // babel wraps `(infer U)` in TSParenthesizedType; oxc collapses to bare TSInferType.
       // peel the wrapper so both shapes reach the inner inference name. `(infer U)[]` is
       // sugar for `Array<infer U>` - the collection family, Array container
-      return extractInferTarget(peelTSParenthesized(node.elementType), 'collection', 'Array');
+      const match = extractInferTarget(peelTSParenthesized(node.elementType), 'collection', 'Array');
+      return match && readonlyPattern ? { ...match, readonlyPattern } : match;
     }
     if (node?.type === 'TSTypeReference') {
       const name = typeRefName(node);
