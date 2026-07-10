@@ -2805,6 +2805,22 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('base: $Primitive mark keeps literal', markedPrim.literal, 's');
   check('base: $Primitive mark keeps primitive flag', markedPrim.primitive, true);
 
+  // unmark: the strip counterpart of mark - clears on a CLONE, no-ops when absent, same
+  // registry guard. exists for both-required markers (readonly) that an identity-returned
+  // fold input may already carry
+  const stripped = marked.unmark('mayBeNullish');
+  check('base: unmark clears the marker on the clone', stripped.mayBeNullish, false);
+  check('base: unmark leaves the original marked', marked.mayBeNullish, true);
+  check('base: unmark no-ops on an unmarked type', arr.unmark('mayBeNullish'), arr);
+  check('base: unmark clone keeps constructor', stripped.constructor, 'Array');
+  check('base: unmark clone keeps other markers', marked.mark('readonly').unmark('mayBeNullish').readonly, true);
+  try {
+    marked.unmark('maybeNullish');
+    fail('base: unmark rejects a name outside the registry', 'did not throw');
+  } catch (error) {
+    check('base: unmark rejects a name outside the registry', error.constructor, TypeError);
+  }
+
   // primitiveTypeOf: $Primitive('bigint') -> 'bigint'
   check('base: primitiveTypeOf bigint primitive', primitiveTypeOf(new $Primitive('bigint')), 'bigint');
   // primitiveTypeOf: $Object('Number') unwraps via UNBOXED_PRIMITIVES table -> 'number'
@@ -6729,6 +6745,598 @@ runBoth('pickarm: known Array super keeps the narrow',
     checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
   });
 
+// FIRST-MATCH overload discrimination across every call-return site: implicit-any arms
+// stay in the set (widen), object-type call signatures / aliased `typeof fn` calls /
+// overloaded callees under a member chain discriminate by args instead of picking
+// first / last, and an earlier non-analyzable param bails to the fold
+
+function atReceiver(adapter, prog) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at')
+    ?? adapter.pickPath(prog, 'OptionalMemberExpression', p => p.node.property?.name === 'at');
+  return adapter.makeResolver().resolveNodeType(member.get('object'));
+}
+function checkGenericAt(adapter, prog, lbl) {
+  const type = atReceiver(adapter, prog);
+  check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+}
+
+runBoth('pickarm: implicit-any interface overload arm widens the call to generic',
+  'interface P { parse(x: string): string[]; parse(x: number); }\ndeclare const p: P;\np.parse(123).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: fully-annotated interface overload still arg-narrows',
+  'interface P { parse(x: string): string[]; parse(x: number): string[]; }\ndeclare const p: P;\np.parse(123).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: implicit-any declare-class overload arm widens the call to generic',
+  'declare class C { m(x: number); m(x: string): number[]; }\ndeclare const c: C;\nc.m(5).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: object-type call signatures arg-discriminate (not last-arm)',
+  'interface Make { (x: number): number[]; (x: string): string; }\ndeclare const make: Make;\nmake(5).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: object-type call signatures widen on an indiscriminable arg',
+  'interface Make { (x: number): number[]; (x: string): string; }\ndeclare const make: Make;\nfunction g(u) { return make(u).at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: aliased `typeof fn` CALL arg-discriminates (not last-arm)',
+  'declare function fn(x: number): number[];\ndeclare function fn(x: string): string;\ndeclare const g: typeof fn;\ng(0).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: type-level `ReturnType<typeof fn>` keeps the rightmost overload',
+  'declare function fn(x: number): number[];\ndeclare function fn(x: string): string;\ndeclare const v: ReturnType<typeof fn>;\nv.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: overloaded ambient callee under a member chain arg-discriminates',
+  'declare function pick(x: string): { m: number[] };\ndeclare function pick(x: number): { m: string };\npick(0).m.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: overloaded interface method under a member chain arg-discriminates',
+  'interface W { m(x: string): { v: number[] }; m(x: number): { v: string }; }\ndeclare const w: W;\nw.m(0).v.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: an earlier non-analyzable overload param bails to the fold (TS first-match)',
+  'declare function parse(input: unknown): string;\ndeclare function parse(input: string): number[];\ndeclare const s: string;\nparse(s).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: a provably non-matching literal first arm still selects the second',
+  'declare function tag(x: "a"): string;\ndeclare function tag(x: number): number[];\ntag(5).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: a literal-typed identifier arg folds instead of wrong-selecting the keyword arm',
+  'declare function tag(x: "a"): number[];\ndeclare function tag(x: string): string;\nconst k = "a";\ntag(k).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// spread args break positional inference but must stay OPAQUE-guarded: the declared
+// type-param default must not leak onto a spread-fed param TS infers from the element
+
+// positional (non-rest) signature: the harness oxc lane cannot scope-crawl an ambient
+// rest-param (estree-toolkit limitation); a spread onto positional params exercises the
+// same inference bail + opaque-guarded default fill
+runBoth('pickarm: spread arg keeps the type-param default opaque (generic)',
+  'declare function makeBox<T = number[]>(t: T, u?: T): { v: T };\ndeclare const arr: string[];\nconst r = makeBox(...arr);\nr.v.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: positional arg still infers the type-param (no default)',
+  'declare function makeBox<T = number[]>(t: T): { v: T };\ndeclare const s: string;\nconst r = makeBox(s);\nr.v.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+// `S[keyof S]` accessor arms: a SET-ONLY accessor still reads as its param type in TS,
+// so the value union bails instead of narrowing to the surviving members; a PAIRED
+// getter supplies the slot's read type and the setter arm skips
+
+runBoth('pickarm: set-only accessor arm bails the keyof-self value union',
+  'interface S { set foo(v: string); xs: number[]; }\ndeclare const val: S[keyof S];\nval.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: paired getter keeps the keyof-self value union narrow',
+  'interface S { get foo(): number[]; set foo(v: number[]); xs: number[]; }\ndeclare const val: S[keyof S];\nval.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// `readonly (infer U)[]` operator form is a READONLY pattern: a readonly check binds U
+// (TRUE branch) exactly like the `ReadonlyArray<infer U>` reference form
+
+runBoth('pickarm: readonly infer operator form binds U on a readonly check',
+  'type UnwrapArray<T> = T extends readonly (infer U)[] ? U : number[];\ndeclare const x: UnwrapArray<ReadonlyArray<string>>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: readonly infer operator form binds U on a mutable check',
+  'type UnwrapArray<T> = T extends readonly (infer U)[] ? U : number[];\ndeclare const x: UnwrapArray<string[]>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: mutable `Array<infer U>` pattern still rejects a readonly check',
+  'type UnwrapArray<T> = T extends Array<infer U> ? U : number[];\ndeclare const x: UnwrapArray<ReadonlyArray<string>>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// capital `Object` is the boxed-top type: `Extract` keeps primitive arms against it
+// (`string extends Object` is true in TS), unlike lowercase `object`
+
+runBoth('pickarm: Extract against capital Object keeps the primitive arm (generic union)',
+  'declare const x: Extract<string | number[], Object>;\nx.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: Extract against lowercase object drops the primitive arm',
+  'declare const x: Extract<string | number[], object>;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// topObject is a MAY-union: a union target accepts primitives when ANY arm is the boxed-top
+// `Object`, in either arm order
+
+runBoth('pickarm: Extract vs `Object | object` keeps the primitive arm (Object first)',
+  'declare const x: Extract<string | number[], Object | object>;\nx.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: Extract vs `object | Object` keeps the primitive arm (Object second)',
+  'declare const x: Extract<string | number[], object | Object>;\nx.at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// optional-chain call forms route through the same overload discrimination; a spread arg
+// stays indiscriminable and folds
+
+runBoth('pickarm: optional call arg-discriminates the overload set',
+  'interface P { m(x: string): string; m(x: number): number[]; }\ndeclare const p: P;\np?.m(5).at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('pickarm: optional member-chained overload arg-discriminates',
+  'interface W { m(x: number): { v: string }; m(x: string): { v: number[] }; }\ndeclare const w: W;\nw?.m(0).v.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('pickarm: spread call arg keeps the overload set indiscriminable (fold)',
+  'interface P2 { m(x: string): string; m(x: number): number[]; }\ndeclare const p: P2;\ndeclare const xs: number[];\np.m(...xs).at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a function-valued object DATA prop is reassignable like any data prop: an observed
+// write to the slot bails the call narrowing; a write-free slot keeps it
+
+runBoth('pickarm: written function-valued object prop bails the call narrow',
+  'const o = { fn: () => [1, 2] };\no.fn = () => "s";\no.fn().at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: write-free function-valued object prop keeps the call narrow',
+  'const o = { fn: () => [1, 2] };\no.fn().at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a POSITIONED rest (`[a, ...rest]`) binds a SLICE - the whole-RHS redecl shortcut is
+// provable only for the exact `[...r]` shape
+
+// a positioned rest never narrows to the whole RHS; its SLICE type resolves instead -
+// Array of the literal tail's common element type, so an element read is family-precise
+
+runBoth('pickarm: positioned rest var-redecl resolves the slice element, not the whole RHS',
+  'var rest = "abc";\n{ var [a, ...rest] = [[1], 2, 3]; }\nrest[0].at(-1);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
+  }, undefined, 'script');
+
+runBoth('pickarm: positioned rest slice is an Array for direct member dispatch',
+  'var rest = "abc";\n{ var [a, ...rest] = [[1], 2, 3]; }\nrest.includes(2);',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  }, undefined, 'script');
+
+runBoth('pickarm: heterogeneous slice tail keeps the element generic',
+  'var rest = "abc";\n{ var [a, ...rest] = [[1], 2, "x"]; }\nrest[0].at(-1);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl), undefined, 'script');
+
+runBoth('pickarm: whole-rest string RHS spreads to an Array of chars',
+  'var r = 0;\n{ var [...r] = "abc"; }\nr[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  }, undefined, 'script');
+
+runBoth('pickarm: a spread in the redecl RHS keeps the slice element generic',
+  'var rest = "abc";\nfunction f(xs: number[]) { { var [a, ...rest] = [1, ...xs]; } return rest[0].at(-1); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('pickarm: whole-RHS rest var-redecl keeps the element narrow',
+  'var r = "abc";\n{ var [...r] = [[1], 2, 3]; }\nr[0].at(-1);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  }, undefined, 'script');
+
+// STALE-NARROW invalidation: a guard / structural narrow must not survive a write the
+// flow analysis cannot dominate - the runtime value may be a foreign family at the use
+
+// the guard narrow is invalidated AND the fall-through branch's trailing assignment
+// DOMINATES the post-if use (the other branch hard-exits), so the reassigned value's
+// own type resolves precisely
+
+runBoth('stale-narrow: non-exiting consequent reassign resolves to the reassigned type',
+  'function f(x: unknown) { if (typeof x === "string") { x = 5; } else throw 0; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
+  });
+
+runBoth('stale-narrow: non-exiting alternate reassign resolves to the reassigned type',
+  'function f(x: string | number[], arr: number[]) { if (typeof x !== "string") { return null; } else { x = arr; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// dominance boundaries of the fall-through rule: the EXITING branch's write never leaks,
+// dual sibling-branch writes bail on the positional overwrite guard, a write nested in an
+// inner conditional stays conditional, a labeled-break "exit" resumes at the use (not an
+// exit), and `else if` chains compose level by level
+
+runBoth('stale-narrow: exiting-branch write does not leak to the post-if use',
+  'function f(x: number[], c) { if (c) { x = "s"; return null; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow: dual sibling-branch writes bail',
+  'function f(c, arr: number[]) { let x: unknown; if (c) { x = 5; } else { x = arr; return null; } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: nested-conditional write inside the fall-through branch stays conditional',
+  'function f(x: unknown, d) { if (typeof x === "string") { if (d) x = 5; } else throw 0; return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: labeled-break sibling branch is not a hard exit',
+  'function f(x: string | number[], arr: number[]) { outer: { if (typeof x !== "string") { break outer; } else { x = arr; } } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: else-if chain of hard exits composes the dominance',
+  'function f(x: unknown, q) { if (typeof x === "string") { x = 5; } else if (q) { throw 0; } else { throw 1; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'number' });
+  });
+
+// try / catch and loop boundaries of the fall-through dominance: a caught throw resumes
+// AFTER the try, so only a use INSIDE the try (past the if) is dominated; catch-body and
+// post-try uses are not. per-iteration dominance holds inside a loop body; a use BEFORE
+// the if keeps the back-edge bail
+
+runBoth('stale-narrow: use after the try is not dominated (caught throw resumes)',
+  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch {} return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: use inside the try past the if is dominated',
+  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; return x.at(0); } catch {} }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow: catch-body use is not dominated',
+  'function f(x: unknown, arr: number[]) { try { if (typeof x === "string") { x = arr; } else throw 0; } catch { return x.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: loop-body use before the if keeps the back-edge bail',
+  'declare const c: boolean;\nfunction f(x: unknown, arr: number[]) { while (c) { const r = x.at(0); if (typeof x === "string") { x = arr; } else throw 0; return r; } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('landed-follow: closure-captured use is not followed',
+  'function f(arr: number[]) { let x: unknown; x = arr; return () => x.includes(1); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// integer-literal element access reads the receiver TYPE's element when no literal array
+// value is reachable (known return types, slices); a dynamic index stays generic
+
+runBoth('element access: known-return Array element resolves by inner type',
+  'declare const s: string;\nconst v = s.split(",")[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('element access: dynamic index keeps the element generic',
+  'declare const s: string;\ndeclare const i: number;\nconst v = s.split(",")[i].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// element-type precision bails when anything can RETYPE the elements between creation
+// and the read: an element write, a mutating array method, or any escape of the binding
+// (a holder may write elements). read-only-referenced bindings keep the precision
+
+runBoth('element access: element write retypes - literal route bails',
+  'const a = [1, 2];\na[0] = "x";\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: element write retypes - slice route bails',
+  'var rest = "s";\n{ var [h, ...rest] = [[1], 2, 3]; }\nrest[0] = "x";\nconst v = rest[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl), undefined, 'script');
+
+runBoth('element access: mutating method call bails',
+  'const a = [1, 2];\na.unshift("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: call-argument escape bails',
+  'declare function touch(xs: unknown): void;\nconst a = [1, 2];\ntouch(a);\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: read-only-referenced binding keeps the element precision',
+  'const a = [[1], [2]];\nconst total = a[0].includes(1);\nconst v = a[1].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: delete of an element bails',
+  'const a = [[1], [2]];\ndelete a[0];\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: destructure-assignment element write bails',
+  'const a = [[1], [2]];\n[a[0]] = ["x"];\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: computed-literal mutating method spelling bails',
+  'const a = [[1], [2]];\na["unshift"]("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: optional mutating call bails',
+  'const a = [[1], [2]];\na.unshift?.("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: dynamic-key CALL on the binding bails (may be any mutator)',
+  'declare const m: string;\nconst a = [[1], [2]];\na[m]("x");\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: dynamic-key pure READ keeps the precision',
+  'declare const i: number;\nconst a = [[1], [2]];\nconst r = a[i];\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: element write inside a nested function bails',
+  'const a = [[1], [2]];\nfunction g() { a[0] = "x"; }\ng();\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('element access: a SHADOWED inner write does not kill the outer precision',
+  'const a = [[1], [2]];\nfunction g() { const a = [1]; a[0] = 5; }\ng();\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: cast-wrapped element write bails',
+  'const a = [[1], [2]];\n(a as any)[0] = "x";\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// non-retentive reads (typeof / comparisons / bare condition slots) and whole-binding
+// writes (the flow layer's domain) never count as element retypes - a dominance-resolved
+// literal keeps per-element precision through its own guard and source assignment
+
+runBoth('element access: guard + dominance-resolved literal keeps element precision',
+  'function F(x: unknown) { if (typeof x === "string") { x = [[9], [8]]; } else throw 0; return x[0].at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: comparison read does not kill element precision',
+  'declare const other: unknown;\nconst a = [[1], [2]];\nconst same = a === other;\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element access: conditional BRANCH position stays an escape',
+  'declare const c: boolean;\ndeclare function sink(v: unknown): void;\nconst a = [[1], [2]];\nsink(c ? a : null);\nconst v = a[0].at(0);',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a value-follow landing on a DIFFERENT annotation-only binding types by that binding's
+// annotation, exactly like a direct use
+
+runBoth('landed-follow: assignment RHS param annotation types the use',
+  'function f(x: unknown, arr: number[]) { x = arr; return x.includes(1); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('landed-follow: alias init to an annotated param types the use',
+  'function f(arr: number[]) { const y = arr; return y.includes(1); }',
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow control: exit guard without a body reassign keeps the narrow',
+  'function f(x: unknown) { if (typeof x === "string") { } else throw 0; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+// structural narrows (rest / default / destructure slot / for-of element) bail on a
+// CONDITIONAL reassignment the straight-line walk cannot dominate; the write-free forms
+// keep their precision
+
+runBoth('stale-narrow: conditional reassign bails the default-param narrow',
+  'function head(x = [1, 2, 3], c) { if (c) x = "hello"; return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the rest-param narrow',
+  'function first(c, ...xs) { if (c) xs = "hello"; return xs.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the object-destructure narrow',
+  'function f(c) { let { a } = { a: [1, 2] }; if (c) a = "hello"; return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the array-destructure narrow',
+  'function f(c) { let [a] = [[1, 2]]; if (c) a = "hello"; return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: conditional reassign bails the for-of element narrow',
+  'function f(c, xs: number[][]) { for (let x of xs) { if (c) x = "hello"; return x.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a CONDITIONAL `var` re-declaration reaches the structural narrow with an empty violation
+// list on the estree lane (no native record; canonical recovery excludes declarators) -
+// the positional redecl scan must bail it on BOTH parsers; a straight-line redecl stays
+// precise through the dedicated redecl machinery
+
+runBoth('stale-narrow: conditional var-redecl bails the destructure narrow',
+  'function f(c) { var [a] = [[1, 2]]; if (c) { var [a] = ["x"]; } return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: straight-line var-redecl keeps the redecl precision',
+  'function f() { var [a] = [[1, 2]]; { var [a] = ["xy"]; } return a.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+// a rest slot's family is RHS-independent: a same-family rest redecl (`var [...r] = "abc"`
+// spreads into a fresh Array) cannot change the narrow and stays ignorable even when
+// conditional; a PLAIN-id redecl re-types the binding and bails
+
+runBoth('stale-narrow control: same-family conditional rest redecl keeps the Array narrow',
+  'function f(c) { var [...r] = [1, 2]; if (c) { var [...r] = "abc"; } return r.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a `var` re-declaration is legal over PARAM / hoisted bindings too - the positional
+// redecl machinery must see it on both parsers (a param owns no var declarator, so the
+// scope-declaring var IS the redecl); dominance semantics match the var-over-var case
+
+runBoth('stale-narrow: conditional var-redecl over a param bails',
+  'function F(x = [1, 2], c) { if (c) { var x = "s"; } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: dominating var-redecl over a param resolves its own value',
+  'function F(x = [1, 2]) { { var x = "abc"; } return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('stale-narrow: var-redecl over a guarded param bails the guard narrow',
+  'function F(x: unknown, c) { if (typeof x !== "object") return null; if (c) { var x = "s"; } return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: plain-id conditional var-redecl over a rest binding bails',
+  'function f(c) { var [...r] = [1, 2]; if (c) { var r = "abc"; } return r.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a DOMINATED write whose value the upstream machinery cannot resolve still invalidates:
+// the runtime value is the write's, not the structural slot's, so serving the original
+// narrow from the leaf would key a wrong-family Maybe to it
+
+runBoth('stale-narrow: dominating redecl with an unresolvable slot bails',
+  'function f() { var [a] = [[1, 2]]; { var [a] = "xy"; } return a.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: dominating assignment with an unresolvable value bails the default-param narrow',
+  'declare const mk: () => unknown;\nfunction f(x = [1, 2]) { x = mk(); return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: resolvable dominating write keeps its own precision',
+  'function f(x = [1, 2]) { x = "hello"; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('stale-narrow control: write-free default-param keeps the narrow',
+  'function head(x = [1, 2, 3]) { return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a `break <label>` that targets a peeled wrapping label RESUMES at the guarded use -
+// it is not an exit, so the guard must not narrow
+
+runBoth('stale-narrow: labeled-break guard does not narrow',
+  'function f(x: string | number[]) { outer: if (typeof x === "string") break outer; return x.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: real return-exit guard narrows',
+  'function f(x: string | number[]) { if (typeof x === "string") return null; return x.at(0); }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a canonically-recovered violation (closure-write in a switch discriminant + case-level
+// shadow) proves the binding is reassigned - the stale `.constant` verdict must not
+// resurrect the init through `typeof x` resolution
+
+runBoth('stale-narrow: recovered closure-write drops the typeof-binding narrow',
+  'function f(mk) { let x = [1, 2, 3]; switch (mk(() => { x = "hello"; })) { case 1: { let x = 0; mk(x); } }'
+    + ' const y: typeof x = x; return y.at(0); }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+// a NON-fn class-field initializer runs with `this` bound to the instance - a buried
+// `this.<field>` write inside it joins the flow scan like a constructor write
+
+runBoth('stale-narrow: buried write in a non-fn field initializer bails the field narrow',
+  'class Box { items = [1, 2, 3]; poison = (this.items = "s"); read() { return this.items.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: write-free class field keeps the narrow',
+  'class Box { items = [1, 2, 3]; read() { return this.items.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// discriminant-narrow write invalidation resolves computed write keys and peels
+// LHS wrappers like the read side
+
+runBoth('stale-narrow: aliased computed-key discriminant write invalidates',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nconst K = "kind";\nfunction f(box: F) { if (box.kind === "a") { box[K] = "b"; return box.data.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow: cast-wrapped discriminant write invalidates',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nfunction f(box: F) { if (box.kind === "a") { (box as any).kind = "b"; return box.data.at(0); } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: write-free discriminant guard keeps the narrow',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\nfunction f(box: F) { if (box.kind === "a") { return box.data.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('stale-narrow: deeper dynamic write stays excluded (property mutation)',
+  'type F = { kind: "a"; data: number[] } | { kind: "b"; data: string };\ndeclare const i: number;'
+    + '\nfunction f(box: F) { if (box.kind === "a") { box.data[i] = 5; return box.data.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a write to an OUTER class's `#field` from a lexically-nested class (no same-named
+// private of its own) still binds the outer slot and joins the fold; a same-named twin
+// stays excluded
+
+runBoth('stale-narrow: nested-class write to the outer private field bails the narrow',
+  'class Outer { #x = [1, 2, 3]; read() { return this.#x.at(0); } static make() { return class Inner { poison(o) { o.#x = "s"; } }; } }',
+  (adapter, prog, lbl) => checkGenericAt(adapter, prog, lbl));
+
+runBoth('stale-narrow control: write-free private field keeps the narrow',
+  'class Outer { #x = [1, 2, 3]; read() { return this.#x.at(0); } }',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
 // a CLASS / declare-class GETTER returns its declared type on the node (babel) but nested on
 // `value.returnType` (oxc/ESTree, a TSEmptyBodyFunctionExpression) - the member reader must read the
 // RETURN, not the function value, so a 2-hop chain `s.value.first.at` narrows identically on both parsers
@@ -7001,6 +7609,45 @@ runBoth('merge: readonly survives a both-readonly union merge',
     check(`${ lbl } (readonly marker)`, type?.readonly, true);
   });
 
+// readonly requires BOTH arms in EITHER order: the inner fold may return its readonly
+// input by identity, so the single-readonly merge must STRIP the marker, not just skip
+// adding it (order-independence)
+
+runBoth('merge: readonly | mutable union is not readonly-certain, readonly arm first',
+  'declare const v: (readonly number[]) | number[]; const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, false);
+  });
+
+runBoth('merge: readonly | mutable union is not readonly-certain, readonly arm second',
+  'declare const v: number[] | (readonly number[]); const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, false);
+  });
+
+// the subst lane stamps readonly like the plain lane: a readonly collection reached
+// through generic substitution keeps its marker in both spellings
+
+runBoth('subst lane: `readonly T[]` keeps the readonly marker through substitution',
+  'type RO<T> = readonly T[]; declare const v: RO<number>; const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
+runBoth('subst lane: `ReadonlyArray<T>` keeps the readonly marker through substitution',
+  'type RA<T> = ReadonlyArray<T>; declare const v: RA<number>; const x = v;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, kind: 'object', ctor: 'Array' });
+    check(`${ lbl } (readonly marker)`, type?.readonly, true);
+  });
+
 // marker propagation paths: through the async Promise wrap + await unwrap, through the
 // element-type merge in either union-arm order, and through the `&&` right-fold
 
@@ -7038,6 +7685,67 @@ runBoth('logical no-fold: && right-fold carries the marker into an enclosing ??'
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
     const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
     check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// the mirror arm: a nullish-capable LEFT of && makes the right-fold survivor itself
+// nullish-capable (`r && arr` is null when r is null), so an enclosing `||`/`??` keeps
+// its two-operand union; the bare `r && arr` receiver keeps the Array narrow (throw parity)
+
+runBoth('logical no-fold: nullish-capable && left marks the right-fold survivor',
+  'function f(r: number[] | null, arr: number[], s: string) { const x = (r && arr) || s; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('receiver narrow: nullish-capable && left keeps the right narrow on the bare fold',
+  'function f(r: number[] | null, arr: number[]) { const x = r && arr; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
+  });
+
+// fall-through bodies return implicit undefined without a ReturnStatement to collect -
+// the survivor is marked exactly like an explicit bare `return` arm
+
+runBoth('logical no-fold: fall-through body marks the call result',
+  'function f(c) { if (c) return [1, 2]; } const x = f(c) ?? "s";', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+// a syntactically-present destructuring member whose value may be nullish keeps its
+// default LIVE - the member type alone must not shortcut the member x default fold
+
+runBoth('destructure default: nullish-capable member value keeps the default live',
+  'declare const maybe: string | undefined; const { a = [1, 2, 3] } = { a: maybe }; const x = a;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('destructure default: literally-present member still keeps its precise type',
+  'const { a = [1, 2, 3] } = { a: "hello" }; const x = a;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+// merged-interface optional properties carry mayBeNullish like class-body optional fields
+
+runBoth('logical no-fold: merged-interface optional property is marked',
+  'class Box { test() { const x = this.items ?? "s"; } } interface Box { items?: number[]; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor !== 'Array' && type?.type !== 'string', true);
+  });
+
+runBoth('logical fold: merged-interface required property still folds',
+  'class Box { test() { const x = this.items ?? "s"; } } interface Box { items: number[]; }', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, kind: 'object', ctor: 'Array' });
   });
 
 // nullish-admitting wrappers: a tuple optional slot ([T?]) admits undefined, so the

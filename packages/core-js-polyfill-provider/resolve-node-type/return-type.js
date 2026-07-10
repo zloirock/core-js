@@ -282,6 +282,10 @@ export function createReturnType({
       if (result && !merged) return null;
       result = merged;
     }
+    // a body that can FALL OFF THE END returns implicit undefined - same nullish arm as an
+    // explicit bare `return`, just without a ReturnStatement to collect; without this the
+    // conditionally-returning body (`if (c) return [1, 2];`) yields its survivor unmarked
+    if (!nodeAlwaysExits(body.node)) droppedNullish = true;
     // a dropped nullable / bare-return arm still returns at runtime, so the fold survivor
     // is not always-truthy: mark it so an enclosing logical fold keeps the two-operand
     // union (`f() ?? 'x'` may yield 'x'). mirrors foldUnionTypes / the `?:` branch fold
