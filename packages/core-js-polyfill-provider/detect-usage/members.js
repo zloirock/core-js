@@ -3,8 +3,6 @@
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
   collectFoldedReceiverSideEffects,
-  getFallbackBranchSlots,
-  peelFallbackReceiver,
   memberKeyName,
   proxyNavRootIsSequence,
   staticMemberKeyName,
@@ -12,7 +10,7 @@ import {
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
-import { attachMemberUnionExtras, flattenFallbackBranches, resolveIndirectBranchingReceiver } from './destructure.js';
+import { attachMemberUnionExtras } from './destructure.js';
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
@@ -36,34 +34,6 @@ import {
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
 } from './resolve.js';
-
-// a BRANCHING static receiver (`(c ? Array : Iterator).from`, `(x || Map).groupBy`, `'k' in
-// (c ? A : B)`) resolves no single objectName, so the primary meta is typeless / a carrier and a
-// STATIC-only key resolves nothing - both branches broke on old engines. enumerate the branches
-// through the destructure twin's canonical walker and dispatch each resolved branch's STATIC as
-// an extra (usage-global side-effect imports; property-shaped extras inject identically). static
-// placements ONLY: instance keys are already covered by the typeless primary AND respect the
-// type-engine's dead-branch folds (a non-nullable left folds `??` to itself - its string-literal
-// fallback must not inject). usage-pure keeps its bail: substituting a branching static member is
-// a separate design decision, and draining property extras through the pure rewrite funnel would
-// mis-fire
-function attachBranchStaticExtras(meta, { node, key, scope, adapter, path }) {
-  if (adapter.method !== 'usage-global') return meta;
-  // gate on the walker's OWN branching probe (peel + branch-slot test) so every receiver shape
-  // the canonical walk can flatten enumerates here too - a type-only gate missed the zero-arg
-  // IIFE-returned conditional (`(() => c ? Array : Iterator)().from`) the destructure twin covers.
-  // an INDIRECT receiver (const-alias init / bound-callee return) resolves to its branching
-  // value first, so the alias form enumerates the same branch statics the inline form does
-  let branchingNode = node;
-  if (!getFallbackBranchSlots(peelFallbackReceiver(node))) {
-    branchingNode = resolveIndirectBranchingReceiver({ node, scope, adapter, path });
-    if (!branchingNode) return meta;
-  }
-  const branchExtras = flattenFallbackBranches({ node: branchingNode, key, scope, adapter, path })
-    .filter(branch => branch.placement === 'static');
-  if (branchExtras.length) meta.extraCandidates = (meta.extraCandidates || []).concat(branchExtras);
-  return meta;
-}
 
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
 // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
@@ -412,7 +382,6 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     attachMemberUnionExtras(meta, {
       objectNode: classifyTarget, computedKeyNode, primaryObject: objectName, primaryKey: key, scope, adapter, path,
     });
-    if (!objectName) attachBranchStaticExtras(meta, { node: classifyTarget, key, scope, adapter, path });
     // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
     // (including these nested keys) via the preserved assignment - collecting here too double-runs it.
     // static collapse discards the WHOLE receiver, so harvest its SE (chain-root call + buried hop-key) in
@@ -833,9 +802,6 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     primaryObject: objectName && placement ? objectName : null, primaryKey: resolvedLeft ?? null,
     scope, adapter, path,
   });
-  if (resolvedLeft && !objectName) {
-    attachBranchStaticExtras(carrier, { node: rightObject, key: resolvedLeft, scope, adapter, path });
-  }
   return carrier.extraCandidates ? carrier : null;
 }
 
