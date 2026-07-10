@@ -715,7 +715,7 @@ export function createPatternBindings({
       const binding = getScopeBinding(scope, fnName, anchor);
       if (!binding || binding.constantViolations?.length) return false;
       if (isExportedFunction(fnPath, fnName)) return false;
-      for (const ref of collectBindingReferences(binding, fnName, anchor) ?? []) {
+      for (const ref of collectBindingReferences(binding, anchor) ?? []) {
         const callNode = ref.parentPath?.node;
         if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')
           || callNode.callee !== ref.node) return false;
