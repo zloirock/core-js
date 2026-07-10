@@ -10,7 +10,8 @@
         },
         "exclude": [
           "get-iterator-method",
-          "get-iterator"
+          "get-iterator",
+          "is-iterable"
         ]
       }
     ]
