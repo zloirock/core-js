@@ -403,7 +403,7 @@ export function createBindingAnalysis({
   // collect every reference path of `binding` (excluding the declarator id slot). babel
   // exposes the canonical `binding.referencePaths`; estree-toolkit doesn't - fall back to
   // the shared per-program index. null result signals "couldn't enumerate" (no program path)
-  function collectBindingReferences(binding, name, anchorPath) {
+  function collectBindingReferences(binding, anchorPath) {
     if (Array.isArray(binding.referencePaths)) return binding.referencePaths;
     const program = findProgramPath(anchorPath);
     if (!program) return null;
@@ -768,10 +768,10 @@ export function createBindingAnalysis({
       classifier = makeMethodAwareRefClassifier(classifier, { methodInfo: ownThisInfo, prototypeInfo: prototypeMethodInfo });
     }
     const closure = new Map([[rootBinding, rootName]]);
-    const queue = [{ name: rootName, binding: rootBinding }];
+    const queue = [rootBinding];
     while (queue.length) {
-      const { name, binding } = queue.shift();
-      const refs = collectBindingReferences(binding, name, anchorPath);
+      const binding = queue.shift();
+      const refs = collectBindingReferences(binding, anchorPath);
       if (!refs) return null;
       for (const ref of refs) {
         // peel TS expression wrappers AND ParenthesizedExpression between the ref and its
@@ -798,7 +798,7 @@ export function createBindingAnalysis({
           if (!aliasBinding) return null;
           if (closure.has(aliasBinding)) continue;
           closure.set(aliasBinding, aliasName);
-          queue.push({ name: aliasName, binding: aliasBinding });
+          queue.push(aliasBinding);
           continue;
         }
         return null;

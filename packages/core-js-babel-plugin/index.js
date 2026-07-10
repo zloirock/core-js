@@ -460,15 +460,8 @@ export default function plugin(api, options) {
         if (outerCall.callee !== outerCaller.node) return null;
         // rare but possible wrappers: ParenthesizedExpression (babel's
         // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
-        // unwrap both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
-        function unwrap(p) {
-          while (p.node && (TS_EXPR_WRAPPERS.has(p.node.type)
-            || p.node.type === 'ChainExpression' || p.node.type === 'ParenthesizedExpression')) {
-            p = p.get('expression');
-          }
-          return p;
-        }
-        let current = unwrap(path.get('object'));
+        // peel both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
+        let current = peelWrapperPath(path.get('object'));
         // outer call's immediate (wrapper-peeled) receiver. when the descent below crosses
         // non-optional Member/Call hops (`.map(...)` / `.slice(...)`) to reach the optional
         // inner, this differs from the inner - the combine then threads the surviving hops
@@ -476,7 +469,7 @@ export default function plugin(api, options) {
         const outerObjectNode = current.node;
         while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
           if (current.node.optional) break;
-          current = unwrap(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
+          current = peelWrapperPath(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
         }
         if (!current.isOptionalCallExpression() || !current.node.optional) return null;
         const callee = current.get('callee');
