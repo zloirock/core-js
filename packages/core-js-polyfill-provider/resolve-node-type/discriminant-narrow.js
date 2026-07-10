@@ -154,9 +154,9 @@ export function createDiscriminantNarrow({
   // drops the narrow just like a whole-binding rebind would. `collectBindingReferences` is the
   // parser-agnostic enumerator (babel `referencePaths`, estree-toolkit program-index fallback) -
   // reading `binding.referencePaths` directly would miss every reference under the oxc adapter
-  function memberPathWriteViolations({ objectBinding, rootName, anchorPath, targetKey }) {
+  function memberPathWriteViolations({ objectBinding, anchorPath, targetKey }) {
     const out = [];
-    for (const ref of collectBindingReferences(objectBinding, rootName, anchorPath) ?? []) {
+    for (const ref of collectBindingReferences(objectBinding, anchorPath) ?? []) {
       // climb to the top of the member-access chain rooted at this `obj` reference
       let p = ref;
       while (isMemberAccessNode(p.parentPath?.node) && p.parentPath.node.object === p.node) p = p.parentPath;
@@ -198,7 +198,7 @@ export function createDiscriminantNarrow({
     const violations = [...objectBinding?.constantViolations ?? []];
     const fieldWrites = [];
     if (objectBinding) {
-      for (const write of memberPathWriteViolations({ objectBinding, rootName, anchorPath: varPath, targetKey })) {
+      for (const write of memberPathWriteViolations({ objectBinding, anchorPath: varPath, targetKey })) {
         (write.writeKey === undefined ? violations : fieldWrites).push(write);
       }
     }
