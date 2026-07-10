@@ -112,6 +112,7 @@ import {
   walkUpNestedDestructureToAssignment,
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
+import { unwrapNode } from './emit-utils.js';
 import {
   parenthesizeExprStmtHazard,
   skipDirectivePrologue,
@@ -443,28 +444,33 @@ export function createDestructureEmitter({
   // bodyless control parent (`if (cond) ({...} = G);`) requires `{...}` wrap when more
   // than one statement is emitted - otherwise siblings to the gated first statement
   // run unconditionally, breaking the guard's runtime semantics
+  // plan + rewrite an assignment host ONCE per node, shared by the statement cascade and the
+  // deferred-lift flatten (whichever runs first seeds the cache; both need the same rebuild)
+  function plannedAssignRewrite(assignNode, scope, path) {
+    let cached = trackedUnusedNamesByAssign.get(assignNode);
+    if (cached) return cached;
+    const fake = { id: assignNode.left, init: assignNode.right };
+    // capture the `_unused` names emitted into preservedSrc; the AssignmentExpression context
+    // needs explicit `var _unused;` declarations (a VariableDeclaration host declares them via
+    // the destructure binding itself)
+    const unusedIds = [];
+    const result = withTrackedUnusedNames(unusedIds, () => {
+      // the cascade keeps an SE-bearing receiver tail itself (`emitReceiverTail` emits it as a
+      // standalone statement) - neutralize the plan-level discard-SE harvest so the setup isn't
+      // ALSO re-run by an extraction prefix. planning runs INSIDE the tracked window: it may
+      // mint `_unused` sentinel names that need the explicit declarations
+      const plan = planDeclarator(fake, scope, path);
+      if (plan?.discardSe) plan.discardSe = null;
+      return rewriteDeclarator(fake, scope, path);
+    });
+    cached = { result, unusedIds };
+    trackedUnusedNamesByAssign.set(assignNode, cached);
+    return cached;
+  }
+
   function cascadeAssignmentExpression({ assignNode, stmtPath, scope, outerSequencePrefix = [] }) {
     const stmtNode = stmtPath.node;
-    let cached = trackedUnusedNamesByAssign.get(assignNode);
-    if (!cached) {
-      const fake = { id: assignNode.left, init: assignNode.right };
-      // capture the `_unused` names emitted into preservedSrc; they need explicit
-      // `var _unused;` declarations in the AssignmentExpression context (VariableDeclaration
-      // host declares them via the destructure binding itself)
-      const unusedIds = [];
-      const result = withTrackedUnusedNames(unusedIds, () => {
-        // the cascade keeps an SE-bearing receiver tail itself (`emitReceiverTail` emits it as a
-        // standalone statement) - neutralize the plan-level discard-SE harvest so the setup isn't
-        // ALSO re-run by an extraction prefix. planning runs INSIDE the tracked window: it may
-        // mint `_unused` sentinel names that need the explicit declarations
-        const plan = planDeclarator(fake, scope, stmtPath);
-        if (plan?.discardSe) plan.discardSe = null;
-        return rewriteDeclarator(fake, scope, stmtPath);
-      });
-      cached = { result, unusedIds };
-      trackedUnusedNamesByAssign.set(assignNode, cached);
-    }
-    const { result, unusedIds } = cached;
+    const { result, unusedIds } = plannedAssignRewrite(assignNode, scope, stmtPath);
     if (!result.extractions.length && !result.anchored) return false;
     flattenedAssignments.add(assignNode);
     // residual siblings kept verbatim (`other = [1].at(0)` default, a static-method value) stay
@@ -695,10 +701,50 @@ export function createDestructureEmitter({
     }
     if (node.operator !== '=' || !isProxyHopHostShape(node.left, node.right) || isDisabled(node)) return;
     const peeled = peelToExpressionStatement(path);
-    if (!peeled) return;
+    if (!peeled) {
+      // no ExpressionStatement hosts the cascade, but a host buried in a consumed init's
+      // LIFTED SE prefix still re-anchors: the lift re-emits the operand verbatim, so an
+      // expression-shaped rebuild composes into it by needle
+      const operand = liftedSePrefixOperandFor(node);
+      if (operand) tryFlattenLiftedProxyHopHost(node, operand, path.scope, path);
+      return;
+    }
     cascadeAssignmentExpression({
       assignNode: node, stmtPath: peeled.exprStmt, scope: path.scope, outerSequencePrefix: peeled.sequencePrefix,
     });
+  }
+
+  // consumed-init SE prefix operands the consuming rewrite lifts as standalone statements,
+  // keyed by their wrapper-peeled assignment core (the operand may be the assignment itself
+  // or its paren / TS wrapper - the replacement must span the WHOLE operand)
+  const liftedSePrefixOperands = new WeakMap();
+
+  function markLiftedSePrefixOperand(operand) {
+    const core = unwrapNode(operand);
+    if (core?.type === 'AssignmentExpression') liftedSePrefixOperands.set(core, operand);
+  }
+
+  function liftedSePrefixOperandFor(assignNode) {
+    return liftedSePrefixOperands.get(assignNode) ?? null;
+  }
+
+  // deferred-lift twin of `cascadeAssignmentExpression`: the assignment sits in a consumed
+  // init's SE prefix (`const { of } = (({ Map: { customY } } = globalThis), Array);`), which
+  // the consuming rewrite lifts as its own statement. an ANCHORED single-segment rebuild
+  // (`{ customY } = _Map`) replaces the operand range and composes into the lifted text,
+  // re-anchoring the deferred host exactly like the plain statement form. shapes needing the
+  // cascade's statement machinery (extractions, `_unused` hoists, SE sub-prefixes) bail and
+  // keep the leaf-driven / un-anchored emit
+  function tryFlattenLiftedProxyHopHost(assignNode, operandNode, scope, path) {
+    if (flattenedAssignments.has(assignNode)) return;
+    const { result, unusedIds } = plannedAssignRewrite(assignNode, scope, path);
+    if (!result.anchored || result.extractions.length || unusedIds.length || result.preservedSrc === null) return;
+    const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
+    if (seExprs.length) return;
+    flattenedAssignments.add(assignNode);
+    skipPatternExceptResidual(assignNode.left, result.residualTargets ?? []);
+    skipReceiverTailSubtree(receiverTail);
+    transforms.add(operandNode.start, operandNode.end, `(${ result.preservedSrc })`);
   }
 
   // apply position-anchored splices (in original-source coordinates) to `src`, which is a
@@ -3170,15 +3216,35 @@ export function createDestructureEmitter({
     // and the compose-skip below are substrate work. dropping the `.self` navigation is safe -
     // the value is discarded, so there is no this-binding to preserve
     const plan = ctx && planCallRootDiscardedProxySwap({ receiver: peeled, ...ctx, resolvePure });
-    if (!plan) return;
-    const binding = injectPureImport(plan.leafPure.entry, plan.leafPure.hintName);
-    const collapsed = plan.harvestedSE.length
-      ? `(${ plan.harvestedSE.map(node => nodeSrc(node)).join(', ') }, ${ binding })` : binding;
+    if (plan) {
+      const binding = injectPureImport(plan.leafPure.entry, plan.leafPure.hintName);
+      const collapsed = plan.harvestedSE.length
+        ? `(${ plan.harvestedSE.map(node => nodeSrc(node)).join(', ') }, ${ binding })` : binding;
+      collapsedCallRootReceivers.add(peeled);
+      // skip the receiver subtree so the natural visitor does not also rewrite its proxy hop into
+      // this collapse - but keep the harvested SE subtrees visible, so their own polyfillable
+      // content still rewrites and composes into the re-emitted text by needle
+      skipReplacedReceiver(peeled, plan.harvestedSE);
+      transforms.add(peeled.start, peeled.end, collapsed);
+      return;
+    }
+    // non-ctor leaf in a FOR-INIT sink: the discarded value re-roots at the pure global through
+    // the shared call-rooted plan (`(() => globalThis)().self.Array` -> `_globalThis.Array`),
+    // matching the AST emitter's sink render. the natural per-hop rewrite covers only hops with
+    // their own pure entry, so a `.window` / multi-hop nav leaks a raw undefined read off-engine.
+    // a statement-LIFTED residual (non-for-init) stays with the natural canon (`_self.Array`) -
+    // both emitters keep the live-read shape there
+    const declParent = declaratorPath?.parentPath;
+    const forStmt = declParent?.parentPath?.node;
+    if (isAssignment || !(forStmt?.type === 'ForStatement' && forStmt.init === declParent?.node)) return;
+    const nav = ctx && resolveCallRootedProxyCollapse({ receiver: peeled, ...ctx });
+    if (!nav) return;
+    const collapsed = substituteCallRootedProxyHop({
+      target: peeled, src: nodeSrc(peeled), baseStart: peeled.start, ctx,
+    });
+    if (collapsed === null) return;
     collapsedCallRootReceivers.add(peeled);
-    // skip the receiver subtree so the natural visitor does not also rewrite its proxy hop into
-    // this collapse - but keep the harvested SE subtrees visible, so their own polyfillable
-    // content still rewrites and composes into the re-emitted text by needle
-    skipReplacedReceiver(peeled, plan.harvestedSE);
+    skipReplacedReceiver(peeled, nav.droppedSe);
     transforms.add(peeled.start, peeled.end, collapsed);
   }
 
@@ -3486,11 +3552,16 @@ export function createDestructureEmitter({
     if (recv?.type !== 'MemberExpression' && recv?.type !== 'OptionalMemberExpression') return false;
     // an earlier whole-span consumer (static dispatch: `(a = globalThis).self.Array.from(x)` ->
     // `(a = globalThis, _Array$from)(x)` at its member visit, which precedes this identifier
-    // visit in the pre-order walk) claims a WIDER span that drops the chain and keeps only the
+    // visit in the pre-order walk) claims a WIDER span that DROPS the chain and keeps only the
     // harvested effects - a second whole-chain replacement from this drive would nest an
-    // un-composable transform inside it (its needle text no longer exists there). the earlier
-    // claim wins; the buried root's natural rewrite still composes into the claimed span
-    if (transforms.containsRange(recv.start, recv.end)) return false;
+    // un-composable transform inside it (its needle text no longer exists there). but a claim
+    // that RE-EMITS the receiver text verbatim (an instance dispatch slicing a raw receiver
+    // with the chain buried in a value-position wrapper - `[globalThis.self.X.prototype][0]`)
+    // still carries the needle, and compose folds the nested collapse exactly like the plain
+    // identifier substitution - without it the buried `.self` hop survived to an off-engine
+    // throw where the standalone form collapses
+    if (transforms.containsRange(recv.start, recv.end)
+      && !transforms.containingContentIncludes(recv.start, recv.end)) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
     if (!maximalProxyGlobalHop(recv, aliasCtx, { allowSideEffectKeys: true, throughChainAssign: true })) return false;
     // the destructure path OWNS the chain when it is an OBJECT-pattern destructure SOURCE (named props feed
@@ -3923,6 +3994,7 @@ export function createDestructureEmitter({
     canFullyConsumeProxyDeclarator,
     collapseProxyHopRoot,
     handleDestructuringPure,
+    markLiftedSePrefixOperand,
     tryFlattenProxyHopHost,
   };
 }
