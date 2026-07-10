@@ -12,7 +12,7 @@
 // any reassignment reaching the usage between the guard and the access invalidates the
 // narrow; mutation inside a nested captured function also invalidates (deferred calls
 // may fire between the guard and the usage)
-import { peelLabeledStatementNode } from '../helpers/ast-patterns.js';
+import { peeledLabelNames, peelLabeledStatementNode, peelLabeledStatementPath } from '../helpers/ast-patterns.js';
 import { isUnionType, loopReExecRegionHasViolation, OPEN_KEYWORD_ANNOTATION_TYPES, violationInCapturedFunction } from './ast-shapes.js';
 import { bindingLoopAnchor } from './straight-line-flow.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
@@ -36,6 +36,7 @@ export function createNarrowByGuards({
   findEarlyExitGuards,
   getStatementSiblings,
   canFallThrough,
+  resolveExitCondition,
 }) {
   function matchesTypeofValue(resolved, value) {
     if (value === 'object') return (!resolved.primitive && resolved.constructor !== 'Function') || resolved.type === 'null';
@@ -216,12 +217,21 @@ export function createNarrowByGuards({
       if (nearestIdx < 0) return false;
       // `parseSiblingGuards` accepts `outer: if (...) return;` by peeling LabeledStatement;
       // the same peel must run here or label-wrapped test-slot mutation stays invisible
-      const nearestNode = peelLabeledStatementNode(siblings[nearestIdx]?.node);
-      // the nearest guard's OWN mutation-bearing slot: an IfStatement early-exit carries it in
-      // its test; an assertion-statement guard carries it in its call-argument slot
-      // (`assertString((x = 5, x))` - the SE-tail unwrap still binds the var, but the runtime
-      // value is the post-mutation one, so the narrow is exactly as stale as a mutated if-test)
-      if (violatesInsideNode(t.isIfStatement(nearestNode) ? nearestNode.test : nearestNode)) return true;
+      const nearestPath = peelLabeledStatementPath(siblings[nearestIdx]);
+      const nearestNode = nearestPath?.node ?? peelLabeledStatementNode(siblings[nearestIdx]?.node);
+      // the nearest guard's OWN mutation-bearing slots: an IfStatement early-exit carries one in
+      // its test, AND one in its NON-exiting branch - that branch falls through to the use, so a
+      // reassign inside it is live there exactly like an intermediate sibling's (the exiting
+      // branch's own writes never reach the use). an assertion-statement guard carries its slot
+      // in the call-argument (`assertString((x = 5, x))` - the SE-tail unwrap still binds the
+      // var, but the runtime value is the post-mutation one, so the narrow is exactly as stale)
+      if (t.isIfStatement(nearestNode)) {
+        if (violatesInsideNode(nearestNode.test)) return true;
+        const conditionTrue = nearestPath ? resolveExitCondition(nearestPath, peeledLabelNames(siblings[nearestIdx])) : null;
+        const fallThroughBranch = conditionTrue === true ? nearestNode.consequent
+          : conditionTrue === false ? nearestNode.alternate : null;
+        if (fallThroughBranch && violatesInsideNode(fallThroughBranch)) return true;
+      } else if (violatesInsideNode(nearestNode)) return true;
       for (let j = nearestIdx + 1; j < current.key; j++) if (violates(siblings[j])) return true;
       return violatesBefore(siblings[current.key]);
     }
