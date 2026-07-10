@@ -248,16 +248,23 @@ export function createClosureAnalysis({
         continue;
       }
       switch (parent.type) {
-        // the object's value is handed straight to external code - the module default export, a return /
-        // yield / await argument / an arrow's expression body (the call/arrow's caller receives it), or a
-        // throw (the value propagates to a catch handler) - so an outside holder can write its fields
+        // the object's value is handed straight to external code - the module default export (incl.
+        // its TS-CJS sibling `export = {...}`), a return / yield / await argument / an arrow's
+        // expression body (the call/arrow's caller receives it), or a throw (the value propagates
+        // to a catch handler) - so an outside holder can write its fields
         case 'ExportDefaultDeclaration':
+        case 'TSExportAssignment':
         case 'ReturnStatement':
         case 'YieldExpression':
         case 'AwaitExpression':
         case 'ArrowFunctionExpression':
         case 'ThrowStatement':
           return true;
+        // a JSX ATTRIBUTE value (`<Foo data={{...}} />`) is the moral call argument of
+        // `createElement(Foo, { data: anon })` - the component holds a live reference.
+        // a JSX CHILD expression container renders the value, it doesn't retain it
+        case 'JSXExpressionContainer':
+          return parentPath.parentPath?.node?.type === 'JSXAttribute';
         // a TAGGED template substitution is handed raw to the tag function (`tag`${obj}`` -> tag(s, obj));
         // an untagged template string-coerces the value, keeping it local
         case 'TemplateLiteral':
@@ -715,8 +722,11 @@ export function createClosureAnalysis({
       return computeAliasClosureFromBinding({
         rootBinding: binding, rootName: className, anchorPath, classifier: classBindingRefClassifier,
         // static own-this methods extracted off the class value (`const m = C.make`) rebind `this`
-        // away from the constructor at their later invocation - gate like the object-literal flavor
-        methodInfo: classOwnThisMethodInfo(classPath.node, true),
+        // away from the constructor at their later invocation - gate like the object-literal flavor.
+        // INHERITED statics extract through the subclass binding just the same (`Sub.read` reaches
+        // Base.read), so the ancestors' static sets merge in - own-statics-only left a subclass
+        // with no own statics ungated (methodInfo null -> no method-aware classifier)
+        methodInfo: mergeOwnThisMethodInfo(classOwnThisMethodInfo(classPath.node, true), ancestorStaticInfo),
         prototypeMethodInfo,
       });
     });

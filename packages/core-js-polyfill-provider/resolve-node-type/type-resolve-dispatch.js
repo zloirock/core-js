@@ -16,6 +16,7 @@
 // (`unwrapMappedTypePassthrough`, `evaluateConditionalType`) the handlers call into.
 import { $Object, MAX_DEPTH } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { readonlyCollectionBase } from './ast-shapes.js';
 
 // shared accessor for the first type-arg slot on a TS/Flow ref node. `getTypeArgs` returns
 // a wrapper carrying `.params` or null when the ref carries no `<...>`; `firstTypeArg`
@@ -164,7 +165,13 @@ export function createTypeResolveDispatch({
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
     const handler = SUBST_TYPE_DISPATCH[node.type];
-    return handler ? handler(node, typeParamMap, scope, depth, seen) : resolveTypeAnnotation(node, scope, depth);
+    const result = handler ? handler(node, typeParamMap, scope, depth, seen) : resolveTypeAnnotation(node, scope, depth);
+    // same outer readonly stamp as the plain lane (`resolveTypeAnnotation`): without it a
+    // `readonly T[]` / `ReadonlyArray<T>` resolved through generic substitution loses
+    // `.readonly`, flipping a readonly-discriminating conditional to the wrong family.
+    // idempotent - the plain-lane fallthrough above may have stamped already
+    if (result && !result.primitive && readonlyCollectionBase(node)) return result.mark('readonly');
+    return result;
   }
 
   return { substituteTypeParams };
