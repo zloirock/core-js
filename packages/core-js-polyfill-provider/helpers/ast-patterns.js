@@ -730,7 +730,7 @@ export function synthVarHoistBinding(path, name) {
     // has no `.path` to climb
     ownerNode: found.owner.node,
     kind: 'var',
-    constantViolations: collectScopeReassignmentNodes(found.owner.node, name),
+    constantViolations: collectScopeReassignmentNodes(found.owner.node, name).filter(node => node !== found.declarator),
     importSource: null,
     polyfillHint: null,
   };
@@ -843,7 +843,6 @@ const scopeReassignCache = new WeakMap();
 // of itself. shared by the var-hoist and the cross-boundary-`let` reassignment recovery, which
 // differ only in how they locate `ownerNode`
 function collectScopeReassignmentNodes(ownerNode, name) {
-  let firstDeclaring = null;
   let perName = scopeReassignCache.get(ownerNode);
   if (!perName) scopeReassignCache.set(ownerNode, perName = new Map());
   if (perName.has(name)) return perName.get(name);
@@ -899,16 +898,14 @@ function collectScopeReassignmentNodes(ownerNode, name) {
       || (isForXStatement(node) && forXHeadWritesName(node.left))) {
       violations.push(node);
     }
-    // a `var name = <init>` re-declaration other than the binding's own declarator overwrites the
-    // value; a bare `var name;` (no init) keeps it. a same-name `let`/`const` can't co-exist
+    // EVERY `var name = <init>` declarator is recorded - ownership ("which one is the
+    // binding's own declaration") is knowledge the CALLERS hold: for a var-declared
+    // binding it is the scope's declaring var, but a PARAM / hoisted binding owns NONE
+    // of them, so a first-encountered skip would swallow its first re-declaration. a
+    // bare `var name;` (no init) keeps the value and stays unrecorded
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
       for (const d of node.declarations ?? []) {
-        if (!bindsName(d.id)) continue;
-        if (firstDeclaring === null) {
-          firstDeclaring = d;
-          continue;
-        }
-        if (d.init) violations.push(d);
+        if (bindsName(d.id) && d.init) violations.push(d);
       }
     }
     for (const value of Object.values(node)) {
@@ -926,7 +923,17 @@ function collectScopeReassignmentNodes(ownerNode, name) {
 export function collectFunctionScopeVarReassignments(path, name) {
   const found = findVarOwnerDeclaring(path, name);
   if (!found) return [];
-  return collectScopeReassignmentNodes(found.owner.node, name);
+  // the scope-declaring var IS the binding's own declaration for the var-kind consumers
+  // of this wrapper - excluded by identity so their reassignment gates stay unchanged
+  return collectScopeReassignmentNodes(found.owner.node, name).filter(node => node !== found.declarator);
+}
+
+// UNFILTERED twin for the redecl machinery: a PARAM / hoisted binding owns no var
+// declarator, so the scope-declaring var there is itself a re-declaration - ownership is
+// decided positionally by the caller (`start > declStart`), not by scope-declaration
+export function collectFunctionScopeVarWrites(path, name) {
+  const found = findVarOwnerDeclaring(path, name);
+  return found ? collectScopeReassignmentNodes(found.owner.node, name) : [];
 }
 
 // a `let` declarator is always statement-level, so the first of these hosts above its
@@ -973,7 +980,10 @@ export function withCanonicalViolations(binding, name) {
       || (k.start !== undefined && k.start >= node.start && k.end <= node.end))))
     .map(node => ({ node, canonicalRecovered: true }));
   if (!extras.length) return binding;
-  return { ...binding, constantViolations: [...binding.constantViolations ?? [], ...extras] };
+  // recovered extras prove the binding IS reassigned - the spread must not carry the
+  // native `.constant: true` verdict along (a `.constant`-gated consumer would then read
+  // the stale init as the binding's value while the recovered write changed it at runtime)
+  return { ...binding, constant: false, constantViolations: [...binding.constantViolations ?? [], ...extras] };
 }
 
 // wrap a scope-binding lookup so every consumer sees the canonically-merged violation list.
@@ -1665,7 +1675,7 @@ export function staleVarRedeclNodes(binding, usagePath, name) {
   const declStart = binding?.path?.node?.start;
   const useStart = usagePath?.node?.start;
   if (typeof declStart !== 'number' || typeof useStart !== 'number') return [];
-  return collectFunctionScopeVarReassignments(usagePath, name)
+  return collectFunctionScopeVarWrites(usagePath, name)
     .map(violationNode)
     .filter(node => { const { start } = node; return typeof start === 'number' && start > declStart && start < useStart; });
 }
@@ -1904,6 +1914,17 @@ export function peelLabeledStatementNode(node) {
 export function peelLabeledStatementPath(path) {
   while (path?.node?.type === 'LabeledStatement') path = path.get('body');
   return path;
+}
+
+// the label names a `peelLabeledStatementPath` walk discards. exit analysis must treat
+// `break <peeled-label>` as NON-exiting: the break resumes right AFTER the labeled
+// statement - i.e. exactly at the code the guard was supposed to protect
+export function peeledLabelNames(path) {
+  let names = null;
+  for (let cur = path; cur?.node?.type === 'LabeledStatement'; cur = cur.get('body')) {
+    (names ??= new Set()).add(cur.node.label?.name);
+  }
+  return names;
 }
 
 // type-only ESM import bindings (3 forms):
@@ -2299,7 +2320,7 @@ export function propertyKeyName(prop) {
 // key spelling shared by the own-this method-extraction gates: private members keep a `#name`
 // spelling so a `c.#m` read matches the class-body declaration; everything else resolves via
 // the canonical property-key extractor. null = dynamic / unresolvable
-function ownThisMemberKeyName(member) {
+export function ownThisMemberKeyName(member) {
   const { key } = member;
   if (key?.type === 'PrivateName') return `#${ key.id?.name }`;
   if (key?.type === 'PrivateIdentifier') return `#${ key.name }`;
@@ -2411,7 +2432,11 @@ export function ownThisMethodKeyMatches(info, key) {
 // both parser shapes traverse identically
 export function classBodyHoldsSuperMethod(classNode, { instanceInfo = null, staticInfo = null }) {
   for (const member of classNode?.body?.body ?? []) {
-    const info = member.static === true ? staticInfo : instanceInfo;
+    // a StaticBlock carries no `.static` field but its `this` / `super` bind statically -
+    // routing it by the missing flag sent it to instanceInfo, and a static call-site
+    // (instanceInfo null) never scanned held `super.<m>` reads inside `static { }`
+    const isStatic = member.static === true || member.type === 'StaticBlock';
+    const info = isStatic ? staticInfo : instanceInfo;
     if (info && nodeHoldsSuperMethodRead(member, classNode, info)) return true;
   }
   return false;

@@ -146,6 +146,11 @@ const TypePrototype = {
   // but a conditional check against a literal stays undecidable, so the branch-picker
   // folds both branches
   literalUnion: false,
+  // capital `Object` (the boxed-top type): every non-nullish candidate is assignable to it
+  // (TS: `string extends Object` is true), unlike the lowercase `object` keyword and
+  // structural literal shapes, which reject primitives. member dispatch stays generic
+  // (constructor null), only assignability reads the marker
+  topObject: false,
   // own-prop copy on the same prototype: `instanceof`, the prototype `primitive` flag and
   // every marker survive
   clone() {
@@ -160,6 +165,16 @@ const TypePrototype = {
     const marked = this.clone();
     marked[marker] = true;
     return marked;
+  },
+  // clear a marker on a CLONE - the strip counterpart of `mark`, for both-required markers
+  // (a `readonly | mutable` merge is not readonly-certain, but an identity-returned fold
+  // input may already carry the marker; `mark` alone can only ever ADD)
+  unmark(marker) {
+    if (TypePrototype[marker] !== false) throw new TypeError(`Unknown type marker: ${ marker }`);
+    if (!this[marker]) return this;
+    const unmarked = this.clone();
+    unmarked[marker] = false;
+    return unmarked;
   },
 };
 

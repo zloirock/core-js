@@ -34,7 +34,7 @@
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
-import { isUnionType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import { isUnionType, matchOverloadByArgs, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { getTypeArgs, isCleanDestructureAliasBinding } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -53,7 +53,6 @@ export function createCallResolution({
   resolveRuntimeExpression,
   resolveReturnType,
   foldOverloadReturns,
-  findAmbientFunctionPath,
   findAmbientFunctionPaths,
   resolveFromMemberExpression,
   resolveKnownStaticReturnType,
@@ -225,16 +224,6 @@ export function createCallResolution({
     return { constructor, method: keyPath.at(-1) };
   }
 
-  // a callable / constructable object type (`{ (): T }` / `{ new (): T }`, or the same shapes in
-  // an interface body) carries its signature as a member rather than as a bare TSFunctionType /
-  // TSConstructorType; pick the LAST matching member (overloads resolve to the last ambient
-  // signature) so the shared return-extraction treats it like `() => T` / `new () => T`
-  function lastSignature(members, signatureType) {
-    let sig = null;
-    for (const member of members || []) if (member.type === signatureType) sig = member;
-    return sig;
-  }
-
   // both babel and oxc store the return type on `.returnType` for TSFunctionType /
   // TSConstructorType / TSMethodSignature / TSDeclareMethod / ClassMethod / ClassPrivateMethod
   // (Flow FunctionTypeAnnotation too); the `node.typeAnnotation ??` arm below is defensive and
@@ -291,7 +280,18 @@ export function createCallResolution({
     // wrapped in generic alias). without the swap, downstream `functionTypeReturnAnnotation`
     // treats Q<...> as a TSTypeReference and returns null
     annotation = swapAliasToTSTypeQueryWithSubst(annotation, info.scope);
-    if (annotation?.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(annotation, info.scope);
+    if (annotation?.type === 'TSTypeQuery') {
+      // a CALL through an aliased `typeof fn` arg-discriminates the overload set like a
+      // direct call (shared fold); the type-level rightmost-overload rule (`ReturnType<
+      // typeof fn>`) stays on resolveReturnTypeFromTypeQuery for everything else
+      const queryName = annotation.exprName?.type === 'Identifier' ? annotation.exprName.name : null;
+      const overloads = queryName ? findAmbientFunctionPaths(queryName, info.scope) : [];
+      if (overloads.length >= 2) {
+        return foldOverloadReturns(overloads, o => o.node.params,
+          o => resolveReturnType(o, callee.parentPath), o => o.node.returnType, callee.parentPath);
+      }
+      return resolveReturnTypeFromTypeQuery(annotation, info.scope);
+    }
     // TSIndexedAccessType callee annotation (`T['method']` directly OR via alias `type M =
     // T['method']`). follow the alias chain to surface the indexed-access body, then peel
     // through findTypeMember. method-shape detection (Layer 2) returns the full signature,
@@ -317,8 +317,17 @@ export function createCallResolution({
     // stays unresolved instead of narrowing to the call return)
     if (!ret) {
       const sigType = signatureKind === 'construct' ? 'TSConstructSignatureDeclaration' : 'TSCallSignatureDeclaration';
-      const sig = lastSignature(getTypeMembers({ objectType: target, scope: info.scope }), sigType);
-      if (sig) ret = functionTypeReturnAnnotation(sig);
+      const sigs = (getTypeMembers({ objectType: target, scope: info.scope }) ?? []).filter(m => m.type === sigType);
+      // an OVERLOADED signature set arg-discriminates one arm or widens through the shared
+      // fold - picking last narrowed a divergent set to the wrong arm's type-specific Maybe
+      // (`(x: number): number[]; (x: string): string` called with 5 must resolve number[])
+      if (sigs.length >= 2) {
+        return foldOverloadReturns(sigs, m => m.parameters ?? m.params, m => {
+          const r = functionTypeReturnAnnotation(m);
+          return r ? resolveTypeAnnotation(r, info.scope) : null;
+        }, m => functionTypeReturnAnnotation(m), callee.parentPath);
+      }
+      if (sigs.length === 1) ret = functionTypeReturnAnnotation(sigs[0]);
     }
     return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
@@ -341,10 +350,14 @@ export function createCallResolution({
     const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
     const target = aliased ?? unwrapped;
     const keyKind = propName === null ? indexAccessKeyKind(path) : null;
+    // the member being CALLED carries its call args for overload discrimination downstream
+    const parentType = path.parentPath?.node?.type;
+    const callPath = (parentType === 'CallExpression' || parentType === 'OptionalCallExpression')
+      && path.parentPath.node.callee === path.node ? path.parentPath : null;
     function lookup(typeNode) {
       return propName === null
         ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind)
-        : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst });
+        : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst, callPath });
     }
     if (isUnionType(target)) {
       for (const branch of target.types) {
@@ -363,9 +376,22 @@ export function createCallResolution({
   // function value; callers chain into `functionTypeReturnAnnotation` to peel the return.
   // Flow's `ObjectTypeProperty` stores the type in `m.value` (covers both property shape
   // AND method shape where value is a FunctionTypeAnnotation); fallback after the TS slots
-  function resolveMemberInTypeMembers({ typeNode, propName, scope, subst }) {
+  function resolveMemberInTypeMembers({ typeNode, propName, scope, subst, callPath = null }) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
+    // an OVERLOADED method set (2+ same-named non-accessor signatures): the first arm's
+    // return must not narrow a call TS routes to a later arm. with call args - arg-match
+    // ONE; ambiguous / divergent / no call context - null (the caller's generic bail).
+    // this annotation domain carries single nodes, so a set can't fold - it discriminates
+    // or bails, mirroring the Type-domain canon fold
+    const named = members.filter(m => keyMatchesName(m.key, propName)
+      && m.kind !== 'get' && m.kind !== 'set' && m.type === 'TSMethodSignature');
+    if (named.length >= 2) {
+      const selected = callPath
+        && matchOverloadByArgs(named, m => m.parameters ?? m.params, callPath.get('arguments'), resolveNodeType);
+      if (!selected) return null;
+      return { annotation: applySubst(selected, subst), scope };
+    }
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
       // honor accessor kind like findTypeMember (keep the shape handling in sync): a setter is write-only
@@ -491,8 +517,17 @@ export function createCallResolution({
       // (mirrors `resolveCallReturnType`'s ambient branch) so call-return annotations on
       // ambient generic fns get the same call-site subst as runtime fns
       if (t.isIdentifier(fnPath.node) && !isFunctionLike(fnPath.node)) {
-        const ambient = findAmbientFunctionPath(fnPath.node.name, fnPath.scope);
-        if (ambient) fnPath = ambient;
+        const ambients = findAmbientFunctionPaths(fnPath.node.name, fnPath.scope);
+        // an OVERLOADED ambient set in this annotation domain (single nodes, no fold):
+        // arg-match ONE overload or bail to generic - the first head's return narrowed a
+        // call TS routes to a later overload (`pick(0).m` off a divergent pair)
+        if (ambients.length >= 2) {
+          const selected = matchOverloadByArgs(ambients, a => a.node.params, path.get('arguments'), resolveNodeType);
+          if (!selected) return null;
+          fnPath = selected;
+        } else if (ambients.length === 1) {
+          [fnPath] = ambients;
+        }
       }
       if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
         // explicit `<...>` args; argument inference fallback (`makeBox(arr)` lifts arr's
@@ -566,11 +601,16 @@ export function createCallResolution({
     if (!fnTypeParams?.length) return null;
     const paramNames = new Set(fnTypeParams.map(typeParamName).filter(Boolean));
     const args = callPath.get('arguments');
-    if (args.some(a => a.node?.type === 'SpreadElement')) return null;
+    // a spread breaks the positional arg->param mapping, so positional inference is
+    // skipped - but the fill below must still run OPAQUE-guarded: TS infers the param
+    // from the spread element, so bailing to the unguarded default fill (the caller's
+    // `?? buildCallSiteSubst`) leaked a declared default (`<T = number[]>`) onto a
+    // foreign runtime value. with a spread, ANY param position may be fed by it
+    const hasSpread = args.some(a => a.node?.type === 'SpreadElement');
     // drop the leading `this` pseudo-param so param annotations align with the call args
     const params = dropLeadingThisParam(fnNode.params);
     const subst = new Map();
-    const limit = Math.min(params.length, args.length);
+    const limit = hasSpread ? 0 : Math.min(params.length, args.length);
     for (let i = 0; i < limit; i++) {
       if (!params[i] || !args[i]) continue;
       const { param } = effectiveParam(params[i]);
@@ -594,7 +634,7 @@ export function createCallResolution({
       const name = typeParamName(p);
       if (!name || subst.has(name)) continue;
       const singleName = new Set([name]);
-      const argConstrained = !!hasParamTypeRef && params.some((prm, i) => i < args.length
+      const argConstrained = !!hasParamTypeRef && params.some((prm, i) => (hasSpread || i < args.length)
         && hasParamTypeRef(effectiveParam(prm).param, singleName, 0));
       if (argConstrained) subst.set(name, OPAQUE_TYPE_ARG);
       else if (p.default) subst.set(name, p.default);
