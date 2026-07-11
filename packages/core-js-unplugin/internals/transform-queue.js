@@ -979,8 +979,11 @@ export default class TransformQueue {
   // partition a composed split string into source-adjacent `{ srcStart, srcEnd, content }` segments so
   // each split's suffix maps to its OWN `[mid, end)` columns instead of the receiver's. collects every
   // split (the outermost `t` plus any folded inner ones) whose logical range sits within `[t.start, tEnd)`
-  // and locates each suffix by its raw `peer.content` (unique in the composed string - its memo `_ref` is
-  // per-split). a suffix is verbatim only when its `[mid, end)` source carries no transforms; a suffix
+  // and locates each suffix by its raw `peer.content` via `indexOf` - NOT guaranteed unique (a
+  // bare-receiver suffix like `.call(arr)` carries no per-split memo `_ref`); a first-match
+  // mis-location is caught by the monotonicity gate (source mid / content offset must advance) or
+  // the final reconstruct check, both -> null -> coarse overwrite.
+  // a suffix is verbatim only when its `[mid, end)` source carries no transforms; a suffix
   // whose ARG got composed (an optional call on a polyfilled argument) no longer matches its raw content,
   // so `indexOf` misses and the whole partition returns null - the caller falls back to one overwrite
   // (correct output, coarse map for that rarer transformed-suffix shape). same null on overlap or segments
