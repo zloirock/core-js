@@ -430,7 +430,10 @@ QUnit.test('SE-sequence nested fragment: bails native, prefix runs once', assert
   let ran = 0;
   const arr2 = [1, [2]];
   const { y: { flat: m }, q } = { y: (ran++, arr2), q: 1 };
-  assert.same(typeof m, 'function');
+  // the bail keeps the NATIVE read: `m` mirrors native availability (undefined on engines
+  // without Array#flat - pure never mutates prototypes); the invariant is the SE count
+  const nativeFlat = Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
+  assert.same(typeof m, nativeFlat);
   assert.same(q, 1);
   assert.same(ran, 1);
 });
@@ -448,7 +451,9 @@ QUnit.test('literal receiver with member read: source getter fires once', assert
     },
   };
   const { y: { flat: m }, q } = { y: [holder.p], q: 1 };
-  assert.same(typeof m, 'function');
+  // bail-to-native: `m` mirrors native availability; the invariant is the single getter fire
+  const nativeFlat = Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
+  assert.same(typeof m, nativeFlat);
   assert.same(q, 1);
   assert.same(fires, 1);
 });
@@ -467,7 +472,9 @@ QUnit.test('literal receiver with class static member read: getter fires once', 
   };
   // eslint-disable-next-line unicorn/no-static-only-class -- the class-eval-time static init IS the case under test
   const { y: { at: m }, q } = { y: [class K { static p = holder.p; }], q: 1 };
-  assert.same(typeof m, 'function');
+  // bail-to-native: `m` mirrors native availability; the invariant is the single getter fire
+  const nativeAt = Object.getOwnPropertyDescriptor(Array.prototype, 'at') ? 'function' : 'undefined';
+  assert.same(typeof m, nativeAt);
   assert.same(q, 1);
   assert.same(fires, 1);
 });
