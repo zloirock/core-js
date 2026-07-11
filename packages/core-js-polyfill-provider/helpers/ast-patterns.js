@@ -2770,11 +2770,18 @@ export function peelFallbackReceiver(node) {
   return node;
 }
 
+// side-effecting COMPUTED key of a destructure prop (`[(eff(), 'from')]`, `[(eff(), 'fr') + 'om']`).
+// the single gate both flatten emitters dispatch on, so the key-effect decision can't drift
+// between them; a non-computed key is a static name and never carries an effect
+export function computedKeyHasSideEffects(propNode) {
+  return !!propNode?.computed && mayHaveSideEffects(propNode.key);
+}
+
 // SE-bearing prefix of a multi-operand SequenceExpression (all but the consumed last operand),
 // or null when the node is not such a sequence or its prefix is side-effect-free. used by
-// `sequenceKeyPrefix` (destructure computed-key) and resolve.js's `bailOnSideEffectKey` gate -
-// callers that only need to KNOW a prefix has effects, not harvest the surviving tail's nested SE
-// (that recursive harvest is `collectFoldedReceiverSideEffects`, which the `in`-expression paths use)
+// resolve.js's `bailOnSideEffectKey` gate - callers that only need to KNOW a prefix has effects,
+// not harvest the surviving tail's nested SE (that recursive harvest is
+// `collectFoldedReceiverSideEffects`, which the `in`-expression paths use)
 export function sequencePrefixWithSideEffects(expr) {
   if (expr?.type !== 'SequenceExpression' || expr.expressions.length < 2) return null;
   const prefix = expr.expressions.slice(0, -1);
@@ -2832,14 +2839,6 @@ export function collectFoldedReceiverSideEffects(node, out = [], rescue = null) 
       break;
   }
   return out;
-}
-
-// the side-effecting prefix of a destructure COMPUTED KEY (`[(eff(), 'from')]`), peeled through paren /
-// chain / TS wrappers, or null when the key isn't such a sequence. single source for both flatten
-// emitters (babel AST + unplugin text) so the key-effect gate AND the lifted prefix are captured
-// identically - the peel and the SE check can't drift between the two
-export function sequenceKeyPrefix(keyNode) {
-  return sequencePrefixWithSideEffects(unwrapRuntimeExpr(keyNode));
 }
 
 // nodes that introduce their own scope and may shadow outer bindings - subtree walkers
@@ -3902,6 +3901,8 @@ export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
 // NOT cleared on `typeResolvers.reset()` - WeakMap entries GC naturally when AST nodes go out
 // of scope; per-file plugin instances each see fresh nodes anyway. documented for parity check
 const SIDE_EFFECTS_CACHE = new WeakMap();
+// strict-mode cache for `reEvaluationObservable` (same walker, wider verdict)
+const RE_EVAL_CACHE = new WeakMap();
 const SIDE_EFFECTS_MAX_DEPTH = 256;
 // the dead-tail policy for a lifted sequence: once a destructure consumed every binding,
 // trailing EFFECT-FREE expressions of the lifted init are unread - pop them so the emitted
@@ -3916,60 +3917,77 @@ export function dropDeadSequenceTail(expressions) {
 export function mayHaveSideEffects(node) {
   if (!node) return false;
   if (SIDE_EFFECTS_CACHE.has(node)) return SIDE_EFFECTS_CACHE.get(node);
-  const result = computeSideEffects(node, 0);
+  const result = computeSideEffects(node, 0, false);
   SIDE_EFFECTS_CACHE.set(node, result);
   return result;
 }
-function recurse(node, depth) {
+// strict superset of `mayHaveSideEffects`: additionally true when RE-evaluating the subtree is
+// observable even though a single evaluation is pure - a member READ (re-fires a getter / Proxy
+// trap on the source object) or an accessor DEFINITION in an object literal (each emitted copy
+// re-fires on property reads). same eval-time traversal (function bodies stay inert), so a
+// member read inside a deferred body does not bail. gates decisions that EMIT a subtree twice
+// (receiver copies); single-eval / memoize decisions keep using `mayHaveSideEffects`
+export function reEvaluationObservable(node) {
   if (!node) return false;
-  if (SIDE_EFFECTS_CACHE.has(node)) return SIDE_EFFECTS_CACHE.get(node);
-  if (depth >= SIDE_EFFECTS_MAX_DEPTH) return true;
-  const result = computeSideEffects(node, depth + 1);
-  SIDE_EFFECTS_CACHE.set(node, result);
+  if (RE_EVAL_CACHE.has(node)) return RE_EVAL_CACHE.get(node);
+  const result = computeSideEffects(node, 0, true);
+  RE_EVAL_CACHE.set(node, result);
   return result;
 }
-function computeSideEffects(node, depth) {
+function recurse(node, depth, strict) {
+  if (!node) return false;
+  const cache = strict ? RE_EVAL_CACHE : SIDE_EFFECTS_CACHE;
+  if (cache.has(node)) return cache.get(node);
+  if (depth >= SIDE_EFFECTS_MAX_DEPTH) return true;
+  const result = computeSideEffects(node, depth + 1, strict);
+  cache.set(node, result);
+  return result;
+}
+function computeSideEffects(node, depth, strict) {
   const { type } = node;
   if (ALWAYS_EFFECTFUL_TYPES.has(type)) return true;
-  if (type === 'UnaryExpression') return node.operator === 'delete' || recurse(node.argument, depth);
+  if (type === 'UnaryExpression') return node.operator === 'delete' || recurse(node.argument, depth, strict);
   if (type === 'SequenceExpression' || type === 'TemplateLiteral') {
-    return node.expressions.some(e => recurse(e, depth));
+    return node.expressions.some(e => recurse(e, depth, strict));
   }
   // `[...a]` invokes `a[Symbol.iterator]` / `{...a}` invokes `a`'s Proxy traps - neither
   // can be proven pure from source alone. treat SpreadElement as SE uniformly across
   // Array and Object literals. without this, `const { from } = [1, ...Array]` would be
   // considered SE-free and run through the no-SE-path
   if (type === 'ArrayExpression') {
-    return node.elements.some(el => el?.type === 'SpreadElement' || recurse(el, depth));
+    return node.elements.some(el => el?.type === 'SpreadElement' || recurse(el, depth, strict));
   }
   if (type === 'ObjectExpression') {
-    return node.properties.some(p => p?.type === 'SpreadElement' || recurse(p, depth));
+    return node.properties.some(p => p?.type === 'SpreadElement' || recurse(p, depth, strict));
   }
   if (type === 'BinaryExpression' || type === 'LogicalExpression') {
-    return recurse(node.left, depth) || recurse(node.right, depth);
+    return recurse(node.left, depth, strict) || recurse(node.right, depth, strict);
   }
   if (type === 'ConditionalExpression') {
-    return recurse(node.test, depth) || recurse(node.consequent, depth) || recurse(node.alternate, depth);
+    return recurse(node.test, depth, strict) || recurse(node.consequent, depth, strict) || recurse(node.alternate, depth, strict);
   }
   if (TRANSPARENT_WRAPPER_TYPES.has(type) || TS_EXPR_WRAPPERS.has(type)) {
-    return recurse(node.expression ?? node.argument, depth);
+    return recurse(node.expression ?? node.argument, depth, strict);
   }
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
-    return recurse(node.object, depth) || (node.computed && recurse(node.property, depth));
+    if (strict) return true;
+    return recurse(node.object, depth, strict) || (node.computed && recurse(node.property, depth, strict));
   }
   if (type === 'Property' || type === 'ObjectProperty') {
-    return (node.computed && recurse(node.key, depth)) || recurse(node.value, depth);
+    if (strict && (node.kind === 'get' || node.kind === 'set')) return true;
+    return (node.computed && recurse(node.key, depth, strict)) || recurse(node.value, depth, strict);
   }
   // babel-only ObjectMethod (`{ [fn()]() {} }` / `{ get [fn()]() {} }`): computed key is
   // evaluated at object-literal-eval time, method body / params are deferred. without this
   // case the node falls through to `return false`, silently eliding SE in the computed key
   // and unblocking unsafe receiver-drop rewrites that consumed `Array[(fn(), 'from')]`-shape
   if (type === 'ObjectMethod') {
-    return node.computed && recurse(node.key, depth);
+    if (strict && (node.kind === 'get' || node.kind === 'set')) return true;
+    return node.computed && recurse(node.key, depth, strict);
   }
-  if (type === 'AssignmentPattern') return recurse(node.right, depth);
-  if (JSX_NODE_TYPES.has(type)) return jsxHasSideEffects(node, type, depth);
-  if (type === 'ClassExpression' || type === 'ClassDeclaration') return classHasSideEffects(node, depth);
+  if (type === 'AssignmentPattern') return recurse(node.right, depth, strict);
+  if (JSX_NODE_TYPES.has(type)) return jsxHasSideEffects(node, type, depth, strict);
+  if (type === 'ClassExpression' || type === 'ClassDeclaration') return classHasSideEffects(node, depth, strict);
   return false;
 }
 
@@ -3984,16 +4002,16 @@ const JSX_NODE_TYPES = new Set([
   'JSXExpressionContainer',
   'JSXSpreadChild',
 ]);
-function jsxHasSideEffects(node, type, depth) {
+function jsxHasSideEffects(node, type, depth, strict) {
   // `.expression`-only carriers
-  if (type === 'JSXExpressionContainer' || type === 'JSXSpreadChild') return recurse(node.expression, depth);
-  if (type === 'JSXAttribute') return recurse(node.value, depth);
+  if (type === 'JSXExpressionContainer' || type === 'JSXSpreadChild') return recurse(node.expression, depth, strict);
+  if (type === 'JSXAttribute') return recurse(node.value, depth, strict);
   // JSXElement | JSXFragment: walk children. JSXElement also walks attributes -
   // spread attributes are SE unconditionally (iteration over their object operand)
-  if (node.children?.some(c => recurse(c, depth))) return true;
+  if (node.children?.some(c => recurse(c, depth, strict))) return true;
   if (type === 'JSXFragment') return false;
   return node.openingElement?.attributes?.some(
-    a => a?.type === 'JSXSpreadAttribute' || recurse(a, depth),
+    a => a?.type === 'JSXSpreadAttribute' || recurse(a, depth, strict),
   ) ?? false;
 }
 
@@ -4033,17 +4051,21 @@ export function hasDeferredContextAncestor(t, startPath) {
   return false;
 }
 
-function classMemberHasSideEffects(member, depth) {
+// `strict` threads the re-evaluation lens through every CLASS-EVAL-TIME position (computed keys,
+// decorators, STATIC field values, superClass) - a member read there re-fires per class copy.
+// instance-field values stay non-strict on purpose: they evaluate per CONSTRUCTION, and user code
+// constructs whichever copy it reads, so the count matches native either way
+function classMemberHasSideEffects(member, depth, strict) {
   if (!member) return false;
-  if (member.computed && recurse(member.key, depth)) return true;
-  if (member.decorators?.some(d => recurse(d, depth))) return true;
-  if (CLASS_FIELD_TYPES.has(member.type) && member.static && recurse(member.value, depth)) return true;
+  if (member.computed && recurse(member.key, depth, strict)) return true;
+  if (member.decorators?.some(d => recurse(d, depth, strict))) return true;
+  if (CLASS_FIELD_TYPES.has(member.type) && member.static && recurse(member.value, depth, strict)) return true;
   return member.type === 'StaticBlock';
 }
-function classHasSideEffects(node, depth) {
-  if (node.superClass && recurse(node.superClass, depth)) return true;
-  if (node.decorators?.some(d => recurse(d, depth))) return true;
-  return node.body?.body?.some(member => classMemberHasSideEffects(member, depth)) ?? false;
+function classHasSideEffects(node, depth, strict) {
+  if (node.superClass && recurse(node.superClass, depth, strict)) return true;
+  if (node.decorators?.some(d => recurse(d, depth, strict))) return true;
+  return node.body?.body?.some(member => classMemberHasSideEffects(member, depth, strict)) ?? false;
 }
 
 const ALWAYS_EFFECTFUL_TYPES = new Set([

@@ -1,9 +1,7 @@
-import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _Map from "@core-js/pure/actual/map/constructor";
-const m = _flatMaybeArray([1, _Map]);
-// a proxy-global member chain nested in a re-referenceable literal receiver: the copied-receiver
-// substitution rewrites the whole-constructor member (`globalThis.Map` -> `_Map`), matching the in-place
-// residual's visitor rewrite
+// a proxy-global member chain nested in a literal receiver: the member READ makes the literal
+// unsafe to emit twice (a Proxy trap on the source would re-fire), so the extraction bails and the
+// binding stays native - the in-place visitor still rewrites the whole-constructor member to `_Map`
 const {
-  [(eff(), 'flat')]: _unused
+  [(eff(), 'flat')]: m
 } = [1, _Map];

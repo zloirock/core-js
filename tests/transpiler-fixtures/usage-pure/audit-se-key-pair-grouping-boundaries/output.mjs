@@ -6,14 +6,14 @@ import _includes from "@core-js/pure/actual/instance/includes";
 const {
     [(e1(), 'at')]: _unused
   } = arr,
+  a = _at(arr),
   {
     [(e2(), 'flat')]: _unused2
   } = arr2,
-  a = _at(arr),
   f = _flatMaybeArray(arr2);
 const {
     [(e3(), 'includes')]: _unused3
   } = arr3,
-  plain = 5,
-  i = _includes(arr3);
+  i = _includes(arr3),
+  plain = 5;
 console.log(a, f, i, plain);
