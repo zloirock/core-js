@@ -6,7 +6,8 @@
  */
 
 // Full prologue: shebang + use-strict directive + JSDoc copyright. Injected polyfill
-// imports must land after these and before user code; ref-only `var _refN` (used by
-// optional-chain memoization) must reorder past the imports.
-const x = obj?.flat?.();
+// imports must land after these and before user code. the call-rooted base MINTS a
+// memo `var _ref` that must reorder past the imports (a plain-identifier base guards
+// with `== null` and mints nothing - the second line keeps that negative visible)
+const x = getObj()?.flat?.();
 const y = arr2?.includes(1);

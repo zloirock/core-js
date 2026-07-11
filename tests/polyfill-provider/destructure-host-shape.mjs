@@ -6,6 +6,8 @@
 import {
   classifyVariableDeclarationHost,
   isBodylessStatementSlot,
+  isLoopStatement,
+  peelLabeledStatements,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
 import { createChecker } from './harness.mjs';
 
@@ -162,6 +164,50 @@ runBoth('classifyVariableDeclarationHost/for-in init not isForInit', 'for (var k
     declaration: decl.node,
     declarationParent: decl.parent,
   }), { isExport: false, isForInit: false, isBodyless: false, isMultiDecl: false });
+});
+
+// --- isLoopStatement (element-wise over the closed loop-type domain, both parsers) ---
+
+const LOOP_SOURCES = [
+  ['ForStatement', 'for (;;) call();'],
+  ['ForInStatement', 'for (const k in obj) call();'],
+  ['ForOfStatement', 'for (const x of arr) call();'],
+  ['WhileStatement', 'while (cond) call();'],
+  ['DoWhileStatement', 'do call(); while (cond);'],
+];
+for (const [type, src] of LOOP_SOURCES) {
+  runBoth(`isLoopStatement/${ type }`, src, (adapter, prog, lbl) => {
+    check(lbl, isLoopStatement(adapter.pickPath(prog, type).node), true);
+  });
+}
+
+// negatives: non-loop statements, a label WRAPPING a loop (the wrapper is not the loop),
+// and null-safety
+runBoth('isLoopStatement/IfStatement negative', 'if (cond) call();', (adapter, prog, lbl) => {
+  check(lbl, isLoopStatement(adapter.pickPath(prog, 'IfStatement').node), false);
+});
+runBoth('isLoopStatement/LabeledStatement wrapper negative', 'outer: for (;;) call();', (adapter, prog, lbl) => {
+  const label = adapter.pickPath(prog, 'LabeledStatement');
+  check(lbl, isLoopStatement(label.node), false);
+  check(lbl, isLoopStatement(label.node.body), true);
+  check(lbl, isLoopStatement(null), false);
+});
+
+// --- peelLabeledStatements ---
+
+// a stacked label chain peels to the innermost hosted statement - the loop three labels down
+runBoth('peelLabeledStatements/stacked labels reach the loop', 'a: b: c: for (;;) call();', (adapter, prog, lbl) => {
+  const outer = adapter.pickPath(prog, 'LabeledStatement');
+  const peeled = peelLabeledStatements(outer.node);
+  check(lbl, isLoopStatement(peeled), true);
+  check(lbl, peeled.type === 'ForStatement', true);
+});
+
+// a non-labeled node is identity; a single label peels one level
+runBoth('peelLabeledStatements/identity and single level', 'x: call();', (adapter, prog, lbl) => {
+  const label = adapter.pickPath(prog, 'LabeledStatement');
+  check(lbl, peelLabeledStatements(label.node).type === 'ExpressionStatement', true);
+  check(lbl, peelLabeledStatements(label.node.body) === label.node.body, true);
 });
 
 finish();

@@ -490,6 +490,15 @@ runBoth('non-passthrough mapped keyof still excludes a real private member',
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
   });
+// the exclusion itself: the private key probed via bracket must NOT resolve to the mapped
+// value type - a public-key probe alone passes whether or not the privacy filter leaks
+runBoth('non-passthrough mapped keyof private key probed via bracket stays unresolved',
+  "class P { #secret = 1; open = 2; } type M = { [K in keyof P]: number[]; }; declare const m: M; const t = m['#secret'];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
 
 // --- class-fields shadow census: namespace pattern-merge + wrapped object writer ---
 // a namespace DESTRUCTURING export on a subclass binds the runtime static slot like the
