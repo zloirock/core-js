@@ -5,9 +5,12 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
+import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _keys from "@core-js/pure/actual/instance/keys";
+import _values from "@core-js/pure/actual/instance/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 // a side-effect-key instance destructure off a side-effect-free BRANCHING receiver (ternary /
 // logical) memoizes the receiver into a `_ref` read once - the branch selects exactly once,
@@ -194,3 +197,34 @@ var _ref16 = (s16++, _globalThis.Array.prototype),
   } = _ref16,
   f16 = _flatMaybeArray(_ref16);
 export const r16 = [typeof f16, k16, s16];
+// an EXPORTED host must not export the internal memo temp: first-declarator memos plant as a
+// bare statement BEFORE the export (comma-joining would add `_ref` to the module surface)
+let k17 = 0;
+var _ref17 = holder17.p;
+export var _u17 = _toSortedMaybeArray(_ref17);
+export var {
+  [(k17++, 'toSorted')]: _unused17,
+  other17
+} = _ref17;
+export const r17 = [typeof _u17, typeof other17, k17];
+// multi-declarator export host: the memo still precedes the export, the pair joins the list
+let k18 = 0;
+var _ref18 = holder18.p;
+export var {
+    [(k18++, 'values')]: _unused18,
+    other18
+  } = _ref18,
+  _u18 = _values(_ref18),
+  z18 = 1;
+export const r18 = [typeof _u18, typeof other18, z18, k18];
+// LATER-declarator export memo keeps the comma slot (a statement hoist would run the receiver
+// read ahead of the earlier declarator's init) - the exported `_ref` is the documented residue
+let k19 = 0;
+export var z19 = 1,
+  _ref19 = holder19.p,
+  {
+    [(k19++, 'keys')]: _unused19,
+    other19
+  } = _ref19,
+  _u19 = _keys(_ref19);
+export const r19 = [z19, typeof other19, k19];
