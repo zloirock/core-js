@@ -1,9 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// shorthand-with-default `{from = []}` + computed-key sibling forces synth-swap bail.
-// body-extract removes the prop entirely (no rest sibling) and prepends body decl.
-// pre-fix this case fell through to inline-default `{from = _polyfill}` which let user-
-// passed `{from: customFn}` override the polyfill. now matches babel-plugin's polyfill-
-// always-wins contract
+// shorthand-with-default `{from = []}` + computed-key sibling: the default swaps to a
+// synthesized literal where the polyfilled key supplies the pure binding - the polyfill
+// wins over the inner `= []` default when the caller passes nothing (polyfill-always-wins
+// contract, babel-parity), and the computed sibling re-reads its key off the raw receiver
 const TAG = 't';
 function run({
   from = [],

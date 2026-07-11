@@ -302,14 +302,6 @@ export default function createSynthSwapEmitter({
     return true;
   }
 
-  // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
-  // `globalThis?.Array`) receivers. for member-chain shapes, unpolyfilled keys still re-read
-  // through the chain (`window.Array.other`) - each clone re-evaluates the receiver expression.
-  // trade-off: lifting the chain to a temp would change AST shape (require IIFE wrap or
-  // explicit binding) and for usage-pure mode the typical pattern is all-polyfilled keys,
-  // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
-  // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
-
   // render a substrate-neutral proxy-receiver plan (from the shared `planProxyReceiver`) into collapsed AST.
   // the decision (drop hops / swap root / harvest SE / recurse a deeper nav) lives in the provider; this only
   // builds nodes - keep the leaf's own computed flag (`globalThis.self['Object']` -> `_globalThis['Object']`)
@@ -422,6 +414,13 @@ export default function createSynthSwapEmitter({
       : target;
   }
 
+  // accept Identifier (`Array`) and (Optional)MemberExpression (`window.Array`,
+  // `globalThis?.Array`) receivers. for member-chain shapes, unpolyfilled keys still re-read
+  // through the chain (`window.Array.other`) - each clone re-evaluates the receiver expression.
+  // trade-off: lifting the chain to a temp would change AST shape (require IIFE wrap or
+  // explicit binding) and for usage-pure mode the typical pattern is all-polyfilled keys,
+  // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
+  // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
   function buildSynthLiteral(receiver, { objectPatternNode, polyfills }, memoParam = null, aliasCtx = null) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth

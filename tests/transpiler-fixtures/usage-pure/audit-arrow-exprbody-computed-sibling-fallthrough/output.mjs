@@ -1,9 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
-// arrow expr-body + computed-key sibling: synth-swap bails (computed key not synth-simple),
-// body-extract bails (no BlockStatement body slot), falls through to inline-default with
-// `{from = _polyfill}` AssignmentPattern shape preserving caller `f({from: customFn})`.
-// distinct methods (Array.from / Array.of) probe both keys' inline-default emission.
+// arrow expr-body + computed-key sibling: the synth-swap handles the computed sibling by
+// re-reading its key off the raw receiver, so the whole default swaps to a synthesized
+// literal and the pattern survives - a caller-passed `f({from: customFn})` still wins.
+// distinct methods (Array.from / Array.of) keep the two keys' imports distinguishable.
 const k = 'foo';
 const f = ({
   from,
