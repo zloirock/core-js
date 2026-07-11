@@ -1,8 +1,8 @@
 // a flatten-claimed declaration re-renders whole-range from per-declarator slots, so a sibling
 // SE-key instance destructure must route its artifacts through the SAME slots: the value rename
 // bakes into the residual slice, the receiver memo joins the slot extractions (before the
-// residual), and the extracted pair trails the WHOLE declaration (after every declarator - the
-// trailing-sibling canon; the kept key effect runs first) - in EITHER declarator order, and in
+// residual), and the extracted pair trails its OWN declarator's residual (a later sibling may
+// read the extracted name; the kept key effect runs first) - in EITHER declarator order, and in
 // a for-init head
 let k1 = 0;
 var { Array: { from: f1 } } = globalThis, { [(k1++, 'at')]: a1, other1 } = Array.prototype;

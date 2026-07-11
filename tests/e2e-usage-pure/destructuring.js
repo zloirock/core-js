@@ -2581,3 +2581,49 @@ QUnit.test('destructuring: computed string-literal ctor alias resolves member re
   assert.deepEqual(grouped.get(1), ['x']);
   assert.deepEqual(grouped.get(2), ['yy']);
 });
+
+// a symbol-keyed NESTED pattern destructures the get-iterator-method result; a polyfillable
+// instance call in the pattern's VALUE position (a binding default) is rewritten inside the
+// extracted pattern, not left raw
+QUnit.test('symbol-keyed pattern: instance call in a binding default still polyfills', assert => {
+  // eslint-disable-next-line unicorn/no-unused-properties -- read via the computed symbol key in the pattern
+  const holder = { Array: {}, [Symbol.iterator]: {} };
+  const { Array: { from }, [Symbol.iterator]: { next = [1].at(0) } } = holder;
+  assert.same(from, undefined);
+  assert.same(next, 1);
+});
+
+// SOLE symbol-keyed pattern extracts through the helper: the destructured props come off the
+// real iterator method. `length` / `call` (not `name`): IE lacks Function#name entirely, and
+// no polyfill can backfill it - arity and the inherited call are cross-engine invariants
+QUnit.test('symbol-keyed pattern: sole binding destructures the real iterator method', assert => {
+  const { [Symbol.iterator]: { length: iterArity, call: iterCall } } = [7];
+  assert.same(iterArity, 0);
+  assert.same(typeof iterCall, 'function');
+});
+
+// prop-level default over a symbol-keyed pattern: a non-iterable receiver takes the user
+// default, like a raw undefined read would
+QUnit.test('symbol-keyed pattern: prop default fires for a non-iterable receiver', assert => {
+  const fb = { done: true };
+  const { [Symbol.iterator]: { done } = fb } = {};
+  assert.true(done);
+});
+
+// rest inside the extracted pattern gathers the method's own keys, excluding the named one -
+// same reads a raw destructure of the method performs (`length`, not `name`: IE-safe arity)
+QUnit.test('symbol-keyed pattern: inner rest destructures the helper result', assert => {
+  const { [Symbol.iterator]: { length: iterArity, ...restOfMethod } } = [3];
+  assert.same(iterArity, 0);
+  assert.same(typeof restOfMethod, 'object');
+});
+
+// a pattern-valued symbol prop in a CATCH param extracts off the relocated ref
+// (`length`, not `name`: IE-safe arity)
+QUnit.test('symbol-keyed pattern: catch param destructures the helper result', assert => {
+  try {
+    throw [5];
+  } catch ({ [Symbol.iterator]: { length: iterArity } }) {
+    assert.same(iterArity, 0);
+  }
+});
