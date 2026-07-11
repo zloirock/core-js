@@ -665,19 +665,22 @@ function countOr(n) {
 
 // sideEffects fold into the conditional's ALTERNATE (not around the whole conditional) so they
 // fire only when the chain does not short-circuit - matches native, which skips a computed-key
-// eval on a nullish receiver. wrapping the conditional would run the effect unconditionally
+// eval on a nullish receiver. wrapping the conditional would run the effect unconditionally.
+// inside the alternate the threaded receiver memoizes FIRST (ECMA evaluates the receiver before
+// the computed key), then the key SE, then the dispatch on the memo
 {
   const { helpers, program, ast } = setup('arr.at(0).includes(1);');
   const se = [t.callExpression(t.identifier('spy'), [])];
   const exprStmt = runChainCombined(helpers, program, ast,
     { outerName: 'includes', outerId: '_includes', innerId: '_at', sideEffects: se });
-  // expected: `<tests> ? void 0 : (spy(), <method call>)`
+  // expected: `<tests> ? void 0 : (<ref> = <threaded receiver>, spy(), <method call>)`
   const cond = exprStmt.expression;
   checkTruthy('replaceInstanceChainCombined/sideEffects fold into conditional alternate',
     cond.type === 'ConditionalExpression'
     && cond.alternate.type === 'SequenceExpression'
-    && cond.alternate.expressions[0].callee.name === 'spy'
-    && cond.alternate.expressions[1].type === 'CallExpression');
+    && cond.alternate.expressions[0].type === 'AssignmentExpression'
+    && cond.alternate.expressions[1].callee.name === 'spy'
+    && cond.alternate.expressions[2].type === 'CallExpression');
 }
 
 // --- replaceCallWithSimple ---

@@ -58,6 +58,11 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   // was consumed): the AST emitter re-anchors `init` at the first and swaps the leaf element
   // of the last, so its re-visit guard needs no descent of its own
   const peeledPrefixes = [];
+  // committed consumed levels, outermost first: `wrapper` is the level's raw init (its text /
+  // AST includes the sequence prefixes lifted from that level), `array` the effective
+  // ArrayExpression after the unwrap. residual renders strip each INLINE level's wrapper down
+  // to its array - a kept `(mid(), [R])` would re-run the lifted effect (double-exec)
+  const consumedLevels = [];
   let firstArray = null;
   let lastArray = null;
   for (;;) {
@@ -68,13 +73,13 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // (the identification's resolveArrayInnerDefaultReceiver agrees, so both emitters stay consistent)
     if (pattern?.type === 'AssignmentPattern') {
       if (isUndefinedNode(init) && destructureRightIsReceiver(pattern.right)) {
-        return { pattern: pattern.left, init: pattern.right, peeledPrefixes, firstArray, lastArray };
+        return { pattern: pattern.left, init: pattern.right, peeledPrefixes, firstArray, lastArray, consumedLevels };
       }
       pattern = pattern.left;
       continue;
     }
     if (pattern?.type !== 'ArrayPattern' || pattern.elements.length !== 1) {
-      return { pattern, init, peeledPrefixes, firstArray, lastArray };
+      return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
     }
     // peel SE-tail / paren / TS wrappers first (`(se(), [Array])` descends into the tail's
     // array); the crossed sequence prefixes are collected and committed only when this level's
@@ -99,11 +104,12 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
         readNode = (binding.path?.node ?? binding.node) ?? readNode;
       }
     }
-    if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init, peeledPrefixes, firstArray, lastArray };
+    if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
     const [innerPattern] = pattern.elements;
     const [innerInit] = effectiveInit.elements;
-    if (!innerPattern || !innerInit) return { pattern, init, peeledPrefixes, firstArray, lastArray };
+    if (!innerPattern || !innerInit) return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
     peeledPrefixes.push(...levelPrefixes);
+    consumedLevels.push({ wrapper: init, array: effectiveInit });
     firstArray ??= effectiveInit;
     lastArray = effectiveInit;
     pattern = innerPattern;
@@ -153,6 +159,13 @@ function isSymbolIteratorComputedKey(outerProp) {
 function symbolIteratorLocalName(outerProp) {
   if (!isSymbolIteratorComputedKey(outerProp)) return null;
   return propBindingIdentifier(outerProp.value)?.name ?? null;
+}
+
+// pattern-valued `[Symbol.iterator]` prop - the shape both emitters extract by destructuring
+// the get-iterator-method RESULT. the single predicate every dispatch / trigger / value gate
+// shares, so the shape decision can't drift between them
+export function isSymbolIteratorPatternProp(propNode) {
+  return !!propNode && isSymbolIteratorComputedKey(propNode) && propNode.value?.type === 'ObjectPattern';
 }
 
 function hasExtractions(planNode) {
@@ -248,15 +261,24 @@ export function buildNestedDestructurePlan({
 
   // `[Symbol.iterator]`-keyed prop, shared by the proxy-outer level and the single-ctor-key
   // ANCHOR hop (where the synth receiver is the anchored constructor): a binding value
-  // consumes into the synth extraction `ident = _getIteratorMethod(receiver)`, a non-binding
-  // value keeps the prop with only its key polyfilled, a disabled leaf stays verbatim (the
-  // directive-honoring natural visitor owns the key then). null for non-symbol keys
+  // consumes into the synth extraction `ident = _getIteratorMethod(receiver)`; a nested
+  // ObjectPattern value consumes the same way, destructuring the helper RESULT
+  // (`{ next } = _getIteratorMethod(receiver)`) - value-correct on modern engines (the helper
+  // returns the same method a raw read yields) and polyfill-visible on engines without native
+  // Symbol, where a raw `receiver[_Symbol$iterator]` read misses the iterators the helper's
+  // fallbacks cover. a prop-level DEFAULT (`[Symbol.iterator]: {...} = fb`) keeps the key-swap
+  // instead: the helper result is defined where the raw read is undefined, so extracting would
+  // flip which side of the default runs. a disabled leaf stays verbatim (the directive-honoring
+  // natural visitor owns the key then). null for non-symbol keys
   function planSymbolIteratorProp(prop) {
     if (!isSymbolIteratorComputedKey(prop)) return null;
     if (leafDisabled(prop)) return { kind: 'verbatim', prop };
     const localName = symbolIteratorLocalName(prop);
     if (localName !== null) {
       return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', localName }] };
+    }
+    if (isSymbolIteratorPatternProp(prop)) {
+      return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', pattern: prop.value }] };
     }
     return { kind: 'symbol-iterator-key', prop };
   }
@@ -369,6 +391,12 @@ export function buildNestedDestructurePlan({
   // identifier verbatim, so no element targeting applies
   const initElement = arrayPeelHappened && peeled.init !== declarator.init
     && peeled.init.start >= declarator.init.start && peeled.init.end <= declarator.init.end ? peeled.init : null;
+  // INLINE consumed wrapper levels whose sequence prefixes were lifted: the residual render
+  // strips each down to its bare array so the lifted effect never re-runs. an alias-dereferenced
+  // level (array outside the wrapper span) keeps its identifier verbatim - nothing to strip
+  const consumedLevelStrips = (peeled.consumedLevels ?? []).filter(l => l.wrapper !== l.array
+    && l.array.start >= l.wrapper.start && l.array.end <= l.wrapper.end
+    && l.wrapper.start >= declarator.init.start && l.wrapper.end <= declarator.init.end);
   if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
     // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
     // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
@@ -456,7 +484,7 @@ export function buildNestedDestructurePlan({
         return {
           receiver, anchor: key,
           anchorPure: anchorSlotMutated ? null : resolveGlobalPolyfill(key),
-          outerProps, pattern: inner, discardSe, initElement: null,
+          outerProps, pattern: inner, discardSe, initElement: null, consumedLevelStrips,
         };
       }
       const hopHostEligible = !arrayPeelHappened && !mayHaveSideEffects(declarator.init)
@@ -479,7 +507,7 @@ export function buildNestedDestructurePlan({
           && reanchored.some(p => p.kind === 'anchored') && reanchored.some(p => p.kind === 'consumed')
           ? reanchored : planned;
         if (outerProps.some(p => hasExtractions(p) || p.kind === 'anchored')) {
-          plan = { receiver, outerProps, pattern, discardSe, initElement };
+          plan = { receiver, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
         }
       }
       // a pattern hop that is ITSELF a proxy-global alias (`{ self: { x } } = globalThis`, deeper
@@ -513,7 +541,7 @@ export function buildNestedDestructurePlan({
         return planCtorKeyAnchor(effPattern) ?? {
           receiver, anchor: lastHop, anchorPure: receiverPure,
           outerProps: effPattern.properties.map(p => planSymbolIteratorProp(p) ?? planOuterProp(p)),
-          pattern: effPattern, discardSe, initElement: null,
+          pattern: effPattern, discardSe, initElement: null, consumedLevelStrips,
         };
       }
       if (!plan && hopHostEligible) plan = planPeeledProxyHop();
@@ -523,10 +551,10 @@ export function buildNestedDestructurePlan({
       // sibling) survives the residual render - the rebuilt pattern is spliced back into
       // the original LHS text
       const outerProps = pattern.properties.map(p => planInnerProp(p, receiver));
-      if (outerProps.some(hasExtractions)) plan = { receiver, outerProps, pattern, discardSe, initElement };
+      if (outerProps.some(hasExtractions)) plan = { receiver, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
     } else if (init) {
       const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, []));
-      if (outerProps.some(hasExtractions)) plan = { receiver: null, outerProps, pattern, discardSe, initElement };
+      if (outerProps.some(hasExtractions)) plan = { receiver: null, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
     }
   }
   planCache.set(declarator, plan);
