@@ -398,6 +398,12 @@ export function createTypeSubst({
     let subst = null;
     // bail on cycle (`type A = B; type B = A;`) before depth exhausts and subst balloons
     const visited = new Set();
+    // splice-branch twin of `visited`: an HKT param name spliced ONCE. `visited` can't guard
+    // that branch (a typeparam binding has no decl), and a cyclic body (`type Apply<F> = F<0>`)
+    // re-splices the SAME ref into a fresh clone every hop - with `depth++` reclaiming the
+    // budget, the walk never terminates (build DoS). a repeat splice of one name proves the
+    // chain unproductive (this resolver has no conditional types to break a self-application)
+    const splicedRefs = new Set();
     node = unwrapTypeAnnotation(node);
     while (depth-- && (node?.type === 'TSTypeReference' || node?.type === 'GenericTypeAnnotation')) {
       const refName = typeRefName(node);
@@ -409,7 +415,8 @@ export function createTypeSubst({
         // rewrite the ref through subst and re-enter the loop on Boxed's actual declaration.
         // built-in F (Array, Promise, ...) takes a separate Type-object path via
         // applyHigherKindedArgs - no AST body to walk, container identity is the result
-        if (subst?.has(refName)) {
+        if (subst?.has(refName) && !splicedRefs.has(refName)) {
+          splicedRefs.add(refName);
           const spliced = applyAliasSubstDeep(node, subst);
           // identity check guards against subst that resolves F to itself (cycle);
           // depth++ reclaims the iteration consumed by the unproductive lookup
