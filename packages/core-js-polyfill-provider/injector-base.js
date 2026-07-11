@@ -344,8 +344,17 @@ export default class ImportInjectorState {
     };
   }
 
+  // user-owned names the allocator AND any post-pass renumber must never take: unlike
+  // `usedNames` (which also holds plugin-allocated slots the renumber may reclaim), these
+  // stay taken forever - e.g. a `globalThis.<name>` slot the user writes, aliasing a
+  // top-level `var <name>` in script-scope output
+  reservedNames = new Set();
+
   seedReservedNames(names) {
-    for (const n of names) this.usedNames.add(n);
+    for (const n of names) {
+      this.usedNames.add(n);
+      this.reservedNames.add(n);
+    }
   }
 
   enableReferenceTracking() {
