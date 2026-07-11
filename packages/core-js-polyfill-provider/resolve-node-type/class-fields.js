@@ -3,7 +3,7 @@
 // gathers every type that could flow into a field via:
 //   1. init expression                                (always)
 //   2. `this.<field> = Y` writes inside own methods   (instance / static)
-//   3. subclass `this.<field>` writes                  (instance flow only)
+//   3. subclass `this.<field>` writes                  (instance / static)
 //   4. module-wide `<receiver>.<field> = Y` writes     (when receiver matches the closure)
 // folds the candidate set via `commonType` skipping nullable/never. null result signals
 // "writer set not enumerable" (exported binding, leak, anonymous-class anchor) - caller

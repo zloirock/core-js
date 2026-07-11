@@ -65,15 +65,6 @@ import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 
-// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
-// assignment into ANY slot of a statement-position SequenceExpression (minified tail,
-// comma-joined statements, nested sequences) - the destructure-emitter gate would silently
-// bail without this split. shape detection is shared with unplugin's
-// text-rewrite path via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
-// pre-pass routes through `forEachStatementListBody` over the raw AST). walks every
-// Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
-// so function / loop / try / class-static / namespace bodies are covered too; a Program-only
-// walk would silently bail destructure-emitter inside non-Program statement lists
 // climb a babel path through transparent runtime wrappers (parens / ChainExpression / TS cast / non-null)
 // to the underlying expression path, so receiver navigation reaches the real node a TS cast or paren hides
 function peelWrapperPath(p) {
@@ -84,6 +75,15 @@ function peelWrapperPath(p) {
   return p;
 }
 
+// minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
+// assignment into ANY slot of a statement-position SequenceExpression (minified tail,
+// comma-joined statements, nested sequences) - the destructure-emitter gate would silently
+// bail without this split. shape detection is shared with unplugin's
+// text-rewrite path via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
+// pre-pass routes through `forEachStatementListBody` over the raw AST). walks every
+// Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
+// so function / loop / try / class-static / namespace bodies are covered too; a Program-only
+// walk would silently bail destructure-emitter inside non-Program statement lists
 function splitMinifierSequenceDestructure(programPath, t) {
   // a split product can ITSELF be a minifier-sequence nested in the SAME statement list (e.g.
   // `(a, (b, ({x} = R)), ({y} = S))` - the middle operand is a sequence-destructure too). the
