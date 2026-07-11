@@ -8,13 +8,14 @@
 // SCOPED per-site resolution runs only when it fires - files without monkey-patch shapes
 // (the overwhelming majority) pay nothing beyond the walk. The plugins own the scoped
 // traversal (each dialect collects sites with live paths) and feed `resolveMutationSite`.
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import {
   followConstLiteralAlias,
   unwrapRuntimeExpr,
   isMemberMutationContext,
   memberKeyName,
+  mutatedStaticKey,
   patternSlotValues,
+  POSSIBLE_GLOBAL_OBJECTS,
   propertyKeyName,
   reassignmentValueNodes,
   TS_EXPR_WRAPPERS,
@@ -294,12 +295,14 @@ const REFLECT_MUTATORS = new Set([
   'set',
 ]);
 
-// the VariableDeclarator a name is bound by, adapter-agnostic. null for params / reassigned-only /
-// non-declarator bindings
+// the VariableDeclarator a name is bound by, adapter-agnostic. null for params / non-declarator
+// bindings / REASSIGNED bindings - a reassigned name is not resolvable to its init (recording the
+// stale init would keep an unrelated read native), mirroring `followConstLiteralAlias`
 function bindingDeclarator(name, ctx) {
   const { scope, adapter, path } = ctx;
   if (!adapter.hasBinding(scope, name, path)) return null;
   const binding = adapter.getBinding(scope, name, path);
+  if (binding?.constantViolations?.length) return null;
   const decl = binding?.path?.node ?? binding?.node;
   return decl?.type === 'VariableDeclarator' ? decl : null;
 }
@@ -438,7 +441,7 @@ export function createMutationSiteHandler({ adapter, mutated }) {
     const ctx = { scope: path.scope, adapter, path };
     for (const { targetNode, keys } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
       const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
-      for (const name of names) for (const key of keys) mutated.add(`${ name }.${ key }`);
+      for (const name of names) for (const key of keys) mutated.add(mutatedStaticKey(name, key));
     }
   };
 }
@@ -578,6 +581,11 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
       const name = resolveLeafName(leaf, { scope, adapter, path });
       if (name) names.add(name);
       if (leaf.type === 'Identifier') visitBinding(leaf, depth + 1);
+      // an alias bound to a chain root off a reassigned proxy holder (`let h; h = globalThis;
+      // const alias = h.Array`) resolves no leaf name - fan its chain root like the target loop
+      else if (!name && (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression')) {
+        visitChainRootAlias(leaf);
+      }
     }
   }
   function visitBinding(identNode, depth) {
@@ -596,13 +604,17 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     // a receiver-shaped source synthesizes the member (`const { prototype: P } = Array` ->
     // `Array.prototype`), which the leaf resolver keys as the prototype pair
     const decl = binding.path?.node ?? binding.node;
-    if (decl?.type === 'VariableDeclarator' && decl.id && decl.id.type !== 'Identifier') {
+    const patternDeclarator = decl?.type === 'VariableDeclarator' && decl.id && decl.id.type !== 'Identifier';
+    if (patternDeclarator) {
       for (const slotValue of patternSlotValues(decl.id, decl.init, identNode.name, { scope, adapter, path, resolveKey })) {
         visitAliasValues(slotValue, depth);
       }
     }
+    // a pattern declarator's init is the WHOLE rhs (`Array` for `{ prototype: P } = Array`):
+    // fanning it would smuggle the CONTAINER name and record a spurious static beside the
+    // slot fan's correct pair - the selected slot values above are the only sound fan there
     const init = binding.path?.node?.init ?? binding.node?.init;
-    visitAliasValues(init, depth);
+    if (!patternDeclarator) visitAliasValues(init, depth);
     const reCtx = { scope, adapter, path, resolveKey };
     for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: identNode.name, ctx: reCtx }) ?? []) {
       visitAliasValues(rhs, depth);
