@@ -1,12 +1,13 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
+import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-var _ref;
+var _ref2;
 const from = _Array$from;
 // a flatten whose residual keeps a REBUILT pattern re-emits the init: the detect pass
 // suppressed the natural visitor on the init's proxy globals (expecting the emit to own
@@ -28,14 +29,16 @@ const {
 } = _globalThis.Array || Fallback;
 use(of, more);
 
-// a symbol-iterator-keyed sibling rides the same rebuilt re-emit; the polyfillable default
-// inside its value stays live and the init still substitutes
-const {
-  isArray,
-  [_Symbol$iterator]: {
-    x = _atMaybeArray(_ref = [1]).call(_ref, 0)
-  }
-} = _globalThis.Array;
+// a symbol-iterator-keyed PATTERN sibling extracts through the helper off the shared memo
+// (the init substitutes into the memo); the polyfillable default inside the pattern stays live
+const _ref = _globalThis.Array,
+  {
+    isArray,
+    [_Symbol$iterator]: _unused
+  } = _ref,
+  {
+    x = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
+  } = _getIteratorMethod(_ref);
 use(isArray, x);
 
 // the for-init host cannot lift the SE prefix (loop header forbids statements): the sink
