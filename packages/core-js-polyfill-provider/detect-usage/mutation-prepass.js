@@ -12,6 +12,7 @@ import {
   followConstLiteralAlias,
   unwrapRuntimeExpr,
   isMemberMutationContext,
+  isMutatedGlobalSlot,
   memberKeyName,
   mutatedStaticKey,
   patternSlotValues,
@@ -458,6 +459,35 @@ export function createMutationSiteHandler({ adapter, mutated }) {
 //   ctor-routing gate: the point is initialization ORDER - core-js caches its own
 //   implementation and never adopts the third-party patch, so dispatch helpers keep
 //   serving the core-js polyfill in every file of the bundle
+// ONE semantic plan for a bare read of a SLOT-mutated global name, shared by both emitters
+// (they only render it - babel as AST, unplugin as text). decisions owned here:
+//   - reroute at all (kind/shape/slot gates; the globalThis binding must resolve);
+//   - ponyfill BACKSTOP for the ABSENT slot - only when targets require the global at all
+//     (`resolvePureFiltered`) and NEVER under a `typeof` operand (a guard probes engine
+//     state; the backstop would flip `"undefined"` there);
+//   - polyfill-then-patch pin for a STATIC read through the backstop (the constructor entry
+//     alone leaves the ponyfill namespace bare): the member host's key resolves via the
+//     pair-mutated enrichment model above; custom keys resolve to nothing and stay bare.
+// `parentNode` is the semantic parent with transparent wrappers already peeled by the
+// caller's own path machinery; `node` is the bare Identifier read
+export function planMutatedSlotReroute({ meta, node, parentNode, adapter, resolvePureFiltered, resolvePureUnfiltered }) {
+  if (meta.kind !== 'global' || node?.type !== 'Identifier' || !isMutatedGlobalSlot(adapter, meta.name)) return null;
+  const globalBinding = resolvePureUnfiltered({ kind: 'global', name: 'globalThis' });
+  if (!globalBinding) return null;
+  const inTypeof = parentNode?.type === 'UnaryExpression' && parentNode.operator === 'typeof';
+  const pony = inTypeof ? null : resolvePureFiltered(meta);
+  let staticPin = null;
+  if (pony && (parentNode?.type === 'MemberExpression' || parentNode?.type === 'OptionalMemberExpression')
+    && unwrapRuntimeExpr(parentNode.object) === node) {
+    const staticKey = memberKeyName(parentNode);
+    const pin = staticKey && resolvePureUnfiltered({
+      kind: 'property', object: meta.name, key: staticKey, placement: 'static',
+    });
+    if (pin && pin.kind !== 'instance') staticPin = pin;
+  }
+  return { globalBinding, pony: pony ?? null, staticPin };
+}
+
 export function enrichMutatedStatics({ mutatedStatics, resolvePure, injectPureImport }) {
   for (const mutatedKey of mutatedStatics ?? []) {
     const dot = mutatedKey.lastIndexOf('.');

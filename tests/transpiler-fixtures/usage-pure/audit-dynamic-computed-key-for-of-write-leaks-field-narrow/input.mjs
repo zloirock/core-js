@@ -11,3 +11,10 @@ declare const k: string;
 const c = new C();
 for (c[k] of [["x"]]) {}
 c.first();
+
+// a plain-binding write buried in the for-of LEFT (pattern default) runs 0+ times: the
+// binding is a union past the loop, so the dispatch stays generic - neither the stale
+// init narrow nor the stale write narrow may win
+let held = [1, 2];
+for (const { q = (held = 's') } of maybe) { void q; }
+export const widened = held.includes(1);
