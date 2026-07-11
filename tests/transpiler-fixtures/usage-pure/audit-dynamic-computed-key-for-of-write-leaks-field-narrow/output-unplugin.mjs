@@ -1,10 +1,13 @@
+import _at from "@core-js/pure/actual/instance/at";
+import _includes from "@core-js/pure/actual/instance/includes";
 // a dynamic computed-key member as a for-of loop variable (`for (c[k] of ...)`) rebinds an
 // unenumerable field each iteration - same unenumerable-write channel as destructuring. the
 // field narrow must bail and `.at` widens to the generic instance helper
 class C {
   box = [1, 2, 3];
   first() {
-    return this.box.at(0);
+    var _ref;
+    return _at(_ref = this.box).call(_ref, 0);
   }
 }
 declare const k: string;
@@ -17,4 +20,4 @@ c.first();
 // init narrow nor the stale write narrow may win
 let held = [1, 2];
 for (const { q = (held = 's') } of maybe) { void q; }
-export const widened = held.includes(1);
+export const widened = _includes(held).call(held, 1);

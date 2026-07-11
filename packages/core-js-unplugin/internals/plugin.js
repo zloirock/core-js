@@ -14,8 +14,6 @@ import {
   isForXWriteTarget,
   climbTransparentWrapperPath,
   isMemberWriteOnlyContext,
-  isMutatedGlobalSlot,
-  memberKeyName,
   isMutatedStaticMeta,
   isTaggedTemplateTag,
   collectUserMemberKeyNames,
@@ -29,7 +27,7 @@ import {
   unwrapReceiverLeaf,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { enrichMutatedStatics, planMutatedSlotReroute } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -1031,40 +1029,22 @@ export default function createPlugin(options) {
           return true;
         }
 
-        // a SLOT-mutated global name follows the runtime slot on EVERY surface: a bare
-        // reference re-routes through the global-object binding (`Set` -> `_globalThis.Set`),
-        // mirroring the through-global family - the user's replacement wins where the
-        // module-cached ponyfill binding would silently ignore it. the raw slot alone
-        // strands engines missing the native (the slot is undefined until the user's own
-        // write runs), so a targets-required ponyfill backstops the ABSENT slot: reads
-        // rescue exactly where the untranspiled source crashes, while a live slot - native
-        // or user replacement - always wins. `typeof` operands keep the plain slot read
-        // (a guard probes engine state and the backstop would flip `"undefined"` there).
-        // an object-shorthand value slot cannot hold a member text - expand it like the
-        // static dispatch's shorthand branch. no `?.` deopt here: the live slot is NOT
-        // always-defined, so an optional chain over it keeps its guard
+        // a SLOT-mutated global name follows the runtime slot on EVERY surface (the semantics -
+        // backstop / typeof gate / static pin - live in the shared `planMutatedSlotReroute`);
+        // this renders the plan as text. an object-shorthand value slot cannot hold a member
+        // text - expand it like the static dispatch's shorthand branch. no `?.` deopt here:
+        // the live slot is NOT always-defined, so an optional chain over it keeps its guard
         function rerouteMutatedSlotRead(meta, node, metaPath) {
-          if (meta.kind !== 'global' || node.type !== 'Identifier'
-            || !isMutatedGlobalSlot(estreeAdapter, meta.name)) return false;
-          const gt = resolvePureUnfiltered({ kind: 'global', name: 'globalThis' }, metaPath);
-          if (!gt) return false;
-          const slotSrc = `${ injectPureImport(gt.entry, gt.hintName) }.${ meta.name }`;
-          const semParent = semanticParentNode(metaPath);
-          const inTypeof = semParent?.type === 'UnaryExpression' && semParent.operator === 'typeof';
-          const pony = inTypeof ? null : resolvePureOrGlobalFallback(meta, metaPath).result;
-          // polyfill-then-patch for a static READ through the backstop: the constructor entry
-          // alone leaves the ponyfill namespace bare, so the ABSENT-slot branch would serve
-          // undefined for a static core-js provides - pin the read key's own entry (mirrors
-          // the pair-mutated enrichment model; custom keys resolve to nothing and stay bare)
-          if (pony && semParent?.type === 'MemberExpression' && unwrapRuntimeExpr(semParent.object) === node) {
-            const staticKey = memberKeyName(semParent);
-            const staticPure = staticKey && resolvePureUnfiltered({
-              kind: 'property', object: meta.name, key: staticKey, placement: 'static',
-            }, metaPath);
-            if (staticPure && staticPure.kind !== 'instance') injectPureImport(staticPure.entry, staticPure.hintName);
-          }
-          const memberSrc = pony
-            ? `(${ slotSrc } === undefined ? ${ injectPureImport(pony.entry, pony.hintName) } : ${ slotSrc })`
+          const plan = planMutatedSlotReroute({
+            meta, node, parentNode: semanticParentNode(metaPath), adapter: estreeAdapter,
+            resolvePureFiltered: m => resolvePureOrGlobalFallback(m, metaPath).result,
+            resolvePureUnfiltered: m => resolvePureUnfiltered(m, metaPath),
+          });
+          if (!plan) return false;
+          const slotSrc = `${ injectPureImport(plan.globalBinding.entry, plan.globalBinding.hintName) }.${ meta.name }`;
+          if (plan.staticPin) injectPureImport(plan.staticPin.entry, plan.staticPin.hintName);
+          const memberSrc = plan.pony
+            ? `(${ slotSrc } === undefined ? ${ injectPureImport(plan.pony.entry, plan.pony.hintName) } : ${ slotSrc })`
             : slotSrc;
           const shorthandHost = metaPath.parent;
           const isShorthand = shorthandHost?.type === 'Property'

@@ -56,6 +56,7 @@ import {
   STATEMENT_LIST_HOST_TYPES,
   varInitDominatesUsage,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { planMutatedSlotReroute } from '../../packages/core-js-polyfill-provider/detect-usage/mutation-prepass.js';
 import { createChecker, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
@@ -1085,6 +1086,59 @@ for (const [predicate, name, rows] of [
   for (const [variant, code, expected] of rows) {
     runBoth(`${ name }/${ variant }`, code, (adapter, prog, lbl) => check(lbl, predicate(receiverInit(adapter, prog)), expected));
   }
+}
+
+// --- planMutatedSlotReroute: the ONE decision table both emitters render ---
+// stub resolvers pin the semantics without the resolution machinery: `resolvePureFiltered`
+// stands for the targets-filtered global resolve, `resolvePureUnfiltered` serves the
+// globalThis binding and static-entry lookups
+{
+  const GT = { entry: 'actual/global-this', hintName: 'globalThis', kind: 'global' };
+  const PONY = { entry: 'actual/promise/constructor', hintName: 'Promise', kind: 'global' };
+  const PIN = { entry: 'actual/promise/all-settled', hintName: 'Promise$allSettled', kind: 'static' };
+  function stubUnfiltered(m) {
+    if (m.kind === 'global' && m.name === 'globalThis') return GT;
+    return m.kind === 'property' && m.key === 'allSettled' ? PIN : null;
+  }
+  const slotAdapter = { isMutatedStatic: (obj, key) => obj === 'globalThis' && key === 'Promise' };
+  const meta = { kind: 'global', name: 'Promise' };
+  const ident = { type: 'Identifier', name: 'Promise' };
+
+  function plan({ parentNode = null, adapter = slotAdapter, m = meta, node = ident, filtered = () => PONY } = {}) {
+    return planMutatedSlotReroute({
+      meta: m, node, parentNode, adapter, resolvePureFiltered: filtered, resolvePureUnfiltered: stubUnfiltered,
+    });
+  }
+
+  const bare = plan();
+  checkTruthy('slot-plan/bare read reroutes with backstop', bare);
+  check('slot-plan/bare read backstop is the filtered pony', bare?.pony, PONY);
+  check('slot-plan/bare read pins nothing without a member host', bare?.staticPin, null);
+
+  check('slot-plan/unmutated name declines', plan({ adapter: { isMutatedStatic: () => false } }), null);
+  check('slot-plan/non-global meta declines', plan({ m: { kind: 'property', object: 'Promise', key: 'x' } }), null);
+  check('slot-plan/non-identifier node declines', plan({ node: { type: 'MemberExpression' } }), null);
+  check('slot-plan/no globalThis binding declines', planMutatedSlotReroute({
+    meta, node: ident, parentNode: null, adapter: slotAdapter,
+    resolvePureFiltered: () => PONY, resolvePureUnfiltered: () => null,
+  }), null);
+
+  const underTypeof = plan({ parentNode: { type: 'UnaryExpression', operator: 'typeof', argument: ident } });
+  check('slot-plan/typeof operand keeps the plain slot (no backstop)', underTypeof?.pony, null);
+  check('slot-plan/typeof operand pins nothing', underTypeof?.staticPin, null);
+
+  const memberHost = { type: 'MemberExpression', object: ident, property: { type: 'Identifier', name: 'allSettled' }, computed: false };
+  check('slot-plan/member host pins the static entry', plan({ parentNode: memberHost })?.staticPin, PIN);
+  const computedHost = { type: 'MemberExpression', object: ident,
+    property: { type: 'StringLiteral', value: 'allSettled' }, computed: true };
+  check('slot-plan/computed string key folds to the same pin', plan({ parentNode: computedHost })?.staticPin, PIN);
+  const customHost = { type: 'MemberExpression', object: ident, property: { type: 'Identifier', name: 'customKey' }, computed: false };
+  check('slot-plan/custom key resolves to nothing and stays bare', plan({ parentNode: customHost })?.staticPin, null);
+  const foreignHost = { type: 'MemberExpression', object: { type: 'Identifier', name: 'other' },
+    property: { type: 'Identifier', name: 'allSettled' }, computed: false };
+  check('slot-plan/member host whose object is NOT the node pins nothing', plan({ parentNode: foreignHost })?.staticPin, null);
+  check('slot-plan/no filtered pony -> plain slot without pin', plan({ parentNode: memberHost, filtered: () => null })?.pony, null);
+  check('slot-plan/no filtered pony suppresses the pin too', plan({ parentNode: memberHost, filtered: () => null })?.staticPin, null);
 }
 
 finish();
