@@ -10,10 +10,8 @@ import {
   isMemberWriteHost,
   isThisReceiver,
   getMinifierSequenceDestructureExpressions,
-  isMutatedGlobalSlot,
   isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
-  memberKeyName,
   collectUserMemberKeyNames,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
@@ -24,7 +22,7 @@ import {
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { enrichMutatedStatics, planMutatedSlotReroute } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   createClassHelpers, hasCtorAliasCandidateShapes, registerAliasPrePassSite, remapInheritedStaticMeta,
@@ -708,40 +706,23 @@ export default function plugin(api, options) {
           }
         }
 
-        // a SLOT-mutated global name follows the runtime slot on EVERY surface: a bare
-        // reference re-routes through the global-object binding (`Set` -> `_globalThis.Set`),
-        // mirroring the through-global family - the user's replacement wins where the
-        // module-cached ponyfill binding would silently ignore it. the raw slot alone
-        // strands engines missing the native (the slot is undefined until the user's own
-        // write runs), so a targets-required ponyfill backstops the ABSENT slot: reads
-        // rescue exactly where the untranspiled source crashes, while a live slot - native
-        // or user replacement - always wins. `typeof` operands keep the plain slot read:
-        // a guard probes engine state and the backstop would flip `"undefined"` there
-        if (meta.kind === 'global' && path.isIdentifier() && isMutatedGlobalSlot(adapter, meta.name)) {
-          const gt = resolvePureUnfiltered({ kind: 'global', name: 'globalThis' }, path);
-          if (gt) {
+        // a SLOT-mutated global name follows the runtime slot on EVERY surface (the semantics -
+        // backstop / typeof gate / static pin - live in the shared `planMutatedSlotReroute`);
+        // this renders the plan as AST: `(_globalThis.X === undefined ? _X : _globalThis.X)`
+        if (meta.kind === 'global' && path.isIdentifier()) {
+          const plan = planMutatedSlotReroute({
+            meta, node: path.node, parentNode: unwrapTSExpressionParent(path).parentPath?.node, adapter,
+            resolvePureFiltered: m => resolvePureOrGlobalFallback(m, path).result,
+            resolvePureUnfiltered: m => resolvePureUnfiltered(m, path),
+          });
+          if (plan) {
             function slotRead() {
-              return t.memberExpression(injectPureImport(gt.entry, gt.hintName), t.identifier(meta.name));
+              return t.memberExpression(injectPureImport(plan.globalBinding.entry, plan.globalBinding.hintName), t.identifier(meta.name));
             }
-            const host = unwrapTSExpressionParent(path);
-            const inTypeof = host.parentPath?.isUnaryExpression({ operator: 'typeof' });
-            const pony = inTypeof ? null : resolvePureOrGlobalFallback(meta, path).result;
-            // polyfill-then-patch for a static READ through the backstop: the constructor entry
-            // alone leaves the ponyfill namespace bare, so the ABSENT-slot branch would serve
-            // undefined for a static core-js provides - pin the read key's own entry (mirrors
-            // the pair-mutated enrichment model; custom keys resolve to nothing and stay bare)
-            const memberHost = host.parentPath?.node;
-            if (pony && (memberHost?.type === 'MemberExpression' || memberHost?.type === 'OptionalMemberExpression')
-              && memberHost.object === host.node) {
-              const staticKey = memberKeyName(memberHost);
-              const staticPure = staticKey && resolvePureUnfiltered({
-                kind: 'property', object: meta.name, key: staticKey, placement: 'static',
-              }, path);
-              if (staticPure && staticPure.kind !== 'instance') injectPureImport(staticPure.entry, staticPure.hintName);
-            }
-            path.replaceWith(pony ? t.conditionalExpression(
+            if (plan.staticPin) injectPureImport(plan.staticPin.entry, plan.staticPin.hintName);
+            path.replaceWith(plan.pony ? t.conditionalExpression(
               t.binaryExpression('===', slotRead(), t.identifier('undefined')),
-              injectPureImport(pony.entry, pony.hintName),
+              injectPureImport(plan.pony.entry, plan.pony.hintName),
               slotRead(),
             ) : slotRead());
             return;

@@ -1034,8 +1034,11 @@ export function collectScopeLetReassignments(declaratorPath, name) {
 //           dynamic values, so dominance is never claimed for them through a separate gate
 const LOOP_FIELD_TRAITS = {
   ForStatement: { body: { rerun: true, conditional: true }, test: { rerun: true }, update: { rerun: true, conditional: true } },
-  ForInStatement: { body: { rerun: true, conditional: true }, left: { rerun: true } },
-  ForOfStatement: { body: { rerun: true, conditional: true }, left: { rerun: true } },
+  // for-x LEFT is conditional too: a write nested in the left (pattern default / computed
+  // member key) runs 0+ times - the zero-iteration path keeps the pre-loop value, so the
+  // write must count as guarded, never as dominating a post-loop use
+  ForInStatement: { body: { rerun: true, conditional: true }, left: { rerun: true, conditional: true } },
+  ForOfStatement: { body: { rerun: true, conditional: true }, left: { rerun: true, conditional: true } },
   WhileStatement: { body: { rerun: true, conditional: true }, test: { rerun: true } },
   DoWhileStatement: { body: { rerun: true, conditional: true }, test: { rerun: true } },
 };
