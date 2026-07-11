@@ -21,4 +21,16 @@ const { [Symbol.iterator]: { [Symbol.toPrimitive]: tp } } = [1];
 // the key effect runs once in place
 let c = 0;
 const { [(c++, 'of')]: of, [Symbol.iterator]: { name: iterName2 } } = Array;
-export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c };
+// memoize-class receivers extract through a shared `_ref` (single read): a CONST-LITERAL
+// receiver with a multi-binding pattern, a MEMBER receiver (getter fires once), a BRANCHING
+// receiver, and a CALL init (whole-init memo - the call runs once)
+const { [Symbol.iterator]: { length: litArity, call: litCall } } = [7];
+const { [Symbol.iterator]: { length: memArity }, sib } = holder.p;
+const { [Symbol.iterator]: { length: brArity }, alt } = cond ? [8] : [];
+const { [Symbol.iterator]: { length: callArity }, q } = mk();
+// an SE computed key AND a symbol pattern on ONE memoized receiver share the `_ref`: the
+// member read fires once, both extractions and both sentinels read the memo
+const { [(k2(), 'toSorted')]: ts, [Symbol.iterator]: { length: mixArity } } = holder2.p;
+// EXPORT host: the memo plants as a bare statement before the export (never exported itself)
+export const { [Symbol.iterator]: { length: expArity }, expQ } = holder3.p;
+export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };
