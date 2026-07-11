@@ -560,10 +560,14 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // `meta.sideEffects` during detection. fold it into the alternate (not around the whole
     // conditional) so it fires only when the chain does NOT short-circuit - native skips the
     // computed-key eval on a nullish receiver; prepending it would run `fn()` unconditionally
+    // ECMA evaluates the receiver before the computed key: hoist the threaded receiver's memo
+    // AHEAD of the folded key SE and dispatch on the ref (the optional-outer path already
+    // memoized into the test's vRef, so the hoist no-ops there on a pure identifier)
+    const [outerRecv, foldedSE] = hoistReceiverSE(outerObject, sideEffects, null, scope);
     const replacement = withSideEffects(buildMethodCall({
-      id: outerId, object: outerObject, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
+      id: outerId, object: outerRecv, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
       anchorNode: outerPath.node,
-    }), sideEffects);
+    }), foldedSE);
     const conditional = t.conditionalExpression(testOr,
       t.unaryExpression('void', t.numericLiteral(0)), replacement);
     // chained outer calls read the hint off the result node; relocate the pre-combine
