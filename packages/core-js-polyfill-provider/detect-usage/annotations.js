@@ -7,8 +7,10 @@
 //   - `isPolyfillableOptional({ node, scope, adapter, resolve })` - the polyfill replacement
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
-import { getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
-import { globalProxyMemberName, isProxyGlobalIdentifierNode, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import {
+  getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS, unwrapRuntimeExpr,
+} from '../helpers/ast-patterns.js';
+import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
 import { maximalProxyGlobalPrefix, peelChainAssignment, resolveKey, unwrapTransparentSeq } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
