@@ -7,7 +7,7 @@ import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 // a memo-bearing sibling claims the whole-declaration render; the SE-key trailing polyfill
-// declarator anchored at the last declarator end must bake into that render, not crash it
+// declarator anchored at its host declarator's end must bake into that render, not crash it
 const _ref = getArr();
 const at = _at(_ref);
 const {
@@ -24,15 +24,15 @@ export const {
   fm = _flatMapMaybeArray(arr2);
 const includes = _includes(getSet());
 const {
-  [(e3(), 'toReversed')]: _unused3
-} = arr3;
+    [(e3(), 'toReversed')]: _unused3
+  } = arr3,
+  tr = _toReversedMaybeArray(arr3);
 const {
-    tail
-  } = obj,
-  tr = _toReversedMaybeArray(arr3); // SE key FIRST: the pair appends after the claimed render, never inside its wrapped init
+  tail
+} = obj; // SE key FIRST: the pair appends after its residual declarator, never inside a wrapped init
 const {
-  [(e4(), 'toSpliced')]: _unused4
-} = arr4;
-const findLastIndex = _findLastIndexMaybeArray(getColl()),
+    [(e4(), 'toSpliced')]: _unused4
+  } = arr4,
   ts = _toSplicedMaybeArray(arr4);
+const findLastIndex = _findLastIndexMaybeArray(getColl());
 console.log(at, other, f, fm, findLast, includes, tr, tail, ts, findLastIndex);
