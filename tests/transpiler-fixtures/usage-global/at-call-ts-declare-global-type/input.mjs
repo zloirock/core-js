@@ -14,5 +14,6 @@ function foo(x: MyStrings) {
 
 function bar(c: Config) {
   const { keys } = c;
-  keys.at(-1).padEnd(5);
+  // distinct method from foo's path: the interface-field route owns its own import
+  keys.includes('k');
 }
