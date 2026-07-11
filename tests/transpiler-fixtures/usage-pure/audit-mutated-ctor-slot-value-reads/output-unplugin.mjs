@@ -2,6 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
@@ -57,3 +58,16 @@ export const t = Promise?.try;
 // an optional chain over a re-routed BARE slot name keeps its guard - the live slot is
 // not always-defined, unlike a pure import binding
 export const u = (_globalThis.Set === undefined ? _Set : _globalThis.Set)?.union;
+// a sequence-wrapped bare slot read keeps the prefix effect in place around the backstop
+export const seqRecv = (eff(), (_globalThis.Set === undefined ? _Set : _globalThis.Set)).difference;
+// an `in` check against the re-routed bare name probes the backstopped object
+export const inCheck = 'union' in (_globalThis.Set === undefined ? _Set : _globalThis.Set);
+// an instance method on a replaced-slot construction stays RAW: the runtime instance is
+// the shim's own, typing it as the pristine built-in would mis-dispatch
+export const sub = new (_globalThis.Set === undefined ? _Set : _globalThis.Set)([1]).isSubsetOf(other);
+// a computed string key reads through the backstop and pins the static's own entry
+// (`Promise` is locally shadowed above, so the deleted-slot `Iterator` probes this)
+export const cd = (_globalThis.Iterator === undefined ? _Iterator : _globalThis.Iterator)['from'];
+// a `typeof` operand keeps the PLAIN slot read - no backstop: the guard probes the real
+// engine state, a ponyfill there would flip "undefined" on absent-slot engines
+export const tg = typeof _globalThis.Set;
