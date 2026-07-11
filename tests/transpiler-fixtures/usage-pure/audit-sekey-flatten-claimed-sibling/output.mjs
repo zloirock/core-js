@@ -8,8 +8,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // a flatten-claimed declaration re-renders whole-range from per-declarator slots, so a sibling
 // SE-key instance destructure must route its artifacts through the SAME slots: the value rename
 // bakes into the residual slice, the receiver memo joins the slot extractions (before the
-// residual), and the extracted pair trails the WHOLE declaration (after every declarator - the
-// trailing-sibling canon; the kept key effect runs first) - in EITHER declarator order, and in
+// residual), and the extracted pair trails its OWN declarator's residual (a later sibling may
+// read the extracted name; the kept key effect runs first) - in EITHER declarator order, and in
 // a for-init head
 let k1 = 0;
 var f1 = _Array$from;
@@ -24,11 +24,11 @@ export const r1 = [typeof f1, typeof a1, k1];
 let k2 = 0;
 const _ref = Array.prototype;
 var {
-  [(k2++, 'flat')]: _unused,
-  other2
-} = _ref;
+    [(k2++, 'flat')]: _unused,
+    other2
+  } = _ref,
+  fl2 = _flatMaybeArray(_ref);
 var o2 = _Array$of;
-var fl2 = _flatMaybeArray(_ref);
 export const r2 = [typeof fl2, typeof o2, k2];
 // for-init head: the pair joins the comma list after the residual
 let k3 = 0,
@@ -38,7 +38,7 @@ for (var {
   } = _globalThis.Array, _ref2 = Array.prototype, {
     [(k3++, 'includes')]: _unused2,
     o3
-  } = _ref2, i3 = 0, inc3 = _includesMaybeArray(_ref2); i3 < 1; i3++) {
+  } = _ref2, inc3 = _includesMaybeArray(_ref2), i3 = 0; i3 < 1; i3++) {
   var _ref3;
   out3 = _joinMaybeArray(_ref3 = [typeof ia3, typeof inc3]).call(_ref3, ',');
 }

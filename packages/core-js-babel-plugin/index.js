@@ -642,7 +642,11 @@ export default function plugin(api, options) {
         let inheritedStatic = false;
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
-            if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)) return;
+            // a pattern-valued `[Symbol.iterator]` prop still dispatches: its extraction
+            // destructures the get-iterator-method result (helper canon, matching the
+            // identifier-valued form); every other pattern-valued prop stays native
+            if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
+              && !(t.isObjectPattern(path.node.value) && isSourcedSymbolIteratorMeta(meta))) return;
             // ConditionalExpression / LogicalExpression init - resolver may pick a branch
             // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
             // before reaching handleObjectPropertyResult. dispatch fromFallback up front so
