@@ -39,9 +39,9 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapParens,
   walkPatternIdentifiers,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
   globalProxyMemberName,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
@@ -2890,7 +2890,10 @@ export function createDestructureEmitter({
         // proxy receiver IS a pure import (`_Set.union` / `_globalThis.Array.isArray`), a bare ctor receiver
         // reads through its own name (`Array.isArray`). this renders the babel visitor's resolution as text
         passthrough: keyPath => {
-          const ref = resolvePassthroughRef({ keyPath, ...recv, resolveGlobalPolyfill });
+          const ref = resolvePassthroughRef({
+            keyPath, ...recv, resolveGlobalPolyfill,
+            isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
+          });
           const base = ref.pure ? injectPureImport(ref.pure.entry, ref.pure.hintName) : ref.name;
           return [base, ...ref.path].join('.');
         },

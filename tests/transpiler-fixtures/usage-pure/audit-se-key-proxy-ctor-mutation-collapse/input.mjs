@@ -2,8 +2,8 @@
 // collapses the redundant `.self` hop to the pure global, harvesting the key effect ONCE. it must never
 // strand a dead `_globalThis` import nor re-root a proxy chain that re-triggers the rewrite (an infinite
 // replace loop - a regression the receiver collapse must bail BEFORE injecting the root to avoid). the
-// trailing `new Set()` consumes the constructor import - a proxy-global-chain mutation is out of the
-// mutation pre-pass scope, so the bare constructor still substitutes the pure import.
+// trailing `new Set()` consumes the global-object import - the SE-folded hop mutation records the
+// canonical `globalThis.Set` slot, so the bare constructor read follows the replaced slot.
 let e = 0;
 globalThis[(e++, 'self')].Set = function () {};
 const s = new Set([1]);

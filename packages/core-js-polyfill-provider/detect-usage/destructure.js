@@ -23,6 +23,7 @@ import {
   isTransparentDestructureWrapper,
   unwrapCollectingSePrefixes,
   findObjectKeyBeforeSpread,
+  isMutatedGlobalSlot,
   mayHaveSideEffects,
   peelFallbackReceiver,
   peelFallbackBranchInner,
@@ -31,12 +32,12 @@ import {
   reEvaluationObservable,
   resolveFallbackReceiver,
   unwrapExpressionChain,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import {
   globalProxyMemberName,
   isUsableFallbackReceiverArg,
   peelProxyGlobalObject,
-  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
@@ -956,7 +957,10 @@ export function resolveDestructureReceiverPlan(leafPath, {
   const proxyCtor = globalProxyMemberName({
     node: peelProxyGlobalObject(objectNode), scope: leafPath.scope, adapter, path: leafPath,
   });
-  if (proxyCtor && peelNestedSequenceExpressions(objectNode).prefix.length === 0 && resolvePureGlobal?.(proxyCtor)) {
+  // a SLOT-mutated ctor member (`globalThis.Map = Shim`) must keep the RAW member as the
+  // synth receiver - the pure-ctor swap would read the pristine built-in instead of the shim
+  if (proxyCtor && !isMutatedGlobalSlot(adapter, proxyCtor)
+    && peelNestedSequenceExpressions(objectNode).prefix.length === 0 && resolvePureGlobal?.(proxyCtor)) {
     return { channel: 'raw-ctor', node: objectNode, proxyCtor };
   }
   return { channel: 'whole-init-memo', node: objectNode, proxyCtor };
@@ -1155,9 +1159,12 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   // at the rewritten alias and the constructor polyfill is missed silently. deeper static-METHOD
   // shapes (`{root: {Array: {from}}}`) fail the all-proxy-hops condition here by design - they
   // resolve through the nested-proxy flatten, not this lift
+  // a mutated slot anywhere on the lift (a hop or the ctor leaf) holds the user's replacement,
+  // so the chain no longer names the pristine built-in
   if (proxyGlobalNameOf({ node: current, adapter, scope: currentScope })
-      && walkPath.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))
-      && isStaticPlacement(walkPath.at(-1))) {
+      && walkPath.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k) && !isMutatedGlobalSlot(adapter, k))
+      && isStaticPlacement(walkPath.at(-1))
+      && !isMutatedGlobalSlot(adapter, walkPath.at(-1))) {
     return walkPath.at(-1);
   }
   // intermediate MemberExpression value (`wrapper = {a: globalThis.Array}` walking key `a`
@@ -1872,9 +1879,12 @@ function mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter) {
 // import WHEN it has one (`globalThis`/`self` -> `_globalThis`/`_self`), else stays bare (`window`/`global`
 // are not polyfilled in pure -> `window.Array.isArray`); a bare ctor receiver reads through its own name
 // (`Array.isArray`). `resolveGlobalPolyfill` is emitter-supplied (`{ entry, hintName }` or null)
-export function resolvePassthroughRef({ keyPath, receiverName, receiverIsProxy, resolveGlobalPolyfill }) {
+export function resolvePassthroughRef({ keyPath, receiverName, receiverIsProxy, resolveGlobalPolyfill, isMutatedStatic = null }) {
   const path = receiverIsProxy ? keyPath : [receiverName, ...keyPath];
-  const ctorPure = resolveGlobalPolyfill(path[0]);
+  // a MUTATED ctor slot must render as the raw proxy member (`_globalThis.Set` - the user's
+  // shim wins), matching the AST emitter's mutation-aware visitor delegation
+  const ctorPure = receiverIsProxy && isMutatedStatic?.(receiverName, path[0])
+    ? null : resolveGlobalPolyfill(path[0]);
   if (ctorPure) return { pure: ctorPure, path: path.slice(1) };
   const proxyPure = receiverIsProxy && resolveGlobalPolyfill(receiverName);
   return proxyPure ? { pure: proxyPure, path } : { name: receiverName, path: keyPath };
@@ -2071,13 +2081,14 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
         receiver = resolveObjectName({ objectNode: init, scope: parent.scope, adapter, path: parent });
       }
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
-          && keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))) {
+          && keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k) && !isMutatedGlobalSlot(adapter, k))) {
         // leaf must be a recognised constructor name (`isStaticPlacement` whitelists the
         // capitalised globals dispatch consults). without this gate, `const {window: {foo}}
         // = globalThis` would return `'foo'` to downstream `resolveBuiltIn` which then
-        // bails on the unknown name - cleaner to bail here than push noise downstream
+        // bails on the unknown name - cleaner to bail here than push noise downstream.
+        // a mutated leaf slot holds the user's replacement - not the pristine ctor
         const leaf = keys.at(-1);
-        return isStaticPlacement(leaf) ? leaf : null;
+        return isStaticPlacement(leaf) && !isMutatedGlobalSlot(adapter, leaf) ? leaf : null;
       }
       // thread `parent` (the destructure host's path) through walkStaticReceiverChain so
       // adapter.hasBinding hits the TS-runtime lookup fallback for declare-bindings that

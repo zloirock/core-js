@@ -177,15 +177,18 @@ QUnit.test('mutated-statics: prototype patch does not displace the instance poly
   /* eslint-enable no-extend-native -- end of the prototype-patch case */
 });
 
-// a whole-constructor replacement on the global object does not displace OUR ponyfill:
-// the file's own constructor references are module-cached pure bindings
-QUnit.test('mutated-statics: ctor-slot replacement does not displace the ponyfill', assert => {
+// a whole-constructor replacement on the global object owns EVERY read surface: bare
+// constructor references re-route through the global-object binding, so the file-wide
+// replacement constructs where a module-cached ponyfill binding would have ignored it
+QUnit.test('mutated-statics: ctor-slot replacement owns bare constructor reads', assert => {
   const orig = globalThis.Map;
-  globalThis.Map = function FakeMap() { return null; };
+  function FakeMap() { this.fake = true; }
+  globalThis.Map = FakeMap;
   try {
     const m = new Map([[1, 2]]);
-    assert.same(m.get(1), 2);
-    assert.true(m instanceof Map);
+    // eslint-disable-next-line es/no-nonstandard-map-prototype-properties -- the shim marker IS the case under test
+    assert.true(m.fake);
+    assert.true(m instanceof FakeMap);
   } finally {
     globalThis.Map = orig;
   }
@@ -203,18 +206,50 @@ QUnit.test('mutated-statics: optional delete routes through the constructor', as
 /* eslint-enable es/no-nonstandard-map-properties -- end of the optional-delete case */
 
 // the ctor-slot replacement test above mutates `globalThis.Map`, making (globalThis, Map)
-// a mutated pair FILE-WIDE: a destructure off that slot keeps the REAL global read (a
-// user-installed ctor replacement must win there), so the key patch routed to the ponyfill
-// stays invisible through it on every runtime
-QUnit.test('mutated-statics: slot-mutated ctor keeps the raw global read in destructure', assert => {
+// a mutated pair FILE-WIDE: bare writes and through-global reads then share the LIVE slot,
+// so a key patch lands exactly where the raw destructure read looks
+QUnit.test('mutated-statics: slot-mutated ctor shares one object across surfaces', assert => {
   function patched() { return 'patched'; }
   Map.groupBy = patched;
   try {
     assert.same(Map.groupBy(), 'patched');
     const { Map: { groupBy: rawRead } } = globalThis;
-    assert.notSame(rawRead, patched);
+    assert.same(rawRead, patched);
   } finally {
     delete Map.groupBy;
+  }
+});
+
+// a NESTED proxy-hop value read of the slot-mutated ctor anchors on the raw global member:
+// the user's replacement wins through the hop exactly like the flat destructure above
+QUnit.test('mutated-statics: slot-mutated ctor wins through a nested proxy hop', assert => {
+  const orig = globalThis.Map;
+  function ShimMap() { return null; }
+  globalThis.Map = ShimMap;
+  try {
+    const { self: { Map: viaHop } } = globalThis;
+    assert.same(viaHop, ShimMap);
+  } finally {
+    globalThis.Map = orig;
+  }
+});
+
+// the nested-mirror default (a param default forced alive by a polyfill sibling) swaps to a
+// synthesized object: the mutated slot stays a raw global member (the shim constructs), the
+// sibling still extracts its ponyfill. the sibling pair must be UNTAINTED file-wide - a
+// mutated sibling pair (this file deletes `Array.from`) correctly declines extraction and
+// keeps the whole default raw, which strands the sibling on engines missing the native
+QUnit.test('mutated-statics: mirror passthrough keeps the slot-mutated ctor', assert => {
+  const orig = globalThis.Map;
+  function ShimMap() { this.shim = true; }
+  globalThis.Map = ShimMap;
+  try {
+    function read({ Object: { entries }, Map: M } = globalThis) { return [entries({ a: 1 }), new M()]; }
+    const [pairs, m] = read();
+    assert.deepEqual(pairs, [['a', 1]]);
+    assert.true(m.shim);
+  } finally {
+    globalThis.Map = orig;
   }
 });
 
@@ -434,5 +469,132 @@ QUnit.test('mutated-statics: SE-tail write host ctor slot collapses (runs withou
   } finally {
     if (had) (0, globalThis.window).WeakSet = original;
     else delete (0, globalThis.window).WeakSet;
+  }
+});
+
+// a ctor-slot mutation through ONE global-proxy alias must win for value reads through ANY
+// other alias - the proxy names alias the same object, so the pre-pass canonicalizes the
+// mutated key and the read keeps the raw proxy member instead of the pure import. `self` is
+// pure-polyfilled, so both the write and the read run on Node and browsers alike
+QUnit.test('mutated-statics: cross-alias slot mutation (self write, globalThis read)', assert => {
+  const had = 'AggregateError' in globalThis;
+  const original = globalThis.AggregateError;
+  function Shim() { return null; }
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+  self.AggregateError = Shim;
+  try {
+    const { AggregateError } = globalThis;
+    assert.same(AggregateError, Shim);
+  } finally {
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+    if (had) self.AggregateError = original;
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+    else delete self.AggregateError;
+  }
+});
+
+// reverse direction: a `globalThis` slot write must reach a destructure read through `self`
+QUnit.test('mutated-statics: cross-alias slot mutation (globalThis write, self read)', assert => {
+  const had = 'WeakMap' in globalThis;
+  const original = globalThis.WeakMap;
+  function Shim() { return null; }
+  globalThis.WeakMap = Shim;
+  try {
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+    const { WeakMap: Read } = self;
+    assert.same(Read, Shim);
+  } finally {
+    if (had) globalThis.WeakMap = original;
+    else delete globalThis.WeakMap;
+  }
+});
+
+// a delete through one alias must keep the in-check through another alias DYNAMIC: the
+// as-if-polyfilled fold to `true` would contradict the runtime state the delete created
+QUnit.test('mutated-statics: cross-alias delete keeps the in-check dynamic', assert => {
+  const had = 'AggregateError' in globalThis;
+  const original = globalThis.AggregateError;
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+  delete self.AggregateError;
+  try {
+    assert.false('AggregateError' in globalThis);
+  } finally {
+    // restore through the SAME alias channel: a `globalThis` write here would itself record
+    // the canonical key and mask the cross-alias misses this family exists to catch
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+    if (had) self.AggregateError = original;
+  }
+});
+
+// property reads THROUGH a replaced ctor slot are the shim's own: substituting pure statics
+// behind the slot would silently undo the user's replacement. bare reads follow the live
+// slot too (with a ponyfill backstop for an ABSENT slot); explicit reads through the global
+// object stay raw with no backstop - a guard probes the real engine state there
+QUnit.test('mutated-statics: statics behind a replaced ctor slot are the shim own', assert => {
+  const had = 'Promise' in globalThis;
+  const original = globalThis.Promise;
+  function Shim() { return null; }
+  Shim.resolve = function () { return 'shim-resolve'; };
+  globalThis.Promise = Shim;
+  try {
+    const { resolve } = globalThis.Promise;
+    assert.same(resolve(), 'shim-resolve');
+    // a static the shim does NOT provide reads undefined - an always-defined pure
+    // substitution here would diverge from the untranspiled source
+    assert.same(globalThis.Promise.try, undefined);
+    assert.same('try' in globalThis.Promise, false);
+  } finally {
+    if (had) globalThis.Promise = original;
+  }
+});
+
+// with the slot ABSENT (engine without the native), a bare read serves the ponyfill
+// backstop instead of crashing on the undefined slot - and a bare static write lands on
+// the SAME backstop object, so the patch-read pair stays coherent. a live slot always wins
+QUnit.test('mutated-statics: absent ctor slot serves the ponyfill backstop', assert => {
+  const had = 'Promise' in globalThis;
+  const original = globalThis.Promise;
+  let served;
+  delete globalThis.Promise;
+  try {
+    served = Promise.resolve(7);
+    /* eslint-disable es/no-nonstandard-promise-properties -- the custom-key patch IS the case under test */
+    Promise.customBackstop = 'installed';
+    assert.same(Promise.customBackstop, 'installed');
+    delete Promise.customBackstop;
+    /* eslint-enable es/no-nonstandard-promise-properties -- end of the custom-key patch case */
+  } finally {
+    if (had) globalThis.Promise = original;
+  }
+  return served.then(value => assert.same(value, 7));
+});
+
+// a replaced `Symbol` slot makes its keys the user's OWN values, not the well-known
+// symbols: the key read must go through the live slot instead of the symbol helper
+QUnit.test('mutated-statics: replaced Symbol slot keys read through the slot', assert => {
+  const original = globalThis.Symbol;
+  globalThis.Symbol = { iterator: '@@fake' };
+  try {
+    const obj = { '@@fake': 42 };
+    assert.same(obj[Symbol.iterator], 42);
+  } finally {
+    globalThis.Symbol = original;
+  }
+});
+
+// a DELETED slot is a mutation too: the bare constructor read follows the now-empty slot
+// into the ponyfill BACKSTOP (an absent slot IS the missing-native case), instead of
+// crashing on the undefined slot; the cross-alias delete channel taints the same key
+QUnit.test('mutated-statics: deleted slot serves the backstop to bare constructor reads', assert => {
+  const had = 'AggregateError' in globalThis;
+  const original = globalThis.AggregateError;
+  // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+  delete self.AggregateError;
+  try {
+    const err = new AggregateError([], 'backstopped');
+    assert.same(err.message, 'backstopped');
+  } finally {
+    // eslint-disable-next-line no-restricted-globals, unicorn/prefer-global-this -- the `self` alias is the test subject
+    if (had) self.AggregateError = original;
   }
 });

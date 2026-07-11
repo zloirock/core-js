@@ -38,6 +38,7 @@ import {
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
+  isMutatedStaticPair,
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
   resolveCallArgument,
@@ -392,7 +393,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
     // leaves its receiver to the identifier machinery so the patch and the reads share the
     // injected constructor object
     isMutatedStatic(object, key) {
-      return method === 'usage-pure' && !!getMutatedStatics()?.has(`${ object }.${ key }`);
+      return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
     },
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
     // detection in `bindingSymbolKey`. null between transforms (no injector active)
