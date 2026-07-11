@@ -3,8 +3,8 @@
 // known global throws (read-only import binding) or no-ops (member-write on the polyfill)
 import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
-import { peelTransparentExprAncestorPath } from '../helpers/ast-patterns.js';
+import { globalProxyMemberName, memberKeyName } from '../helpers/class-walk.js';
+import { peelTransparentExprAncestorPath, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/ast-patterns.js';
 
 export const KNOWN_FUNCTION_GLOBALS = new Set([
   ...Object.keys(knownBuiltInReturnTypes.constructors),
@@ -103,7 +103,9 @@ export function checkLogicalAssignLhsMember({ path, scope, adapter }) {
     // thread `path` so `isProxyGlobalIdentifierNode` sees the reference site: a TS-runtime shadow of the
     // proxy-global root (`namespace globalThis {}`) makes it a local, not the global - without `path` the
     // shadow is missed and a `(shadowed globalThis).Map ||= X` gets a spurious warn
-    resolveName: () => globalProxyMemberName({ node, scope, adapter, path }),
+    // `includeMutatedSlots`: the LHS IS the mutation site - the read-side slot gate would
+    // self-suppress exactly the statements this warning exists for
+    resolveName: () => globalProxyMemberName({ node, scope, adapter, path, includeMutatedSlots: true }),
     formatChain: () => stringifyMemberChain(node),
     reason: 'plugin rewrites reads, not writes',
   });
