@@ -9,8 +9,8 @@ use(from, other);
 const { of, nested: { more } } = globalThis.Array || Fallback;
 use(of, more);
 
-// a symbol-iterator-keyed sibling rides the same rebuilt re-emit; the polyfillable default
-// inside its value stays live and the init still substitutes
+// a symbol-iterator-keyed PATTERN sibling extracts through the helper off the shared memo
+// (the init substitutes into the memo); the polyfillable default inside the pattern stays live
 const { isArray, [Symbol.iterator]: { x = [1].at(0) } } = globalThis.Array;
 use(isArray, x);
 
