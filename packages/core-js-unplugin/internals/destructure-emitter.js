@@ -2495,12 +2495,14 @@ export function createDestructureEmitter({
       plan = makePlan();
     }
     if (!plan) return false;
-    // pattern extraction rides the flush-DEFERRED channels (duplicate copy / dropped-declaration
-    // extract), where `composedRangeSrc` bakes the pattern's inner rewrites (a default's instance
-    // call) into the emitted text. memoize / sibling-declarator / flatten-claimed hosts emit at
-    // visit time - too early to compose - so they keep the key-swap residual (both emitters agree)
-    if (patternValue
-      && (plan.memoizeReceiver || plan.siblingDeclarator || flattenedNestedDecls.has(declaration))) return false;
+    // pattern extraction rides the flush-DEFERRED channels (duplicate copy / memo /
+    // dropped-declaration extract), where `composedRangeSrc` bakes the pattern's inner rewrites
+    // (a default's instance call) into the emitted text. a memoize receiver (const-literal /
+    // member / branching) routes through the deferred memo channel below - the `_ref` reads the
+    // receiver once, extraction and residual share it. only sibling-declarator and
+    // flatten-claimed hosts emit at visit time - too early to compose - and keep the key-swap
+    // residual (both emitters agree)
+    if (patternValue && (plan.siblingDeclarator || flattenedNestedDecls.has(declaration))) return false;
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
     handledSideEffectKeyProps.add(propNode);
     // body-extract alias so post-rewrite narrowing resolves the local (static only; instance has none)
@@ -2650,9 +2652,23 @@ export function createDestructureEmitter({
       if (plan.siblingDeclarator) {
         emit(extract);
         if (firstUse) {
-          pendingReceiverMemos.push({
-            receiverNode, refName, commaSlotStart: declarator.start, declaration, declaratorNode: declarator,
-          });
+          const memoExportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
+          // an EXPORTED host must not export the internal memo temp: plant it as a bare
+          // statement BEFORE the export instead of joining the exported comma list -
+          // first-declarator only (nothing to reorder past); a later-declarator memo keeps
+          // the comma slot
+          if (memoExportNode && declaration.declarations[0] === declarator) {
+            pendingReceiverMemos.push({
+              receiverNode, refName,
+              emitExtract: text => emitPrecedingDeclStatement({ declPath, insertPos: memoExportNode.start,
+                text: `${ declaration.kind } ${ refName } = ${ text };
+`, order: declarator.start }),
+            });
+          } else {
+            pendingReceiverMemos.push({
+              receiverNode, refName, commaSlotStart: declarator.start, declaration, declaratorNode: declarator,
+            });
+          }
         }
       } else {
         pendingReceiverMemos.push({
