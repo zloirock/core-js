@@ -64,7 +64,7 @@ var { [(k7++, 'keys')]: _unused7 } = _ref7;
 export const r7 = [typeof ks7, k7];
 // for-init sibling-declarator host takes the memo as a preceding declarator
 let k8 = 0, out8 = '';
-for (var _ref8 = 1 ? [6] : [], { [(k8++, 'entries')]: _unused8, other8 } = _ref8, i8 = 0, e8 = _entriesMaybeArray(_ref8); i8 < 1; i8++) out8 = typeof e8;
+for (var _ref8 = 1 ? [6] : [], { [(k8++, 'entries')]: _unused8, other8 } = _ref8, e8 = _entriesMaybeArray(_ref8), i8 = 0; i8 < 1; i8++) out8 = typeof e8;
 export const r8 = [out8, k8];
 // the memoize channel also takes the WHOLE INIT of a top-level multi-prop pattern when the
 // receiver resolves to no single-read-safe node - the memo evaluates exactly where the init
