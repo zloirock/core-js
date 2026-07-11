@@ -647,11 +647,15 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
         const value = resolve(rhs);
         if (value) values.push(value);
       }
-    } else if (binding) {
-      // const-alias hop: a non-reassigned `const M = M0` aliases M0, so the union must see M0's
-      // transitive reassignments (`let M0 = Object; if (c) M0 = Array; const M = M0; M.from()`).
-      // the primary already captured M's resolved init value; recurse on the init Identifier to add
-      // the underlying binding's reachable reassignments. `seen` guards alias cycles
+    }
+    if (binding) {
+      // init-alias hop: `const M = M0` aliases M0, so the union must see M0's transitive
+      // reassignments (`let M0 = Object; if (c) M0 = Array; const M = M0; M.from()`). the hop
+      // is ADDITIVE to the reassigned-arm above, not exclusive with it: a reassigned alias
+      // whose INIT aliases another reassigned binding still reaches the init's targets on the
+      // no-own-write path (`let M = M0; if (d) M = Map` - the d-false path holds M0's values).
+      // the primary already captured the resolved init value; recurse on the init Identifier
+      // to add the underlying binding's reachable reassignments. `seen` guards alias cycles
       const init = unwrapTransparentSeq(binding.node?.init);
       if (init?.type === 'Identifier' && init.name !== aliasNode.name && !seen?.has(init.name)) {
         // anchor the transitive source's reachable values at THIS hop's read site (the init), so a
@@ -1017,12 +1021,21 @@ export function asSymbolRef({ node, scope, adapter, seen, path }) {
 // constantViolations check: `var X = X; X = mock; X.method()` reassigns the binding before
 // the use site, so subsequent reads MUST not be rewritten to the polyfill - mock would be
 // silently ignored. without the check `Promise.try` after `var Promise = Promise; Promise = mock`
-// would rewrite to `_Promise.try`, dropping the user's reassignment
-export function createSelfRefVarGuard(getKind) {
+// would rewrite to `_Promise.try`, dropping the user's reassignment.
+// usage-global is injection-only on this shape (the self-ref binding is never rewritten -
+// side-effect import only), so a NON-dominating reassignment keeps the pristine global
+// reachable on some path and only a DOMINATING violation suppresses the injection - the
+// method-aware dominance gate mirrors every other reassignment read in this file. the flat
+// bail stays for usage-pure (init rewrite - any reaching write is unsafe) and for
+// method-less adapters (entry / narrowing) that pass no adapter
+export function createSelfRefVarGuard(getKind, adapter = null) {
   const cache = new WeakMap();
-  return function isSelfRefVarBinding(binding) {
+  return function isSelfRefVarBinding(binding, path = null) {
     if (!binding) return false;
-    if (binding.constantViolations?.length) return false;
+    if (binding.constantViolations?.length) {
+      if (adapter?.method !== 'usage-global' || !path) return false;
+      if (reassignBailApplies({ binding, adapter, path })) return false;
+    }
     const decl = binding.path?.node ?? binding.node;
     if (!decl || decl.type !== 'VariableDeclarator') return false;
     if (cache.has(decl)) return cache.get(decl);
