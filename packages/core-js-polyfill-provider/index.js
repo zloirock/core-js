@@ -3,7 +3,8 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import { HELPER_CANON_ENTRIES, POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
+import { HELPER_CANON_ENTRIES } from './helpers/class-walk.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/ast-patterns.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
 import { WINDOWS_UNC_PREFIX_RE, lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
 import { validatePackageShape } from './plugin-options/validate.js';

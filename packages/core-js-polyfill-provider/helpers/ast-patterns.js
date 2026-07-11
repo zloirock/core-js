@@ -1,4 +1,8 @@
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { MAX_DEPTH } from '../resolve-node-type/base.js';
+
+// `globalThis` / `self` / `window` etc. - proxy names aliasing the ONE global object
+export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
 // typed AST node predicate - excludes scalars, SourceLocation objects, and foreign markers
 // (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools).
@@ -2477,8 +2481,71 @@ function nodeHoldsSuperMethodRead(node, parent, info) {
 // `in` case is left untouched (the assign case also stays the correct runtime `true`). usage-pure only -
 // `mutatedSet` is null in global mode, so the `?.has` short-circuits to false there
 export function isMutatedStaticMeta(meta, mutatedSet) {
-  return (meta.kind === 'property' || meta.kind === 'in') && meta.object && meta.key
-    && mutatedSet?.has(`${ meta.object }.${ meta.key }`);
+  return (meta.kind === 'property' || meta.kind === 'in') && !!meta.object && !!meta.key
+    && isMutatedStaticPair(meta.object, meta.key, mutatedSet);
+}
+
+// the (object, key) pair consultation both plugin adapters and the meta gate share: the exact
+// pair, OR a SLOT-mutated object - `globalThis.Set = Shim` makes every `Set.<key>` read the
+// shim's own property, so no member of a replaced object is a polyfillable static
+export function isMutatedStaticPair(object, key, mutatedSet) {
+  return !!mutatedSet?.has(mutatedStaticKey(object, key))
+    || !!mutatedSet?.has(mutatedStaticKey('globalThis', object));
+}
+
+// mutated-static set key, shared by the pre-pass WRITER and every reader gate. a global-proxy
+// host canonicalizes to `globalThis`: the proxy names alias ONE object, so a mutation through
+// any of them (`self.Set = Shim`) must be visible to reads through any other (`{ Set } = globalThis`)
+export function mutatedStaticKey(object, key) {
+  return `${ POSSIBLE_GLOBAL_OBJECTS.has(object) ? 'globalThis' : object }.${ key }`;
+}
+
+// every user-spelled member-key name on an Identifier-rooted chain: an alias / TS-wrapped
+// root may denote the global object (`const g = globalThis; g._ref`, `(globalThis as
+// any)._ref`), and a top-level `var <name>` temp in script output IS the `globalThis.<name>`
+// storage - a temp write would clobber the user's slot. computed string / single-quasi keys
+// fold through the canonical member-key resolver. node-only walk (no scopes): the
+// shadow-blind over-approximation also reserves plain-object keys, which only shifts temp
+// numbering and matches unplugin's whole-file identifier scan
+export function collectUserMemberKeyNames(programNode) {
+  const names = new Set();
+  walkAstChildren(programNode, function collect(node) {
+    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+      const key = memberKeyName(node);
+      if (key !== null) {
+        let root = unwrapRuntimeExpr(node.object);
+        while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+          root = unwrapRuntimeExpr(root.object);
+        }
+        if (root?.type === 'Identifier') names.add(key);
+      }
+    }
+    walkAstChildren(node, collect);
+  });
+  return names;
+}
+
+// the plain slot names of a mutated set's `globalThis.<name>` keys - the user-owned
+// global-object properties an output-scope temp must never alias (a top-level `var <name>`
+// in script output IS the `globalThis.<name>` storage). prototype / ctor-static keys
+// (`Array.from`, `String.prototype.at`) carry dots past the host and are not slot names
+export function mutatedGlobalSlotNames(mutatedSet) {
+  const names = [];
+  for (const key of mutatedSet ?? []) {
+    if (key.startsWith('globalThis.') && !key.includes('.', 'globalThis.'.length)) {
+      names.push(key.slice('globalThis.'.length));
+    }
+  }
+  return names;
+}
+
+// a `<global>.<key>` navigation step is transparent only while the slot is unmutated: once user
+// code writes the slot (`globalThis.Map = Shim`, `window.self = fake`), reads THROUGH the global
+// object see the replacement, so canon walks must stop resolving the pristine built-in behind it.
+// the host is canonical by construction - every proxy alias names the ONE global object. bare
+// references stay on the ponyfill canon and never consult this
+export function isMutatedGlobalSlot(adapter, key) {
+  return !!key && !!adapter?.isMutatedStatic?.('globalThis', key);
 }
 
 // ambient declarations (`declare class X`, `declare function X`, `declare const X`,
