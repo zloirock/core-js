@@ -15,10 +15,8 @@ const {
 a;
 b;
 const {
-  [_Symbol$iterator]: {
-    next
-  }
-} = _Set;
+  next
+} = _getIteratorMethod(_Set);
 next;
 const {
   WeakSet: {
