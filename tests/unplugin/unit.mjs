@@ -4577,6 +4577,33 @@ async function checkRefusedAliasRawPassIdempotent() {
 }
 await checkRefusedAliasRawPassIdempotent();
 
+// usage-global indirect-require removal BODY: the fixture comparator for usage-global is
+// imports-only, so the extracted SE-prefix statements are never text-validated there - pin
+// them here. each removed `(se, require)('core-js/...')` leaves exactly its prefix as a
+// bare statement in source order (incl. the optional-call and outer-comma shapes), the
+// require call itself is gone, and a polyfillable usage INSIDE a kept prefix stays visited
+function checkUsageGlobalIndirectRequirePrefixBody() {
+  const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+  const source = [
+    'let loads = 0;',
+    '(loads++, require)("core-js/modules/es.array.from");',
+    'let arr = [1];',
+    '(arr.includes(1), require)("core-js/modules/es.array.includes");',
+    'let opt = 0;',
+    '(opt++, require)?.("core-js/modules/es.array.from");',
+    'let outer = 0;',
+    '0, (outer++, require)("core-js/modules/es.array.of");',
+    'Array.from([1]);',
+  ].join('\n');
+  const code = plugin.transform(source, '/indirect-require-prefix.js')?.code ?? '';
+  const body = code.split('\n').filter(line => !line.startsWith('import ')).join('\n');
+  check('indirect-require body/prefixes survive as statements in source order',
+    /let loads = 0;\s*loads\+\+;\s*let arr = \[1\];\s*arr\.includes\(1\);\s*let opt = 0;\s*opt\+\+;\s*let outer = 0;\s*outer\+\+;\s*Array\.from\(\[1\]\);/.test(body), true);
+  check('indirect-require body/no require call survives', /require\(/.test(code), false);
+  check('indirect-require body/kept-prefix usage stays visited', /es\.array\.includes/.test(code), true);
+}
+checkUsageGlobalIndirectRequirePrefixBody();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
