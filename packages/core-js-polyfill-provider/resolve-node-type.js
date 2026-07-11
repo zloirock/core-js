@@ -1829,8 +1829,8 @@ function createResolveNodeType(babelNodeType, t, {
   // mapped / indexed-access / alias-chain dispatch). instantiated late so its service object
   // sees the already-bound `resolveTypeAnnotation` (let from `type-annotation-resolve`),
   // typeQuery / call-resolution / class-context outputs. `unwrapPassthroughWrapper` is
-  // direct (awaited destructured early); the forward-decl thunks `findTypeMember` /
-  // `getTypeMembers` populate via destructure assignment below
+  // direct (awaited destructured early); the forward-decl `let`s `findTypeMember` /
+  // `getTypeMembers` are this cluster's OUTPUTS, populated by the destructure assignment below
   const typeMembersCluster = createTypeMembers({
     memoize,
     unwrapTypeAnnotation,
@@ -1874,9 +1874,11 @@ function createResolveNodeType(babelNodeType, t, {
   // closure, so the dispatch consumes `resolveTypedMember` / `resolveIndexSignatureMember`
   // directly without a cross-cluster service dep. service captures pattern-bindings / classFields /
   // class-object-member / classContext / nameResolution / enumTypes / value-ops / typeQuery /
-  // discriminant-narrow / type-subst outputs. thunks for `findExpressionAnnotation` /
-  // `functionTypeReturnAnnotation` / `applyAliasSubstDeep` / `applySubst` /
-  // `substituteTypeParams` / `resolveNodeType` (forward-decl let bindings)
+  // discriminant-narrow / type-subst outputs. real thunks: `substituteTypeParams`
+  // (type-resolve-dispatch instantiates below) and `findAnnotationGuard` (narrow-by-guards
+  // instantiates below). everything else is already bound here and passes direct - including
+  // the `let`s `findExpressionAnnotation` / `functionTypeReturnAnnotation` (assigned by the
+  // call-resolution cluster above) and the hoisted `resolveNodeType` function declaration
   const memberResolveCluster = createMemberResolve({
     t,
     // forward-decl thunk: narrow-by-guards instantiates later in the factory body
