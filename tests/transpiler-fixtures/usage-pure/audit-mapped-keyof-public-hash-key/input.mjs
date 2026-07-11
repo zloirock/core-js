@@ -17,3 +17,6 @@ class WithPriv { #secret = 1; open = 2; }
 type FromClass = { [K in keyof WithPriv]: number[] };
 declare const c: FromClass;
 export const survivor = (c.open as any).at(1);
+// the real private probed via bracket is EXCLUDED from the mapped keys - the member type
+// is unknown and the dispatch stays generic (a typed Maybe here would mean the filter leaked)
+export const excluded = (c['#secret'] as any).at(3);
