@@ -5,11 +5,12 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-// a re-referenceable receiver copied into the instance polyfill's argument must substitute EVERY
-// nested global the same as babel's re-traversed clone - across a member chain with a bare-constructor
-// root, a computed object key, and a conditional's branches. a raw global would ReferenceError on an
-// engine lacking it (and at an eliminate-residual site the in-place import is never emitted). each
-// declaration uses a distinct instance method so the emitted copy is attributable to its receiver shape.
+// receiver-copy vs re-read-observability boundary. a literal nesting a member READ (`Map.prototype`)
+// must NOT be emitted twice - the read would re-fire on the copy - but a SOLE binding reads it once,
+// so the eliminate-residual extraction still emits it (single read, like native). identifier-only
+// literals stay freely copyable. every nested global substitutes the same as babel's re-traversed
+// clone (a raw global would ReferenceError on an engine lacking it). each declaration uses a
+// distinct instance method so the emitted copy is attributable to its receiver shape.
 const flag = true;
 const a = _atMaybeArray([_Map.prototype]);
 const b = _includesMaybeArray([flag ? _Set : _WeakMap]);

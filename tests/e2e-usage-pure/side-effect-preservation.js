@@ -271,3 +271,234 @@ QUnit.test('computed symbol key: root call runs before the hop-key effect', asse
   assert.same(typeof method, 'function');
   assert.deepEqual(log, ['call', 'key']);
 });
+
+// BOTH effects around a folded SE-key static extraction: the receiver's sequence prefix runs
+// first (with the init), the plus-fold computed-key effect second (in the kept residual key) -
+// native destructure order
+QUnit.test('SE-key fold: receiver prefix and key effect run once each, in native order', assert => {
+  const e = [];
+  const { [(e.push('k'), 'fr') + 'om']: from } = (e.push('r'), Array);
+  assert.same(typeof from, 'function');
+  assert.deepEqual(e, ['r', 'k']);
+});
+
+// an SE-computed-key leaf under an ARRAY-wrapPED receiver still extracts; the key effect runs
+// exactly once in the kept residual
+QUnit.test('SE-key under array wrapper: extraction wins, key effect runs once', assert => {
+  let c1 = 0;
+  const [{ [(c1++, 'from')]: from }, other] = [Array, {}];
+  assert.same(typeof from, 'function');
+  assert.same(typeof other, 'object');
+  assert.same(c1, 1);
+});
+
+QUnit.test('SE-key nested plus-fold: key effect runs once, instance extraction binds', assert => {
+  let c2 = 0;
+  const arr = [1];
+  const { y: { [(c2++, 'a') + 't']: at } } = { y: arr };
+  // receiver-less call would throw natively (a destructured method loses `this`)
+  assert.same(at.call(arr, 0), 1);
+  assert.same(c2, 1);
+});
+
+// assignment-cascade PARTIAL consume: a rest / non-consumed sibling keeps the residual, so the
+// init's side-effecting sequence prefix must run exactly once - a full-consume-style discard
+// would silently drop it
+QUnit.test('cascade partial consume: rest sibling keeps the init effect', assert => {
+  let effectRan;
+  let rest;
+  let from;
+  // eslint-disable-next-line prefer-const -- the assignment CASCADE (not a declaration) is the case under test
+  ({ Array: { from }, ...rest } = (effectRan = true, globalThis).self);
+  assert.same(typeof from, 'function');
+  assert.same(typeof rest, 'object');
+  assert.true(effectRan);
+});
+
+QUnit.test('cascade partial consume: non-consumed sibling keeps the init effect', assert => {
+  let counted = 0;
+  let keep;
+  let of;
+  // eslint-disable-next-line prefer-const -- the assignment CASCADE (not a declaration) is the case under test
+  ({ Array: { of }, keep } = (counted++, globalThis).self);
+  assert.same(typeof of, 'function');
+  assert.same(counted, 1);
+  assert.same(keep, undefined);
+});
+
+// an SE buried at an INTERMEDIATE array-wrapper level lifts exactly once; the consumed wrapper
+// level is stripped from the residual, so no copy re-runs the effect
+QUnit.test('array-wrapper intermediate SE lifts and runs once', assert => {
+  let mid = 0;
+  function midEffect() { mid++; }
+  const [[{ Array: { from }, keep }]] = [(midEffect(), [globalThis])];
+  assert.same(typeof from, 'function');
+  assert.same(keep, undefined);
+  assert.same(mid, 1);
+});
+
+QUnit.test('array-wrapper single-level SE prefix lifts and runs once', assert => {
+  let e1 = 0;
+  const [{ Array: { of }, tail }] = (e1++, [globalThis]);
+  assert.same(typeof of, 'function');
+  assert.same(tail, undefined);
+  assert.same(e1, 1);
+});
+
+// the SE-key trailing pair lands immediately AFTER its consumed declarator: a later declarator
+// of the SAME declaration reads the extracted binding - an end-of-declaration append would hand
+// it TDZ (const) or hoisted-undefined (var)
+QUnit.test('SE-key pair: later sibling declarator reads the extracted binding', assert => {
+  const log = [];
+  const arr = [1, [2]];
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the same-declaration sibling read IS the case under test
+  const { [(log.push(1), 'flat')]: flat } = arr, viaFlat = flat;
+  assert.same(typeof viaFlat, 'function');
+  // receiver-less call would throw natively (a destructured method loses `this`)
+  assert.deepEqual(viaFlat.call(arr), [1, [2]].flat());
+  assert.same(log.length, 1);
+});
+
+// outer computed-key SE on a chain-combined emit: ECMA evaluates the receiver chain (hop) BEFORE
+// the computed key (key) - the fold must memoize the threaded receiver ahead of the key effect
+QUnit.test('chain-combined outer key: receiver chain effect runs before the key effect', assert => {
+  const order = [];
+  function hop() {
+    order.push('hop');
+    return 0;
+  }
+  function eff() {
+    order.push('key');
+  }
+  const a = [[1], [2]];
+  const r = a.flat?.().slice(hop())[(eff(), 'includes')](2);
+  assert.true(r);
+  assert.deepEqual(order, ['hop', 'key']);
+});
+
+// a guarded non-polyfill method call with a folded outer key SE: the CALL evaluates inside the
+// guard's alternate and must still run BEFORE the computed key, like native evaluation order
+QUnit.test('guarded call with outer key SE: call runs before the key effect', assert => {
+  const order = [];
+  const holder = {
+    list() {
+      order.push('call');
+      return [5, 6];
+    },
+  };
+  function eff() {
+    order.push('key');
+  }
+  const r = holder.list?.()[(eff(), 'at')](0);
+  assert.same(r, 5);
+  assert.deepEqual(order, ['call', 'key']);
+});
+
+// for-init SE-sink with a tail hiding a nested effect below the top-level sequence peel: the
+// sink keeps the whole tail, so BOTH effects run exactly once in source order
+QUnit.test('for-init sink: outer and buried effects each run once, in order', assert => {
+  const seen = [];
+  function eff(t) {
+    seen.push(t);
+    return t;
+  }
+  let out;
+  for (const [{ Array: { from } }] = (eff('outer'), [(eff('inner'), globalThis)]); !out;) out = from;
+  assert.same(typeof out, 'function');
+  assert.deepEqual(seen, ['outer', 'inner']);
+});
+
+// a receiver peeled from under an SE-bearing sequence prefix: the prefix must run BEFORE the
+// receiver is read for the extraction (whole-init memo), exactly once
+QUnit.test('SE-sequence init: prefix runs before the extraction reads the receiver', assert => {
+  const order = [];
+  const arr = [7, [8]];
+  function se1() { order.push('prefix'); }
+  function k1() { order.push('key'); }
+  // eslint-disable-next-line no-var, es/no-nonstandard-array-prototype-properties -- the multi-binding var host with a plain sibling key IS the shape under test
+  var { [(k1(), 'at')]: at, tail } = (se1(), arr);
+  assert.same(typeof at, 'function');
+  assert.same(tail, undefined);
+  assert.same(order.filter(x => x === 'prefix').length, 1);
+  assert.same(order.filter(x => x === 'key').length, 1);
+  assert.same(order[0], 'prefix');
+});
+
+// NESTED fragment under an SE prefix bails to native (an extraction would reorder the prefix);
+// the prefix still runs exactly once
+QUnit.test('SE-sequence nested fragment: bails native, prefix runs once', assert => {
+  let ran = 0;
+  const arr2 = [1, [2]];
+  const { y: { flat: m }, q } = { y: (ran++, arr2), q: 1 };
+  assert.same(typeof m, 'function');
+  assert.same(q, 1);
+  assert.same(ran, 1);
+});
+
+// a literal receiver nesting a member READ is never emitted twice: with a surviving residual
+// sibling the extraction backs off entirely, so the getter behind the read fires exactly once,
+// like the native single evaluation
+QUnit.test('literal receiver with member read: source getter fires once', assert => {
+  let fires = 0;
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the member read IS the case under test
+    get p() {
+      fires++;
+      return [1, [2]];
+    },
+  };
+  const { y: { flat: m }, q } = { y: [holder.p], q: 1 };
+  assert.same(typeof m, 'function');
+  assert.same(q, 1);
+  assert.same(fires, 1);
+});
+
+// class-EVAL-TIME positions (a static field initializer) inside a literal receiver are
+// re-eval-observable: the literal is never emitted twice, so the getter behind the static
+// init fires exactly once, like the native single class evaluation
+QUnit.test('literal receiver with class static member read: getter fires once', assert => {
+  let fires = 0;
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the static init IS the case under test
+    get p() {
+      fires++;
+      return 1;
+    },
+  };
+  // eslint-disable-next-line unicorn/no-static-only-class -- the class-eval-time static init IS the case under test
+  const { y: { at: m }, q } = { y: [class K { static p = holder.p; }], q: 1 };
+  assert.same(typeof m, 'function');
+  assert.same(q, 1);
+  assert.same(fires, 1);
+});
+
+// an SE-computed key on an ARRAY-WRAPPED param default: the synthesized default replaces the
+// receiver wholesale, the key effect runs once per no-arg call, a caller-passed arg still
+// destructures natively (caller args win)
+QUnit.test('wrapped param default with SE key: effect once, caller arg wins', assert => {
+  let keyEval = 0;
+  function f([{ [(keyEval++, 'from')]: from }] = [Array]) { return from; }
+  const viaDefault = f();
+  assert.same(typeof viaDefault, 'function');
+  assert.same(keyEval, 1);
+  function custom() { return 'mine'; }
+  assert.same(f([{ from: custom }]), custom);
+  assert.same(keyEval, 2);
+});
+
+// SOLE binding over the same member-nesting literal: the residual is eliminated, so the
+// single-read extraction still emits the polyfill - and the getter still fires exactly once
+QUnit.test('literal receiver with member read: sole binding extracts, getter fires once', assert => {
+  let fires = 0;
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the member read IS the case under test
+    get p() {
+      fires++;
+      return [1, [2]];
+    },
+  };
+  const { y: { flat: m } } = { y: [holder.p] };
+  assert.same(typeof m, 'function');
+  assert.deepEqual(m.call([1, [2]]), [1, 2]);
+  assert.same(fires, 1);
+});

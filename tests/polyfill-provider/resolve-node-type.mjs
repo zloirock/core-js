@@ -103,6 +103,7 @@ import {
   kebabToCamel,
   kebabToPascal,
   mayHaveSideEffects,
+  reEvaluationObservable,
   objectPatternPropNeedsReceiverRewrite,
   peelFallbackReceiver,
   peelNestedSequenceExpressions,
@@ -3973,6 +3974,81 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
         shorthand: false,
       }],
     }));
+
+  // reEvaluationObservable: strict superset of mayHaveSideEffects - member reads and accessor
+  // definitions are observable on RE-evaluation even though a single eval is pure
+  const memberRead = { type: 'MemberExpression', object: { type: 'Identifier', name: 'holder' }, property: { type: 'Identifier', name: 'p' }, computed: false };
+  const memberWrappedArray = { type: 'ArrayExpression', elements: [memberRead] };
+  check('ast-patterns: reEvaluationObservable pure literal array', reEvaluationObservable({
+    type: 'ArrayExpression',
+    elements: [{ type: 'NumericLiteral', value: 1 }],
+  }), false);
+  checkTruthy('ast-patterns: reEvaluationObservable member read', reEvaluationObservable(memberRead));
+  checkTruthy('ast-patterns: reEvaluationObservable member inside array literal', reEvaluationObservable(memberWrappedArray));
+  // the two walkers share nodes but not verdicts - caches must stay independent
+  check('ast-patterns: mayHaveSideEffects stays false on a re-eval-observable node', mayHaveSideEffects(memberWrappedArray), false);
+  checkTruthy('ast-patterns: reEvaluationObservable optional member', reEvaluationObservable({
+    type: 'OptionalMemberExpression', object: { type: 'Identifier', name: 'holder' },
+    property: { type: 'Identifier', name: 'p' }, computed: false, optional: true,
+  }));
+  checkTruthy('ast-patterns: reEvaluationObservable template interpolating a member', reEvaluationObservable({
+    type: 'TemplateLiteral', quasis: [], expressions: [memberRead],
+  }));
+  checkTruthy('ast-patterns: reEvaluationObservable accessor definition', reEvaluationObservable({
+    type: 'ObjectExpression',
+    properties: [{
+      type: 'ObjectMethod', kind: 'get', computed: false,
+      key: { type: 'Identifier', name: 'p' }, params: [], body: { type: 'BlockStatement', body: [] },
+    }],
+  }));
+  // estree spells the same accessor as a Property with kind 'get' - both flavors must trip
+  checkTruthy('ast-patterns: reEvaluationObservable estree Property accessor', reEvaluationObservable({
+    type: 'ObjectExpression',
+    properties: [{
+      type: 'Property', kind: 'get', computed: false, method: false, shorthand: false,
+      key: { type: 'Identifier', name: 'p' },
+      value: { type: 'FunctionExpression', params: [], body: { type: 'BlockStatement', body: [] } },
+    }],
+  }));
+  // deferred bodies stay inert: the read runs per call, not per literal re-evaluation
+  check('ast-patterns: reEvaluationObservable member inside arrow body', reEvaluationObservable({
+    type: 'ArrayExpression',
+    elements: [{ type: 'ArrowFunctionExpression', params: [], body: memberRead }],
+  }), false);
+  // class-EVAL-TIME positions thread the strict lens; instance fields evaluate per construction
+  function classWithField(staticField) {
+    return {
+      type: 'ClassExpression',
+      body: { type: 'ClassBody',
+        body: [{
+          type: 'ClassProperty', static: staticField, computed: false,
+          key: { type: 'Identifier', name: 'p' }, value: memberRead,
+        }] },
+    };
+  }
+  checkTruthy('ast-patterns: reEvaluationObservable class static field member init', reEvaluationObservable(classWithField(true)));
+  check('ast-patterns: reEvaluationObservable class instance field member init', reEvaluationObservable(classWithField(false)), false);
+  checkTruthy('ast-patterns: reEvaluationObservable class computed method key member', reEvaluationObservable({
+    type: 'ClassExpression',
+    body: { type: 'ClassBody',
+      body: [{ type: 'ClassMethod', kind: 'method', static: false, computed: true, key: memberRead, params: [], body: { type: 'BlockStatement', body: [] } }] },
+  }));
+  // JSX attribute expressions evaluate at element creation - a member read there re-fires per copy
+  checkTruthy('ast-patterns: reEvaluationObservable JSX attribute member read', reEvaluationObservable({
+    type: 'JSXElement',
+    openingElement: { type: 'JSXOpeningElement', name: { type: 'JSXIdentifier', name: 'X' },
+      attributes: [{ type: 'JSXAttribute', name: { type: 'JSXIdentifier', name: 'y' }, value: { type: 'JSXExpressionContainer', expression: memberRead } }] },
+    children: [],
+  }));
+  check('ast-patterns: reEvaluationObservable JSX attr literal stays inert', reEvaluationObservable({
+    type: 'JSXElement',
+    openingElement: { type: 'JSXOpeningElement', name: { type: 'JSXIdentifier', name: 'X' },
+      attributes: [{
+        type: 'JSXAttribute', name: { type: 'JSXIdentifier', name: 'y' },
+        value: { type: 'JSXExpressionContainer', expression: { type: 'NumericLiteral', value: 1 } },
+      }] },
+    children: [],
+  }), false);
 
   // walkPatternIdentifiers: visit each Identifier leaf
   const idsCollected = [];
