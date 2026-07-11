@@ -262,6 +262,28 @@ class ArrPattern extends Array {
 }
 export const viaArrPattern = ArrPattern.m;
 
+// a static{} block is a static context too - the destructure remap resolves through
+// the same extends-host gate as static methods
+class StaticBlock extends Array {
+  static {
+    const of = _Array$of;
+    this.picked = of;
+  }
+}
+export const viaStaticBlock = StaticBlock.picked;
+
+// an INSTANCE-only key (`at` lives on the prototype, not the static surface) does not
+// resolve as an inherited static - the destructure stays verbatim, no import
+class InstanceOnlyKey extends Array {
+  static m() {
+    const {
+      at
+    } = this;
+    return at;
+  }
+}
+export const viaInstanceOnlyKey = InstanceOnlyKey.m();
+
 // negatives: an own static shadows the key; an instance method's `this` is not the
 // constructor; a bare class has no inherited static surface
 class Shadowed extends Array {
