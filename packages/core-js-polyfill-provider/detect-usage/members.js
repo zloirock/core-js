@@ -8,12 +8,12 @@ import {
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import {
   GET_ITERATOR_ENTRY,
   isAliasProxyRoot,
   IS_ITERABLE_ENTRY,
-  POSSIBLE_GLOBAL_OBJECTS,
   SYMBOL_ITERATOR_PURE_RESULT,
   symbolKeyToEntry,
 } from '../helpers/class-walk.js';

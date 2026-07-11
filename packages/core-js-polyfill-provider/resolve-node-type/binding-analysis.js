@@ -44,8 +44,8 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 
 // walk up from an Identifier through destructuring pattern wrappers to the enclosing binding / assign
 // host. returns { host, node } where node is the outermost pattern reached (or the identifier itself

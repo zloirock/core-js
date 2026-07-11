@@ -10,8 +10,12 @@ import {
   isMemberWriteHost,
   isThisReceiver,
   getMinifierSequenceDestructureExpressions,
+  isMutatedGlobalSlot,
   isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
+  memberKeyName,
+  collectUserMemberKeyNames,
+  mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   peelNestedSequenceExpressions,
   peelSkippableWrappers,
@@ -704,6 +708,45 @@ export default function plugin(api, options) {
           }
         }
 
+        // a SLOT-mutated global name follows the runtime slot on EVERY surface: a bare
+        // reference re-routes through the global-object binding (`Set` -> `_globalThis.Set`),
+        // mirroring the through-global family - the user's replacement wins where the
+        // module-cached ponyfill binding would silently ignore it. the raw slot alone
+        // strands engines missing the native (the slot is undefined until the user's own
+        // write runs), so a targets-required ponyfill backstops the ABSENT slot: reads
+        // rescue exactly where the untranspiled source crashes, while a live slot - native
+        // or user replacement - always wins. `typeof` operands keep the plain slot read:
+        // a guard probes engine state and the backstop would flip `"undefined"` there
+        if (meta.kind === 'global' && path.isIdentifier() && isMutatedGlobalSlot(adapter, meta.name)) {
+          const gt = resolvePureUnfiltered({ kind: 'global', name: 'globalThis' }, path);
+          if (gt) {
+            function slotRead() {
+              return t.memberExpression(injectPureImport(gt.entry, gt.hintName), t.identifier(meta.name));
+            }
+            const host = unwrapTSExpressionParent(path);
+            const inTypeof = host.parentPath?.isUnaryExpression({ operator: 'typeof' });
+            const pony = inTypeof ? null : resolvePureOrGlobalFallback(meta, path).result;
+            // polyfill-then-patch for a static READ through the backstop: the constructor entry
+            // alone leaves the ponyfill namespace bare, so the ABSENT-slot branch would serve
+            // undefined for a static core-js provides - pin the read key's own entry (mirrors
+            // the pair-mutated enrichment model; custom keys resolve to nothing and stay bare)
+            const memberHost = host.parentPath?.node;
+            if (pony && (memberHost?.type === 'MemberExpression' || memberHost?.type === 'OptionalMemberExpression')
+              && memberHost.object === host.node) {
+              const staticKey = memberKeyName(memberHost);
+              const staticPure = staticKey && resolvePureUnfiltered({
+                kind: 'property', object: meta.name, key: staticKey, placement: 'static',
+              }, path);
+              if (staticPure && staticPure.kind !== 'instance') injectPureImport(staticPure.entry, staticPure.hintName);
+            }
+            path.replaceWith(pony ? t.conditionalExpression(
+              t.binaryExpression('===', slotRead(), t.identifier('undefined')),
+              injectPureImport(pony.entry, pony.hintName),
+              slotRead(),
+            ) : slotRead());
+            return;
+          }
+        }
         const { result, fallback } = resolvePureOrGlobalFallback(meta, path);
         // inherited-static lookup where the member doesn't exist as static on the super class:
         // `class C extends Array { static foo() { this.at(0) } }` - `at` is instance-only on
@@ -976,13 +1019,26 @@ export default function plugin(api, options) {
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so it is needed ONLY in usage-pure (entry-global / usage-global
         // never read `mutatedStatics`, the whole-AST walk was dead work there, matching unplugin).
-        // internal core-js files don't need it either (they manage their own globals)
+        // internal core-js files don't need it either (they manage their own globals).
+        // reset FIRST: the read canons the pre-pass shares consult the live slot through the
+        // adapter, and the previous file's set must not gate this file's collection
+        mutatedStatics = null;
         mutatedStatics = method === 'usage-pure' && !isInternalCoreJS ? collectMutationPrePass(path, adapter).mutated : null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
           && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
         injector = new ImportInjector({ t, programPath: path, pkg, packages, mode, importStyle, absoluteImports });
+        // user-owned global-object property names: in a script-scope output a top-level
+        // `var <name>` temp ALIASES `globalThis.<name>`, so a temp write would clobber the
+        // user's slot. `program.globals` only sees unbound identifier REFERENCES - property
+        // keys never land there (and a re-routed reference drops out of it). reserve the
+        // Identifier keys of bare proxy-global members (reads AND writes; shadow-blind
+        // over-approximation only shifts temp numbering) plus the mutated slot names (covers
+        // `Object.defineProperty(self, 'X', ...)`-style writes with no member-key spelling).
+        // mirrors unplugin, whose raw-AST name scan reserves every identifier-shaped name
+        injector.seedReservedNames(collectUserMemberKeyNames(path.node));
+        injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
         skippedNodes = new WeakSet();
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
