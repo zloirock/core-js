@@ -226,8 +226,6 @@ const base = {
   'no-dupe-keys': ERROR,
   // disallow a duplicate case label
   'no-duplicate-case': ERROR,
-  // disallow duplicate module imports
-  'no-duplicate-imports': ERROR,
   // disallow empty destructuring patterns
   'no-empty-pattern': ERROR,
   // disallow assigning to the exception in a catch block
