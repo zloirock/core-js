@@ -1,8 +1,9 @@
-import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { subsume } from './subsumption.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
   FUNCTION_LIKE_NODE_TYPES,
+  isMutatedGlobalSlot,
+  POSSIBLE_GLOBAL_OBJECTS,
   isVarScopeBoundary,
   memberKeyName,
   peelZeroArgIifeReturn,
@@ -33,9 +34,6 @@ export function unwrapInitForResolution(node) {
   }
   return node;
 }
-
-// `globalThis` / `self` / `window` etc.
-export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
 // classify a root that `findProxyGlobal(node, aliasCtx)` matched: true when it resolved through a
 // const-alias (`g` in `const g = globalThis; g.X`) rather than by a direct global NAME. the emit-side
@@ -556,17 +554,27 @@ export function peelProxyGlobalObject(node) {
 // walks intermediate proxy-global links so deeper chains resolve to the leaf key; peels a
 // zero-arg IIFE-return at each hop so `(()=>globalThis)().Array` resolves like `globalThis.Array`.
 // empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
-export function globalProxyMemberName({ node, scope, adapter, path }) {
+// `includeMutatedSlots` opts OUT of the mutated-slot gates for consumers that only NAME the
+// slot rather than resolve reads through it - a logical-assign WRITE target is itself the
+// mutation site, so gating its classification on the mutation would self-suppress the warn
+export function globalProxyMemberName({ node, scope, adapter, path, includeMutatedSlots = false }) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   let object = peelProxyGlobalObject(node.object);
   while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
     const linkName = staticMemberKeyName(object);
-    if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
+    // a mutated hop slot holds the user's replacement - the chain no longer re-enters the
+    // global-object surface, so it must not resolve to the leaf global
+    if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)
+      || (!includeMutatedSlots && isMutatedGlobalSlot(adapter, linkName))) return null;
     object = peelProxyGlobalObject(object.object);
   }
   if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path })) return null;
-  return staticMemberKeyName(node) || null;
+  const leaf = staticMemberKeyName(node) || null;
+  // a SLOT-mutated leaf (`globalThis.Map = Shim`) holds the user's replacement - the chain
+  // does not name the pristine global, so every READ consumer (pure-ctor swaps, deopts,
+  // typing) must fall back to its raw / generic path
+  return !includeMutatedSlots && isMutatedGlobalSlot(adapter, leaf) ? null : leaf;
 }
 
 // strict: IIFE caller-arg overrides wrapper-default ONLY when it is a bare Identifier the
