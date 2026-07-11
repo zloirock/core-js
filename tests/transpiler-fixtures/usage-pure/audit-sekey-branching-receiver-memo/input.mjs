@@ -80,3 +80,17 @@ export const r15 = [typeof a15, k15];
 let k16 = 0, s16 = 0;
 var { [(k16++, 'flat')]: f16, other16 } = (s16++, globalThis.self.Array.prototype);
 export const r16 = [typeof f16, k16, s16];
+// an EXPORTED host must not export the internal memo temp: first-declarator memos plant as a
+// bare statement BEFORE the export (comma-joining would add `_ref` to the module surface)
+let k17 = 0;
+export var { [(k17++, 'toSorted')]: _u17, other17 } = holder17.p;
+export const r17 = [typeof _u17, typeof other17, k17];
+// multi-declarator export host: the memo still precedes the export, the pair joins the list
+let k18 = 0;
+export var { [(k18++, 'values')]: _u18, other18 } = holder18.p, z18 = 1;
+export const r18 = [typeof _u18, typeof other18, z18, k18];
+// LATER-declarator export memo keeps the comma slot (a statement hoist would run the receiver
+// read ahead of the earlier declarator's init) - the exported `_ref` is the documented residue
+let k19 = 0;
+export var z19 = 1, { [(k19++, 'keys')]: _u19, other19 } = holder19.p;
+export const r19 = [z19, typeof other19, k19];
