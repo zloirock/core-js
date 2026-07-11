@@ -1,12 +1,13 @@
 // destructure rewrite pipeline. covers parameter-default synth-swap, top-level
 // VariableDeclaration extraction, catch-clause rewrite, per-branch fallback synth-swap, and
 // the nested proxy-global flatten path (`const {Array:{from}} = globalThis` -> `const from
-// = _Array$from`). factory captures closure deps from the outer transform context (code /
+// = _Array$from`). factory captures closure deps from the outer transform context (source /
 // scopeTracker / transforms / injector / Sets / resolver hooks + helpers from the
 // PolyfillEmitter factory). pending-collection Maps for in-flight destructure / synth-swap
 // rewrites live in factory closure (drained post-traverse via the public methods).
 // public surface: `applyDestructuringTransforms`, `applySynthSwaps`, `handleDestructuringPure`,
-// `canFullyConsumeProxyDeclarator` (pre-pass speculation)
+// `canFullyConsumeProxyDeclarator` (pre-pass speculation), `collapseProxyHopRoot`,
+// `tryFlattenProxyHopHost` (alias-hop collapse hooks), `markLiftedSePrefixOperand`
 import {
   buildFlatSynthEntries,
   collectFoldedReceiverSideEffects,
@@ -787,7 +788,9 @@ export function createDestructureEmitter({
   }
 
   // lift extracted-declarator SE prefixes (`(logCall(), globalThis)` -> standalone
-  // `logCall();` statements next to the flattened decl). non-extracted siblings keep
+  // `logCall();` statements next to the flattened decl), including an SE buried in a
+  // transparent single-element array wrapper (`[(logCall(), globalThis)]`) - the wrapper
+  // peels first, so its nested prefix lifts like a top-level one. non-extracted siblings keep
   // their SE prefixes verbatim through `nodeSrc` (lifting both would double-execute).
   // returns a per-declarator-index array so the block / for-init render steps can place each slot's SE
   // prefixes IMMEDIATELY before its extracted lines instead of collapsing all SE prefixes
@@ -3773,9 +3776,6 @@ export function createDestructureEmitter({
     if (collapsed === null) return false;
     // deliberately chain-assign-BLIND: an assign-buried root (`(a = globalThis).self.X`) is kept
     // verbatim inside the harvested assignment slice, so its natural identifier rewrite must stay
-    // live to compose into the re-emitted text by needle; only a directly-substituted root is skipped
-    // deliberately chain-assign-BLIND: an assign-buried root (`(a = globalThis).self.X`) is kept
-    // verbatim inside the harvested assignment slice, so its natural identifier rewrite must stay
     // live to compose into the re-emitted text by needle (`(a = globalThis, ...)` ->
     // `(a = _globalThis, ...)`); a directly-substituted root (bare / paren / sequence-tail) is
     // skipped instead. reporting that same visibility back tells the caller whether the natural
@@ -3934,12 +3934,6 @@ export function createDestructureEmitter({
       transforms.add(start, end, `${ prefix }${ lhsSrc }${ binding }(${ composedRangeSrc(receiverNode) });`);
     }
     pendingReceiverExtracts.length = 0;
-    // deferred DUPLICATED copies: compose each receiver ONCE per range (sibling leaves of the same
-    // receiver share the text), re-add the composed text to the SURVIVING residual's receiver range
-    // (only when it changed - an unpolyfilled receiver keeps its verbatim slice, no extra transform),
-    // then let each leaf's `emit` route its copy. ordered before the byStatement rebuild and the
-    // trailing / flatten / bodyless-assign drains so a re-add folds into the residual render and a
-    // routed copy lands in those still-pending lists
     // deferred MEMBER receiver memos: compose the receiver ONCE per range (drains its queued rewrites),
     // overwrite the surviving residual's receiver with the shared `_ref`, and route the memo to its host
     // slot - a preceding-statement hoist (standalone) or a preceding comma declarator (sibling host)
@@ -3977,6 +3971,12 @@ export function createDestructureEmitter({
       } else memo.emitExtract(text);
     }
     pendingReceiverMemos.length = 0;
+    // deferred DUPLICATED copies: compose each receiver ONCE per range (sibling leaves of the same
+    // receiver share the text), re-add the composed text to the SURVIVING residual's receiver range
+    // (only when it changed - an unpolyfilled receiver keeps its verbatim slice, no extra transform),
+    // then let each leaf's `emit` route its copy. ordered before the byStatement rebuild and the
+    // trailing / flatten / bodyless-assign drains so a re-add folds into the residual render and a
+    // routed copy lands in those still-pending lists
     const composedReceiverCopyText = new Map();
     for (const { receiverNode, emit } of pendingReceiverCopies) {
       const key = `${ receiverNode.start }:${ receiverNode.end }`;
