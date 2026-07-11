@@ -458,9 +458,12 @@ export function createPolyfillEmitter({
       isSuper,
       receiverSafe,
       recvRef: !isSuper && !receiverSafe ? scopeTracker.genRef() : null,
+      // a peeled SequenceExpression re-wraps: the memo path embeds this text into a comma list
+      // (`null == (_ref = <text>, ...)`), where bare commas would re-parse as list members and
+      // rebind the memo to the sequence's FIRST expression (wrong `this`, dropped receiver)
       receiverText: directPolyfill
         ? injectPureImport(directPolyfill.entry, directPolyfill.hintName)
-        : nodeSrc(reuseReceiver),
+        : reuseReceiver.type === 'SequenceExpression' ? `(${ nodeSrc(reuseReceiver) })` : nodeSrc(reuseReceiver),
       methodSrc: nodeSrc(callee),
       methodTail: code.slice(receiverNode.end, callee.end),
       argsText: sliceBetweenParens(optionalNode),
@@ -632,6 +635,16 @@ export function createPolyfillEmitter({
         // splice the intermediate plain-member hop tail (`.x.y`) back onto the call result so
         // the outer polyfill reads off the right value instead of the bare call return
         bodyObj = `${ guardRef }.call(${ callReceiver }${ commaArgs(methodCall.argsText) })${ methodCall.tail ?? '' }`;
+        // the guarded CALL evaluates inside the alternate: with a folded key SE it must run
+        // FIRST (ECMA evaluates the receiver before the computed key), so hoist its memo ahead
+        // of the wrap instead of leaving the embedded `binding(ref = call)` form after the SE -
+        // mirrors the chain-combined outer memo and babel's combined emission
+        if (sideEffects?.length && seMode !== 'peel') {
+          const callRef = scopeTracker.genRef();
+          leadingMemo = `${ callRef } = ${ bodyObj }`;
+          bodyObj = callRef;
+          bodyIsNonIdent = false;
+        }
       } else {
         guardRef = preAllocatedGuardRef ?? scopeTracker.genRef();
         guard = `null == (${ guardRef } = ${ optionalRoot }) ? void 0 : `;
@@ -1739,8 +1752,15 @@ export function createPolyfillEmitter({
     // innermost-first - matching native left-to-right short-circuit order
     tests.push(...extraTests);
     let outerObj;
+    let outerMemo = null;
     if (node.optional) {
       tests.push(`null == (${ outerRef } = ${ threaded })`);
+      outerObj = outerRef;
+    } else if (sideEffects?.length) {
+      // ECMA evaluates the receiver before the computed key: memoize the threaded receiver
+      // AHEAD of the folded key SE and dispatch on the ref (mirrors the inner methodGet guard;
+      // the optional branch above already memoized inside its test, so key SE follows naturally)
+      outerMemo = `${ outerRef } = ${ threaded }`;
       outerObj = outerRef;
     } else {
       outerObj = `${ outerRef } = ${ threaded }`;
@@ -1750,7 +1770,7 @@ export function createPolyfillEmitter({
     // fold outer computed-key side effects into the alternate so they fire only when the chain
     // does not short-circuit (native skips a computed-key eval on a nullish receiver) - matches
     // babel-compat.js, which folds the same SE into its conditional alternate
-    const alternate = wrapSideEffects(`${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`, sideEffects);
+    const alternate = wrapSideEffects(`${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`, sideEffects, outerMemo);
     let replacement = `${ tests.join(' || ') } ? void 0 : ${ alternate }`;
     let emitEnd = parent.end;
     const { needsWrap, tipEnd } = chainEmitWrapInfo(metaPath, parent);
