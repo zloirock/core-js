@@ -857,6 +857,7 @@ export function createUsageVisitors({
   // another). babel's `binding.kind` is read directly via the babel adapter's own getter
   const isSelfRefVarBinding = createSelfRefVarGuard(
     b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
+    adapter,
   );
 
   // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
@@ -1016,7 +1017,7 @@ export function createUsageVisitors({
       // self-reference `var X = X` - hoisted var init reads the outer (global) scope
       // before the local is assigned. narrow via cached binding check; exclude let/const
       // (TDZ error) and ImportSpecifiers. `node.name` equals binding's own name by lookup
-      if (!isSelfRefVarBinding(path.scope?.getBinding?.(node.name))) return;
+      if (!isSelfRefVarBinding(path.scope?.getBinding?.(node.name), path)) return;
       if (!isKnownGlobalName(node.name)) return;
       if (handledObjects.has(node)) return;
       onUsage({ kind: 'global', name: node.name }, path);
