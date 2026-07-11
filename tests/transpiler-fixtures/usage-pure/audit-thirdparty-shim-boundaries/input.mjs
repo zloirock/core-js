@@ -1,8 +1,8 @@
 // third-party shim writes with distinct routing:
 // - a PROTOTYPE shim is invisible to the static mutation model; instance dispatch keeps the
 //   runtime-guarded polyfill helper
-// - a WHOLE-CONSTRUCTOR replacement via the global object patches the real slot, yet ctor and
-//   static reads keep the ponyfill - the shim is dead code, core-js serves the calls
+// - a WHOLE-CONSTRUCTOR replacement via the global object owns the slot: ctor and static
+//   reads re-route through the global-object binding, so the shim serves the calls
 // - a CUSTOM-key shim routes like any mutation: write, read and cleanup share one object
 String.prototype.padStart = shimPadStart;
 export const r1 = s.padStart(3, '0');

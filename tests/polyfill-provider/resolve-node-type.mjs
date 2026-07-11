@@ -122,10 +122,10 @@ import {
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
+  POSSIBLE_GLOBAL_OBJECTS,
   withoutValuelessDeclarationViolations,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
   buildSuperStaticMeta,
   createClassHelpers,
   isSymbolDestructureAliasBinding,
@@ -4530,9 +4530,29 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     ['if (!Object.groupBy) Object.groupBy = shim;', ['Object.groupBy'], []],
     ["if (typeof Map.groupBy != 'function') Map.groupBy = shim;", ['Map.groupBy'], []],
     ["if (!('from' in Array)) Array.from = shim;", ['Array.from'], []],
-    // ctor-slot writes through proxies record the slot (the enrichment pins the ctor entry)
-    ['window.Promise = window.Promise || Shim;', ['window.Promise'], []],
+    // ctor-slot writes through proxies record the slot (the enrichment pins the ctor entry);
+    // the proxy host canonicalizes to `globalThis` - the proxies alias ONE object, so a
+    // mutation through any of them must be visible to reads through any other
+    ['window.Promise = window.Promise || Shim;', ['globalThis.Promise'], ['window.Promise']],
     ['globalThis.Map = ShimMap;', ['globalThis.Map'], []],
+    ['self.Set = function () {};', ['globalThis.Set'], ['self.Set']],
+    ['global.WeakSet = Shim;', ['globalThis.WeakSet'], ['global.WeakSet']],
+    ['globalThis.self.Reflect = Shim;', ['globalThis.Reflect'], ['self.Reflect']],
+    ['Object.defineProperty(self, "Symbol", d);', ['globalThis.Symbol'], ['self.Symbol']],
+    ['const g = self; g.Proxy = Shim;', ['globalThis.Proxy'], ['g.Proxy', 'self.Proxy']],
+    // proxy prefixes keep resolving to the LEAF ctor (no canonicalization applies) and
+    // computed / delete shapes canonicalize like plain writes
+    ['window.String.prototype.at = patch;', ['String.prototype.at'], []],
+    ['globalThis["self"].Set = patch;', ['globalThis.Set'], []],
+    ['delete self.Promise;', ['globalThis.Promise'], []],
+    ['const { Iterator: I9 } = self; I9.range = patch;', ['Iterator.range'], []],
+    // a SHADOWED proxy name is a local object, not the global - nothing records
+    ['const self = { Set: 1 }; self.Set = patch;', [], ['globalThis.Set', 'self.Set']],
+    // a global-proxy SLOT itself is a mutable key like any other
+    ['window.self = fake;', ['globalThis.self'], ['window.self']],
+    // copy / descriptor mutator channels canonicalize proxy TARGETS the same way
+    ['Object.assign(self, { Set: 1, Map: 2 });', ['globalThis.Set', 'globalThis.Map'], ['self.Set']],
+    ['Object.defineProperties(window, { Iterator: { value: 1 } });', ['globalThis.Iterator'], ['window.Iterator']],
     // mutation targets behind transparent wrappers: estree ChainExpression on an optional
     // delete, oxc-preserved parens on delete / update / compound assignment
     ['delete Iterator?.from;', ['Iterator.from'], []],
@@ -4613,6 +4633,15 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     // boundary: a DESTRUCTURED alias feeding a pattern write is outside the alias fan in both
     // eras (the slot union cannot type a container bound through another destructure)
     ['const [arr2] = [[Map]]; let A2 = Array; [A2] = arr2; A2.groupBy = 1;', ['Array.groupBy'], ['Map.groupBy']],
+    // a destructure declarator fans ONLY its selected slot - the whole-init fan would smuggle
+    // the container name and record a spurious STATIC beside the correct prototype pair
+    ['const { prototype: P8 } = Array; P8.of = function () {};', ['Array.prototype.of'], ['Array.of']],
+    // a REASSIGNED binding is not a resolvable mutator / source - recording its stale init
+    // would keep an unrelated read native (the declarator resolver bails on reassignment)
+    ['let dp9 = Object.defineProperty; dp9 = 0; dp9(Array, "from", d);', [], ['Array.from']],
+    ['let { s: src9 } = { s: { from: 1 } }; src9 = { of: 2 }; Object.assign(Array, src9);', [], ['Array.from']],
+    // an alias bound to a chain root off a reassigned proxy holder fans like the direct chain
+    ['let h9; h9 = globalThis; const alias9 = h9.Array; alias9.of = function () {};', ['Array.of'], []],
   ];
   for (const [src, present, absent] of CASES) {
     const mutated = collectBoth(src);
@@ -5431,14 +5460,14 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
 
 {
   // POSSIBLE_GLOBAL_OBJECTS: from known-built-in-return-types.globalProxies
-  checkTruthy('class-walk: POSSIBLE_GLOBAL_OBJECTS has globalThis',
+  checkTruthy('ast-patterns: POSSIBLE_GLOBAL_OBJECTS has globalThis',
     POSSIBLE_GLOBAL_OBJECTS.has('globalThis'));
-  checkTruthy('class-walk: POSSIBLE_GLOBAL_OBJECTS has self',
+  checkTruthy('ast-patterns: POSSIBLE_GLOBAL_OBJECTS has self',
     POSSIBLE_GLOBAL_OBJECTS.has('self'));
-  checkTruthy('class-walk: POSSIBLE_GLOBAL_OBJECTS has window',
+  checkTruthy('ast-patterns: POSSIBLE_GLOBAL_OBJECTS has window',
     POSSIBLE_GLOBAL_OBJECTS.has('window'));
   // bare `Array` is a built-in, not a global-proxy alias
-  check('class-walk: POSSIBLE_GLOBAL_OBJECTS no Array',
+  check('ast-patterns: POSSIBLE_GLOBAL_OBJECTS no Array',
     POSSIBLE_GLOBAL_OBJECTS.has('Array'), false);
 
   // globalProxyMemberName: `globalThis.Map` -> 'Map'
