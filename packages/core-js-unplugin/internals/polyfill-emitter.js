@@ -15,11 +15,11 @@ import {
   peelMemoizeWrappers,
   peelNestedSequenceExpressions,
   TS_EXPR_WRAPPERS,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
-import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   resolveKey,
   resolveObjectName,
@@ -260,6 +260,11 @@ function skipDroppedKeyPrefix(node, sideEffects, skippedNodes) {
   })) skippedNodes.add(skipNode);
 }
 
+// bare-Identifier shape (`globalThis`, `_Promise`, `$X`); excludes member chains, parens,
+// operators. used to gate guard emission - bare-Identifier roots use `X == null`, anything
+// else captures into a `_ref` first to avoid double-evaluating side effects
+const BARE_IDENTIFIER_REGEX = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
+
 export function createPolyfillEmitter({
   canFuseWithOpenParen,
   code,
@@ -279,11 +284,6 @@ export function createPolyfillEmitter({
   skippedNodes,
   transforms,
 }) {
-  // bare-Identifier shape (`globalThis`, `_Promise`, `$X`); excludes member chains, parens,
-  // operators. used to gate guard emission - bare-Identifier roots use `X == null`, anything
-  // else captures into a `_ref` first to avoid double-evaluating side effects
-  const BARE_IDENTIFIER_REGEX = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
-
   function isBareIdentifier(src) {
     return typeof src === 'string' && BARE_IDENTIFIER_REGEX.test(src);
   }
@@ -863,6 +863,28 @@ export function createPolyfillEmitter({
     return classifyReceiverSE(node.object, isOptional, sideEffects);
   }
 
+  // reuse an OUTER guard's memo ref for this dispatch's chain root. root IS the receiver:
+  // the bare ref replaces it (no further memo). root is a strict sub-node (`a.b?.c` hop with
+  // root `a.b`, `getO()?.p`): stitch the receiver tail onto the ref so this hop reads `_ref.c`
+  // instead of re-evaluating the raw root - the latter double-evals a side-effecting root and
+  // reads through a now-nullish prefix; isNonIdent stays true so the body memoizes the
+  // stitched read for its own `.call(...)` receiver. the stitched raw tail owns its hop
+  // members exactly like the optional-rebind stitch: a later kind-global hop dispatch
+  // (`(call)?.self` -> `_self`) would compose INTO the stitched text, replacing the
+  // `_ref.<hop>` read with a binding the reused guard never proved AND subsuming the kept
+  // call's own root rewrite (babel desync + raw guard root)
+  function reuseOuterGuardObjectSrc(rootNode, node, rootIsReceiver, deoptPositions) {
+    if (!rootNode) return null;
+    const outerRef = transforms.findOuterGuardRef(rootNode);
+    if (!outerRef) return null;
+    if (rootIsReceiver) return { outerRef, objectSrc: outerRef, isNonIdent: false };
+    const objectSrc = outerRef + stripOptionalDots(
+      code.slice(rootNode.end, node.object.end), rootNode.end, deoptPositions,
+    );
+    skipReceiverTailMembers(node.object, skippedNodes, rootNode);
+    return { outerRef, objectSrc, isNonIdent: true };
+  }
+
   // build replacement, wrap guard if needed, add to transform queue
   function addInstanceTransform({
     binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
@@ -949,27 +971,9 @@ export function createPolyfillEmitter({
     if (recv.skipNode && !(isProxyGlobalLeaf && composeSafeForInnerLeaf)) {
       skippedNodes.add(recv.skipNode);
     }
-    let reusedOuterRef = null;
-    if (!optionalRoot && rootNode) {
-      const outerRef = transforms.findOuterGuardRef(rootNode);
-      if (outerRef) {
-        if (rootIsReceiver) {
-          // root IS the receiver: reuse the memoized ref verbatim (bare ident, no further memo)
-          objectSrc = outerRef;
-          isNonIdent = false;
-        } else {
-          // root is a strict sub-node of the receiver (`a.b?.c` hop with root `a.b`, or
-          // `getO()?.p`): reuse the outer guard ref for the root and stitch the receiver tail so
-          // this hop reads `_ref.c` instead of re-evaluating the raw root - the latter double-evals
-          // a side-effecting root and reads through a now-nullish prefix. isNonIdent stays true so
-          // the body memoizes the stitched `_ref.c` for its own `.call(...)` receiver
-          objectSrc = outerRef + stripOptionalDots(
-            code.slice(rootNode.end, node.object.end), rootNode.end, deoptPositions,
-          );
-        }
-        reusedOuterRef = outerRef;
-      }
-    }
+    const reused = optionalRoot ? null : reuseOuterGuardObjectSrc(rootNode, node, rootIsReceiver, deoptPositions);
+    const reusedOuterRef = reused?.outerRef ?? null;
+    if (reused) ({ objectSrc, isNonIdent } = reused);
     const argsSrc = isCall ? sliceBetweenParens(parent) : null;
     const start = isCall ? parent.start : node.start;
     let end = isCall ? parent.end : node.end;

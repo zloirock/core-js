@@ -37,6 +37,7 @@ import {
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   findFunctionScopeVarDeclaratorInPath,
+  isMutatedStaticPair,
   resolveCallArgument,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
@@ -111,7 +112,7 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
     // leaves its receiver to the identifier machinery so the patch and the reads share the
     // injected constructor object
     isMutatedStatic(object, key) {
-      return method === 'usage-pure' && !!getMutatedStatics()?.has(`${ object }.${ key }`);
+      return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
     },
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
     // detection in `bindingSymbolKey`. null when injector hasn't published packages or
