@@ -21,16 +21,23 @@ import {
   getFallbackBranchSlots,
   isChainAssignment,
   isTransparentDestructureWrapper,
+  unwrapCollectingSePrefixes,
   findObjectKeyBeforeSpread,
   mayHaveSideEffects,
   peelFallbackReceiver,
   peelFallbackBranchInner,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
+  reEvaluationObservable,
   resolveFallbackReceiver,
   unwrapExpressionChain,
 } from '../helpers/ast-patterns.js';
-import { isUsableFallbackReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import {
+  globalProxyMemberName,
+  isUsableFallbackReceiverArg,
+  peelProxyGlobalObject,
+  POSSIBLE_GLOBAL_OBJECTS,
+} from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import {
@@ -713,13 +720,13 @@ export function refineParamDefaultInstancePure({ pureResult, key, receiverPath, 
 }
 
 // a receiver SAFE TO REFERENCE TWICE: the residual destructure reads it, and the extracted instance
-// polyfill `_m(recv)` reads it again. a bare Identifier / `this` is safe; so is a side-effect-free literal
-// value (array / object / primitive with no nested call, spread, or getter / setter) - re-evaluating yields
-// a fresh value of the SAME TYPE, so `_m`'s native-vs-polyfill pick is identical. a member (`obj.x` -
-// `mayHaveSideEffects` treats a property read as pure, but a getter would re-fire on the second read) or a
-// call must NOT be re-referenced, so they bail. `mayHaveSideEffects` recursively rejects `[fn()]` / `[...a]`
-// literals; a CONSTANT (no-interpolation) template is a string constant, so it parallels a StringLiteral -
-// but an interpolated `` `${x}` `` bails (re-evaluating would re-run x's string coercion, a possible effect)
+// polyfill `_m(recv)` reads it again. a bare Identifier / `this` is safe; so is a re-eval-inert literal
+// value (array / object / primitive with no nested call, spread, member read, or getter / setter) -
+// re-evaluating yields a fresh value of the SAME TYPE, so `_m`'s native-vs-polyfill pick is identical.
+// a member / call receiver, or a literal nesting one anywhere in an evaluated position, must NOT be
+// re-referenced (a getter / Proxy trap would re-fire on the copy), so they bail. a CONSTANT
+// (no-interpolation) template is a string constant, so it parallels a StringLiteral - but an interpolated
+// `` `${x}` `` bails (re-evaluating would re-run x's string coercion, a possible effect)
 const REFERENCEABLE_LITERAL_TYPES = new Set([
   'ArrayExpression',
   'ObjectExpression',
@@ -732,24 +739,14 @@ const REFERENCEABLE_LITERAL_TYPES = new Set([
   'Literal',
 ]);
 
-// an object-literal getter / setter re-fires on every property READ, so re-referencing the literal
-// (emitting it twice) double-evaluates the accessor - unlike a plain value property, whose read is pure.
-// `mayHaveSideEffects` proves object CREATION pure and cannot see this, so re-reference safety checks
-// accessors separately, recursing nested array / object literals. babel spells a getter as an ObjectMethod
-// and estree as a Property, but both carry `kind: 'get' | 'set'` - so the one `kind` test serves both
-function literalHasAccessorProperty(node) {
-  if (node?.type === 'ObjectExpression') {
-    return node.properties.some(p => p?.kind === 'get' || p?.kind === 'set' || literalHasAccessorProperty(p?.value));
-  }
-  if (node?.type === 'ArrayExpression') return node.elements.some(el => literalHasAccessorProperty(el));
-  return false;
-}
-
 export function isReReferenceableReceiver(node) {
   if (!node) return false;
   if (node.type === 'Identifier' || node.type === 'ThisExpression') return true;
   if (node.type === 'TemplateLiteral') return node.expressions.length === 0;
-  return REFERENCEABLE_LITERAL_TYPES.has(node.type) && !mayHaveSideEffects(node) && !literalHasAccessorProperty(node);
+  // `reEvaluationObservable` (not `mayHaveSideEffects`): the receiver is EMITTED TWICE, so a
+  // member read or accessor definition anywhere in the literal - pure on a single eval - would
+  // re-fire a getter / Proxy trap on the copy (`[holder.p]`, `[Set.length + 1]`, `{ get p() {} }`)
+  return REFERENCEABLE_LITERAL_TYPES.has(node.type) && !reEvaluationObservable(node);
 }
 
 // a side-effect-free MEMBER receiver (`Array.prototype`, `holder.p`): reading it carries no
@@ -787,6 +784,14 @@ export function collectEnclosingObjectPatterns(startPath) {
 export function isSeFreeBranchingReceiver(node) {
   return !!node && (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression')
     && !mayHaveSideEffects(node);
+}
+
+// a literal nesting a member READ in an evaluated position (`[holder.p]`, `[Set.length + 1]`):
+// a single evaluation is pure, but emitting a COPY would re-evaluate the read and re-fire its
+// getter / Proxy trap - single-read only, exactly like an SE-free member
+function isSeFreeRereadLiteral(node) {
+  return !!node && REFERENCEABLE_LITERAL_TYPES.has(node.type)
+    && !mayHaveSideEffects(node) && reEvaluationObservable(node);
 }
 
 // a node built ONLY from literal values (numbers / strings / booleans / null / bigint / regexp / constant
@@ -833,18 +838,25 @@ export function isConstantLiteralReceiver(node) {
 // safe to reference twice (see `isReReferenceableReceiver`); a member / call receiver, a computed or
 // non-literal nesting key, a non-matching RHS hop (incl. a spread that shifts array indices), or a missing
 // key / hole bails to null.
-// `allowSeFreeSingleRead` opens the receiver to a side-effect-free MEMBER (`Array.prototype`) or
-// BRANCHING (`c ? [7] : []`, `a || b`) node: reading either is pure to `mayHaveSideEffects`, but a getter
-// would re-fire (and a branch re-select) on a SECOND read - so callers pass it ONLY when the receiver is
-// read exactly ONCE (an `eliminateResidual` extraction or the memoized `_ref` channel), where it fires
-// once like native. the double-read assignment-overwrite consumer keeps the default (both stay safe-bailed).
+// `allowSeFreeSingleRead` opens the receiver to a side-effect-free MEMBER (`Array.prototype`),
+// BRANCHING (`c ? [7] : []`, `a || b`), or member-nesting LITERAL (`[holder.p]`) node: reading any is
+// pure to `mayHaveSideEffects`, but a getter would re-fire (and a branch re-select) on a SECOND read -
+// so callers pass it ONLY when the receiver is read exactly ONCE (an `eliminateResidual` extraction or
+// the memoized `_ref` channel), where it fires once like native. the double-read assignment-overwrite
+// consumer keeps the default (all stay safe-bailed).
 // AST-agnostic and path-API-agnostic: both babel and estree paths expose `.parentPath` / `.node`, the
 // field names match, and the only divergent node type (object property: babel `ObjectProperty` / estree
 // `Property`) is accepted both ways - so ONE implementation serves both emitters. `unwrapExpressionChain`
 // peels transparent wrappers (parens / TS casts) off the RHS and each value, so a parenthesized object
 // literal or value (`= ({ y: arr })` / `{ y: (arr) }`) resolves the same way - babel folds parens into
 // node `extra`, estree keeps a `ParenthesizedExpression`, and without peeling the two would diverge
-export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = false } = {}) {
+// `allowSePeeledFragment`: the unwraps below ELIDE sequence prefixes (`(se(), arr)` resolves to
+// `arr`). that is sound only for a consumer whose receiver READ runs AFTER the residual evaluated
+// the init in place (the assignment overwrite) - an extract-before-residual consumer would read
+// the receiver ahead of the prefix effect, reordering it, so the default BAILS when an elided
+// prefix carries a side effect (the top-level whole-init memo retry then captures order instead)
+export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = false, allowSePeeledFragment = false } = {}) {
+  const elidedPrefixes = [];
   const segs = [];
   let pattern = leafPath.parentPath;
   while (pattern?.node?.type === 'ObjectPattern' || pattern?.node?.type === 'ArrayPattern') {
@@ -869,7 +881,7 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = fa
     const rhs = ownerType === 'VariableDeclarator' ? owner.node.init
       : ownerType === 'AssignmentExpression' ? owner.node.right : null;
     if (!rhs) return null;
-    let node = unwrapExpressionChain(rhs);
+    let node = unwrapCollectingSePrefixes(rhs, elidedPrefixes);
     for (const seg of segs) {
       if (seg.index === undefined) {
         if (node?.type !== 'ObjectExpression') return null;
@@ -878,24 +890,76 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = fa
         const match = findObjectKeyBeforeSpread(node.properties, p => !p.computed
           && (p.key?.type === 'Identifier' ? p.key.name : p.key?.value) === seg.key);
         if (!match) return null;
-        node = unwrapExpressionChain(match.value);
+        node = unwrapCollectingSePrefixes(match.value, elidedPrefixes);
       } else {
         // a spread anywhere shifts the static index mapping; a hole / out-of-bounds element has no node
         if (node?.type !== 'ArrayExpression' || node.elements.some(e => e?.type === 'SpreadElement')) return null;
         const element = node.elements[seg.index];
         if (!element) return null;
-        node = unwrapExpressionChain(element);
+        node = unwrapCollectingSePrefixes(element, elidedPrefixes);
       }
     }
+    if (!allowSePeeledFragment && elidedPrefixes.some(mayHaveSideEffects)) return null;
     if (isReReferenceableReceiver(node)) return node;
-    // a side-effect-free member (`Array.prototype`, `obj.props`) or branching (`c ? [7] : []`, `a || b`)
-    // receiver is sound for a single-read extraction: its getter (if any) fires once and its branch
-    // selects once, matching native. computed-key / call receivers carry effects and are rejected by
-    // `mayHaveSideEffects`
-    if (allowSeFreeSingleRead && (isSeFreeMemberReceiver(node) || isSeFreeBranchingReceiver(node))) return node;
+    // a side-effect-free member (`Array.prototype`, `obj.props`), branching (`c ? [7] : []`, `a || b`),
+    // or member-nesting literal (`[holder.p]`) receiver is sound for a single-read extraction: its
+    // getter (if any) fires once and its branch selects once, matching native. computed-key / call
+    // receivers carry effects and are rejected by `mayHaveSideEffects`
+    if (allowSeFreeSingleRead
+      && (isSeFreeMemberReceiver(node) || isSeFreeBranchingReceiver(node) || isSeFreeRereadLiteral(node))) return node;
     return null;
   }
   return null;
+}
+
+// unified receiver-resolution DECISION for a destructure leaf - the single place that picks which
+// node an extraction dispatches on and through which CHANNEL; emitters only render. previously this
+// decision lived twice (babel: inline pre-memo in its emitter; unplugin: resolver + whole-init
+// retry), and the two procedures drifted. channels:
+//   - 'resolved':        nested / param / no-init host - `resolveNestedReceiverNode` outcome
+//                        (node null = bail), including its single-read and SE-peel gates
+//   - 'raw':             top-level init that peels (SE-free) to an Identifier, or a sole-prop
+//                        pattern - the slot is reused / inlined verbatim
+//   - 'raw-ctor':        SE-free whole-chain pure-ctor init (`globalThis.Promise`) - left in
+//                        place; the natural visitor substitutes the pure import, which resolves
+//                        sibling reads on its own (a memo or hop-collapse would be superfluous)
+//   - 'whole-init-memo': any other non-Identifier multi-prop init - memoize the WHOLE init once
+//                        at its source slot, so every buried effect and getter runs exactly once
+//                        in source order, whatever the expression shape
+// AST/path-agnostic (`.node` / `.parentPath` / `.scope` on both emitters); `resolvePureGlobal` is
+// the emitter's pure-entry probe (name -> truthy) so the ctor shortcut resolves through the
+// caller's own channel. `proxyCtor` rides along for the memo's global-alias registration
+export function resolveDestructureReceiverPlan(leafPath, {
+  allowSeFreeSingleRead = false, adapter = null, resolvePureGlobal = null,
+} = {}) {
+  const patternPath = leafPath.parentPath;
+  const host = patternPath?.parentPath;
+  const hostType = host?.node?.type;
+  const initKey = hostType === 'VariableDeclarator' ? 'init'
+    : hostType === 'AssignmentExpression' ? 'right' : null;
+  if (!initKey) {
+    return { channel: 'resolved', node: resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead }) };
+  }
+  const objectNode = host.node[initKey];
+  if (!objectNode) return { channel: 'resolved', node: null };
+  // a sole-prop pattern reads the receiver once - the extraction inlines the WHOLE init verbatim
+  // (SE prefix included), so no memo is ever needed there
+  if (patternPath.node.properties.length <= 1) return { channel: 'raw', node: objectNode };
+  // an init that peels (parens / TS wrappers, both AST flavors) to a bare Identifier with no
+  // SE-bearing prefix elided on the way is freely re-referenceable - reuse the identifier.
+  // an SE-crossed peel falls through: only the whole-init memo preserves the prefix's order
+  const elided = [];
+  const peeled = unwrapCollectingSePrefixes(objectNode, elided);
+  if (peeled?.type === 'Identifier' && !elided.some(mayHaveSideEffects)) {
+    return { channel: 'raw', node: peeled };
+  }
+  const proxyCtor = globalProxyMemberName({
+    node: peelProxyGlobalObject(objectNode), scope: leafPath.scope, adapter, path: leafPath,
+  });
+  if (proxyCtor && peelNestedSequenceExpressions(objectNode).prefix.length === 0 && resolvePureGlobal?.(proxyCtor)) {
+    return { channel: 'raw-ctor', node: objectNode, proxyCtor };
+  }
+  return { channel: 'whole-init-memo', node: objectNode, proxyCtor };
 }
 
 // the ExpressionStatement path that hosts a nested destructuring-ASSIGNMENT leaf (`({ y: { m } } = R);`),
