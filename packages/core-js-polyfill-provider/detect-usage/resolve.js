@@ -5,13 +5,14 @@
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
 import {
-  isAliasProxyRoot, POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
+  isAliasProxyRoot, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
   symbolKeyToEntry,
 } from '../helpers/class-walk.js';
 import {
   isTopLevelThisContext,
   collectFoldedReceiverSideEffects,
   isDirectiveStatement,
+  isMutatedGlobalSlot,
   isReassignedBeyondDeclarator,
   isVarDeclaratorInLoopBody,
   kebabToCamel,
@@ -32,6 +33,7 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   varInitDominatesUsage,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
@@ -514,6 +516,9 @@ function walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path
     // -> { [k]: x }) reuse the outer cycle guard instead of starting a fresh walk
     const key = resolveKey({ node: p.key, computed: p.computed, scope, adapter, seen, path, usageNode });
     if (!key || !isStaticPlacement(key)) continue;
+    // a mutated slot (`globalThis.Array = Fake`) leaves the binding holding the replacement,
+    // so neither the leaf alias nor a hop descent may resolve it as the pristine global
+    if (isMutatedGlobalSlot(adapter, key)) continue;
     if (patternBindingName(p.value) === name) return key;
     // nested ObjectPattern through a proxy-global intermediate key (`window`, `self`, ...)
     // re-enters the same global-object surface at runtime - recurse so `const {window:
@@ -554,7 +559,9 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
       const memberKey = obj.computed
         ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode })
         : obj.property?.name;
-      if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
+      // a mutated hop slot (`window.self = fake`) is the user's replacement, not the global -
+      // the chain no longer re-enters the pristine global-object surface
+      if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey) || isMutatedGlobalSlot(adapter, memberKey)) return false;
       obj = peelChainRootValue(obj.object);
     }
     if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
@@ -616,7 +623,11 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
     ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, path, usageNode })
     : objectNode.property.type === 'Identifier' ? objectNode.property.name : null;
   if (!propertyName) return null;
-  return resolveProxyGlobalRoot({ receiver: objectNode.object, scope, adapter, seen, path, usageNode }) ? propertyName : null;
+  if (!resolveProxyGlobalRoot({ receiver: objectNode.object, scope, adapter, seen, path, usageNode })) return null;
+  // a mutated ctor slot read THROUGH the global (`globalThis.Map = Shim; globalThis.Map.<...>`)
+  // holds the user's replacement - the member chain no longer names the pristine built-in, so
+  // property reads behind it must stay raw instead of resolving to pure statics
+  return isMutatedGlobalSlot(adapter, propertyName) ? null : propertyName;
 }
 
 // the distinct values an alias can hold at the use for the usage-global union: the resolved primary
@@ -973,6 +984,10 @@ export function resolveSynthKeys({ node, scope, adapter, path }) {
 // `seen` threaded through so callers caught in a cyclic const-alias chain
 // (`const a = b.Symbol; const b = a;`) don't restart the cycle guard
 function resolvesToGlobalSymbol({ node, scope, adapter, seen, path }) {
+  // a SLOT-mutated `Symbol` (`globalThis.Symbol = Fake`) is the user's replacement: its keys
+  // are not the well-known symbols, so recognition bails and the key stays a raw member read
+  // (the bare `Symbol` identifier then re-routes through the global-object binding)
+  if (isMutatedGlobalSlot(adapter, 'Symbol')) return false;
   if (node.type === 'Identifier') {
     if (node.name === 'Symbol') return !adapter.hasBinding(scope, 'Symbol', path);
     if (!CAPITALISED_IDENT.test(node.name)) return false;
@@ -1149,7 +1164,9 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null, { allowSideEffec
     const key = aliasCtx
       ? resolveKey({ node: member.property, computed: member.computed, bailOnSideEffectKey: !allowSideEffectKeys, ...aliasCtx })
       : memberKeyName(member);
-    if (key && POSSIBLE_GLOBAL_OBJECTS.has(key)) prefix = member;
+    // a mutated hop slot (`window.self = fake`) is the user's redirection - collapsing the hop
+    // away would silently read the pristine global instead of the replacement
+    if (key && POSSIBLE_GLOBAL_OBJECTS.has(key) && !isMutatedGlobalSlot(aliasCtx?.adapter, key)) prefix = member;
     else break;
   }
   return prefix;
@@ -1166,6 +1183,8 @@ export function proxyGlobalMemberCtorPure({ receiver, aliasCtx = null, resolvePu
   // the canonical proxy-member walk returns the LEAF key (peeling intermediate proxy hops AND a
   // call-rooted IIFE - `(() => globalThis)().Map` -> 'Map'), so it covers every navigation shape and
   // never over-walks a leaf that is itself in POSSIBLE_GLOBAL_OBJECTS
+  // a SLOT-mutated leaf yields null here (the canonical walk gates it), keeping the
+  // proxy-root collapse - the user's replacement stays visible through the raw member
   const leaf = globalProxyMemberName({ node: receiver, ...aliasCtx });
   if (!leaf) return null;
   const pure = resolvePure({ kind: 'global', name: leaf });
