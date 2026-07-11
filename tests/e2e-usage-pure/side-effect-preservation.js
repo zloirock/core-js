@@ -486,6 +486,25 @@ QUnit.test('wrapped param default with SE key: effect once, caller arg wins', as
   assert.same(keyEval, 2);
 });
 
+// an SE computed key AND a symbol pattern on ONE memoized member receiver: the getter
+// behind the receiver fires exactly once (shared `_ref`), both effects observable
+QUnit.test('shared memo: SE key and symbol pattern read the receiver once', assert => {
+  let fires = 0;
+  let keyEval = 0;
+  const holder = {
+    // eslint-disable-next-line es/no-accessor-properties -- the getter behind the shared memo IS the case under test
+    get p() {
+      fires++;
+      return [3, [4]];
+    },
+  };
+  const { [(keyEval++, 'toSorted')]: ts, [Symbol.iterator]: { length: mixArity } } = holder.p;
+  assert.same(typeof ts, 'function');
+  assert.same(mixArity, 0);
+  assert.same(fires, 1);
+  assert.same(keyEval, 1);
+});
+
 // SOLE binding over the same member-nesting literal: the residual is eliminated, so the
 // single-read extraction still emits the polyfill - and the getter still fires exactly once
 QUnit.test('literal receiver with member read: sole binding extracts, getter fires once', assert => {

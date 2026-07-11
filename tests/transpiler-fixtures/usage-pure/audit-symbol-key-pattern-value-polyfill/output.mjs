@@ -1,11 +1,12 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Symbol$toPrimitive from "@core-js/pure/actual/symbol/to-primitive";
-var _ref, _ref2;
+var _ref, _ref8;
 // a symbol-keyed NESTED pattern extracts through the get-iterator-method helper: the pattern
 // destructures the helper result (polyfill-visible where a raw symbol read misses native
 // iterators), and polyfillable content in its VALUE position - an instance call in a binding
@@ -13,7 +14,7 @@ var _ref, _ref2;
 // where the consumed key retires to a sentinel
 const obj = {};
 const {
-  next = _atMaybeArray(_ref2 = [1]).call(_ref2, 0)
+  next = _atMaybeArray(_ref8 = [1]).call(_ref8, 0)
 } = _getIteratorMethod(obj);
 const {
   Array: {
@@ -58,4 +59,59 @@ const {
   [(c++, 'of')]: _unused3,
   [_Symbol$iterator]: _unused4
 } = Array;
-export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c };
+// memoize-class receivers extract through a shared `_ref` (single read): a CONST-LITERAL
+// receiver with a multi-binding pattern, a MEMBER receiver (getter fires once), a BRANCHING
+// receiver, and a CALL init (whole-init memo - the call runs once)
+const _ref2 = [7];
+const {
+  length: litArity,
+  call: litCall
+} = _getIteratorMethod(_ref2);
+const {
+  [_Symbol$iterator]: _unused5
+} = _ref2;
+const _ref3 = holder.p,
+  {
+    [_Symbol$iterator]: _unused6,
+    sib
+  } = _ref3,
+  {
+    length: memArity
+  } = _getIteratorMethod(_ref3);
+const _ref4 = cond ? [8] : [],
+  {
+    [_Symbol$iterator]: _unused7,
+    alt
+  } = _ref4,
+  {
+    length: brArity
+  } = _getIteratorMethod(_ref4);
+const _ref5 = mk(),
+  {
+    [_Symbol$iterator]: _unused8,
+    q
+  } = _ref5,
+  {
+    length: callArity
+  } = _getIteratorMethod(_ref5);
+// an SE computed key AND a symbol pattern on ONE memoized receiver share the `_ref`: the
+// member read fires once, both extractions and both sentinels read the memo
+const _ref6 = holder2.p,
+  {
+    [(k2(), 'toSorted')]: _unused9,
+    [_Symbol$iterator]: _unused10
+  } = _ref6,
+  ts = _toSortedMaybeArray(_ref6),
+  {
+    length: mixArity
+  } = _getIteratorMethod(_ref6);
+// EXPORT host: the memo plants as a bare statement before the export (never exported itself)
+const _ref7 = holder3.p;
+export const {
+  length: expArity
+} = _getIteratorMethod(_ref7);
+export const {
+  [_Symbol$iterator]: _unused11,
+  expQ
+} = _ref7;
+export { from, next, done, name, restOfMethod, union, n2, tp, of, iterName2, c, litArity, litCall, memArity, sib, brArity, alt, callArity, q, ts, mixArity };

@@ -1212,7 +1212,7 @@ export default function createDestructureEmitter({
   // `tryExtractArrayWrappedStatic`. returns false when it can't safely extract (no binding name, or an
   // instance receiver that isn't a bare Identifier -> would double-evaluate, since the residual reads it
   // too); the caller then leaves it native
-  function keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode }) {
+  function keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode, sourceSiblingHost = plan.siblingDeclarator }) {
     const valueNode = propBindingIdentifier(prop.node.value);
     // a pattern-valued `[Symbol.iterator]` prop consumes like the identifier form, destructuring
     // the helper RESULT (`{ next } = _getIteratorMethod(recv)`): value-correct on modern engines
@@ -1221,9 +1221,14 @@ export default function createDestructureEmitter({
     // Maybe-dispatch helper returns a dispatcher, not the native method); memoize /
     // sibling-declarator hosts keep the key-swap residual - parity with the text emitter,
     // whose deferred-compose channels don't cover those hosts
+    // every memoize arm is pattern-compatible (the memo reads the receiver ONCE into `_ref`;
+    // extraction and residual both read the ref), so only SOURCE-level sibling-declarator hosts
+    // keep the key-swap bail - parity with the text emitter, whose deferred-compose channels
+    // cover the memo and duplicate paths but not the visit-time sibling emit. a memo-created
+    // sibling is fine: the trailing branch hosts a pattern declarator like any binding
     const patternValue = !valueNode && entry === SYMBOL_ITERATOR_PURE_RESULT.entry
       && isSymbolIteratorPatternProp(prop.node)
-      && !plan.memoizeReceiver && !plan.siblingDeclarator ? prop.node.value : null;
+      && !sourceSiblingHost ? prop.node.value : null;
     if (!valueNode && !patternValue) return false;
     // the deep clone is fresh (not skip-seeded), so its inner polyfillables (a default's
     // instance call) are re-visited on insertion and rewritten like any source pattern.
@@ -1314,7 +1319,7 @@ export default function createDestructureEmitter({
       // (not a raw splice) re-queues the new declarator for the active traversal, so a nested instance /
       // static / global inside the cloned receiver gets re-visited and polyfilled - matching the
       // standalone branch's `insertBefore` re-traversal, and the consumed / unplugin paths
-      const trailing = t.variableDeclarator(t.cloneNode(valueNode), polyfillValue);
+      const trailing = t.variableDeclarator(bindingLhs(), polyfillValue);
       attachToPrevDeclarator.add(trailing);
       const hostDeclarator = prop.findParent(pp => pp.isVariableDeclarator());
       // successive pairs from the SAME declarator keep source order: anchor each insert on the
@@ -1398,18 +1403,6 @@ export default function createDestructureEmitter({
       handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return true;
     }
-    // a pattern-valued symbol prop extracts only through the raw / resolved receiver channels
-    // (parity with the text emitter, whose deferred-compose paths cover exactly those). the
-    // whole-init-memo channel would MUTATE (insert the receiver memo) before the value-shape
-    // gate in `keepKeyInResidual` could decline, stranding an orphaned memo - so decide on the
-    // channel BEFORE resolving and keep the key-swap residual there
-    if (kind === 'instance' && entry === SYMBOL_ITERATOR_PURE_RESULT.entry
-      && isSymbolIteratorPatternProp(prop.node)
-      && resolveDestructureReceiverPlan(prop, {
-        allowSeFreeSingleRead: true, adapter, resolvePureGlobal: resolveGlobalPure,
-      }).channel === 'whole-init-memo') {
-      return true;
-    }
     const declaration = hostDeclarationOf(prop);
     // an assignment host has no declaration to extract into. an INSTANCE method emits the post-statement
     // overwrite (which leaves the destructure in place so an in-place computed-key effect still runs) and is
@@ -1421,6 +1414,13 @@ export default function createDestructureEmitter({
     }
     const isForInit = declaration.parentPath?.isForStatement()
       && declaration.parentPath.node.init === declaration.node;
+    // SOURCE-host sibling shape: a whole-init pre-memo INSERTS a sibling declarator, and an
+    // earlier prop's emission on the SAME declaration may have planted a memo and/or a trailing
+    // pair already - the pattern-value gate must not mistake those synthesized siblings for a
+    // source-level multi-declarator host (the text emitter sees the unmutated source, so its
+    // gate naturally measures the same thing). count only declarators this pipeline did not mint
+    const sourceSiblingHost = isForInit || declaration.node.declarations
+      .filter(d => !memoDeclarators.has(d) && !attachToPrevDeclarator.has(d)).length > 1;
     // resolve the instance receiver once: the planner needs its kind, `keepKeyInResidual` the node. for the
     // nested-receiver path `objectNode` is a bare node (no path); the SE-computed-key path resolves the
     // declarator init, which `resolveNestedReceiverNode` also reaches - either way it gates memo / re-ref
@@ -1460,7 +1460,7 @@ export default function createDestructureEmitter({
     // leave the destructure NATIVE (return handled): falling through to the default instance extract would
     // discard the whole destructure and with it the key's EFFECT. unplugin likewise leaves it native
     if (!plan) return true;
-    return keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode });
+    return keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode, sourceSiblingHost });
   }
 
   // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
@@ -1721,8 +1721,15 @@ export default function createDestructureEmitter({
     // insertBefore hoisted it above earlier declarators - a side-effect reorder). on a
     // VariableDeclarator host the post-traverse split renders it as a standalone `const`;
     // for-init keeps the comma shape (loop header). an AssignmentExpression host has no
-    // declarator list, so it keeps the preceding-statement insert
-    if (parent.isVariableDeclarator()) {
+    // declarator list, so it keeps the preceding-statement insert.
+    // an EXPORTED host must not export the internal memo temp: plant it as a bare statement
+    // BEFORE the export instead of joining the exported declarator list - first-declarator
+    // only (nothing to reorder past); a later-declarator memo keeps the sibling slot
+    const declarationPath = parent.isVariableDeclarator() ? parent.parentPath : null;
+    const exportHost = declarationPath?.parentPath?.isExportNamedDeclaration() ? declarationPath.parentPath : null;
+    if (exportHost && parent.node === declarationPath.node.declarations[0]) {
+      exportHost.insertBefore(t.variableDeclaration(declarationPath.node.kind, [t.variableDeclarator(ref, receiver)]));
+    } else if (parent.isVariableDeclarator()) {
       const memoDeclarator = t.variableDeclarator(ref, receiver);
       memoDeclarators.add(memoDeclarator);
       parent.insertBefore(memoDeclarator);
