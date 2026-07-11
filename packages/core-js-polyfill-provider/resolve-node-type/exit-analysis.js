@@ -28,9 +28,11 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
     if (depth > MAX_DEPTH) return false;
     if (exitTypes.has(node.type)) {
       // labeled break/continue to an enclosing LabeledStatement exits only the labeled
-      // wrapper, not the outer switch/function. without the blocked-label check
-      // `case A: outer: { break outer; }` would falsely register as switch-exit and
-      // suppress fall-through narrowing for the next case
+      // wrapper, not the surrounding case/function. the check matters on the full
+      // EXIT_STATEMENTS walk (`canFallThrough` via `nodeAlwaysExits`): without it
+      // `case A: outer: { break outer; }` would count as a case exit and wrongly mark
+      // the case non-falling-through. the switch-exit recursion is immune - its
+      // FUNCTION_EXIT_STATEMENTS set never matches break/continue
       const isLabeled = (node.type === 'BreakStatement' || node.type === 'ContinueStatement')
         && node.label && blockedLabels?.has(node.label.name);
       return !isLabeled;
