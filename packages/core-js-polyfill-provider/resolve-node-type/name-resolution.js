@@ -208,8 +208,9 @@ export function createNameResolution({ t }) {
   // every depth) in statement order, so first-match semantics match the walk. multi-segment /
   // collect / import-alias lookups fall through to the full walk below.
   // INVARIANT: leafMatch is the inner cache key, so callers MUST pass a stable reference (all do:
-  // the module-level isTypeBearingDeclaration / isFunctionOrClassDeclaration). a fresh per-call
-  // closure would never hit the cache and regress this back to an O(N^2) rebuild-per-lookup
+  // the factory-scoped isTypeBearingDeclaration / isFunctionOrClassDeclaration plus the module-level
+  // isAmbientFunctionNode). a fresh per-call closure would never hit the cache and regress this
+  // back to an O(N^2) rebuild-per-lookup
   let stmtDeclIndexCache = new WeakMap();
   function statementDeclIndex(statements, leafMatch) {
     let byMatch = stmtDeclIndexCache.get(statements);
