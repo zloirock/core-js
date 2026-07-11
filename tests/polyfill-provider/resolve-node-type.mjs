@@ -1647,6 +1647,50 @@ runBoth('multi-hop type alias resolves through chain',
       { primitive: false, ctor: 'Array' });
   });
 
+// --- Cyclic HKT alias termination ---
+
+// `type Apply<F> = F<0>` re-splices the SAME type-param ref into a fresh clone every hop;
+// each param name may splice at most once, then the walk bails (a repeat proves the chain
+// unproductive - no conditional types exist here to break a self-application). the resolver
+// must TERMINATE and yield no type (generic degrade) - it used to loop forever (build DoS)
+runBoth('cyclic HKT alias body terminates with no type',
+  `
+    type Apply<F> = F<0>;
+    function foo<F>(x: Apply<F>) { return x; }
+  `,
+  (adapter, prog, lbl) => {
+    // predicate pick (not `.get('params.0')`): the estree path API has no dotted array access
+    const param = adapter.pickPath(prog, 'Identifier', pp => pp.node.name === 'x' && pp.node.typeAnnotation);
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(param), null);
+  });
+
+runBoth('HKT alias self-application terminates with no type',
+  `
+    type Apply<F> = F<0>;
+    function h(x: Apply<Apply>) { return x; }
+  `,
+  (adapter, prog, lbl) => {
+    const param = adapter.pickPath(prog, 'Identifier', pp => pp.node.name === 'x' && pp.node.typeAnnotation);
+    const resolver = adapter.makeResolver();
+    check(lbl, resolver.resolveNodeType(param), null);
+  });
+
+// PRODUCTIVE splice control: one hop through the param reaches a real alias and types through
+// (also the NON-VACUITY anchor for the two null-expectation checks above: it proves this
+// selection + resolution path yields a real type when the chain is productive)
+runBoth('productive HKT splice still resolves through the param',
+  `
+    type Wrap<F, X> = F<X>;
+    type Boxed<T> = T[];
+    function f(x: Wrap<Boxed, string>) { return x; }
+  `,
+  (adapter, prog, lbl) => {
+    const param = adapter.pickPath(prog, 'Identifier', pp => pp.node.name === 'x' && pp.node.typeAnnotation);
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(param), { primitive: false, ctor: 'Array' });
+  });
+
 // --- Awaited<T> / Promise unwrapping ---
 
 runBoth('Awaited<Promise<string>> -> string',
