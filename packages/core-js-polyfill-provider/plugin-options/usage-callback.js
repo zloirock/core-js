@@ -9,8 +9,9 @@
 import {
   isForXWriteTarget, isMemberWriteHost, isThisReceiver, isTSTypeOnlyIdentifierPath,
   peelParenAndTSParentPath, staticMemberKeyName, unwrapRuntimeExpr,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
-import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
+import { symbolKeyToEntry } from '../helpers/class-walk.js';
 import { hasOwnStaticDefinition } from '../index.js';
 
 // bail when the usage is syntactically present but carries no runtime read - polyfilling
