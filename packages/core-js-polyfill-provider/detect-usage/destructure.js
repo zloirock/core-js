@@ -279,11 +279,11 @@ export function isViableBranchForKey({ branch, key, scope, adapter, resolvePure,
 // exported: the member / `in` producers enumerate a BRANCHING static receiver
 // (`(c ? Array : Iterator).from`) through this same walker - the destructure form and the
 // member form must agree on what a branch resolves to
-export function flattenFallbackBranches({ node, key, scope, adapter, path }) {
+export function flattenFallbackBranches({ node, key, scope, adapter, path, followAliasLeaves = false, seen = new Set() }) {
   const peeled = peelFallbackReceiver(node);
   const branchSlots = getFallbackBranchSlots(peeled);
   if (branchSlots) {
-    return branchSlots.flatMap(s => flattenFallbackBranches({ node: peeled[s], key, scope, adapter, path }));
+    return branchSlots.flatMap(s => flattenFallbackBranches({ node: peeled[s], key, scope, adapter, path, followAliasLeaves, seen }));
   }
   // leaf branch: paren/TS-wrapped + safe-SE Identifier / MemberExpression, resolve as a single
   // meta. buildDestructuringInitMeta handles the alias chain + proxy-global / static / global
@@ -291,7 +291,17 @@ export function flattenFallbackBranches({ node, key, scope, adapter, path }) {
   const inner = peelFallbackBranchInner(peeled);
   if (!inner) return [];
   const branchMeta = buildDestructuringInitMeta({ initNode: inner, key, scope, adapter, path });
-  return branchMeta?.object ? [branchMeta] : [];
+  if (branchMeta?.object) return [branchMeta];
+  // alias-to-branching leaf (`const inner = c2 ? Array : Iterator` as a branch of an outer
+  // fallback): no single object resolves, but the usage-global union must still reach the
+  // aliased branches - follow the same safe indirection the receiver chokes use and flatten
+  // the branching value. OPT-IN: the pure-serving viability consumer keeps the plain-leaf
+  // contract (pure polyfills branch values in place - following the alias would double-handle).
+  // `seen` threads through the whole flatten so mutually-aliased branches terminate
+  if (!followAliasLeaves) return [];
+  const indirect = resolveIndirectBranchingReceiver({ node: inner, scope, adapter, path, seen });
+  return indirect
+    ? flattenFallbackBranches({ node: indirect, key, scope, adapter, path, followAliasLeaves, seen }) : [];
 }
 
 // follow SAFE indirection from a receiver expression to a BRANCHING value the canonical
@@ -303,17 +313,23 @@ export function flattenFallbackBranches({ node, key, scope, adapter, path }) {
 // cycles. returns null for direct / non-branching / unsafe shapes - the caller keeps its
 // path. consumed by the usage-global chokes only: the pure flavor polyfills the branch
 // values in place at the init / return site, so following the alias there would double-handle
-export function resolveIndirectBranchingReceiver({ node, scope, adapter, path }) {
-  const seen = new Set();
+export function resolveIndirectBranchingReceiver({ node, scope, adapter, path, seen = new Set() }) {
   let cur = unwrapTransparentSeq(node);
+  // where the CURRENT hop is read: the receiver use for the first alias, then each prior hop's
+  // declarator init (`const captured = src` reads `src` there) - a write AFTER that read site
+  // cannot change the captured value, so the dominance check anchors per hop (mirrors
+  // `reachableAliasValues`' anchoring; checking every hop against the FINAL use dropped the
+  // captured branching value of a source reassigned after capture)
+  let readSite = node;
   while (cur) {
     if (cur.type === 'Identifier') {
       const { name } = cur;
       if (seen.has(name) || !adapter.hasBinding(scope, name, path)) return null;
       seen.add(name);
       const binding = adapter.getBinding(scope, name, path);
-      if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
+      if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readSite })) return null;
       if (adapter.getBindingNodeType(scope, name, path) !== 'VariableDeclarator' || !binding.node?.init) return null;
+      readSite = binding.node.init;
       cur = unwrapTransparentSeq(binding.node.init);
     } else if (isCallShape(cur)) {
       const ret = inlineCallReturnExpression({ callNode: cur, scope, adapter, seen, path });
@@ -372,7 +388,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     if (!branching) return null;
   }
   const out = flattenFallbackBranches({
-    node: branching, key: meta.key, scope: path.scope, adapter, path,
+    node: branching, key: meta.key, scope: path.scope, adapter, path, followAliasLeaves: true,
   });
   return out.length ? out : null;
 }
@@ -414,7 +430,9 @@ export function collectMemberUnionCandidates(options) {
     const branchingNode = getFallbackBranchSlots(peelFallbackReceiver(objectNode))
       ? objectNode : resolveIndirectBranchingReceiver({ node: objectNode, scope, adapter, path });
     if (branchingNode) {
-      for (const branch of flattenFallbackBranches({ node: branchingNode, key: primaryKey, scope, adapter, path })) {
+      for (const branch of flattenFallbackBranches({
+        node: branchingNode, key: primaryKey, scope, adapter, path, followAliasLeaves: true,
+      })) {
         if (branch.object && branch.placement === 'static' && !objects.includes(branch.object)) {
           objects.push(branch.object);
           branchObjects.add(branch.object);
@@ -1010,8 +1028,10 @@ const STATIC_WALK_DEPTH = 64;
 //   - missing / computed / shorthand-mismatched property
 //   - non-Identifier leaf - need a constructor name to dispatch polyfill
 // depth-bounded against pathological alias chains (`a -> b -> c -> ...`)
-export function walkStaticReceiverChain({ receiverNode, walkPath, scope, adapter, path = null }) {
-  return walkStaticReceiverStep({ node: receiverNode, walkPath, scope, adapter, depth: 0, path });
+export function walkStaticReceiverChain({ receiverNode, walkPath, scope, adapter, path = null, usageNode = null }) {
+  // `usageNode` overrides the walk's initial read site (a wrapper's capture point); the step
+  // otherwise anchors at the host `path` node
+  return walkStaticReceiverStep({ node: receiverNode, walkPath, scope, adapter, depth: 0, path, readNode: usageNode });
 }
 
 // proxy-global recognition for `walkStaticReceiverStep`: returns the source proxy-global
@@ -2024,8 +2044,13 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
     // (`[, { from }]` descends index 1, not a blind 0). thread scope/adapter/path so a const-bound
     // array-literal wrapper (`const wrapper = [{ a: Array }]; const [{ a: { from } }] = wrapper`)
     // dereferences to its init, mirroring resolveArrayWrapperedDestructureReceiver
+    // thread a captureRef exactly like `resolveArrayWrapperedDestructureReceiver`: a const-bound
+    // wrapper's leaf captured its value at the wrapper's declarator, so the leaf's reassignment
+    // check must anchor THERE, not at the destructure host (a source write between capture and
+    // destructure cannot change the captured value)
+    const captureRef = {};
     const receiverNode = allIndices.length
-      ? descendArrayWrapperInit(slotNode, allIndices, parent.scope, adapter, parent)
+      ? descendArrayWrapperInit(slotNode, allIndices, parent.scope, adapter, parent, captureRef)
       : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
@@ -2078,7 +2103,9 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
           || resolveBranchProxyName({ branchNode: init.alternate, scope: parent.scope, adapter, path: parent });
         if (!receiver) return null;
       } else {
-        receiver = resolveObjectName({ objectNode: init, scope: parent.scope, adapter, path: parent });
+        receiver = resolveObjectName({
+          objectNode: init, scope: parent.scope, adapter, path: parent, usageNode: captureRef.site ?? parent.node,
+        });
       }
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
           && keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k) && !isMutatedGlobalSlot(adapter, k))) {
@@ -2093,7 +2120,10 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
       // thread `parent` (the destructure host's path) through walkStaticReceiverChain so
       // adapter.hasBinding hits the TS-runtime lookup fallback for declare-bindings that
       // estree-toolkit's scope tracker doesn't register
-      return walkStaticReceiverChain({ receiverNode: init, walkPath: keys, scope: parent.scope, adapter, path: parent });
+      return walkStaticReceiverChain({
+        receiverNode: init, walkPath: keys, scope: parent.scope, adapter, path: parent,
+        usageNode: captureRef.site ?? null,
+      });
     }
     const parentType = parent?.node?.type;
     if (parentType !== 'Property' && parentType !== 'ObjectProperty') return null;

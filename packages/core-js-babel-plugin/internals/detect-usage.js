@@ -470,7 +470,7 @@ export function createUsageVisitors({
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
   const skipUpdateTargets = method === 'usage-pure';
   let handledObjects = new WeakSet();
-  let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
+  let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind, adapter);
 
   // destructure-only wrapper (every caller is inside handleDestructuring): a side-effecting
   // computed key resolves to its tail for identity; the emitter keeps the key in the pattern (it
@@ -524,7 +524,7 @@ export function createUsageVisitors({
       // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
       // are excluded so user-owned pure imports (e.g. `const MyPromiseTry = ...`) don't get
       // re-routed through generic-global polyfill
-      if (!isSelfRefVarBinding(path.scope.getBinding(node.name))) return;
+      if (!isSelfRefVarBinding(path.scope.getBinding(node.name), path)) return;
       // name equals the binding's own name (we looked up `binding` by `node.name`), so
       // `isKnownGlobalName(node.name)` is sufficient - `resolveBindingToGlobal` would
       // walk a now-mutated `init` and give an unreliable answer
@@ -810,7 +810,7 @@ export function createUsageVisitors({
     // Program.enter calls this to drop per-file WeakSet state
     [USAGE_VISITORS_RESET]: () => {
       handledObjects = new WeakSet();
-      isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
+      isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind, adapter);
     },
     [USAGE_VISITORS_IS_HANDLED]: node => handledObjects.has(node),
   };
