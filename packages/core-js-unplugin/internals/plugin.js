@@ -14,8 +14,12 @@ import {
   isForXWriteTarget,
   climbTransparentWrapperPath,
   isMemberWriteOnlyContext,
+  isMutatedGlobalSlot,
+  memberKeyName,
   isMutatedStaticMeta,
   isTaggedTemplateTag,
+  collectUserMemberKeyNames,
+  mutatedGlobalSlotNames,
   isThisReceiver,
   isUpdateTarget,
   mayHaveSideEffects,
@@ -140,6 +144,18 @@ function neutralizeTSDeclareFunctions(node) {
 export function formatLabelLocation(label, code) {
   const pos = buildOffsetToLineColumn(code)(label?.start);
   return pos && `${ pos.line }:${ pos.column }`;
+}
+
+// walk past parens, chain expressions, and TS wrappers - they all forward to
+// whatever wraps them, so the semantic parent is past them
+function semanticParentNode(metaPath) {
+  let { parentPath } = metaPath;
+  while (parentPath?.node && (parentPath.node.type === 'ParenthesizedExpression'
+    || parentPath.node.type === 'ChainExpression'
+    || TS_EXPR_WRAPPERS.has(parentPath.node.type))) {
+    parentPath = parentPath.parentPath;
+  }
+  return parentPath?.node;
 }
 
 function nonEmptyString(value) {
@@ -511,7 +527,19 @@ export default function createPlugin(options) {
     // so substituting reads after a `[Array.from] = X` / `Array.from = X` would silently
     // diverge from the un-transformed source's behavior. usage-global is unaffected (polyfill
     // installs on the same global slot, user's mutation overlays cleanly)
-    const mutationInfo = method === 'usage-pure' ? collectMutationPrePass(ast, estreeAdapter) : null;
+    // the shared read canons consult the live `currentMutatedStatics` slot through the adapter;
+    // a re-entrant inner transform must not see the outer file's set while collecting - null the
+    // slot for exactly the collection window
+    let mutationInfo = null;
+    if (method === 'usage-pure') {
+      const outerMutatedStatics = currentMutatedStatics;
+      currentMutatedStatics = null;
+      try {
+        mutationInfo = collectMutationPrePass(ast, estreeAdapter);
+      } finally {
+        currentMutatedStatics = outerMutatedStatics;
+      }
+    }
     const mutatedStatics = mutationInfo?.mutated ?? null;
 
     const ms = new MagicString(code, { filename: id });
@@ -546,6 +574,12 @@ export default function createPlugin(options) {
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
       const { names: bindingNames, declaredNames, orphanRefs } = collectAllBindingNames(ast);
       injector.seedReservedNames(bindingNames);
+      // user-owned global-object slot names the raw identifier scan above misses: computed
+      // STRING-key member spellings (`globalThis['_ref']`) and string-key mutator writes
+      // (`Object.defineProperty(self, '_ref', ...)`) - a script-scope `var _ref` temp would
+      // alias and clobber the slot
+      injector.seedReservedNames(collectUserMemberKeyNames(ast));
+      injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
       // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
       // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline.
       // filter against `declaredNames` (decls + non-orphan assignments only) - `bindingNames`
@@ -997,6 +1031,49 @@ export default function createPlugin(options) {
           return true;
         }
 
+        // a SLOT-mutated global name follows the runtime slot on EVERY surface: a bare
+        // reference re-routes through the global-object binding (`Set` -> `_globalThis.Set`),
+        // mirroring the through-global family - the user's replacement wins where the
+        // module-cached ponyfill binding would silently ignore it. the raw slot alone
+        // strands engines missing the native (the slot is undefined until the user's own
+        // write runs), so a targets-required ponyfill backstops the ABSENT slot: reads
+        // rescue exactly where the untranspiled source crashes, while a live slot - native
+        // or user replacement - always wins. `typeof` operands keep the plain slot read
+        // (a guard probes engine state and the backstop would flip `"undefined"` there).
+        // an object-shorthand value slot cannot hold a member text - expand it like the
+        // static dispatch's shorthand branch. no `?.` deopt here: the live slot is NOT
+        // always-defined, so an optional chain over it keeps its guard
+        function rerouteMutatedSlotRead(meta, node, metaPath) {
+          if (meta.kind !== 'global' || node.type !== 'Identifier'
+            || !isMutatedGlobalSlot(estreeAdapter, meta.name)) return false;
+          const gt = resolvePureUnfiltered({ kind: 'global', name: 'globalThis' }, metaPath);
+          if (!gt) return false;
+          const slotSrc = `${ injectPureImport(gt.entry, gt.hintName) }.${ meta.name }`;
+          const semParent = semanticParentNode(metaPath);
+          const inTypeof = semParent?.type === 'UnaryExpression' && semParent.operator === 'typeof';
+          const pony = inTypeof ? null : resolvePureOrGlobalFallback(meta, metaPath).result;
+          // polyfill-then-patch for a static READ through the backstop: the constructor entry
+          // alone leaves the ponyfill namespace bare, so the ABSENT-slot branch would serve
+          // undefined for a static core-js provides - pin the read key's own entry (mirrors
+          // the pair-mutated enrichment model; custom keys resolve to nothing and stay bare)
+          if (pony && semParent?.type === 'MemberExpression' && unwrapRuntimeExpr(semParent.object) === node) {
+            const staticKey = memberKeyName(semParent);
+            const staticPure = staticKey && resolvePureUnfiltered({
+              kind: 'property', object: meta.name, key: staticKey, placement: 'static',
+            }, metaPath);
+            if (staticPure && staticPure.kind !== 'instance') injectPureImport(staticPure.entry, staticPure.hintName);
+          }
+          const memberSrc = pony
+            ? `(${ slotSrc } === undefined ? ${ injectPureImport(pony.entry, pony.hintName) } : ${ slotSrc })`
+            : slotSrc;
+          const shorthandHost = metaPath.parent;
+          const isShorthand = shorthandHost?.type === 'Property'
+            && shorthandHost.shorthand && shorthandHost.value === node
+            && metaPath.parentPath?.parent?.type === 'ObjectExpression';
+          transforms.add(node.start, node.end, isShorthand ? `${ node.name }: ${ memberSrc }` : memberSrc);
+          return true;
+        }
+
         function usagePureCallback(meta, metaPath) {
           // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
@@ -1007,15 +1084,7 @@ export default function createPlugin(options) {
             || isInTypeAnnotation(metaPath)) return;
           scopeTracker.setScope(metaPath);
           const { node } = metaPath;
-          // walk past parens, chain expressions, and TS wrappers - they all forward to
-          // whatever wraps them, so the semantic parent is past them
-          let { parentPath } = metaPath;
-          while (parentPath?.node && (parentPath.node.type === 'ParenthesizedExpression'
-            || parentPath.node.type === 'ChainExpression'
-            || TS_EXPR_WRAPPERS.has(parentPath.node.type))) {
-            parentPath = parentPath.parentPath;
-          }
-          const parent = parentPath?.node;
+          const parent = semanticParentNode(metaPath);
 
           if (meta.kind === 'in') return handleInExpression(meta, metaPath);
 
@@ -1059,6 +1128,7 @@ export default function createPlugin(options) {
             });
           }
 
+          if (rerouteMutatedSlotRead(meta, node, metaPath)) return;
           let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
           // inherited-static lookup (`this.X()` in static block of `class C extends Y`) has
           // already been retargeted to `Y`-static-meta above. when `Y` has no static `X`,

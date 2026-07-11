@@ -25,8 +25,8 @@ import {
   reassignmentBlocksGlobalResolve,
   unwrapCollectingSePrefixes,
   unwrapExpressionChain,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { discardRescueNodes, isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName } from './resolve.js';
 import {
@@ -291,11 +291,22 @@ export function buildNestedDestructurePlan({
   //   - `{ [Symbol.iterator]: ident }` computed Symbol.iterator key - synth extraction
   //     `ident = _getIteratorMethod(receiver)`
   //   - `{ [Symbol.iterator]: {nested} }` non-binding value - keep the prop, polyfill the key
+  // the resolved proxy receiver name, mirrored to function scope for the closures above the
+  // resolution block (the mutation bail in `planOuterProp` reads it lazily at plan time)
+  let planReceiverName = null;
+
   function planOuterProp(outerProp) {
     const symbolPlanned = planSymbolIteratorProp(outerProp);
     if (symbolPlanned) return symbolPlanned;
     const name = isPropertyNode(outerProp) ? propertyKeyName(outerProp) : null;
     if (name === null) return { kind: 'verbatim', prop: outerProp };
+    // a MUTATED slot (`globalThis.Promise = Shim` / `window.self = fake` in-file) must read off
+    // the patched native binding, not the pure import - the user's replacement wins for the
+    // VALUE leaf, for every static behind a mutated ctor key, and for every hop behind a
+    // mutated proxy key. mirrors the single-ctor anchor's `anchorSlotMutated` bail and the
+    // flat-path meta gate. `planReceiverName` is the function-scope mirror of the block-scoped
+    // receiver (canonical at every fold depth - the hops alias the one global object)
+    if (adapter.isMutatedStatic?.(planReceiverName, name)) return { kind: 'verbatim', prop: outerProp };
     const value = peelInnerDefault(outerProp.value);
     if (value?.type === 'ObjectPattern') {
       const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
@@ -445,6 +456,7 @@ export function buildNestedDestructurePlan({
       ? probed.filter(n => n.start >= declarator.init.start && n.end <= declarator.init.end) : [];
     const discardSe = inSlot.length ? inSlot : null;
     const receiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
+    planReceiverName = receiver;
     if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
       // single-key proxy-hop ANCHOR: `{ K: <pattern> } = <proxy>` on a value-discarded host
       // (the callers' contract - declarator inits are never read, the cascade gates on
@@ -479,8 +491,13 @@ export function buildNestedDestructurePlan({
         const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
           ? peelInnerDefault(prop.value) : null;
         if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
-        const outerProps = inner.properties.map(p => planSymbolIteratorProp(p) ?? planInnerProp(p, key));
+        // a SLOT-mutated anchor holds the user's replacement: its STATICS are the shim's own,
+        // so static leaves stay verbatim on the raw residual instead of extracting pure
+        // statics. a `[Symbol.iterator]` leaf still extracts - the synth is receiver-based
+        // and reads off the RAW anchor member, so the replacement stays visible through it
         const anchorSlotMutated = !!adapter.isMutatedStatic?.(receiver, key);
+        const outerProps = inner.properties.map(p => planSymbolIteratorProp(p)
+          ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
         return {
           receiver, anchor: key,
           anchorPure: anchorSlotMutated ? null : resolveGlobalPolyfill(key),

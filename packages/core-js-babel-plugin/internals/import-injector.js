@@ -256,6 +256,10 @@ export default class ImportInjector extends ImportInjectorState {
     });
     const program = this.#programPath.scope.getProgramParent();
     for (const n of Object.keys(program.globals ?? {})) taken.add(n);
+    // seeded user-owned names (`globalThis.<name>` slots) never re-enter `program.globals`
+    // after their references were rewritten to member reads - without this the renumber
+    // compacts a correctly-avoided `_ref2` back onto the user's slot name
+    for (const n of this.reservedNames) taken.add(n);
     return { byName, taken };
   }
 
