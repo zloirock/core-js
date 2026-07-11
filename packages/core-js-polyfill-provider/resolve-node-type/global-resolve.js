@@ -17,7 +17,7 @@
 //   resolveClassInheritance(classPath)       - walk `extends` chain to the first known base
 //                                              constructor, with type-arg propagation
 import { MAX_DEPTH, $Object } from './base.js';
-import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName, POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName } from '../helpers/class-walk.js';
 import {
   isTopLevelThisContext,
   getSuperTypeArgs,
@@ -25,6 +25,7 @@ import {
   objectPatternLiteralKeyPath,
   peelIIFEReturn,
   peelSkippableWrapperPath,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 

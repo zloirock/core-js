@@ -5,6 +5,8 @@
 // native (untranspiled) leg aliases it to `globalThis` (harness.mjs, deleted before the transpiled
 // outputs run), so a `globalThis || self` proxy-global fallback resolves natively while a plugin that
 // leaves a bare `self` in its OUTPUT still throws (missed-injection). `window` is not a core-js target.
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { STRIP_PROTO, STRIP_STATIC, STRIP_GLOBALS } from './strip-manifest.mjs';
 
 const PRELUDE = [
@@ -14,10 +16,16 @@ const PRELUDE = [
   'const arr = [3, [1, 2]];',
 ];
 
-function snippet(name, expr) {
+// absolute URL: the harness materializes snippets in a tmp dir, so a relative specifier
+// would not resolve; the stripped-realm worker re-imports outputs from the same tmp dir
+const RIG_IMPORT = `import { withRiggedAliases } from ${ JSON.stringify(
+  pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'rig-aliases.mjs')).href) };`;
+
+function snippet(name, expr, { rig = false } = {}) {
+  const body = rig ? `withRiggedAliases(() => (${ expr }))` : expr;
   return {
     name,
-    code: [...PRELUDE, `export const r = ${ expr };`, 'export const effects = log;'].join('\n'),
+    code: [...rig ? [RIG_IMPORT] : [], ...PRELUDE, `export const r = ${ body };`, 'export const effects = log;'].join('\n'),
   };
 }
 
@@ -328,10 +336,8 @@ function * generateProxyHopCtor() {
       const ctor = PHC_CTORS[i++ % PHC_CTORS.length];
       const observed = `${ hop }.${ variant.leaf(ctor) } === ${ ctor }.prototype`;
       const inner = variant.key ? `(k => ${ observed })('prototype')` : observed;
-      const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
-        + `try { return ${ inner }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
       const name = `proxy-hop-ctor/${ hop.replaceAll('.', '-') }/${ variant.id }`;
-      yield { ...snippet(name, body), strip: false };
+      yield { ...snippet(name, inner, { rig: true }), strip: false };
     }
   }
 }
@@ -381,9 +387,7 @@ const NSH_SHAPES = [
 function * generateNestedSeHopReceiver() {
   for (const shape of NSH_SHAPES) {
     const inner = shape.call(`(log.push(1), ${ shape.tail })`);
-    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
-      + `try { return ${ inner }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
-    yield { ...snippet(`nested-se-hop/${ shape.id }`, body), strip: false };
+    yield { ...snippet(`nested-se-hop/${ shape.id }`, inner, { rig: true }), strip: false };
   }
 }
 
@@ -423,9 +427,7 @@ const SCO_SHAPES = [
 ];
 function * generateStaticCollapseSEOrder() {
   for (const shape of SCO_SHAPES) {
-    const body = '(() => { const s = globalThis.self; globalThis.self = globalThis; '
-      + `try { return ${ shape.inner }; } finally { globalThis.self = s; } })()`;
-    yield { ...snippet(`static-collapse-se-order/${ shape.id }`, body), strip: false };
+    yield { ...snippet(`static-collapse-se-order/${ shape.id }`, shape.inner, { rig: true }), strip: false };
   }
 }
 
@@ -442,9 +444,7 @@ const NCR_SHAPES = [
 ];
 function * generateNameChainRootCallInner() {
   for (const shape of NCR_SHAPES) {
-    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
-      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
-    yield { ...snippet(`name-chain-root-call-inner/${ shape.id }`, body), strip: false };
+    yield { ...snippet(`name-chain-root-call-inner/${ shape.id }`, shape.expr, { rig: true }), strip: false };
   }
 }
 
@@ -498,9 +498,7 @@ const OPC_SHAPES = [
 ];
 function * generateOptionalProxyPureCall() {
   for (const shape of OPC_SHAPES) {
-    const body = '(() => { const s = globalThis.self, w = globalThis.window; globalThis.self = globalThis; globalThis.window = globalThis; '
-      + `try { return ${ shape.expr }; } finally { globalThis.self = s; globalThis.window = w; } })()`;
-    yield { ...snippet(`optional-proxy-pure-call/${ shape.id }`, body), strip: false };
+    yield { ...snippet(`optional-proxy-pure-call/${ shape.id }`, shape.expr, { rig: true }), strip: false };
   }
 }
 
@@ -1568,6 +1566,41 @@ function * generateMutatedAnchoredSymbol() {
     + 'const { Map: { [Symbol.iterator]: it } } = globalThis; return typeof it === "function" ? it() : String(it); } '
     + 'finally { globalThis.Map = _o; } })()';
   yield { ...snippet('mutated-anchored-symbol/slot-shim', body), strip: false };
+}
+
+// --- Slot-backstop grammar (bare reads of a slot-mutated name, STRIPPED-realm oracle) ---
+// a ctor-SLOT mutation anywhere in the module re-routes every bare read of the name through the
+// live global slot; the emission must keep a ponyfill BACKSTOP for the ABSENT slot. read-BEFORE-
+// write is the load-bearing shape: in the stripped realm the pre-write read crashes on the raw
+// slot without the backstop, exactly where the untranspiled source crashes on the missing native.
+// post-write reads must serve the user's shim on every leg. `Iterator` is the strippable subject
+// (STRIP_GLOBALS); restores mirror the captured state exactly (delete vs assign) so the realm
+// stays clean for the next snippet on both the full and the stripped leg
+function * generateSlotBackstop() {
+  const restore = 'if (_o === undefined) delete globalThis.Iterator; else globalThis.Iterator = _o;';
+  const forms = [
+    // pre-write bare STATIC read (backstop branch) + post-write marker read (live-slot branch)
+    { id: 'read-before-write',
+      pre: 'const early = Iterator.from([1].values()).next().value;',
+      shim: '{ slotMarker: () => "S" }',
+      use: '[early, Iterator.slotMarker()]' },
+    // guarded or-shim on a bare receiver under the slot taint: the present key (native or
+    // backstop ponyfill) keeps the shim dead, the self-assign leaves the realm value intact
+    { id: 'or-shim-under-taint',
+      pre: 'Iterator.from = Iterator.from || (() => "G"); const used = Iterator.from([2].values()).next().value;',
+      shim: '{ slotMarker: () => "S" }',
+      use: '[used, Iterator.slotMarker()]' },
+    // `new` position: the backstopped callee must stay a valid construct target in both emitters
+    { id: 'new-position',
+      pre: 'const early = Iterator.from([3].values()).next().value;',
+      shim: 'function Shim() { this.mark = "S"; }',
+      use: '[early, new Iterator().mark]' },
+  ];
+  for (const f of forms) {
+    const body = `(() => { ${ f.pre } const _o = globalThis.Iterator; try { globalThis.Iterator = ${ f.shim }; `
+      + `return ${ f.use }; } finally { ${ restore } } })()`;
+    yield { ...snippet(`slot-backstop/${ f.id }`, body), strip: true };
+  }
 }
 
 // the mutated static is the chain ROOT: `Array.from = patch; Array.from([1]).flat()`. the static bails
@@ -3091,6 +3124,7 @@ export function * generate() {
   yield * generateMutatedSibling();
   yield * generateMutatedDestructure();
   yield * generateMutatedAnchoredSymbol();
+  yield * generateSlotBackstop();
   yield * generateMutatedNarrowChain();
   yield * generateMutatedComputedKey();
   yield * generateMutatedWrapperAssign();
