@@ -2784,10 +2784,10 @@ export function peelFallbackBranchInner(node) {
 }
 
 // walk up `parentPath` through ParenthesizedExpression / TS expression wrappers so consumers
-// reach the runtime-effective parent context. mirrors `unwrapRuntimeExpr` but operates on
-// path ancestors (upward), not the node tree (downward). returns the outermost transparent-
-// wrapper path; identity-stable when no wrappers present. shared between binding-analysis's
-// new-expression classifier and globals.js's logical-assign LHS check
+// reach the runtime-effective parent context. the upward twin of `unwrapRuntimeExpr`, MINUS
+// ChainExpression: an ancestor `?.` wrapper stays a boundary, so context-classifier consumers
+// see the ChainExpression and decline the specific match - the conservative direction.
+// returns the outermost transparent-wrapper path; identity-stable when no wrappers present
 export function peelTransparentExprAncestorPath(path) {
   let cur = path;
   while (cur?.parentPath?.node

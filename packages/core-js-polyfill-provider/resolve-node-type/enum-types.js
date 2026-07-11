@@ -5,8 +5,7 @@
 // caller treats the enum as opaque rather than mis-narrow to one kind.
 //
 // Public surface:
-//   resolveEnumMemberKind(initializer) - 'string' | 'number' | null
-//   enumMembers(declaration)           - cross-parser body unwrap
+//   resolveEnumMemberKind(initializer) - 'string' | 'number' | 'bigint' | null
 //   findEnumMember(declaration, name)  - lookup by member name
 //   resolveEnumMemberType(decl, name)  - $Primitive for the named member, or null
 //   resolveEnumType(declaration)       - $Primitive for the whole enum, or null
