@@ -1,7 +1,7 @@
 import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.string.pad-end";
 import "core-js/modules/es.array.at";
-import "core-js/modules/es.number.to-fixed";
+import "core-js/modules/es.array.includes";
 export default interface Data {
   items: string[];
   counts: number[];
@@ -9,9 +9,9 @@ export default interface Data {
 function foo(d: Data) {
   // user-defined-type member access path
   d.items.at(-1).padEnd(5);
-  // user-defined-type destructuring path
+  // user-defined-type destructuring path - distinct method so this route owns its import
   const {
     counts
   } = d;
-  counts.at(-1).toFixed(2);
+  counts.includes(2);
 }

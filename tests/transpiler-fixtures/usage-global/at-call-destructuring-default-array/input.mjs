@@ -1,10 +1,11 @@
+// distinct method per default-narrow form so each form owns its own import
 const { items = [] } = config;
 items.at(0);
 const { foo: bar = [] } = obj;
-bar.at(0);
+bar.includes(1);
 const [, b = []] = arr;
-b.at(0);
+b.flat();
 function fn({ list = [] } = {}) {
-  list.at(0);
+  list.findLast(Boolean);
 }
 fn();
