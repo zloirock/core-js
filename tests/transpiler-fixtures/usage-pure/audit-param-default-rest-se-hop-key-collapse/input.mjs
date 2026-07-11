@@ -17,6 +17,12 @@ m();
 function n({ isArray, from: f2, ...rest } = globalThis.self.Array) { return [isArray, f2, rest]; }
 n();
 
+// a PURE-CTOR leaf (`.Map`) static-folds the WHOLE hop chain to the pure constructor
+// binding - the harvested key SE rides as its sequence prefix - where the `.Array` rows
+// above re-root and KEEP the leaf member read
+function p({ groupBy, ...rest } = globalThis[(eff++, 'self')].Map) { return [groupBy, rest]; }
+p();
+
 // a STATIC computed hop key keeps the plain single-hop delete
 function h({ isArray, ...rest } = globalThis['self'].Array) { return [isArray, rest]; }
 h();
