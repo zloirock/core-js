@@ -421,14 +421,25 @@ export function createPolyfillEmitter({
     while (callee && (callee.type === 'ParenthesizedExpression' || callee.type === 'ChainExpression'
       || TS_EXPR_WRAPPERS.has(callee.type))) callee = callee.expression;
     if (callee?.type !== 'MemberExpression' && callee?.type !== 'OptionalMemberExpression') return null;
-    // a side-effecting computed key (`arr[(eff(), 'flat')]`) makes a polyfilled callee compose
+    // a side-effecting computed key (`arr[(eff(), 'flat')]`) on a POLYFILLED callee composes
     // into the call BODY (so the key's SE rides along) instead of the guard slot; rewriting the
     // body to `_ref.call(recv)` would strand that composition. leave such callees on the default
-    // path - the inner `?.call(recv)` from that composition already preserves `this`. peel the
+    // path - the inner `?.call(recv)` from that composition already preserves `this`. a NON-poly
+    // callee has no such composition: the default path memoizes it and invokes the memo BARE
+    // (`_ref()`, `this === undefined`), so it must stay here and route through `_ref.call(recv)`
+    // (the key's SE rides inside the memoized guard slot, still running exactly once). peel the
     // parser-preserved paren wrapper (oxc keeps `(...)`, babel strips it) before the SE check
     let keyNode = callee.computed ? callee.property : null;
     while (keyNode?.type === 'ParenthesizedExpression') keyNode = keyNode.expression;
-    if (keyNode?.type === 'SequenceExpression') return null;
+    if (keyNode?.type === 'SequenceExpression') {
+      const seqKey = resolveKey({
+        node: peelNestedSequenceExpressions(keyNode).tail, computed: true,
+        scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
+      });
+      const polyCallee = seqKey === null ? null : resolvePureOrGlobalFallback(
+        { kind: 'property', object: null, key: seqKey, placement: 'prototype' }, metaPath).result;
+      if (polyCallee) return null;
+    }
     // single-source the receiver-reuse decision through the canonical `isReusableReceiver` (peels the
     // paren / chain memo wrappers babel strips at parse but oxc keeps) - replaces a hand-rolled inline
     // predicate that skipped the peel. positions (`methodTail`) read the UN-peeled node so a wrapper's
@@ -1694,7 +1705,8 @@ export function createPolyfillEmitter({
       // key never rebuilds from the resolved name (`arg.a-b` reparses as subtraction): with no
       // key side effect the VERBATIM computed source is reused (`['from']` / `['a-b']` / `[k]`),
       // matching babel exactly. a FOLDED key SE lifts the effect out, so only the resolved tail
-      // remains - a bare identifier collapses to dot (babel-parity), else it keeps a bracket read
+      // remains - a bare identifier collapses to dot, else it keeps a bracket read. babel keeps
+      // the bracketed sequence form (`arg[eff(), 'foo']`) here - a runtime-equivalent respelling
       function rawMemberGet(recv) {
         if (!innerComputed) return `${ recv }.${ innerMethodName }`;
         if (!innerKeySE.length) return `${ recv }${ code.slice(innerCallee.object.end, innerCallee.end) }`;
