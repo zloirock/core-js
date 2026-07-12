@@ -1717,6 +1717,7 @@ function createResolveNodeType(babelNodeType, t, {
   const callResolutionCluster = createCallResolution({
     t,
     babelNodeType,
+    findOverloadsForName,
     getScopeBinding,
     hasParamTypeRef: returnTypeCluster.hasParamTypeRef,
     babelBindingAdapter,

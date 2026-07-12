@@ -9,7 +9,7 @@
 // empirically per parser - change them only with care
 import { getTypeArgs, isDeferredContextStep } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
-import { literalNodeValue, PRIMITIVE_HINTS } from './base.js';
+import { dropLeadingThisParam, literalNodeValue, PRIMITIVE_HINTS } from './base.js';
 
 // statement list directly inside a TSModuleDeclaration. for Babel's nested form
 // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
@@ -302,7 +302,7 @@ export function paramPrimitiveKind(param) {
 
 // arg-side counterpart of paramPrimitiveKind: the primitive kind of an already-resolved node type, gated on
 // the canonical PRIMITIVE_HINTS set (the same 5 typeof-primitives), else null. an arg whose resolved type
-// isn't one of these (object / null / undefined / unresolvable) yields null, so selectOverloadByArgKinds
+// isn't one of these (object / null / undefined / unresolvable) yields null, so the overload matcher
 // bails to the fold instead of guessing
 export function primitiveTypeKind(type) {
   return PRIMITIVE_HINTS.has(type) ? type : null;
@@ -343,7 +343,11 @@ export function matchOverloadByArgs(overloads, getParams, argPaths, resolveNodeT
   const argLiterals = argPaths.map(a => overloadLiteralValue(a.node));
   const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
   for (const ov of overloads) {
-    const params = getParams(ov);
+    // a leading `this` pseudo-param fills AST slot 0 but no runtime arg slot - drop it so
+    // arity and per-slot pairing align with the call args (an undropped `this` skewed every
+    // comparison by one: a this-annotated overload was skipped on arity or mismatched, and
+    // a later arm won with the wrong type-specific helper)
+    const params = dropLeadingThisParam(getParams(ov));
     if (!params) return null;
     if (params.length !== argKinds.length) {
       // a rest param, or extra params that are ALL optional, may still accept the call -
