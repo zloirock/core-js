@@ -176,12 +176,12 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       let b = scope.getBinding(name);
       if (!b && path) {
         const rebuilt = rebuildLaggedScopeBinding(path, name);
-        if (rebuilt && getInjector()?.getBindingAliasInfo?.(rebuilt.path.node)) b = rebuilt;
+        if (rebuilt && getInjector()?.getBindingAliasInfo?.(rebuilt.path.node, name)) b = rebuilt;
       }
       // binding-first: the per-binding registry is exact (same-name aliases in sibling scopes
       // never collide); the NAME view serves the scope-lag fallback below and the
       // replaced-declarator re-anchor, disambiguated positionally by the use anchor
-      const identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node) ?? null : null;
+      const identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null : null;
       const info = identityInfo ?? getInjector()?.getBindingInfo(name, useStart) ?? null;
       if (b) {
         const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
@@ -204,7 +204,7 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // since is our own mutation (the value swap), not user flow. decl-form entries stay
         // live-checked (their gate judged placement only - a redeclaration write must be caught)
         const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
-          info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(),
+          info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name,
         });
         // a GUARDED registration means flow-trust was REFUSED - the hint must never drive a
         // direct narrow (babel's mutated `var M = _Map` declarator is indistinguishable from a
@@ -216,8 +216,9 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module
         // source so `bindingSymbolKey` can fold `obj[iterator]`. the shadow gate rejects a nested
         // same-name binding whose RHS is not Symbol (the name-keyed injector info is flat)
-        const aliasSymbolSource = isSymbolDestructureAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() })
-          ? info.source : null;
+        const aliasSymbolSource = isSymbolDestructureAliasBinding({
+          info, binding: b, scope, adapter, injector: getInjector(), boundName: name,
+        }) ? info.source : null;
         return {
           node: b.path.node, kind: b.kind, constantViolations, importSource,
           polyfillHint, aliasSymbolSource, aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,

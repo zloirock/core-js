@@ -2652,3 +2652,111 @@ QUnit.test('alias rebind: control alias without loop write keeps the static', as
   assert.same(typeof fromAsync, 'function');
 });
 /* eslint-enable no-var, block-scoped-var, no-redeclare, no-void -- end of the for-x rebind shapes */
+
+// --- alias-fold value guards: the fold must resolve the SAME binding the runtime reads ---
+
+// a top-level `{ iterator } = Symbol` folds a computed read to the iterator-method helper; a
+// NESTED-pattern binding of the same name reads `Symbol.constructor.iterator` (=== undefined),
+// so it must stay a raw read - a name-keyed fold would substitute the well-known key wrongly
+QUnit.test('symbol alias: nested-pattern shadow reads the real property, not the well-known key', assert => {
+  const { constructor: { iterator } } = Symbol;
+  assert.same([1, 2][iterator], undefined);
+});
+
+QUnit.test('symbol alias: top-level { iterator } = Symbol folds to the iterator method', assert => {
+  const { iterator } = Symbol;
+  assert.same([3, 4][iterator]().next().value, 3);
+});
+
+// the ctor analog: an outer function-scoped `{ Map } = globalThis` registers a flat name-keyed
+// alias, but an inner nested-pattern binding of the SAME name reads `globalThis.constructor.Map`
+// (=== undefined) - it must NOT inherit the outer alias's static fold. the same local name is
+// what makes the flat registration collide, so the shadow is intrinsic to the shape under test
+/* eslint-disable no-shadow -- the same-name inner shadow IS the flat-registration collision under test */
+QUnit.test('ctor alias: nested-pattern shadow does not inherit the outer alias fold', assert => {
+  const { Map } = globalThis;
+  assert.same(typeof Map.groupBy, 'function');
+  (function inner() {
+    const { constructor: { Map } } = globalThis;
+    assert.throws(() => Map.groupBy([1], x => x), TypeError);
+  }());
+});
+/* eslint-enable no-shadow -- end of the flat-registration collision shape */
+
+// a multi-element array-wrap binds each ObjectPattern element to the init element at the SAME
+// index: the first alias reads a user object (native, keeps the user method), the second reads
+// `globalThis` (folds). Resolving position-blindly rewrote the user alias to a polyfill helper
+QUnit.test('array-wrap alias: positional user element keeps its own method', assert => {
+  const userObj = { Map: { groupBy() { return 'user-groupBy'; } } };
+  const [{ Map: A }, { Set: B }] = [userObj, globalThis];
+  assert.same(A.groupBy([1], x => x), 'user-groupBy');
+  assert.same(typeof B, 'function');
+});
+
+// positional pairing recurses through DEEP array-wrap layers: a user-object slot nested two levels
+// deep still reads the user method (must not fold), mirroring the single-level protection
+QUnit.test('array-wrap alias: deep-nested user element keeps its own method', assert => {
+  const box = { Map: { groupBy() { return 'deep-user'; } } };
+  const [[{ Map: M }]] = [[box]];
+  assert.same(M.groupBy([1], x => x), 'deep-user');
+});
+
+// duplicate static class fields are LAST-wins at runtime, so a destructure off the static must
+// resolve through the LAST declaration - the first-wins fold produced the wrong helper (an array
+// from `Array.from` instead of an iterator from `Iterator.from`)
+/* eslint-disable no-dupe-class-members, unicorn/no-static-only-class, no-useless-computed-key -- the duplicate / computed-key static field IS the runtime shape under test */
+QUnit.test('dup static field: destructure resolves the last declaration', assert => {
+  class NS {
+    static M = Array;
+    static M = Iterator;
+  }
+  const { M: { from } } = NS;
+  const result = from([1, 2]);
+  assert.same(typeof result.next, 'function');
+  assert.false(Array.isArray(result));
+});
+
+// a computed static-string key (`static ["N"]`) overrides an earlier plain field at runtime, so
+// the last-wins resolution must see through it - resolving the plain field would fold the wrong
+// static (Array has no `allSettled`, so the wrong fold would break at runtime)
+QUnit.test('dup static field: computed static-string key overrides the plain field', assert => {
+  class NS {
+    static N = Array;
+    static ['N'] = Promise;
+  }
+  const { N: { allSettled } } = NS;
+  const result = allSettled([Promise.resolve(1)]);
+  assert.same(typeof result.then, 'function');
+});
+
+// an unresolvable computed static key could be the target name at runtime, so resolution must bail
+// rather than fold the earlier plain field - here the runtime key IS the target, so the value is
+// the later `Iterator` and a stale `Array.from` fold would have produced an array, not an iterator
+QUnit.test('dup static field: unresolvable computed key forces a native bail', assert => {
+  function make(o) {
+    class Guard {
+      static P = Array;
+      static [o.k] = Iterator;
+    }
+    const { P: { from } } = Guard;
+    return from([1, 2]);
+  }
+  const result = make({ k: 'P' });
+  assert.same(typeof result.next, 'function');
+  assert.false(Array.isArray(result));
+});
+
+// a static block may reassign the field, so its value is unknowable and resolution must bail -
+// here the block reassigns the field to `Array` (which has no `groupBy`), so the untransformed
+// read throws; a stale `Map.groupBy` fold would wrongly NOT throw
+QUnit.test('static block reassign forces a native bail', assert => {
+  class NS {
+    static T = Map;
+    static {
+      NS.T = Array;
+    }
+  }
+  const { T: { groupBy } } = NS;
+  assert.throws(() => groupBy([1], x => x), TypeError);
+});
+/* eslint-enable no-dupe-class-members, unicorn/no-static-only-class, no-useless-computed-key -- end of the dup static field shape */

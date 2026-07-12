@@ -7,7 +7,6 @@
 import {
   findArrayWrappedDestructureHost,
   propBindingIdentifier,
-  staticStringKey,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
   objectPatternHasNestedValue,
@@ -36,6 +35,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import {
+  findNamespaceMemberValue,
   globalProxyMemberName,
   isUsableFallbackReceiverArg,
   peelProxyGlobalObject,
@@ -1231,37 +1231,15 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
       && walkPath.length === 1) {
     return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });
   }
-  // class STATIC fields are a member container too (`class NS { static M = Map }`); descend
-  // the matching field's value exactly like an object-literal property
-  if (current?.type === 'ClassDeclaration' || current?.type === 'ClassExpression') {
-    const field = classStaticField(current, walkPath[0]);
-    return field ? walkStaticReceiverStep({
-      node: field.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited, readNode,
+  // class STATIC fields and object-literal properties are both name-indexable static containers;
+  // the canonical resolver descends the matching member's value with LAST-wins semantics and bails
+  // on an ambiguous computed key / a method-or-accessor winner / a spread that could override
+  if (current?.type === 'ClassDeclaration' || current?.type === 'ClassExpression'
+    || current?.type === 'ObjectExpression') {
+    const value = findNamespaceMemberValue(current, walkPath[0], currentScope, adapter, sharedResolveKey);
+    return value ? walkStaticReceiverStep({
+      node: value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited, readNode,
     }) : null;
-  }
-  if (current?.type !== 'ObjectExpression') return null;
-  // LAST matching key wins, per JS duplicate-literal-key semantics; a trailing spread that could
-  // inject / override the key bails (canonical helper). shared `resolveKey` covers Identifier /
-  // StringLiteral / Literal directly AND walks computed-key bindings (`const k='a'; { [k]: Array }`)
-  // + StringLiteral / `+`-concat folds; unresolvable computed keys return null and are skipped
-  const match = findObjectKeyBeforeSpread(current.properties, prop => {
-    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope: currentScope, adapter, bailOnSideEffectKey: true });
-    return keyName === walkPath[0];
-  });
-  if (!match) return null;
-  return walkStaticReceiverStep({
-    node: match.value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited, readNode,
-  });
-}
-
-// the class's static FIELD (value-bearing) matching `key`; methods / accessors are dynamic
-// values and stay out (mutual bail with findNamespaceMemberValue's container rules)
-function classStaticField(classNode, key) {
-  for (const member of classNode.body?.body ?? []) {
-    if (!member.static || member.computed) continue;
-    if (member.type !== 'ClassProperty' && member.type !== 'PropertyDefinition') continue;
-    const keyName = member.key?.type === 'Identifier' ? member.key.name : staticStringKey(member.key);
-    if (keyName === key && member.value) return member;
   }
   return null;
 }
