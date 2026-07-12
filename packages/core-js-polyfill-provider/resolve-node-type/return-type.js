@@ -250,6 +250,13 @@ export function createReturnType({
     // only `resolveAwaitedFromCallBody` reaches here for generators
     if (fnPath.node.generator) return null;
     const body = fnPath.get('body');
+    // an ambient / overload HEAD carries no return evidence to fold - babel leaves its
+    // body slot empty, oxc emits an EMPTY BlockStatement with `declare: true` (which the
+    // empty-body rule below would read as an implicit-undefined return). yield null
+    // instead of fabricating a type (a fabricated `undefined` receiver suppressed
+    // injection entirely downstream; the estree adapter binds ambient names, so a
+    // bodyless head genuinely reaches this fold)
+    if (!body.node || fnPath.node.declare) return null;
     // arrow with expression body: () => [1, 2, 3]
     if (!t.isBlockStatement(body.node)) return resolveBodyExpr(body, fnPath, callPath);
     // block body: collect return statements, skip nested functions. nullable-typed
