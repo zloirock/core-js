@@ -358,3 +358,23 @@ QUnit.test('optional call on non-static global member: side-effect receiver runs
   assert.same((a = globalThis).Map.notAMethod?.().flat().at(0), undefined);
   assert.same(a, globalThis);
 });
+
+// a non-identifier computed inner method-get in a combined optional chain must re-read the
+// member from its bracket source (`obj['a-b']`), never `obj.a-b` (which computes subtraction).
+// the chain resolves the runtime value, proving the emitted member access is a real read
+QUnit.test('optional chain: computed non-identifier inner member reads through brackets', assert => {
+  const obj = { 'a-b': () => [[1, 2], [3]] };
+  assert.same(obj['a-b']?.().flat().at(0), 1);
+  // a bare-identifier computed key on the same shape resolves the same runtime value
+  const obj2 = { from: () => [[4], [5, 6]] };
+  // eslint-disable-next-line dot-notation -- the computed key form IS the case under test
+  assert.same(obj2['from']?.().flat().at(-1), 6);
+  // a NUMERIC computed inner in a combined chain (two trailing polys) keeps the numeric index -
+  // the runtime value proves the chain combined instead of crashing on overlapping transforms
+  const arr = [() => [[7], [8, 9]]];
+  assert.same(arr[0]?.().flat().at(0), 7);
+  // a DYNAMIC key resolves the same runtime value
+  const rec = { pick: () => [[10], [11]] };
+  const key = 'pick';
+  assert.same(rec[key]?.().flat().at(-1), 11);
+});
