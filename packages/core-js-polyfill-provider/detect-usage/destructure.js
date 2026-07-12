@@ -24,6 +24,7 @@ import {
   unwrapCollectingSePrefixes,
   findObjectKeyBeforeSpread,
   isMutatedGlobalSlot,
+  isValidIdentifierName,
   mayHaveSideEffects,
   peelFallbackReceiver,
   peelFallbackBranchInner,
@@ -1737,6 +1738,11 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         ? sharedResolveKey({ node: prop.key, computed: true, scope: leafPatternPath.scope, adapter, bailOnSideEffectKey: false })
         : prop.key?.name ?? prop.key?.value;
       if (typeof key !== 'string' || seenKeys.has(key)) return null;
+      // both renderers spell the resolved key via `t.identifier(key)` (object property + passthrough
+      // member): a non-identifier key (`'with-dash'`, a computed key folding to one) makes babel throw
+      // and unplugin emit non-reparsing text. bail the whole mirror to the sound per-branch native
+      // fallback - the same rejection the flat synth-swap path applies to non-Identifier keys
+      if (!isValidIdentifierName(key)) return null;
       // a computed key folding from the REAL Symbol (`[Symbol.iterator]`) has no static string
       // slot a synth literal could carry - the folded string would render an invalid bare
       // `Symbol.iterator:` key reading a bogus dotted path off the receiver. bail the whole

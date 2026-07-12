@@ -31,7 +31,7 @@ import {
   unwrapRuntimeExpr,
   ownThisMemberKeyName,
 } from '../helpers/ast-patterns.js';
-import { isPrivateMemberNode, nodeRangeContains } from './ast-shapes.js';
+import { isPrivateMemberNode, moduleStatements, nodeRangeContains } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 export function createClassFields({
@@ -269,7 +269,12 @@ export function createClassFields({
       }
       if (typeof node.type !== 'string') return;
       if (node.type === 'TSModuleDeclaration' && node.id?.type === 'Identifier' && classNames.has(node.id.name)) {
-        for (const stmt of node.body?.body ?? []) {
+        // `moduleStatements` guards the babel@7 dotted-namespace shape (`namespace X.Y {}` ->
+        // body is a NESTED TSModuleDeclaration, not a TSModuleBlock): a bare `body.body` there
+        // is the inner block OBJECT, and a for-of over it throws and aborts the file transform.
+        // the dotted form's exports live on `X.Y`, not `X`, so treating it as no direct member
+        // (the nested decl is not an ExportNamedDeclaration) is also semantically correct
+        for (const stmt of moduleStatements(node) ?? []) {
           if (stmt?.type !== 'ExportNamedDeclaration') continue;
           // specifier form (`function f() {}; export { f };` / `export { f as g }`): the
           // EXPORTED name becomes the runtime static slot
