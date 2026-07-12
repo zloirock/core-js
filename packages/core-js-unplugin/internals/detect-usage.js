@@ -425,13 +425,13 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         // the synthetic binding skips the hint machinery below (no `.path`); still surface the
         // registry's guard hint for it - IDENTITY view only, like the native-binding path (a
         // hoisted-var alias registers per-declarator in the pre-pass, so identity reaches it)
-        const synthIdentity = getInjector()?.getBindingAliasInfo?.(synth.node) ?? null;
+        const synthIdentity = getInjector()?.getBindingAliasInfo?.(synth.node, name) ?? null;
         // and the Symbol destructure fold source: an UNCONDITIONAL nested-block `var`
         // (a labeled block, a finally, a for-init) folds on babel through its native
         // hoist, so the shape-judged alias must surface here too or the emitters desync
         const synthInfo = synthIdentity ?? getInjector()?.getBindingInfo(name, path?.node?.start ?? null) ?? null;
         const aliasSymbolSource = isSymbolDestructureAliasBinding({
-          info: synthInfo, binding: synth, scope, adapter, injector: getInjector(),
+          info: synthInfo, binding: synth, scope, adapter, injector: getInjector(), boundName: name,
         }) ? synthInfo.source : null;
         return { ...synth, aliasSymbolSource, guardedAliasHint: synthIdentity?.hint ?? null };
       }
@@ -449,7 +449,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // predicate identifies the real alias binding (init resolves to the destructured global, any
       // declaration kind) and rejects user-declared shadows of the same name
       // binding-first: the per-binding registry is exact - see the babel twin
-      const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node) ?? null;
+      const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
       const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null) ?? null;
       const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
       const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
@@ -476,7 +476,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // against its registered write span; the raw estree list carries phantoms) - so it runs after them
       // a VERIFIED identity hit needs no live shape verification - see the babel twin
       const isAliasBindingShape = !!identityInfo?.aliasVerified || isPolyfillAliasBinding({
-        info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(),
+        info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name,
       });
       // guarded registration = flow-trust refused: the member read stays native. the dominance
       // gate keeps a use textually BEFORE its trusted write / declaration native too
@@ -486,8 +486,9 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
       // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding
       // whose RHS is not Symbol (the name-keyed injector info is flat)
-      const aliasSymbolSource = isSymbolDestructureAliasBinding({ info, binding: b, scope, adapter, injector: getInjector() })
-        ? info.source : null;
+      const aliasSymbolSource = isSymbolDestructureAliasBinding({
+        info, binding: b, scope, adapter, injector: getInjector(), boundName: name,
+      }) ? info.source : null;
       return {
         node: b.path.node,
         kind: b.kind,

@@ -5360,10 +5360,16 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   // the Symbol destructure-alias shadow gate: a bare `Symbol` init counts only while
   // unshadowed; a binary init can never be the constructor; the valueless-redecl phantom
   // does not poison the shape check
+  // a top-level `{ iterator } = <init>` alias: `name` supplies the bound name the top-level-value
+  // gate needs (real callers pass it; a synthetic binding carries no `.identifier`)
   function symbolBinding(init, violations = []) {
     return {
-      path: { node: { type: 'VariableDeclarator', id: { type: 'ObjectPattern' }, init } },
+      path: { node: { type: 'VariableDeclarator',
+        id: { type: 'ObjectPattern', properties: [{ type: 'Property',
+          key: { type: 'Identifier', name: 'iterator' }, value: { type: 'Identifier', name: 'iterator' } }] },
+        init } },
       constantViolations: violations,
+      name: 'iterator',
     };
   }
   const info = { source: 'actual/symbol/iterator' };
