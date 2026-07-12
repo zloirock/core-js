@@ -2198,6 +2198,16 @@ export function objectPatternLiteralKeyPath(pattern, name) {
   return null;
 }
 
+// does an array-wrap slot (an ObjectPattern directly, or a nested ArrayPattern) bind `name` below
+// it? used to locate the positional array-wrap element (`const [{ Array: A }] = [globalThis]`) that
+// binds a leaf name before descending into it. peels an `= default` wrapper on the slot
+export function arrayWrapSlotBindsName(slot, name) {
+  slot = slot?.type === 'AssignmentPattern' ? slot.left : slot;
+  if (slot?.type === 'ObjectPattern') return !!objectPatternLiteralKeyPath(slot, name);
+  if (slot?.type === 'ArrayPattern') return (slot.elements ?? []).some(el => el && arrayWrapSlotBindsName(el, name));
+  return false;
+}
+
 // destructure-receiver value bound to an ObjectPattern. unifies the two wrapper shapes
 // that drive `meta.fromFallback` per-branch synth-swap:
 //   1. slot-bearing wrapper (VariableDeclarator / AssignmentExpression / AssignmentPattern):
