@@ -746,15 +746,43 @@ export function synthVarHoistBinding(path, name) {
 // nested var-scope boundaries) but registers FunctionDeclaration ids. presence only: a function has
 // no `.init`, so the result must never feed the declarator-reading path
 const scopeBlockFunctionsCache = new WeakMap();
+// the lexical names (`let` / `const` / `class`) bound at the TOP of a block body - an Annex-B
+// block-function hoist is BLOCKED (B.3.2) when any block between the function and its var-scope
+// owner lexically rebinds the name, so the top-level reference stays the global
+function blockLexicalNames(bodyStatements) {
+  const lex = new Set();
+  for (const stmt of bodyStatements ?? []) {
+    if (stmt?.type === 'VariableDeclaration' && stmt.kind !== 'var') {
+      for (const d of stmt.declarations ?? []) walkPatternIdentifiers(d.id, id => lex.add(id.name));
+    } else if (stmt?.type === 'ClassDeclaration' && stmt.id?.name) lex.add(stmt.id.name);
+  }
+  return lex;
+}
 function collectScopeBlockFunctions(scopeNode) {
   const names = new Set();
-  walkVarScope(scopeNode, node => {
+  function visit(node, blocked) {
+    if (!isASTNode(node)) return;
     if (node.type === 'FunctionDeclaration') {
-      if (node.id?.name) names.add(node.id.name);
-      return true; // a function is a var-scope boundary - register its name, don't descend its body
+      // register the block-function's hoisted name ONLY when no intervening block lexically
+      // rebinds it (an intervening `let Array` keeps `Array` the GLOBAL - under-suppressing here
+      // would drop a needed polyfill). a function is a var-scope boundary - don't descend its body
+      if (node.id?.name && !blocked.has(node.id.name)) names.add(node.id.name);
+      return;
     }
-    return isVarScopeBoundary(node.type);
-  });
+    if (isVarScopeBoundary(node.type)) return;
+    // entering a block extends the blocked set with that block's lexical declarations
+    const next = node.type === 'BlockStatement'
+      ? new Set([...blocked, ...blockLexicalNames(node.body)]) : blocked;
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) for (const v of value) visit(v, next);
+      else visit(value, next);
+    }
+  }
+  // the owner scope's own body-block lexicals block the hoist too
+  const body = Array.isArray(scopeNode?.body) ? scopeNode.body : scopeNode?.body?.body;
+  const ownerLex = blockLexicalNames(Array.isArray(body) ? body : null);
+  if (Array.isArray(body)) for (const stmt of body) visit(stmt, ownerLex);
+  else visit(scopeNode?.body, ownerLex);
   return names;
 }
 function cachedScopeBlockFunctions(node) {
@@ -764,10 +792,15 @@ function cachedScopeBlockFunctions(node) {
 }
 
 // does any enclosing var-scope owner of `path` carry a sloppy block-hoisted function of `name`?
-// `|| undefined` keeps the climb going past a non-matching owner (visit must return undefined to
-// continue), and the outer `?? false` normalises "no owner matched" to a boolean
+// the Annex-B hoist depends on the sloppiness of the OWNER where the block-function lives, NOT the
+// use site: a STRICT inner function reading a name whose block-function hoists in a SLOPPY outer
+// function still sees the shadow (strict does not change lexical resolution). check `isSloppyAtPath`
+// at the matching OWNER. `|| undefined` keeps the climb going past a non-matching owner (visit must
+// return undefined to continue), and the outer `?? false` normalises "no owner matched" to a boolean
 function hasSloppyBlockFunctionInPath(path, name) {
-  return climbVarScopeOwners(path, owner => cachedScopeBlockFunctions(owner.node).has(name) || undefined) ?? false;
+  return climbVarScopeOwners(path, owner => {
+    return (cachedScopeBlockFunctions(owner.node).has(name) && isSloppyAtPath(owner)) || undefined;
+  }) ?? false;
 }
 
 // does `scopeNode`'s function var-scope (descend blocks, stop at nested functions) bind `name` via a
@@ -824,7 +857,7 @@ function isSloppyAtPath(path) {
 // and usage-global never loses an injection. presence only - never reaches the declarator path
 export function findFunctionScopeVarInPath(path, name) {
   if (findFunctionScopeVarDeclaratorInPath(path, name) !== null) return true;
-  return isSloppyAtPath(path) && hasSloppyBlockFunctionInPath(path, name);
+  return hasSloppyBlockFunctionInPath(path, name);
 }
 
 // reassignment sites for a function-scoped `var`, recovering the `constantViolations` set babel's
