@@ -3690,6 +3690,15 @@ export function proxyNavRootIsSequence(node) {
   return root?.type === 'SequenceExpression';
 }
 
+// a string is spellable as a bare IdentifierName (`from`, `$x`, `with` - reserved words are
+// valid in property / member position). rejects dashes, spaces, leading digits, empties.
+// Unicode-aware via the ID_Start / ID_Continue property escapes (mirrors the unplugin
+// emitter's `BARE_IDENTIFIER_REGEX`)
+const VALID_IDENTIFIER_NAME = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
+export function isValidIdentifierName(name) {
+  return typeof name === 'string' && VALID_IDENTIFIER_NAME.test(name);
+}
+
 // broader unwrap: strips parens, optional chains, AND TS expression wrappers
 // (`as`, `satisfies`, `!`) so callers see the runtime-effective expression
 export function unwrapRuntimeExpr(node) {

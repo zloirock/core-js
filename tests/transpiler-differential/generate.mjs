@@ -1459,6 +1459,21 @@ function * generateChains() {
   }
 }
 
+// COMPUTED-key inner CALL feeding a combined optional chain: `obj[key]?.().flat().at()`. the
+// inner method-get has NO resolvable name (numeric / non-identifier key), so it is non-poly by
+// construction - the combine must keep the verbatim bracket key. two trailing polys force the
+// combine; a bail there stranded them as overlapping standalone transforms (an unplugin composition
+// CRASH the three-way surfaces as a transform error). strip-valid: flat / at are strippable
+const CIC_INNERS = [
+  { id: 'numeric', obj: '({ 0: () => [[4, 5], [6]] })', access: '[0]' },
+  { id: 'nonident', obj: '({ \'a-b\': () => [[4, 5], [6]] })', access: '[\'a-b\']' },
+];
+function * generateComputedInnerCallChain() {
+  for (const inner of CIC_INNERS) {
+    yield { ...snippet(`computed-inner-call/${ inner.id }`, `${ inner.obj }${ inner.access }?.().flat().at(0)`), strip: true };
+  }
+}
+
 // --- `in`-expression grammar (KEY in OBJECT) ---
 // exercises `planInExpression` (symbol / fold / noop, + SE-harvest) - a decision path distinct from
 // method calls. every key-kind x object-kind yields a boolean, so the runtime three-way checks the
@@ -3129,6 +3144,7 @@ export function * generate() {
   yield * generateAssertGuardStale();
   yield * generateConditionalMirror();
   yield * generateChains();
+  yield * generateComputedInnerCallChain();
   yield * generateIn();
   yield * generateMutatedStatic();
   yield * generateMutatedSibling();
