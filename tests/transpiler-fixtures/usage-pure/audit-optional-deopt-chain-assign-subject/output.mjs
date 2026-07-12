@@ -13,9 +13,9 @@ var _ref, _ref2, _ref3, _ref4;
 // assignment and prefix effects as a sequence. a kept guard would memoize the raw `.self` hop
 // (undefined off-engine) and silently swallow the polyfill. an alias subject deopts the same way,
 // keeping its identifier. a BARE chain-assign subject (hops only AFTER the `?.`) collapses too:
-// the AST emitter deopts the guard outright; the text emitter keeps a dead, always-passing guard
-// over the memoized assign while still dropping the tail's redundant hop off the memo -
-// runtime-equal. a non-proxy leaf and a non-global assign value keep their guards untouched
+// both emitters deopt the guard outright - the assign value is the always-defined pure root, so
+// a guard would be dead, and the tail's redundant hop is dropped off the collapsed subject.
+// a non-proxy leaf and a non-global assign value keep their guards untouched
 // (those subjects may legitimately be undefined).
 let q1, q2, q3, q4, q5, q6;
 let c = 0;
