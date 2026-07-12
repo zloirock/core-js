@@ -285,6 +285,15 @@ function * generateFallbackArg() {
   }
 }
 
+// IIFE call-arg SHADOWED by a same-named inner param: the argument evaluates at the CALL
+// SITE, so detection must resolve it in the OUTER scope - the inner shadow must not swallow
+// the receiver (usage-pure synths the arg's statics; a miss leaves the raw destructure
+// reading the stripped native -> typeof flips to "undefined" in the stripped realm)
+function * generateIifeArgShadow() {
+  yield { ...snippet('iife-arg-shadow/no-default', '(function ({ from }, Array) { return typeof from; })(Array)'), strip: true };
+  yield { ...snippet('iife-arg-shadow/param-default', '(function ({ of } = Number, Array) { return typeof of; })(Array)'), strip: true };
+}
+
 // --- Proxy-global full-consume from a side-effecting receiver ---
 // a full-consume proxy-global destructure (every binding resolves to a proxy-global static /
 // constructor) off a receiver wrapped in a side-effecting SequenceExpression. the emitter drops the
@@ -3088,6 +3097,7 @@ export function * generate() {
   yield * generateDestructure();
   yield * generateDestructureAlias();
   yield * generateFallbackArg();
+  yield * generateIifeArgShadow();
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateDiscardedKeyPrefixProxy();
