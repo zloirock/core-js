@@ -23,7 +23,7 @@ import {
   getOrInitMap,
   nodePathInScope,
 } from './base.js';
-import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias } from './ast-shapes.js';
+import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias, moduleStatements } from './ast-shapes.js';
 import { STATEMENT_LIST_HOST_TYPES, unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
 
 // visitor-key list for recovering a real NodePath of a namespaced declaration via
@@ -165,16 +165,6 @@ export function createNameResolution({ t }) {
   // asymmetry on `declare`d static-generic calls and renamed-typeparam static lookups
   function findAmbientClassPath(name, scope) {
     return findAmbientDeclarationPath(name, scope, isAmbientClassNode);
-  }
-
-  // statement list directly inside a TSModuleDeclaration. for Babel's nested form
-  // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
-  // so the next recursion can match its name. for oxc's flat form (id = TSQualifiedName)
-  // the body is a TSModuleBlock and we return its statements directly.
-  function moduleStatements(decl) {
-    const body = decl?.body;
-    if (body?.type === 'TSModuleDeclaration') return [body];
-    return Array.isArray(body?.body) ? body.body : null;
   }
 
   // segment names of a TSModuleDeclaration id: Babel uses Identifier (single segment),
