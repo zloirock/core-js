@@ -153,11 +153,50 @@ function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
 // trusted write (`info.aliasWrite`, recorded when the registration verified cleanliness + unconditional
 // placement with the binding alive): the init-less declarator carries the global in that single write,
 // so every violation must fall inside its span - any OTHER write makes the value flow-dependent -> native
-export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector }) {
+// the init node the alias judge must resolve for a binding named `boundName`: an array-wrap
+// (`const [{ Set: A }, { Map: M }] = [userObj, globalThis]`) binds each ObjectPattern element to
+// the init element at the SAME index, so `A` reads `userObj.Set`, NOT the whole array. return that
+// POSITIONAL element (`null` when the index has no init element - bail); a non-array-wrap shape
+// returns the init verbatim (`undefined` sentinel means "not an array-wrap, use init as-is").
+// deeper array-wrap layers (`[[{ Map: M }]] = [[globalThis]]`) recurse positionally, mirroring the
+// receiver resolver's `resolveArrayWrappedProxyGlobalAlias` - the two paths must agree on nesting
+function positionalArrayWrapInit(idPattern, init, boundName) {
+  if (idPattern?.type !== 'ArrayPattern' || init?.type !== 'ArrayExpression') return undefined;
+  const elements = idPattern.elements ?? [];
+  for (let i = 0; i < elements.length; i++) {
+    const slot = elements[i]?.type === 'AssignmentPattern' ? elements[i].left : elements[i];
+    if (slot?.type === 'ObjectPattern' && (slot.properties ?? []).some(prop => {
+      const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+      return value?.type === 'Identifier' && value.name === boundName;
+    })) return init.elements[i] ?? null;
+    if (slot?.type === 'ArrayPattern') {
+      const deep = positionalArrayWrapInit(slot, init.elements[i], boundName);
+      if (deep !== undefined) return deep;
+    }
+  }
+  return null;
+}
+
+export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector, boundName = null }) {
   if (info?.source !== null || binding?.path?.node?.type !== 'VariableDeclarator') return false;
   const { init } = binding.path.node;
   const violations = binding.constantViolations ?? [];
-  if (init) return !violations.length && aliasInitResolvesToGlobal(init, scope, adapter, injector);
+  if (init) {
+    // judge the POSITIONALLY-paired array-wrap element, not the whole array: a `.some()` over all
+    // elements wrongly confirms a user-object slot (`{ Set: A } = userObj`) as a global alias
+    const positional = positionalArrayWrapInit(binding.path.node.id, init, boundName);
+    const initToJudge = positional === undefined ? init : positional;
+    // a NESTED-pattern shadow (`{ constructor: { Map } }`) inherits the flat name-keyed alias
+    // registration of an outer same-name top-level alias, but reads a different key path off the
+    // global (`globalThis.constructor.Map`, not `globalThis.Map`) - reject a genuinely NESTED
+    // binding of the name. an ABSENT name (an SE-key extraction leaves a `_unused` residual whose
+    // pattern no longer binds the name) must still fold through the init; array-wraps are validated
+    // positionally by positionalArrayWrapInit, which returns null for a nested element
+    const idPattern = binding.path.node.id;
+    if (positional === undefined && idPattern?.type === 'ObjectPattern'
+      && patternBindsNameNested(idPattern, boundName)) return false;
+    return !violations.length && !!initToJudge && aliasInitResolvesToGlobal(initToJudge, scope, adapter, injector);
+  }
   // duplicate-var SPLIT ANCHOR (`var M; var { Map: M } = g;`): the binding hangs off the bare
   // declarator while the value-writing same-name redeclaration carries the global - accept
   // exactly one writing declarator, alias-shaped (same key-blind receiver-is-global bar as the
@@ -273,7 +312,20 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
   }
   if (pattern?.type === 'ObjectPattern') collectFromObjectPattern(pattern);
   else if (pattern?.type === 'ArrayPattern') {
-    for (const el of pattern.elements ?? []) if (el?.type === 'ObjectPattern') collectFromObjectPattern(el);
+    // POSITIONAL match: an array-wrap binds each ObjectPattern element to the init element at the
+    // SAME index, so a `{ Set: A }` element paired with a non-global init element (`[userObj, ...]`)
+    // reads `userObj.Set` and must stay native. the top gate's `.some()` passes once ANY element is
+    // a global; register a pattern element ONLY when its positional init element resolves to a global
+    const initEls = unwrapInitForResolution(init)?.type === 'ArrayExpression'
+      ? unwrapInitForResolution(init).elements : null;
+    (pattern.elements ?? []).forEach((el, i) => {
+      if (el?.type !== 'ObjectPattern') return;
+      // no positional init evidence (a non-array / babel-emptied init) keeps the established
+      // whole-init bar so a post-consumption confirmation still recognises the alias
+      const initEl = initEls?.[i];
+      if (!initEls || (initEl && initEl.type !== 'SpreadElement'
+        && aliasInitResolvesToGlobal(initEl, scope, adapter, injector))) collectFromObjectPattern(el);
+    });
   }
   return pairs;
 }
@@ -482,7 +534,52 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector) {
 // injector's binding-info is name-keyed (flat), so a NESTED same-name binding queries the outer
 // alias's registered source; confirming THIS binding is an un-reassigned ObjectPattern destructure
 // whose RHS resolves to Symbol rejects a shadow off another object (`= { iterator: 5 }` / `= Array`)
-export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter, injector }) {
+// does `pattern` bind `name` as a DIRECT top-level `{ key: name }` / shorthand value? a nested
+// binding (`{ constructor: { iterator } }`) reads `<init>.constructor.iterator`, NOT the top-level
+// well-known key `<init>.iterator`, so the flat name-keyed symbol fold would substitute the wrong
+// value (`Symbol.constructor.iterator === undefined`). peels an `= default` wrapper on the value slot.
+// an EMPTY ObjectPattern is a babel post-fold artifact: babel rewrites a valid top-level symbol
+// destructure in-place (emptying its properties) BEFORE the use is judged, while it never folds a
+// NESTED shadow (that pattern stays pristine + non-empty), so empty <=> a consumed top-level alias
+function patternBindsNameAtTopLevel(pattern, name) {
+  if (pattern?.type !== 'ObjectPattern' || !name) return false;
+  const props = pattern.properties ?? [];
+  if (!props.length) return true;
+  return props.some(prop => {
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return false;
+    const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+    return value?.type === 'Identifier' && value.name === name;
+  });
+}
+
+// does `pattern` bind `name` BELOW its top level (`{ constructor: { iterator } }` /
+// `{ a: [Map] }`)? a top-level value (`{ Map }`) and an ABSENT name (an extracted / residual
+// slot) both return false - only a genuinely nested binding, which reads a different key path
+// off the init, must be barred from inheriting the flat name-keyed alias fold
+function patternBindsNameNested(pattern, name) {
+  if (!name) return false;
+  function walk(node, depth) {
+    if (node?.type === 'ObjectPattern') {
+      return (node.properties ?? []).some(prop => {
+        if (prop.type === 'RestElement') return walk(prop.argument, depth + 1);
+        if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return false;
+        const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+        return value?.type === 'Identifier' ? depth > 0 && value.name === name : walk(value, depth + 1);
+      });
+    }
+    if (node?.type === 'ArrayPattern') {
+      return (node.elements ?? []).some(el => {
+        const slot = el?.type === 'AssignmentPattern' ? el.left : el;
+        if (slot?.type === 'RestElement') return walk(slot.argument, depth + 1);
+        return slot?.type === 'Identifier' ? depth > 0 && slot.name === name : walk(slot, depth + 1);
+      });
+    }
+    return false;
+  }
+  return walk(pattern, 0);
+}
+
+export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter, injector, boundName: passedName = null }) {
   // a synthetic var-hoist binding (estree nested-block `var`) carries `.node` without `.path`
   const declarator = binding?.path?.node ?? binding?.node;
   if (!info?.source || declarator?.type !== 'VariableDeclarator') return false;
@@ -492,34 +589,43 @@ export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter,
   // poisoned ITS entry, but the positional name view still surfaces the outer one
   if (isGuardedAliasingWrite(binding)) return false;
   const writes = withoutValuelessDeclarationViolations(binding.constantViolations) ?? [];
-  // declarator form: `const { X } = Symbol` - no real write beyond the declaration itself
+  // babel exposes the bound identifier at `binding.identifier`; estree-toolkit at `binding.name`;
+  // a synthetic var-hoist binding carries neither, so the caller passes the name explicitly
+  const boundName = passedName ?? binding.identifier?.name ?? binding.name
+    ?? (binding.node?.type === 'Identifier' ? binding.node.name : null);
+  // declarator form: `const { X } = Symbol` - no real write beyond the declaration itself. the
+  // bound name must be a DIRECT top-level value of the pattern (a nested shadow reads a different
+  // key path off the init and must not inherit the flat well-known-symbol fold)
   if (declarator.id?.type === 'ObjectPattern') {
-    return !writes.length && aliasInitResolvesToSymbol(declarator.init, scope, adapter, injector);
+    return !writes.length && patternBindsNameAtTopLevel(declarator.id, boundName)
+      && aliasInitResolvesToSymbol(declarator.init, scope, adapter, injector);
   }
   // assignment form: `var X; ({ iterator: X } = Symbol)` - a bare declarator whose ONLY real
   // write is the aliasing destructure; resolving the write's RHS keeps the two parsers'
   // fold decisions identical (babel otherwise folds via its in-place polyfillHint while the
   // mutation-free estree side stayed native)
   if (declarator.init || writes.length !== 1) return false;
-  const rhs = assignmentAliasWriteRhs(writes[0]);
+  const rhs = assignmentAliasWriteRhs(writes[0], boundName);
   return !!rhs && aliasInitResolvesToSymbol(rhs, scope, adapter, injector);
 }
 
 // the RHS of an aliasing-destructure WRITE from either parser's violation shape: babel
 // records the AssignmentExpression itself, estree records the bound identifier inside the
 // LHS pattern - climb to the assignment and take its right side. anything but a plain `=`
-// into an object pattern (a for-x head rebind, a nested array wrap) stays null
-function assignmentAliasWriteRhs(violation) {
-  const node = violation?.node ?? violation;
-  if (node?.type === 'AssignmentExpression') {
-    return node.operator === '=' && node.left?.type === 'ObjectPattern' ? node.right : null;
+// into an object pattern (a for-x head rebind, a nested array wrap) stays null. `boundName`
+// must be a DIRECT top-level value of the LHS pattern - a nested binding reads a different key
+// path off the RHS, so inheriting the flat well-known-symbol fold would substitute a wrong value
+function assignmentAliasWriteRhs(violation, boundName) {
+  function rhsIfTopLevel(assign) {
+    return assign.operator === '=' && assign.left?.type === 'ObjectPattern'
+      && patternBindsNameAtTopLevel(assign.left, boundName) ? assign.right : null;
   }
+  const node = violation?.node ?? violation;
+  if (node?.type === 'AssignmentExpression') return rhsIfTopLevel(node);
   if (node?.type !== 'Identifier') return null;
   for (let p = violation?.parentPath; p; p = p.parentPath) {
     const type = p.node?.type;
-    if (type === 'AssignmentExpression') {
-      return p.node.operator === '=' && p.node.left?.type === 'ObjectPattern' ? p.node.right : null;
-    }
+    if (type === 'AssignmentExpression') return rhsIfTopLevel(p.node);
     if (type !== 'Property' && type !== 'ObjectProperty' && type !== 'ObjectPattern') return null;
   }
   return null;
@@ -663,6 +769,64 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   // an INSTANCE-only member (`super.at()` -> Array#at), the consumer bails rather than inject the
   // instance polyfill (over-injection); a real inherited static (`super.from()`) resolves and injects
   return resolved ? { kind: 'property', object: resolved, key, placement: 'static', inheritedStatic: true } : null;
+}
+
+// verdict for a container member's key in a REVERSE (last-wins) scan, resolved with the SAME
+// canonical `resolveKey` the access uses (so a computed `[CONST]` / `["Promise"]` / `[Symbol.x]`
+// resolves): 'match' - this member wins the key; 'bail' - a computed key we can NOT name statically
+// may BE propName at this (later) source position and would shadow an earlier literal (mirrors the
+// SpreadElement bail); 'skip' - a different named key, or a non-computed unresolvable key
+// (PrivateName) that can never collide with a public propName
+function memberKeyVerdict(key, computed, scope, propName, adapter, resolveKey) {
+  const name = resolveKey({ node: key, computed, scope, adapter });
+  if (name === propName) return 'match';
+  return name === null && computed ? 'bail' : 'skip';
+}
+
+// namespace container = class body (static properties) or object literal - anything we can
+// statically look up by name. methods / getters / static blocks skipped (runtime values). iterate
+// in REVERSE so the LAST member with the key wins, matching JS runtime semantics: `{ Base: Promise,
+// Base: Object }` evaluates `NS.Base` to Object. a method / getter / setter that wins the key is a
+// DYNAMIC value, not a static container, so bail on it - consistently on both parsers (babel emits
+// ObjectMethod / a non-field ClassMethod, oxc a Property/MethodDefinition carrying `method` or a
+// non-`init` kind), else a data+getter duplicate key resolved the earlier data value on babel
+// [ObjectMethod skipped] but bailed on oxc [Property matched] -> wrong sub + cross-parser divergence
+export function findNamespaceMemberValue(container, propName, scope, adapter, resolveKey) {
+  if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
+    const members = container.body?.body ?? [];
+    for (let i = members.length - 1; i >= 0; i--) {
+      const m = members[i];
+      // a static block runs in source order and may reassign any static via `NS.field = ...`; one at
+      // a LATER position than the matched field could redefine its value (the class analog of a
+      // trailing object spread) - bail. an earlier block is overridden by the field, so it is
+      // reached only after the field already returned and stays irrelevant
+      if (m.type === 'StaticBlock') return null;
+      if (!m.static) continue;
+      const verdict = memberKeyVerdict(m.key, m.computed, scope, propName, adapter, resolveKey);
+      if (verdict === 'bail') return null;
+      if (verdict === 'skip') continue;
+      // a static method / accessor winning the key is dynamic - bail; a static field returns its init
+      if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') return null;
+      return m.value ?? null;
+    }
+  } else if (container?.type === 'ObjectExpression') {
+    const props = container.properties ?? [];
+    for (let i = props.length - 1; i >= 0; i--) {
+      const p = props[i];
+      // a spread (`{ X: V, ...rest }`) reached in this reverse scan sits AT OR AFTER the matched
+      // key, so its statically-unknown contents may redefine the key at runtime - bail. a spread
+      // BEFORE the key is reached only after the key already returned, so it stays irrelevant
+      if (p.type === 'SpreadElement') return null;
+      if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;
+      const verdict = memberKeyVerdict(p.key, p.computed, scope, propName, adapter, resolveKey);
+      if (verdict === 'bail') return null;
+      if (verdict === 'skip') continue;
+      // a method shorthand / getter / setter winning the key is dynamic - bail; data returns its value
+      if (p.type === 'ObjectMethod' || (p.type === 'Property' && (p.method || p.kind !== 'init'))) return null;
+      return p.value;
+    }
+  }
+  return null;
 }
 
 // shared `super.X` / `this.X` class-walking helpers.
@@ -819,60 +983,6 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     return null;
   }
 
-  // namespace container = class body (static properties) or object literal - anything we
-  // can statically look up by name. methods / getters / static blocks skipped (runtime values)
-  // iterate in REVERSE so the LAST member with the key wins, matching JS runtime semantics:
-  // `{ Base: Promise, Base: Object }` evaluates `NS.Base` to Object. a method / getter / setter
-  // that wins the key is a DYNAMIC value, not a static container, so bail on it - consistently on
-  // both parsers (babel emits ObjectMethod / a non-field ClassMethod, oxc a Property/MethodDefinition
-  // carrying `method` or a non-`init` kind), else a data+getter duplicate key resolved the earlier
-  // data value on babel [ObjectMethod skipped] but bailed on oxc [Property matched] -> wrong sub +
-  // cross-parser divergence. a forward scan returned the shadowed first value -> wrong global
-  // resolve a container member's key with the SAME canonical `resolveKey` the access uses, so a
-  // computed `[CONST]` / `["Promise"]` / `[Symbol.x]` resolves. verdict in this reverse scan:
-  // 'match' - this member wins the key; 'bail' - a computed key we can NOT name statically may BE
-  // propName at this (later) source position and would shadow an earlier literal (mirrors the
-  // SpreadElement bail); 'skip' - a different named key, or a non-computed unresolvable key
-  // (PrivateName) that can never collide with a public propName
-  function memberKeyVerdict(key, computed, scope, propName) {
-    const name = resolveKey({ node: key, computed, scope, adapter });
-    if (name === propName) return 'match';
-    return name === null && computed ? 'bail' : 'skip';
-  }
-
-  function findNamespaceMemberValue(container, propName, scope) {
-    if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
-      const members = container.body?.body ?? [];
-      for (let i = members.length - 1; i >= 0; i--) {
-        const m = members[i];
-        if (!m.static) continue;
-        const verdict = memberKeyVerdict(m.key, m.computed, scope, propName);
-        if (verdict === 'bail') return null;
-        if (verdict === 'skip') continue;
-        // a static method / accessor winning the key is dynamic - bail; a static field returns its init
-        if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') return null;
-        return m.value ?? null;
-      }
-    } else if (container?.type === 'ObjectExpression') {
-      const props = container.properties ?? [];
-      for (let i = props.length - 1; i >= 0; i--) {
-        const p = props[i];
-        // a spread (`{ X: V, ...rest }`) reached in this reverse scan sits AT OR AFTER the matched
-        // key, so its statically-unknown contents may redefine the key at runtime - bail. a spread
-        // BEFORE the key is reached only after the key already returned, so it stays irrelevant
-        if (p.type === 'SpreadElement') return null;
-        if (p.type !== 'Property' && p.type !== 'ObjectProperty' && p.type !== 'ObjectMethod') continue;
-        const verdict = memberKeyVerdict(p.key, p.computed, scope, propName);
-        if (verdict === 'bail') return null;
-        if (verdict === 'skip') continue;
-        // a method shorthand / getter / setter winning the key is dynamic - bail; data returns its value
-        if (p.type === 'ObjectMethod' || (p.type === 'Property' && (p.method || p.kind !== 'init'))) return null;
-        return p.value;
-      }
-    }
-    return null;
-  }
-
   // Identifier -> reachable static container (ClassDeclaration / ClassExpression /
   // ObjectExpression via `const X = ...`). seen guards alias cycles
   function bindingContainerValue(name, scope, seen, classAnchor = null) {
@@ -910,7 +1020,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     if (!propName) return null;
     const outer = resolveToContainer(memberNode.object, scope, seen, classAnchor);
     if (!outer) return null;
-    return findNamespaceMemberValue(outer, propName, scope);
+    return findNamespaceMemberValue(outer, propName, scope, adapter, resolveKey);
   }
 
   // any expression -> namespace container that `findNamespaceMemberValue` can index by name.

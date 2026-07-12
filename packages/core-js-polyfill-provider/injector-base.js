@@ -258,7 +258,7 @@ export default class ImportInjectorState {
       this.#globalAliases.set(name, { hint: globalName, trusted: true });
       return;
     }
-    const entry = { hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified, srcPos };
+    const entry = { name, hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified, srcPos };
     // ONE runtime slot may register through SEVERAL nodes (a `var` redeclaration's declarators,
     // an assignment-form write's binding vs a decl-form's pattern declarator): resolve the
     // existing entry across every candidate key so the judgments MERGE into one entry instead
@@ -334,9 +334,13 @@ export default class ImportInjectorState {
   }
 
   // the BINDING view: exact per-binding lookup for use sites that resolved their binding
-  getBindingAliasInfo(bindingNode) {
+  // `name` disambiguates a declarator NODE shared by SEVERAL bindings (an array-wrap /
+  // object destructure - `const [{ Set: A }, { Map: M }] = ...` keys both A and M off the same
+  // declarator): the entry belongs to exactly one bound name, so a mismatched query (A reading
+  // M's registration) must miss rather than inherit the wrong global hint. omitted -> no check
+  getBindingAliasInfo(bindingNode, name = null) {
     const alias = bindingNode ? this.#bindingAliases.get(bindingNode) : null;
-    if (!alias) return null;
+    if (!alias || (name !== null && alias.name !== name)) return null;
     return {
       hint: alias.hint, source: null, entry: null,
       aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
