@@ -13,6 +13,8 @@ import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.promise.race";
+import "core-js/modules/es.promise.try";
+import "core-js/modules/es.promise.with-resolvers";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.of";
@@ -37,27 +39,16 @@ import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
-import "core-js/modules/es.set.constructor";
-import "core-js/modules/es.set.species";
-import "core-js/modules/es.set.difference";
-import "core-js/modules/es.set.intersection";
-import "core-js/modules/es.set.is-disjoint-from";
-import "core-js/modules/es.set.is-subset-of";
-import "core-js/modules/es.set.is-superset-of";
-import "core-js/modules/es.set.symmetric-difference";
-import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/es.weak-map.constructor";
-import "core-js/modules/es.weak-map.get-or-insert";
-import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/esnext.iterator.chunks";
 import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // a for-of HEAD rebinds the alias to each element of an array-literal iterable: every
-// element is a reachable receiver past the loop, so its statics join the union. distinct
-// method per row attributes each head form
+// element is a reachable receiver past the loop, so its statics join the union. a distinct
+// method-module per row attributes each head form; rows probe uniquely-attributable STATICS -
+// an instance method would inject from the bare constructor value-read alone, vacuously
 let M = Object;
 for (M of [Array]) {
   break;
@@ -96,11 +87,11 @@ let Z = Object;
 for ([{
   z: Z
 }] of [[{
-  z: Set
+  z: Promise
 }]]) {
   break;
 }
-Z.union(other2);
+Z.try(() => 1);
 
 // multi-element positional heads pair each name to its own slot
 let A3 = Object,
@@ -121,10 +112,10 @@ D.for('k');
 // sequence wrappers are value-transparent: the iterable and each element peel to their
 // tails, the prefix effects stay verbatim in source
 let T1 = Object;
-for (T1 of (eff(), [WeakMap])) {
+for (T1 of (eff(), [Promise])) {
   break;
 }
-T1.getOrInsert(k, v);
+T1.withResolvers();
 let T2 = Object;
 for (T2 of [(eff(), Reflect)]) {
   break;

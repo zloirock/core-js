@@ -1,7 +1,8 @@
-// an INHERITED static extracted through the subclass binding (`Sub.read`) rebinds `this`
-// away from the base at its later invocation - the ancestors' static sets merge into the
-// method-aware classifier, so the extraction widens the base field narrow exactly like
-// an own-static extraction does
+// regression-guard: a static extracted through the subclass binding (`Sub.read`) dispatches
+// GENERIC helpers on its untyped parameter - a type-specific dispatcher for `o.data` here
+// would throw on foreign runtime receivers. (this locks the safe outcome; it does not
+// isolate the widen-on-extraction mechanism, which needs a receiver whose narrow depends
+// on the rebound `this`)
 class Base {
   data = [1, 2];
   static read(o) {
@@ -12,7 +13,7 @@ class Sub extends Base {}
 const extracted = Sub.read;
 export const viaInheritedExtract = extracted;
 
-// own-static control (covered sibling): extraction off the declaring class widens too
+// own-static twin: the same generic outcome off the declaring class
 class Solo {
   data = [3, 4];
   static read(o) {

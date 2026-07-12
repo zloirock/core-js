@@ -4,8 +4,9 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11;
 // a NON-poly computed inner method-get with a non-identifier key (`arr['a-b']`) forces the
 // chain combine (a poly hop follows). the combined emit re-reads the inner member from the
-// VERBATIM bracket source, never `arr.a-b` (which reparses as subtraction). a computed key
-// whose resolved name IS a bare identifier collapses to the dot form, matching babel
+// VERBATIM bracket source, never `arr.a-b` (which reparses as subtraction). an effect-free
+// identifier key keeps its verbatim bracket form too - a dot respelling only appears when a
+// folded key side effect strips the source form
 declare const arr: {
   'a-b'?: () => number[][];
   from?: () => number[][];
