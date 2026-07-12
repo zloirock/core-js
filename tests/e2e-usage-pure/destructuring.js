@@ -2627,3 +2627,28 @@ QUnit.test('symbol-keyed pattern: catch param destructures the helper result', a
     assert.same(iterArity, 0);
   }
 });
+
+// a for-x head REBINDS a destructured alias: the loop assigns each iteration, so a later
+// read holds the loop's value (a string key), not the extracted static - the alias must
+// not feed value folds or type trust past the loop
+/* eslint-disable no-var, block-scoped-var, no-redeclare, no-void -- the var-hoisted redeclaration through a for-x head IS the shape under test */
+QUnit.test('alias rebind: for-in head write poisons the destructured alias', assert => {
+  var { from } = Array;
+  for (var from in { a: 1 }) { void 0; }
+  assert.same(from, 'a');
+  assert.throws(() => from([1, 2, 3]), TypeError);
+});
+
+QUnit.test('alias rebind: for-of head write poisons the destructured alias', assert => {
+  var { of } = Array;
+  for (var of of ['x']) { void 0; }
+  assert.same(of, 'x');
+  assert.throws(() => of(1, 2), TypeError);
+});
+
+// control: an un-rebound alias serves the extracted polyfill
+QUnit.test('alias rebind: control alias without loop write keeps the static', assert => {
+  var { fromAsync } = Array;
+  assert.same(typeof fromAsync, 'function');
+});
+/* eslint-enable no-var, block-scoped-var, no-redeclare, no-void -- end of the for-x rebind shapes */
