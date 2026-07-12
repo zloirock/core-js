@@ -1,6 +1,7 @@
 // a for-of HEAD rebinds the alias to each element of an array-literal iterable: every
-// element is a reachable receiver past the loop, so its statics join the union. distinct
-// method per row attributes each head form
+// element is a reachable receiver past the loop, so its statics join the union. a distinct
+// method-module per row attributes each head form; rows probe uniquely-attributable STATICS -
+// an instance method would inject from the bare constructor value-read alone, vacuously
 let M = Object;
 for (M of [Array]) { break; }
 M.from([1]);
@@ -26,8 +27,8 @@ fa();
 
 // a NESTED pattern head pairs through inner slots too
 let Z = Object;
-for ([{ z: Z }] of [[{ z: Set }]]) { break; }
-Z.union(other2);
+for ([{ z: Z }] of [[{ z: Promise }]]) { break; }
+Z.try(() => 1);
 
 // multi-element positional heads pair each name to its own slot
 let A3 = Object, B3 = Object;
@@ -43,8 +44,8 @@ D.for('k');
 // sequence wrappers are value-transparent: the iterable and each element peel to their
 // tails, the prefix effects stay verbatim in source
 let T1 = Object;
-for (T1 of (eff(), [WeakMap])) { break; }
-T1.getOrInsert(k, v);
+for (T1 of (eff(), [Promise])) { break; }
+T1.withResolvers();
 
 let T2 = Object;
 for (T2 of [(eff(), Reflect)]) { break; }
