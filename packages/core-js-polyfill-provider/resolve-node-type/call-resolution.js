@@ -34,7 +34,8 @@
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
-import { isUnionType, matchOverloadByArgs, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import { collectQualifiedSegments, isUnionType, matchOverloadByArgs, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, isCleanDestructureAliasBinding } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -54,6 +55,7 @@ export function createCallResolution({
   resolveReturnType,
   foldOverloadReturns,
   findAmbientFunctionPaths,
+  findOverloadsForName,
   resolveFromMemberExpression,
   resolveKnownStaticReturnType,
   resolveStaticReturnFromHint,
@@ -101,7 +103,20 @@ export function createCallResolution({
     }
     // direct call: foo() / IIFE: (() => expr)() / ambient TSDeclareFunction follow-through
     const resolved = resolveRuntimeExpression(callee);
-    if (isFunctionLike(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
+    if (isFunctionLike(resolved.node)) {
+      // an ambient head may have overload SIBLINGS - a lone head's return must not
+      // short-circuit (it narrows a call TS routes to another arm; the estree adapter
+      // binds ambient names and resolves them to ONE head, where babel leaves the bare
+      // Identifier and reaches the by-name fold below). re-route ambient heads through
+      // the fold - a single-head set resolves to the same return through it
+      if (isAmbientFunctionNode(resolved.node)) {
+        const headName = resolved.node.id?.name;
+        const ambient = headName
+          ? resolveAmbientFunctionReturn(headName, resolved.scope ?? callee.scope, callee.parentPath) : undefined;
+        if (ambient !== undefined) return ambient;
+      }
+      return resolveReturnType(resolved, callee.parentPath);
+    }
     // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
     // aliased static-method call. probe callee user-facing name first (injector alias
@@ -283,9 +298,12 @@ export function createCallResolution({
     if (annotation?.type === 'TSTypeQuery') {
       // a CALL through an aliased `typeof fn` arg-discriminates the overload set like a
       // direct call (shared fold); the type-level rightmost-overload rule (`ReturnType<
-      // typeof fn>`) stays on resolveReturnTypeFromTypeQuery for everything else
-      const queryName = annotation.exprName?.type === 'Identifier' ? annotation.exprName.name : null;
-      const overloads = queryName ? findAmbientFunctionPaths(queryName, info.scope) : [];
+      // typeof fn>`) stays on resolveReturnTypeFromTypeQuery for everything else.
+      // the segments channel serves bare AND qualified names (`typeof NS.fn`) alike -
+      // gating on bare Identifiers dropped the qualified set here, mis-resolving the call
+      // to the rightmost overload with the args ignored
+      const segments = collectQualifiedSegments(annotation.exprName);
+      const overloads = segments ? findOverloadsForName(segments, info.scope) : [];
       if (overloads.length >= 2) {
         return foldOverloadReturns(overloads, o => o.node.params,
           o => resolveReturnType(o, callee.parentPath), o => o.node.returnType, callee.parentPath);
@@ -513,11 +531,13 @@ export function createCallResolution({
     if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
       let fnPath = resolveRuntimeExpression(path.get('callee'));
       // ambient `declare function f<T>(...): R` - babel doesn't bind the name, so
-      // resolveRuntimeExpression returns the bare Identifier. fall back to ambient lookup
-      // (mirrors `resolveCallReturnType`'s ambient branch) so call-return annotations on
-      // ambient generic fns get the same call-site subst as runtime fns
-      if (t.isIdentifier(fnPath.node) && !isFunctionLike(fnPath.node)) {
-        const ambients = findAmbientFunctionPaths(fnPath.node.name, fnPath.scope);
+      // resolveRuntimeExpression returns the bare Identifier; the estree adapter binds it
+      // and hands back ONE head of a possibly-overloaded ambient set. both shapes consult
+      // the full by-name set - single-selecting a lone head bypasses arg-discrimination
+      const ambientCalleeName = t.isIdentifier(fnPath.node) && !isFunctionLike(fnPath.node) ? fnPath.node.name
+        : isAmbientFunctionNode(fnPath.node) ? fnPath.node.id?.name : null;
+      if (ambientCalleeName) {
+        const ambients = findAmbientFunctionPaths(ambientCalleeName, fnPath.scope);
         // an OVERLOADED ambient set in this annotation domain (single nodes, no fold):
         // arg-match ONE overload or bail to generic - the first head's return narrowed a
         // call TS routes to a later overload (`pick(0).m` off a divergent pair)
