@@ -403,7 +403,10 @@ export function createTypeAnnotationResolve({
         valueAnnotations.push(m);
         continue;
       }
-      const annotation = m.typeAnnotation ?? m.returnType;
+      // canonical member-value read: an oxc class-getter nests its return type under `value`
+      // (`m.value.returnType`), mirroring call-resolution.js - without the third slot the getter
+      // resolves null and the value-union bails
+      const annotation = m.typeAnnotation ?? m.returnType ?? m.value?.returnType;
       // an untyped (implicit-any) member makes `T[keyof T]` include `any`, which absorbs the
       // whole union - a narrow to the surviving typed members would be unsound
       if (!annotation) return null;
