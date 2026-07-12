@@ -19,6 +19,7 @@
 import { MAX_DEPTH, $Object } from './base.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName } from '../helpers/class-walk.js';
 import {
+  arrayWrapSlotBindsName,
   isTopLevelThisContext,
   getSuperTypeArgs,
   isAmbientBindingShape,
@@ -147,16 +148,28 @@ export function createGlobalResolve({
   // the ObjectPattern + init through `walkStaticReceiverChain` so the leaf identifier
   // resolves to the source proxy-global's named entry. without this, downstream
   // `Array.from(...)` loses its return-type narrow because `Array` shows a local binding and
-  // `resolveAliasedGlobalName` bails at `followableVarInit` on ObjectPattern ids
+  // `resolveAliasedGlobalName` bails at `followableVarInit` on ObjectPattern ids. array-wrap slot
+  // location (`arrayWrapSlotBindsName`) is shared with the class-walk symbol-alias chain-follow
   function resolveDestructuredGlobalName(path) {
     const binding = getScopeBinding(path.scope, path.node.name, path);
     const declarator = binding?.path?.node;
     if (!declarator || binding.constantViolations?.length || !t.isVariableDeclarator(declarator)) return null;
-    if (declarator.id?.type !== 'ObjectPattern' || !declarator.init) return null;
-    const keyPath = objectPatternLiteralKeyPath(declarator.id, path.node.name);
+    let { id, init } = declarator;
+    if (!init) return null;
+    // peel array-wrap layers (`const [{ Array: A }] = [globalThis]`): each ArrayPattern element binds
+    // the init element at the SAME index, so descend positionally to the inner ObjectPattern + init
+    // element (mirrors the usage-side resolveArrayWrappedProxyGlobalAlias) so the leaf still resolves
+    while (id?.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
+      const idx = id.elements.findIndex(el => el && arrayWrapSlotBindsName(el, path.node.name));
+      if (idx === -1 || !init.elements[idx] || init.elements[idx].type === 'SpreadElement') return null;
+      id = id.elements[idx].type === 'AssignmentPattern' ? id.elements[idx].left : id.elements[idx];
+      init = init.elements[idx];
+    }
+    if (id?.type !== 'ObjectPattern') return null;
+    const keyPath = objectPatternLiteralKeyPath(id, path.node.name);
     if (!keyPath?.length) return null;
     return walkStaticReceiverChain({
-      receiverNode: declarator.init,
+      receiverNode: init,
       walkPath: keyPath,
       scope: binding.scope ?? binding.path.scope ?? path.scope,
       adapter: babelBindingAdapter,
