@@ -502,6 +502,10 @@ export default function createSynthSwapEmitter({
         // keys read the memo instead of re-running the call per read
         const needMemo = pending.callBranch
           && buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills).some(entry => !entry.polyfill);
+        // the memo param is minted via babel's scope UID generator ON PURPOSE: the injector's
+        // `_ref` generator registers names in its ref-set, and the arrow-param normalize
+        // post-pass strips trailing ref-set params from every function expression - it would
+        // relocate this INTENTIONAL IIFE param to a body `var`, unbinding the memo argument
         const memoParam = needMemo ? path.scope.generateUidIdentifier('ref') : null;
         const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
         const literal = buildSynthLiteral(path.node, pending, memoParam, aliasCtx);
