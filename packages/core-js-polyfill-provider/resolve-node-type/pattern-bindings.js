@@ -726,7 +726,12 @@ export function createPatternBindings({
       const binding = getScopeBinding(scope, fnName, anchor);
       if (!binding || binding.constantViolations?.length) return false;
       if (isExportedFunction(fnPath, fnName)) return false;
-      for (const ref of collectBindingReferences(binding, anchor) ?? []) {
+      // a NULL reference set means the callers could not be enumerated, not that there are none;
+      // treating unknown-references as proof-of-absence would let the default narrow the param over
+      // a foreign-typed call arg (bias-unsafe) - bail rather than claim "never overridden"
+      const refs = collectBindingReferences(binding, anchor);
+      if (refs === null) return false;
+      for (const ref of refs) {
         const callNode = ref.parentPath?.node;
         if ((callNode?.type !== 'CallExpression' && callNode?.type !== 'OptionalCallExpression')
           || callNode.callee !== ref.node) return false;

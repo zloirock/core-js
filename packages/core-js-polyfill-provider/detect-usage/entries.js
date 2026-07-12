@@ -41,6 +41,10 @@ function importExpressionSource(node, adapter) {
 // `require` (looked up via `scope` / `adapter`) is ignored. shared by `getEntrySource` (statement
 // form) and `scanExistingCoreJSImports` (the `var X = require(...)` pure-import shape)
 function requireCallSource(node, adapter, scope) {
+  // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
+  // wrappers at the top so the type-gate sees the (Optional)CallExpression instead of rejecting it
+  // and re-emitting a duplicate import for an already-provided module
+  node = unwrapTransparentSeq(node);
   if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
     || node.arguments?.length !== 1) return null;
   let callee = unwrapTransparentSeq(node.callee);
