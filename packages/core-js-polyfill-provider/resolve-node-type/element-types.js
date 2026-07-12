@@ -80,7 +80,7 @@ export function createElementTypes({
             const resolved = resolveTypeAnnotation(member, scope, depth + 1);
             if (!resolved) return null;
             if (isNullableOrNever(resolved)) continue;
-            const elemType = resolveElementType(member, scope, depth + 1);
+            const elemType = resolveElementType(member, scope, depth + 1, seen);
             if (!elemType) return null;
             result = commonType(result, elemType);
             if (!result) return null;
@@ -89,7 +89,7 @@ export function createElementTypes({
         }
         // transparent wrappers: readonly T[], (T[])
         case 'TSTypeOperator':
-          return node.operator !== 'keyof' ? resolveElementType(node.typeAnnotation, scope, depth + 1) : null;
+          return node.operator !== 'keyof' ? resolveElementType(node.typeAnnotation, scope, depth + 1, seen) : null;
         case 'TSOptionalType':
         case 'TSParenthesizedType':
         case 'NullableTypeAnnotation':
@@ -159,7 +159,7 @@ export function createElementTypes({
           return resolveUserTypeElement({ name, typeArgs: params, scope, depth, resolver: extractElementAnnotation, seen });
         }
         case 'TSTypeOperator':
-          return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
+          return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1, seen) : null;
         case 'TSOptionalType':
         case 'TSParenthesizedType':
         case 'NullableTypeAnnotation':
@@ -176,7 +176,7 @@ export function createElementTypes({
             if (!resolved) return null;
             if (isNullableOrNever(resolved)) continue;
             if (result) return null; // multiple non-null collection members -> ambiguous
-            result = extractElementAnnotation(member, scope, depth + 1);
+            result = extractElementAnnotation(member, scope, depth + 1, seen);
             if (!result) return null;
           }
           return result;
