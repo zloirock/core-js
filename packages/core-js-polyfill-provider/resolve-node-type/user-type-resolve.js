@@ -281,8 +281,14 @@ export function createUserTypeResolve({
       // Object is correct, the receiver is a known object) from an UNKNOWABLE base (no class decl -
       // opaque import / value-position name) which could be Array / a typed-array, where masquerading
       // as Object would suppress the polyfill -> bail to null (same as `!superName`)
-      return findDeclPathBySegments(superName.split('.'), scope, isClassLikeDeclaration)
-        ? new $Object('Object') : null;
+      const baseDeclPath = findDeclPathBySegments(superName.split('.'), scope, isClassLikeDeclaration);
+      if (!baseDeclPath) return null;
+      // the base resolves to a LOCAL class decl, but its own extends-walk above returned null: a
+      // base-LESS class is a genuine plain Object; a class WITH heritage is TRANSITIVELY unknowable
+      // (its super did not resolve to a container) and must propagate null, else masquerading it as
+      // Object suppresses the subclass polyfill while the base's own receiver correctly gets it
+      const baseDecl = baseDeclPath.node ?? baseDeclPath;
+      return (baseDecl.superClass ?? baseDecl.extends?.[0]) ? null : new $Object('Object');
     }
     return null;
   }
