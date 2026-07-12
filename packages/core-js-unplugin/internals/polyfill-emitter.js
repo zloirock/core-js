@@ -1491,18 +1491,29 @@ export function createPolyfillEmitter({
     // (`const k = 'flat'; arr[k]?.()`); a truly dynamic key bails to the standalone path
     let innerKeySE = [];
     let innerMethodName;
+    // a non-poly computed inner (`arr['a-b']?.()`) re-emits its member-get from the VERBATIM
+    // key source, not the resolved name: `arr.a-b` would reparse as subtraction / an invalid
+    // identifier. keep the peeled key-tail text so the non-poly method-get stays a bracket read
+    let innerKeyTailSrc = null;
     if (callee.computed) {
       const innerKeyTail = peelNestedSequenceExpressions(callee.property).tail;
       innerMethodName = resolveKey({
         node: innerKeyTail, computed: true, scope: currentPath.scope, adapter: estreeAdapter, path: currentPath,
       });
-      if (innerMethodName === null) return null;
+      // a numeric (`arr[0]`) / dynamic (`arr[x]`) computed key resolves to no method NAME: the
+      // inner is definitively non-poly (an index / dynamic access can't be a polyfillable method),
+      // so it combines as a non-poly inner with its VERBATIM key source, matching babel. bailing
+      // here stranded 2+ trailing polys as overlapping standalone transforms (a composition crash);
+      // a single trailing poly still falls to the standalone path via the non-poly guard below
+      innerKeyTailSrc = code.slice(innerKeyTail.start, innerKeyTail.end);
       innerKeySE = collectFoldedReceiverSideEffects(callee.property);
     } else if (callee.property?.type === 'Identifier') {
       innerMethodName = callee.property.name;
     } else return null;
-    const meta = { kind: 'property', object: null, key: innerMethodName, placement: 'prototype' };
-    const { result } = resolvePureOrGlobalFallback(meta, currentPath.get('callee'));
+    // a null key (numeric / dynamic computed) is non-poly by construction - skip the resolve
+    const { result } = innerMethodName === null ? { result: null }
+      : resolvePureOrGlobalFallback(
+        { kind: 'property', object: null, key: innerMethodName, placement: 'prototype' }, currentPath.get('callee'));
     if (result && result.kind !== 'instance') return null;
     // a `super.X?.()` chainStart is NOT polyfilled (the parent's method is used via `_ref.call(this)`,
     // mirroring the standalone super-call path): treat it as a non-poly inner so the combine memoizes
@@ -1539,7 +1550,10 @@ export function createPolyfillEmitter({
       || isPolyfillableOptional({
         node: current, scope: metaPath.scope, adapter: estreeAdapter, resolve: resolveBuiltIn, mutatedSet: mutatedStatics,
       }))) return null;
-    return { chainStart: current, innerCallee: callee, innerResult: effectiveResult, hops, innerKeySE, innerMethodName };
+    return {
+      chainStart: current, innerCallee: callee, innerResult: effectiveResult, hops, innerKeySE,
+      innerMethodName, innerComputed: callee.computed, innerKeyTailSrc,
+    };
   }
 
   // mark every intermediate hop between the outer callee's receiver and `chainStart` as
@@ -1650,7 +1664,10 @@ export function createPolyfillEmitter({
   }
 
   function replaceInstanceChainCombined({ outerBinding, node, parent, metaPath, chain, sideEffects }) {
-    const { chainStart, innerCallee, innerResult, hops, innerKeySE = [], innerMethodName } = chain;
+    const {
+      chainStart, innerCallee, innerResult, hops, innerKeySE = [], innerMethodName,
+      innerComputed = false, innerKeyTailSrc = null,
+    } = chain;
     // `super.m?.()` chainStart: memoize the method-GET `super.m` (assignable) instead of the receiver
     // `super` (not a primary expression - `_ref = super` is invalid JS), and call it with `this`
     // (`_ref.call(this)`). the super method itself is left native (not polyfilled), mirroring the
@@ -1673,13 +1690,23 @@ export function createPolyfillEmitter({
       // evaluates before the computed key, so emit `(aRef = receiver, keySE, _binding(aRef))` rather
       // than `(keySE, _binding(aRef = receiver))`. without a key SE the order is unobservable, so the
       // embedded form is kept (matches babel, no churn). aRef resolves at call time (set below)
+      // non-poly member-get. a NON-computed key spells its Identifier name as a dot. a computed
+      // key never rebuilds from the resolved name (`arg.a-b` reparses as subtraction): with no
+      // key side effect the VERBATIM computed source is reused (`['from']` / `['a-b']` / `[k]`),
+      // matching babel exactly. a FOLDED key SE lifts the effect out, so only the resolved tail
+      // remains - a bare identifier collapses to dot (babel-parity), else it keeps a bracket read
+      function rawMemberGet(recv) {
+        if (!innerComputed) return `${ recv }.${ innerMethodName }`;
+        if (!innerKeySE.length) return `${ recv }${ code.slice(innerCallee.object.end, innerCallee.end) }`;
+        return isBareIdentifier(innerMethodName) ? `${ recv }.${ innerMethodName }` : `${ recv }[${ innerKeyTailSrc }]`;
+      }
       if (innerKeySE.length && arg !== aRef) {
-        const core = innerBinding ? `${ innerBinding }(${ aRef })` : `${ aRef }.${ innerMethodName }`;
+        const core = innerBinding ? `${ innerBinding }(${ aRef })` : rawMemberGet(aRef);
         return `(${ arg }, ${ innerKeySE.map(nodeSrc).join(', ') }, ${ core })`;
       }
       const core = innerBinding
         ? `${ innerBinding }(${ arg })`
-        : `${ arg.includes('=') ? `(${ arg })` : arg }.${ innerMethodName }`;
+        : rawMemberGet(arg.includes('=') ? `(${ arg })` : arg);
       return innerKeySE.length ? `(${ innerKeySE.map(nodeSrc).join(', ') }, ${ core })` : core;
     }
     // resolve the receiver to substituted text BEFORE template construction: the OR-chain
