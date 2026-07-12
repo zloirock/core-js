@@ -4604,6 +4604,27 @@ function checkUsageGlobalIndirectRequirePrefixBody() {
 }
 checkUsageGlobalIndirectRequirePrefixBody();
 
+// the phantom-violation filter returns ONE stable stand-in per native binding: identity
+// consumers (per-binding lookup caches, closure Sets, classification Maps) key by object
+// identity, and a fresh copy per call silently dropped their recorded writes
+function checkPhantomFilterIdentity() {
+  const src = 'for (let o = { data: [1, 2] }; cond;) { o.data = "s"; o.data.at(0); break; }';
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync('/pfi.js', src, { sourceType: 'module' });
+  let binding = null;
+  traverse(parsed.program, {
+    $: { scope: true },
+    Identifier(path) {
+      if (!binding && path.node.name === 'o') binding = path.scope.getBinding('o');
+    },
+  });
+  check('phantom-filter/binding found with violations', !!binding && !!binding.constantViolations?.length, true);
+  const a = withoutPhantomDeclarationViolations(binding);
+  const b = withoutPhantomDeclarationViolations(binding);
+  check('phantom-filter/stable identity across calls', a === b, true);
+}
+checkPhantomFilterIdentity();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');

@@ -144,10 +144,6 @@ function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
   return false;
 }
 
-// canonical definition lives in `ast-patterns.js` next to the other violation utilities;
-// re-export keeps this module's consumers on their import path
-export { withoutValuelessDeclarationViolations } from './ast-patterns.js';
-
 // shared shadow guard for a `registerGlobalAlias` destructure-alias (`info.source === null`): the binding
 // must be an un-reassigned VariableDeclarator whose init resolves to the destructured global. used by both
 // plugin adapters (babel mutates the init in place, unplugin keeps the source init) so a proxy-global alias
