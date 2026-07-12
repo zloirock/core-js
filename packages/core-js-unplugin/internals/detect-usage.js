@@ -28,8 +28,8 @@ import {
   collectFunctionScopeVarReassignments,
   collectScopeLetReassignments,
   findFunctionScopeVarInPath,
-  findIifeArgForParam,
   findIifeCallSite,
+  resolveFallbackReceiver,
   findTSRuntimeBindingInPath,
   getTypeArgs,
   isASTNode,
@@ -885,6 +885,11 @@ export function createUsageVisitors({
 
     let initNode;
     const scope = parent.scope || objectPattern.scope;
+    // a call-site-sourced receiver (IIFE arg) evaluates AT THE CALL SITE: when the arg wins,
+    // the resolution scope/path must be the call site's - the invoked function's inner scope
+    // would let a param shadowing the arg's name swallow the receiver
+    let initScope = null;
+    let initPath = null;
     // nested patterns leave `initNode` undefined -> typeless meta (`object: null`)
     switch (parent.node.type) {
       case 'VariableDeclarator': initNode = parent.node.init; break;
@@ -902,7 +907,8 @@ export function createUsageVisitors({
         // inner default (`f([{from}={}] = [R])`) carries `{}` in `.right`, not the receiver - it falls
         // through to the array/property inner-default cases below, which peel it to the real host
         if (isFunctionParamDestructureParent(objectPattern) && !isInnerDestructureDefault(parent)) {
-          const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
+          const desc = resolveFallbackReceiver(parent, parent.node);
+          const argNode = desc?.callPath ? unwrapSafeSequenceTail(desc.rhsNode) : null;
           // caller-arg wins over the default when it is a usable fallback receiver (classifiable, or a
           // conditional / logical enumerated per-branch), OR a safe-access proxy-global member-expr whose
           // default is a polyfill dead-end; a non-receiver arg (notably `undefined`, where the runtime
@@ -910,6 +916,10 @@ export function createUsageVisitors({
           initNode = chooseFallbackReceiverNode({
             argNode, defaultNode: parent.node.right, objectPattern: objectPattern.node, scope, adapter, path: parent, resolvePure,
           });
+          if (argNode && initNode === argNode) {
+            initScope = desc.callPath.scope;
+            initPath = desc.callPath;
+          }
           break;
         }
         // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
@@ -976,12 +986,14 @@ export function createUsageVisitors({
         // named by the key, usage-pure can't resolve the receiver and bails. bailing here instead
         // dropped the global injection (import-set divergence vs babel)
         initNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
+        initScope = site.callPath.scope;
+        initPath = site.callPath;
       }
     }
 
     const key = extractPropertyKey(propNode, scope);
     if (!key) return null;
-    return buildDestructuringInitMeta({ initNode, key, scope, adapter, path: parent });
+    return buildDestructuringInitMeta({ initNode, key, scope: initScope ?? scope, adapter, path: initPath ?? parent });
   }
 
   function annotationGlobal(path) {
@@ -1086,7 +1098,7 @@ export function createUsageVisitors({
     // usage-global reachable receiver / key union: each extra destructure target earns a
     // side-effect import beside the primary, mirroring the member funnel
     for (const extra of collectDestructureUnionCandidates({
-      meta, keyNode, computed, scope, adapter, path,
+      meta, keyNode, computed, scope, adapter, path, resolvePure,
     })) onUsage(extra, path);
   }
 
