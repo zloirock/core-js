@@ -41,10 +41,10 @@ import {
   resolveCallArgument,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
+  withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding,
-  withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
