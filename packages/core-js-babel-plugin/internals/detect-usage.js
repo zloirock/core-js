@@ -27,8 +27,8 @@ import {
   collectFunctionScopeVarReassignments,
   collectScopeLetReassignments,
   findFunctionScopeVarInPath,
-  findIifeArgForParam,
   findIifeCallSite,
+  resolveFallbackReceiver,
   findTSRuntimeBindingInPath,
   isAmbientBindingShape,
   isAssignOrForXWriteTargetPath,
@@ -583,7 +583,7 @@ export function createUsageVisitors({
     // usage-global reachable receiver / key union: each extra destructure target earns a
     // side-effect import beside the primary, mirroring the member funnel
     for (const extra of collectDestructureUnionCandidates({
-      meta, keyNode, computed, scope, adapter, path,
+      meta, keyNode, computed, scope, adapter, path, resolvePure,
     })) onUsage(extra, path);
   }
 
@@ -605,6 +605,26 @@ export function createUsageVisitors({
       : { kind: 'property', object: null, key: innerKey, placement: null }, path);
   }
 
+  // `function({ from } = Array)` - AssignmentPattern wraps the param; the default expression
+  // is the receiver the destructure targets when the arg is omitted. for an IIFE with a
+  // statically-classifiable caller-arg (`(({from} = Array) => ...)(Set)`) the wrapper-default
+  // is dead code at runtime - resolve against the caller-arg instead; the shared chooser keeps
+  // the default for non-receiver args (notably `undefined`). the winning call-arg evaluates
+  // AT THE CALL SITE - resolve it against the call-site scope, not the invoked function's
+  // inner scope (a param shadowing the arg's name would swallow the receiver)
+  function emitIifeParamDefaultDestructure(path, parent) {
+    const key = resolveKey(path.get('key'), path.node.computed);
+    if (!key) return;
+    const desc = resolveFallbackReceiver(parent, parent.node);
+    const argNode = desc?.callPath ? unwrapSafeSequenceTail(desc.rhsNode) : null;
+    const receiverNode = chooseFallbackReceiverNode({
+      argNode, defaultNode: parent.node.right, objectPattern: parent.node.left, scope: parent.scope, adapter, path, resolvePure,
+    });
+    const receiverScope = argNode && receiverNode === argNode ? desc.callPath.scope : parent.scope;
+    const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: receiverScope, adapter, path });
+    if (meta) emitPropUsage(meta, path);
+  }
+
   function handleDestructuring(path) {
     const objectPattern = path.parentPath;
     if (!objectPattern.isObjectPattern()) return;
@@ -621,28 +641,7 @@ export function createUsageVisitors({
       initPath = parent.get('right');
     } else if (parent.isAssignmentPattern() && isFunctionParamDestructureParent(objectPattern)
       && !isInnerDestructureDefault(parent)) {
-      // `function({ from } = Array)` - AssignmentPattern wraps the param; the default
-      // expression is the receiver that our destructure targets when the arg is omitted.
-      // for IIFE with statically-classifiable caller-arg (`(({from} = Array) => ...)(Set)`),
-      // wrapper-default is dead code at runtime - resolve against caller-arg instead.
-      // peel SE-tail / paren / TS wrappers off the caller-arg first (`(0, Array)` / `(Array)` ->
-      // `Array`) so a wrapped bare global classifies - matches the synth-swap emit path, which
-      // already peels via the same helper (without this, detect resolves against the dead default).
-      // genuinely non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) stay un-classifiable,
-      // so wrapper-default keeps the static receiver context and the runtime fallback carries it
-      const key = resolveKey(path.get('key'), path.node.computed);
-      if (!key) return;
-      const argNode = unwrapSafeSequenceTail(findIifeArgForParam(parent.parentPath, parent.node));
-      // caller-arg wins over the default when it is a usable fallback receiver (classifiable, or a
-      // conditional / logical enumerated per-branch), OR a safe-access proxy-global member-expr whose
-      // default is a polyfill dead-end; a non-receiver arg (notably `undefined`, where the runtime
-      // applies the default) keeps the default. single-sourced chooser shared with unplugin + the emitters
-      const receiverNode = chooseFallbackReceiverNode({
-        argNode, defaultNode: parent.node.right, objectPattern: parent.node.left, scope: parent.scope, adapter, path, resolvePure,
-      });
-      const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: parent.scope, adapter, path });
-      if (meta) emitPropUsage(meta, path);
-      return;
+      return emitIifeParamDefaultDestructure(path, parent);
     } else if (parent.isAssignmentPattern() && parent.parentPath?.isObjectProperty()
       && parent.node.left === objectPattern.node) {
       // nested destructure with inner-default: `{ Array: { from } = {} } = X` - AssignmentPattern
