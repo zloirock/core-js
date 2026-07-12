@@ -226,16 +226,26 @@ function isPhantomDeclarationViolation(violation, binding) {
   if (!decl || decl.id !== violation.node) return false;
   return decl === binding?.path?.node || !!namespaceScopedBindingBlock({ path: declPath });
 }
+// one FILTERED stand-in per native binding: every identity consumer downstream (the
+// resolver's per-binding lookup cache, closure membership Sets, per-binding classification
+// Maps) keys by object identity, so a fresh copy per call would silently miss them all -
+// dropping recorded writes from the analyses those consumers feed. violations are stable
+// after the scope crawl, so the memoized copy never goes stale within a file
+const phantomFilteredBindings = new WeakMap();
 export function withoutPhantomDeclarationViolations(binding) {
   const violations = binding.constantViolations;
   if (!violations?.length) return binding;
+  const cached = phantomFilteredBindings.get(binding);
+  if (cached) return cached;
   const real = violations.filter(v => !isPhantomDeclarationViolation(v, binding));
   if (real.length === violations.length) return binding;
   // spread copies the binding's OWN props (`path` / `scope` / `kind`) so a resolver consumer can
   // re-spread (`{ ...binding, constantViolations: combined }`) without losing them. carry
   // `constant` explicitly - it is a prototype getter on the estree Binding (not copied by spread)
   // and `constantBindingPath` reads it
-  return { ...binding, constantViolations: real, constant: real.length === 0 };
+  const filtered = { ...binding, constantViolations: real, constant: real.length === 0 };
+  phantomFilteredBindings.set(binding, filtered);
+  return filtered;
 }
 
 // shared tail of every "no authoritative native binding" branch below: a TS-runtime
