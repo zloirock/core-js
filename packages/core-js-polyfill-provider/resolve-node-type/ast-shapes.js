@@ -11,6 +11,19 @@ import { getTypeArgs, isDeferredContextStep } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 import { literalNodeValue, PRIMITIVE_HINTS } from './base.js';
 
+// statement list directly inside a TSModuleDeclaration. for Babel's nested form
+// (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
+// so a recursive walk can match its name. for oxc's flat form (id = TSQualifiedName)
+// the body is a TSModuleBlock and we return its statements directly. null when the body is
+// neither (a bare `declare namespace X;` header). the nested case being a NON-array object
+// (a TSModuleBlock reached through the inner declaration) is the trap a bare `body.body`
+// access falls into - a for-of over it throws, aborting the whole file transform
+export function moduleStatements(decl) {
+  const body = decl?.body;
+  if (body?.type === 'TSModuleDeclaration') return [body];
+  return Array.isArray(body?.body) ? body.body : null;
+}
+
 // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
 // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
 // reference uses a non-identifier head (e.g. an `import("...").Type` form)
