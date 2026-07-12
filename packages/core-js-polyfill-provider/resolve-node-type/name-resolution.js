@@ -40,7 +40,10 @@ function isGlobalAugmentation(decl) {
 // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass.
 // module-level functions so `ambientDeclCache` keys by identity stay stable across calls
 export function isAmbientFunctionNode(node) {
-  return node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction';
+  // estree/oxc parses `declare function` as FunctionDeclaration { declare: true } - the
+  // function twin of the ClassDeclaration shape below; babel uses TSDeclareFunction
+  return node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction'
+    || (node?.type === 'FunctionDeclaration' && node.declare === true);
 }
 export function isAmbientClassNode(node) {
   return node?.type === 'DeclareClass'
