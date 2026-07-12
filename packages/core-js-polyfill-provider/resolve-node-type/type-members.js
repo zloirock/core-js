@@ -132,6 +132,12 @@ export function createTypeMembers({
     if (objectType.type === 'TSParenthesizedType') {
       return getTypeMembers({ objectType: peelTSParenthesized(objectType), scope, depth: depth + 1, visited });
     }
+    // a synthetic TSOptionalType (from `withOptional` on an optional member `a?: T`) carries the
+    // undefined possibility, but its MEMBERS are the inner type's - a multi-hop re-feed that leaves
+    // the wrapper in place bottoms out to null here and the whole chain bails (-> over-inject)
+    if (objectType.type === 'TSOptionalType') {
+      return getTypeMembers({ objectType: objectType.typeAnnotation, scope, depth: depth + 1, visited });
+    }
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
     // both TS `T[K]` and Flow `T[K]` (IndexedAccessType) route through the same resolver
