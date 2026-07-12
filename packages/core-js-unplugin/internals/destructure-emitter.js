@@ -399,10 +399,12 @@ export function createDestructureEmitter({
     const assignNode = assignPath?.node;
     if (!assignNode || assignNode.operator !== '=') return false;
     // peel transparent wrappers between AssignmentExpression and ExpressionStatement so
-    // `({...} = G)` (oxc parens), `({...} = G) as any` (TS cast), `({...} = G)?.x` (chain)
-    // and minifier output `(0, ({...} = G))` (SequenceExpression with the AE as TAIL)
-    // all reach the cascade. shared helper handles the SE-tail check and accumulates the
-    // SE's leading expressions so the cascade can re-emit them as side-effect siblings
+    // `({...} = G)` (oxc parens), `({...} = G) as any` (TS cast) and minifier output
+    // `(0, ({...} = G))` (SequenceExpression with the AE as TAIL) all reach the cascade;
+    // an optional-chain host `({...} = G)?.x` is NOT peeled (ChainExpression carries
+    // short-circuit semantics) and bails to native. shared helper handles the SE-tail check
+    // and accumulates the SE's leading expressions so the cascade can re-emit them as
+    // side-effect siblings
     const peeled = peelToExpressionStatement(assignPath);
     if (!peeled) return false;
     // already-flattened statement: per-prop visitor re-entry for sibling polyfills is a

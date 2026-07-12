@@ -651,7 +651,14 @@ export function createClassFields({
       if (node.type === 'ObjectMethod') return node.computed ? [p.get('key')] : [];
       if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
         const out = node.superClass ? [p.get('superClass')] : [];
-        for (const member of p.get('body').get('body')) if (member.node?.computed) out.push(member.get('key'));
+        // decorators (class-level and member-level) evaluate in the enclosing scope with
+        // the OUTER `this`, exactly like heritage and computed keys (parameter decorators
+        // are out of surface - see the param-decorator note in the false-positive registry)
+        if (node.decorators?.length) out.push(...p.get('decorators'));
+        for (const member of p.get('body').get('body')) {
+          if (member.node?.decorators?.length) out.push(...member.get('decorators'));
+          if (member.node?.computed) out.push(member.get('key'));
+        }
         return out;
       }
       return [];
@@ -671,6 +678,14 @@ export function createClassFields({
     };
     for (const path of methodPaths) {
       if (!path?.node) continue;
+      // a CLASS-valued field initializer rebinds `this` inside its body (a class has a
+      // `.body` slot, so the function-like unwrap below would wrongly descend INTO the
+      // inner ClassBody, bypassing the class-skip visitor). only its heritage / computed
+      // keys evaluate with the owner's `this` - same rule as a class met mid-scan
+      if (path.node.type === 'ClassDeclaration' || path.node.type === 'ClassExpression') {
+        for (const keyPath of outerThisKeyPaths(path)) scanForThisWrites(keyPath);
+        continue;
+      }
       // function-like roots scan their body; a StaticBlock or a raw non-fn field
       // initializer value (no `.body` slot) scans as-is
       scanForThisWrites(path.node.type === 'StaticBlock' || !path.node.body ? path : path.get('body'));
