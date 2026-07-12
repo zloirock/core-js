@@ -205,7 +205,8 @@ export function createNarrowByGuards({
     }
     // early-exit invalidation: only the NEAREST guard to usage matters - closer guards
     // re-narrow independently. mutation windows: intermediate sibling bodies between
-    // nearest and current, prefix of current's own sibling, and (c) nearest guard's test slot
+    // nearest and current, prefix of current's own sibling, the nearest guard's test slot,
+    // and the nearest guard's NON-exiting (fall-through) branch body
     function earlyExitInvalidates(current, siblings) {
       let nearestIdx = -1;
       for (let i = current.key - 1; i >= 0; i--) {
