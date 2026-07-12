@@ -41,7 +41,9 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
       return node.body.some(stmt => alwaysExitsWithKind(stmt, depth + 1, exitTypes, blockedLabels));
     }
     if (node.type === 'IfStatement') {
-      return node.alternate
+      // both arms must exit for the `if` to always exit; a missing `else` cannot -> return a real
+      // boolean, not the nullish `node.alternate` (this helper's contract is boolean)
+      return Boolean(node.alternate)
         && alwaysExitsWithKind(node.consequent, depth + 1, exitTypes, blockedLabels)
         && alwaysExitsWithKind(node.alternate, depth + 1, exitTypes, blockedLabels);
     }

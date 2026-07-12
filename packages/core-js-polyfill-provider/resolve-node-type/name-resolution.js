@@ -224,7 +224,7 @@ export function createNameResolution({ t }) {
   }
 
   function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration, visited = new Set() }) {
-    if (!Array.isArray(statements) || !segments.length) return null;
+    if (!Array.isArray(statements) || !Array.isArray(segments) || !segments.length) return null;
     // hot path: single-segment first-match resolves through the O(1) per-statement-list index
     if (segments.length === 1 && !collect) return statementDeclIndex(statements, leafMatch).get(segments[0]) ?? null;
     const [head, ...rest] = segments;

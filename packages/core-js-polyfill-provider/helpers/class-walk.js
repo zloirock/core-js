@@ -4,8 +4,10 @@ import {
   FUNCTION_LIKE_NODE_TYPES,
   isMutatedGlobalSlot,
   POSSIBLE_GLOBAL_OBJECTS,
+  arrayWrapSlotBindsName,
   isVarScopeBoundary,
   memberKeyName,
+  objectPatternLiteralKeyPath,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
   SKIPPABLE_WRAPPER_TYPES,
@@ -514,10 +516,11 @@ export function registerDeclAliasIfSound({ injector, kind, localName, hint, stmt
 // does the destructure RHS resolve to the Symbol constructor SPECIFICALLY? `aliasInitResolvesToGlobal`
 // pinned to Symbol - accepts a bare `Symbol`, a proxy-global `globalThis.Symbol`, babel's rewritten
 // `_Symbol`, and the defaulted-ternary form; rejects any other object
-function aliasInitResolvesToSymbol(node, scope, adapter, injector) {
+function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured) {
   if (!node) return false;
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
-    return branchingInitResolves(node, scope, adapter, branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector));
+    return branchingInitResolves(node, scope, adapter,
+      branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector, seen, followDestructured));
   }
   const peeled = peelProxyGlobalObject(node);
   if (peeled?.type === 'Identifier') {
@@ -525,9 +528,60 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector) {
     // redirects the read to the user object, and folding its keys as well-known symbols
     // would substitute the wrong VALUE
     if (peeled.name === 'Symbol') return !adapter?.hasBinding?.(scope, 'Symbol');
-    return injector?.getPureImport(peeled.name)?.hint === 'Symbol';
+    if (injector?.getPureImport(peeled.name)?.hint === 'Symbol') return true;
+    // an intermediate user alias of the constructor (`const S = Symbol`, `= globalThis.self.Symbol`,
+    // or a destructured `const { self: { Symbol: S } } = globalThis`) - babel's member-injection
+    // resolves such chains in place and folds the well-known-symbol read, so the mutation-free estree
+    // side must follow the same chain to keep the fold decision identical
+    return userAliasBindingResolvesToSymbol(peeled, scope, adapter, injector, seen, followDestructured);
   }
   return globalProxyMemberName({ node: peeled, scope, adapter, path: null }) === 'Symbol';
+}
+
+// follow a user alias binding to Symbol and re-resolve through this same conservative predicate.
+// two binding shapes: a SIMPLE alias (`const S = Symbol` / `= globalThis.self.Symbol`) recurses on
+// its init; a DESTRUCTURED alias (`const { self: { Symbol: S } } = globalThis`) resolves the pattern's
+// literal key-path off the proxy-global init. re-resolving preserves the shadow guard (`const S = Array`
+// lands on Array -> stays native). cycle-guarded by declaration node (const-alias cycles), reassignment bails.
+// `followDestructured` gates the destructured shape: babel's member-injection resolves a destructured
+// constructor alias ONLY when the CONSUMING destructure is defaulted (the default drives an in-place
+// inline); a non-defaulted consumer leaves it native, so the estree side follows only under the same
+// condition (a simple const-alias, which babel's hint propagation crosses regardless, is unconditional)
+function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured) {
+  const binding = adapter?.getBinding?.(scope, node.name, null);
+  const declarator = binding?.node?.type === 'VariableDeclarator' ? binding.node : binding?.path?.node;
+  if (declarator?.type !== 'VariableDeclarator' || !declarator.init) return false;
+  const declNode = binding.node ?? declarator;
+  if (seen?.has(declNode) || reassignmentBlocksGlobalResolve({ binding, adapter, path: null })) return false;
+  const next = new Set(seen).add(declNode);
+  const nextScope = binding.path?.scope ?? scope;
+  if (declarator.id?.type === 'Identifier') {
+    return aliasInitResolvesToSymbol(declarator.init, nextScope, adapter, injector, next, followDestructured);
+  }
+  if (!followDestructured) return false;
+  // descend array-wrap layers positionally (`const [{ Symbol: S }] = [globalThis]`): each ArrayPattern
+  // element binds the init element at the SAME index, so peel to the inner ObjectPattern + init element
+  // (mirrors resolveDestructuredGlobalName) before resolving the key-path off the proxy-global
+  let { id, init } = declarator;
+  while (id?.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
+    const idx = id.elements.findIndex(element => element && arrayWrapSlotBindsName(element, node.name));
+    if (idx === -1 || !init.elements[idx] || init.elements[idx].type === 'SpreadElement') return false;
+    id = id.elements[idx].type === 'AssignmentPattern' ? id.elements[idx].left : id.elements[idx];
+    init = init.elements[idx];
+  }
+  return destructuredGlobalKeyPathNamesSymbol(init, objectPatternLiteralKeyPath(id, node.name), nextScope, adapter);
+}
+
+// resolve a destructure key-path (`['self','Symbol']`) off a proxy-global init to the Symbol leaf,
+// mirroring globalProxyMemberName's chain walk: the root must be a proxy-global, every intermediate
+// hop must stay on the proxy-global surface (and be un-mutated), the leaf must name Symbol
+function destructuredGlobalKeyPathNamesSymbol(init, keyPath, scope, adapter) {
+  if (!keyPath?.length || !isProxyGlobalIdentifierNode({ node: peelProxyGlobalObject(init), scope, adapter, path: null })) return false;
+  for (let i = 0; i < keyPath.length - 1; i++) {
+    if (!POSSIBLE_GLOBAL_OBJECTS.has(keyPath[i]) || isMutatedGlobalSlot(adapter, keyPath[i])) return false;
+  }
+  const leaf = keyPath.at(-1);
+  return leaf === 'Symbol' && !isMutatedGlobalSlot(adapter, leaf);
 }
 
 // shadow guard for a body-extract Symbol.X destructure alias (`const { iterator } = Symbol`). the
@@ -598,35 +652,66 @@ export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter,
   // key path off the init and must not inherit the flat well-known-symbol fold)
   if (declarator.id?.type === 'ObjectPattern') {
     return !writes.length && patternBindsNameAtTopLevel(declarator.id, boundName)
-      && aliasInitResolvesToSymbol(declarator.init, scope, adapter, injector);
+      && aliasInitResolvesToSymbol(declarator.init, scope, adapter, injector, undefined,
+        topLevelPropertyDefaulted(declarator.id, boundName));
+  }
+  // babel INLINES a DEFAULTED symbol destructure (`const { iterator = fb } = Symbol`) to a plain
+  // `const iterator = _Symbol$iterator === void 0 ? fb : _Symbol$iterator` guard-ternary BEFORE this
+  // judge runs, so the ObjectPattern arm never sees it. the guarded value is the SPECIFIC well-known
+  // symbol import (not the Symbol ctor), so resolve the self-default guard down to that import and
+  // confirm its module is the source the registration already recorded - else the use stays native
+  // (missed polyfill on ie:11) while the mutation-free estree side folds
+  if (declarator.id?.type === 'Identifier' && declarator.id.name === boundName && declarator.init && !writes.length) {
+    const guardSlot = declarator.init.type === 'ConditionalExpression'
+      ? matchSelfDefaultTernarySlot(declarator.init, { isLocalUndefinedName: () => !!adapter?.getBinding?.(scope, 'undefined') })
+      : null;
+    const guarded = guardSlot === 'consequent' ? declarator.init.alternate
+      : guardSlot === 'alternate' ? declarator.init.consequent : declarator.init;
+    return guarded?.type === 'Identifier' && injector?.getPureImport?.(guarded.name)?.source === info.source;
   }
   // assignment form: `var X; ({ iterator: X } = Symbol)` - a bare declarator whose ONLY real
   // write is the aliasing destructure; resolving the write's RHS keeps the two parsers'
   // fold decisions identical (babel otherwise folds via its in-place polyfillHint while the
   // mutation-free estree side stayed native)
   if (declarator.init || writes.length !== 1) return false;
-  const rhs = assignmentAliasWriteRhs(writes[0], boundName);
-  return !!rhs && aliasInitResolvesToSymbol(rhs, scope, adapter, injector);
+  const assign = assignmentAliasWriteAssign(writes[0], boundName);
+  // an assignment-destructure alias follows the chain UNCONDITIONALLY: babel's hint propagation
+  // folds a well-known-symbol read off an assignment-destructured constructor regardless of a slot
+  // default, unlike a const-destructure (which babel resolves only when defaulted-inlined - the
+  // declarator arm above gates on that). matching babel keeps the two emitters' fold decisions identical
+  return !!assign && aliasInitResolvesToSymbol(assign.right, scope, adapter, injector, undefined, true);
 }
 
-// the RHS of an aliasing-destructure WRITE from either parser's violation shape: babel
-// records the AssignmentExpression itself, estree records the bound identifier inside the
-// LHS pattern - climb to the assignment and take its right side. anything but a plain `=`
-// into an object pattern (a for-x head rebind, a nested array wrap) stays null. `boundName`
-// must be a DIRECT top-level value of the LHS pattern - a nested binding reads a different key
-// path off the RHS, so inheriting the flat well-known-symbol fold would substitute a wrong value
-function assignmentAliasWriteRhs(violation, boundName) {
-  function rhsIfTopLevel(assign) {
+// does `pattern` bind `name` at its top level through an `= default` wrapper (`{ key: name = d }`)?
+// gates the destructured-alias chain-follow: babel resolves a destructured constructor alias only
+// when the CONSUMING slot is defaulted (see userAliasBindingResolvesToSymbol)
+function topLevelPropertyDefaulted(pattern, name) {
+  if (pattern?.type !== 'ObjectPattern') return false;
+  return (pattern.properties ?? []).some(prop => (prop.type === 'Property' || prop.type === 'ObjectProperty')
+    && prop.value?.type === 'AssignmentPattern' && prop.value.left?.type === 'Identifier' && prop.value.left.name === name);
+}
+
+// the aliasing-destructure WRITE assignment from either parser's violation shape: babel records the
+// AssignmentExpression itself, estree records the bound identifier inside the LHS pattern - climb to
+// the assignment. anything but a plain `=` into an object pattern (a for-x head rebind, a nested array
+// wrap) stays null. `boundName` must be a DIRECT top-level value of the LHS pattern - a nested binding
+// reads a different key path off the RHS, so inheriting the flat well-known-symbol fold would substitute
+// a wrong value. caller reads `.right` (the RHS to resolve) and `.left` (defaulted-slot gate)
+function assignmentAliasWriteAssign(violation, boundName) {
+  function assignIfTopLevel(assign) {
     return assign.operator === '=' && assign.left?.type === 'ObjectPattern'
-      && patternBindsNameAtTopLevel(assign.left, boundName) ? assign.right : null;
+      && patternBindsNameAtTopLevel(assign.left, boundName) ? assign : null;
   }
   const node = violation?.node ?? violation;
-  if (node?.type === 'AssignmentExpression') return rhsIfTopLevel(node);
+  if (node?.type === 'AssignmentExpression') return assignIfTopLevel(node);
   if (node?.type !== 'Identifier') return null;
+  // climb through the pattern layers estree records around the bound identifier; an
+  // AssignmentPattern is the `= default` wrapper on a defaulted slot (`{ iterator: X = fb } = S`)
+  // and must be crossed too, else the defaulted assignment-alias never reaches the assignment
   for (let p = violation?.parentPath; p; p = p.parentPath) {
     const type = p.node?.type;
-    if (type === 'AssignmentExpression') return rhsIfTopLevel(p.node);
-    if (type !== 'Property' && type !== 'ObjectProperty' && type !== 'ObjectPattern') return null;
+    if (type === 'AssignmentExpression') return assignIfTopLevel(p.node);
+    if (type !== 'Property' && type !== 'ObjectProperty' && type !== 'ObjectPattern' && type !== 'AssignmentPattern') return null;
   }
   return null;
 }
