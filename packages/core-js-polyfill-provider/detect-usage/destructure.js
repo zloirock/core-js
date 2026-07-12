@@ -1817,10 +1817,16 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
 // can the WHOLE init be discarded by a flatten? plain inits always; a fallback-logical only
 // when its left chain is unconditionally taken (`||` / `??` lefts down to a non-logical leaf -
 // no `&&` guard anywhere on the path: a guard can select its falsy LEFT, and that path's
-// native TypeError must survive the transform) and every dropped operand is pure
-export function fallbackInitWhollyDiscardable(initNode) {
+// native TypeError must survive the transform) and every dropped operand is pure.
+// `rescueReachable` is false inside a ternary BRANCH: a branch-buried effect (chain assignment,
+// sequence prefix, IIFE body) is conditional, and the top-level rescue / verbatim-keep machinery
+// would either run it unconditionally or drop it with the whole init - both unsound - so inside
+// a branch only effect-free value shapes are discardable
+export function fallbackInitWhollyDiscardable(initNode, rescueReachable = true) {
   while (true) {
-    const { tail } = peelNestedSequenceExpressions(initNode);
+    const { prefix, tail } = peelNestedSequenceExpressions(initNode);
+    if (!rescueReachable && (prefix.length
+      || (tail && tail.type !== 'ConditionalExpression' && mayHaveSideEffects(tail)))) return false;
     if (isChainAssignment(tail)) {
       // the assignment itself is rescued WHOLE, but the destructure READ of its value is what
       // the flatten discards - a guarded RHS keeps its falsy-path TypeError
@@ -1842,8 +1848,8 @@ export function fallbackInitWhollyDiscardable(initNode) {
       // a ternary is discardable only when the dropped test is pure and EACH branch is itself
       // wholly discardable - a guard inside a branch keeps its falsy-path TypeError
       return !mayHaveSideEffects(tail.test)
-        && fallbackInitWhollyDiscardable(tail.consequent)
-        && fallbackInitWhollyDiscardable(tail.alternate);
+        && fallbackInitWhollyDiscardable(tail.consequent, false)
+        && fallbackInitWhollyDiscardable(tail.alternate, false);
     }
     if (tail?.type !== 'LogicalExpression') return true;
     if (mayHaveSideEffects(tail)) return false;
@@ -1969,10 +1975,28 @@ export function resolveNestedDestructureReceiver(outerProp, adapter) {
 // receiver name only when it is a POSSIBLE_GLOBAL_OBJECTS alias. shared predicate, combined per
 // caller: the EMIT flatten plan requires it on BOTH ternary branches (agreement -> collapse to a
 // single polyfill binding), while the DETECTION accepts it on EITHER (a proxy on any reachable
-// branch makes the leaf a polyfill candidate; the mirror then renders per branch)
-export function resolveBranchProxyName({ branchNode, scope, adapter, path }) {
+// branch makes the leaf a polyfill candidate; the mirror then renders per branch).
+// `||` / `??` follow the LEFT operand; with `eitherLogicalOperand` (DETECTION only) a non-proxy
+// left falls back to the RIGHT - the runtime may yield either operand, so `m || globalThis`
+// buried in a ternary branch still marks the leaf. the EMIT plan keeps the strict left-only
+// walk: it collapses to a single binding, so a diverging `||` must stay native, not flatten
+export function resolveBranchProxyName({ branchNode, scope, adapter, path, eitherLogicalOperand = false }) {
   let branch = unwrapExpressionChain(branchNode);
-  while (branch?.type === 'LogicalExpression') {
+  while (branch) {
+    // a chain assignment evaluates to its RHS - DETECTION follows the value so the leaf is
+    // marked (usage-global injects; the pure mirror substitutes the raw global in place,
+    // keeping the assignment). the EMIT plan must NOT see through it: its flatten discards
+    // the init slot, and a branch-buried assignment is not harvested - agreement through a
+    // chain assignment would drop the write, so the strict walk bails to native instead
+    if (eitherLogicalOperand && isChainAssignment(branch)) {
+      branch = unwrapExpressionChain(branch.right);
+      continue;
+    }
+    if (branch.type !== 'LogicalExpression') break;
+    if (eitherLogicalOperand && branch.operator !== '&&') {
+      return resolveBranchProxyName({ branchNode: branch.left, scope, adapter, path, eitherLogicalOperand })
+        ?? resolveBranchProxyName({ branchNode: branch.right, scope, adapter, path, eitherLogicalOperand });
+    }
     branch = unwrapExpressionChain(branch.operator === '&&' ? branch.right : branch.left);
   }
   if (!branch) return null;
@@ -2117,8 +2141,11 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
         // polyfill candidate. the EMIT plan decides the shape - an all-proxy ternary flattens to
         // the polyfill binding (`buildNestedDestructurePlan` agreement), a diverging one mirrors
         // per branch (the proxy branch becomes the synth literal, a non-proxy branch stays native)
-        receiver = resolveBranchProxyName({ branchNode: init.consequent, scope: parent.scope, adapter, path: parent })
-          || resolveBranchProxyName({ branchNode: init.alternate, scope: parent.scope, adapter, path: parent });
+        receiver = resolveBranchProxyName({
+          branchNode: init.consequent, scope: parent.scope, adapter, path: parent, eitherLogicalOperand: true,
+        }) || resolveBranchProxyName({
+          branchNode: init.alternate, scope: parent.scope, adapter, path: parent, eitherLogicalOperand: true,
+        });
         if (!receiver) return null;
       } else {
         receiver = resolveObjectName({
