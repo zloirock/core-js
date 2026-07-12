@@ -345,3 +345,18 @@ QUnit.test('global-proxy: destructure pattern proxy hop peels (runs without self
   const { self: { Math: { PI: pi } } } = globalThis;
   assert.same(pi, Math.PI);
 });
+
+// a chain-assign optional subject whose VALUE is a proxy-hop navigation: the guard's memoized
+// root replaces the raw hop, and the tail's redundant trailing hop must be dropped - `self` /
+// `window` do not exist in Node, so an unpeeled re-read off the memo is a TypeError
+QUnit.test('global-proxy: chain-assign optional value hop tail drops (runs without self in Node)', assert => {
+  let q;
+  const flat = (q = globalThis.self)?.self.Array.prototype.flat;
+  assert.same(typeof flat, 'function');
+  assert.deepEqual(flat.call([1, [2]]), [1, 2]);
+  assert.same(q, globalThis);
+  let w;
+  const included = (w = globalThis.self)?.self.Array.prototype.includes.call([1, 2], 2);
+  assert.true(included);
+  assert.same(w, globalThis);
+});
