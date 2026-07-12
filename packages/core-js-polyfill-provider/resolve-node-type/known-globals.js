@@ -237,6 +237,9 @@ export function createKnownGlobals({
     const info = resolveGlobalMember(path);
     if (!info) return null;
     const { objectName, memberName } = info;
+    // a monkey-patched static holds whatever the patch assigned - drop the known narrow to generic,
+    // mirroring resolveKnownStaticReturnType's gate
+    if (isMutatedStatic(objectName, memberName)) return null;
     const propHint = lookupNested(KNOWN_STATIC_PROPERTY_RETURN_TYPES, objectName, memberName);
     if (propHint) return typeFromHint(propHint);
     return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, objectName, memberName) ? new $Object('Function') : null;

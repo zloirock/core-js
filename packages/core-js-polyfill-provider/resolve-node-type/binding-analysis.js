@@ -494,15 +494,17 @@ export function createBindingAnalysis({
     return 'leak';
   }
 
-  // known callees that RETURN their first argument. `Object.assign` / `defineProperty` also do,
-  // but their target slot is already a mutating-arg leak - only the non-mutating identity
-  // returners need the held-result check. `Reflect.setPrototypeOf` returns a boolean - excluded
-  const IDENTITY_RETURNING_STATIC_CALLEES = new Set([
-    'Object.freeze',
-    'Object.preventExtensions',
-    'Object.seal',
-    'Object.setPrototypeOf',
-  ]);
+  // known callees that RETURN their first argument, DERIVED from the static-return metadata (single
+  // source of truth). `Object.assign` / `defineProperty` also return arg 0 but ALSO mutate it, so
+  // their target slot is already a mutating-arg leak - only the non-mutating identity returners (no
+  // `mutatesArgument`) need the held-result check. `Reflect.setPrototypeOf` returns a boolean, so it
+  // carries no `returnsArgument` and is excluded by construction
+  const IDENTITY_RETURNING_STATIC_CALLEES = new Set();
+  for (const [ctor, methods] of Object.entries(KNOWN_STATIC_METHOD_RETURN_TYPES)) {
+    for (const [method, hint] of Object.entries(methods)) {
+      if (hint?.returnsArgument === 0 && !hint.mutatesArgument) IDENTITY_RETURNING_STATIC_CALLEES.add(`${ ctor }.${ method }`);
+    }
+  }
   function heldIdentityReturningResult(parent, refNode, refPath) {
     if (parent?.type !== 'CallExpression' && parent?.type !== 'OptionalCallExpression') return false;
     // `refNode` is the walker-peeled OUTERMOST wrapper - the argument node itself
@@ -794,7 +796,10 @@ export function createBindingAnalysis({
         if (kind === 'trivial') continue;
         if (kind === 'alias') {
           const aliasName = parent.id.name;
-          const aliasBinding = getScopeBinding(refContext.scope, aliasName, parent);
+          // 3rd arg is a use-PATH (drives rebuildLaggedScopeBinding / pathContainedBy recovery), not
+          // a node: `parent` is `refContext.parent` (a VariableDeclarator NODE) and defeats both
+          // recoveries -> over-bail. pass the reference PATH, mirroring the sibling site
+          const aliasBinding = getScopeBinding(refContext.scope, aliasName, refContext);
           if (!aliasBinding) return null;
           if (closure.has(aliasBinding)) continue;
           closure.set(aliasBinding, aliasName);

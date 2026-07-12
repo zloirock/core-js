@@ -336,8 +336,12 @@ export const RENAME_SKIP = Symbol('rename-skip');
 const nodePathInScopeCache = new WeakMap();
 export function nodePathInScope(targetNode, scope, types) {
   if (!targetNode) return null;
+  // a cached HIT is the node's one recovered path, but the lookup is still `types`-filtered: the
+  // same node queried under a narrower visitor-key set must miss (a ClassDeclaration cached for
+  // ['ClassDeclaration'] is not a match for ['FunctionDeclaration']), else the reject-guard callers
+  // rely on to exclude a wrong-kind leaf goes dead
   const cached = nodePathInScopeCache.get(targetNode);
-  if (cached) return cached;
+  if (cached) return types.includes(cached.node.type) ? cached : null;
   let cur = scope;
   while (cur?.parent) cur = cur.parent;
   const rootPath = cur?.path;
