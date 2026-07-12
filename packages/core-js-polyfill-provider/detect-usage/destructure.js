@@ -361,6 +361,11 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
   const wrapperPath = path.parentPath?.parentPath;
   const wrapperNode = wrapperPath?.node;
   let receiverNode = null;
+  // a call-site-sourced receiver (IIFE arg) evaluates AT THE CALL SITE - when the arg wins,
+  // the branch flatten below resolves it against the call-site scope/path, not the invoked
+  // function's inner scope (a param shadowing the arg's name would swallow the branches)
+  let receiverScope = null;
+  let receiverPath = null;
   if (wrapperNode?.type === 'AssignmentPattern' && wrapperPath.parentPath?.node
       && FN_NODE_TYPES.has(wrapperPath.parentPath.node.type)) {
     // AssignmentPattern is an IIFE param wrapper - prefer the call-arg over the default when it is a
@@ -371,6 +376,10 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     receiverNode = chooseFallbackReceiverNode({
       argNode: desc?.rhsNode, defaultNode: wrapperNode.right, objectPattern, scope: path.scope, adapter, path, resolvePure,
     });
+    if (desc?.callPath && receiverNode === desc.rhsNode) {
+      receiverScope = desc.callPath.scope;
+      receiverPath = desc.callPath;
+    }
   } else {
     const slot = destructureReceiverSlot(wrapperNode);
     if (slot) receiverNode = wrapperNode[slot];
@@ -379,6 +388,10 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
       // `findIifeCallSite` walks to the call, lifts call-arg at this param's index
       const desc = resolveFallbackReceiver(wrapperPath, objectPattern);
       receiverNode = desc?.rhsNode ?? null;
+      if (desc?.callPath && receiverNode) {
+        receiverScope = desc.callPath.scope;
+        receiverPath = desc.callPath;
+      }
     }
   }
   if (!receiverNode) return null;
@@ -388,7 +401,8 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     if (!branching) return null;
   }
   const out = flattenFallbackBranches({
-    node: branching, key: meta.key, scope: path.scope, adapter, path, followAliasLeaves: true,
+    node: branching, key: meta.key, scope: receiverScope ?? path.scope, adapter,
+    path: receiverPath ?? path, followAliasLeaves: true,
   });
   return out.length ? out : null;
 }
@@ -476,18 +490,38 @@ export function attachMemberUnionExtras(meta, options) {
 // patterns, array elements - bind from a per-element value, not a reassignable receiver alias,
 // and enumerate keys only); a per-branch fallback meta keeps its own mirror machinery and is
 // excluded here
-export function collectDestructureUnionCandidates({ meta, keyNode, computed, scope, adapter, path }) {
+export function collectDestructureUnionCandidates({ meta, keyNode, computed, scope, adapter, path, resolvePure = null }) {
   if (!meta || meta.kind !== 'property' || meta.fromFallback) return [];
   if (adapter.method !== 'usage-global') return [];
-  const host = path?.parentPath?.parentPath?.node;
-  const hostInitNode = host?.type === 'VariableDeclarator' ? host.init
-    : host?.type === 'AssignmentExpression' || host?.type === 'AssignmentPattern' ? host.right : null;
+  const hostPath = path?.parentPath?.parentPath;
+  const host = hostPath?.node;
+  let hostInitNode = host?.type === 'VariableDeclarator' ? host.init
+    : host?.type === 'AssignmentExpression' ? host.right : null;
+  // an AssignmentPattern host routes through the SAME receiver selection as the per-branch
+  // synth (`resolveFallbackReceiver` + caller-arg-wins): for an IIFE param-default the LIVE
+  // call-arg supersedes the dead default, so the union enumerates the arg's reachables -
+  // reading `host.right` structurally enumerated the dead default's instead
+  let unionScope = scope;
+  let unionPath = path;
+  if (host?.type === 'AssignmentPattern') {
+    const desc = resolveFallbackReceiver(hostPath.parentPath, host);
+    hostInitNode = chooseFallbackReceiverNode({
+      argNode: desc?.rhsNode, defaultNode: host.right, objectPattern: path.parentPath?.node,
+      scope, adapter, path, resolvePure,
+    });
+    // a winning call-arg's reachables resolve at the call site (same shadow hazard as the
+    // primary meta's resolution)
+    if (desc?.callPath && hostInitNode === desc.rhsNode) {
+      unionScope = desc.callPath.scope;
+      unionPath = desc.callPath;
+    }
+  }
   return collectMemberUnionCandidates({
     objectNode: hostInitNode,
     computedKeyNode: computed ? keyNode : null,
     primaryObject: meta.object ?? null,
     primaryKey: meta.key,
-    scope, adapter, path,
+    scope: unionScope, adapter, path: unionPath,
   });
 }
 
