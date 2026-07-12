@@ -1638,12 +1638,72 @@ function reassignmentValueNodesAt(node, ownerNode, bindingName, ctx) {
     if (node.left?.type === 'Identifier') return [node.right];
     return bindingName ? patternSlotValues(node.left, node.right, bindingName, ctx) : [];
   }
+  // a for-x HEAD rebinds the alias each iteration; parsers record it unevenly (babel: the
+  // ForXStatement or the init-less head declarator; estree: the LHS Identifier or nothing).
+  // a for-OF over an ARRAY LITERAL flows each element as a possible value; for-in keys and
+  // opaque / spread-bearing iterables enumerate nothing (the write still poisons cleanliness
+  // through the canonical write scan - only the VALUE union has nothing to add)
+  if (FOR_X_STATEMENT_TYPES.has(node.type)) return forXHeadValueNodes(node, bindingName, ctx);
+  if (node.type === 'VariableDeclarator' && !node.init) {
+    const forX = enclosingForXStatement(node, ownerNode);
+    return forX ? forXHeadValueNodes(forX, bindingName, ctx) : [];
+  }
   if (node.type !== 'Identifier') return [];
   const assignment = enclosingValueFlowAssignment(node, ownerNode);
-  if (!assignment) return [];
-  if (assignment.left === node) return [assignment.right];
-  return patternSlotValues(assignment.left, assignment.right, node.name, ctx);
+  if (assignment) {
+    if (assignment.left === node) return [assignment.right];
+    return patternSlotValues(assignment.left, assignment.right, node.name, ctx);
+  }
+  const forX = enclosingForXStatement(node, ownerNode);
+  return forX ? forXHeadValueNodes(forX, bindingName ?? node.name, ctx) : [];
 }
+
+function forXHeadValueNodes(forX, bindingName, ctx) {
+  if (forX.type !== 'ForOfStatement') return [];
+  // sequence wrappers are value-transparent (a sequence yields its tail): peel them off the
+  // iterable AND off each element, so `(eff(), [X])` and `[(eff(), X)]` both enumerate X -
+  // usage-global keeps the source text verbatim, so the peeled prefix effects are untouched
+  const rhs = peelNestedSequenceExpressions(unwrapRuntimeExpr(forX.right)).tail;
+  if (rhs?.type !== 'ArrayExpression' || !rhs.elements?.length) return [];
+  if (rhs.elements.some(e => e?.type === 'SpreadElement')) return [];
+  const elements = rhs.elements.filter(Boolean)
+    .map(e => peelNestedSequenceExpressions(unwrapRuntimeExpr(e)).tail);
+  let { left } = forX;
+  if (left?.type === 'VariableDeclaration') left = left.declarations?.[0]?.id ?? null;
+  if (left?.type === 'Identifier') return elements;
+  // a PATTERN head binds a slot of each element, not the element itself: pair the bound
+  // name's slot against every element so `for ([M] of [[Array]])` reaches Array
+  if ((left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') && bindingName) {
+    return elements.flatMap(el => patternSlotValues(left, el, bindingName, ctx));
+  }
+  return [];
+}
+
+// locate the for-x statement whose LEFT records this violation node (the head declarator,
+// or the LHS identifier - direct or inside a pattern). memoized like the assignment twin
+const enclosingForXStatement = memoizeByNodePair((node, ownerNode) => {
+  let found = null;
+  function visit(n) {
+    if (found || !isASTNode(n)) return;
+    if (FOR_X_STATEMENT_TYPES.has(n.type)) {
+      const { left } = n;
+      if (left === node
+        || (left?.type === 'VariableDeclaration' && left.declarations?.some(d => d === node || d.id === node))
+        || ((left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern')
+          && patternBindsIdentifier(left, id => id === node))) {
+        found = n;
+        return;
+      }
+    }
+    for (const value of Object.values(n)) {
+      if (found) return;
+      if (Array.isArray(value)) for (const v of value) visit(v);
+      else visit(value);
+    }
+  }
+  visit(ownerNode);
+  return found;
+});
 
 // estree-toolkit records the target Identifier - locate the enclosing value-flow assignment
 // whose LHS is (or contains, for patterns) this identifier. memoized by (identifier, owner):
@@ -1711,7 +1771,12 @@ export function withoutValuelessDeclarationViolations(violations) {
   if (!violations?.length) return violations;
   const filtered = violations.filter(v => {
     const node = v?.node ?? v;
-    if (node?.type === 'VariableDeclarator' && !node.init) return false;
+    // an init-less declarator whose declaration heads a for-x IS a real write (the loop
+    // assigns each iteration) - only the plain valueless self-record strips. mirrors the
+    // estree Identifier branch below; babel records the for-x head as the DECLARATOR, so
+    // the statement sits one level closer (declarator -> declaration -> for-x)
+    if (node?.type === 'VariableDeclarator' && !node.init
+      && !FOR_X_STATEMENT_TYPES.has(v?.parentPath?.parentPath?.node?.type)) return false;
     if (node?.type === 'Identifier') {
       const declarator = v?.parentPath?.node;
       if (declarator?.type === 'VariableDeclarator' && !declarator.init && declarator.id === node
@@ -1734,6 +1799,16 @@ export function isReassignedBeyondDeclarator(binding) {
 // identifier (estree), so babel and unplugin make the same poison decision for identical source
 export function isCleanDestructureAliasBinding(binding) {
   const own = binding?.path?.node ?? binding?.node;
+  // a `var` binding's violation record is parser-UNEVEN for for-x heads: babel records the
+  // init-less head declarator, estree records nothing at all - so the recorded-violation
+  // count alone under-poisons a rebound alias on the estree side. recover the canonical
+  // function-scope write set from the AST (it sees for-x heads on both parsers) and take
+  // the larger count; the recovered set excludes the binding's own declarator by identity
+  const aliasName = binding?.identifier?.name ?? binding?.name ?? null;
+  const canonicalWrites = binding?.kind === 'var' && binding?.path && aliasName
+    ? collectFunctionScopeVarReassignments(binding.path, aliasName)
+      .filter(node => node !== own && node !== own?.id).length
+    : 0;
   const writes = (withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [])
     // estree records a for-init declarator as a violation of ITSELF (the loop-reinit self,
     // same exclusion `reassignmentNodesBeyondDeclarator` applies) - for a DESTRUCTURING
@@ -1753,7 +1828,8 @@ export function isCleanDestructureAliasBinding(binding) {
       return true;
     })
     .length;
-  return writes === 0 || (writes === 1 && !binding.path?.node?.init);
+  const total = Math.max(writes, canonicalWrites);
+  return total === 0 || (total === 1 && !binding.path?.node?.init);
 }
 
 // the real reassignment site nodes (every violation other than the loop-reinit declarator-self).
