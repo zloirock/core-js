@@ -1,8 +1,8 @@
 // `[Symbol.iterator]` computed key paired with a NESTED ObjectPattern value (not a simple
-// binding identifier). the destructuring transform bails on the nested-value shape, but the
-// key must NOT be marked skipped before that bail - doing so suppressed the standalone
-// Symbol-Identifier visitor and silently dropped `_Symbol$iterator`. bailing before the skip
-// restores the `_Symbol$iterator` import for the in-key reference.
+// binding identifier) collapses to the get-iterator-method helper: the iterator method is
+// read once through the helper and the nested pattern destructures its `.call`. the symbol
+// polyfill must survive the nested-value shape - a raw static-symbol key read must not be
+// silently dropped from the emit.
 const obj = {};
 const { [Symbol.iterator]: { call: fn } } = obj;
 fn;
