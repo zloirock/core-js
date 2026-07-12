@@ -1,5 +1,8 @@
 import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.iterator.constructor";
@@ -20,15 +23,6 @@ import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
-import "core-js/modules/es.set.constructor";
-import "core-js/modules/es.set.species";
-import "core-js/modules/es.set.difference";
-import "core-js/modules/es.set.intersection";
-import "core-js/modules/es.set.is-disjoint-from";
-import "core-js/modules/es.set.is-subset-of";
-import "core-js/modules/es.set.is-superset-of";
-import "core-js/modules/es.set.symmetric-difference";
-import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/esnext.iterator.chunks";
 import "core-js/modules/esnext.iterator.includes";
@@ -64,21 +58,23 @@ const [{
 }] = wrapper2;
 export { from };
 
-// TWO wrapper levels: the innermost capture site wins, a write between the two wrapper
-// declarators still cannot block the captured leaf
-let capturedSet = globalThis.Set;
+// TWO wrapper levels: the capture walk resolves ONE wrapper level - a second level stays
+// raw on both emitters (bias-safe under-inject: only the constructor value-read group
+// appears, no static entry). the probe is a uniquely-attributable STATIC, so a future
+// depth-2 resolution would surface here as a new import
+let capturedPromise = globalThis.Promise;
 const w1 = [{
-  a: capturedSet
+  a: capturedPromise
 }];
-capturedSet = {};
+capturedPromise = {};
 const w2 = [{
   b: w1[0]
 }];
 const [{
   b: {
     a: {
-      union
+      withResolvers
     }
   }
 }] = [w2[0]];
-export { union };
+export { withResolvers };
