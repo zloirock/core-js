@@ -180,6 +180,21 @@ const D_PATTERNS = [
   { id: 'se-key-se-ternary',
     recv: '(log.push("se"), 1) ? Array.prototype : []', lhs: '{ [(log.push("k"), "at")]: m, other }',
     names: ['m', 'other'], observe: '[typeof m, typeof other]', strip: true },
+  // a USER DEFAULT on an instance leaf stays LIVE behind the `=== void 0` guard: on a FOREIGN
+  // receiver the dispatcher returns the (undefined) own property and the default fires WITH its
+  // effect, in per-prop order (the residual splits around the guard - the interleave pattern's
+  // effects log pins key/default alternation); on a TYPED receiver the polyfill wins and the
+  // default stays dead. foreign patterns observe the default value, so they are full-env only
+  { id: 'se-key-default-foreign',
+    recv: '{ q: 1 }', lhs: '{ [(log.push("k"), "at")]: a = (log.push("d"), "D") }',
+    names: ['a'], observe: 'a', strip: false },
+  { id: 'se-key-default-typed',
+    recv: 'Array.prototype', lhs: '{ [(log.push("k"), "flat")]: m = (log.push("dead"), 0) }',
+    names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'se-key-default-interleave',
+    recv: '{ q: 1 }',
+    lhs: '{ [(log.push("k1"), "findLast")]: x = (log.push("d1"), 1), [(log.push("k2"), "findLastIndex")]: y = (log.push("d2"), 2) }',
+    names: ['x', 'y'], observe: '[x, y]', strip: false },
   // a resolvable SE-free TAIL under an impure sequence prefix: hoisting the tail alone would reorder,
   // so the memo must capture the WHOLE init - a decliner drops the provision (import-set leg)
   { id: 'se-key-seq-se-tail',
